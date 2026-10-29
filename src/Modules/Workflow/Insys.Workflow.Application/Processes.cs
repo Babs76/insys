@@ -670,6 +670,65 @@ public sealed class DueDiligenceTasks(IProcessRepository processes, IProcessQuer
 }
 
 /// <summary>
+/// F006: a membership suspended for unpaid contributions reached the end of its notice, so a task on the built-in process
+/// HEALTH_ARREARS_TERMINATION about the membership (HEALTH_MEMBERSHIP), due in one business day, asks a person in the
+/// HEALTH_MEMBERSHIP queue whether to terminate it; termination is never automatic. Paid arrears close it. One task is open per membership.
+/// </summary>
+public sealed class HealthArrearsTerminationTasks(IProcessRepository processes, IProcessQueries queries, Contracts.IBusinessTime businessTime, ITenantContext tenant,
+    IClock clock, IAuditTrail audit) :
+    IIntegrationEventHandler<Health.Contracts.MembershipTerminationDue>,
+    IIntegrationEventHandler<Health.Contracts.MembershipArrearsCleared>
+{
+    public const string Queue = "HEALTH_MEMBERSHIP";
+
+    public async Task Handle(Health.Contracts.MembershipTerminationDue due, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (await Running(due.MembershipId, cancellationToken) is not [])
+        {
+            return;
+        }
+
+        var now = clock.UtcNow;
+        var deadline = await businessTime.Add(tenant.RequireTenantId(), null, now, "P1D", cancellationToken);
+        var process = ProcessInstance.StartProcess(Guid.CreateVersion7(), BuiltInProcesses.HealthArrearsTermination, Health.Contracts.HealthMembershipTasks.BusinessRefType,
+            due.MembershipId, _ => new TaskRouting(Queue, null, deadline), now);
+        processes.Add(process.Value);
+        audit.Record(new AuditEntry("WORKFLOW", "StartProcess", nameof(ProcessInstance), process.Value.Id.ToString(),
+            new Dictionary<string, string?>
+            {
+                ["process"] = $"{BuiltInProcesses.HealthArrearsTermination.ProcessCode}@{BuiltInProcesses.HealthArrearsTermination.Version}",
+                ["membership"] = due.MembershipId.ToString(),
+            }));
+    }
+
+    public async Task Handle(Health.Contracts.MembershipArrearsCleared cleared, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        var definition = BuiltInProcesses.HealthArrearsTermination;
+        foreach (var running in await Running(cleared.MembershipId, cancellationToken))
+        {
+            if (await processes.Get(running, cancellationToken) is not { OpenTask: { } task } process)
+            {
+                continue;
+            }
+
+            var completed = process.CompleteTask(task.Id, definition.States[^1], definition, new Dictionary<string, object?>(),
+                _ => new TaskRouting(Queue, null, clock.UtcNow), clock.UtcNow);
+            if (completed.IsFailure)
+            {
+                throw new InvalidOperationException($"The termination task of membership {cleared.MembershipId} cannot be closed: {completed.Error.Code}");
+            }
+
+            audit.Record(new AuditEntry("WORKFLOW", "CompleteTask", nameof(ProcessInstance), process.Id.ToString(),
+                new Dictionary<string, string?> { ["process"] = definition.ProcessCode, ["why"] = "ARREARS_PAID" }));
+        }
+    }
+
+    private async Task<IReadOnlyList<Guid>> Running(Guid membershipId, CancellationToken cancellationToken) =>
+        (await queries.List(Health.Contracts.HealthMembershipTasks.BusinessRefType, membershipId, null, 20, cancellationToken))
+        .Where(p => p.ProcessCode == BuiltInProcesses.HealthArrearsTermination.ProcessCode && p.Status == ProcessStatus.Running).Select(p => p.Id).ToList();
+}
+
+/// <summary>
 /// A zone and peril reached its aggregation alert level (GAP-051, F062 §1): a review task for the alert's target role,
 /// due in one business day, on the built-in process AGGREGATION_REVIEW about the zone and peril (AGGREGATION_ZONE). One
 /// task is open per zone and peril; later alerts while it is open add none. An alert without a target role opens none.

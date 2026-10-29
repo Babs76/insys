@@ -49,12 +49,15 @@ public sealed class CancellationReasonsAndRefundRules : StaticRecord<Cancellatio
 
     public decimal? Fee { get; set; }
 
+    public string? ShortPeriodScale { get; set; }
+
     public override void ApplyFields(CancellationReasonsAndRefundRulesInput input, IFieldProtector protector)
     {
         ReasonCode = input.ReasonCode!;
         Initiator = input.Initiator!;
         RefundBasis = input.RefundBasis!;
         Fee = input.Fee;
+        ShortPeriodScale = input.ShortPeriodScale;
     }
 }
 
@@ -74,6 +77,8 @@ public sealed record CancellationReasonsAndRefundRulesInput : StaticRecordInput
 
     public decimal? Fee { get; init; }
 
+    public string? ShortPeriodScale { get; init; }
+
     protected override void ValidateFields(StaticFieldErrors errors)
     {
         errors.Required("reasonCode", ReasonCode);
@@ -84,5 +89,6 @@ public sealed record CancellationReasonsAndRefundRulesInput : StaticRecordInput
         errors.Required("refundBasis", RefundBasis);
         errors.MaxLength("refundBasis", RefundBasis, 40);
         errors.OneOf("refundBasis", RefundBasis, ["PRO_RATA", "SHORT_PERIOD", "NONE"]);
+        errors.MaxLength("shortPeriodScale", ShortPeriodScale, 20);
     }
 }

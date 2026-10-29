@@ -160,6 +160,9 @@ public sealed record AdjudicationContext
 
     public required DateOnly MembershipStart { get; init; }
 
+    /// <summary>The membership's contributions are in arrears on the service date and it is not suspended: the claim is held (F006).</summary>
+    public bool HeldForArrears { get; init; }
+
     public bool MemberClaim { get; init; }
 
     public required PlanTerms Plan { get; init; }
@@ -338,8 +341,18 @@ public static class AdjudicationEngine
         return scope;
     }
 
+    /// <summary>The pend reason of a claim held while the membership's contributions are in arrears (F006).</summary>
+    public const string HeldForArrearsReason = "CONTRIBUTIONS_UNPAID";
+
     public static AdjudicationResult Adjudicate(AdjudicationContext context, IReadOnlyList<ClaimLineInput> lines)
     {
+        // F006: in grace the claim is held, not declined: every line pends until the contributions are paid or grace ends.
+        if (context.HeldForArrears)
+        {
+            return new AdjudicationResult(lines.OrderBy(l => l.LineNo)
+                .Select(l => new LineResult(l.LineNo, LineOutcome.Pend, HeldForArrearsReason, null, null, null, 0, 0, 0, 0, l.Claimed, null, null)).ToList(), [], []);
+        }
+
         var state = context.Accumulators.ToDictionary(a => a.Key, a => a.Value);
         var changes = new Dictionary<AccumulatorKey, AccumulatorChange>();
         var uses = new List<AuthorisationUse>();

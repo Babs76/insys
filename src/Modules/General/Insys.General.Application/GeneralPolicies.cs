@@ -268,7 +268,8 @@ public sealed class GeneralPolicies(IGeneralRepository general, IGeneralCodes co
 }
 
 public sealed record DueWork(IReadOnlyList<Guid> PoliciesToStart, IReadOnlyList<Guid> PoliciesToExpire, IReadOnlyList<Guid> QuotesToExpire,
-    IReadOnlyList<Guid> PoliciesToInvite, IReadOnlyList<Guid> PoliciesToRenew, IReadOnlyList<RenewalReminder>? RenewalReminders = null);
+    IReadOnlyList<Guid> PoliciesToInvite, IReadOnlyList<Guid> PoliciesToRenew, IReadOnlyList<RenewalReminder>? RenewalReminders = null,
+    IReadOnlyList<Guid>? PoliciesPastGrace = null);
 
 /// <summary>A renewal reminder due today: the policy, and how many days before its period ends (OQ-089).</summary>
 public sealed record RenewalReminder(Guid PolicyId, int DaysBefore);
@@ -302,6 +303,9 @@ public enum DueAction
     ExpirePolicy,
     ExpireQuote,
     InviteRenewal,
+
+    /// <summary>Grace ended with instalments unpaid (F006): cancel for non-payment with the grace rule's reason.</summary>
+    CancelForNonPayment,
 }
 
 /// <summary>The day's exposure snapshot (general.exposure_snapshot), for reinsurance aggregation.</summary>
@@ -332,7 +336,8 @@ internal sealed class FindDueWorkHandler(IGeneralRepository general, IGeneralCod
         }
 
         return new DueWork(await general.PoliciesToStart(query.Day, query.Limit, cancellationToken), await general.PoliciesToExpire(query.Day, query.Limit, cancellationToken),
-            await general.QuotesToExpire(query.Day, query.Limit, cancellationToken), invite, renew, remind);
+            await general.QuotesToExpire(query.Day, query.Limit, cancellationToken), invite, renew, remind,
+            await general.PoliciesPastGrace(query.Day, query.Limit, cancellationToken));
     }
 }
 
@@ -385,6 +390,17 @@ internal sealed class RunDueHandler(IGeneralRepository general, IGeneralCodes co
                 if (await general.Policy(command.Id, cancellationToken) is not { } policy)
                 {
                     return false;
+                }
+
+                if (command.Action == DueAction.CancelForNonPayment)
+                {
+                    // F006: grace ended unpaid. The grace rule names the reason, and its refund rule applies.
+                    result = await codes.GraceTerms(policy.ProductCode, policy.BillingFrequency ?? "", command.Day, cancellationToken) is { } grace
+                             && await codes.CancellationRule(grace.CancellationReason, command.Day, cancellationToken) is { } cancellation
+                        ? policy.CancelForNonPayment(cancellation, command.Day, clock.UtcNow)
+                        : BuildingBlocks.Domain.Error.Validation(Domain.GeneralErrorCodes.CodeNotInForce,
+                            $"{policy.ProductCode} has no grace rule, or its cancellation reason, in force for {policy.BillingFrequency}.");
+                    break;
                 }
 
                 if (command.Action == DueAction.InviteRenewal)

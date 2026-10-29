@@ -92,6 +92,18 @@ public interface IHealthRepository
 
     Task<IReadOnlyList<Guid>> MembershipsToActivate(DateOnly day, int limit, CancellationToken cancellationToken);
 
+    /// <summary>Active or suspended memberships billed on the account (Billing's ArrearsDetected names the account).</summary>
+    Task<IReadOnlyList<Guid>> MembershipsOnAccount(Guid billingAccountRef, CancellationToken cancellationToken);
+
+    /// <summary>Active memberships with contributions still unpaid on their suspension day (F006).</summary>
+    Task<IReadOnlyList<Guid>> MembershipsToSuspendForArrears(DateOnly day, int limit, CancellationToken cancellationToken);
+
+    /// <summary>Memberships suspended for arrears whose termination notice has run out, not yet raised (F006).</summary>
+    Task<IReadOnlyList<Guid>> MembershipsTerminationDue(DateOnly day, int limit, CancellationToken cancellationToken);
+
+    /// <summary>Claims held for arrears (F006): those to release (the arrears were paid) and those to decline (suspended for them).</summary>
+    Task<(IReadOnlyList<Guid> Release, IReadOnlyList<Guid> Decline)> HeldClaims(int limit, CancellationToken cancellationToken);
+
     Task<IReadOnlyList<Guid>> SchemesToActivate(DateOnly day, int limit, CancellationToken cancellationToken);
 
     void Add(HealthScheme scheme);
@@ -145,6 +157,9 @@ public interface IHealthCodes
     Task<PlanDefinition?> Plan(string planCode, string optionCode, DateOnly day, CancellationToken cancellationToken);
 
     Task<SchemeCategory?> SchemeCategory(string categoryCode, DateOnly day, CancellationToken cancellationToken);
+
+    /// <summary>The contribution grace for the scheme (its own rule, else the rule naming no scheme), in force on the day (F006); null when none.</summary>
+    Task<Domain.Members.ContributionGrace?> ContributionGrace(string? schemeNumber, DateOnly day, CancellationToken cancellationToken);
 
     /// <summary>Whether the service type is one the tenant offers, in force on the day (health.cfg_service_types, V0094).</summary>
     Task<bool> ServiceTypeInForce(string serviceType, DateOnly day, CancellationToken cancellationToken);

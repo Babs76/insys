@@ -1053,6 +1053,123 @@
      "sample": "CONSULTATION"
     }
    ]
+  },
+  {
+   "layer": "Insurance Domains · General",
+   "module": "Policy administration",
+   "subModule": "Premium management",
+   "entity": "Grace period rules",
+   "table": "general.cfg_grace_period_rules",
+   "class": "CFG",
+   "scope": "T",
+   "tier": 2,
+   "proposedOwner": "General Product Manager",
+   "provenance": "Wave 4 addendum (addenda/renewals-and-retention.md), signed off by Ade, 29 October 2026",
+   "basis": "F006; addendum §4.1",
+   "fields": [
+    {
+     "name": "product_code",
+     "logicalType": "Ref Product",
+     "mandatory": true,
+     "sample": "GEN-MOTOR-PV"
+    },
+    {
+     "name": "frequency",
+     "logicalType": "Ref BillingFrequency",
+     "mandatory": true,
+     "sample": "MONTHLY"
+    },
+    {
+     "name": "grace_days",
+     "logicalType": "Integer",
+     "mandatory": true,
+     "sample": "15"
+    },
+    {
+     "name": "cover_during_grace",
+     "logicalType": "Boolean",
+     "mandatory": true,
+     "sample": "true"
+    },
+    {
+     "name": "cancellation_reason",
+     "logicalType": "Code(15)",
+     "mandatory": true,
+     "sample": "NON_PAYMENT"
+    }
+   ]
+  },
+  {
+   "layer": "Insurance Domains · General",
+   "module": "Policy administration",
+   "subModule": "Premium management",
+   "entity": "Short-period scales",
+   "table": "general.cfg_short_period_scales",
+   "class": "CFG",
+   "scope": "T",
+   "tier": 2,
+   "proposedOwner": "General Product Manager",
+   "provenance": "Wave 4 addendum (addenda/renewals-and-retention.md), signed off by Ade, 29 October 2026 (OQ-133: the tenant's own bands, no platform default)",
+   "basis": "F007; addendum §4.1",
+   "fields": [
+    {
+     "name": "scale_code",
+     "logicalType": "Code(20)",
+     "mandatory": true,
+     "sample": "SP-STD"
+    },
+    {
+     "name": "days_in_force_to",
+     "logicalType": "Integer",
+     "mandatory": true,
+     "sample": "30"
+    },
+    {
+     "name": "percent_retained",
+     "logicalType": "Decimal(5,2)",
+     "mandatory": true,
+     "sample": "25.00"
+    }
+   ]
+  },
+  {
+   "layer": "Insurance Domains · Health",
+   "module": "Membership and eligibility",
+   "subModule": "Contributions",
+   "entity": "Contribution grace rules",
+   "table": "health.cfg_contribution_grace_rules",
+   "class": "CFG",
+   "scope": "T",
+   "tier": 2,
+   "proposedOwner": "Health Product Manager",
+   "provenance": "Wave 4 addendum (addenda/renewals-and-retention.md), signed off by Ade, 29 October 2026",
+   "basis": "F006; addendum §4.1",
+   "fields": [
+    {
+     "name": "scheme",
+     "logicalType": "Ref Scheme",
+     "mandatory": false,
+     "sample": "HS-0042-01"
+    },
+    {
+     "name": "grace_days",
+     "logicalType": "Integer",
+     "mandatory": true,
+     "sample": "3"
+    },
+    {
+     "name": "suspend_after_days",
+     "logicalType": "Integer",
+     "mandatory": true,
+     "sample": "30"
+    },
+    {
+     "name": "terminate_notice_days",
+     "logicalType": "Integer",
+     "mandatory": true,
+     "sample": "30"
+    }
+   ]
   }
  ]
 }

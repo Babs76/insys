@@ -127,6 +127,14 @@ internal sealed class GeneralRepository(GeneralDbContext db, IExecutionContext e
         await db.Policies.AsNoTracking().Where(p => p.Status == PolicyStatus.InForce && p.PeriodEnd < day).OrderBy(p => p.Id).Select(p => p.Id).Take(limit)
             .ToListAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<Guid>> PoliciesPastGrace(DateOnly day, int limit, CancellationToken cancellationToken) =>
+        await db.Policies.AsNoTracking().Where(p => p.Status == PolicyStatus.InForce && p.GraceUntil != null && p.GraceUntil < day && p.ArrearsCount > 0)
+            .OrderBy(p => p.Id).Select(p => p.Id).Take(limit).ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<Guid>> PoliciesOnAccount(Guid billingAccountRef, CancellationToken cancellationToken) =>
+        await db.Policies.AsNoTracking().Where(p => p.BillingAccountRef == billingAccountRef && p.Status == PolicyStatus.InForce).Select(p => p.Id)
+            .ToListAsync(cancellationToken);
+
     public async Task<IReadOnlyList<Guid>> PoliciesToInvite(string productCode, DateOnly lastPeriodEnd, int limit, CancellationToken cancellationToken) =>
         await db.Policies.AsNoTracking().Where(p => p.ProductCode == productCode && p.Status == PolicyStatus.InForce && p.RenewalInvitedOn == null
                                                     && p.PeriodEnd <= lastPeriodEnd)
@@ -298,9 +306,23 @@ internal sealed class GeneralCodes(GeneralDbContext db) : IGeneralCodes
         (await InForce<PolicyNumberingSchemes>(day).ToListAsync(cancellationToken))
         .Where(s => s.ProductLine.Equals("GENERAL", StringComparison.OrdinalIgnoreCase)).Select(s => s.Prefix).FirstOrDefault();
 
-    public async Task<CancellationRule?> CancellationRule(string reasonCode, DateOnly day, CancellationToken cancellationToken) =>
-        await InForce<CancellationReasonsAndRefundRules>(day).Where(r => r.ReasonCode == reasonCode)
-            .Select(r => new CancellationRule(r.ReasonCode, r.Initiator, r.RefundBasis, r.Fee ?? 0)).FirstOrDefaultAsync(cancellationToken);
+    public async Task<CancellationRule?> CancellationRule(string reasonCode, DateOnly day, CancellationToken cancellationToken)
+    {
+        if (await InForce<CancellationReasonsAndRefundRules>(day).Where(r => r.ReasonCode == reasonCode).FirstOrDefaultAsync(cancellationToken) is not { } reason)
+        {
+            return null;
+        }
+
+        var scale = reason.ShortPeriodScale is { } scaleCode
+            ? await InForce<ShortPeriodScales>(day).Where(b => b.ScaleCode == scaleCode).Select(b => new ShortPeriodBand(b.DaysInForceTo, b.PercentRetained))
+                .ToListAsync(cancellationToken)
+            : null;
+        return new CancellationRule(reason.ReasonCode, reason.Initiator, reason.RefundBasis, reason.Fee ?? 0, scale);
+    }
+
+    public async Task<GraceTerms?> GraceTerms(string productCode, string frequency, DateOnly day, CancellationToken cancellationToken) =>
+        await InForce<GracePeriodRules>(day).Where(r => r.ProductCode == productCode && r.Frequency == frequency)
+            .Select(r => new GraceTerms(r.GraceDays, r.CoverDuringGrace, r.CancellationReason)).FirstOrDefaultAsync(cancellationToken);
 
     public async Task<EndorsementType?> EndorsementType(string code, DateOnly day, CancellationToken cancellationToken) =>
         await InForce<EndorsementTypes>(day).Where(t => t.Code == code)
@@ -396,6 +418,21 @@ internal sealed class GeneralEventMapper : IDomainEventMapper
         GeneralPolicyCancelled e => new Contracts.GeneralPolicyCancelled(e.PolicyId, e.PolicyNumber, e.ReasonCode, e.EffectiveDate, e.RefundAmount, e.Currency, e.ProductCode,
             e.ProductVersion),
         GeneralPolicyReinstated e => new Contracts.GeneralPolicyReinstated(e.PolicyId, e.PolicyNumber),
+        // F006, Wave 4 addition 1: the grace notice and the non-payment cancellation notice, to the policyholder.
+        GeneralPolicyEnteredGrace e => new Communications.Contracts.NotificationRequested(Communications.Contracts.NotificationTypes.GraceNotice, e.PolicyholderPartyId,
+            "GENERAL_POLICY", e.PolicyId, new Dictionary<string, string>
+            {
+                ["policy_number"] = e.PolicyNumber, ["product_code"] = e.ProductCode, ["unpaid_since"] = e.ArrearsSince.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+                ["grace_until"] = e.GraceUntil.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+                ["cover_ends_on"] = e.CoverEndsOn.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+            }, e.ProductCode, e.OrgNodeCode),
+        GeneralPolicyCancelledForNonPayment e => new Communications.Contracts.NotificationRequested(Communications.Contracts.NotificationTypes.NonPaymentCancellation,
+            e.PolicyholderPartyId, "GENERAL_POLICY", e.PolicyId, new Dictionary<string, string>
+            {
+                ["policy_number"] = e.PolicyNumber, ["product_code"] = e.ProductCode,
+                ["cancelled_from"] = e.EffectiveDate.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+                ["refund_amount"] = e.RefundAmount.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture), ["currency"] = e.Currency,
+            }, e.ProductCode, e.OrgNodeCode),
         GeneralEndorsementApproved e => new Contracts.GeneralEndorsementApproved(e.EndorsementId, e.PolicyId, e.ApprovalId),
         EndorsementSubmitted e => new BuildingBlocks.Contracts.Approvals.ApprovalRequested(Contracts.GeneralApprovals.EndorsementBusinessRefType, e.EndorsementId,
             Contracts.GeneralApprovals.EndorsementApprovalType, e.RequestedBy, Math.Abs(e.PremiumDelta), e.Currency,

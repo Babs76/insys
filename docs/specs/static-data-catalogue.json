@@ -5736,6 +5736,12 @@
      "logicalType": "Money",
      "mandatory": false,
      "sample": "0.00"
+    },
+    {
+     "name": "short_period_scale",
+     "logicalType": "Code(20)",
+     "mandatory": false,
+     "sample": "SP-STD"
     }
    ]
   },

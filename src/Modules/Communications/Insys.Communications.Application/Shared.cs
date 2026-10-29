@@ -122,6 +122,9 @@ public static partial class MergeFields
         [NotificationTypes.CaseUpdate] = Triggers.CaseMergeFields.All,
         [NotificationTypes.CaseDecision] = Triggers.CaseMergeFields.All,
         [NotificationTypes.ClaimDecisionRights] = ClaimDecisionRightsFields.All,
+        [NotificationTypes.GraceNotice] = ["policy_number", "product_code", "unpaid_since", "grace_until", "cover_ends_on"],
+        [NotificationTypes.NonPaymentCancellation] = ["policy_number", "product_code", "cancelled_from", "refund_amount", "currency"],
+        [NotificationTypes.ContributionSuspension] = ["member_number", "suspended_from", "notice_ends"],
     };
 
     /// <summary>Whether the type is one the platform triggers (a service notice); any other is a tenant's marketing type.</summary>

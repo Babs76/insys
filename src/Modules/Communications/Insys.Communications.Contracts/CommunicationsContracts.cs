@@ -82,6 +82,15 @@ public static class NotificationTypes
     /// requests it (NotificationRequested); the period and contact wording are the tenant's template.
     /// </summary>
     public const string ClaimDecisionRights = "CLAIM_DECISION_RIGHTS";
+
+    /// <summary>A General policy entered grace for a missed instalment: cover ends on a date unless paid (F006, Wave 4 addition 1).</summary>
+    public const string GraceNotice = "GRACE_NOTICE";
+
+    /// <summary>A General policy was cancelled for non-payment when its grace ended unpaid (F006, Wave 4 addition 1).</summary>
+    public const string NonPaymentCancellation = "NON_PAYMENT_CANCELLATION";
+
+    /// <summary>A Health membership was suspended for unpaid contributions, with the date the notice before termination ends (F006).</summary>
+    public const string ContributionSuspension = "CONTRIBUTION_SUSPENSION";
 }
 
 /// <summary>

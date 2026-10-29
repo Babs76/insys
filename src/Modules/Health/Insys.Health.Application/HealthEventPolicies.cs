@@ -210,7 +210,9 @@ public sealed class HealthEventPolicies(IHealthRepository health, BenefitContext
     }
 }
 
-public sealed record HealthDueWork(IReadOnlyList<Guid> AuthorisationsToExpire, IReadOnlyList<Guid> MembershipsToActivate, IReadOnlyList<Guid> SchemesToActivate);
+public sealed record HealthDueWork(IReadOnlyList<Guid> AuthorisationsToExpire, IReadOnlyList<Guid> MembershipsToActivate, IReadOnlyList<Guid> SchemesToActivate,
+    IReadOnlyList<Guid>? MembershipsToSuspend = null, IReadOnlyList<Guid>? TerminationsDue = null, IReadOnlyList<Guid>? HeldClaimsToRelease = null,
+    IReadOnlyList<Guid>? HeldClaimsToDecline = null);
 
 public sealed record FindHealthDueWork(DateOnly Day, int Limit) : IQuery<HealthDueWork>;
 
@@ -232,24 +234,53 @@ public enum HealthDueAction
     ExpireAuthorisation,
     ActivateMembership,
     ActivateScheme,
+
+    /// <summary>F006: contributions still unpaid on the suspension day.</summary>
+    SuspendForArrears,
+
+    /// <summary>F006: the termination notice ran out; Workflow asks a person.</summary>
+    RaiseTerminationDue,
+
+    /// <summary>F006: a claim held for arrears, declined once the membership is suspended for them.</summary>
+    DeclineHeldClaim,
 }
 
 public sealed record RunHealthDue(Guid Id, HealthDueAction Action, DateOnly Day) : ICommand<bool>;
 
 internal sealed class FindHealthDueWorkHandler(IHealthRepository health) : IQueryHandler<FindHealthDueWork, HealthDueWork>
 {
-    public async Task<Result<HealthDueWork>> Handle(FindHealthDueWork query, CancellationToken cancellationToken) =>
-        new HealthDueWork(await health.PreauthorisationsToExpire(query.Day, query.Limit, cancellationToken),
-            await health.MembershipsToActivate(query.Day, query.Limit, cancellationToken), await health.SchemesToActivate(query.Day, query.Limit, cancellationToken));
+    public async Task<Result<HealthDueWork>> Handle(FindHealthDueWork query, CancellationToken cancellationToken)
+    {
+        var (release, decline) = await health.HeldClaims(query.Limit, cancellationToken);
+        return new HealthDueWork(await health.PreauthorisationsToExpire(query.Day, query.Limit, cancellationToken),
+            await health.MembershipsToActivate(query.Day, query.Limit, cancellationToken), await health.SchemesToActivate(query.Day, query.Limit, cancellationToken),
+            await health.MembershipsToSuspendForArrears(query.Day, query.Limit, cancellationToken), await health.MembershipsTerminationDue(query.Day, query.Limit, cancellationToken),
+            release, decline);
+    }
 }
 
 /// <summary>Transitions "Validity ends" (HLT-005: authorisations expire automatically) and "Start date reached".</summary>
-internal sealed class RunHealthDueHandler(IHealthRepository health, IClock clock) : ICommandHandler<RunHealthDue, bool>
+internal sealed class RunHealthDueHandler(IHealthRepository health, IHealthCodes codes, IClock clock) : ICommandHandler<RunHealthDue, bool>
 {
+    /// <summary>The reason a claim held for arrears is declined with once the membership is suspended for them (F006).</summary>
+    public const string ArrearsDeclineReason = "CONTRIBUTIONS_ARREARS";
+
     public async Task<Result<bool>> Handle(RunHealthDue command, CancellationToken cancellationToken)
     {
         var result = command.Action switch
         {
+            HealthDueAction.SuspendForArrears => await health.Membership(command.Id, cancellationToken) is { } member
+                ? await codes.ContributionGrace(member.SchemeId is { } schemeId && await health.Scheme(schemeId, cancellationToken) is { } scheme ? scheme.SchemeNumber : null,
+                    command.Day, cancellationToken) is { } grace
+                    ? member.SuspendForArrears(grace, command.Day, clock.UtcNow)
+                    : Error.Validation(Domain.HealthErrorCodes.CodeNotInForce, $"No contribution grace rule is in force for membership {member.MemberNumber}.")
+                : Result.Success(),
+            HealthDueAction.RaiseTerminationDue => await health.Membership(command.Id, cancellationToken) is { } due
+                ? due.RaiseTerminationDue(command.Day, clock.UtcNow)
+                : Result.Success(),
+            HealthDueAction.DeclineHeldClaim => await health.Claim(command.Id, cancellationToken) is { Status: Domain.Care.MedicalClaimStatus.Pended } claim
+                ? claim.RejectClaim(ArrearsDeclineReason, clock.UtcNow)
+                : Result.Success(),
             HealthDueAction.ExpireAuthorisation => await health.Preauthorisation(command.Id, cancellationToken) is { } preauth
                 ? preauth.Expire(command.Day, clock.UtcNow)
                 : Result.Success(),

@@ -85,6 +85,9 @@ public static class HealthInfrastructure
         services.AddIntegrationEventHandler<PreauthorisationReservationsChanged, HealthEventPolicies, HealthDbContext>(schema, "ReservationsChanged");
         services.AddIntegrationEventHandler<MedicalClaimAdjudicated, HealthEventPolicies, HealthDbContext>(schema, "MedicalClaimAdjudicated");
         services.AddIntegrationEventHandler<ApprovalGranted, HealthEventPolicies, HealthDbContext>(schema, "ApprovalGranted");
+        // F006: grace for contributions.
+        services.AddIntegrationEventHandler<Billing.Contracts.ArrearsDetected, HealthGrace, HealthDbContext>(schema, "Grace.ArrearsDetected");
+        services.AddIntegrationEventHandler<Billing.Contracts.InvoiceSettled, HealthGrace, HealthDbContext>(schema, "Grace.InvoiceSettled");
         services.AddIntegrationEventHandler<ApprovalRejected, HealthEventPolicies, HealthDbContext>(schema, "ApprovalRejected");
         services.AddIntegrationEventHandler<ProviderPaymentRunReleased, HealthEventPolicies, HealthDbContext>(schema, "ProviderPaymentRunReleased");
         services.AddIntegrationEventHandler<PaymentSucceeded, HealthEventPolicies, HealthDbContext>(schema, "PaymentSucceeded");
@@ -117,10 +120,17 @@ public static class HealthInfrastructure
             {
                 missing.Add("health.cfg_service_types");
             }
+
+            // F006 (Wave 4): contributions in arrears need a grace rule (a scheme's own, or one naming no scheme).
+            if (await BuildingBlocks.Infrastructure.Readiness.ReadinessSql.Count(connection, transaction, $"SELECT count(*) FROM health.cfg_contribution_grace_rules WHERE tenant_id = @t AND {BuildingBlocks.Infrastructure.Readiness.ReadinessSql.InForce}", ct,
+                    ("t", context.TenantId), ("inForce", BuildingBlocks.Infrastructure.StaticData.StaticLifecycle.Configuration.InForce), ("day", context.Day)) == 0)
+            {
+                missing.Add("health.cfg_contribution_grace_rules");
+            }
             }
 
             return [BuildingBlocks.Application.ReadinessResult.Of("DOMAIN_REFERENCE_DATA", "DOMAIN_CODES",
-                "Each domain the tenant sets up has its own reference data: Life claim and benefit types, General cancellation reasons, Health plans and service types", missing)];
+                "Each domain the tenant sets up has its own reference data: Life claim and benefit types, General cancellation reasons, Health plans, service types and contribution grace", missing)];
         });
         return services;
     }
@@ -169,9 +179,14 @@ public sealed class HealthJobs(IServiceScopeFactory scopes, ITenantDirectory ten
                 work = found.Value;
             }
 
+            done += await ReleaseHeldClaims(tenantId, work.HeldClaimsToRelease ?? [], cancellationToken);
+
             foreach (var (id, action) in work.AuthorisationsToExpire.Select(id => (id, HealthDueAction.ExpireAuthorisation))
                          .Concat(work.MembershipsToActivate.Select(id => (id, HealthDueAction.ActivateMembership)))
-                         .Concat(work.SchemesToActivate.Select(id => (id, HealthDueAction.ActivateScheme))))
+                         .Concat(work.SchemesToActivate.Select(id => (id, HealthDueAction.ActivateScheme)))
+                         .Concat((work.MembershipsToSuspend ?? []).Select(id => (id, HealthDueAction.SuspendForArrears)))
+                         .Concat((work.TerminationsDue ?? []).Select(id => (id, HealthDueAction.RaiseTerminationDue)))
+                         .Concat((work.HeldClaimsToDecline ?? []).Select(id => (id, HealthDueAction.DeclineHeldClaim))))
             {
                 await using var scope = Scope(tenantId);
                 var result = await scope.ServiceProvider.GetRequiredService<IDispatcher>().Send(new RunHealthDue(id, action, day), cancellationToken);
@@ -183,6 +198,27 @@ public sealed class HealthJobs(IServiceScopeFactory scopes, ITenantDirectory ten
                 {
                     logger.LogWarning("Health job {Action} on {Id} failed: {Code}", action, id, result.Error.Code);
                 }
+            }
+        }
+
+        return done;
+    }
+
+    /// <summary>F006: claims held for arrears that were paid are adjudicated again, each in its own transaction.</summary>
+    private async Task<int> ReleaseHeldClaims(Guid tenantId, IReadOnlyList<Guid> claims, CancellationToken cancellationToken)
+    {
+        var done = 0;
+        foreach (var id in claims)
+        {
+            await using var scope = Scope(tenantId);
+            var released = await scope.ServiceProvider.GetRequiredService<IDispatcher>().Send(new ReviewPendedClaim(id, []), cancellationToken);
+            if (released.IsSuccess)
+            {
+                done++;
+            }
+            else
+            {
+                logger.LogWarning("Health job release of held claim {Id} failed: {Code}", id, released.Error.Code);
             }
         }
 

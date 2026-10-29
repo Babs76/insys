@@ -99,6 +99,20 @@ public sealed record MembershipProductAssigned(Guid MembershipId, string MemberN
 public sealed record HealthMemberStatusChanged(Guid MembershipId, string MemberNumber, string Status, DateOnly EffectiveDate, decimal? MonthlyContribution,
     decimal? EmployerContribution = null) : IIntegrationEvent;
 
+/// <summary>A membership suspended for unpaid contributions reached the end of its notice (F006): Workflow asks a person whether to terminate it.</summary>
+[IntegrationEvent("health.MembershipTerminationDue")]
+public sealed record MembershipTerminationDue(Guid MembershipId, string MemberNumber, DateOnly ArrearsSince) : IIntegrationEvent;
+
+/// <summary>A membership's contributions in arrears were paid (F006): any termination task is closed.</summary>
+[IntegrationEvent("health.MembershipArrearsCleared")]
+public sealed record MembershipArrearsCleared(Guid MembershipId, string MemberNumber) : IIntegrationEvent;
+
+/// <summary>The Workflow reference for a membership's tasks.</summary>
+public static class HealthMembershipTasks
+{
+    public const string BusinessRefType = "HEALTH_MEMBERSHIP";
+}
+
 [IntegrationEvent("health.DependantAdded")]
 public sealed record DependantAdded(Guid MembershipId, string MemberNumber, Guid DependantId, Guid PartyId, string Suffix, DateOnly StartDate, decimal? MonthlyContribution,
     decimal? EmployerContribution = null) : IIntegrationEvent;

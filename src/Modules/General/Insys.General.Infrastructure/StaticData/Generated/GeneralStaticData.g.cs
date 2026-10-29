@@ -34,7 +34,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Insys.General.Infrastructure.StaticData;
 
-/// <summary>The 41 static data tables owned by the General module.</summary>
+/// <summary>The 43 static data tables owned by the General module.</summary>
 public static class GeneralStaticData
 {
     public static readonly IReadOnlyList<StaticDataDescriptor> Descriptors =
@@ -46,6 +46,7 @@ public static class GeneralStaticData
         new("general", "cfg_endorsement_types", "cfg_endorsement_types", "Endorsement types", "general", "endorsement-types", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(EndorsementTypes), typeof(EndorsementTypesInput), "D · General Policy Administration"),
         new("general", "cfg_exposure_extract_layouts", "cfg_exposure_extract_layouts", "Exposure extract layouts", "general", "exposure-extract-layouts", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(ExposureExtractLayouts), typeof(ExposureExtractLayoutsInput), "K · General Reinsurance and Actuarial Interfaces"),
         new("general", "cfg_extension_and_condition_library", "cfg_extension_and_condition_library", "Extension and condition library", "general", "extension-and-condition-library", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(ExtensionAndConditionLibrary), typeof(ExtensionAndConditionLibraryInput), "E · Coverage Management"),
+        new("general", "cfg_grace_period_rules", "cfg_grace_period_rules", "Grace period rules", "general", "grace-period-rules", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(GracePeriodRules), typeof(GracePeriodRulesInput), "Policy administration"),
         new("general", "cfg_indemnity_period_options", "cfg_indemnity_period_options", "Indemnity period options", "general", "indemnity-period-options", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(IndemnityPeriodOptions), typeof(IndemnityPeriodOptionsInput), "G · Property Insurance"),
         new("general", "cfg_package_section_definitions", "cfg_package_section_definitions", "Package section definitions", "general", "package-section-definitions", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(PackageSectionDefinitions), typeof(PackageSectionDefinitionsInput), "I · Commercial Insurance"),
         new("general", "cfg_policy_numbering_schemes", "cfg_policy_numbering_schemes", "Policy numbering schemes", "general", "policy-numbering-schemes", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(PolicyNumberingSchemes), typeof(PolicyNumberingSchemesInput), "D · General Policy Administration"),
@@ -54,6 +55,7 @@ public static class GeneralStaticData
         new("general", "cfg_renewal_rules", "cfg_renewal_rules", "Renewal rules", "general", "renewal-rules", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(RenewalRules), typeof(RenewalRulesInput), "D · General Policy Administration"),
         new("general", "cfg_risk_object_types_and_attribute_schemas", "cfg_risk_object_types_and_attri_e6795ca1", "Risk object types and attribute schemas", "general", "risk-object-types-and-attribute-schemas", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(RiskObjectTypesAndAttributeSchemas), typeof(RiskObjectTypesAndAttributeSchemasInput), "C · Risk Object Management"),
         new("general", "cfg_settlement_authority_limits", "cfg_settlement_authority_limits", "Settlement authority limits", "general", "settlement-authority-limits", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(SettlementAuthorityLimits), typeof(SettlementAuthorityLimitsInput), "J · General Claims"),
+        new("general", "cfg_short_period_scales", "cfg_short_period_scales", "Short-period scales", "general", "short-period-scales", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(ShortPeriodScales), typeof(ShortPeriodScalesInput), "Policy administration"),
         new("general", "cfg_special_conditions_and_clause_library", "cfg_special_conditions_and_clau_b5e85bf7", "Special conditions and clause library", "general", "special-conditions-and-clause-library", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(SpecialConditionsAndClauseLibrary), typeof(SpecialConditionsAndClauseLibraryInput), "B · General Underwriting"),
         new("general", "mst_adjuster_and_surveyor_panels", "mst_adjuster_and_surveyor_panels", "Adjuster and surveyor panels", "general", "adjuster-and-surveyor-panels", StaticScope.T, 2, StaticLifecycle.Reference, typeof(AdjusterAndSurveyorPanels), typeof(AdjusterAndSurveyorPanelsInput), "J · General Claims"),
         new("general", "mst_catastrophe_event_register", "mst_catastrophe_event_register", "Catastrophe event register", "general", "catastrophe-event-register", StaticScope.T, 2, StaticLifecycle.Reference, typeof(CatastropheEventRegister), typeof(CatastropheEventRegisterInput), "J · General Claims"),
@@ -112,6 +114,7 @@ public static class GeneralStaticData
             entity.Property(x => x.Initiator).HasColumnName("initiator").HasMaxLength(40);
             entity.Property(x => x.RefundBasis).HasColumnName("refund_basis").HasMaxLength(40);
             entity.Property(x => x.Fee).HasColumnName("fee").HasPrecision(18, 2);
+            entity.Property(x => x.ShortPeriodScale).HasColumnName("short_period_scale").HasMaxLength(20);
         });
         modelBuilder.Entity<ClaimPartyRoles>(entity =>
         {
@@ -143,6 +146,16 @@ public static class GeneralStaticData
             entity.Property(x => x.Name).HasColumnName("name").HasMaxLength(100);
             entity.Property(x => x.WordingRef).HasColumnName("wording_ref").HasMaxLength(80);
             entity.Property(x => x.PremiumImpact).HasColumnName("premium_impact").HasPrecision(18, 2);
+        });
+        modelBuilder.Entity<GracePeriodRules>(entity =>
+        {
+            entity.ToTable("cfg_grace_period_rules", "general");
+            StaticModel.ConfigureCommon(entity);
+            entity.Property(x => x.ProductCode).HasColumnName("product_code").HasMaxLength(80);
+            entity.Property(x => x.Frequency).HasColumnName("frequency").HasMaxLength(20);
+            entity.Property(x => x.GraceDays).HasColumnName("grace_days");
+            entity.Property(x => x.CoverDuringGrace).HasColumnName("cover_during_grace");
+            entity.Property(x => x.CancellationReason).HasColumnName("cancellation_reason").HasMaxLength(15);
         });
         modelBuilder.Entity<IndemnityPeriodOptions>(entity =>
         {
@@ -212,6 +225,14 @@ public static class GeneralStaticData
             entity.Property(x => x.Role).HasColumnName("role").HasMaxLength(80);
             entity.Property(x => x.Line).HasColumnName("line").HasMaxLength(40);
             entity.Property(x => x.LimitValue).HasColumnName("limit_value").HasPrecision(18, 2);
+        });
+        modelBuilder.Entity<ShortPeriodScales>(entity =>
+        {
+            entity.ToTable("cfg_short_period_scales", "general");
+            StaticModel.ConfigureCommon(entity);
+            entity.Property(x => x.ScaleCode).HasColumnName("scale_code").HasMaxLength(20);
+            entity.Property(x => x.DaysInForceTo).HasColumnName("days_in_force_to");
+            entity.Property(x => x.PercentRetained).HasColumnName("percent_retained").HasPrecision(5, 2);
         });
         modelBuilder.Entity<SpecialConditionsAndClauseLibrary>(entity =>
         {

@@ -53,8 +53,25 @@ public enum PolicyTrigger
 /// <summary>How the policy is billed: the account, payer, frequency and collection method.</summary>
 public sealed record BillingArrangement(Guid BillingAccountRef, Guid PayerPartyId, string Frequency, string CollectionMethod);
 
-/// <summary>A cancellation reason and its refund rule (general.cfg_cancellation_reasons_and_refund_rules, GEN-004).</summary>
-public sealed record CancellationRule(string ReasonCode, string Initiator, string RefundBasis, decimal Fee);
+/// <summary>
+/// A cancellation reason and its refund rule (general.cfg_cancellation_reasons_and_refund_rules, GEN-004). A SHORT_PERIOD
+/// reason carries its scale's bands (general.cfg_short_period_scales, OQ-133); none means the scale is not configured.
+/// </summary>
+public sealed record CancellationRule(string ReasonCode, string Initiator, string RefundBasis, decimal Fee, IReadOnlyList<ShortPeriodBand>? Scale = null);
+
+/// <summary>A band of a short-period scale: for a policy in force up to <paramref name="DaysInForceTo"/> days, the insurer keeps this per cent of the annual premium.</summary>
+public sealed record ShortPeriodBand(int DaysInForceTo, decimal PercentRetained);
+
+/// <summary>A product's grace for a billing frequency (general.cfg_grace_period_rules, F006): its days, whether cover continues, and the reason it cancels with when unpaid.</summary>
+public sealed record GraceTerms(int GraceDays, bool CoverDuringGrace, string CancellationReason);
+
+/// <summary>A missed instalment started grace (F006): the policyholder is told cover ends on <paramref name="CoverEndsOn"/> unless paid (Wave 4 addition 1).</summary>
+public sealed record GeneralPolicyEnteredGrace(Guid PolicyId, string PolicyNumber, string ProductCode, Guid PolicyholderPartyId, DateOnly ArrearsSince, DateOnly GraceUntil,
+    DateOnly CoverEndsOn, bool CoverDuringGrace, string? OrgNodeCode, DateTimeOffset OccurredAt) : IDomainEvent;
+
+/// <summary>Grace ended unpaid and the policy was cancelled for non-payment (F006): the policyholder is told (Wave 4 addition 1).</summary>
+public sealed record GeneralPolicyCancelledForNonPayment(Guid PolicyId, string PolicyNumber, string ProductCode, Guid PolicyholderPartyId, DateOnly EffectiveDate,
+    decimal RefundAmount, string Currency, string? OrgNodeCode, DateTimeOffset OccurredAt) : IDomainEvent;
 
 public sealed record GeneralPolicyIssued(Guid PolicyId, string PolicyNumber, string ProductCode, int ProductVersion, Guid PolicyholderPartyId, BillingArrangement Billing,
     string Currency, decimal AnnualPremium, DateOnly PeriodStart, DateOnly PeriodEnd, Guid? RenewalOfId, decimal SumInsured, DateTimeOffset OccurredAt, string? OrgNodeCode = null,
@@ -213,7 +230,7 @@ public sealed class Cancellation : Entity<Guid>, ITenantScoped
 
     public long RowVersion { get; private set; }
 
-    internal static Cancellation Create(Guid policyId, CancellationRule rule, DateOnly effectiveDate, decimal refund, Guid by, DateTimeOffset now) => new()
+    internal static Cancellation Create(Guid policyId, CancellationRule rule, DateOnly effectiveDate, decimal refund, Guid? by, DateTimeOffset now) => new()
     {
         Id = Guid.CreateVersion7(), PolicyId = policyId, ReasonCode = rule.ReasonCode, EffectiveDate = effectiveDate, RefundAmount = refund, RefundBasis = rule.RefundBasis,
         Fee = rule.Fee, CancelledBy = by, CancelledAt = now,
@@ -300,6 +317,18 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
 
     /// <summary>The day the first premium was paid in full, for cover that starts on first payment.</summary>
     public DateOnly? FirstPaidOn { get; private set; }
+
+    /// <summary>The first instalment still unpaid past its due date (Billing, BR-103); null when none is.</summary>
+    public DateOnly? ArrearsSince { get; private set; }
+
+    /// <summary>How many instalments are unpaid past their due date.</summary>
+    public int ArrearsCount { get; private set; }
+
+    /// <summary>The last day of grace for the unpaid instalments (F006); cancelled for non-payment after it if still unpaid.</summary>
+    public DateOnly? GraceUntil { get; private set; }
+
+    /// <summary>Whether the product keeps cover in grace for the policy's frequency; null while not in grace.</summary>
+    public bool? CoverDuringGrace { get; private set; }
 
     /// <summary>Days of cover in the period: its end date is the last day of cover (OQ-059).</summary>
     public int PeriodDays => PeriodEnd.DayNumber - PeriodStart.DayNumber + 1;
@@ -468,7 +497,7 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
     /// the effective date to the end of the period, both included. TODO(spec): the short-period scale is not specified
     /// (OQ-059).
     /// </summary>
-    public Result CancelPolicy(CancellationRule rule, DateOnly effectiveDate, Guid cancelledBy, DateTimeOffset now)
+    public Result CancelPolicy(CancellationRule rule, DateOnly effectiveDate, Guid? cancelledBy, DateTimeOffset now)
     {
         if (effectiveDate < PeriodStart || effectiveDate > PeriodEnd)
         {
@@ -492,6 +521,15 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
             case "NONE":
                 refund = 0;
                 break;
+            case "SHORT_PERIOD" when rule.Scale is { Count: > 0 } scale:
+                // F007, OQ-133: the insurer keeps the scale's per cent of the annual premium for the days in force (the
+                // period start to the day before the effective date); the first band covering them applies, and past the
+                // last band it keeps it all. Never below zero, less the reason's fee.
+                var inForce = effectiveDate.DayNumber - PeriodStart.DayNumber;
+                var retainedPct = scale.OrderBy(b => b.DaysInForceTo).FirstOrDefault(b => inForce <= b.DaysInForceTo)?.PercentRetained ?? 100m;
+                var retained = Math.Round(AnnualPremium * retainedPct / 100m, 2, MidpointRounding.AwayFromZero);
+                refund = Math.Max(0, AnnualPremium - retained - rule.Fee);
+                break;
             default:
                 return Error.Validation(GeneralErrorCodes.RuleNotSpecified, $"The {rule.RefundBasis} refund basis has no scale configured.");
         }
@@ -501,9 +539,90 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
         {
             _cancellations.Add(Cancellation.Create(Id, rule, effectiveDate, refund, cancelledBy, now));
             Raise(new GeneralPolicyCancelled(Id, PolicyNumber, rule.ReasonCode, effectiveDate, refund, Currency, ProductCode, ProductVersion, now));
+            ClearArrears();
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Command RecordMissedPremium (F006): the instalments Billing finds unpaid past their due date, as of its detection date
+    /// (BR-103). The first starts grace for the product's days, from the oldest unpaid due date, and tells the policyholder
+    /// when cover ends unless paid; a later instalment missed in the same grace changes nothing but the count. None left (a
+    /// payment in grace) clears it. Only a policy in force has grace.
+    /// </summary>
+    public Result RecordArrears(int overdueInstalments, DateOnly? oldestDue, GraceTerms grace, DateTimeOffset now)
+    {
+        if (Status != PolicyStatus.InForce)
+        {
+            return Result.Success();
+        }
+
+        if (overdueInstalments <= 0 || oldestDue is not { } since)
+        {
+            if (ArrearsSince is not null)
+            {
+                ClearArrears();
+                MarkChanged();
+            }
+
+            return Result.Success();
+        }
+
+        if (ArrearsSince == since)
+        {
+            if (ArrearsCount != overdueInstalments)
+            {
+                ArrearsCount = overdueInstalments;
+                MarkChanged();
+            }
+
+            return Result.Success();
+        }
+
+        // A new grace: the first missed instalment, or an earlier one paid and a later one now the oldest unpaid.
+        ArrearsSince = since;
+        ArrearsCount = overdueInstalments;
+        GraceUntil = since.AddDays(grace.GraceDays);
+        CoverDuringGrace = grace.CoverDuringGrace;
+        MarkChanged();
+        var coverEnds = grace.CoverDuringGrace ? GraceUntil.Value : since.AddDays(-1);
+        Raise(new GeneralPolicyEnteredGrace(Id, PolicyNumber, ProductCode, PolicyholderPartyId, since, GraceUntil.Value, coverEnds, grace.CoverDuringGrace, OrgNodeCode, now));
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// Command CancelForNonPayment (F006): grace has ended with instalments still unpaid, so the policy is cancelled from the
+    /// first unpaid instalment's due date (the day after the last paid period) with the grace rule's reason and its refund
+    /// rule, and the policyholder is told.
+    /// </summary>
+    public Result CancelForNonPayment(CancellationRule rule, DateOnly today, DateTimeOffset now)
+    {
+        if (Status != PolicyStatus.InForce || GraceUntil is not { } graceUntil || graceUntil >= today || ArrearsSince is not { } since)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, $"Policy {PolicyNumber} is not past its grace ({GraceUntil:yyyy-MM-dd}) with instalments unpaid.");
+        }
+
+        var effective = since < PeriodStart ? PeriodStart : since;
+        var cancelled = CancelPolicy(rule, effective, null, now); // by the daily job, not a person
+        if (cancelled.IsSuccess)
+        {
+            var refund = CancellationInEffect!.RefundAmount;
+            Raise(new GeneralPolicyCancelledForNonPayment(Id, PolicyNumber, ProductCode, PolicyholderPartyId, effective, refund, Currency, OrgNodeCode, now));
+        }
+
+        return cancelled;
+    }
+
+    /// <summary>Whether a loss on the day falls in grace with no cover in it: the claim waits until the arrears are paid (F006, addendum §5).</summary>
+    public bool UncoveredInGrace(DateOnly lossDate) => ArrearsSince is { } since && CoverDuringGrace == false && lossDate >= since;
+
+    private void ClearArrears()
+    {
+        ArrearsSince = null;
+        ArrearsCount = 0;
+        GraceUntil = null;
+        CoverDuringGrace = null;
     }
 
     /// <summary>
@@ -543,6 +662,12 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
         if (CancellationInEffect is { } cancelled && lossDate >= cancelled.EffectiveDate)
         {
             return Error.Validation(GeneralErrorCodes.NotCovered, $"Policy {PolicyNumber} was cancelled from {cancelled.EffectiveDate:yyyy-MM-dd}.");
+        }
+
+        if (UncoveredInGrace(lossDate))
+        {
+            return Error.Conflict(GeneralErrorCodes.PolicyInGrace,
+                $"Policy {PolicyNumber} is in grace with instalments unpaid since {ArrearsSince:yyyy-MM-dd}; a loss from then is covered once they are paid.");
         }
 
         var risks = _risks.Where(r => r.AttachedOn(lossDate) && (riskObjectId is null || r.RiskObjectId == riskObjectId)).ToList();

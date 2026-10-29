@@ -101,6 +101,9 @@ public static class GeneralInfrastructure
         services.AddIntegrationEventHandler<GeneralPolicyIssued, GeneralPolicies, GeneralDbContext>(schema, "GeneralPolicyIssued");
         services.AddIntegrationEventHandler<AssessorAppointed, GeneralPolicies, GeneralDbContext>(schema, "AssessorAppointed");
         services.AddIntegrationEventHandler<InvoiceSettled, GeneralPolicies, GeneralDbContext>(schema, "InvoiceSettled");
+        // F006: grace for General instalments.
+        services.AddIntegrationEventHandler<Billing.Contracts.ArrearsDetected, GeneralGrace, GeneralDbContext>(schema, "Grace.ArrearsDetected");
+        services.AddIntegrationEventHandler<InvoiceSettled, GeneralGrace, GeneralDbContext>(schema, "Grace.InvoiceSettled");
         services.AddOptions<GeneralJobOptions>().BindConfiguration("General:Jobs");
         services.AddOptions<AggregationOptions>().BindConfiguration("General:Aggregation");
         services.AddSingleton<GeneralJobs>();
@@ -126,10 +129,23 @@ public static class GeneralInfrastructure
             {
                 missing.Add("general.cfg_cancellation_reasons_and_refund_rules");
             }
+
+            // F006, F007 (Wave 4): a grace rule for each product and frequency on sale, and a scale for each short-period reason.
+            static string InForce(string a) => $"{a}.record_status = ANY(@inForce) AND {a}.effective_from <= @day AND ({a}.effective_to IS NULL OR {a}.effective_to > @day)";
+            missing.AddRange(await BuildingBlocks.Infrastructure.Readiness.ReadinessSql.Strings(connection, transaction, $"""
+                SELECT DISTINCT 'general.cfg_grace_period_rules: ' || f.product_code || ' ' || f.frequency FROM general.cfg_product_billing_frequencies f
+                WHERE f.tenant_id = @t AND {InForce("f")} AND NOT EXISTS (SELECT 1 FROM general.cfg_grace_period_rules g
+                  WHERE g.tenant_id = @t AND {InForce("g")} AND g.product_code = f.product_code AND g.frequency = f.frequency)
+                UNION
+                SELECT DISTINCT 'general.cfg_short_period_scales: ' || r.reason_code FROM general.cfg_cancellation_reasons_and_refund_rules r
+                WHERE r.tenant_id = @t AND {InForce("r")} AND r.refund_basis = 'SHORT_PERIOD' AND NOT EXISTS (SELECT 1 FROM general.cfg_short_period_scales b
+                  WHERE b.tenant_id = @t AND {InForce("b")} AND b.scale_code = r.short_period_scale)
+                ORDER BY 1
+                """, ct, ("t", context.TenantId), ("inForce", BuildingBlocks.Infrastructure.StaticData.StaticLifecycle.Configuration.InForce), ("day", context.Day)));
             }
 
             return [BuildingBlocks.Application.ReadinessResult.Of("DOMAIN_REFERENCE_DATA", "DOMAIN_CODES",
-                "Each domain the tenant sets up has its own reference data: Life claim and benefit types, General cancellation reasons, Health plans", missing)];
+                "Each domain the tenant sets up has its own reference data: Life claim and benefit types, General cancellation reasons, grace rules and short-period scales, Health plans", missing)];
         });
         return services;
     }
@@ -205,7 +221,8 @@ public sealed class GeneralJobs(IServiceScopeFactory scopes, ITenantDirectory te
             foreach (var (id, action) in work.PoliciesToStart.Select(id => (id, DueAction.StartPeriod))
                          .Concat(work.PoliciesToInvite.Select(id => (id, DueAction.InviteRenewal)))
                          .Concat(work.PoliciesToExpire.Select(id => (id, DueAction.ExpirePolicy)))
-                         .Concat(work.QuotesToExpire.Select(id => (id, DueAction.ExpireQuote))))
+                         .Concat(work.QuotesToExpire.Select(id => (id, DueAction.ExpireQuote)))
+                         .Concat((work.PoliciesPastGrace ?? []).Select(id => (id, DueAction.CancelForNonPayment))))
             {
                 await using var scope = Scope(tenantId);
                 var result = await scope.ServiceProvider.GetRequiredService<IDispatcher>().Send(new RunDue(id, action, day), cancellationToken);

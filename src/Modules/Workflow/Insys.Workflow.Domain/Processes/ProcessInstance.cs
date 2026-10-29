@@ -130,9 +130,13 @@ public static class BuiltInProcesses
     public static readonly ProcessDefinition DueDiligenceReview = new("DUE_DILIGENCE_REVIEW", 1, ["REVIEW_DUE_DILIGENCE", "REVIEWED"],
         [new TransitionDefinition("REVIEW_DUE_DILIGENCE", "REVIEWED", null)], null);
 
+    /// <summary>A membership suspended for unpaid contributions reached the end of its notice (F006): a person decides whether to terminate it.</summary>
+    public static readonly ProcessDefinition HealthArrearsTermination = new("HEALTH_ARREARS_TERMINATION", 1, ["DECIDE_TERMINATION", "DECIDED"],
+        [new TransitionDefinition("DECIDE_TERMINATION", "DECIDED", null)], null);
+
     public static ProcessDefinition? Find(string processCode, int? version) =>
         new[] { ParkedDelivery, ConfigurationReview, HeldClaimPayment, PartyMatchReview, AggregationReview, ApprovalFollowUp, GeneralReferral, DueDiligenceHitReview,
-            DueDiligenceSanctionsMatch, DueDiligenceReview }.FirstOrDefault(d => d.ProcessCode == processCode && (version is null || version == d.Version));
+            DueDiligenceSanctionsMatch, DueDiligenceReview, HealthArrearsTermination }.FirstOrDefault(d => d.ProcessCode == processCode && (version is null || version == d.Version));
 }
 
 /// <summary>Where a new task goes and when it is due: from the task type, queue and SLA definitions in force.</summary>

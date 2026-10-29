@@ -154,7 +154,7 @@ public sealed class BenefitContexts(IHealthRepository health, IHealthCodes codes
         var context = new AdjudicationContext
         {
             ClaimId = claimId, ServiceDate = serviceDate, PatientPartyId = patientPartyId, PrincipalPartyId = membership.PrincipalPartyId,
-            MembershipStart = membership.StartDate, MemberClaim = memberClaim, Plan = plan.Terms, Provider = network, OutOfNetworkTreatment = rules.OutOfNetworkTreatment,
+            MembershipStart = membership.StartDate, HeldForArrears = membership.HeldForArrears(serviceDate), MemberClaim = memberClaim, Plan = plan.Terms, Provider = network, OutOfNetworkTreatment = rules.OutOfNetworkTreatment,
             Tariffs = await codes.Tariffs(schedules, tariffCodes, serviceDate, cancellationToken), Modifiers = rules.Modifiers, Mappings = rules.Mappings, CodeSystems = codeSystems,
             CostShares = rules.CostShares, ScheduleLimits = rules.ScheduleLimits, LimitDefinitions = rules.LimitDefinitions,
             Exclusions = (await exclusions.InForce(tenant.RequireTenantId(), null, serviceDate, cancellationToken))

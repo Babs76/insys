@@ -92,6 +92,12 @@ public interface IGeneralRepository
 
     Task<IReadOnlyList<Guid>> PoliciesToExpire(DateOnly day, int limit, CancellationToken cancellationToken);
 
+    /// <summary>Policies in force whose grace ended before the day with instalments still unpaid (F006): cancelled for non-payment.</summary>
+    Task<IReadOnlyList<Guid>> PoliciesPastGrace(DateOnly day, int limit, CancellationToken cancellationToken);
+
+    /// <summary>The policies billed on a billing account (Billing's ArrearsDetected names the account).</summary>
+    Task<IReadOnlyList<Guid>> PoliciesOnAccount(Guid billingAccountRef, CancellationToken cancellationToken);
+
     Task<IReadOnlyList<Guid>> QuotesToExpire(DateOnly day, int limit, CancellationToken cancellationToken);
 
     /// <summary>Policies of a product in force, not yet invited to renew, whose period ends on or before the date.</summary>
@@ -179,7 +185,11 @@ public interface IGeneralCodes
     /// <summary>The policy number prefix (general.cfg_policy_numbering_schemes, product line General).</summary>
     Task<string?> PolicyNumberPrefix(DateOnly day, CancellationToken cancellationToken);
 
+    /// <summary>The reason's refund rule, with its short-period scale's bands when it names one (OQ-133).</summary>
     Task<CancellationRule?> CancellationRule(string reasonCode, DateOnly day, CancellationToken cancellationToken);
+
+    /// <summary>The product's grace for a billing frequency (general.cfg_grace_period_rules, F006); null when none is in force.</summary>
+    Task<GraceTerms?> GraceTerms(string productCode, string frequency, DateOnly day, CancellationToken cancellationToken);
 
     Task<EndorsementType?> EndorsementType(string code, DateOnly day, CancellationToken cancellationToken);
 

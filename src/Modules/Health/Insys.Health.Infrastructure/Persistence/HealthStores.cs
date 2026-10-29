@@ -176,6 +176,30 @@ internal sealed class HealthRepository(HealthDbContext db, IExecutionContext exe
         await db.Preauthorisations.AsNoTracking().Where(p => (p.Status == PreauthStatus.Approved || p.Status == PreauthStatus.ConditionallyApproved) && p.ValidTo < day).OrderBy(p => p.Id).Select(p => p.Id).Take(limit)
             .ToListAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<Guid>> MembershipsOnAccount(Guid billingAccountRef, CancellationToken cancellationToken) =>
+        await db.Memberships.AsNoTracking().Where(m => m.BillingAccountRef == billingAccountRef && (m.Status == MembershipStatus.Active || m.Status == MembershipStatus.Suspended))
+            .Select(m => m.Id).ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<Guid>> MembershipsToSuspendForArrears(DateOnly day, int limit, CancellationToken cancellationToken) =>
+        await db.Memberships.AsNoTracking().Where(m => m.Status == MembershipStatus.Active && m.ArrearsSince != null && m.SuspendOn <= day)
+            .OrderBy(m => m.Id).Select(m => m.Id).Take(limit).ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<Guid>> MembershipsTerminationDue(DateOnly day, int limit, CancellationToken cancellationToken) =>
+        await db.Memberships.AsNoTracking().Where(m => m.Status == MembershipStatus.Suspended && m.SuspendedForArrearsOn != null && m.TerminationNoticeEnds < day
+                                                       && !m.TerminationDueRaised)
+            .OrderBy(m => m.Id).Select(m => m.Id).Take(limit).ToListAsync(cancellationToken);
+
+    public async Task<(IReadOnlyList<Guid> Release, IReadOnlyList<Guid> Decline)> HeldClaims(int limit, CancellationToken cancellationToken)
+    {
+        var held = await (from c in db.Claims.AsNoTracking()
+                          join m in db.Memberships.AsNoTracking() on c.MembershipId equals m.Id
+                          where c.Status == MedicalClaimStatus.Pended && c.PendReason == AdjudicationEngine.HeldForArrearsReason
+                          orderby c.Id
+                          select new { c.Id, c.ServiceDate, m.ArrearsSince, m.SuspendedForArrearsOn }).Take(limit).ToListAsync(cancellationToken);
+        return (held.Where(h => h.ArrearsSince is null || h.ServiceDate < h.ArrearsSince).Select(h => h.Id).ToList(),
+            held.Where(h => h.SuspendedForArrearsOn is not null && h.ArrearsSince is not null && h.ServiceDate >= h.ArrearsSince).Select(h => h.Id).ToList());
+    }
+
     public async Task<IReadOnlyList<Guid>> MembershipsToActivate(DateOnly day, int limit, CancellationToken cancellationToken) =>
         await db.Memberships.AsNoTracking().Where(m => m.Status == MembershipStatus.Pending && m.StartDate <= day).OrderBy(m => m.Id).Select(m => m.Id).Take(limit)
             .ToListAsync(cancellationToken);
@@ -221,6 +245,12 @@ internal sealed class HealthRepository(HealthDbContext db, IExecutionContext exe
 
 internal sealed class HealthCodes(HealthDbContext db) : IHealthCodes
 {
+    public async Task<ContributionGrace?> ContributionGrace(string? schemeNumber, DateOnly day, CancellationToken cancellationToken)
+    {
+        var rules = await InForce<ContributionGraceRules>(day).Where(r => r.Scheme == null || r.Scheme == schemeNumber).ToListAsync(cancellationToken);
+        return rules.OrderBy(r => r.Scheme is null).Select(r => new ContributionGrace(r.GraceDays, r.SuspendAfterDays, r.TerminateNoticeDays)).FirstOrDefault();
+    }
+
     public async Task<string?> MemberNumberPrefix(DateOnly day, CancellationToken cancellationToken) =>
         await InForce<MemberNumberingSchemes>(day).OrderBy(s => s.Code).Select(s => s.Prefix).FirstOrDefaultAsync(cancellationToken);
 
@@ -341,6 +371,15 @@ internal sealed class HealthEventMapper : IDomainEventMapper
             e.StartDate, e.PayerPartyId, e.BillingAccountRef, e.CollectionMethod, e.Currency, e.MonthlyContribution, e.EmployerContribution, e.SponsorPartyId,
             e.OrgNodeCode, e.ProductCode),
         Domain.Members.MembershipProductAssigned e => new Contracts.MembershipProductAssigned(e.MembershipId, e.MemberNumber, e.ProductCode),
+        // F006: a person decides termination; the member is told of the suspension.
+        Domain.Members.MembershipTerminationDue e => new Contracts.MembershipTerminationDue(e.MembershipId, e.MemberNumber, e.ArrearsSince),
+        Domain.Members.MembershipArrearsCleared e => new Contracts.MembershipArrearsCleared(e.MembershipId, e.MemberNumber),
+        Domain.Members.MembershipSuspendedForArrears e => new Communications.Contracts.NotificationRequested(Communications.Contracts.NotificationTypes.ContributionSuspension,
+            e.PrincipalPartyId, "HEALTH_MEMBERSHIP", e.MembershipId, new Dictionary<string, string>
+            {
+                ["member_number"] = e.MemberNumber, ["suspended_from"] = e.SuspendedFrom.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+                ["notice_ends"] = e.TerminationNoticeEnds.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+            }),
         Domain.Members.HealthMemberStatusChanged e => new Contracts.HealthMemberStatusChanged(e.MembershipId, e.MemberNumber, e.Status, e.EffectiveDate,
             e.MonthlyContribution, e.EmployerContribution),
         Domain.Members.DependantAdded e => new Contracts.DependantAdded(e.MembershipId, e.MemberNumber, e.DependantId, e.PartyId, e.Suffix, e.StartDate, e.MonthlyContribution,

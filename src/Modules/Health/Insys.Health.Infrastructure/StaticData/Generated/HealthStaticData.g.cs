@@ -34,7 +34,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Insys.Health.Infrastructure.StaticData;
 
-/// <summary>The 42 static data tables owned by the Health module.</summary>
+/// <summary>The 43 static data tables owned by the Health module.</summary>
 public static class HealthStaticData
 {
     public static readonly IReadOnlyList<StaticDataDescriptor> Descriptors =
@@ -47,6 +47,7 @@ public static class HealthStaticData
         new("health", "cfg_claim_format_definitions", "cfg_claim_format_definitions", "Claim format definitions", "health", "claim-format-definitions", StaticScope.GT, 2, StaticLifecycle.Configuration, typeof(ClaimFormatDefinitions), typeof(ClaimFormatDefinitionsInput), "H · Medical Claims"),
         new("health", "cfg_clinical_review_criteria_references", "cfg_clinical_review_criteria_references", "Clinical review criteria references", "health", "clinical-review-criteria-references", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(ClinicalReviewCriteriaReferences), typeof(ClinicalReviewCriteriaReferencesInput), "G · Preauthorisation Management"),
         new("health", "cfg_co_payment_and_deductible_rules", "cfg_co_payment_and_deductible_rules", "Co-payment and deductible rules", "health", "co-payment-and-deductible-rules", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(CoPaymentAndDeductibleRules), typeof(CoPaymentAndDeductibleRulesInput), "A · Health Product and Plan"),
+        new("health", "cfg_contribution_grace_rules", "cfg_contribution_grace_rules", "Contribution grace rules", "health", "contribution-grace-rules", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(ContributionGraceRules), typeof(ContributionGraceRulesInput), "Membership and eligibility"),
         new("health", "cfg_contribution_rules", "cfg_contribution_rules", "Contribution rules", "health", "contribution-rules", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(ContributionRules), typeof(ContributionRulesInput), "B · Scheme and Group Administration"),
         new("health", "cfg_dependant_types_and_age_limits", "cfg_dependant_types_and_age_limits", "Dependant types and age limits", "health", "dependant-types-and-age-limits", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(DependantTypesAndAgeLimits), typeof(DependantTypesAndAgeLimitsInput), "C · Member Administration"),
         new("health", "cfg_health_fraud_indicator_definitions", "cfg_health_fraud_indicator_definitions", "Health fraud indicator definitions", "health", "health-fraud-indicator-definitions", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(HealthFraudIndicatorDefinitions), typeof(HealthFraudIndicatorDefinitionsInput), "K · Health Fraud and Abuse Controls"),
@@ -159,6 +160,15 @@ public static class HealthStaticData
             entity.Property(x => x.RuleKind).HasColumnName("rule_kind").HasMaxLength(15);
             entity.Property(x => x.CapBasis).HasColumnName("cap_basis").HasMaxLength(15);
             entity.Property(x => x.PlanCode).HasColumnName("plan_code").HasMaxLength(15);
+        });
+        modelBuilder.Entity<ContributionGraceRules>(entity =>
+        {
+            entity.ToTable("cfg_contribution_grace_rules", "health");
+            StaticModel.ConfigureCommon(entity);
+            entity.Property(x => x.Scheme).HasColumnName("scheme").HasMaxLength(80);
+            entity.Property(x => x.GraceDays).HasColumnName("grace_days");
+            entity.Property(x => x.SuspendAfterDays).HasColumnName("suspend_after_days");
+            entity.Property(x => x.TerminateNoticeDays).HasColumnName("terminate_notice_days");
         });
         modelBuilder.Entity<ContributionRules>(entity =>
         {

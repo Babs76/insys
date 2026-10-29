@@ -61,6 +61,19 @@ public enum MembershipTrigger
     TerminateMembership,
 }
 
+/// <summary>A scheme's contribution grace (health.cfg_contribution_grace_rules, F006): grace days, suspension after, and the notice before termination.</summary>
+public sealed record ContributionGrace(int GraceDays, int SuspendAfterDays, int TerminateNoticeDays);
+
+/// <summary>A membership was suspended for unpaid contributions (F006): the member is told, with the date a person may terminate it from.</summary>
+public sealed record MembershipSuspendedForArrears(Guid MembershipId, string MemberNumber, Guid PrincipalPartyId, DateOnly SuspendedFrom, DateOnly TerminationNoticeEnds,
+    DateTimeOffset OccurredAt) : IDomainEvent;
+
+/// <summary>The termination notice ran out with contributions still unpaid: a person decides whether to terminate (F006; never automatic).</summary>
+public sealed record MembershipTerminationDue(Guid MembershipId, string MemberNumber, DateOnly ArrearsSince, DateTimeOffset OccurredAt) : IDomainEvent;
+
+/// <summary>The contributions in arrears were paid: held claims are released and any termination task is closed (F006).</summary>
+public sealed record MembershipArrearsCleared(Guid MembershipId, string MemberNumber, DateTimeOffset OccurredAt) : IDomainEvent;
+
 /// <summary>Value object PlanOption: a plan and option (health.cfg_plans_and_options) and the version enrolled on.</summary>
 public sealed record PlanOption(string PlanCode, string OptionCode, int PlanVersion);
 
@@ -340,6 +353,27 @@ public sealed class HealthMembership : AggregateRoot<Guid>
 
     public IReadOnlyList<Dependant> Dependants => _dependants;
 
+    /// <summary>The first contribution unpaid past its due date (Billing, BR-103); null when none is.</summary>
+    public DateOnly? ArrearsSince { get; private set; }
+
+    /// <summary>The last day of grace: claims with a service date from <see cref="ArrearsSince"/> are held until paid (F006).</summary>
+    public DateOnly? GraceUntil { get; private set; }
+
+    /// <summary>The day the membership is suspended for arrears if they are still unpaid.</summary>
+    public DateOnly? SuspendOn { get; private set; }
+
+    /// <summary>When the membership was suspended for arrears; null if it was not, or was reinstated.</summary>
+    public DateOnly? SuspendedForArrearsOn { get; private set; }
+
+    /// <summary>The last day of the termination notice after suspension for arrears.</summary>
+    public DateOnly? TerminationNoticeEnds { get; private set; }
+
+    /// <summary>Whether the termination task was asked for once the notice ran out.</summary>
+    public bool TerminationDueRaised { get; private set; }
+
+    /// <summary>Whether a claim for a service on the day waits for the contributions in arrears (F006): held in grace, not declined.</summary>
+    public bool HeldForArrears(DateOnly serviceDate) => ArrearsSince is { } since && serviceDate >= since && SuspendedForArrearsOn is null;
+
     public IReadOnlyList<MembershipEvent> Events => _events;
 
     /// <summary>The people covered on a day: the principal, and dependants within their dates.</summary>
@@ -451,6 +485,99 @@ public sealed class HealthMembership : AggregateRoot<Guid>
     }
 
     public Result SuspendMembership(DateOnly effectiveDate, string reason, DateTimeOffset now) => Change(MembershipTrigger.SuspendMembership, "SUSPEND", effectiveDate, reason, now);
+
+    /// <summary>The reason recorded when a membership is suspended, or reinstated, for unpaid contributions.</summary>
+    public const string ArrearsReason = "ARREARS";
+
+    /// <summary>
+    /// Command RecordMissedContribution (F006): the contributions Billing finds unpaid past their due date, as of its
+    /// detection date (BR-103). The first starts grace from the oldest unpaid due date, with suspension after the rule's
+    /// days. None left (a payment) clears it: a membership suspended for arrears is reinstated from the day, held claims are
+    /// released and any termination task is closed.
+    /// </summary>
+    public Result RecordArrears(int overdueContributions, DateOnly? oldestDue, ContributionGrace grace, DateOnly today, DateTimeOffset now)
+    {
+        if (Status is not (MembershipStatus.Active or MembershipStatus.Suspended) || (Status == MembershipStatus.Suspended && SuspendedForArrearsOn is null && ArrearsSince is null))
+        {
+            return Result.Success();
+        }
+
+        if (overdueContributions <= 0 || oldestDue is not { } since)
+        {
+            if (ArrearsSince is null)
+            {
+                return Result.Success();
+            }
+
+            if (SuspendedForArrearsOn is not null && Status == MembershipStatus.Suspended)
+            {
+                var reinstated = ReinstateMembership(today, ArrearsReason, now);
+                if (reinstated.IsFailure)
+                {
+                    return reinstated;
+                }
+            }
+
+            ArrearsSince = null;
+            GraceUntil = null;
+            SuspendOn = null;
+            SuspendedForArrearsOn = null;
+            TerminationNoticeEnds = null;
+            TerminationDueRaised = false;
+            MarkChanged();
+            Raise(new MembershipArrearsCleared(Id, MemberNumber, now));
+            return Result.Success();
+        }
+
+        if (ArrearsSince == since || SuspendedForArrearsOn is not null)
+        {
+            return Result.Success();
+        }
+
+        ArrearsSince = since;
+        GraceUntil = since.AddDays(grace.GraceDays);
+        SuspendOn = since.AddDays(grace.SuspendAfterDays);
+        TerminationNoticeEnds = null;
+        MarkChanged();
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// Command SuspendForArrears (F006): the contributions are still unpaid on the suspension day, so the membership is
+    /// suspended (reason ARREARS), held claims are declined with the scheme's arrears reason, and the member is told; a
+    /// person may terminate after the notice.
+    /// </summary>
+    public Result SuspendForArrears(ContributionGrace grace, DateOnly today, DateTimeOffset now)
+    {
+        if (Status != MembershipStatus.Active || ArrearsSince is null || SuspendOn is not { } suspendOn || suspendOn > today)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, $"Membership {MemberNumber} is not due to be suspended for arrears.");
+        }
+
+        var suspended = SuspendMembership(today, ArrearsReason, now);
+        if (suspended.IsSuccess)
+        {
+            SuspendedForArrearsOn = today;
+            TerminationNoticeEnds = today.AddDays(grace.TerminateNoticeDays);
+            Raise(new MembershipSuspendedForArrears(Id, MemberNumber, PrincipalPartyId, today, TerminationNoticeEnds.Value, now));
+        }
+
+        return suspended;
+    }
+
+    /// <summary>The termination notice ran out with the arrears unpaid: Workflow opens a task for a person to decide (F006). Once only.</summary>
+    public Result RaiseTerminationDue(DateOnly today, DateTimeOffset now)
+    {
+        if (Status != MembershipStatus.Suspended || SuspendedForArrearsOn is null || TerminationNoticeEnds is not { } ends || ends >= today || TerminationDueRaised)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, $"Membership {MemberNumber}'s termination notice has not run out.");
+        }
+
+        TerminationDueRaised = true;
+        MarkChanged();
+        Raise(new MembershipTerminationDue(Id, MemberNumber, ArrearsSince!.Value, now));
+        return Result.Success();
+    }
 
     public Result ReinstateMembership(DateOnly effectiveDate, string reason, DateTimeOffset now) =>
         Change(MembershipTrigger.ReinstateMembership, "REINSTATE", effectiveDate, reason, now);

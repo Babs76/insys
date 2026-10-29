@@ -87,6 +87,8 @@ public static class WorkflowInfrastructure
         services.AddIntegrationEventHandler<Party.Contracts.DueDiligenceBlocked, DueDiligenceTasks, WorkflowDbContext>(schema, "DueDiligenceBlocked");
         services.AddIntegrationEventHandler<Party.Contracts.DueDiligenceExpired, DueDiligenceTasks, WorkflowDbContext>(schema, "DueDiligenceExpired");
         services.AddIntegrationEventHandler<Party.Contracts.DueDiligenceChanged, DueDiligenceTasks, WorkflowDbContext>(schema, "DueDiligenceChanged");
+        services.AddIntegrationEventHandler<Health.Contracts.MembershipTerminationDue, HealthArrearsTerminationTasks, WorkflowDbContext>(schema, "Due");
+        services.AddIntegrationEventHandler<Health.Contracts.MembershipArrearsCleared, HealthArrearsTerminationTasks, WorkflowDbContext>(schema, "Cleared");
 
         services.AddSingleton<WorkflowJobs>();
         services.AddSingleton<CaseTimelineJobs>();
