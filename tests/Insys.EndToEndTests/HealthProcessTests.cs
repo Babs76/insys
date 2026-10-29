@@ -71,6 +71,7 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
     public async ValueTask InitializeAsync()
     {
         _db = await server.CreateMigratedDatabase();
+        _watchdog = StallWatchdog.Start(_db, TimeSpan.FromSeconds(90), $"HealthProcessTests.{TestContext.Current.TestMethod?.MethodName}");
         await _db.SeedTenant(Tenant, "TENA");
         await _db.UserWithPermissions(Tenant, "health-administrator", Permissions);
         var checker = await _db.UserWithPermissions(Tenant, "health-manager", Permissions);
@@ -187,7 +188,16 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         }
     }
 
-    public async ValueTask DisposeAsync() => await _factory.DisposeAsync();
+    private StallWatchdog? _watchdog;
+
+    public async ValueTask DisposeAsync()
+    {
+        await _factory.DisposeAsync();
+        if (_watchdog is not null)
+        {
+            await _watchdog.DisposeAsync();
+        }
+    }
 
     [Fact]
     public async Task HealthCareToProviderPayment_EnrolsAuthorisesAdjudicatesAndPaysTheProvider_WithItsCompensations_HLT002_HLT009()

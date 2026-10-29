@@ -1207,3 +1207,15 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
   - **OQ-127:** a 409 with the candidates, and an override with a reason.
   - **OQ-128:** 7 years after the last policy, claim or payment ends; a legal hold overrides it.
   - Adverse media screening is off by default (POPIA special personal information, for compliance to confirm).
+
+### OQ-129 The dated end-to-end jobs run slow on the 30th clock (CI, 29 October 2026)
+- **Seen:** on 29 October, the CI job running the process flows on the 30th clock failed or ran long on three runs on two branches, while main had passed it three times that morning. Batch 2's first run timed out one request after 100 seconds in `TheLedger_IsFoundAndExplained` (GET `/openapi/core.json`), on the 30th and the 31st. BR-103's first run was cancelled at the job's 30-minute limit with no test reporting. Reruns on the same heads passed. A diagnostic run then passed every date, the 30th fastest (14 minutes).
+- **Ruled out:**
+  - **Batch 2:** main plus a small fix (BR-103) also stalled.
+  - **Month-end work:** the stall logs show the same pattern on every date. The slow tests are CPU-bound in the test process with no database session active, no lock and no wait. Business dates 1 March and 1 April passed; 30 January also passed in the diagnostic run.
+  - **The two clocks:** only the callback endpoints' cut-over compared a time the application wrote with the database's `now()`, on a path these tests do not take. It now uses the application's clock (V0093), as does partition maintenance; guard tests keep it so (`TimeSourceTests`, `RecordTimeSourceTests`).
+  - **The OpenAPI document:** it builds in under half a second on both branches when the machine is not busy.
+  - **A hang on a developer machine:** both branches pass the 30th clock locally on 2 CPUs (10 and 12 minutes).
+- **What the logs do show:** CI runners have 2 cores. Each end-to-end test starts its own host, and a host takes 47 to 124 seconds to build its router on a runner. While several build at once, the thread pool stays busy (8 or 9 of 13 threads) with nothing in the database. A request that needs CPU then waits, and the API description document, built on request, is the largest. The stall logging stays on the dated jobs (`stall-<date>` artifacts). The 30-minute limit is not raised.
+- **Open:** confirm which in-process work starves the request, then reduce it (hosts shared within a class, the router built once per process, or the OpenAPI document cached). The document endpoint is anonymous and builds the document on every request; cache it, or serve the committed document, before production (proposed, for Ade).
+- **Status:** open, investigated alongside Wave 3 batch 3.

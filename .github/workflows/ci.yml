@@ -268,6 +268,15 @@ jobs:
       - name: Process flows on ${{ matrix.clock }}
         env:
           INSYS_TEST_CLOCK: ${{ matrix.clock }}
+          INSYS_STALL_LOG: ${{ runner.temp }}/stall-${{ matrix.clock }}.log
         run: >-
           dotnet test --project tests/Insys.EndToEndTests --no-build --configuration Release --
           --filter-class "*LifeProcessTests" --filter-class "*HealthProcessTests" --filter-class "*GeneralProcessTests" --filter-class "*EnterpriseProcessTests"
+
+      # Stall logging (OQ-129, the 30th-clock slowness): what each test that ran past 90 seconds waited on, kept even when the job is cancelled.
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stall-${{ matrix.clock }}
+          path: ${{ runner.temp }}/stall-${{ matrix.clock }}.log
+          if-no-files-found: ignore

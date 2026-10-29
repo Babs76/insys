@@ -82,6 +82,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
     public async ValueTask InitializeAsync()
     {
         _db = await server.CreateMigratedDatabase();
+        _watchdog = StallWatchdog.Start(_db, TimeSpan.FromSeconds(90), $"GeneralProcessTests.{TestContext.Current.TestMethod?.MethodName}");
         await _db.SeedTenant(Tenant, "TENA");
         var underwriter = await _db.UserWithPermissions(Tenant, "underwriter", Permissions);
         var checker = await _db.UserWithPermissions(Tenant, "senior-underwriter", Permissions);
@@ -210,7 +211,16 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         (await _maker.PostAsync($"/api/v1/finance/periods/{month:yyyy-MM}/open", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
-    public async ValueTask DisposeAsync() => await _factory.DisposeAsync();
+    private StallWatchdog? _watchdog;
+
+    public async ValueTask DisposeAsync()
+    {
+        await _factory.DisposeAsync();
+        if (_watchdog is not null)
+        {
+            await _watchdog.DisposeAsync();
+        }
+    }
 
     /// <summary>
     /// F103 (addenda/access-scopes.md): a role assignment scoped to a region covers its branches only; one scoped to a

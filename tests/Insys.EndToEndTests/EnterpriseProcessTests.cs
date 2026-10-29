@@ -94,6 +94,7 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
     public async ValueTask InitializeAsync()
     {
         _db = await server.CreateMigratedDatabase();
+        _watchdog = StallWatchdog.Start(_db, TimeSpan.FromSeconds(90), $"EnterpriseProcessTests.{TestContext.Current.TestMethod?.MethodName}");
         await _db.SeedTenant(Tenant, "TENA");
         var maker = await _db.UserWithPermissions(Tenant, "underwriter", Permissions);
         var checker = await _db.UserWithPermissions(Tenant, "senior-underwriter", Permissions);
@@ -252,7 +253,16 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
         }
     }
 
-    public async ValueTask DisposeAsync() => await _factory.DisposeAsync();
+    private StallWatchdog? _watchdog;
+
+    public async ValueTask DisposeAsync()
+    {
+        await _factory.DisposeAsync();
+        if (_watchdog is not null)
+        {
+            await _watchdog.DisposeAsync();
+        }
+    }
 
     [Fact]
     public async Task QuoteToCash_AccruesCommission_CedesThePolicy_ProjectsIt_AndPaysTheApprovedStatement_DST001_DST004_REI001_REI002()

@@ -61,8 +61,13 @@ public sealed class StallWatchdog : IAsyncDisposable
                         FROM (SELECT usename, coalesce(state, '-') AS state, count(*) AS n FROM pg_stat_activity
                               WHERE datname = current_database() AND pid <> pg_backend_pid() GROUP BY usename, state) c
                         """);
-                    Console.WriteLine($"STALL {label} at {started.Elapsed.TotalSeconds:F0}s: threads {ThreadPool.ThreadCount} (busy {maxWorkers - workers}), "
-                                      + $"pending work items {ThreadPool.PendingWorkItemCount}\nconnections: {connections}\n{sessions ?? "(no active sessions)"}");
+                    var report = $"STALL {label} at {started.Elapsed.TotalSeconds:F0}s ({DateTimeOffset.UtcNow:HH:mm:ss}Z): threads {ThreadPool.ThreadCount} (busy {maxWorkers - workers}), "
+                                 + $"pending work items {ThreadPool.PendingWorkItemCount}\nconnections: {connections}\n{sessions ?? "(no active sessions)"}";
+                    Console.WriteLine(report);
+                    if (Environment.GetEnvironmentVariable("INSYS_STALL_LOG") is { Length: > 0 } file)
+                    {
+                        await File.AppendAllTextAsync(file, report + "\n\n", _stop.Token);
+                    }
                     await Task.Delay(TimeSpan.FromSeconds(20), _stop.Token);
                 }
             }

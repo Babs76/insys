@@ -34,6 +34,7 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 ### Migrations
 - **V0092:** the five configuration tables with their defaults, `party.due_diligence`, `party.screening_hit`, `party.beneficial_owner`, `payment.payment.held_reason`, and `workflow.process_instance.process_code` widened to 30.
+- **V0093 (one time source):** `payment` and `communication.resolve_callback_endpoint` take the application's time, and `audit.ensure_monthly_partitions` the application's UTC date. A retiring callback endpoint's cut-over is judged by the application's clock, not the database's. No API change.
 
 ## BR-103 (branch `br-103`): arrears counted as of their detection date
 
