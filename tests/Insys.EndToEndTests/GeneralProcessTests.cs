@@ -71,6 +71,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         DocumentPermissions.DocumentRead, DocumentPermissions.DocumentCreate, Insys.Party.Contracts.PartyPermissions.PartyCreate, Insys.Party.Contracts.PartyPermissions.PartyUpdate,
         Insys.Party.Contracts.PartyPermissions.PartyRead, Insys.Party.Contracts.PartyPermissions.BankAccountCreate,
         Insys.Party.Contracts.PartyPermissions.BankAccountRead, Insys.Party.Contracts.PartyPermissions.BankAccountVerify,
+        Insys.Party.Contracts.PartyPermissions.DueDiligenceRead, Insys.Party.Contracts.PartyPermissions.DueDiligenceReviewHit,
     ];
 
     private TestDatabase _db = null!;
@@ -1421,6 +1422,62 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         (await (await _maker.GetAsync($"/api/v1/general/recoveries/{recovery}")).Json()).GetProperty("currency").GetString().ShouldBe("ZAR");
         (await _maker.PostAsync($"/api/v1/general/claims/{claim}/close", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
         (await Claim(claim)).GetProperty("status").GetString().ShouldBe("Closed");
+    }
+
+    /// <summary>
+    /// §5 (s26B): with its gates on, the tenant does not pay a General claim to a payee with a screening hit waiting for
+    /// review. The settlement's instruction is held, not refused: nothing is paid, and it says why. When the hit is
+    /// reviewed as a false positive, the instruction is released at once, and the payment follows.
+    /// </summary>
+    [Fact]
+    public async Task AClaimPayment_ToAPayeeWithAnUnreviewedHit_IsHeld_AndReleasedWhenTheHitIsCleared_DueDiligence5()
+    {
+        await Seed("party.cfg_due_diligence_settings", "EFFECTIVE", "GATES-ON", ("gates_enabled", true), ("adverse_media_enabled", false));
+        await Seed("integration.mst_partner_register", "ACTIVE", "SCR-1", ("partner_code", "SCR-1"), ("partner_type", "SCREENING"), ("legal_name", "Screening (stub)"),
+            ("status", "ACTIVE"));
+        var (policy, vehicle) = await IssuedPolicy();
+        var claim = await Created("/api/v1/general/claims", new
+        {
+            policyId = policy, riskObjectId = vehicle, coverageCode = "OWN_DAMAGE", lossDate = Today, causeCode = "COLLISION", perilCode = "ACC", description = "Gate test",
+        });
+        var number = (await (await _maker.PostAsync($"/api/v1/general/claims/{claim}/register", null)).Json()).GetProperty("claimNumber").GetString()!;
+        (await _maker.PostAsJsonAsync($"/api/v1/claims/claims/{number}/reserves", new { action = "Set", reserveType = "INDEMNITY", amount = 50_000m, currency = "ZAR", reason = "Assessed" }))
+            .StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await _maker.PostAsJsonAsync($"/api/v1/general/claims/{claim}/assessor", new { assessorPartyId = Assessor })).StatusCode.ShouldBe(HttpStatusCode.OK);
+        await _factory.DrainOutbox();
+        var assessment = (await (await _maker.GetAsync($"/api/v1/general/claims/{claim}/assessments")).Json()).GetProperty("items").EnumerateArray().Single().GetProperty("id").GetGuid();
+        (await _maker.PostAsync($"/api/v1/general/assessments/{assessment}/start", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await _maker.PostAsJsonAsync($"/api/v1/general/assessments/{assessment}/report", new { assessedAmount = 20_000m })).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await _maker.PostAsync($"/api/v1/general/assessments/{assessment}/accept", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        // The payee's name matches the stub's sanctions list: screened when registered, the hit waits for review.
+        var payee = await _maker.RegisterPerson("Sanctionlist Repairs");
+        var account = await _maker.AddVerifiedBankAccount(_checker, _factory, payee, "62 0009 8765");
+        await _factory.DrainOutbox();
+        (await _maker.PostAsJsonAsync($"/api/v1/general/claims/{claim}/settlement",
+            new { payeePartyId = payee, bankAccountId = account, reserveType = "INDEMNITY", decisionCode = "SETTLE", rationale = "Within the assessed amount" }))
+            .StatusCode.ShouldBe(HttpStatusCode.OK);
+        await _factory.DrainOutbox();
+        await Decide(GeneralApprovals.SettlementBusinessRefType, claim, approve: true);
+
+        var instruction = await _db.ScalarAsOwner<Guid>("SELECT id FROM claims.claim_payment_instruction WHERE claim_number = @n", ("n", number));
+        var held = await (await _maker.GetAsync($"/api/v1/claims/payment-instructions/{instruction}")).Json();
+        (held.GetProperty("status").GetString(), held.GetProperty("heldReason").GetString()).ShouldBe(("Approved", "DUE_DILIGENCE_NOT_CLEARED"));
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM payment.payment WHERE business_ref_id = @i", ("i", instruction))).ShouldBe(0L, "nothing is paid");
+        var released = await _maker.Send(HttpMethod.Post, $"/api/v1/claims/payment-instructions/{instruction}/release",
+            ifMatch: (await _maker.GetAsync($"/api/v1/claims/payment-instructions/{instruction}")).ETag());
+        (await released.Code()).ShouldBe("DUE_DILIGENCE_NOT_CLEARED", "a person cannot release it either");
+
+        // The reviewer clears the hit: the payee is screened with no hit waiting, so the instruction is released and the payment created.
+        var review = await (await _checker.GetAsync($"/api/v1/party/parties/{payee}/due-diligence")).Json();
+        var hit = review.GetProperty("hits").EnumerateArray().Single().GetProperty("id").GetGuid();
+        var etag = (await _checker.GetAsync($"/api/v1/party/parties/{payee}/due-diligence")).ETag();
+        (await _checker.Send(HttpMethod.Post, $"/api/v1/party/parties/{payee}/due-diligence/hits/{hit}/review", new { outcome = "FALSE_POSITIVE", reason = "A different business" },
+            ifMatch: etag)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        await _factory.DrainOutbox();
+        var after = await (await _maker.GetAsync($"/api/v1/claims/payment-instructions/{instruction}")).Json();
+        (after.GetProperty("status").GetString(), after.GetProperty("heldReason").ValueKind).ShouldBe(("Released", JsonValueKind.Null));
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM payment.payment WHERE business_ref_id = @i", ("i", instruction))).ShouldBe(1L);
     }
 
     [Fact]

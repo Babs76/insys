@@ -5492,6 +5492,18 @@
           {
             "permission": "party.update",
             "when": "the approval is a portal registration match resolution (businessRefType PARTY_MATCH; requiredPermission names it)"
+          },
+          {
+            "permission": "due_diligence.approve_enhanced",
+            "when": "the approval clears enhanced due diligence (businessRefType DUE_DILIGENCE; requiredPermission names it)"
+          },
+          {
+            "permission": "due_diligence.override_risk",
+            "when": "the approval overrides a risk class (businessRefType DUE_DILIGENCE_RISK_OVERRIDE; requiredPermission names it)"
+          },
+          {
+            "permission": "due_diligence.unblock",
+            "when": "the approval unblocks a party\u0027s due diligence (businessRefType DUE_DILIGENCE_UNBLOCK; requiredPermission names it)"
           }
         ],
         "x-eventual-effects": "the decision reaches the record that asked for it (a static data version, product version, role assignment, bank account, payment or claim instruction, first tenant administrator ...) and its own follow-ups, such as a product\u0027s publication; read that record again to see it."
@@ -5585,6 +5597,18 @@
           {
             "permission": "party.update",
             "when": "the approval is a portal registration match resolution (businessRefType PARTY_MATCH; requiredPermission names it)"
+          },
+          {
+            "permission": "due_diligence.approve_enhanced",
+            "when": "the approval clears enhanced due diligence (businessRefType DUE_DILIGENCE; requiredPermission names it)"
+          },
+          {
+            "permission": "due_diligence.override_risk",
+            "when": "the approval overrides a risk class (businessRefType DUE_DILIGENCE_RISK_OVERRIDE; requiredPermission names it)"
+          },
+          {
+            "permission": "due_diligence.unblock",
+            "when": "the approval unblocks a party\u0027s due diligence (businessRefType DUE_DILIGENCE_UNBLOCK; requiredPermission names it)"
           }
         ],
         "x-eventual-effects": "the rejection reaches the record that asked for it, which is put back in a defined state (an expiry or withdrawal does the same); read that record again."
@@ -38059,6 +38083,7 @@
             "enum": [
               "RESERVE_BELOW_ZERO",
               "PAYEE_ACCOUNT_CHANGED",
+              "DUE_DILIGENCE_NOT_CLEARED",
               null
             ],
             "type": [

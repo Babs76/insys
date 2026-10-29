@@ -118,7 +118,7 @@ public sealed record InstructionView(Guid Id, string ClaimNumber, string Instruc
     [property: CodeList(CodeLists.ReserveTypes)] string ReserveType, InstructionStatus Status, Guid? ApprovalId, Guid? PaymentId, int Attempt, Guid? BankAccountId,
     string? PayeeBankHash, Guid? PendingPayeePartyId,
     Guid? PendingBankAccountId,
-    [property: OneOf("RESERVE_BELOW_ZERO", "PAYEE_ACCOUNT_CHANGED")] string? HeldReason = null, string? HeldDetail = null, DateTimeOffset? HeldAt = null,
+    [property: OneOf("RESERVE_BELOW_ZERO", "PAYEE_ACCOUNT_CHANGED", "DUE_DILIGENCE_NOT_CLEARED")] string? HeldReason = null, string? HeldDetail = null, DateTimeOffset? HeldAt = null,
     LatestRejection? LatestRejection = null, long RowVersion = 0, string? MaskedAccount = null, string? PayeeName = null)
 {
     public static InstructionView From(ClaimPaymentInstruction i) => new(i.Id, i.ClaimNumber, i.InstructionRef, i.PayeePartyId, i.Amount, i.ApprovedAmount, i.Currency,
