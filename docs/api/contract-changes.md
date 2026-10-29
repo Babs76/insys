@@ -13,6 +13,23 @@ What changed in the API contract, newest first, so the front end can sync. The O
   - `ombud_details`.
   Nothing is added if the tenant has no such case type in force.
 
+### New (addenda/renewals-and-retention.md §4.2, §4.5; OQ-131; addition 2)
+- **Renewal review.** `general.cfg_renewal_rules` gains `review`. A reviewed product's policy is reviewed before its invitation, from `general.cfg_renewal_review_rules` (`productCode`, `eligibilityRuleset`, `underwritingRules`, `claimsLookbackYears`, `reviewDaysBeforeInvitation`). The review:
+  - reads the claims of the policy and the policies it renewed over the lookback (count, paid, loss ratio against the premium earned), this period's endorsements, and claims referred for fraud;
+  - checks that the product is on sale for the renewal period and that the policyholder is cleared for issue;
+  - asks Rules to evaluate the eligibility rule set (`INELIGIBLE` or `REFER`) and the product's underwriting rules (`DECLINE` or `REFER`). The inputs are `renewal`, `claims_count`, `claims_paid`, `loss_ratio`, `endorsements`, `fraud_referred_claims`, `sum_insured` and `premium`;
+  - for a product that re-rates, creates a renewal quote (`renewalId`) priced through Rating, times the claims experience factor (`general.cfg_claims_experience_factors`; 1.0 when no band applies).
+- **`GET /general/renewals`** (`GeneralListRenewals`; `status`, `policyId`) and **`GET /general/renewals/{id}`** (`GeneralGetRenewal`): status `Reviewing`, `Referred`, `NotEligible`, `Offered`, `Renewed` or `NotRenewed`, plus the figures read, each check and its result, the re-rating, `loadingPct`, `offeredPremium` and `changedTerms`. Screen `GENERAL_RENEWALS`.
+- **`POST /general/renewals/{id}/decision`** (`GeneralDecideRenewal`, `general_quote.underwrite`): `{ offer, decisionCode, loadingPct? }` on a referred or ineligible renewal. It needs underwriting authority covering the product and the sum insured; otherwise 403 `UNDERWRITING_AUTHORITY_EXCEEDED`. A referred or ineligible renewal opens a Workflow task on `GENERAL_RENEWAL_REVIEW` (reference `GENERAL_RENEWAL`), routed by authority, and the decision closes it.
+- **Invitation.** A reviewed renewal is invited once offered, with merge fields `renewal_premium` and `currency`. With changed terms it is invited at least the tenant's notice before the renewal date (`general.cfg_renewal_settings.changedTermsNoticeDays`, default 31); otherwise with the rule's `noticeDays`.
+- **Renewal.** At the period's end the policy renews on the offered premium. Renewing a reviewed product before its review is offered is 409 `GENERAL_RENEWAL_NOT_OFFERED`.
+- **Readiness `DOMAIN_CODES`:**
+  - a reviewed product needs a review rule;
+  - a re-rated product whose renewal `notice_days` is under the tenant's changed-terms notice is listed (addition 2);
+  - a Health scheme re-rated on `EXPERIENCE` or `BLENDED` is listed until its next year's contribution rule (`health.cfg_contribution_rules` effective on the renewal date) is loaded.
+- **Health scheme renewal notice (§4.5).** `SCHEME_RENEWAL_NOTICE` (merge fields `scheme_number`, `renewal_date`) goes to the scheme's sponsor `notice_days` before its renewal date (`health.cfg_scheme_renewal_rules`), once per scheme year.
+- **Events:** `rules.RuleEvaluationRequested` (a module asks Rules to evaluate a rule set; a rule set not in force parks the delivery, `RULE_SET_NOT_IN_FORCE`), `general.GeneralRenewalRatingRequested`, `GeneralRenewalReferred`, `GeneralRenewalNotEligible`, `GeneralRenewalDecided`, `GeneralRenewalOffered`. `GeneralRenewalInvited` gains `offeredPremium` and `currency`.
+
 ## Wave 4 batch 4.1 (branch `wave4-1`): grace and short-period refunds (addenda/renewals-and-retention.md §4.1)
 
 ### New
