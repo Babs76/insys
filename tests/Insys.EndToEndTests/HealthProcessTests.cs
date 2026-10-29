@@ -396,11 +396,11 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         (await _maker.PostAsJsonAsync($"/api/v1/health/preauthorisations/{expiring}/approve",
             new { lines = new[] { new { lineId = expiringLine, authorisedAmount = 600m } }, validFrom = Today.AddDays(-40) })).StatusCode.ShouldBe(HttpStatusCode.OK);
         await _factory.DrainOutbox();
-        (await Accumulator(membership, "MEMBER")).ShouldBe((0m, 600m));
+        (await Accumulator(membership, "MEMBER", Today.AddDays(-40))).ShouldBe((0m, 600m), "reserved in the benefit period it is valid from");
         await _factory.Services.GetRequiredService<Insys.Health.Infrastructure.HealthJobs>().Run(CancellationToken.None);
         await _factory.DrainOutbox();
         (await Get($"/api/v1/health/preauthorisations/{expiring}")).GetProperty("status").GetString().ShouldBe("Expired");
-        (await Accumulator(membership, "MEMBER")).ShouldBe((0m, 0m));
+        (await Accumulator(membership, "MEMBER", Today.AddDays(-40))).ShouldBe((0m, 0m), "the expired reservation is released");
 
         (await _db.ScalarAsOwner<long>("SELECT count(*) FROM health.outbox_event WHERE payload::text LIKE '%K35%'")).ShouldBe(0L);
         (await _db.ScalarAsOwner<long>("SELECT count(*) FROM integration.dead_letter_message")).ShouldBe(0L);
@@ -807,10 +807,14 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
             lines = new[] { new { tariffCode = "0300", diagnosisCode = "K35", quantity = 1, claimedAmount = claimed } },
         });
 
-    private async Task<(decimal Used, decimal Reserved)> Accumulator(Guid membership, string scope)
+    /// <summary>The SPECIALIST accumulator of the benefit period covering the day (today by default): a period is a benefit year, so near a year end a reservation dated earlier sits in the previous one.</summary>
+    private async Task<(decimal Used, decimal Reserved)> Accumulator(Guid membership, string scope, DateOnly? on = null)
     {
+        var day = $"{on ?? Today:yyyy-MM-dd}";
         var accumulators = (await Get($"/api/v1/health/memberships/{membership}/accumulators")).EnumerateArray()
-            .Where(a => a.GetProperty("benefitCategory").GetString() == "SPECIALIST" && a.GetProperty("scope").GetString() == scope).ToList();
+            .Where(a => a.GetProperty("benefitCategory").GetString() == "SPECIALIST" && a.GetProperty("scope").GetString() == scope
+                && string.CompareOrdinal(a.GetProperty("periodStart").GetString(), day) <= 0 && string.CompareOrdinal(a.GetProperty("periodEnd").GetString(), day) >= 0)
+            .ToList();
         return accumulators.Count == 0 ? (0m, 0m) : (accumulators.Single().GetProperty("used").GetDecimal(), accumulators.Single().GetProperty("reserved").GetDecimal());
     }
 

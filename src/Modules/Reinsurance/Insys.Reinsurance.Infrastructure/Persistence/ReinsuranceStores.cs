@@ -25,6 +25,7 @@
  * ============================================================================
  */
 using System.Text.Json;
+using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Messaging;
 using Insys.BuildingBlocks.Contracts;
 using Insys.BuildingBlocks.Domain;
@@ -36,7 +37,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Insys.Reinsurance.Infrastructure.Persistence;
 
-internal sealed class ReinsuranceRepository(ReinsuranceDbContext db) : IReinsuranceRepository
+internal sealed class ReinsuranceRepository(ReinsuranceDbContext db, IBusinessDate businessDate) : IReinsuranceRepository
 {
     public async Task<IReadOnlyList<Cession>> CurrentCessions(string sourceType, Guid policyRef, CancellationToken cancellationToken)
     {
@@ -57,11 +58,15 @@ internal sealed class ReinsuranceRepository(ReinsuranceDbContext db) : IReinsura
 
     public async Task<IReadOnlyList<Cession>> CessionsCalculated(string treatyCode, DateOnly from, DateOnly to, CancellationToken cancellationToken)
     {
-        var start = new DateTimeOffset(from.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
-        var end = new DateTimeOffset(to.AddDays(1).ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+        // The tenant's business days, not UTC days: a cession at 23:30 UTC on the 31st is the next month's in Johannesburg.
+        var (start, end) = (StartOf(from), StartOf(to.AddDays(1)));
         return await db.Cessions.AsNoTracking().Where(c => c.TreatyCode == treatyCode && c.CalculatedAt >= start && c.CalculatedAt < end)
             .OrderBy(c => c.CalculatedAt).ThenBy(c => c.Id).ToListAsync(cancellationToken);
     }
+
+    /// <summary>The instant a business day starts in the tenant's time zone (ADR-025).</summary>
+    private DateTimeOffset StartOf(DateOnly day) =>
+        new(TimeZoneInfo.ConvertTimeToUtc(day.ToDateTime(TimeOnly.MinValue), businessDate.Zone), TimeSpan.Zero);
 
     public Task<ReinsuranceRecovery?> Recovery(Guid id, CancellationToken cancellationToken) => db.Recoveries.SingleOrDefaultAsync(r => r.Id == id, cancellationToken);
 
@@ -85,8 +90,7 @@ internal sealed class ReinsuranceRepository(ReinsuranceDbContext db) : IReinsura
 
         if (search.PeriodCode is { } period && DateOnly.TryParseExact(period + "-01", "yyyy-MM-dd", out var first))
         {
-            var start = new DateTimeOffset(first.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
-            var end = start.AddMonths(1);
+            var (start, end) = (StartOf(first), StartOf(first.AddMonths(1)));
             query = query.Where(c => c.CalculatedAt >= start && c.CalculatedAt < end);
         }
 
