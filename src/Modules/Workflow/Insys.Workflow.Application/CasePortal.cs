@@ -157,7 +157,7 @@ public static class PortalCaseRelation
 }
 
 internal sealed class CasePortalHandlers(ICaseRepository cases, ICasePortalQueries queries, ICaseConfiguration configuration, CaseOpening opening, CaseNoticeTexts notices,
-    IEnumerable<IPortalRecordRelations> relations, IEnumerable<IBrokeredPolicies> brokered, IExecutionContext execution, ITenantContext tenant, IBusinessDate businessDate,
+    IEnumerable<IPortalRecordRelations> relations, IEnumerable<IPortalCaseLinks> caseLinks, IEnumerable<IBrokeredPolicies> brokered, IExecutionContext execution, ITenantContext tenant, IBusinessDate businessDate,
     IClock clock) :
     IQueryHandler<ListPortalCases, IReadOnlyList<PortalCaseSummaryView>>,
     IQueryHandler<GetPortalCase, PortalCaseView>,
@@ -214,7 +214,10 @@ internal sealed class CasePortalHandlers(ICaseRepository cases, ICasePortalQueri
         {
             if (!await Related(who, link, cancellationToken))
             {
-                return Error.Forbidden(ErrorCodes.OutOfScope, $"The {link.LinkType} record is not one of yours.");
+                // BR-101: a claim the caller's portal read would not show is not found, as that read answers.
+                return link.LinkType == CaseLinkTypes.Claim
+                    ? Error.NotFound(ErrorCodes.NotFound, "The claim was not found.")
+                    : Error.Forbidden(ErrorCodes.OutOfScope, $"The {link.LinkType} record is not one of yours.");
             }
         }
 
@@ -318,8 +321,17 @@ internal sealed class CasePortalHandlers(ICaseRepository cases, ICasePortalQueri
             }
         }
 
-        // TODO(spec): claims, memberships, payments and provider records have no portal relation in their modules yet, so
-        // a portal user cannot link them (a member's dispute of a declined claim needs the claim modules to answer).
+        // BR-101: a claim is linkable when the caller's own portal read of it would show it (General, Life or Health).
+        foreach (var owner in caseLinks.Where(l => l.Covers(link.LinkType)))
+        {
+            if (await owner.Visible(link.LinkType, link.RecordId, cancellationToken))
+            {
+                return true;
+            }
+        }
+
+        // TODO(spec): memberships, payments and provider records have no portal answer in their modules yet, so a portal
+        // user cannot link them.
         return false;
     }
 

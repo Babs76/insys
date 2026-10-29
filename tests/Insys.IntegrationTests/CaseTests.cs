@@ -281,6 +281,67 @@ public sealed class CaseTests(DatabaseFixture fixture) : IClassFixture<DatabaseF
         (appeal.GetProperty("family").GetString(), appeal.GetProperty("parentCaseId").GetGuid()).ShouldBe(("APPEAL", id));
     }
 
+    /// <summary>
+    /// BR-101: a member disputes their own claim in the portal. A case may name a claim exactly when the member's portal
+    /// read of that claim shows it: their own General claim links; another member's claim, or one that does not exist,
+    /// is 404, as the portal claim read answers.
+    /// </summary>
+    [Fact]
+    public async Task APortalMember_LinksTheirOwnClaimToACase_AndAnotherMembersClaimIsNotFound_BR101()
+    {
+        await PortalChannels();
+        var (mine, theirs) = (Guid.CreateVersion7(), Guid.CreateVersion7());
+        var myClaim = await MemberGeneralClaim(mine);
+        var theirClaim = await MemberGeneralClaim(theirs);
+        await PortalUser("member-br101", "PARTY", mine, null, null);
+        await fixture.Database.UserWithPermissions(T, "member-br101", General.Contracts.GeneralPermissions.ClaimRead);
+        var member = _factory.ClientFor(T, "member-br101", "member-portal");
+
+        // Their own claim reads in the portal, so the case may name it.
+        var claimRead = await member.GetAsync($"/api/v1/portal/general/claims/{myClaim}");
+        claimRead.StatusCode.ShouldBe(HttpStatusCode.OK, await claimRead.Content.ReadAsStringAsync());
+        var raised = await member.Send(HttpMethod.Post, Portal, new
+        {
+            caseTypeCode = "COMPLAINT_T", categoryCode = "SERVICE", summary = "My claim was declined",
+            links = new[] { new { linkType = "CLAIM", recordId = myClaim, reference = "GC-MINE" } },
+        }, idempotent: true);
+        raised.StatusCode.ShouldBe(HttpStatusCode.Created, await raised.Content.ReadAsStringAsync());
+        var id = (await raised.Json()).GetProperty("id").GetGuid();
+        (await member.GetAsync($"{Portal}/{id}")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await Get(_clerk, id)).GetProperty("links").EnumerateArray().Single().GetProperty("recordId").GetGuid().ShouldBe(myClaim);
+
+        // Another member's claim, as its portal read: 404, and no case is raised.
+        (await member.GetAsync($"/api/v1/portal/general/claims/{theirClaim}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        foreach (var claim in new[] { theirClaim, Guid.CreateVersion7() })
+        {
+            var refused = await member.Send(HttpMethod.Post, Portal, new
+            {
+                caseTypeCode = "COMPLAINT_T", categoryCode = "SERVICE", summary = "Not my claim",
+                links = new[] { new { linkType = "CLAIM", recordId = claim, reference = "GC-X" } },
+            }, idempotent: true);
+            refused.StatusCode.ShouldBe(HttpStatusCode.NotFound, await refused.Content.ReadAsStringAsync());
+        }
+
+        (await (await member.GetAsync(Portal)).Json()).GetProperty("items").EnumerateArray().Select(c => c.GetProperty("id").GetGuid()).ShouldBe([id]);
+    }
+
+    private async Task<Guid> MemberGeneralClaim(Guid policyholder)
+    {
+        var (policy, claim) = (Guid.CreateVersion7(), Guid.CreateVersion7());
+        await fixture.Database.ExecuteAsOwner("""
+            INSERT INTO general.policy (tenant_id, id, row_version, created_at, created_by, updated_at, updated_by, policy_number, product_code, product_version,
+                                        rating_version, policyholder_party_id, status, period_start, period_end, currency, annual_premium, billing_account_ref,
+                                        cover_starts_on)
+            VALUES (@t, @p, 1, now(), 'seed', now(), 'seed', @pn, 'MOTOR', 1, 1, @holder, 'IN_FORCE', current_date - 10, current_date + 355, 'ZAR', 1200,
+                    gen_random_uuid(), 'ISSUE');
+            INSERT INTO general.claim (tenant_id, id, row_version, created_at, created_by, updated_at, updated_by, claim_number, policy_id, loss_date, notified_at,
+                                       cause_code, peril_code, status, coverage_code, decision_code, decision_rationale)
+            VALUES (@t, @c, 1, now(), 'seed', now(), 'seed', @cn, @p, current_date, now(), 'COLLISION', 'ACC', 'DECLINED', 'OWN_DAMAGE', 'EXCLUDED', 'Excluded peril');
+            """, ("t", T), ("p", policy), ("c", claim), ("holder", policyholder), ("pn", "GP-" + policy.ToString("N")[..12]),
+            ("cn", "GC-" + claim.ToString("N")[..20]));
+        return claim;
+    }
+
     [Fact]
     public async Task ABroker_SeesTheCasesItRaised_AndACaseOnItsPolicyOnlyOnceShared_OQ108()
     {

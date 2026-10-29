@@ -76,6 +76,7 @@ public static class GeneralInfrastructure
         services.AddModuleHandlers<GeneralDbContext>(typeof(CreateQuote).Assembly);
         services.AddDomainEventMapper<GeneralEventMapper>(schema);
         services.AddScoped<IGeneralRepository, GeneralRepository>();
+        services.AddScoped<Workflow.Contracts.IPortalCaseLinks, Application.PortalGeneralClaimCaseLinks>();
         services.AddSingleton<Contracts.IGeneralClaimRecipients, GeneralClaimRecipients>();
         services.AddSingleton<Workflow.Contracts.IApprovalScopeSource, GeneralApprovalScopes>();
         services.AddScoped<IGeneralLists, GeneralLists>();

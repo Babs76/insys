@@ -74,6 +74,19 @@ public static class CaseLinkTypes
     public const string Intermediary = "INTERMEDIARY";
 }
 
+/// <summary>
+/// BR-101: whether a portal user may link one of a module's records to a case they raise. The module answers as its
+/// own portal read of the record does, for the current caller: a record that read would not show (another member's
+/// claim, or one outside the caller's scope) cannot be linked. Used by portal cases only, so no other portal read
+/// (documents, say) gains access through it.
+/// </summary>
+public interface IPortalCaseLinks
+{
+    bool Covers(string linkType);
+
+    Task<bool> Visible(string linkType, Guid recordId, CancellationToken cancellationToken);
+}
+
 /// <summary>Redress on a case is approved by a second person and paid through Payments (OQ-104).</summary>
 public static class CaseApprovals
 {
