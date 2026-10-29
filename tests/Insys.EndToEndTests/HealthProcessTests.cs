@@ -559,6 +559,8 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         await _db.SeedEmailNotices(Tenant, Today.AddDays(-30), "HGR",
             (Insys.Communications.Contracts.NotificationTypes.ContributionSuspension, "Suspended {member_number}", "{member_number} is suspended from {suspended_from}."));
         await Seed("health.cfg_tariff_schedules", "EFFECTIVE", "REF-0190-G", ("tariff_code", "0190"), ("price", 400m), ("schedule_code", "REF"));
+        // Billing ages an overdue invoice into arrears only with a bucket in force (otherwise it parks it, and no grace starts).
+        await Seed("billing.cfg_arrears_ageing_buckets", "EFFECTIVE", "D1", ("bucket_code", "D1"), ("days_from", 1), ("days_to", 9999), ("action", "REMINDER"));
         await Seed("health.cfg_contribution_grace_rules", "EFFECTIVE", "CGR-ALL", ("grace_days", 3), ("suspend_after_days", 30), ("terminate_notice_days", 30));
         var scheme = await Created("/api/v1/health/schemes", new { sponsorCode = "S-ACME", startDate = Today.AddYears(-1), renewalDate = Today.AddMonths(6), currency = "ZAR" });
         var schemeNumber = (await Get($"/api/v1/health/schemes/{scheme}")).GetProperty("schemeNumber").GetString()!;
@@ -647,9 +649,10 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         }
 
         (await _db.ScalarAsOwner<string>("""
-            SELECT string_agg(p.status || ':' || t.queue_code, ',') FROM workflow.process_instance p JOIN workflow.task t ON t.tenant_id = p.tenant_id AND t.process_instance_id = p.id
+            SELECT string_agg(CASE WHEN p.ended_at IS NULL THEN 'OPEN' ELSE 'ENDED' END || ':' || t.queue_code, ',')
+            FROM workflow.process_instance p JOIN workflow.task t ON t.tenant_id = p.tenant_id AND t.process_instance_id = p.id
             WHERE p.process_code = 'HEALTH_ARREARS_TERMINATION' AND p.business_ref_id = @m
-            """, ("m", lapsing.Membership))).ShouldBe("RUNNING:HEALTH_MEMBERSHIP");
+            """, ("m", lapsing.Membership))).ShouldBe("OPEN:HEALTH_MEMBERSHIP");
         (await Get($"/api/v1/health/memberships/{lapsing.Membership}")).GetProperty("status").GetString().ShouldBe("Suspended", "never terminated automatically");
 
         await _factory.Services.GetRequiredService<Insys.Communications.Infrastructure.NotificationSender>().RunForTenant(Tenant, CancellationToken.None);

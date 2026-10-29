@@ -200282,6 +200282,15 @@
           "cancellationReason": {
             "type": "string"
           },
+          "claimDeclineReason": {
+            "type": "string"
+          },
+          "deductArrearsFromClaims": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
           "id": {
             "type": "string",
             "format": "uuid"
@@ -200464,6 +200473,7 @@
           "graceDays",
           "coverDuringGrace",
           "cancellationReason",
+          "claimDeclineReason",
           "code",
           "changeReason"
         ],
@@ -200500,6 +200510,18 @@
             "type": [
               "null",
               "string"
+            ]
+          },
+          "claimDeclineReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "deductArrearsFromClaims": {
+            "type": [
+              "null",
+              "boolean"
             ]
           },
           "code": {
@@ -212262,6 +212284,12 @@
             ],
             "format": "int32"
           },
+          "reinstateOnPayment": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
           "id": {
             "type": "string",
             "format": "uuid"
@@ -212479,6 +212507,12 @@
               "string"
             ],
             "format": "int32"
+          },
+          "reinstateOnPayment": {
+            "type": [
+              "null",
+              "boolean"
+            ]
           },
           "code": {
             "type": "string"

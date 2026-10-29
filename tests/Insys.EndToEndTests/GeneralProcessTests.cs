@@ -473,6 +473,8 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
             (Insys.Communications.Contracts.NotificationTypes.NonPaymentCancellation, "Cancelled {policy_number}", "{policy_number} was cancelled from {cancelled_from}."),
             (Insys.Communications.Contracts.NotificationTypes.ClaimStatus, "Claim {claim_number}", "{claim_number} {status}: {amount} less premium {premium_deducted}, paid {net_amount}."),
             (Insys.Communications.Contracts.NotificationTypes.ClaimDecisionRights, "Your rights on {claim_number}", "{claim_number} declined: {decision_reasons}"));
+        // Billing ages an overdue invoice into arrears only with a bucket in force (otherwise it parks it, and no grace starts).
+        await Seed("billing.cfg_arrears_ageing_buckets", "EFFECTIVE", "D1", ("bucket_code", "D1"), ("days_from", 1), ("days_to", 9999), ("action", "REMINDER"));
         await Seed("general.cfg_cancellation_reasons_and_refund_rules", "EFFECTIVE", "NON_PAYMENT", ("reason_code", "NON_PAYMENT"), ("initiator", "INSURER"),
             ("refund_basis", "NONE"), ("fee", 0m));
         await Seed("claims.ref_claim_decision_reason_codes", "ACTIVE", "NON_PAYMENT", ("decision_type", "DECLINE"),
@@ -491,9 +493,10 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         await Seed("general.cfg_grace_period_rules", "EFFECTIVE", $"GRACE-{Product}-ANNUAL", ("product_code", Product), ("frequency", "ANNUAL"), ("grace_days", 15),
             ("cover_during_grace", false), ("cancellation_reason", "NON_PAYMENT"), ("claim_decline_reason", "NON_PAYMENT"), ("deduct_arrears_from_claims", true));
 
+        // The policy starts on its first unpaid instalment's due date, so a cancellation from that date is within its period.
         async Task<(Guid Policy, Guid Vehicle, Guid Holder, string Number)> Unpaid(string name, DateOnly due, string frequency)
         {
-            var (policy, vehicle) = await IssuedPolicy();
+            var (policy, vehicle) = await IssuedPolicy(start: due);
             var holder = await _maker.RegisterPerson(name);
             await _db.AddContact(Tenant, holder, "EMAIL", $"{name.ToLowerInvariant()}@example.com");
             await _db.ExecuteAsOwner("UPDATE general.policy SET policyholder_party_id = @h, billing_frequency = @f WHERE id = @p", ("h", holder), ("f", frequency), ("p", policy));
@@ -602,7 +605,10 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
 
         decimal Net(string account) => lines.Where(l => l.GetProperty("accountCode").GetString() == account).Sum(l => l.GetProperty("debit").GetDecimal() - l.GetProperty("credit").GetDecimal());
         (Net("2100"), Net("1200"), Net("1100")).ShouldBe((15_000m, -(15_000m - owed), -owed), "claims paid gross; the bank pays the net; the receivable is cleared");
-        var recovery = (await (await _maker.GetAsync($"/api/v1/reinsurance/recoveries?claimNumber={nettedNumber}")).Json()).GetProperty("items").EnumerateArray().Single();
+        await _db.UserWithPermissions(Tenant, "ri-reader", Insys.Reinsurance.Contracts.ReinsurancePermissions.RecoveryRead);
+        var recoveries = await _factory.ClientFor(Tenant, "ri-reader").GetAsync($"/api/v1/reinsurance/recoveries?claimNumber={nettedNumber}");
+        recoveries.StatusCode.ShouldBe(HttpStatusCode.OK, await recoveries.Content.ReadAsStringAsync());
+        var recovery = (await recoveries.Json()).GetProperty("items").EnumerateArray().Single();
         (recovery.GetProperty("paidAmount").GetDecimal(), recovery.GetProperty("recoverable").GetDecimal()).ShouldBe((15_000m, 10_500m), "the recovery is on the gross");
 
         // Path 3: grace ends unpaid. The policy is cancelled for non-payment from the first unpaid due date; the claim, approved
