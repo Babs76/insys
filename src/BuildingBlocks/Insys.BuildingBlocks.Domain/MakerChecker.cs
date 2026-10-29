@@ -32,6 +32,16 @@ namespace Insys.BuildingBlocks.Domain;
 /// </summary>
 public static class MakerChecker
 {
+    /// <summary>
+    /// The requester of an approval the platform raises with no signed-in user: a provider's result, an event or a job
+    /// (BR-109). Any person with authority can decide it, since no person made it; maker-checker still applies to every
+    /// approval a person requests.
+    /// </summary>
+    public static readonly Guid SystemMaker = new("00000000-0000-0000-0000-00000000005e");
+
+    /// <summary>Whether the approval was raised by the platform, not a person.</summary>
+    public static bool IsSystem(Guid makerId) => makerId == SystemMaker;
+
     public static Result EnsureDifferentPeople(string makerId, string checkerId) =>
         string.Equals(makerId, checkerId, StringComparison.OrdinalIgnoreCase)
             ? Error.Forbidden(ErrorCodes.MakerCheckerSamePerson, "The checker must be a different person from the maker.")

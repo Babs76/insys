@@ -56,6 +56,21 @@ public sealed class ApprovalTests
     public void Approval_ByItsMaker_IsForbidden_SRS002() =>
         Requested().Approve(Maker, Authority(1000), Now).Error!.Code.ShouldBe(ErrorCodes.MakerCheckerSamePerson);
 
+    /// <summary>BR-109: an approval the platform raised (no person acting) is decided by any person with authority, and still needs that authority.</summary>
+    [Fact]
+    public void AnApprovalRaisedByThePlatform_IsApprovedByAnyPersonWithAuthority_AndNeverWithout_BR109()
+    {
+        Approval Raised() => Approval.RequestApproval(Guid.CreateVersion7(), "CLAIM", Guid.CreateVersion7(), "CLAIM_PAYMENT", MakerChecker.SystemMaker, null, null, "Pay", Now,
+            Now.AddDays(14));
+        Raised().Approve(Checker, [new AuthorityGrant("CLAIMS_MANAGER", "OTHER", 1_000_000)], Now).Error!.Code.ShouldBe(WorkflowErrorCodes.AuthorityMissing);
+        var raised = Raised();
+        raised.Approve(Checker, Authority(1000), Now).IsSuccess.ShouldBeTrue();
+        raised.Status.ShouldBe(ApprovalStatus.Approved);
+        // An approval always names who requested it: a request with none fails its delivery, to be retried and seen (never created silently).
+        Should.Throw<ArgumentException>(() => Approval.RequestApproval(Guid.CreateVersion7(), "CLAIM", Guid.CreateVersion7(), "CLAIM_PAYMENT", Guid.Empty, null, null, "Pay",
+            Now, Now.AddDays(14)));
+    }
+
     [Fact]
     public void Rejection_ByItsMaker_IsForbidden_SRS002() =>
         Requested().Reject(Maker, "No", Now).Error!.Code.ShouldBe(ErrorCodes.MakerCheckerSamePerson);

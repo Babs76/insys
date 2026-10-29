@@ -4,6 +4,14 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 ## Wave 4 batch 4.2 (branch `wave4-2`): claim decision rights on every decline, renewal review
 
+### Fixed first: BR-109 / GAP-112 (group A), an enhanced due diligence approval requested by a provider's result
+- **What was wrong.** When the identity provider's result was the last check to complete a party needing enhanced due diligence, no person was acting, so the approval was requested with an empty requester. Workflow refused to create it; the delivery failed and retried until dead-lettered, and the party stayed `IN_PROGRESS` with `ENHANCED_APPROVAL` outstanding and no approval.
+- **Now.** An approval the platform raises with no person acting names the **system requester**, `makerId` `00000000-0000-0000-0000-00000000005e`. Any person with authority for the type (and its permission) can decide it; a person who completed the last check is still the maker of the approvals they cause, and cannot approve them.
+- **`ApprovalView.raisedBySystem`** (new, always present): true for such an approval, so the screen can show "System" instead of a person.
+- **Parties already stuck** are asked again at their next assessment, which a change to the party's details or any check or hit review recorded for it starts: a request recorded with no requester is treated as never sent. The daily jobs do not reassess them.
+- **A request Workflow cannot create** still fails its delivery: it is listed at once in `GET /integration/parked-deliveries?status=Failing` and retried with back-off, then dead-lettered (ADR-022). Nothing is swallowed.
+- **No requester follow-up task** for a system-raised approval that expires or is withdrawn: the raising module receives the ending (for due diligence, the party is assessed again and a new approval requested).
+
 ### Changed (OQ-102, Ade, 29 October 2026: any decision that declines all or part of a claim sends `CLAIM_DECISION_RIGHTS`)
 - **A full decline now sends it too**, in every domain, to the same recipient as a partial approval: `GeneralDeclineClaim`, `LifeDeclineClaim`, a Health claim rejected by staff or at validation, and a Health claim declined for contribution arrears. Before, only a partial approval sent it. `amount` is `0.00` for a full decline.
 - **`decision_reasons`** is the decline reason's customer wording (claims decision reasons), when the reason is one in force. Health now carries it too, on a partial approval and a decline. It is only the configured wording, never the claim's own reason text, lines or diagnoses (HLT-008; settles OQ-116 for declines).

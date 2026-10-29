@@ -76,6 +76,9 @@ public sealed record ApprovalView(Guid Id, [property: BusinessRefTypeField] stri
     [BuildingBlocks.Contracts.AlwaysPresent]
     public string? Screen => ApprovalKinds.ScreenFor(BusinessRefType);
 
+    /// <summary>BR-109: raised by the platform with no person acting (MakerId is the system requester); any person with authority decides it.</summary>
+    public bool RaisedBySystem => MakerChecker.IsSystem(MakerId);
+
     public static ApprovalView Of(Approval a) =>
         new(a.Id, a.BusinessRefType, a.BusinessRefId, a.ApprovalType, a.MakerId, a.CheckerId, a.Status, a.Amount, a.Currency, a.Reason, a.DecisionReason,
             a.RequestedAt, a.DecidedAt, a.ExpiresAt, a.SubjectHash, a.RequiredPermission, a.RowVersion, a.NotAppliedBy, a.NotAppliedAt);
@@ -165,6 +168,12 @@ public sealed class RequesterFollowUp(IProcessRepository processes, Contracts.IB
 
     public async Task Open(Approval approval, string ending, CancellationToken cancellationToken)
     {
+        // BR-109: an approval the platform raised has no person to tell; the module that raised it receives the ending and acts on it.
+        if (MakerChecker.IsSystem(approval.MakerId))
+        {
+            return;
+        }
+
         var now = clock.UtcNow;
         var due = await businessTime.Add(tenant.RequireTenantId(), null, now, "P1D", cancellationToken);
         var process = ProcessInstance.StartProcess(Guid.CreateVersion7(), BuiltInProcesses.ApprovalFollowUp, approval.BusinessRefType, approval.BusinessRefId,

@@ -418,9 +418,11 @@ public sealed class DueDiligence : AggregateRoot<Guid>
         {
             status = DueDiligenceCodes.InProgress;
             outstanding.Add(DueDiligenceCodes.EnhancedApproval);
-            if (EnhancedRequestedBy is null)
+            // BR-109: with no person acting (a provider's result came last, or a job), the platform requests it. A request
+            // recorded with no requester before BR-109 never reached Workflow, so it is asked again.
+            if (EnhancedRequestedBy is null || EnhancedRequestedBy == Guid.Empty)
             {
-                EnhancedRequestedBy = actor ?? Guid.Empty;
+                EnhancedRequestedBy = actor ?? MakerChecker.SystemMaker;
                 Raise(new EnhancedDueDiligenceApprovalRequested(Id, PartyId, EnhancedRequestedBy.Value, now));
             }
         }
@@ -489,7 +491,7 @@ public sealed class DueDiligence : AggregateRoot<Guid>
             return approved ? Error.Conflict(ErrorCodes.InvalidStateTransition, "No enhanced due diligence approval is waiting.") : Result.Success();
         }
 
-        if (approved && maker != Guid.Empty && maker == checkerId)
+        if (approved && maker == checkerId)
         {
             return MakerChecker.EnsureDifferentPeople(maker.ToString(), checkerId.ToString());
         }

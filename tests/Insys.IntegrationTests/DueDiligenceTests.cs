@@ -30,6 +30,7 @@ using Insys.Billing.Contracts;
 using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Messaging;
 using Insys.BuildingBlocks.Contracts;
+using Insys.BuildingBlocks.Domain;
 using Insys.Documents.Contracts;
 using Insys.Integration.Infrastructure.Partners;
 using Insys.Party.Contracts;
@@ -179,6 +180,70 @@ public sealed class DueDiligenceTests(DatabaseFixture fixture) : IClassFixture<D
         view = await DueDiligence(w.Clerk, party);
         (view.GetProperty("status").GetString(), view.GetProperty("clearedBy").GetGuid()).ShouldBe(("CLEARED", w.ReviewerId));
         view.GetProperty("nextReviewOn").GetString().ShouldBe(Today.AddYears(1).ToString("yyyy-MM-dd"), "OQ-124: HIGH is reviewed every year");
+    }
+
+    /// <summary>
+    /// BR-109 / GAP-112: when the identity provider's result is the last check to complete, no person is acting, so the
+    /// platform requests the enhanced approval (the system requester). It is created, says it was raised by the system, and a
+    /// person with authority approves it; the party is cleared.
+    /// </summary>
+    [Fact]
+    public async Task APep_WhoseProvidersCheckFinishesLast_GetsItsEnhancedApproval_RaisedByTheSystem_AndAPersonWithAuthorityApprovesIt_BR109()
+    {
+        var w = await World();
+        var party = await w.Clerk.RegisterPerson("Peplist");
+        await w.Factory.DrainOutbox();
+        var hit = (await DueDiligence(w.Reviewer, party)).GetProperty("hits").EnumerateArray().Single();
+        (await w.Reviewer.Send(HttpMethod.Post, $"/api/v1/party/parties/{party}/due-diligence/hits/{hit.GetProperty("id").GetGuid()}/review",
+            new { outcome = "TRUE_MATCH", reason = "A member of a provincial legislature" }, ifMatch: await ETag(w.Reviewer, party))).StatusCode.ShouldBe(HttpStatusCode.OK);
+        await w.Factory.DrainOutbox();
+        await Check(w, party, "ADDRESS", await Document(w, party));
+        await Check(w, party, "SOURCE_OF_FUNDS", await Document(w, party));
+        var view = await DueDiligence(w.Clerk, party);
+        (view.GetProperty("level").GetString(), view.GetProperty("status").GetString()).ShouldBe(("ENHANCED", "IN_PROGRESS"));
+        Outstanding(view).ShouldNotContain("ENHANCED_APPROVAL", "the identity check is still missing");
+
+        // The identity provider's result completes it, with no person acting.
+        await AddIdentifier(w, party, "6802025009087");
+        view = await DueDiligence(w.Clerk, party);
+        (view.GetProperty("status").GetString(), Outstanding(view).Single()).ShouldBe(("IN_PROGRESS", "ENHANCED_APPROVAL"));
+        var approval = await Waiting(w, PartyApprovals.DueDiligenceBusinessRefType, party);
+        var waiting = await (await w.Reviewer.GetAsync($"/api/v1/workflow/approvals/{approval}")).Json();
+        (waiting.GetProperty("makerId").GetGuid(), waiting.GetProperty("raisedBySystem").GetBoolean()).ShouldBe((MakerChecker.SystemMaker, true));
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM integration.parked_delivery WHERE tenant_id = @t AND status IN ('FAILING', 'DEAD_LETTERED')",
+            ("t", w.Tenant))).ShouldBe(0, "no delivery failed on the way");
+
+        (await w.Reviewer.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval}/approve", ifMatch: "\"1\"")).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        await w.Factory.DrainOutbox();
+        view = await DueDiligence(w.Clerk, party);
+        (view.GetProperty("status").GetString(), view.GetProperty("clearedBy").GetGuid()).ShouldBe(("CLEARED", w.ReviewerId));
+    }
+
+    /// <summary>
+    /// BR-109: a request Workflow cannot create (here, one with no requester at all) is never lost. Its delivery fails, is
+    /// recorded as failing in the delivery ledger, which operations see in the parked deliveries view, and is retried with
+    /// back-off until it is dead-lettered.
+    /// </summary>
+    [Fact]
+    public async Task AnApprovalRequestThatCannotBeCreated_FailsItsDelivery_AndIsListedForOperations_NotLost_BR109()
+    {
+        var w = await World();
+        var party = Guid.CreateVersion7();
+        var requested = new BuildingBlocks.Contracts.Approvals.ApprovalRequested(PartyApprovals.DueDiligenceBusinessRefType, party, PartyApprovals.EnhancedDueDiligenceType,
+            Guid.Empty, null, null, "Clear enhanced due diligence", null, PartyPermissions.DueDiligenceApproveEnhanced);
+        var envelope = new EventEnvelope(Guid.CreateVersion7(), w.Tenant, "workflow.ApprovalRequested", 1, DateTimeOffset.UtcNow, "DueDiligence", party, Guid.CreateVersion7(),
+            null, JsonSerializer.SerializeToElement(requested, JsonSerializerOptions.Web));
+        await w.Factory.Services.GetRequiredService<IEventBus>().Publish(envelope, CancellationToken.None);
+
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM workflow.approval WHERE tenant_id = @t AND business_ref_id = @p", ("t", w.Tenant), ("p", party)))
+            .ShouldBe(0);
+        (await fixture.Database.ScalarAsOwner<string>("""
+            SELECT status || ' ' || failures FROM integration.parked_delivery WHERE tenant_id = @t AND event_id = @e AND consumer LIKE 'workflow.%RequestApprovalPolicy%'
+            """, ("t", w.Tenant), ("e", envelope.EventId))).ShouldBe("FAILING 1", "failed, to be retried with back-off");
+
+        await fixture.Database.UserWithPermissions(w.Tenant, "dd-ops", Integration.Contracts.IntegrationPermissions.DeadLetterRead);
+        var listed = await (await w.Factory.ClientFor(w.Tenant, "dd-ops").GetAsync("/api/v1/integration/parked-deliveries?status=Failing")).Json();
+        listed.GetProperty("items").EnumerateArray().Select(i => i.GetProperty("eventType").GetString()).ShouldContain("workflow.ApprovalRequested");
     }
 
     [Fact]
