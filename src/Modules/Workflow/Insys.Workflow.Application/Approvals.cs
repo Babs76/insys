@@ -249,7 +249,7 @@ public sealed class ApprovalDecision(IUserRoleQuery roles, IAuthorityReader auth
                 .Select(l => new AuthorityView(l.ApprovalType, l.RoleCode, l.Limit, null, AuthorityBases.ModuleLimit, l.AppliesTo)));
         }
 
-        if (execution.HasPermission(StaticDataApprovePermission))
+        if (execution.HasPermission(StaticDataApprovalPermissions.Approve))
         {
             foreach (var type in ApprovalKinds.ApprovalTypes.Where(t => t.StartsWith(StaticDataApprovals.ApprovalTypePrefix, StringComparison.Ordinal)))
             {
@@ -262,8 +262,6 @@ public sealed class ApprovalDecision(IUserRoleQuery roles, IAuthorityReader auth
 
         return rows;
     }
-
-    private const string StaticDataApprovePermission = "static_data.approve";
 
     /// <summary>The tenant's base currency today, or null when it has none.</summary>
     public async Task<string?> BaseCurrency(CancellationToken cancellationToken)

@@ -35,6 +35,15 @@ public static class StaticDataGovernancePermissions
 }
 
 /// <summary>Static data changes are approved in Workflow (ADR-009): one approval per change request.</summary>
+/// <summary>
+/// The static data approval permission, for modules that cannot see the static data endpoints' permissions
+/// (BuildingBlocks.Api's StaticDataPermissions.Approve, the same value): Workflow lists it in a user's authority (BR-081).
+/// </summary>
+public static class StaticDataApprovalPermissions
+{
+    public const string Approve = "static_data.approve";
+}
+
 public static class StaticDataApprovals
 {
     public const string BusinessRefType = "STATIC_DATA_CHANGE";
