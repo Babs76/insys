@@ -23,6 +23,7 @@
  * or agreements.
  * UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
  * ============================================================================
+ */
 -- =====================================================================
 -- V0097: BR-109 (Ade, 30 October 2026). The system requester (00000000-0000-0000-0000-00000000005e) names the platform as
 -- the requester of an approval raised with no person acting. It is reserved: no user account may ever have it, so it can
