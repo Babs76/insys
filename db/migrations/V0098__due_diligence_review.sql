@@ -23,6 +23,7 @@
  * or agreements.
  * UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
  * ============================================================================
+ */
 -- =====================================================================
 -- V0098: GAP-113 / OQ-138 (Ade, 30 October 2026). Ongoing due diligence: what ends a periodic review.
 --   - A customer risk class says how an expired party's review ends: PERSON (the default for every class), when a person
