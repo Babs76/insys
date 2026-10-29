@@ -169,9 +169,9 @@ public sealed record RenewalReviewRule(string ProductCode, string? EligibilityRu
 /// The tenant's renewal settings (general.cfg_renewal_settings): the worse-terms threshold (OQ-130, default 15 %) and the
 /// notice a renewal with changed terms is invited with at least (Wave 4 addition 2, default 31 days).
 /// </summary>
-public sealed record RenewalSettings(decimal WorseTermsPct, int ChangedTermsNoticeDays)
+public sealed record RenewalTermsSettings(decimal WorseTermsPct, int ChangedTermsNoticeDays)
 {
-    public static readonly RenewalSettings Default = new(15m, 31);
+    public static readonly RenewalTermsSettings Default = new(15m, 31);
 }
 
 /// <summary>A claim as a renewal review reads it: its loss date, state and what was paid on it (the gross).</summary>
@@ -237,7 +237,7 @@ public interface IGeneralCodes
     Task<decimal> ClaimsFactor(string productCode, int claimsCount, decimal? lossRatio, DateOnly day, CancellationToken cancellationToken);
 
     /// <summary>The tenant's renewal settings in force, else the defaults.</summary>
-    Task<RenewalSettings> RenewalSettings(DateOnly day, CancellationToken cancellationToken);
+    Task<RenewalTermsSettings> RenewalSettings(DateOnly day, CancellationToken cancellationToken);
 
     Task<bool> Exists(GeneralCode kind, string code, DateOnly day, CancellationToken cancellationToken);
 

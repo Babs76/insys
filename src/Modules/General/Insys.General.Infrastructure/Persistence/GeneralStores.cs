@@ -395,9 +395,9 @@ internal sealed class GeneralCodes(GeneralDbContext db) : IGeneralCodes
             ?.Factor ?? 1m;
     }
 
-    public async Task<Application.RenewalSettings> RenewalSettings(DateOnly day, CancellationToken cancellationToken) =>
-        await InForce<StaticData.RenewalSettings>(day).Select(s => new Application.RenewalSettings(s.WorseTermsPct, s.ChangedTermsNoticeDays))
-            .FirstOrDefaultAsync(cancellationToken) ?? Application.RenewalSettings.Default;
+    public async Task<Application.RenewalTermsSettings> RenewalSettings(DateOnly day, CancellationToken cancellationToken) =>
+        await InForce<StaticData.RenewalSettings>(day).Select(s => new Application.RenewalTermsSettings(s.WorseTermsPct, s.ChangedTermsNoticeDays))
+            .FirstOrDefaultAsync(cancellationToken) ?? Application.RenewalTermsSettings.Default;
 
     public Task<bool> Exists(GeneralCode kind, string code, DateOnly day, CancellationToken cancellationToken) => kind switch
     {

@@ -659,6 +659,27 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
             """, ("p", lapsing.Principal))).ShouldBe($"SENT:{memberNumber} is suspended from {Today:yyyy-MM-dd}.");
     }
 
+    /// <summary>Wave 4 §4.5: a scheme's sponsor is told of its renewal by the scheme's renewal rule's notice, once per scheme year.</summary>
+    [Fact]
+    public async Task ASchemesSponsor_IsToldOfItsRenewal_ByTheRulesNotice_OncePerYear()
+    {
+        await _db.SeedEmailNotices(Tenant, Today.AddDays(-30), "SRN",
+            (Insys.Communications.Contracts.NotificationTypes.SchemeRenewalNotice, "Scheme {scheme_number}", "{scheme_number} renews on {renewal_date}."));
+        var scheme = await Created("/api/v1/health/schemes", new { sponsorCode = "S-ACME", startDate = Today.AddYears(-1), renewalDate = Today.AddDays(45), currency = "ZAR" });
+        var number = (await Get($"/api/v1/health/schemes/{scheme}")).GetProperty("schemeNumber").GetString()!;
+        await Seed("health.cfg_scheme_renewal_rules", "EFFECTIVE", $"SRR-{number}", ("scheme", number), ("notice_days", 60), ("re_rating_basis", "COMMUNITY"));
+        var jobs = _factory.Services.GetRequiredService<Insys.Health.Infrastructure.HealthJobs>();
+        for (var run = 0; run < 2; run++)
+        {
+            await jobs.Run(CancellationToken.None);
+            await _factory.DrainOutbox();
+        }
+
+        (await _db.ScalarAsOwner<long>("""
+            SELECT count(*) FROM communication.notification WHERE recipient_party_id = @s AND type_code = 'SCHEME_RENEWAL_NOTICE' AND source_id = @c
+            """, ("s", SponsorParty), ("c", scheme))).ShouldBe(1L, "sent once however often the job runs");
+    }
+
     /// <summary>Phase 5 review, item 5: member reimbursement on the plan's REFERENCE_TARIFF basis, paid to the principal's verified account through a run.</summary>
     [Fact]
     public async Task MemberClaim_IsPricedAtTheReferenceTariff_AndPaidToThePrincipalsVerifiedAccountInARun()

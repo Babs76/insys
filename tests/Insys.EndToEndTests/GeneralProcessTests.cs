@@ -638,6 +638,85 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
     }
 
     /// <summary>
+    /// Wave 4 §4.2 (F015 to F019; OQ-131; addition 2): before the invitation, a reviewed product's renewal is reviewed. It reads
+    /// the claims history, re-rates the renewal as a renewal quote priced through Rating, times the claims experience factor,
+    /// and the product's underwriting rules refer it. The senior underwriter, whose authority covers the sum insured, offers it
+    /// with a loading. The invitation states the offered premium, sent with the longer notice changed terms need, and the
+    /// policy renews on the offered terms.
+    /// </summary>
+    [Fact]
+    public async Task ARenewal_IsReviewedReRatedAndReferred_ThenOfferedInvitedAndRenewedOnTheOfferedTerms_F015_F019()
+    {
+        await _db.SeedEmailNotices(Tenant, Today.AddDays(-30), "RNW",
+            (Insys.Communications.Contracts.NotificationTypes.RenewalInvitation, "Renew {policy_number}", "{policy_number} renews at {renewal_premium} {currency}."));
+        await Seed("general.cfg_renewal_rules", "EFFECTIVE", "RR-GMOT", ("product_code", Product), ("notice_days", 31), ("auto_renew", true), ("re_rating", true),
+            ("invitation_template", "TPL-RENEWAL_NOTICE"), ("reminder_days", new[] { 10 }), ("review", true));
+        await Seed("general.cfg_renewal_review_rules", "EFFECTIVE", "RV-GMOT", ("product_code", Product), ("underwriting_rules", true), ("claims_lookback_years", 3),
+            ("review_days_before_invitation", 14));
+        await Seed("general.cfg_claims_experience_factors", "EFFECTIVE", "CF-GMOT-1", ("product_code", Product), ("claims_count_from", 1), ("factor", 1.2m));
+        await Seed("general.ref_underwriting_decision_codes", "ACTIVE", "ACCEPT_LOADED", ("label", "Accepted with a loading"), ("requires_terms", false));
+        await Seed("rules.cfg_acceptance_and_referral_rules", "EFFECTIVE", "UW-REN-CLAIMS", ("rule_code", "UW-REN-CLAIMS"), ("condition", "claims_count >= 1"),
+            ("threshold", 0m), ("outcome", "REFER"));
+
+        async Task<JsonElement> Get(string url) => await (await _maker.GetAsync(url)).Json();
+        var (policy, vehicle) = await IssuedPolicy();
+        var holder = await _maker.RegisterPerson("Renewing");
+        await _db.AddContact(Tenant, holder, "EMAIL", "renewing@example.com");
+        await _db.ExecuteAsOwner("UPDATE general.policy SET policyholder_party_id = @h, period_start = @s, period_end = @e WHERE id = @p", ("h", holder),
+            ("s", Today.AddYears(-1).AddDays(21)), ("e", Today.AddDays(20)), ("p", policy));
+        var claim = await Created("/api/v1/general/claims", new
+        {
+            policyId = policy, riskObjectId = vehicle, coverageCode = "OWN_DAMAGE", lossDate = Today, causeCode = "COLLISION", perilCode = "ACC", description = "One claim",
+        });
+        (await _maker.PostAsync($"/api/v1/general/claims/{claim}/register", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        await _factory.DrainOutbox();
+
+        // The review: claims history, re-rating through Rating, the factor, and the underwriting rules' referral.
+        var jobs = _factory.Services.GetRequiredService<Insys.General.Infrastructure.GeneralJobs>();
+        await jobs.Run(CancellationToken.None);
+        await _factory.DrainOutbox();
+        var renewal = (await Get($"/api/v1/general/renewals?policyId={policy}")).GetProperty("items").EnumerateArray().Single();
+        var id = renewal.GetProperty("id").GetGuid();
+        ShouldMatchDocumented(renewal, "GeneralGetRenewal");
+        (renewal.GetProperty("status").GetString(), renewal.GetProperty("claimsCount").GetInt32(), renewal.GetProperty("factor").GetDecimal(),
+            renewal.GetProperty("ratedPremium").GetDecimal()).ShouldBe(("Referred", 1, 1.2m, 3_050m), renewal.ToString());
+        renewal.GetProperty("checks").EnumerateArray().Select(c => $"{c.GetProperty("checkCode").GetString()}:{c.GetProperty("outcome").GetString()}")
+            .ShouldContain("UNDERWRITING_RULES:REFER");
+        renewal.GetProperty("quoteId").GetGuid().ShouldNotBe(Guid.Empty);
+        (await _db.ScalarAsOwner<string>("""
+            SELECT p.status || ':' || t.queue_code FROM workflow.process_instance p JOIN workflow.task t ON t.tenant_id = p.tenant_id AND t.process_instance_id = p.id
+            WHERE p.process_code = 'GENERAL_RENEWAL_REVIEW' AND p.business_ref_id = @r
+            """, ("r", id))).ShouldStartWith("RUNNING:", customMessage: "an underwriter's task, routed by authority");
+
+        // F019: the underwriter's authority (50 000) does not cover the 100 000 sum insured; the senior underwriter's does.
+        (await (await _maker.PostAsJsonAsync($"/api/v1/general/renewals/{id}/decision", new { offer = true, decisionCode = "ACCEPT_LOADED", loadingPct = 10m })).Code())
+            .ShouldBe("UNDERWRITING_AUTHORITY_EXCEEDED");
+        var offered = await (await _checker.PostAsJsonAsync($"/api/v1/general/renewals/{id}/decision", new { offer = true, decisionCode = "ACCEPT_LOADED", loadingPct = 10m })).Json();
+        (offered.GetProperty("status").GetString(), offered.GetProperty("offeredPremium").GetDecimal(), offered.GetProperty("changedTerms").GetBoolean())
+            .ShouldBe(("Offered", 4_026m, true), "3 050 re-rated, times 1.2 for the claim, plus a 10 % loading");
+        await _factory.DrainOutbox();
+        (await _db.ScalarAsOwner<string>("SELECT status FROM workflow.process_instance WHERE process_code = 'GENERAL_RENEWAL_REVIEW' AND business_ref_id = @r", ("r", id)))
+            .ShouldBe("COMPLETED");
+
+        // The invitation states the offered premium; changed terms are invited at least the tenant's 31 days before (here at once).
+        await jobs.Run(CancellationToken.None);
+        await _factory.DrainOutbox();
+        await _factory.Services.GetRequiredService<Insys.Communications.Infrastructure.NotificationSender>().RunForTenant(Tenant, CancellationToken.None);
+        var number = (await Policy(policy)).GetProperty("policyNumber").GetString();
+        (await _db.ScalarAsOwner<string>("SELECT status || ':' || body FROM communication.notification WHERE recipient_party_id = @h AND type_code = 'RENEWAL_INVITATION'",
+            ("h", holder))).ShouldBe($"SENT:{number} renews at 4026.00 ZAR.");
+
+        // At the period's end it renews on the offered terms.
+        await _db.ExecuteAsOwner("UPDATE general.policy SET period_end = @e WHERE id = @p", ("e", Today.AddDays(-1)), ("p", policy));
+        await _db.ExecuteAsOwner("UPDATE general.renewal SET period_end = @e WHERE id = @r", ("e", Today.AddDays(-1)), ("r", id));
+        await jobs.Run(CancellationToken.None);
+        await _factory.DrainOutbox();
+        var renewed = await _db.ScalarAsOwner<Guid>("SELECT id FROM general.policy WHERE renewal_of_id = @p", ("p", policy));
+        (await Policy(renewed)).GetProperty("annualPremium").GetDecimal().ShouldBe(4_026m);
+        (await Get($"/api/v1/general/renewals/{id}")).GetProperty("status").GetString().ShouldBe("Renewed");
+    }
+
+    /// <summary>
     /// External-user access (addenda/external-user-access.md): brokers and members act only through their portal, on the
     /// records of their relationship. A broker cannot see another broker's client, nor quote for one; a member cannot open
     /// another member's policy, even by guessing its ID. Staff endpoints, the staff client and a token without MFA are refused.
