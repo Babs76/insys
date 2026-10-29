@@ -1,6 +1,13 @@
 # Addendum: customer due diligence (Wave 3: F001–F003, F077, and the staff duplicate check)
 
-**For Ade's sign-off. Nothing here is built until it is signed off.** 29 October 2026. It follows the Waves 3 to 6 plan (`waves3-6-plan.md`, accepted 29 October 2026). §8 lists the decisions it needs, OQ-123 to OQ-128.
+**Signed off (Ade, 29 October 2026), with these decisions; being built in Wave 3 (§10).**
+- **OQ-123:** the §5 defaults are accepted. For a tenant with the LIFE feature, the Life issue gate is on by default, and onboarding readiness flags it if it is switched off.
+- **OQ-124:** LOW every 5 years, MEDIUM every 3 and HIGH every year, as defaults each tenant can change.
+- **OQ-125:** re-screen on list updates and before each payout. A monthly full re-screen is the fallback for providers that do not tell INSYS when lists change.
+- **OQ-126:** `PARTY_APPROVE_ENHANCED_DD`, privileged, as proposed; the maker cannot approve.
+- **OQ-127:** a 409 with the candidates, and an override with a reason, as proposed.
+- **OQ-128:** due diligence records follow the party retention default: 7 years after the last policy, claim or payment ends, which covers FICA's 5-year minimum. A legal hold overrides it.
+- **Adverse media screening** (`ADVERSE_MEDIA`) is off by default for each tenant, and is switched on deliberately. It may involve special personal information under POPIA (§1).
 
 ## 0. Why an addendum
 - **F001 (verify customer identity)** has a basis in the SRS (§6.1, identity documents and verification references). Today:
@@ -22,6 +29,7 @@ INSYS's first tenants are South African. The obligations below come from the Fin
   - for a foreign prominent public official, and for a domestic prominent influential person who is high risk, get senior management approval, establish the source of wealth and funds, and monitor the relationship more closely. Their family members and known close associates are treated the same way.
 - **A risk-based approach (s42):** the institution's Risk Management and Compliance Programme decides how much due diligence each risk level needs. INSYS supplies the configuration, not the programme.
 - **Records (s22, s22A, s23):** CDD records are kept for at least 5 years after the relationship ends.
+- **POPIA and adverse media (for compliance to confirm):** adverse media screening may surface special personal information, such as criminal behaviour (POPIA s26 to s33). It is therefore off by default and switched on per tenant (`party.cfg_due_diligence_settings.adverse_media_enabled`), with the tenant's own justification.
 - **Reports:** reports to the FIC go through its own system, outside INSYS. They include suspicious transaction reports (s29) and reports of property of a sanctioned person (s28A). INSYS records that a report is needed and who made it (§4.4).
 
 ## 2. Where it lives
@@ -73,11 +81,14 @@ INSYS's first tenants are South African. The obligations below come from the Fin
 - **Checks run as their data arrives.** A requirement not yet met keeps the due diligence `IN_PROGRESS`, and the party view lists what is missing.
 
 ### 4.3 Screening and CDD (F003)
-- **When screening runs:**
+- **When screening runs (OQ-125):**
   - at onboarding;
   - before each payout (§5);
   - on each periodic review;
-  - when the provider tells INSYS its lists changed. The stub can simulate this, and a daily job re-screens the parties whose last screening predates the list's version.
+  - when the provider tells INSYS its lists changed. The stub can simulate this, and a daily job re-screens the parties whose last screening predates the list's version;
+  - a monthly full re-screen of every party with a live relationship, as the fallback for providers that do not notify list changes.
+
+  Adverse media is screened only where the tenant has switched it on.
 - **A hit stops clearance.** It opens a Workflow task (`DUE_DILIGENCE_HIT_REVIEW`) for a holder of the new function `PARTY_REVIEW_SCREENING_HIT`. The reviewer marks it `FALSE_POSITIVE` (with a reason) or `TRUE_MATCH`.
   - **A true sanctions match** sets the due diligence `BLOCKED` and `report_required`, and opens a case for compliance. Unblocking is privileged and needs a second person.
   - **A true PEP match** raises the level to `ENHANCED`.
@@ -114,10 +125,11 @@ INSYS's first tenants are South African. The obligations below come from the Fin
 - A portal user never sees due diligence: no status, no hit, no class. A refused or held step answers a portal user with a neutral "we are reviewing your details" (`PORTAL_UNDER_REVIEW`). This is the same rule as the duplicate answer (external-user access §6, POPIA).
 
 ## 7. Readiness
+- **The Life issue gate:** for a tenant with the LIFE feature it is on by default, and readiness flags it when switched off (`DUE_DILIGENCE_LIFE_GATE`, OQ-123).
 - **For a tenant with a gate on:** readiness needs an active adapter of each kind the requirement sets use, or the gate off (`DUE_DILIGENCE_PROVIDER`). It also needs at least one holder of the hit-review function (`DUE_DILIGENCE_REVIEWER`).
 - **Without an adapter,** checks are manual only, and readiness warns.
 
-## 8. Decisions needed
+## 8. Decisions (all decided, 29 October 2026; see the top of this addendum)
 1. **OQ-123, gates:** the defaults in §5. Do you accept them, or should General and Health also need full CDD at issue?
 2. **OQ-124, risk classes and review intervals.** Proposed: LOW every 5 years, MEDIUM every 3, HIGH every year. The starter factors are as in §4.4, and the tenant's compliance sets the weights.
 3. **OQ-125, re-screening.** Screen on list updates and before each payout (as §4.3), or on a fixed schedule only (simpler, but slower to catch a newly listed person)?
@@ -146,7 +158,7 @@ INSYS's first tenants are South African. The obligations below come from the Fin
   - identity verification (F001) and manual checks with documents;
   - the staff duplicate check;
   - the deterministic test clocks;
-  - BR-089, BR-090, BR-096 and BR-097.
+  - BR-089, BR-090, BR-096, BR-097 and BR-101.
 - **Wave 3 batch 2:**
   - requirement sets and KYC (F002);
   - screening, hit review, enhanced due diligence and reports (F003);

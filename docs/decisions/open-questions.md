@@ -1199,3 +1199,11 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
   - **OQ-126:** who approves enhanced due diligence.
   - **OQ-127:** how staff are told of a duplicate.
   - **OQ-128:** how long due diligence records are kept.
+- **Decided (29 October 2026, Ade):** the addendum is signed off.
+  - **OQ-123:** the defaults stand; the Life issue gate is on by default for LIFE tenants, and readiness flags it if it is switched off.
+  - **OQ-124:** 5, 3 and 1 years, tenant-configurable.
+  - **OQ-125:** re-screen on list updates, before each payout, and monthly in full as a fallback.
+  - **OQ-126:** `PARTY_APPROVE_ENHANCED_DD`, privileged.
+  - **OQ-127:** a 409 with the candidates, and an override with a reason.
+  - **OQ-128:** 7 years after the last policy, claim or payment ends; a legal hold overrides it.
+  - Adverse media screening is off by default (POPIA special personal information, for compliance to confirm).
