@@ -43,6 +43,13 @@ public static class PartyInfrastructure
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Party.Contracts.PartyApprovals.BankAccountBusinessRefType, "PARTY_BANK_ACCOUNTS", Insys.Party.Contracts.PartyApprovals.BankAccountVerificationType);
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Party.Contracts.PartyApprovals.MatchBusinessRefType, "PARTIES", Insys.Party.Contracts.PartyApprovals.MatchResolutionType);
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Party.Contracts.PartyApprovals.SearchLogHoldBusinessRefType, "PARTY_SEARCH_LOG", Insys.Party.Contracts.PartyApprovals.LegalHoldReleaseType);
+        // Due diligence (addenda/due-diligence.md §4.3, §4.4, OQ-126): enhanced clearance, risk class overrides and unblocking.
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Party.Contracts.PartyApprovals.DueDiligenceBusinessRefType, "PARTY_DUE_DILIGENCE",
+            Insys.Party.Contracts.PartyApprovals.EnhancedDueDiligenceType);
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Party.Contracts.PartyApprovals.RiskOverrideBusinessRefType, "PARTY_DUE_DILIGENCE",
+            Insys.Party.Contracts.PartyApprovals.RiskClassOverrideType);
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Party.Contracts.PartyApprovals.UnblockBusinessRefType, "PARTY_DUE_DILIGENCE",
+            Insys.Party.Contracts.PartyApprovals.UnblockType);
         services.AddModuleDbContext<PartyDbContext>(PartyDbContext.SchemaName, "Party");
         // D-34: a legal hold on a party itself; a party has no product or node.
         services.AddLegalHoldTargets(PartyDbContext.SchemaName, new Dictionary<string, string>
@@ -75,6 +82,24 @@ public static class PartyInfrastructure
         services.AddSingleton<IPartyConsent>(sp => sp.GetRequiredService<BankAccountQueries>());
         services.AddIntegrationEventHandler<Communications.Contracts.MarketingOptedOut, WithdrawConsentOnOptOut, PartyDbContext>(PartyDbContext.SchemaName);
         services.AddIntegrationEventHandler<Contracts.PartyIdentifierAdded, IdentityVerificationPolicy, PartyDbContext>(PartyDbContext.SchemaName); // F001
+
+        // Due diligence (Wave 3 batch 2): onboarding, re-screening before payouts, Workflow's decisions, the gates and the daily job.
+        services.AddScoped<IDueDiligenceStore, DueDiligenceStore>();
+        services.AddScoped<IDueDiligenceConfiguration, DueDiligenceConfiguration>();
+        services.AddScoped<DueDiligenceService>();
+        services.AddScoped<IDueDiligenceStatus, DueDiligenceStatus>();
+        services.AddIntegrationEventHandler<Contracts.PartyRegistered, DueDiligenceOnboarding, PartyDbContext>(PartyDbContext.SchemaName, "PartyRegistered");
+        services.AddIntegrationEventHandler<Contracts.PartyDetailsChanged, DueDiligenceOnboarding, PartyDbContext>(PartyDbContext.SchemaName, "PartyDetailsChanged");
+        services.AddIntegrationEventHandler<BuildingBlocks.Contracts.Payouts.PayeeScreeningRequested, DueDiligenceOnboarding, PartyDbContext>(PartyDbContext.SchemaName,
+            "PayeeScreeningRequested");
+        services.AddIntegrationEventHandler<Workflow.Contracts.ApprovalGranted, DueDiligenceApprovalPolicy, PartyDbContext>(PartyDbContext.SchemaName, "ApprovalGranted");
+        services.AddIntegrationEventHandler<Workflow.Contracts.ApprovalRejected, DueDiligenceApprovalPolicy, PartyDbContext>(PartyDbContext.SchemaName, "ApprovalRejected");
+        services.AddOptions<DueDiligenceJobOptions>().BindConfiguration("Party:DueDiligenceJobs");
+        services.AddSingleton<DueDiligenceJobs>();
+        if (!BuildingBlocks.Infrastructure.InfrastructureRegistration.IsBuildTimeDocumentGeneration)
+        {
+            services.AddHostedService<DueDiligenceJobsService>();
+        }
         services.AddIntegrationEventHandler<Workflow.Contracts.ApprovalGranted, BankAccountVerificationPolicy, PartyDbContext>(PartyDbContext.SchemaName, "ApprovalGranted");
         services.AddIntegrationEventHandler<Workflow.Contracts.ApprovalGranted, PartyMatchResolutionPolicy, PartyDbContext>(PartyDbContext.SchemaName, "ApprovalGranted");
         services.AddIntegrationEventHandler<Workflow.Contracts.ApprovalRejected, PartyMatchResolutionPolicy, PartyDbContext>(PartyDbContext.SchemaName, "ApprovalRejected");

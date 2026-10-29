@@ -52,6 +52,17 @@ public static class ErrorCodes
     [ErrorCode(422, "error.request.validation_failed")]
     public const string ValidationFailed = "VALIDATION_FAILED";
 
+    /// <summary>
+    /// A step a due diligence gate covers (addenda/due-diligence.md §5): the party is not cleared for it. The problem's
+    /// outstanding extension names what is missing, never a hit or a list. Staff only; a portal user gets PORTAL_UNDER_REVIEW.
+    /// </summary>
+    [ErrorCode(422, "error.due_diligence.not_cleared")]
+    public const string DueDiligenceNotCleared = "DUE_DILIGENCE_NOT_CLEARED";
+
+    /// <summary>A portal user's step waits on a review of their details (due diligence §6): neutral, it says nothing of why.</summary>
+    [ErrorCode(422, "error.portal.under_review")]
+    public const string PortalUnderReview = "PORTAL_UNDER_REVIEW";
+
     [ErrorCode(409, "error.state.invalid_transition")]
     public const string InvalidStateTransition = "INVALID_STATE_TRANSITION";
 

@@ -42,7 +42,7 @@ namespace Insys.Party.Application;
 /// is never logged, kept in the check or put in an event.
 /// </summary>
 public sealed class IdentityVerificationPolicy(IPartyRepository parties, IPartnerDirectory partners, IIdentityVerificationAdapter adapter, IFieldProtector protector,
-    ITenantContext tenant, IBusinessDate businessDate, IClock clock, IAuditTrail audit) : IIntegrationEventHandler<Contracts.PartyIdentifierAdded>
+    ITenantContext tenant, IBusinessDate businessDate, IClock clock, IAuditTrail audit, DueDiligenceService dueDiligence) : IIntegrationEventHandler<Contracts.PartyIdentifierAdded>
 {
     public async Task Handle(Contracts.PartyIdentifierAdded added, EventEnvelope envelope, CancellationToken cancellationToken)
     {
@@ -56,7 +56,8 @@ public sealed class IdentityVerificationPolicy(IPartyRepository parties, IPartne
 
         var result = await adapter.Verify(tenantId, partner, identifier.DocType, identifier.Country, protector.Unprotect(identifier.NumberEnc),
             party.Individual?.FirstNames, party.Individual?.Surname, party.Individual?.BirthDate, cancellationToken);
-        parties.Add(DueDiligenceCheck.ByProvider(party.Id, identifier.Id, partner, result.Verified, result.ProviderRef, result.Reason, clock.UtcNow));
+        var check = DueDiligenceCheck.ByProvider(party.Id, identifier.Id, partner, result.Verified, result.ProviderRef, result.Reason, clock.UtcNow);
+        parties.Add(check);
         if (result.Verified && result.ProviderRef is { } reference)
         {
             var verified = party.VerifyIdentifier(identifier.Id, reference, clock.UtcNow);
@@ -72,5 +73,8 @@ public sealed class IdentityVerificationPolicy(IPartyRepository parties, IPartne
         {
             ["identifier"] = identifier.Id.ToString(), ["partner"] = partner, ["outcome"] = result.Verified ? DueDiligenceCheck.Passed : DueDiligenceCheck.Failed,
         }));
+
+        // F002: the identity check may complete what the requirement sets need.
+        await dueDiligence.Reassess(party, await dueDiligence.For(party.Id, cancellationToken), null, [check], cancellationToken);
     }
 }

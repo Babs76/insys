@@ -67,6 +67,27 @@ public sealed record DeathRequest(DateOnly DeceasedDate);
 
 public sealed record MergePartiesRequest(Guid SurvivorId, Guid MergedId, string Reason);
 
+/// <param name="CheckType">SCREENING (sanctions, PEP and, where switched on, adverse media, through the provider); IDENTITY (an identifier, through the provider); or ADDRESS, BENEFICIAL_OWNERSHIP or SOURCE_OF_FUNDS, verified by the caller against a document filed against the party.</param>
+/// <param name="Reference">The caller's reference for a check they recorded (optional).</param>
+public sealed record DueDiligenceCheckRequest([property: BuildingBlocks.Domain.OneOf("SCREENING", "IDENTITY", "ADDRESS", "BENEFICIAL_OWNERSHIP", "SOURCE_OF_FUNDS")] string CheckType,
+    Guid? IdentifierId, Guid? DocumentId, string? Reference);
+
+/// <param name="Reason">Why, in the reviewer's words; required. Kept on the hit, never put in an event.</param>
+public sealed record HitReviewRequest([property: BuildingBlocks.Domain.OneOf("TRUE_MATCH", "FALSE_POSITIVE")] string Outcome, string Reason);
+
+public sealed record RiskClassOverrideRequest([property: BuildingBlocks.Domain.OneOf("LOW", "MEDIUM", "HIGH")] string RiskClass, string Reason);
+
+/// <param name="ReportType">S28A (property of a sanctioned person) or S29 (a suspicious transaction).</param>
+/// <param name="FicReference">The reference the FIC's system gave the report.</param>
+public sealed record FicReportRequest(Guid HitId, [property: BuildingBlocks.Domain.OneOf("S28A", "S29")] string ReportType, string FicReference);
+
+public sealed record UnblockRequest(string Reason);
+
+/// <param name="SharePercent">The share held, for OWNERSHIP; omitted for control or a senior manager.</param>
+/// <param name="DocumentId">Required when established by DOCUMENT: a document filed against the organisation.</param>
+public sealed record BeneficialOwnerRequest(Guid OwnerPartyId, [property: BuildingBlocks.Domain.OneOf("OWNERSHIP", "CONTROL", "SENIOR_MANAGER")] string ControlType,
+    decimal? SharePercent, [property: BuildingBlocks.Domain.OneOf("DOCUMENT", "REGISTER", "DECLARATION")] string EstablishedBy, Guid? DocumentId);
+
 /// <summary>Party search filters (GAP-022): any combination, at least one. The body carries them, so an identifier number never appears in a URL.</summary>
 /// <param name="PartyNumber">An exact party number (BR-029), P and 9 digits; its check digit is checked.</param>
 public sealed record PartySearchRequest(string? Name, IdentifierFilter? Identifier, [property: BuildingBlocks.Domain.CodeList(Tables.RoleTypes)] string? RoleCode, PartyStatus? Status, string? Cursor, int? Limit,
@@ -255,6 +276,29 @@ public sealed class PartyModule : IModule
             .WithSummary("The identity checks run on the party, by a provider or a person, oldest first (F001)")
             .RequirePermission(PartyPermissions.PartyRead);
 
+        MapDueDiligence(parties);
+        api.MapGet("/party/due-diligence", async (string? status, string? riskClass,
+                [Description("Records whose next review is on or before this day")] DateOnly? reviewDueBy,
+                [Description("true: only records with a hit waiting for review; false: only those without")] bool? openHits, string? cursor, int? limit,
+                IDispatcher dispatcher, CancellationToken ct) =>
+            {
+                if (!Cursor.TryDecode(cursor, out var beforeId))
+                {
+                    return Problems.For(BuildingBlocks.Domain.ErrorCodes.ValidationFailed, "The cursor is not valid.", StatusCodes.Status422UnprocessableEntity);
+                }
+
+                var pageSize = Cursor.ClampLimit(limit);
+                return (await dispatcher.Query(new ListDueDiligence(new DueDiligenceFilter(status, riskClass, reviewDueBy, openHits), beforeId, pageSize), ct))
+                    .ToHttp(items => Results.Ok(new CursorPage<DueDiligenceSummary>(items, items.Count == pageSize ? Cursor.Encode(items[^1].Id) : null)));
+            })
+            .WithTags(Name)
+            .Produces<CursorPage<DueDiligenceSummary>>(StatusCodes.Status200OK)
+            .WithName("PartyListDueDiligence")
+            .WithSummary("The compliance work list: parties' due diligence by status, risk class, review date and open hits, newest first")
+            .WithDescription("status is NOT_STARTED, IN_PROGRESS, CLEARED, REFERRED, BLOCKED or EXPIRED; riskClass LOW, MEDIUM or HIGH. Each row counts the hits "
+                + "waiting for review; the hits themselves are on the party's due diligence, for reviewers (addenda/due-diligence.md §9).")
+            .RequirePermission(PartyPermissions.DueDiligenceRead);
+
         parties.MapPost("/{id:guid}/relationships", (Guid id, RelationshipRequest r, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
                 Versioned(http, v => dispatcher.Send(new RecordRelationship(id, r.ToPartyId, r.RelationshipCode, r.ValidFrom, v), ct)))
             .Produces(StatusCodes.Status204NoContent)
@@ -393,6 +437,91 @@ public sealed class PartyModule : IModule
     }
 
     /// <summary>Legal holds on the party search access log (OQ-073): held entries are not deleted by retention.</summary>
+    /// <summary>Customer due diligence (addenda/due-diligence.md §9, Wave 3 batch 2): HIGHLY_SENSITIVE, staff only, every read audited.</summary>
+    private static void MapDueDiligence(RouteGroupBuilder parties)
+    {
+        parties.MapGet("/{id:guid}/due-diligence", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Query(new GetDueDiligence(id), ct)).ToHttp(Results.Ok))
+            .ETagsFromRowVersion()
+            .Produces<DueDiligenceView>(StatusCodes.Status200OK)
+            .WithName("PartyGetDueDiligence")
+            .WithSummary("A party's due diligence: status, risk class and level, what is outstanding, checks and beneficial owners")
+            .WithDescription("Each read is audited (IAM-006). hits is given only to holders of due_diligence.review_hit (PARTY_REVIEW_SCREENING_HIT); "
+                + "otherwise it is null. A party with no record yet reads as NOT_STARTED.")
+            .RequirePermission(PartyPermissions.DueDiligenceRead);
+
+        parties.MapPost("/{id:guid}/due-diligence/checks", async (Guid id, DueDiligenceCheckRequest r, IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Send(new RunDueDiligenceCheck(id, r.CheckType, r.IdentifierId, r.DocumentId, r.Reference), ct)).ToHttp(Results.Ok))
+            .ETagsFromRowVersion()
+            .Produces<DueDiligenceView>(StatusCodes.Status200OK)
+            .WithName("PartyRunDueDiligenceCheck")
+            .WithSummary("Run a due diligence check through the provider, or record one the caller verified against a document")
+            .WithDescription("SCREENING and IDENTITY go to the tenant's SCREENING and IDENTITY_VERIFICATION partners (422 when none is active). ADDRESS, "
+                + "BENEFICIAL_OWNERSHIP and SOURCE_OF_FUNDS are recorded by the caller against documentId, a document filed against the party. The party is "
+                + "then assessed again (F002, F003, F077); at ENHANCED, clearance waits for a PARTY_APPROVE_ENHANCED_DD approval, which the caller cannot give.")
+            .RequirePermission(PartyPermissions.DueDiligenceCheck)
+            .RequireIdempotencyKey();
+
+        parties.MapPost("/{id:guid}/due-diligence/hits/{hitId:guid}/review", async (Guid id, Guid hitId, HitReviewRequest r, IDispatcher dispatcher, HttpContext http,
+                CancellationToken ct) =>
+            {
+                var expected = Concurrency.ExpectedVersion(http.Request);
+                return expected.IsFailure
+                    ? Problems.For(expected.Error)
+                    : (await dispatcher.Send(new ReviewScreeningHit(id, hitId, r.Outcome, r.Reason, expected.Value), ct)).ToHttp(Results.Ok);
+            })
+            .RequireIfMatch()
+            .ETagsFromRowVersion()
+            .Produces<DueDiligenceView>(StatusCodes.Status200OK)
+            .WithName("PartyReviewScreeningHit")
+            .WithSummary("Review a screening hit: a true match or a false positive, with a reason (F003)")
+            .WithDescription("If-Match is the due diligence's ETag. A true sanctions match blocks the party, needs a report to the FIC (s28A) and opens a "
+                + "compliance case; a true PEP match raises the level to ENHANCED. The party is then assessed again.")
+            .RequirePermission(PartyPermissions.DueDiligenceReviewHit);
+
+        parties.MapPost("/{id:guid}/due-diligence/risk-class", async (Guid id, RiskClassOverrideRequest r, IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Send(new OverrideRiskClass(id, r.RiskClass, r.Reason), ct)).ToHttp(Results.Ok))
+            .ETagsFromRowVersion()
+            .Produces<DueDiligenceView>(StatusCodes.Status200OK)
+            .WithEventualEffects("granted, riskClass becomes the class asked for and the party is assessed again; rejected, expired or withdrawn, "
+                + "pendingOverrideClass is cleared.")
+            .WithName("PartyOverrideRiskClass")
+            .WithSummary("Override the party's risk class, with a reason; it applies once a second person approves it in Workflow (F077)")
+            .WithDescription("Workflow approval DUE_DILIGENCE_RISK_OVERRIDE; the approver holds due_diligence.override_risk. pendingOverrideClass shows the "
+                + "class asked for until it is decided. An approved override is kept when the party is classified again.")
+            .RequirePermission(PartyPermissions.DueDiligenceOverrideRisk);
+
+        parties.MapPost("/{id:guid}/due-diligence/report", async (Guid id, FicReportRequest r, IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Send(new RecordFicReport(id, r.HitId, r.ReportType, r.FicReference), ct)).ToHttp(Results.Ok))
+            .ETagsFromRowVersion()
+            .Produces<DueDiligenceView>(StatusCodes.Status200OK)
+            .WithName("PartyRecordFicReport")
+            .WithSummary("Record the FIC reference of a report made for a true match (s28A or s29); the report itself goes through the FIC's own system")
+            .RequirePermission(PartyPermissions.DueDiligenceReport);
+
+        parties.MapPost("/{id:guid}/due-diligence/unblock", async (Guid id, UnblockRequest r, IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Send(new RequestDueDiligenceUnblock(id, r.Reason), ct)).ToHttp(Results.Ok))
+            .ETagsFromRowVersion()
+            .Produces<DueDiligenceView>(StatusCodes.Status200OK)
+            .WithEventualEffects("granted, blocked becomes false and the party is assessed again (party.DueDiligenceChanged); otherwise unblockPending "
+                + "is cleared and the party stays BLOCKED.")
+            .WithName("PartyRequestDueDiligenceUnblock")
+            .WithSummary("Ask to unblock a party after a true sanctions match; a second person holding the same privileged permission approves it")
+            .WithDescription("Workflow approval DUE_DILIGENCE_UNBLOCK (§4.3). The party stays BLOCKED until it is approved.")
+            .RequirePermission(PartyPermissions.DueDiligenceUnblock);
+
+        parties.MapPost("/{id:guid}/beneficial-owners", async (Guid id, BeneficialOwnerRequest r, IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Send(new RecordBeneficialOwner(id, r.OwnerPartyId, r.ControlType, r.SharePercent, r.EstablishedBy, r.DocumentId), ct)).ToHttp(Results.Ok))
+            .ETagsFromRowVersion()
+            .Produces<DueDiligenceView>(StatusCodes.Status200OK)
+            .WithName("PartyRecordBeneficialOwner")
+            .WithSummary("Record an organisation's beneficial owner, itself a party with its own due diligence (FICA s21B)")
+            .WithDescription("BENEFICIAL_OWNERSHIP is met once an owner is recorded and the ownership check is verified against a document "
+                + "(POST due-diligence/checks).")
+            .RequirePermission(PartyPermissions.DueDiligenceCheck)
+            .RequireIdempotencyKey();
+    }
+
     private static void MapSearchLogHolds(RouteGroupBuilder holds)
     {
         holds.MapPost("/", async (SearchLogHoldRequest r, IDispatcher dispatcher, CancellationToken ct) =>

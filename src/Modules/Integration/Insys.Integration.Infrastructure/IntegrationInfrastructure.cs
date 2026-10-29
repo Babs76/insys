@@ -79,6 +79,7 @@ public static class IntegrationInfrastructure
         services.AddSingleton<IRegulatorAdapter>(sp => sp.GetRequiredService<Partners.StubPartnerAdapters>());
         services.AddSingleton<IGeneralLedgerAdapter>(sp => sp.GetRequiredService<Partners.StubPartnerAdapters>());
         services.AddSingleton<IIdentityVerificationAdapter>(sp => sp.GetRequiredService<Partners.StubPartnerAdapters>());
+        services.AddSingleton<IScreeningAdapter>(sp => sp.GetRequiredService<Partners.StubPartnerAdapters>());
         services.AddSingleton<IPartnerDirectory, Partners.PartnerDirectory>();
 
         // Partner webhooks (INT-006): deliveries for every subscribed event, sent and retried by the webhook job.
