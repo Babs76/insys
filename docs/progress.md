@@ -44,7 +44,8 @@
 | 9 Wave 2 batch 5 | Phases 1 to 3 requests (BR-021, 023 to 030, 032 to 039); OQ-122 claim party roles; BR-091 and portal privacy shipped alone | **Merged, `99ac395`** |
 | 9 Wave 2 batch 6 | BR-095, BR-092 (group A, `80d9a3f`); referral authority and routing; frequencies, loading and instalments; BR-093 loss codes; phase 4 money requests (BR-041, 043 to 056, 058, 059); BR-094 shipped alone | **Merged, `c2a5870`** (29 Oct 2026) |
 | 9 Wave 2 batch 7 | The front end's Life and Health requests: BR-062, 063, 065 to 070, 072, 074 to 081, 086; month-end billing defect | **Merged, `67576bc`** (29 Oct 2026) |
-| 10 Wave 3 batch 1 | Due diligence addendum signed off; F001 identity verification; staff duplicate check (OQ-127); BR-089, 090, 096, 097, 101; fixed test clocks with dated CI runs; ledger partitions for open periods; cession months in business time | Branch `wave3-1` |
+| 10 Wave 3 batch 1 | Due diligence addendum signed off; F001 identity verification; staff duplicate check (OQ-127); BR-089, 090, 096, 097, 101; fixed test clocks with dated CI runs; ledger partitions for open periods; cession months in business time | **Merged, `7eeed73`** (29 Oct 2026) |
+| 10 Wave 3 batch 2 | Due diligence: KYC requirement sets (F002), screening, hit review, enhanced due diligence and FIC reports (F003), risk classes and reviews (F077), the gates with held payouts (OQ-123), readiness | Branch `wave3-2` |
 
 ## Phase 1 review items
 
