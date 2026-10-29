@@ -488,12 +488,19 @@ internal sealed class RegisterPartyHandler(IPartyRepository parties, IExecutionC
             parties.Add(DuplicateCandidate.ConfirmedNewOver(id, candidate.PartyId, MatchRule, user.Value));
         }
 
-        audit.Record(new AuditEntry("PARTY", "RegisterParty", nameof(Domain.Parties.Party), id.ToString(), candidates.Count == 0 ? null
-            : new Dictionary<string, string?>
+        audit.Record(new AuditEntry("PARTY", "RegisterParty", nameof(Domain.Parties.Party), id.ToString()));
+        if (candidates.Count > 0)
+        {
+            // OQ-127: the registrar's own assertion over the match, recorded as such (no one reviewed it).
+            audit.Record(new AuditEntry("PARTY", "OverrideDuplicateMatch", nameof(Domain.Parties.Party), id.ToString(), new Dictionary<string, string?>
             {
-                ["confirmedNewOver"] = string.Join(",", candidates.Select(c => c.PartyId)),
+                ["assertion"] = "CONFIRMED_NEW: the registrar asserts this person is not the matched part" + (candidates.Count == 1 ? "y" : "ies"),
+                ["matchedParties"] = string.Join(",", candidates.Select(c => c.PartyId)),
+                ["matchRule"] = MatchRule,
                 ["reason"] = command.Reason,
             }));
+        }
+
         return id;
     }
 }

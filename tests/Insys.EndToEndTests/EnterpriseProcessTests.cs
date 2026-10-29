@@ -614,6 +614,19 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
         (await Get($"/api/v1/finance/journals/{journal.GetProperty("id").GetGuid()}")).GetProperty("reversedByJournalId").GetGuid()
             .ShouldBe((await reversed.Json()).GetProperty("id").GetGuid());
 
+        // V0089: the ledger is partitioned on accounting_date. A period opened 20 months ahead, past the partitions maintenance
+        // creates, gets its partitions when it opens, so a reversal dated in it posts.
+        var far = new DateOnly(Today.Year, Today.Month, 1).AddMonths(20);
+        await Seed("finance.cfg_accounting_calendar_and_periods", "EFFECTIVE", $"CAL-{far:yyyy-MM}", ("period_code", $"{far:yyyy-MM}"), ("start_date", far),
+            ("end_date", far.AddMonths(1).AddDays(-1)));
+        (await _db.ScalarAsOwner<bool>($"SELECT to_regclass('finance.journal_{far:yyyy_MM}') IS NULL")).ShouldBeTrue("not yet created");
+        (await _maker.PostAsync($"/api/v1/finance/periods/{far:yyyy-MM}/open", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await _db.ScalarAsOwner<bool>($"SELECT to_regclass('finance.subledger_entry_{far:yyyy_MM}') IS NOT NULL")).ShouldBeTrue();
+        var farReversal = await _maker.Send(HttpMethod.Post, $"/api/v1/finance/journals/{inPeriod.First(j => j.GetProperty("id").GetGuid() != journal.GetProperty("id").GetGuid()).GetProperty("id").GetGuid()}/reverse",
+            new { accountingDate = far.AddDays(14), reason = "Corrected in a later period" }, idempotent: true);
+        farReversal.StatusCode.ShouldBe(HttpStatusCode.Created, await farReversal.Content.ReadAsStringAsync());
+        (await farReversal.Json()).GetProperty("accountingDate").GetString().ShouldBe($"{far.AddDays(14):yyyy-MM-dd}");
+
         // BR-046, BR-041: who sent the GL export and when; the contract declares the ETag the read gives.
         await Seed("finance.cfg_gl_export_layouts", "EFFECTIVE", "GL-EXP-02", ("layout_code", "GL-EXP-02"), ("target_system", "Insurer ERP"), ("format", "CSV"),
             ("schedule", "DAILY"));

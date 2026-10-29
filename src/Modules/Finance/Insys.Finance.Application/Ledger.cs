@@ -69,6 +69,12 @@ public interface IAccountingPeriods
     Task<IReadOnlyList<AccountingPeriod>> All(CancellationToken cancellationToken);
 
     void Add(AccountingPeriod period);
+
+    /// <summary>
+    /// The ledger's monthly partitions for the period's dates (V0089): finance.journal and finance.subledger_entry are
+    /// partitioned on accounting_date, and an open period, however far ahead, can be posted to.
+    /// </summary>
+    Task EnsurePartitions(DateOnly from, DateOnly until, CancellationToken cancellationToken);
 }
 
 /// <summary>The Finance module's static data in force: posting rules, accounts, rates and the accounting calendar.</summary>
@@ -352,6 +358,11 @@ internal sealed class ChangePeriodHandler(IAccountingPeriods periods, IPostingCo
 
         audit.Record(new AuditEntry("FINANCE", $"Period{command.Action}", nameof(AccountingPeriod), period.Id.ToString(),
             new Dictionary<string, string?> { ["period"] = command.PeriodCode }));
+        if (command.Action == PeriodAction.Open)
+        {
+            await periods.EnsurePartitions(period.StartDate, period.EndDate, cancellationToken);
+        }
+
         var result = command.Action switch
         {
             PeriodAction.Open => period.OpenPeriod(),

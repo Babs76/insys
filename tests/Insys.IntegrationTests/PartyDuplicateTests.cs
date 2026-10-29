@@ -80,11 +80,12 @@ public sealed class PartyDuplicateTests(DatabaseFixture fixture) : IClassFixture
         var newId = (await confirmed.Json()).GetProperty("id").GetGuid();
         (await fixture.Database.ScalarAsOwner<string>(
                 "SELECT status || ':' || rule_code FROM party.duplicate_candidate WHERE party_a_id = @a AND party_b_id = @b", ("a", newId), ("b", existingId)))
-            .ShouldBe("DISTINCT:NAME_DOB");
+            .ShouldBe("CONFIRMED_NEW:NAME_DOB");
         await _factory.DrainOutbox();
         (await fixture.Database.ScalarAsOwner<string>(
-                "SELECT details->>'reason' FROM audit.audit_event WHERE operation = 'RegisterParty' AND target_id = @id", ("id", newId.ToString())))
-            .ShouldBe("A different person: the client's cousin, met in person");
+                "SELECT (details->>'reason') || ' | ' || (details->>'assertion') FROM audit.audit_event WHERE operation = 'OverrideDuplicateMatch' AND target_id = @id",
+                ("id", newId.ToString())))
+            .ShouldBe("A different person: the client's cousin, met in person | CONFIRMED_NEW: the registrar asserts this person is not the matched party");
 
     }
 

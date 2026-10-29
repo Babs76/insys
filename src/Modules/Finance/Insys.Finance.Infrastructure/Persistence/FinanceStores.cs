@@ -105,6 +105,9 @@ internal sealed class JournalRepository(FinanceDbContext db) : IJournalRepositor
 
 internal sealed class AccountingPeriods(FinanceDbContext db) : IAccountingPeriods
 {
+    public async Task EnsurePartitions(DateOnly from, DateOnly until, CancellationToken cancellationToken) =>
+        await db.Database.ExecuteSqlInterpolatedAsync($"SELECT count(*) FROM finance.ensure_ledger_partitions({from}, {until})", cancellationToken);
+
     /// <summary>An open period covering the date first (at most one, V0012), else any period covering it.</summary>
     public async Task<AccountingPeriod?> Covering(DateOnly date, CancellationToken cancellationToken) =>
         await db.Periods.Where(p => p.StartDate <= date && p.EndDate >= date).OrderBy(p => p.Status == PeriodStatus.Open ? 0 : 1).ThenBy(p => p.StartDate)

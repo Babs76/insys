@@ -116,13 +116,14 @@ public sealed class ConsentLedger
 }
 
 /// <summary>
-/// A possible duplicate that a person reviewed (party.duplicate_candidate, PTY-004): staff registering a party that matches
-/// an existing one confirm it is new, with a reason (OQ-127). PartyAId is the party registered; PartyBId the existing match.
+/// A possible duplicate (party.duplicate_candidate, PTY-004). Staff registering a party that matches an existing one may
+/// assert it is new, with a reason (OQ-127): CONFIRMED_NEW records that assertion and who made it (ReviewedBy), not a
+/// review finding. PartyAId is the party registered; PartyBId the existing match.
 /// </summary>
 public sealed class DuplicateCandidate : AggregateRoot<Guid>
 {
-    /// <summary>Reviewed and found to be a different person (status is at most 12 characters).</summary>
-    public const string Distinct = "DISTINCT";
+    /// <summary>The registrar asserted the party is new despite the match (OQ-127): an assertion, not a review finding.</summary>
+    public const string ConfirmedNew = "CONFIRMED_NEW";
 
     private DuplicateCandidate()
     {
@@ -148,7 +149,7 @@ public sealed class DuplicateCandidate : AggregateRoot<Guid>
         PartyBId = existing,
         Score = 0.9m,
         RuleCode = Guard.MaxLength(ruleCode, 15),
-        Status = Distinct,
+        Status = ConfirmedNew,
         ReviewedBy = reviewer,
     };
 }
