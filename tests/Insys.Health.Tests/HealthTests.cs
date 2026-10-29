@@ -231,6 +231,26 @@ public sealed class HealthTests
         claim.DomainEvents.OfType<MedicalClaimDecisionRightsDue>().Single().TotalPaid.ShouldBe(900m);
     }
 
+    /// <summary>
+    /// OQ-102 (Ade, 30 October 2026): a claim declined in full by staff (RejectClaim) sends CLAIM_DECISION_RIGHTS, as a validation
+    /// failure does, with the decline reason's customer wording only; an undecided claim sends none.
+    /// </summary>
+    [Fact]
+    public void AFullDeclineByStaff_SendsTheDecisionRights_WithTheReasonsCustomerWording_OQ102()
+    {
+        var claim = MedicalClaim.SubmitClaim(Guid.CreateVersion7(), "MC-D", ClaimSources.Provider, "PR-1", Guid.CreateVersion7(), Principal, Today, "API", "ZAR", null,
+            [new ClaimLineRequest("0300", null, 1, 900m, null)], Now).Value;
+        claim.ValidateClaim(null, Now).IsSuccess.ShouldBeTrue();
+        var member = Guid.CreateVersion7();
+        claim.NoticeDecisionRights(member, "HLT-CORE", null, Today, Now).IsFailure.ShouldBeTrue("not decided yet");
+
+        claim.RejectClaim("WAITING_PERIOD", Now).IsSuccess.ShouldBeTrue();
+        (claim.Status, claim.TotalPaid).ShouldBe((MedicalClaimStatus.Rejected, (decimal?)0m));
+        claim.NoticeDecisionRights(member, "HLT-CORE", null, Today, Now, "Your waiting period for this benefit has not ended.").IsSuccess.ShouldBeTrue();
+        claim.DomainEvents.OfType<MedicalClaimDecisionRightsDue>().Single().ShouldSatisfyAllConditions(e => e.RecipientPartyId.ShouldBe(member),
+            e => e.DecisionReasons.ShouldBe("Your waiting period for this benefit has not ended."), e => e.TotalPaid.ShouldBe(0m));
+    }
+
     /// <summary>F013, F032, OQ-103: an upheld appeal sends a rejected medical claim back to Validated, to be adjudicated again; any other claim is left as it is.</summary>
     [Fact]
     public void UpheldAppeal_SendsARejectedClaimBackToValidation_OQ103()
