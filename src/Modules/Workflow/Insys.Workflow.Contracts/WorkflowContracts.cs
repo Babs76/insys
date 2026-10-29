@@ -67,6 +67,9 @@ public sealed record SlaBreached(Guid ProcessInstanceId, Guid TaskId, string Tas
 /// <summary>A role's authority for one approval: it may approve amounts up to the limit.</summary>
 public sealed record ApprovalAuthority(string RoleCode, decimal Limit);
 
+/// <summary>A role's authority a module keeps, as a user's authority lists it (BR-081): AppliesTo says to which of its records, as name=value.</summary>
+public sealed record ListedAuthority(string ApprovalType, string RoleCode, decimal Limit, string AppliesTo);
+
 /// <summary>
 /// Authority a module keeps in its own static data, for its own approval types (Life claims: life.cfg_claims_authority_limits
 /// by claim type). For an approval type a source decides, Workflow uses the source's authority instead of the
@@ -78,6 +81,9 @@ public interface IApprovalAuthoritySource
 
     Task<IReadOnlyList<ApprovalAuthority>> For(Guid tenantId, string businessRefType, Guid businessRefId, IReadOnlyCollection<string> roleCodes, DateOnly day,
         CancellationToken cancellationToken);
+
+    /// <summary>All the authority the roles hold in force on the day, whatever the record (BR-081: my-authority lists it).</summary>
+    Task<IReadOnlyList<ListedAuthority>> Listed(Guid tenantId, IReadOnlyCollection<string> roleCodes, DateOnly day, CancellationToken cancellationToken);
 }
 
 /// <summary>The product and organisation node of the record an approval is about (F103, addenda/access-scopes.md §4).</summary>

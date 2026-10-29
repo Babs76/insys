@@ -26,6 +26,9 @@
  */
 using System.Net;
 using System.Text.Json;
+using Insys.BuildingBlocks.Contracts.Approvals;
+using Insys.Life.Contracts;
+using Insys.StaticData.Contracts;
 using Insys.Testing;
 using Insys.Workflow.Contracts;
 using Insys.Workflow.Infrastructure;
@@ -300,6 +303,53 @@ public sealed class WorkflowTests(DatabaseFixture fixture) : IClassFixture<Datab
         limits.ShouldNotBeEmpty();
         limits.ShouldAllBe(l => l == 1_000m);
         (await (await _factory.ClientFor(DatabaseFixture.TenantA, "wf-none").GetAsync($"{Approvals}/my-authority")).Json()).EnumerateArray().ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// BR-081: my-authority lists all the authority approving checks: Life's claims limits by claim type (which replace
+    /// the delegation table for Life claims), and the static data approval types the delegation table does not configure,
+    /// for a holder of static_data.approve. A user without the role or the permission sees neither.
+    /// </summary>
+    [Fact]
+    public async Task MyAuthority_ListsModuleLimitsAndTheStaticDataPermission_AsApprovingChecksThem_BR081()
+    {
+        var db = fixture.Database;
+        var t = DatabaseFixture.TenantA;
+        var claimsUser = await db.UserWithPermissions(t, "wf-life-claims", [.. All, "static_data.approve"]);
+        var claimsRole = await db.RoleWithPermissions(t);
+        await db.AssignRole(t, claimsUser, claimsRole);
+        foreach (var (type, limit) in new[] { ("DEATH", 250_000m), ("DISABILITY", 100_000m) })
+        {
+            await db.ExecuteAsOwner("""
+                INSERT INTO life.cfg_claims_authority_limits (tenant_id, code, version, effective_from, record_status, created_by, change_reason, role, claim_type, limit_value)
+                VALUES (@t, @code, 1, current_date - 1, 'EFFECTIVE', 'seed', 'test seed', @role, @type, @limit)
+                """, ("t", t), ("code", $"CAL-{claimsRole}-{type}"), ("role", claimsRole), ("type", type), ("limit", limit));
+        }
+
+        // A delegation row for Life claims does not count: Life's own limits decide them.
+        await Static("cfg_delegation_and_approval_authority", $"LC-{claimsRole}", "role_code, transaction_type, limit_value, delegation_allowed",
+            $"'{claimsRole}', '{LifeApprovals.ClaimApprovalType}', 9999999, false");
+
+        var response = await _factory.ClientFor(t, "wf-life-claims").GetAsync($"{Approvals}/my-authority");
+        response.StatusCode.ShouldBe(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+        var body = await response.Json();
+        DocumentedSchema.ResponseProblems(body, "core", "WorkflowMyAuthority").ShouldBeEmpty();
+        var rows = body.EnumerateArray().ToList();
+        rows.Where(r => r.GetProperty("approvalType").GetString() == LifeApprovals.ClaimApprovalType)
+            .Select(r => (r.GetProperty("basis").GetString(), r.GetProperty("appliesTo").GetString(), r.GetProperty("limit").GetDecimal()))
+            .ShouldBe([("MODULE_LIMIT", "claimType=DEATH", 250_000m), ("MODULE_LIMIT", "claimType=DISABILITY", 100_000m)]);
+
+        var configured = (await db.ScalarAsOwner<string[]>("""
+            SELECT coalesce(array_agg(DISTINCT transaction_type), '{}') FROM workflow.cfg_delegation_and_approval_authority
+            WHERE tenant_id = @t AND record_status = 'EFFECTIVE' AND effective_from <= current_date AND (effective_to IS NULL OR effective_to > current_date)
+            """, ("t", t)))!.ToHashSet();
+        var expected = ApprovalKinds.ApprovalTypes.Where(a => a.StartsWith(StaticDataApprovals.ApprovalTypePrefix, StringComparison.Ordinal) && !configured.Contains(a)).ToList();
+        expected.ShouldNotBeEmpty();
+        rows.Where(r => r.GetProperty("basis").GetString() == "PERMISSION").Select(r => r.GetProperty("approvalType").GetString()).ShouldBe(expected);
+
+        // The junior holds neither the Life role nor static_data.approve.
+        var junior = (await (await _factory.ClientFor(t, "wf-junior").GetAsync($"{Approvals}/my-authority")).Json()).EnumerateArray().ToList();
+        junior.ShouldAllBe(r => r.GetProperty("basis").GetString() == "DELEGATION");
     }
 
     /// <summary>

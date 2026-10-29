@@ -153,10 +153,12 @@ public sealed class WorkflowModule : IModule
             .Produces<IReadOnlyList<AuthorityView>>(StatusCodes.Status200OK)
             .WithName("WorkflowMyAuthority")
             .WithSummary("The signed-in user's approval authority")
-            .WithDescription("BR-002: one row per role and approval type in force for the signed-in user's roles today "
-                + "(workflow/static/delegation-and-approval-authority), with the limit and its currency (the tenant's base currency when the row has "
-                + "none). Life claims are the exception: their authority is per claim type in Life's static data, checked per claim, so use "
-                + "decidable=true on the approvals list to know which Life claim approvals the user can decide.")
+            .WithDescription("BR-002, BR-081: all the authority approving checks for the signed-in user's roles today, one row per role, approval "
+                + "type and scope, with the limit and its currency (the tenant's base currency when the row has none). basis DELEGATION rows come from "
+                + "workflow/static/delegation-and-approval-authority; MODULE_LIMIT rows from a module's own limits, which replace the delegation table "
+                + "for that approval type (Life claims by claim type: appliesTo claimType=DEATH); PERMISSION rows are static data approval types the "
+                + "delegation table does not configure, which a holder of static_data.approve decides whatever the amount. Approving also checks the "
+                + "record's scope and any permission the requester named: decidable=true on the approvals list gives the result per approval.")
             .RequirePermission(WorkflowPermissions.ApprovalRead);
 
         approvals.MapGet("/{id:guid}", async (Guid id, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>

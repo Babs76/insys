@@ -104,7 +104,22 @@ public sealed class ApproveValidator : AbstractValidator<Approve>
 public sealed record MyAuthority : IQuery<IReadOnlyList<AuthorityView>>;
 
 /// <param name="Currency">The limit's currency: the row's own, or the tenant's base currency when the row has none (OQ-112).</param>
-public sealed record AuthorityView([property: ApprovalTypeField] string ApprovalType, string RoleCode, decimal Limit, string? Currency);
+/// <param name="Basis">
+/// Where the authority comes from (BR-081): DELEGATION, the delegation table; MODULE_LIMIT, a module's own limits (Life
+/// claims by claim type); PERMISSION, a static data approval type the delegation table does not configure, which a holder
+/// of static_data.approve decides whatever the amount (Limit 0, RoleCode the permission).
+/// </param>
+/// <param name="AppliesTo">The records the row covers, as name=value (claimType=DEATH); null when it covers every record of the type.</param>
+public sealed record AuthorityView([property: ApprovalTypeField] string ApprovalType, string RoleCode, decimal Limit, string? Currency,
+    [property: OneOf(AuthorityBases.Delegation, AuthorityBases.ModuleLimit, AuthorityBases.Permission)] string Basis = AuthorityBases.Delegation,
+    [property: BuildingBlocks.Contracts.AlwaysPresent] string? AppliesTo = null);
+
+public static class AuthorityBases
+{
+    public const string Delegation = "DELEGATION";
+    public const string ModuleLimit = "MODULE_LIMIT";
+    public const string Permission = "PERMISSION";
+}
 
 public sealed record Reject(Guid ApprovalId, string Reason, long ExpectedVersion) : ICommand<long>, IVersionedCommand;
 
@@ -216,6 +231,39 @@ public sealed class ApprovalDecision(IUserRoleQuery roles, IAuthorityReader auth
     /// <summary>The user's authority from the delegation table, for their roles today (BR-002).</summary>
     public async Task<IReadOnlyList<AuthorityGrant>> Authority(Guid userId, CancellationToken cancellationToken) =>
         await authority.For(await Roles(userId, cancellationToken), businessDate.Today, cancellationToken);
+
+    /// <summary>
+    /// BR-081: all the authority approving uses for the user today. The delegation table's rows, except for approval types
+    /// a module decides from its own limits, whose rows come from the module; and the static data approval types the
+    /// delegation table does not configure, decided by the static_data.approve permission (as GrantsFor does).
+    /// </summary>
+    public async Task<IReadOnlyList<AuthorityView>> AllAuthority(Guid userId, CancellationToken cancellationToken)
+    {
+        var userRoles = await Roles(userId, cancellationToken);
+        var rows = (await authority.For(userRoles, businessDate.Today, cancellationToken))
+            .Where(g => !sources.Any(s => s.Decides(g.ApprovalType)))
+            .Select(g => new AuthorityView(g.ApprovalType, g.RoleCode, g.Limit, g.Currency)).ToList();
+        foreach (var source in sources)
+        {
+            rows.AddRange((await source.Listed(tenant.RequireTenantId(), userRoles, businessDate.Today, cancellationToken))
+                .Select(l => new AuthorityView(l.ApprovalType, l.RoleCode, l.Limit, null, AuthorityBases.ModuleLimit, l.AppliesTo)));
+        }
+
+        if (execution.HasPermission(StaticDataApprovePermission))
+        {
+            foreach (var type in ApprovalKinds.ApprovalTypes.Where(t => t.StartsWith(StaticDataApprovals.ApprovalTypePrefix, StringComparison.Ordinal)))
+            {
+                if (!await authority.IsConfigured(type, businessDate.Today, cancellationToken))
+                {
+                    rows.Add(new AuthorityView(type, PermissionAuthority, 0m, null, AuthorityBases.Permission));
+                }
+            }
+        }
+
+        return rows;
+    }
+
+    private const string StaticDataApprovePermission = "static_data.approve";
 
     /// <summary>The tenant's base currency today, or null when it has none.</summary>
     public async Task<string?> BaseCurrency(CancellationToken cancellationToken)
@@ -438,9 +486,10 @@ internal sealed class MyAuthorityHandler(ApprovalDecision decision, IExecutionCo
         }
 
         var baseCurrency = await decision.BaseCurrency(cancellationToken);
-        return (await decision.Authority(user.Value, cancellationToken))
-            .Select(g => new AuthorityView(g.ApprovalType, g.RoleCode, g.Limit, g.Currency ?? baseCurrency))
-            .OrderBy(a => a.ApprovalType, StringComparer.Ordinal).ThenBy(a => a.RoleCode, StringComparer.Ordinal).ToList();
+        return (await decision.AllAuthority(user.Value, cancellationToken))
+            .Select(a => a with { Currency = a.Currency ?? baseCurrency })
+            .OrderBy(a => a.ApprovalType, StringComparer.Ordinal).ThenBy(a => a.RoleCode, StringComparer.Ordinal).ThenBy(a => a.AppliesTo, StringComparer.Ordinal)
+            .ToList();
     }
 }
 

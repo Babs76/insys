@@ -70,4 +70,32 @@ internal sealed class ClaimsAuthority([FromKeyedServices(LifeDbContext.SchemaNam
         await transaction.CommitAsync(cancellationToken);
         return rows;
     }
+
+    /// <summary>BR-081: each claims authority limit of the roles, by claim type.</summary>
+    public async Task<IReadOnlyList<ListedAuthority>> Listed(Guid tenantId, IReadOnlyCollection<string> roleCodes, DateOnly day, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await TenantSession.SetTenant(connection, transaction, tenantId, cancellationToken);
+        await using var command = new NpgsqlCommand("""
+            SELECT a.role, a.claim_type, a.limit_value FROM life.cfg_claims_authority_limits a
+            WHERE a.tenant_id = @t AND a.record_status = ANY(@statuses) AND a.effective_from <= @day AND (a.effective_to IS NULL OR a.effective_to > @day)
+              AND a.role = ANY(@roles)
+            """, connection, transaction);
+        command.Parameters.AddWithValue("t", tenantId);
+        command.Parameters.AddWithValue("statuses", StaticLifecycle.Configuration.InForce);
+        command.Parameters.AddWithValue("day", day);
+        command.Parameters.AddWithValue("roles", roleCodes.ToArray());
+        var rows = new List<ListedAuthority>();
+        await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                rows.Add(new ListedAuthority(LifeApprovals.ClaimApprovalType, reader.GetString(0), reader.GetDecimal(2), $"claimType={reader.GetString(1)}"));
+            }
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+        return rows;
+    }
 }
