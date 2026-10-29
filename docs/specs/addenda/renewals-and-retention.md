@@ -1,6 +1,15 @@
 # Addendum: renewals and retention (Wave 4: F006, F007, F015–F019, F022, F025–F027, and B-001)
 
-**For sign-off (Ade). Proposed 29 October 2026. Nothing in it is built before sign-off.** Section 8 lists the decisions, OQ-130 to OQ-136, each with a recommendation. Batches 4.1 to 4.3 (`waves3-6-plan.md`) follow it.
+**Signed off (Ade, 29 October 2026), every recommendation accepted, with three additions. Built in Wave 4: batches 4.1 to 4.3 (§9).**
+- **OQ-130:** (a). `AUTOMATIC` by default; the worse-terms threshold (premium up more than 15%, or cover reduced) is a tenant setting.
+- **OQ-131:** (a), with a factor of 1.0 by default.
+- **OQ-132:** 31 days by default, and (b): a late non-renewal extends cover, pro rata, until its notice runs out.
+- **OQ-133:** (a), with no platform default.
+- **OQ-134, OQ-135, OQ-136:** (a) each: a second person approves a broker of record change; commission splits pro rata at the effective date; only the current broker sees the policy until then.
+- **Grace defaults:** as proposed (§8), for compliance to confirm.
+- **Addition 1:** General grace sends notices: on entering grace ("cover ends on <date> unless paid") and on cancellation for non-payment. Both are tested.
+- **Addition 2:** a renewal with changed terms is invited at least the tenant's notice period (default 31 days) before the renewal date. Readiness flags any re-rated product whose renewal `notice_days` is shorter.
+- **Addition 3:** B-001 records the policyholder's instruction (the broker appointment letter) as a document on the endorsement before it can be approved.
 
 ## 0. Why an addendum
 What is built today, verified against the code and `docs/traceability/functional-coverage.md`:

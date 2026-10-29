@@ -1221,7 +1221,7 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
 - **Status:** open, investigated alongside Wave 3 batch 3.
 
 ### OQ-130 to OQ-136 Renewals and retention (Wave 4, `addenda/renewals-and-retention.md`, 29 October 2026)
-**Open: proposed for Ade's sign-off.** The addendum's §8 gives the options and a recommendation for each.
+**Decided (Ade, 29 October 2026): every recommendation accepted** (the addendum's header gives each decision and the three additions). OQ-130 (a), AUTOMATIC default, the worse-terms threshold a tenant setting; OQ-131 (a), factor 1.0; OQ-132 31 days and (b); OQ-133 (a), no platform default; OQ-134 to OQ-136 (a).
 - **OQ-130:** which products renew by invitation and which automatically (per product: automatic, on acceptance, on payment), and when worse terms need acceptance.
 - **OQ-131:** how claims history affects renewal terms (a claims factor table and referral rules).
 - **OQ-132:** non-renewal notice periods, and what happens when a non-renewal is decided too late for its notice.
