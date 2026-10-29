@@ -30,6 +30,7 @@
 --   OQ-124), the gates (OQ-123) and the tenant's settings (adverse media off by default).
 -- * party.due_diligence, party.screening_hit and party.beneficial_owner. All HIGHLY_SENSITIVE.
 -- * payment.payment.held_reason: a payout whose payee is not cleared is held out of the batches (§5).
+-- * workflow.process_instance.process_code widened to 30, as case types' process codes are, for the due diligence processes.
 -- =====================================================================
 CREATE TABLE party.cfg_due_diligence_requirements (
   id                             uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -489,6 +490,9 @@ BEGIN
     EXECUTE format('CREATE POLICY tenant_isolation ON party.%I USING (tenant_id = current_setting(''app.tenant_id'')::uuid) WITH CHECK (tenant_id = current_setting(''app.tenant_id'')::uuid)', t);
   END LOOP;
 END $$;
+
+-- §4.3: the due diligence processes are named as signed off (DUE_DILIGENCE_HIT_REVIEW is 24 characters); case types already name processes of 30.
+ALTER TABLE workflow.process_instance ALTER COLUMN process_code TYPE varchar(30);
 
 -- §5: a payout to a payee not cleared is held, not refused: it is left out of payout batches until clearance.
 ALTER TABLE payment.payment ADD COLUMN held_reason varchar(30), ADD COLUMN held_at timestamptz;

@@ -304,7 +304,8 @@ public sealed class DueDiligenceService(IPartyRepository parties, IDueDiligenceS
 // Commands and queries (§9)
 // ---------------------------------------------------------------------------------------------------------------------
 
-public sealed record GetDueDiligence(Guid PartyId) : IQuery<DueDiligenceView>;
+/// <summary>A command, though it changes nothing: each read is audited (IAM-006, §3), and only a command's audit entries are saved.</summary>
+public sealed record GetDueDiligence(Guid PartyId) : ICommand<DueDiligenceView>;
 
 /// <param name="CheckType">SCREENING (sanctions, PEP and, where on, adverse media, by the provider), IDENTITY with an identifier (by the provider), or ADDRESS, BENEFICIAL_OWNERSHIP or SOURCE_OF_FUNDS recorded by the caller against a document.</param>
 public sealed record RunDueDiligenceCheck(Guid PartyId, string CheckType, Guid? IdentifierId, Guid? DocumentId, string? Reference) : ICommand<DueDiligenceView>;
@@ -425,7 +426,7 @@ public sealed class RecordBeneficialOwnerValidator : AbstractValidator<RecordBen
 internal sealed class DueDiligenceHandlers(IPartyRepository parties, IDueDiligenceStore store, DueDiligenceService service, Documents.Contracts.IDocumentOwnership documents,
     IPartnerDirectory partners, IIdentityVerificationAdapter identity, BuildingBlocks.Application.Security.IFieldProtector protector, ITenantContext tenant,
     IExecutionContext execution, IBusinessDate businessDate, IClock clock, IAuditTrail audit) :
-    IQueryHandler<GetDueDiligence, DueDiligenceView>,
+    ICommandHandler<GetDueDiligence, DueDiligenceView>,
     ICommandHandler<RunDueDiligenceCheck, DueDiligenceView>,
     ICommandHandler<ReviewScreeningHit, DueDiligenceView>,
     ICommandHandler<OverrideRiskClass, DueDiligenceView>,

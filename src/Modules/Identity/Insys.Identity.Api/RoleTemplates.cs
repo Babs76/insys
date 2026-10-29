@@ -90,6 +90,8 @@ public static class RoleTemplates
         new("COMMUNICATIONS_ISSUE_CALLBACK_ENDPOINT", "Issues a signing secret a messaging provider uses to report deliveries", Flagged: true),
         new("COMMUNICATIONS_REVOKE_CALLBACK_ENDPOINT", "Stops a messaging provider's reports being accepted", Flagged: true),
         new("PAYMENTS_REVERSE", "Reverses a payment already made", Flagged: true),
+        new("PARTY_APPROVE_ENHANCED_DD", "Clears a politically exposed or high-risk customer: senior management's approval (FICA s21F, OQ-126)", Flagged: true),
+        new("PARTY_UNBLOCK_DUE_DILIGENCE", "Lifts the block a true sanctions match placed, so the person could be paid (s26B)", Flagged: true),
     ];
 
     private static readonly string[] Approving = ["WORKFLOW_APPROVALS", "WORKFLOW_APPROVE", "WORKFLOW_REJECT"];
@@ -109,6 +111,15 @@ public static class RoleTemplates
 
     private static readonly string[] CallbackScreens = ["PAYMENT_CALLBACK_ENDPOINTS", "COMMUNICATION_CALLBACK_ENDPOINTS"];
 
+    /// <summary>
+    /// Due diligence (addenda/due-diligence.md §9). The screen and recording checks go with onboarding (the underwriters and
+    /// the membership administrator capture the evidence); reviewing hits, overriding the risk class and FIC reports are
+    /// compliance's. The approval of enhanced due diligence is in no template: the tenant gives it to senior management.
+    /// </summary>
+    private static readonly string[] DueDiligenceCompliance = ["PARTY_REVIEW_SCREENING_HIT", "PARTY_OVERRIDE_RISK_CLASS", "PARTY_RECORD_FIC_REPORT"];
+
+    private static readonly string[] DueDiligenceAll = ["PARTY_DUE_DILIGENCE", "PARTY_RUN_DUE_DILIGENCE_CHECK", .. DueDiligenceCompliance];
+
     private static readonly string[] Configuration =
     [
         "CONFIG_ANALYTICS", "CONFIG_AUDIT", "CONFIG_BILLING", "CONFIG_CLAIMS_FRAMEWORK", "CONFIG_COMMUNICATIONS", "CONFIG_COMPLIANCE", "CONFIG_DISTRIBUTION",
@@ -126,20 +137,20 @@ public static class RoleTemplates
             ["PRODUCT_FACTORY", "RATING", "RULES", "CONFIG_PRODUCT_FACTORY", "CONFIG_RATING", "CONFIG_RULES"], Approves: ["PRODUCT_PUBLICATION"]),
         new("GENERAL_UNDERWRITER", "General underwriter", "STAFF", "Risk objects, quotes, policies, endorsements and renewals for General",
             ["GENERAL_RISK_OBJECTS", "GENERAL_QUOTATION", "GENERAL_POLICY_ADMIN", "PARTIES", "CONSENT_PREFERENCES", "DOCUMENTS"],
-            Excluded: ["PARTY_BANK_ACCOUNT_VERIFY"], Approves: ["ENDORSEMENT"]),
+            Excluded: ["PARTY_BANK_ACCOUNT_VERIFY", .. DueDiligenceCompliance], Approves: ["ENDORSEMENT"]),
         new("LIFE_UNDERWRITER", "Life underwriter", "STAFF", "Proposals, underwriting cases, policies, values and group schemes for Life",
             ["LIFE_NEW_BUSINESS", "LIFE_UNDERWRITING", "LIFE_POLICY_ADMIN", "LIFE_POLICY_VALUES", "LIFE_GROUP_SCHEMES", "PARTIES", "CONSENT_PREFERENCES", "DOCUMENTS"],
-            Excluded: ["PARTY_BANK_ACCOUNT_VERIFY"], Approves: ["LIFE_UNDERWRITING"]),
+            Excluded: ["PARTY_BANK_ACCOUNT_VERIFY", .. DueDiligenceCompliance], Approves: ["LIFE_UNDERWRITING"]),
         new("CLAIMS_HANDLER", "Claims handler", "STAFF", "Registers, assesses and reserves General and Life claims and recoveries, and drafts payment instructions (the maker)",
             ["CLAIM_REGISTER", "CLAIM_FINANCIALS", "GENERAL_CLAIMS", "GENERAL_RECOVERIES", "LIFE_CLAIMS", "PARTIES", "DOCUMENTS", "DISPUTES_APPEALS"],
-            Excluded: ["CLAIMS_RELEASE_INSTRUCTION", "PARTY_BANK_ACCOUNT_VERIFY"]),
+            Excluded: ["CLAIMS_RELEASE_INSTRUCTION", "PARTY_BANK_ACCOUNT_VERIFY", .. DueDiligenceAll]),
         new("CLAIMS_MANAGER", "Claims manager", "STAFF", "Releases payment instructions and approves settlements and Life claims within authority; does not draft instructions",
             ["CLAIM_REGISTER", "CLAIM_FINANCIALS", "GENERAL_CLAIMS", "GENERAL_RECOVERIES", "LIFE_CLAIMS", "PARTIES", "DOCUMENTS", "DISPUTES_APPEALS"], Extra: Approving,
-            Excluded: ["CLAIMS_DRAFT_INSTRUCTION", "PARTY_BANK_ACCOUNT_VERIFY"], Approves: ["CLAIM_SETTLEMENT", "LIFE_CLAIM", "CLAIM_PAYMENT"]),
+            Excluded: ["CLAIMS_DRAFT_INSTRUCTION", "PARTY_BANK_ACCOUNT_VERIFY", .. DueDiligenceAll], Approves: ["CLAIM_SETTLEMENT", "LIFE_CLAIM", "CLAIM_PAYMENT"]),
         new("HEALTH_CLAIMS_ASSESSOR", "Health claims assessor", "STAFF", "Medical claims, preauthorisations, fraud and utilisation cases",
-            ["HEALTH_MEDICAL_CLAIMS", "HEALTH_ACCESS_TO_CARE", "HEALTH_FRAUD_UTILISATION", "PARTIES", "DOCUMENTS"], Excluded: ["PARTY_BANK_ACCOUNT_VERIFY"]),
+            ["HEALTH_MEDICAL_CLAIMS", "HEALTH_ACCESS_TO_CARE", "HEALTH_FRAUD_UTILISATION", "PARTIES", "DOCUMENTS"], Excluded: ["PARTY_BANK_ACCOUNT_VERIFY", .. DueDiligenceAll]),
         new("HEALTH_MEMBERSHIP_ADMINISTRATOR", "Health membership administrator", "STAFF", "Schemes, plans and memberships",
-            ["HEALTH_SCHEMES_PLANS", "HEALTH_MEMBERSHIP", "PARTIES", "CONSENT_PREFERENCES", "DOCUMENTS"], Excluded: ["PARTY_BANK_ACCOUNT_VERIFY"]),
+            ["HEALTH_SCHEMES_PLANS", "HEALTH_MEMBERSHIP", "PARTIES", "CONSENT_PREFERENCES", "DOCUMENTS"], Excluded: ["PARTY_BANK_ACCOUNT_VERIFY", .. DueDiligenceCompliance]),
         new("FINANCE_OFFICER", "Finance officer", "STAFF", "Billing, journals and provider payment runs, and builds payout batches (the maker)",
             ["BILLING", "PAYMENTS", "FINANCE", "HEALTH_PROVIDER_PAYMENTS", "CONFIG_BILLING", "CONFIG_PAYMENTS", "CONFIG_FINANCE"],
             Excluded: ["PAYMENTS_RELEASE_BATCH", .. CallbackScreens]),
@@ -153,16 +164,16 @@ public static class RoleTemplates
             ["INTERMEDIARIES", "COMMISSION", "CONFIG_DISTRIBUTION"]),
         new("REINSURANCE_OFFICER", "Reinsurance officer", "STAFF", "Treaties, cessions and bordereaux", ["REINSURANCE", "CONFIG_REINSURANCE"]),
         new("COMPLIANCE_OFFICER", "Compliance officer", "STAFF",
-            "Regulatory returns, risk limits, consent, the audit trail and the party search log; complaints, and the impartial review of appeals (PPR 18.6)",
-            ["REGULATORY_REPORTING", "RISK_LIMITS", "CONSENT_PREFERENCES", "AUDIT", "CONFIG_COMPLIANCE", "CUSTOMER_SERVICE"], Extra: ["PARTY_SEARCH_LOG"],
-            PrivilegedGrants: ["CASE_DECIDE_APPEAL"], Approves: ["LEGAL_HOLD_RELEASE"]),
+            "Regulatory returns, risk limits, consent, the audit trail and the party search log; complaints, and the impartial review of appeals (PPR 18.6); customer due diligence: screening hits, risk class overrides, FIC reports and unblocking",
+            ["REGULATORY_REPORTING", "RISK_LIMITS", "CONSENT_PREFERENCES", "AUDIT", "CONFIG_COMPLIANCE", "CUSTOMER_SERVICE"], Extra: ["PARTY_SEARCH_LOG", .. DueDiligenceAll, .. Approving],
+            PrivilegedGrants: ["CASE_DECIDE_APPEAL", "PARTY_UNBLOCK_DUE_DILIGENCE"], Approves: ["LEGAL_HOLD_RELEASE", "DUE_DILIGENCE_RISK_OVERRIDE", "DUE_DILIGENCE_UNBLOCK"]),
         new("DATA_PROTECTION_OFFICER", "Data protection officer", "STAFF",
             "Anonymises and merges parties, disposes of documents, and places and releases legal holds on documents and the party search log",
             ["CONSENT_PREFERENCES", "AUDIT"], Extra: ["PARTY_SEARCH_LOG"],
             PrivilegedGrants: ["PARTY_ANONYMISE", "PARTY_MERGE_PARTIES", "DOCUMENTS_DISPOSE", "DOCUMENTS_PLACE_LEGAL_HOLD", "DOCUMENTS_RELEASE_LEGAL_HOLD",
                 "PARTY_PLACE_SEARCH_LOG_HOLD", "PARTY_RELEASE_SEARCH_LOG_HOLD"]),
         new("CUSTOMER_SERVICE_AGENT", "Customer service agent", "STAFF", "Looks up parties, policies and claims, and their notices and documents; handles enquiries and complaints",
-            ["PARTIES", "CONSENT_PREFERENCES", "NOTIFICATIONS", "DOCUMENTS", "CUSTOMER_SERVICE"], Excluded: ["PARTY_BANK_ACCOUNT_VERIFY", .. CallbackScreens]),
+            ["PARTIES", "CONSENT_PREFERENCES", "NOTIFICATIONS", "DOCUMENTS", "CUSTOMER_SERVICE"], Excluded: ["PARTY_BANK_ACCOUNT_VERIFY", .. CallbackScreens, .. DueDiligenceAll]),
         new("OPERATIONS_ANALYST", "Operations analyst", "STAFF", "Dashboards, parked deliveries and dead letters (retry and replay), webhooks and work queues; decides no approvals and discards nothing",
             ["ANALYTICS", "INTEGRATION_OPERATIONS", "WORKFLOW"], Excluded: ["WORKFLOW_APPROVE", "WORKFLOW_REJECT"]),
         new("INTEGRATION_ADMINISTRATOR", "Integration administrator", "STAFF",

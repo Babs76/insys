@@ -24,18 +24,11 @@
  * UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
  * ============================================================================
  */
-using Insys.BuildingBlocks.Application;
-using Insys.BuildingBlocks.Application.Context;
-using Insys.BuildingBlocks.Application.Messaging;
 using Insys.BuildingBlocks.Infrastructure.StaticData;
 using Insys.Party.Application;
 using Insys.Party.Domain.Parties;
 using Insys.Party.Infrastructure.StaticData;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using NodaTime;
 using NodaTime.Text;
 
@@ -133,8 +126,9 @@ internal sealed class DueDiligenceConfiguration(PartyDbContext db) : IDueDiligen
             ? LocalDateTime.FromDateTime(at.UtcDateTime).Minus(period.Value).InUtc().ToDateTimeOffset()
             : at.AddDays(-30);
 
+    /// <summary>The tenant's settings in force: the one in force from the latest day, should two codes overlap.</summary>
     private Task<DueDiligenceSettings?> Settings(DateOnly day, CancellationToken cancellationToken) =>
-        InForce<DueDiligenceSettings>(day).OrderByDescending(s => s.Version).FirstOrDefaultAsync(cancellationToken);
+        InForce<DueDiligenceSettings>(day).OrderByDescending(s => s.EffectiveFrom).ThenByDescending(s => s.Version).FirstOrDefaultAsync(cancellationToken);
 
     /// <summary>A tenant that configured its own rows uses them; otherwise the platform's.</summary>
     private static IEnumerable<T> Own<T>(IEnumerable<T> rows) where T : StaticRecord
@@ -145,72 +139,4 @@ internal sealed class DueDiligenceConfiguration(PartyDbContext db) : IDueDiligen
 
     private IQueryable<T> InForce<T>(DateOnly day) where T : StaticRecord =>
         db.Set<T>().AsNoTracking().InForce(PartyStaticData.Descriptors.Single(d => d.EntityType == typeof(T)).Lifecycle, day);
-}
-
-public sealed class DueDiligenceJobOptions
-{
-    public bool JobEnabled { get; set; } = true;
-
-    public TimeSpan JobInterval { get; set; } = TimeSpan.FromHours(24);
-}
-
-/// <summary>
-/// The PARTY_DUE_DILIGENCE_JOBS job (ADR-026 JOB function, OQ-125): daily, per tenant that runs it, expires parties past
-/// review and screens again those screened against an older list version or not for a month. As a service identity.
-/// </summary>
-public sealed class DueDiligenceJobs(IServiceScopeFactory scopes, ITenantDirectory tenants, IFunctionAvailability availability, ILogger<DueDiligenceJobs> logger)
-{
-    public const string Function = "PARTY_DUE_DILIGENCE_JOBS";
-
-    public const string ServiceName = "party-due-diligence";
-
-    public async Task<int> Run(CancellationToken cancellationToken)
-    {
-        var runs = 0;
-        foreach (var tenantId in await tenants.Running(availability, Function, logger, cancellationToken))
-        {
-            runs += await RunForTenant(tenantId, cancellationToken) is not null ? 1 : 0;
-        }
-
-        return runs;
-    }
-
-    public async Task<DueDiligenceJobRun?> RunForTenant(Guid tenantId, CancellationToken cancellationToken)
-    {
-        await using var scope = scopes.CreateAsyncScope();
-        scope.ServiceProvider.GetRequiredService<ExecutionScope>().InitialiseForService(tenantId, ServiceName);
-        var result = await scope.ServiceProvider.GetRequiredService<IDispatcher>().Send(new RunDueDiligenceJobs(), cancellationToken);
-        if (result.IsFailure)
-        {
-            logger.LogError("Due diligence jobs failed for tenant {TenantId}: {Code}", tenantId, result.Error.Code);
-            return null;
-        }
-
-        return result.Value;
-    }
-}
-
-public sealed class DueDiligenceJobsService(DueDiligenceJobs jobs, IOptions<DueDiligenceJobOptions> options, ILogger<DueDiligenceJobsService> logger) : BackgroundService
-{
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-    {
-        if (!options.Value.JobEnabled)
-        {
-            return;
-        }
-
-        using var timer = new PeriodicTimer(options.Value.JobInterval);
-        do
-        {
-            try
-            {
-                await jobs.Run(stoppingToken);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                logger.LogError("Due diligence jobs failed: {ExceptionType}", ex.GetType().Name);
-            }
-        }
-        while (await timer.WaitForNextTickAsync(stoppingToken));
-    }
 }

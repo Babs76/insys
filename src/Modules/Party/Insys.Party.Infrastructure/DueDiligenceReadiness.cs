@@ -56,7 +56,7 @@ internal sealed class DueDiligenceReadiness([FromKeyedServices(PartyDbContext.Sc
     {
         var life = (await tenants.For(context.TenantId, context.Day, cancellationToken)).EntitledFeatures.Contains("LIFE");
         var setting = await ReadinessSql.InTenant(dataSource, context.TenantId, (connection, transaction) => ReadinessSql.Strings(connection, transaction, $"""
-            SELECT gates_enabled::text FROM party.cfg_due_diligence_settings WHERE tenant_id = @t AND {ReadinessSql.InForce} ORDER BY version DESC LIMIT 1
+            SELECT gates_enabled::text FROM party.cfg_due_diligence_settings WHERE tenant_id = @t AND {ReadinessSql.InForce} ORDER BY effective_from DESC, version DESC LIMIT 1
             """, cancellationToken, ("t", context.TenantId), ("inForce", StaticLifecycle.Configuration.InForce), ("day", context.Day)), cancellationToken);
         var gatesOn = setting.Count == 0 ? life : setting[0] == "true";
 

@@ -2091,6 +2091,609 @@
         ]
       }
     },
+    "/api/v1/party/parties/{id}/due-diligence": {
+      "get": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "A party\u0027s due diligence: status, risk class and level, what is outstanding, checks and beneficial owners",
+        "description": "Each read is audited (IAM-006). hits is given only to holders of due_diligence.review_hit (PARTY_REVIEW_SCREENING_HIT); otherwise it is null. A party with no record yet reads as NOT_STARTED.",
+        "operationId": "PartyGetDueDiligence",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyDueDiligenceView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "due_diligence.read",
+        "x-function": [
+          "PARTY_DUE_DILIGENCE"
+        ]
+      }
+    },
+    "/api/v1/party/parties/{id}/due-diligence/checks": {
+      "post": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "Run a due diligence check through the provider, or record one the caller verified against a document",
+        "description": "SCREENING and IDENTITY go to the tenant\u0027s SCREENING and IDENTITY_VERIFICATION partners (422 when none is active). ADDRESS, BENEFICIAL_OWNERSHIP and SOURCE_OF_FUNDS are recorded by the caller against documentId, a document filed against the party. The party is then assessed again (F002, F003, F077); at ENHANCED, clearance waits for a PARTY_APPROVE_ENHANCED_DD approval, which the caller cannot give.",
+        "operationId": "PartyRunDueDiligenceCheck",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartyDueDiligenceCheckRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyDueDiligenceView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "due_diligence.check",
+        "x-function": [
+          "PARTY_RUN_DUE_DILIGENCE_CHECK"
+        ]
+      }
+    },
+    "/api/v1/party/parties/{id}/due-diligence/hits/{hitId}/review": {
+      "post": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "Review a screening hit: a true match or a false positive, with a reason (F003)",
+        "description": "If-Match is the due diligence\u0027s ETag. A true sanctions match blocks the party, needs a report to the FIC (s28A) and opens a compliance case; a true PEP match raises the level to ENHANCED. The party is then assessed again.",
+        "operationId": "PartyReviewScreeningHit",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "hitId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartyHitReviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyDueDiligenceView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "due_diligence.review_hit",
+        "x-function": [
+          "PARTY_REVIEW_SCREENING_HIT"
+        ]
+      }
+    },
+    "/api/v1/party/parties/{id}/due-diligence/risk-class": {
+      "post": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "Override the party\u0027s risk class, with a reason; it applies once a second person approves it in Workflow (F077)",
+        "description": "Workflow approval DUE_DILIGENCE_RISK_OVERRIDE; the approver holds due_diligence.override_risk. pendingOverrideClass shows the class asked for until it is decided. An approved override is kept when the party is classified again. Completes asynchronously (GAP-027): granted, riskClass becomes the class asked for and the party is assessed again; rejected, expired or withdrawn, pendingOverrideClass is cleared.",
+        "operationId": "PartyOverrideRiskClass",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartyRiskClassOverrideRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyDueDiligenceView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "due_diligence.override_risk",
+        "x-function": [
+          "PARTY_OVERRIDE_RISK_CLASS"
+        ],
+        "x-eventual-effects": "granted, riskClass becomes the class asked for and the party is assessed again; rejected, expired or withdrawn, pendingOverrideClass is cleared."
+      }
+    },
+    "/api/v1/party/parties/{id}/due-diligence/report": {
+      "post": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "Record the FIC reference of a report made for a true match (s28A or s29); the report itself goes through the FIC\u0027s own system",
+        "operationId": "PartyRecordFicReport",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartyFicReportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyDueDiligenceView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "due_diligence.report",
+        "x-function": [
+          "PARTY_RECORD_FIC_REPORT"
+        ]
+      }
+    },
+    "/api/v1/party/parties/{id}/due-diligence/unblock": {
+      "post": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "Ask to unblock a party after a true sanctions match; a second person holding the same privileged permission approves it",
+        "description": "Workflow approval DUE_DILIGENCE_UNBLOCK (\u00A74.3). The party stays BLOCKED until it is approved. Completes asynchronously (GAP-027): granted, blocked becomes false and the party is assessed again (party.DueDiligenceChanged); otherwise unblockPending is cleared and the party stays BLOCKED.",
+        "operationId": "PartyRequestDueDiligenceUnblock",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartyUnblockRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyDueDiligenceView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "due_diligence.unblock",
+        "x-function": [
+          "PARTY_UNBLOCK_DUE_DILIGENCE"
+        ],
+        "x-eventual-effects": "granted, blocked becomes false and the party is assessed again (party.DueDiligenceChanged); otherwise unblockPending is cleared and the party stays BLOCKED."
+      }
+    },
+    "/api/v1/party/parties/{id}/beneficial-owners": {
+      "post": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "Record an organisation\u0027s beneficial owner, itself a party with its own due diligence (FICA s21B)",
+        "description": "BENEFICIAL_OWNERSHIP is met once an owner is recorded and the ownership check is verified against a document (POST due-diligence/checks).",
+        "operationId": "PartyRecordBeneficialOwner",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartyBeneficialOwnerRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyDueDiligenceView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "due_diligence.check",
+        "x-function": [
+          "PARTY_RUN_DUE_DILIGENCE_CHECK"
+        ]
+      }
+    },
     "/api/v1/party/parties/{id}/relationships": {
       "post": {
         "tags": [
@@ -2785,6 +3388,99 @@
         "x-permission": "audit_event.read",
         "x-function": [
           "PARTY_SEARCH_LOG"
+        ]
+      }
+    },
+    "/api/v1/party/due-diligence": {
+      "get": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "The compliance work list: parties\u0027 due diligence by status, risk class, review date and open hits, newest first",
+        "description": "status is NOT_STARTED, IN_PROGRESS, CLEARED, REFERRED, BLOCKED or EXPIRED; riskClass LOW, MEDIUM or HIGH. Each row counts the hits waiting for review; the hits themselves are on the party\u0027s due diligence, for reviewers (addenda/due-diligence.md \u00A79).",
+        "operationId": "PartyListDueDiligence",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "riskClass",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "reviewDueBy",
+            "in": "query",
+            "description": "Records whose next review is on or before this day",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "openHits",
+            "in": "query",
+            "description": "true: only records with a hit waiting for review; false: only those without",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfPartyDueDiligenceSummary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "due_diligence.read",
+        "x-function": [
+          "PARTY_DUE_DILIGENCE"
         ]
       }
     },
@@ -33937,6 +34633,7 @@
                 "Approval",
                 "BankAccount",
                 "BankStatementLine",
+                "BeneficialOwner",
                 "BenefitAccumulator",
                 "BillingAccount",
                 "Bordereau",
@@ -33952,6 +34649,7 @@
                 "DeadLetter",
                 "DeviceRegistration",
                 "Document",
+                "DueDiligence",
                 "DueDiligenceCheck",
                 "DuplicateCandidate",
                 "EligibilityDecision",
@@ -34057,6 +34755,8 @@
                 "cfg_coverage_and_benefit_libra",
                 "cfg_credential_references",
                 "cfg_critical_illness_condition",
+                "cfg_customer_risk_classes",
+                "cfg_customer_risk_factors",
                 "cfg_dashboard_definitions",
                 "cfg_decline_conditions",
                 "cfg_delegation_and_approval_au",
@@ -34069,6 +34769,9 @@
                 "cfg_distribution_hierarchy",
                 "cfg_document_numbering_schemes",
                 "cfg_document_templates",
+                "cfg_due_diligence_gates",
+                "cfg_due_diligence_requirements",
+                "cfg_due_diligence_settings",
                 "cfg_eligibility_rule_sets",
                 "cfg_endorsement_types",
                 "cfg_environment_configuration_",
@@ -34371,6 +35074,7 @@
                 "Approval",
                 "BankAccount",
                 "BankStatementLine",
+                "BeneficialOwner",
                 "BenefitAccumulator",
                 "BillingAccount",
                 "Bordereau",
@@ -34386,6 +35090,7 @@
                 "DeadLetter",
                 "DeviceRegistration",
                 "Document",
+                "DueDiligence",
                 "DueDiligenceCheck",
                 "DuplicateCandidate",
                 "EligibilityDecision",
@@ -34491,6 +35196,8 @@
                 "cfg_coverage_and_benefit_libra",
                 "cfg_credential_references",
                 "cfg_critical_illness_condition",
+                "cfg_customer_risk_classes",
+                "cfg_customer_risk_factors",
                 "cfg_dashboard_definitions",
                 "cfg_decline_conditions",
                 "cfg_delegation_and_approval_au",
@@ -34503,6 +35210,9 @@
                 "cfg_distribution_hierarchy",
                 "cfg_document_numbering_schemes",
                 "cfg_document_templates",
+                "cfg_due_diligence_gates",
+                "cfg_due_diligence_requirements",
+                "cfg_due_diligence_settings",
                 "cfg_eligibility_rule_sets",
                 "cfg_endorsement_types",
                 "cfg_environment_configuration_",
@@ -39510,6 +40220,27 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/LifeUnderwritingCaseSummary"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CursorPageOfPartyDueDiligenceSummary": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PartyDueDiligenceSummary"
             }
           },
           "nextCursor": {
@@ -52270,6 +53001,117 @@
           }
         }
       },
+      "PartyBeneficialOwnerRequest": {
+        "required": [
+          "ownerPartyId",
+          "controlType",
+          "sharePercent",
+          "establishedBy",
+          "documentId"
+        ],
+        "type": "object",
+        "properties": {
+          "ownerPartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "controlType": {
+            "enum": [
+              "OWNERSHIP",
+              "CONTROL",
+              "SENIOR_MANAGER"
+            ],
+            "type": "string"
+          },
+          "sharePercent": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "establishedBy": {
+            "enum": [
+              "DOCUMENT",
+              "REGISTER",
+              "DECLARATION"
+            ],
+            "type": "string"
+          },
+          "documentId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
+      "PartyBeneficialOwnerView": {
+        "required": [
+          "id",
+          "ownerPartyId",
+          "controlType",
+          "sharePercent",
+          "establishedBy",
+          "documentId",
+          "recordedBy",
+          "recordedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ownerPartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "controlType": {
+            "enum": [
+              "OWNERSHIP",
+              "CONTROL",
+              "SENIOR_MANAGER"
+            ],
+            "type": "string"
+          },
+          "sharePercent": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "establishedBy": {
+            "enum": [
+              "DOCUMENT",
+              "REGISTER",
+              "DECLARATION"
+            ],
+            "type": "string"
+          },
+          "documentId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "recordedBy": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "recordedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "PartyConsentRequest": {
         "required": [
           "purposeCode",
@@ -52398,6 +53240,47 @@
           }
         }
       },
+      "PartyDueDiligenceCheckRequest": {
+        "required": [
+          "checkType",
+          "identifierId",
+          "documentId",
+          "reference"
+        ],
+        "type": "object",
+        "properties": {
+          "checkType": {
+            "enum": [
+              "SCREENING",
+              "IDENTITY",
+              "ADDRESS",
+              "BENEFICIAL_OWNERSHIP",
+              "SOURCE_OF_FUNDS"
+            ],
+            "type": "string"
+          },
+          "identifierId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "documentId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "reference": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "PartyDueDiligenceCheckView": {
         "required": [
           "id",
@@ -52480,6 +53363,283 @@
               "string"
             ],
             "format": "uuid"
+          }
+        }
+      },
+      "PartyDueDiligenceSummary": {
+        "required": [
+          "id",
+          "partyId",
+          "status",
+          "riskClass",
+          "level",
+          "nextReviewOn",
+          "lastScreenedAt",
+          "openHits"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "partyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "enum": [
+              "NOT_STARTED",
+              "IN_PROGRESS",
+              "CLEARED",
+              "REFERRED",
+              "BLOCKED",
+              "EXPIRED"
+            ],
+            "type": "string"
+          },
+          "riskClass": {
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "level": {
+            "enum": [
+              "SIMPLIFIED",
+              "STANDARD",
+              "ENHANCED"
+            ],
+            "type": "string"
+          },
+          "nextReviewOn": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "lastScreenedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "openHits": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "PartyDueDiligenceView": {
+        "required": [
+          "id",
+          "partyId",
+          "status",
+          "riskClass",
+          "riskScore",
+          "riskClassOverridden",
+          "level",
+          "outstanding",
+          "clearedAt",
+          "clearedBy",
+          "nextReviewOn",
+          "lastScreenedAt",
+          "blocked",
+          "pendingOverrideClass",
+          "unblockPending",
+          "checks",
+          "beneficialOwners",
+          "hits",
+          "rowVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "partyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "enum": [
+              "NOT_STARTED",
+              "IN_PROGRESS",
+              "CLEARED",
+              "REFERRED",
+              "BLOCKED",
+              "EXPIRED"
+            ],
+            "type": "string"
+          },
+          "riskClass": {
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "riskScore": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "riskClassOverridden": {
+            "type": "boolean"
+          },
+          "level": {
+            "enum": [
+              "SIMPLIFIED",
+              "STANDARD",
+              "ENHANCED"
+            ],
+            "type": "string"
+          },
+          "outstanding": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "clearedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "clearedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "nextReviewOn": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "lastScreenedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "blocked": {
+            "type": "boolean"
+          },
+          "pendingOverrideClass": {
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "unblockPending": {
+            "type": "boolean"
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PartyDueDiligenceCheckView"
+            }
+          },
+          "beneficialOwners": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PartyBeneficialOwnerView"
+            }
+          },
+          "hits": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/PartyScreeningHitView"
+            }
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "PartyFicReportRequest": {
+        "required": [
+          "hitId",
+          "reportType",
+          "ficReference"
+        ],
+        "type": "object",
+        "properties": {
+          "hitId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reportType": {
+            "enum": [
+              "S28A",
+              "S29"
+            ],
+            "type": "string"
+          },
+          "ficReference": {
+            "type": "string"
+          }
+        }
+      },
+      "PartyHitReviewRequest": {
+        "required": [
+          "outcome",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "outcome": {
+            "enum": [
+              "TRUE_MATCH",
+              "FALSE_POSITIVE"
+            ],
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
           }
         }
       },
@@ -52964,6 +54124,26 @@
           }
         }
       },
+      "PartyRiskClassOverrideRequest": {
+        "required": [
+          "riskClass",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "riskClass": {
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH"
+            ],
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
       "PartyRoleRequest": {
         "required": [
           "roleCode",
@@ -53034,6 +54214,114 @@
               "string"
             ],
             "format": "date"
+          }
+        }
+      },
+      "PartyScreeningHitView": {
+        "required": [
+          "id",
+          "listType",
+          "listName",
+          "matchedName",
+          "score",
+          "providerRef",
+          "raisedAt",
+          "review",
+          "reviewReason",
+          "reviewedBy",
+          "reviewedAt",
+          "reportRequired",
+          "reportType",
+          "ficReference"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "listType": {
+            "enum": [
+              "SANCTIONS",
+              "PEP",
+              "ADVERSE_MEDIA"
+            ],
+            "type": "string"
+          },
+          "listName": {
+            "type": "string"
+          },
+          "matchedName": {
+            "type": "string"
+          },
+          "score": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "providerRef": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "raisedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "review": {
+            "enum": [
+              "TRUE_MATCH",
+              "FALSE_POSITIVE",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reviewReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reviewedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "reviewedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "reportRequired": {
+            "type": "boolean"
+          },
+          "reportType": {
+            "enum": [
+              "S28A",
+              "S29",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "ficReference": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -53336,6 +54624,17 @@
             "items": {
               "type": "string"
             }
+          }
+        }
+      },
+      "PartyUnblockRequest": {
+        "required": [
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string"
           }
         }
       },
@@ -54130,6 +55429,17 @@
               "string"
             ],
             "format": "int64"
+          },
+          "heldReason": {
+            "enum": [
+              "DUE_DILIGENCE_NOT_CLEARED",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "DUE_DILIGENCE_NOT_CLEARED while the payout waits outside the batches for its payee\u0027s due diligence (\u00A75); otherwise null."
           }
         }
       },
@@ -56006,6 +57316,9 @@
               "CLAIM_PAYMENT",
               "COMMISSION_STATEMENT",
               "DOCUMENT_LEGAL_HOLD",
+              "DUE_DILIGENCE",
+              "DUE_DILIGENCE_RISK_OVERRIDE",
+              "DUE_DILIGENCE_UNBLOCK",
               "GENERAL_CLAIM",
               "GENERAL_ENDORSEMENT",
               "GOVERNANCE_SETTING",
@@ -56037,6 +57350,9 @@
               "CLAIM_PAYMENT",
               "CLAIM_SETTLEMENT",
               "COMMISSION_STATEMENT",
+              "DUE_DILIGENCE_ENHANCED",
+              "DUE_DILIGENCE_RISK_OVERRIDE",
+              "DUE_DILIGENCE_UNBLOCK",
               "ENDORSEMENT",
               "EXTERNAL_SUBJECT_LINK",
               "LEGAL_HOLD_RELEASE",
@@ -56204,6 +57520,9 @@
               "CLAIM_PAYMENT",
               "CLAIM_SETTLEMENT",
               "COMMISSION_STATEMENT",
+              "DUE_DILIGENCE_ENHANCED",
+              "DUE_DILIGENCE_RISK_OVERRIDE",
+              "DUE_DILIGENCE_UNBLOCK",
               "ENDORSEMENT",
               "EXTERNAL_SUBJECT_LINK",
               "LEGAL_HOLD_RELEASE",
@@ -57392,6 +58711,9 @@
               "CLAIM_PAYMENT",
               "CLAIM_SETTLEMENT",
               "COMMISSION_STATEMENT",
+              "DUE_DILIGENCE_ENHANCED",
+              "DUE_DILIGENCE_RISK_OVERRIDE",
+              "DUE_DILIGENCE_UNBLOCK",
               "ENDORSEMENT",
               "EXTERNAL_SUBJECT_LINK",
               "LEGAL_HOLD_RELEASE",
