@@ -91,6 +91,8 @@ public static class WorkflowInfrastructure
         services.AddIntegrationEventHandler<General.Contracts.GeneralRenewalReferred, GeneralRenewalReviewTasks, WorkflowDbContext>(schema, "Referred");
         services.AddIntegrationEventHandler<General.Contracts.GeneralRenewalNotEligible, GeneralRenewalReviewTasks, WorkflowDbContext>(schema, "NotEligible");
         services.AddIntegrationEventHandler<General.Contracts.GeneralRenewalDecided, GeneralRenewalReviewTasks, WorkflowDbContext>(schema, "Decided");
+        services.AddIntegrationEventHandler<General.Contracts.GeneralRetentionCaseOpened, GeneralRetentionTasks, WorkflowDbContext>(schema, "Opened"); // F026
+        services.AddIntegrationEventHandler<General.Contracts.GeneralRetentionCaseClosed, GeneralRetentionTasks, WorkflowDbContext>(schema, "Closed");
         services.AddIntegrationEventHandler<Health.Contracts.MembershipArrearsCleared, HealthArrearsTerminationTasks, WorkflowDbContext>(schema, "Cleared");
 
         services.AddSingleton<WorkflowJobs>();

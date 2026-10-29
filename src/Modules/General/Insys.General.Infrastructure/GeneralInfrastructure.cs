@@ -95,6 +95,8 @@ public static class GeneralInfrastructure
         services.AddIntegrationEventHandler<ApprovalGranted, GeneralPolicies, GeneralDbContext>(schema, "ApprovalGranted");
         services.AddIntegrationEventHandler<ApprovalRejected, GeneralPolicies, GeneralDbContext>(schema, "ApprovalRejected");
         services.AddIntegrationEventHandler<Billing.Contracts.InvoiceSettled, RenewalPayments, GeneralDbContext>(schema); // Wave 4 §4.4 ON_PAYMENT
+        services.AddIntegrationEventHandler<GeneralRenewalDeclined, RetentionPolicies, GeneralDbContext>(schema, "RenewalDeclined"); // F026
+        services.AddIntegrationEventHandler<GeneralRetentionOfferAccepted, RetentionPolicies, GeneralDbContext>(schema, "OfferAccepted"); // F026
         services.AddIntegrationEventHandler<ClaimPaymentCompleted, GeneralPolicies, GeneralDbContext>(schema, "ClaimPaymentCompleted");
         services.AddIntegrationEventHandler<DocumentGenerated, GeneralPolicies, GeneralDbContext>(schema, "DocumentGenerated");
         // BR-038: a policy's invoices, documents and cessions, as they arrive.
@@ -239,6 +241,21 @@ public sealed class GeneralJobs(IServiceScopeFactory scopes, ITenantDirectory te
                 else
                 {
                     logger.LogWarning("General job ReviewRenewal on {Id} failed: {Code}", policyId, reviewed.Error.Code);
+                }
+            }
+
+            // F026: a renewal still awaiting acceptance near its end opens a LAPSE_RISK retention case.
+            foreach (var renewalId in work.RenewalsAtLapseRisk ?? [])
+            {
+                await using var scope = Scope(tenantId);
+                var opened = await scope.ServiceProvider.GetRequiredService<IDispatcher>().Send(new OpenLapseRiskCase(renewalId, day), cancellationToken);
+                if (opened.IsSuccess)
+                {
+                    done++;
+                }
+                else
+                {
+                    logger.LogWarning("General job OpenLapseRiskCase on {Id} failed: {Code}", renewalId, opened.Error.Code);
                 }
             }
 

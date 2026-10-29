@@ -138,9 +138,13 @@ public static class BuiltInProcesses
     public static readonly ProcessDefinition GeneralRenewalReview = new("GENERAL_RENEWAL_REVIEW", 1, ["DECIDE_RENEWAL", "DECIDED"],
         [new TransitionDefinition("DECIDE_RENEWAL", "DECIDED", null)], null);
 
+    /// <summary>F026: a retention case's owner works it: offers, the customer's answers, and the outcome; it closes with the case.</summary>
+    public static readonly ProcessDefinition GeneralRetention = new("GENERAL_RETENTION", 1, ["KEEP_POLICY", "CLOSED"],
+        [new TransitionDefinition("KEEP_POLICY", "CLOSED", null)], null);
+
     public static ProcessDefinition? Find(string processCode, int? version) =>
         new[] { ParkedDelivery, ConfigurationReview, HeldClaimPayment, PartyMatchReview, AggregationReview, ApprovalFollowUp, GeneralReferral, DueDiligenceHitReview,
-            DueDiligenceSanctionsMatch, DueDiligenceReview, HealthArrearsTermination, GeneralRenewalReview }.FirstOrDefault(d => d.ProcessCode == processCode && (version is null || version == d.Version));
+            DueDiligenceSanctionsMatch, DueDiligenceReview, HealthArrearsTermination, GeneralRenewalReview, GeneralRetention }.FirstOrDefault(d => d.ProcessCode == processCode && (version is null || version == d.Version));
 }
 
 /// <summary>Where a new task goes and when it is due: from the task type, queue and SLA definitions in force.</summary>

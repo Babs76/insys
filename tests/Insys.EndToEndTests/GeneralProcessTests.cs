@@ -72,7 +72,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         Insys.Party.Contracts.PartyPermissions.PartyRead, Insys.Party.Contracts.PartyPermissions.BankAccountCreate,
         Insys.Party.Contracts.PartyPermissions.BankAccountRead, Insys.Party.Contracts.PartyPermissions.BankAccountVerify,
         Insys.Party.Contracts.PartyPermissions.DueDiligenceRead, Insys.Party.Contracts.PartyPermissions.DueDiligenceReviewHit,
-        GeneralPermissions.RenewalRespond, GeneralPermissions.PolicyNonRenew,
+        GeneralPermissions.RenewalRespond, GeneralPermissions.PolicyNonRenew, GeneralPermissions.RetentionRead, GeneralPermissions.RetentionUpdate,
     ];
 
     private TestDatabase _db = null!;
@@ -841,6 +841,99 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         await _factory.Services.GetRequiredService<Insys.General.Infrastructure.GeneralJobs>().Run(CancellationToken.None);
         await _factory.DrainOutbox();
         (await _db.ScalarAsOwner<string>("SELECT status || ':' || expiry_reason FROM general.policy WHERE id = @p", ("p", approved))).ShouldBe("EXPIRED:NOT_RENEWED_BY_INSURER");
+    }
+
+    /// <summary>
+    /// Wave 4 §4.3, §4.7 (F026, F027): a declined renewal opens a retention case with an owner's task; an offer is made within
+    /// its uses and the caller's authority; the customer accepts a 10 % discount, which lowers and accepts the renewal; the case
+    /// closes RETAINED and the policy renews on the discounted terms. Another renewal, unanswered near its end, opens a
+    /// LAPSE_RISK case, which closes LOST, and lapses. The figures count both.
+    /// </summary>
+    [Fact]
+    public async Task ADeclinedRenewal_IsKeptByARetentionDiscount_AnotherAtRiskLapses_AndTheFiguresCountThem_F026_F027()
+    {
+        await Seed("general.cfg_renewal_rules", "EFFECTIVE", "RR-GMOT", ("product_code", Product), ("notice_days", 31), ("auto_renew", true), ("re_rating", false),
+            ("invitation_template", "TPL-RENEWAL_NOTICE"), ("acceptance", "ON_ACCEPTANCE"));
+        await Seed("general.cfg_renewal_settings", "EFFECTIVE", "RS", ("worse_terms_pct", 15m), ("changed_terms_notice_days", 31), ("lapse_risk_days", 30));
+        await Seed("general.cfg_retention_offers", "EFFECTIVE", "LOYAL-10", ("offer_code", "LOYAL-10"), ("kind", "DISCOUNT_PERCENT"), ("value", 10m),
+            ("max_uses_per_policy", 1));
+        await Seed("general.cfg_retention_offers", "EFFECTIVE", "LEAD-25", ("offer_code", "LEAD-25"), ("kind", "DISCOUNT_PERCENT"), ("value", 25m),
+            ("max_uses_per_policy", 1), ("authority_role", "RETENTION_LEAD"));
+        var (kept, _) = await IssuedPolicy();
+        var (lost, _) = await IssuedPolicy();
+        await _db.ExecuteAsOwner("UPDATE general.policy SET period_start = @s, period_end = @e WHERE id IN (@a, @b)", ("s", Today.AddYears(-1).AddDays(21)),
+            ("e", Today.AddDays(20)), ("a", kept), ("b", lost));
+        var premium = (await Policy(kept)).GetProperty("annualPremium").GetDecimal();
+        var jobs = _factory.Services.GetRequiredService<Insys.General.Infrastructure.GeneralJobs>();
+        await jobs.Run(CancellationToken.None);
+        await _factory.DrainOutbox();
+        async Task<JsonElement> RenewalOf(Guid policy) =>
+            (await (await _maker.GetAsync($"/api/v1/general/renewals?policyId={policy}")).Json()).GetProperty("items").EnumerateArray().Single();
+        async Task<JsonElement> CaseOf(Guid policy) =>
+            (await (await _maker.GetAsync($"/api/v1/general/retention-cases?policyId={policy}")).Json()).GetProperty("items").EnumerateArray().Single();
+
+        // The customer declines: a NOT_RENEWING case, owned through a Workflow task.
+        var renewalId = (await RenewalOf(kept)).GetProperty("id").GetGuid();
+        (await _maker.PostAsync($"/api/v1/general/renewals/{renewalId}/decline", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        await _factory.DrainOutbox();
+        var retention = await CaseOf(kept);
+        (retention.GetProperty("trigger").GetString(), retention.GetProperty("status").GetString(), retention.GetProperty("renewalId").GetGuid())
+            .ShouldBe(("NOT_RENEWING", "OPEN", renewalId));
+        var caseId = retention.GetProperty("id").GetGuid();
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM workflow.process_instance WHERE process_code = 'GENERAL_RETENTION' AND business_ref_id = @c AND ended_at IS NULL",
+            ("c", caseId))).ShouldBe(1);
+
+        // Offers: one the caller's roles do not cover is refused; the loyalty discount is made once, and accepted.
+        (await (await _maker.PostAsJsonAsync($"/api/v1/general/retention-cases/{caseId}/offers", new { offerCode = "LEAD-25" })).Code())
+            .ShouldBe("GENERAL_RETENTION_OFFER_AUTHORITY");
+        var offered = await (await _maker.PostAsJsonAsync($"/api/v1/general/retention-cases/{caseId}/offers", new { offerCode = "LOYAL-10" })).Json();
+        var offerId = offered.GetProperty("offers").EnumerateArray().Single().GetProperty("id").GetGuid();
+        (await (await _maker.PostAsJsonAsync($"/api/v1/general/retention-cases/{caseId}/offers", new { offerCode = "LOYAL-10" })).Code())
+            .ShouldBe("GENERAL_RETENTION_OFFER_USED_UP");
+        (await _maker.PostAsJsonAsync($"/api/v1/general/retention-cases/{caseId}/offers/{offerId}/answer", new { accepted = true })).StatusCode.ShouldBe(HttpStatusCode.OK);
+        await _factory.DrainOutbox();
+        var discounted = await RenewalOf(kept);
+        (discounted.GetProperty("status").GetString(), discounted.GetProperty("offeredPremium").GetDecimal())
+            .ShouldBe(("Accepted", Math.Round(premium * 0.9m, 2, MidpointRounding.AwayFromZero)));
+        (await _maker.PostAsJsonAsync($"/api/v1/general/retention-cases/{caseId}/outcome", new { outcome = "RETAINED" })).StatusCode.ShouldBe(HttpStatusCode.OK);
+        await _factory.DrainOutbox();
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM workflow.process_instance WHERE process_code = 'GENERAL_RETENTION' AND business_ref_id = @c AND ended_at IS NULL",
+            ("c", caseId))).ShouldBe(0, "the task closed with the case");
+
+        // The other is unanswered within the tenant's 30 lapse-risk days: a LAPSE_RISK case, which the owner closes LOST.
+        await jobs.Run(CancellationToken.None);
+        await _factory.DrainOutbox();
+        var atRisk = await CaseOf(lost);
+        atRisk.GetProperty("trigger").GetString().ShouldBe("LAPSE_RISK");
+        (await _maker.PostAsJsonAsync($"/api/v1/general/retention-cases/{atRisk.GetProperty("id").GetGuid()}/outcome", new { outcome = "LOST" })).StatusCode
+            .ShouldBe(HttpStatusCode.OK);
+
+        // The period ends: the kept one renews on the discounted premium; the other lapses.
+        await _db.ExecuteAsOwner("UPDATE general.policy SET period_end = @e WHERE id IN (@a, @b)", ("e", Today.AddDays(-1)), ("a", kept), ("b", lost));
+        await _db.ExecuteAsOwner("UPDATE general.renewal SET period_end = @e WHERE policy_id IN (@a, @b)", ("e", Today.AddDays(-1)), ("a", kept), ("b", lost));
+        await jobs.Run(CancellationToken.None);
+        await _factory.DrainOutbox();
+        await jobs.Run(CancellationToken.None);
+        await _factory.DrainOutbox();
+        var renewed = await _db.ScalarAsOwner<Guid>("SELECT id FROM general.policy WHERE renewal_of_id = @p", ("p", kept));
+        (await Policy(renewed)).GetProperty("annualPremium").GetDecimal().ShouldBe(Math.Round(premium * 0.9m, 2, MidpointRounding.AwayFromZero));
+        (await RenewalOf(lost)).GetProperty("status").GetString().ShouldBe("Lapsed");
+
+        // F027: the figures over the months around the renewal date.
+        await _db.UserWithPermissions(Tenant, "renewal-figures", Insys.Analytics.Contracts.AnalyticsPermissions.ProjectionRead);
+        var summary = await (await _factory.ClientFor(Tenant, "renewal-figures")
+            .GetAsync($"/api/v1/analytics/summary?from={Today.AddDays(-40):yyyy-MM-dd}&to={Today.AddDays(40):yyyy-MM-dd}")).Json();
+        JsonElement Figure(string code) => summary.GetProperty("figures").EnumerateArray().Single(f => f.GetProperty("code").GetString() == code);
+        foreach (var (code, count) in new[] { ("RENEWALS_DUE", 2L), ("RENEWALS_INVITED", 2L), ("RENEWALS_DECLINED_BY_CUSTOMER", 1L), ("RENEWALS_ACCEPTED", 1L),
+                     ("RENEWALS_RENEWED", 1L), ("RENEWALS_LAPSED", 1L), ("RETENTION_OFFERS_MADE", 1L), ("RETENTION_OFFERS_ACCEPTED", 1L) })
+        {
+            Figure(code).GetProperty("count").GetInt64().ShouldBe(count, code);
+        }
+
+        (Figure("RENEWAL_RATE").GetProperty("rate").GetDecimal(), Figure("RETENTION_RATE").GetProperty("rate").GetDecimal()).ShouldBe((0.5m, 0.5m));
+        Figure("RETENTION_OFFERS_ACCEPTED").GetProperty("by").EnumerateArray().Single().GetProperty("key").GetString().ShouldBe("DISCOUNT_PERCENT");
+        Figure("AVERAGE_RENEWAL_PREMIUM_CHANGE").GetProperty("amounts").EnumerateArray().Single().GetProperty("amount").GetDecimal()
+            .ShouldBe(Math.Round(premium * 0.9m, 2, MidpointRounding.AwayFromZero) - premium);
     }
 
     /// <summary>Wave 4 §4.4 (F022, OQ-130): an ON_PAYMENT renewal renews at the period end, and its first premium paid is the customer's acceptance.</summary>

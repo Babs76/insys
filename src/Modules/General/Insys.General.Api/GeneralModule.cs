@@ -399,6 +399,48 @@ public sealed class GeneralModule : IModule
             .WithName("GeneralDeclineRenewal")
             .WithSummary("Record the customer's decline of a renewal (Wave 4 §4.4): the policy expires at its period end")
             .RequirePermission(GeneralPermissions.RenewalRespond);
+        // F026: retention cases.
+        general.MapGet("/retention-cases", async (string? status, Guid? policyId, string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListRetentionCases(status, policyId, after, size), ct), c => c.Id))
+            .Produces<CursorPage<RetentionCaseView>>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("GeneralListRetentionCases").WithSummary("Retention cases, newest first, by status (OPEN, CLOSED) and policy, within your scope (F026)")
+            .RequirePermission(GeneralPermissions.RetentionRead);
+        general.MapGet("/retention-cases/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetRetentionCase(id), ct)).ToHttp(Results.Ok))
+            .Produces<RetentionCaseView>(StatusCodes.Status200OK)
+            .WithName("GeneralGetRetentionCase").WithSummary("A retention case: what opened it, its offers and answers, and its outcome (F026)")
+            .RequirePermission(GeneralPermissions.RetentionRead);
+        general.MapPost("/retention-cases", async (RetentionCaseRequest r, IDispatcher d, CancellationToken ct) =>
+                (await d.Send(new OpenRetentionCase(r.PolicyId, r.Trigger, r.Note), ct)).ToHttp(v => Results.Created($"/api/v1/general/retention-cases/{v.Id}", v)))
+            .Produces<RetentionCaseView>(StatusCodes.Status201Created)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .WithName("GeneralOpenRetentionCase")
+            .WithSummary("Open a retention case for a policy (F026): when the policyholder asks to cancel, or another reason to try to keep it")
+            .WithDescription("A cancellation is processed as asked (CancelPolicy); the case only records whether the customer changed their mind. A declined "
+                + "renewal, and a renewal still awaiting acceptance the tenant's lapse_risk_days before its end, open a case themselves. One case is open per policy.")
+            .RequirePermission(GeneralPermissions.RetentionUpdate).RequireIdempotencyKey();
+        general.MapPost("/retention-cases/{id:guid}/offers", async (Guid id, RetentionOfferRequest r, IDispatcher d, CancellationToken ct) =>
+                (await d.Send(new MakeRetentionOffer(id, r.OfferCode), ct)).ToHttp(Results.Ok))
+            .Produces<RetentionCaseView>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .WithName("GeneralMakeRetentionOffer")
+            .WithSummary("Make an offer from the tenant's list (general.cfg_retention_offers), within your authority (F026)")
+            .WithDescription("403 GENERAL_RETENTION_OFFER_AUTHORITY when the offer names a role you do not hold; 409 GENERAL_RETENTION_OFFER_USED_UP when it has "
+                + "been made on the policy as often as it may be.")
+            .RequirePermission(GeneralPermissions.RetentionUpdate);
+        general.MapPost("/retention-cases/{id:guid}/offers/{offerId:guid}/answer", async (Guid id, Guid offerId, RetentionAnswerRequest r, IDispatcher d,
+                CancellationToken ct) => (await d.Send(new DecideRetentionOffer(id, offerId, r.Accepted), ct)).ToHttp(Results.Ok))
+            .Produces<RetentionCaseView>(StatusCodes.Status200OK)
+            .WithEventualEffects("an accepted DISCOUNT_PERCENT on a case with a renewal lowers the renewal's offered premium by the per cent and records it as "
+                + "accepted (channel STAFF); any other accepted offer is made by staff (an endorsement mid-term, or the renewal's terms).")
+            .WithName("GeneralAnswerRetentionOffer").WithSummary("Record the customer's answer to an offer (F026)")
+            .RequirePermission(GeneralPermissions.RetentionUpdate);
+        general.MapPost("/retention-cases/{id:guid}/outcome", async (Guid id, RetentionOutcomeRequest r, IDispatcher d, CancellationToken ct) =>
+                (await d.Send(new CloseRetentionCase(id, r.Outcome, r.Note), ct)).ToHttp(Results.Ok))
+            .Produces<RetentionCaseView>(StatusCodes.Status200OK)
+            .WithName("GeneralCloseRetentionCase").WithSummary("Close a retention case: RETAINED, LOST or WITHDRAWN (F026); its Workflow task closes")
+            .RequirePermission(GeneralPermissions.RetentionUpdate);
         general.MapPost("/policies/{id:guid}/non-renewal", async (Guid id, NonRenewalRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new ProposeNonRenewal(id, r.ReasonCode), ct)).ToHttp(Results.Ok))
             .Produces<RenewalView>(StatusCodes.Status200OK)
@@ -619,6 +661,15 @@ public sealed record PortalClaimRequest(Guid PolicyId, Guid? RiskObjectId, strin
 /// <summary>An underwriter's decision on a renewal (F019): offer it or not, with an underwriting decision code and any loading in per cent.</summary>
 /// <param name="ReasonCode">An insurer's non-renewal reason in force (general.cfg_non_renewal_reasons).</param>
 public sealed record NonRenewalRequest([property: BuildingBlocks.Domain.CodeList(CodeLists.NonRenewalReasons, "reason_code")] string ReasonCode);
+
+public sealed record RetentionCaseRequest(Guid PolicyId, [property: BuildingBlocks.Domain.OneOf("CANCELLATION_REQUESTED", "NOT_RENEWING", "LAPSE_RISK")] string Trigger,
+    string? Note);
+
+public sealed record RetentionOfferRequest([property: BuildingBlocks.Domain.CodeList(CodeLists.RetentionOffers, "offer_code")] string OfferCode);
+
+public sealed record RetentionAnswerRequest(bool Accepted);
+
+public sealed record RetentionOutcomeRequest([property: BuildingBlocks.Domain.OneOf("RETAINED", "LOST", "WITHDRAWN")] string Outcome, string? Note);
 
 public sealed record DecideRenewalRequest(bool Offer, [property: BuildingBlocks.Domain.CodeList(CodeLists.UnderwritingDecisions, "code")] string DecisionCode,
     decimal? LoadingPct = null);

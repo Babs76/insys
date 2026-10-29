@@ -58,17 +58,17 @@ public sealed class RenewalAcceptanceTests
         var automatic = Offered();
         automatic.SetAcceptance(RenewalAcceptance.Automatic, 15m);
         automatic.NeedsAcceptance.ShouldBeFalse();
-        automatic.MarkRenewed(Guid.CreateVersion7()).IsSuccess.ShouldBeTrue();
+        automatic.MarkRenewed(Guid.CreateVersion7(), Now).IsSuccess.ShouldBeTrue();
 
         var onAcceptance = Offered();
         onAcceptance.SetAcceptance(RenewalAcceptance.OnAcceptance, 15m);
         (onAcceptance.NeedsAcceptance, onAcceptance.AwaitsAcceptance).ShouldBe((true, true));
-        onAcceptance.MarkRenewed().Error!.Code.ShouldBe(GeneralErrorCodes.RenewalNotOffered, "not yet accepted");
+        onAcceptance.MarkRenewed(null, Now).Error!.Code.ShouldBe(GeneralErrorCodes.RenewalNotOffered, "not yet accepted");
         var portalUser = Guid.CreateVersion7();
         onAcceptance.Accept(portalUser, RenewalAcceptance.Portal, Now).IsSuccess.ShouldBeTrue();
         (onAcceptance.Status, onAcceptance.AcceptedBy, onAcceptance.AcceptedChannel).ShouldBe((RenewalStatus.Accepted, (Guid?)portalUser, RenewalAcceptance.Portal));
         onAcceptance.Accept(portalUser, RenewalAcceptance.Portal, Now).IsFailure.ShouldBeTrue("only an offered renewal is accepted");
-        onAcceptance.MarkRenewed(Guid.CreateVersion7()).IsSuccess.ShouldBeTrue();
+        onAcceptance.MarkRenewed(Guid.CreateVersion7(), Now).IsSuccess.ShouldBeTrue();
     }
 
     /// <summary>OQ-130: worse terms than the tenant's threshold (premium up more than 15 %) need acceptance even on an AUTOMATIC product; within it, they do not.</summary>
@@ -100,7 +100,7 @@ public sealed class RenewalAcceptanceTests
         declined.SetAcceptance(RenewalAcceptance.Automatic, 15m);
         declined.Decline(Guid.CreateVersion7(), RenewalAcceptance.Broker, Now).IsSuccess.ShouldBeTrue();
         (declined.Status, declined.DeclinedChannel).ShouldBe((RenewalStatus.DeclinedByCustomer, RenewalAcceptance.Broker));
-        declined.MarkRenewed().IsFailure.ShouldBeTrue();
+        declined.MarkRenewed(null, Now).IsFailure.ShouldBeTrue();
     }
 
     [Fact]
@@ -109,13 +109,13 @@ public sealed class RenewalAcceptanceTests
         var paid = Offered();
         paid.SetAcceptance(RenewalAcceptance.OnPayment, 15m);
         paid.NeedsAcceptance.ShouldBeFalse("it renews, to be paid");
-        paid.MarkRenewed(Guid.CreateVersion7()).IsSuccess.ShouldBeTrue();
+        paid.MarkRenewed(Guid.CreateVersion7(), Now).IsSuccess.ShouldBeTrue();
         paid.AcceptedByPayment(Now);
         (paid.Status, paid.AcceptedChannel).ShouldBe((RenewalStatus.Renewed, RenewalAcceptance.Payment));
 
         var unpaid = Offered();
         unpaid.SetAcceptance(RenewalAcceptance.OnPayment, 15m);
-        unpaid.MarkRenewed(Guid.CreateVersion7()).IsSuccess.ShouldBeTrue();
+        unpaid.MarkRenewed(Guid.CreateVersion7(), Now).IsSuccess.ShouldBeTrue();
         unpaid.LapsedUnpaid(Now);
         unpaid.Status.ShouldBe(RenewalStatus.Lapsed);
     }

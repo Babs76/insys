@@ -315,7 +315,7 @@ public sealed class GeneralPolicies(IGeneralRepository general, IGeneralCodes co
 
 public sealed record DueWork(IReadOnlyList<Guid> PoliciesToStart, IReadOnlyList<Guid> PoliciesToExpire, IReadOnlyList<Guid> QuotesToExpire,
     IReadOnlyList<Guid> PoliciesToInvite, IReadOnlyList<Guid> PoliciesToRenew, IReadOnlyList<RenewalReminder>? RenewalReminders = null,
-    IReadOnlyList<Guid>? PoliciesPastGrace = null, IReadOnlyList<Guid>? PoliciesToReview = null);
+    IReadOnlyList<Guid>? PoliciesPastGrace = null, IReadOnlyList<Guid>? PoliciesToReview = null, IReadOnlyList<Guid>? RenewalsAtLapseRisk = null);
 
 /// <summary>A renewal reminder due today: the policy, and how many days before its period ends (OQ-089).</summary>
 public sealed record RenewalReminder(Guid PolicyId, int DaysBefore);
@@ -394,7 +394,8 @@ internal sealed class FindDueWorkHandler(IGeneralRepository general, IGeneralCod
 
         return new DueWork(await general.PoliciesToStart(query.Day, query.Limit, cancellationToken), await general.PoliciesToExpire(query.Day, query.Limit, cancellationToken),
             await general.QuotesToExpire(query.Day, query.Limit, cancellationToken), invite, renew, remind,
-            await general.PoliciesPastGrace(query.Day, query.Limit, cancellationToken), review);
+            await general.PoliciesPastGrace(query.Day, query.Limit, cancellationToken), review,
+            settings.LapseRiskDays is { } lapseRisk ? await general.RenewalsAtLapseRisk(query.Day.AddDays(lapseRisk), query.Limit, cancellationToken) : []);
     }
 }
 

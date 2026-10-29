@@ -47,6 +47,10 @@ public static class GeneralPermissions
 
     /// <summary>Wave 4 §4.4: recording the customer's acceptance or decline of a renewal.</summary>
     public const string RenewalRespond = "general_renewal.respond";
+
+    /// <summary>F026: reading retention cases, and working them (open, offer, record answers, close).</summary>
+    public const string RetentionRead = "general_retention.read";
+    public const string RetentionUpdate = "general_retention.update";
     public const string EndorsementRead = "general_endorsement.read";
     public const string EndorsementCreate = "general_endorsement.create";
     public const string ClaimRead = "general_claim.read";
@@ -269,15 +273,47 @@ public sealed record GeneralRenewalDecided(Guid RenewalId, Guid PolicyId, string
 
 /// <summary>Wave 4 §4.4: the customer accepted the renewal, through STAFF, PORTAL, BROKER or PAYMENT (ON_PAYMENT).</summary>
 [IntegrationEvent("general.GeneralRenewalAccepted")]
-public sealed record GeneralRenewalAccepted(Guid RenewalId, Guid PolicyId, string PolicyNumber, string Channel) : IIntegrationEvent;
+public sealed record GeneralRenewalAccepted(Guid RenewalId, Guid PolicyId, string PolicyNumber, string Channel, string? ProductCode = null, DateOnly? PeriodEnd = null)
+    : IIntegrationEvent;
 
 /// <summary>Wave 4 §4.4: the customer declined the renewal; the policy expires at its period end (and a retention case may open, F026).</summary>
 [IntegrationEvent("general.GeneralRenewalDeclined")]
-public sealed record GeneralRenewalDeclined(Guid RenewalId, Guid PolicyId, string PolicyNumber, string Channel) : IIntegrationEvent;
+public sealed record GeneralRenewalDeclined(Guid RenewalId, Guid PolicyId, string PolicyNumber, string Channel, string? ProductCode = null, DateOnly? PeriodEnd = null)
+    : IIntegrationEvent;
 
 /// <summary>Wave 4 §4.4: a renewal needing acceptance was not accepted (or, ON_PAYMENT, not paid within grace).</summary>
 [IntegrationEvent("general.GeneralRenewalLapsed")]
-public sealed record GeneralRenewalLapsed(Guid RenewalId, Guid PolicyId, string PolicyNumber) : IIntegrationEvent;
+public sealed record GeneralRenewalLapsed(Guid RenewalId, Guid PolicyId, string PolicyNumber, string? ProductCode = null, DateOnly? PeriodEnd = null) : IIntegrationEvent;
+
+/// <summary>F027: a policy's renewal is on record; it is due in its period end's month.</summary>
+[IntegrationEvent("general.GeneralRenewalOpened")]
+public sealed record GeneralRenewalOpened(Guid RenewalId, Guid PolicyId, string ProductCode, DateOnly PeriodEnd) : IIntegrationEvent;
+
+/// <summary>F027: the policy renewed, at the renewed premium (the change is renewed less current).</summary>
+[IntegrationEvent("general.GeneralRenewalRenewed")]
+public sealed record GeneralRenewalRenewed(Guid RenewalId, Guid PolicyId, string ProductCode, DateOnly PeriodEnd, decimal CurrentPremium, decimal RenewedPremium,
+    string Currency) : IIntegrationEvent;
+
+/// <summary>F027: the insurer decided not to renew the policy.</summary>
+[IntegrationEvent("general.GeneralRenewalNotRenewed")]
+public sealed record GeneralRenewalNotRenewed(Guid RenewalId, Guid PolicyId, string ProductCode, DateOnly PeriodEnd) : IIntegrationEvent;
+
+/// <summary>F026: a retention case opened (a cancellation asked for, a renewal declined, a renewal at risk of lapsing): a person owns it in Workflow.</summary>
+[IntegrationEvent("general.GeneralRetentionCaseOpened")]
+public sealed record GeneralRetentionCaseOpened(Guid CaseId, Guid PolicyId, string PolicyNumber, string ProductCode, string Trigger, Guid? RenewalId) : IIntegrationEvent;
+
+/// <summary>F026, F027: an offer was made on a retention case.</summary>
+[IntegrationEvent("general.GeneralRetentionOfferMade")]
+public sealed record GeneralRetentionOfferMade(Guid CaseId, Guid OfferId, Guid PolicyId, string ProductCode, string Kind) : IIntegrationEvent;
+
+/// <summary>F026: the customer accepted a retention offer: a discount on the case's renewal changes its terms.</summary>
+[IntegrationEvent("general.GeneralRetentionOfferAccepted")]
+public sealed record GeneralRetentionOfferAccepted(Guid CaseId, Guid OfferId, Guid PolicyId, string ProductCode, string Kind, decimal? Value, Guid? RenewalId,
+    Guid DecidedBy) : IIntegrationEvent;
+
+/// <summary>F026: the retention case closed RETAINED, LOST or WITHDRAWN; its Workflow task closes.</summary>
+[IntegrationEvent("general.GeneralRetentionCaseClosed")]
+public sealed record GeneralRetentionCaseClosed(Guid CaseId, Guid PolicyId, string ProductCode, string Outcome) : IIntegrationEvent;
 
 /// <summary>OQ-132 (b): cover runs on, pro rata, for a late non-renewal's notice; Billing bills the extra days.</summary>
 [IntegrationEvent("general.GeneralCoverExtended")]

@@ -43,6 +43,7 @@ public static class AnalyticsInfrastructure
     {
         // Its dashboard figure codes, for the OpenAPI enum of DashboardFigure.code.
         BuildingBlocks.Application.DashboardFigureCodes.Declare(Insys.Analytics.Application.AnalyticsFigures.WrittenPremium, Insys.Analytics.Application.AnalyticsFigures.PoliciesWritten, Insys.Analytics.Application.AnalyticsFigures.ClaimsIncurred, Insys.Analytics.Application.AnalyticsFigures.ClaimsReported);
+        BuildingBlocks.Application.DashboardFigureCodes.Declare(Insys.Analytics.Application.AnalyticsFigures.Renewals); // F027
         // ADR-026 §2: this module's event consumers run under its JOB function.
         BuildingBlocks.Application.Context.JobFunctions.ForConsumers(Persistence.AnalyticsDbContext.SchemaName, "ANALYTICS_EVENT_PROCESSING");
         const string schema = AnalyticsDbContext.SchemaName;
@@ -62,6 +63,17 @@ public static class AnalyticsInfrastructure
         services.AddIntegrationEventHandler<LifePolicyIssued, ProjectionPolicies, AnalyticsDbContext>(schema, "LifePolicyIssued");
         services.AddIntegrationEventHandler<ClaimNumberAllocated, ProjectionPolicies, AnalyticsDbContext>(schema, "ClaimNumberAllocated");
         services.AddIntegrationEventHandler<ClaimReserveChanged, ProjectionPolicies, AnalyticsDbContext>(schema, "ClaimReserveChanged");
+        // F027 (Wave 4 §4.7): the renewal and retention figures.
+        services.AddIntegrationEventHandler<GeneralRenewalOpened, ProjectionPolicies, AnalyticsDbContext>(schema, "GeneralRenewalOpened");
+        services.AddIntegrationEventHandler<GeneralRenewalInvited, ProjectionPolicies, AnalyticsDbContext>(schema, "GeneralRenewalInvited");
+        services.AddIntegrationEventHandler<GeneralRenewalAccepted, ProjectionPolicies, AnalyticsDbContext>(schema, "GeneralRenewalAccepted");
+        services.AddIntegrationEventHandler<GeneralRenewalDeclined, ProjectionPolicies, AnalyticsDbContext>(schema, "GeneralRenewalDeclined");
+        services.AddIntegrationEventHandler<GeneralRenewalLapsed, ProjectionPolicies, AnalyticsDbContext>(schema, "GeneralRenewalLapsed");
+        services.AddIntegrationEventHandler<GeneralRenewalRenewed, ProjectionPolicies, AnalyticsDbContext>(schema, "GeneralRenewalRenewed");
+        services.AddIntegrationEventHandler<GeneralRenewalNotRenewed, ProjectionPolicies, AnalyticsDbContext>(schema, "GeneralRenewalNotRenewed");
+        services.AddIntegrationEventHandler<GeneralRetentionCaseClosed, ProjectionPolicies, AnalyticsDbContext>(schema, "GeneralRetentionCaseClosed");
+        services.AddIntegrationEventHandler<GeneralRetentionOfferMade, ProjectionPolicies, AnalyticsDbContext>(schema, "GeneralRetentionOfferMade");
+        services.AddIntegrationEventHandler<GeneralRetentionOfferAccepted, ProjectionPolicies, AnalyticsDbContext>(schema, "RetentionOfferAccepted");
         return services;
     }
 }

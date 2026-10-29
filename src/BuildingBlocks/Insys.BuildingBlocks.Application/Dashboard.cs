@@ -55,9 +55,10 @@ public static class DashboardFigureCodes
     public static IReadOnlyList<string> All => Codes.Keys.Order(StringComparer.Ordinal).ToList();
 }
 
-/// <summary>One figure: a count, amounts per currency, a breakdown or a moment, as its definition says.</summary>
+/// <summary>One figure: a count, amounts per currency, a breakdown, a moment or a rate, as its definition says.</summary>
+/// <param name="Rate">A ratio from 0 to 1 the server computed (four decimals), or null when it has no denominator (Wave 4 F027).</param>
 public sealed record DashboardFigure(string Code, long? Count = null, IReadOnlyList<MoneyAmount>? Amounts = null, IReadOnlyList<FigurePart>? By = null,
-    DateTimeOffset? At = null);
+    DateTimeOffset? At = null, decimal? Rate = null);
 
 /// <param name="AsOf">When the figures were computed.</param>
 /// <param name="RefreshedAt">For figures from a projection, its last update.</param>

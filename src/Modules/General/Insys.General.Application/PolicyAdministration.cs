@@ -208,7 +208,7 @@ internal sealed class RenewPolicyHandler(IGeneralRepository general, IGeneralCod
             return renewal.Error;
         }
 
-        review?.MarkRenewed(id);
+        review?.MarkRenewed(id, clock.UtcNow);
 
         general.Add(renewal.Value);
         audit.Record(new AuditEntry("GENERAL", "RenewPolicy", nameof(GeneralPolicy), expiring.Id.ToString(), new Dictionary<string, string?> { ["renewal"] = id.ToString() }));

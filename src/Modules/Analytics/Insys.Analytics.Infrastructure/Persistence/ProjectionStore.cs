@@ -63,7 +63,17 @@ internal sealed class ProjectionStore(AnalyticsDbContext db, ITenantContext tena
 
     public async Task Apply(ProjectionEntry entry, DateTimeOffset now, CancellationToken cancellationToken)
     {
-        await using var command = await Command(entry.Kind == ProjectionEntry.WrittenPremium
+        await using var command = await Command(entry.Kind == ProjectionEntry.Renewal
+            ? """
+              INSERT INTO analytics.fact_renewals (tenant_id, refreshed_at, month_key, product_code, branch_code, measure, item_count, amount, currency)
+              VALUES (@t, @now, @month, @product, @branch, @dimension, @count, @amount, @currency)
+              ON CONFLICT (tenant_id, month_key, product_code, branch_code, measure) DO UPDATE SET
+                item_count = fact_renewals.item_count + EXCLUDED.item_count,
+                amount = fact_renewals.amount + EXCLUDED.amount,
+                currency = CASE WHEN trim(fact_renewals.currency) = '' THEN EXCLUDED.currency ELSE fact_renewals.currency END,
+                refreshed_at = EXCLUDED.refreshed_at
+              """
+            : entry.Kind == ProjectionEntry.WrittenPremium
             ? """
               INSERT INTO analytics.fact_written_premium (tenant_id, refreshed_at, date_key, product_code, channel_code, branch_code, policy_count, written_premium, currency)
               VALUES (@t, @now, @day, @product, @dimension, @branch, @count, @amount, @currency)
@@ -106,8 +116,10 @@ internal sealed class ProjectionStore(AnalyticsDbContext db, ITenantContext tena
 
     public async Task<int> Rebuild(DateTimeOffset now, Func<DateTimeOffset, DateOnly> businessDateOf, CancellationToken cancellationToken)
     {
-        await using (var clear = await Command("DELETE FROM analytics.fact_written_premium WHERE tenant_id = @t; DELETE FROM analytics.fact_claims_incurred WHERE tenant_id = @t",
-                         cancellationToken))
+        await using (var clear = await Command("""
+                         DELETE FROM analytics.fact_written_premium WHERE tenant_id = @t; DELETE FROM analytics.fact_claims_incurred WHERE tenant_id = @t;
+                         DELETE FROM analytics.fact_renewals WHERE tenant_id = @t
+                         """, cancellationToken))
         {
             await clear.ExecuteNonQueryAsync(cancellationToken);
         }
@@ -218,13 +230,74 @@ internal sealed class ProjectionStore(AnalyticsDbContext db, ITenantContext tena
             }
         }
 
+        var (renewals, renewalsRefreshed) = await RenewalFigures(from, to, cancellationToken);
+        refreshed = renewalsRefreshed is { } r && (refreshed is null || r > refreshed) ? r : refreshed;
         return new DashboardSummary(clock.UtcNow,
         [
             new DashboardFigure(AnalyticsFigures.WrittenPremium, Amounts: premium.OrderBy(m => m.Currency, StringComparer.Ordinal).ToList()),
             new DashboardFigure(AnalyticsFigures.PoliciesWritten, Count: policies),
             new DashboardFigure(AnalyticsFigures.ClaimsIncurred, Amounts: incurred.OrderBy(m => m.Currency, StringComparer.Ordinal).ToList()),
             new DashboardFigure(AnalyticsFigures.ClaimsReported, Count: claims),
+            .. renewals,
         ], refreshed, [AnalyticsFigures.Health]);
+    }
+
+    /// <summary>
+    /// F027 (addendum §4.7): the renewal figures over the months the dates fall in, within the caller's scope. The renewal rate
+    /// is renewed over due; the retention rate, retained over retention cases closed; the average premium change is per currency
+    /// over the renewals renewed in it; offers made and accepted are by kind.
+    /// </summary>
+    private async Task<(IReadOnlyList<DashboardFigure> Figures, DateTimeOffset? RefreshedAt)> RenewalFigures(DateOnly from, DateOnly to, CancellationToken cancellationToken)
+    {
+        await using var command = await Command("", cancellationToken);
+        command.CommandText = $"""
+            SELECT measure, trim(currency), sum(item_count), sum(amount), max(refreshed_at) FROM analytics.fact_renewals
+            WHERE tenant_id = @t AND month_key BETWEEN @fromMonth AND @toMonth AND {Scope(command)} GROUP BY measure, trim(currency)
+            """;
+        command.Parameters.AddWithValue("fromMonth", from.ToString("yyyy-MM", System.Globalization.CultureInfo.InvariantCulture));
+        command.Parameters.AddWithValue("toMonth", to.ToString("yyyy-MM", System.Globalization.CultureInfo.InvariantCulture));
+        var counts = new Dictionary<string, long>(StringComparer.Ordinal);
+        var changes = new List<(string Currency, decimal Amount, long Count)>();
+        DateTimeOffset? refreshed = null;
+        await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var (measure, currency, count) = (reader.GetString(0), reader.GetString(1), reader.GetInt64(2));
+                counts[measure] = counts.GetValueOrDefault(measure) + count;
+                if (measure == RenewalMeasures.Renewed && currency.Length > 0)
+                {
+                    changes.Add((currency, reader.GetDecimal(3), count));
+                }
+
+                var at = reader.GetFieldValue<DateTimeOffset>(4);
+                refreshed = refreshed is null || at > refreshed ? at : refreshed;
+            }
+        }
+
+        long Count(string measure) => counts.GetValueOrDefault(measure);
+        decimal? Rate(long of, long over) => over == 0 ? null : Math.Round((decimal)of / over, 4, MidpointRounding.AwayFromZero);
+        IReadOnlyList<FigurePart> ByKind(string prefix) =>
+            [.. counts.Where(c => c.Key.StartsWith(prefix, StringComparison.Ordinal)).OrderBy(c => c.Key, StringComparer.Ordinal)
+                .Select(c => new FigurePart(c.Key[prefix.Length..], c.Value))];
+        return (
+        [
+            new DashboardFigure(AnalyticsFigures.RenewalsDue, Count: Count(RenewalMeasures.Due)),
+            new DashboardFigure(AnalyticsFigures.RenewalsInvited, Count: Count(RenewalMeasures.Invited)),
+            new DashboardFigure(AnalyticsFigures.RenewalsAccepted, Count: Count(RenewalMeasures.Accepted)),
+            new DashboardFigure(AnalyticsFigures.RenewalsRenewed, Count: Count(RenewalMeasures.Renewed)),
+            new DashboardFigure(AnalyticsFigures.RenewalsDeclined, Count: Count(RenewalMeasures.Declined)),
+            new DashboardFigure(AnalyticsFigures.RenewalsNotRenewed, Count: Count(RenewalMeasures.NotRenewed)),
+            new DashboardFigure(AnalyticsFigures.RenewalsLapsed, Count: Count(RenewalMeasures.Lapsed)),
+            new DashboardFigure(AnalyticsFigures.RenewalRate, Rate: Rate(Count(RenewalMeasures.Renewed), Count(RenewalMeasures.Due))),
+            new DashboardFigure(AnalyticsFigures.RetentionRate, Rate: Rate(Count(RenewalMeasures.RetentionRetained), Count(RenewalMeasures.RetentionClosed))),
+            new DashboardFigure(AnalyticsFigures.AveragePremiumChange, Amounts: changes.GroupBy(c => c.Currency, StringComparer.Ordinal).OrderBy(g => g.Key, StringComparer.Ordinal)
+                .Select(g => new MoneyAmount(g.Key, Math.Round(g.Sum(c => c.Amount) / g.Sum(c => c.Count), 2, MidpointRounding.AwayFromZero))).ToList()),
+            new DashboardFigure(AnalyticsFigures.RetentionOffersMade, Count: counts.Where(c => c.Key.StartsWith(RenewalMeasures.OfferMade, StringComparison.Ordinal)).Sum(c => c.Value),
+                By: ByKind(RenewalMeasures.OfferMade)),
+            new DashboardFigure(AnalyticsFigures.RetentionOffersAccepted,
+                Count: counts.Where(c => c.Key.StartsWith(RenewalMeasures.OfferAccepted, StringComparison.Ordinal)).Sum(c => c.Value), By: ByKind(RenewalMeasures.OfferAccepted)),
+        ], refreshed);
     }
 
     /// <summary>The caller's F103 scope over a fact's product and branch: a fact with branch ALL (no node) is outside every branch scope.</summary>

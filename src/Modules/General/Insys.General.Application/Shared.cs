@@ -106,6 +106,21 @@ public interface IGeneralRepository
     /// <summary>The renewal the policy was issued on (ON_PAYMENT: its first premium is the customer's acceptance).</summary>
     Task<Domain.Renewals.Renewal?> RenewalIssuedAs(Guid renewalPolicyId, CancellationToken cancellationToken);
 
+    /// <summary>F026: renewals still awaiting the customer's acceptance whose period ends by <paramref name="endsBy"/>, with no open retention case.</summary>
+    Task<IReadOnlyList<Guid>> RenewalsAtLapseRisk(DateOnly endsBy, int limit, CancellationToken cancellationToken);
+
+    void Add(Domain.Retention.RetentionCase retentionCase);
+
+    Task<Domain.Retention.RetentionCase?> RetentionCase(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>The policy's open retention case (one at a time).</summary>
+    Task<Domain.Retention.RetentionCase?> OpenRetentionCase(Guid policyId, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<Domain.Retention.RetentionCase>> RetentionCases(string? status, Guid? policyId, Guid? beforeId, int limit, CancellationToken cancellationToken);
+
+    /// <summary>How many times the offer was made on the policy, on any of its retention cases (F026: max uses per policy).</summary>
+    Task<int> RetentionOfferUses(Guid policyId, string offerCode, CancellationToken cancellationToken);
+
     Task<IReadOnlyList<Domain.Renewals.Renewal>> Renewals(Domain.Renewals.RenewalStatus? status, Guid? policyId, Guid? beforeId, int limit, CancellationToken cancellationToken);
 
     /// <summary>Policies of the product in force, not yet reviewed for this period, whose period ends on or before the date (Wave 4 §4.2).</summary>
@@ -179,7 +194,8 @@ public sealed record RenewalReviewRule(string ProductCode, string? EligibilityRu
 /// The tenant's renewal settings (general.cfg_renewal_settings): the worse-terms threshold (OQ-130, default 15 %) and the
 /// notice a renewal with changed terms is invited with at least (Wave 4 addition 2, default 31 days).
 /// </summary>
-public sealed record RenewalTermsSettings(decimal WorseTermsPct, int ChangedTermsNoticeDays)
+/// <param name="LapseRiskDays">F026: a renewal awaiting acceptance this many days before its end opens a LAPSE_RISK case; null: none is opened.</param>
+public sealed record RenewalTermsSettings(decimal WorseTermsPct, int ChangedTermsNoticeDays, int? LapseRiskDays = null)
 {
     public static readonly RenewalTermsSettings Default = new(15m, 31);
 }
@@ -250,6 +266,8 @@ public interface IGeneralCodes
     Task<RenewalTermsSettings> RenewalSettings(DateOnly day, CancellationToken cancellationToken);
 
     Task<NonRenewalReason?> NonRenewalReason(string reasonCode, DateOnly day, CancellationToken cancellationToken);
+
+    Task<Domain.Retention.RetentionOfferTerms?> RetentionOffer(string offerCode, DateOnly day, CancellationToken cancellationToken);
 
     Task<bool> Exists(GeneralCode kind, string code, DateOnly day, CancellationToken cancellationToken);
 

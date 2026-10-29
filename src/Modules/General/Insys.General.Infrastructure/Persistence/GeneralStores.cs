@@ -29,6 +29,7 @@ using System.Text.Json;
 using Insys.BuildingBlocks.Application.Messaging;
 using Insys.BuildingBlocks.Contracts;
 using Insys.BuildingBlocks.Domain;
+using Insys.BuildingBlocks.Infrastructure.Persistence;
 using Insys.BuildingBlocks.Infrastructure.StaticData;
 using Insys.General.Application;
 using Insys.General.Domain.Claims;
@@ -272,6 +273,47 @@ internal sealed class GeneralRepository(GeneralDbContext db, IExecutionContext e
     public async Task<Domain.Renewals.Renewal?> RenewalIssuedAs(Guid renewalPolicyId, CancellationToken cancellationToken) =>
         await db.Renewals.Include(r => r.Checks).SingleOrDefaultAsync(r => r.RenewalPolicyId == renewalPolicyId, cancellationToken);
 
+    public async Task<IReadOnlyList<Guid>> RenewalsAtLapseRisk(DateOnly endsBy, int limit, CancellationToken cancellationToken) =>
+        await db.Renewals.AsNoTracking().Where(r => r.Status == Domain.Renewals.RenewalStatus.Offered && r.NeedsAcceptance && r.PeriodEnd <= endsBy
+                                                     && !db.RetentionCases.Any(c => c.PolicyId == r.PolicyId && c.Status == Domain.Retention.RetentionCase.Open))
+            .OrderBy(r => r.Id).Select(r => r.Id).Take(limit).ToListAsync(cancellationToken);
+
+    public void Add(Domain.Retention.RetentionCase retentionCase) => db.RetentionCases.Add(retentionCase);
+
+    public async Task<Domain.Retention.RetentionCase?> RetentionCase(Guid id, CancellationToken cancellationToken) =>
+        await db.RetentionCases.Include(c => c.Offers).SingleOrDefaultAsync(c => c.Id == id, cancellationToken) is { } found && await Policy(found.PolicyId, cancellationToken) is not null
+            ? found
+            : null;
+
+    public async Task<Domain.Retention.RetentionCase?> OpenRetentionCase(Guid policyId, CancellationToken cancellationToken) =>
+        await db.RetentionCases.Include(c => c.Offers).SingleOrDefaultAsync(c => c.PolicyId == policyId && c.Status == Domain.Retention.RetentionCase.Open, cancellationToken);
+
+    public async Task<IReadOnlyList<Domain.Retention.RetentionCase>> RetentionCases(string? status, Guid? policyId, Guid? beforeId, int limit,
+        CancellationToken cancellationToken)
+    {
+        var scoped = db.Policies.InScope(execution.CurrentScope, p => p.ProductCode, p => p.OrgNodeCode).Select(p => p.Id);
+        var cases = db.RetentionCases.AsNoTracking().Include(c => c.Offers).Where(c => scoped.Contains(c.PolicyId));
+        if (status is not null)
+        {
+            cases = cases.Where(c => c.Status == status);
+        }
+
+        if (policyId is { } policy)
+        {
+            cases = cases.Where(c => c.PolicyId == policy);
+        }
+
+        if (beforeId is { } before)
+        {
+            cases = cases.Where(c => c.Id.CompareTo(before) < 0);
+        }
+
+        return await cases.OrderByDescending(c => c.Id).Take(limit).ToListAsync(cancellationToken);
+    }
+
+    public async Task<int> RetentionOfferUses(Guid policyId, string offerCode, CancellationToken cancellationToken) =>
+        await db.RetentionCases.Where(c => c.PolicyId == policyId).SelectMany(c => c.Offers).CountAsync(o => o.OfferCode == offerCode, cancellationToken);
+
     public async Task<IReadOnlyList<Domain.Renewals.Renewal>> Renewals(Domain.Renewals.RenewalStatus? status, Guid? policyId, Guid? beforeId, int limit,
         CancellationToken cancellationToken)
     {
@@ -403,12 +445,17 @@ internal sealed class GeneralCodes(GeneralDbContext db) : IGeneralCodes
             ?.Factor ?? 1m;
     }
 
+    public async Task<Domain.Retention.RetentionOfferTerms?> RetentionOffer(string offerCode, DateOnly day, CancellationToken cancellationToken) =>
+        await InForce<RetentionOffers>(day).Where(o => o.OfferCode == offerCode)
+            .Select(o => new Domain.Retention.RetentionOfferTerms(o.OfferCode, o.ProductCode, o.Kind, o.Value, o.MaxUsesPerPolicy, o.AuthorityRole))
+            .FirstOrDefaultAsync(cancellationToken);
+
     public async Task<Application.NonRenewalReason?> NonRenewalReason(string reasonCode, DateOnly day, CancellationToken cancellationToken) =>
         await InForce<NonRenewalReasons>(day).Where(r => r.ReasonCode == reasonCode)
             .Select(r => new Application.NonRenewalReason(r.ReasonCode, r.NoticeDays, r.CustomerWording, r.RequiresApproval)).FirstOrDefaultAsync(cancellationToken);
 
     public async Task<Application.RenewalTermsSettings> RenewalSettings(DateOnly day, CancellationToken cancellationToken) =>
-        await InForce<StaticData.RenewalSettings>(day).Select(s => new Application.RenewalTermsSettings(s.WorseTermsPct, s.ChangedTermsNoticeDays))
+        await InForce<StaticData.RenewalSettings>(day).Select(s => new Application.RenewalTermsSettings(s.WorseTermsPct, s.ChangedTermsNoticeDays, s.LapseRiskDays))
             .FirstOrDefaultAsync(cancellationToken) ?? Application.RenewalTermsSettings.Default;
 
     public Task<bool> Exists(GeneralCode kind, string code, DateOnly day, CancellationToken cancellationToken) => kind switch
@@ -500,9 +547,19 @@ internal sealed class GeneralEventMapper : IDomainEventMapper
         Domain.Renewals.GeneralRenewalOffered e => new Contracts.GeneralRenewalOffered(e.RenewalId, e.PolicyId, e.PolicyNumber, e.CurrentPremium, e.OfferedPremium, e.Currency,
             e.ChangedTerms),
         // Wave 4 §4.3, §4.4: the customer's answer, a lapse, an insurer's non-renewal (its approval, and its notice) and the cover a late notice extends.
-        Domain.Renewals.GeneralRenewalAccepted e => new Contracts.GeneralRenewalAccepted(e.RenewalId, e.PolicyId, e.PolicyNumber, e.Channel),
-        Domain.Renewals.GeneralRenewalDeclined e => new Contracts.GeneralRenewalDeclined(e.RenewalId, e.PolicyId, e.PolicyNumber, e.Channel),
-        Domain.Renewals.GeneralRenewalLapsed e => new Contracts.GeneralRenewalLapsed(e.RenewalId, e.PolicyId, e.PolicyNumber),
+        Domain.Renewals.GeneralRenewalAccepted e => new Contracts.GeneralRenewalAccepted(e.RenewalId, e.PolicyId, e.PolicyNumber, e.Channel, e.ProductCode, e.PeriodEnd),
+        Domain.Renewals.GeneralRenewalDeclined e => new Contracts.GeneralRenewalDeclined(e.RenewalId, e.PolicyId, e.PolicyNumber, e.Channel, e.ProductCode, e.PeriodEnd),
+        Domain.Renewals.GeneralRenewalLapsed e => new Contracts.GeneralRenewalLapsed(e.RenewalId, e.PolicyId, e.PolicyNumber, e.ProductCode, e.PeriodEnd),
+        // F026, F027: the renewal figures and retention.
+        Domain.Renewals.GeneralRenewalOpened e => new Contracts.GeneralRenewalOpened(e.RenewalId, e.PolicyId, e.ProductCode, e.PeriodEnd),
+        Domain.Renewals.GeneralRenewalRenewed e => new Contracts.GeneralRenewalRenewed(e.RenewalId, e.PolicyId, e.ProductCode, e.PeriodEnd, e.CurrentPremium, e.RenewedPremium,
+            e.Currency),
+        Domain.Renewals.GeneralRenewalNotRenewed e => new Contracts.GeneralRenewalNotRenewed(e.RenewalId, e.PolicyId, e.ProductCode, e.PeriodEnd),
+        Domain.Retention.RetentionCaseOpened e => new Contracts.GeneralRetentionCaseOpened(e.CaseId, e.PolicyId, e.PolicyNumber, e.ProductCode, e.Trigger, e.RenewalId),
+        Domain.Retention.RetentionOfferMade e => new Contracts.GeneralRetentionOfferMade(e.CaseId, e.OfferId, e.PolicyId, e.ProductCode, e.Kind),
+        Domain.Retention.RetentionOfferAccepted e => new Contracts.GeneralRetentionOfferAccepted(e.CaseId, e.OfferId, e.PolicyId, e.ProductCode, e.Kind, e.Value, e.RenewalId,
+            e.DecidedBy),
+        Domain.Retention.RetentionCaseClosed e => new Contracts.GeneralRetentionCaseClosed(e.CaseId, e.PolicyId, e.ProductCode, e.Outcome),
         Domain.Renewals.GeneralNonRenewalRequested e => new BuildingBlocks.Contracts.Approvals.ApprovalRequested(Contracts.GeneralApprovals.NonRenewalBusinessRefType,
             e.RenewalId, Contracts.GeneralApprovals.NonRenewalApprovalType, e.RequestedBy, null, null, $"Do not renew policy {e.PolicyNumber} ({e.ReasonCode})", null,
             Contracts.GeneralPermissions.PolicyNonRenew),

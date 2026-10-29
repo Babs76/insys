@@ -62,6 +62,9 @@ internal static class GeneralFunctions
         .Action("GENERAL_DECIDE_RENEWAL", "GENERAL_RENEWALS", "GeneralDecideRenewal")
         .Action("GENERAL_RECORD_RENEWAL_ANSWER", "GENERAL_RENEWALS", ["GeneralAcceptRenewal", "GeneralDeclineRenewal"])
         .Action("GENERAL_PROPOSE_NON_RENEWAL", "GENERAL_RENEWALS", "GeneralProposeNonRenewal")
+        .Screen("GENERAL_RETENTION_CASES", "GENERAL_RENEWALS", "Retention", "general/retention-cases", "GeneralListRetentionCases", "GeneralGetRetentionCase")
+        .Action("GENERAL_WORK_RETENTION_CASE", "GENERAL_RETENTION_CASES",
+            ["GeneralOpenRetentionCase", "GeneralMakeRetentionOffer", "GeneralAnswerRetentionOffer", "GeneralCloseRetentionCase"])
         .Action("GENERAL_ISSUE_POLICY", "GENERAL_POLICIES", "GeneralIssuePolicy")
         .Action("GENERAL_RENEW_POLICY", "GENERAL_POLICIES", "GeneralRenewPolicy")
         .Action("GENERAL_CANCEL_POLICY", "GENERAL_POLICIES", "GeneralCancelPolicy")

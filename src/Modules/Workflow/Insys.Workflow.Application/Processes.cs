@@ -885,6 +885,62 @@ public sealed class GeneralRenewalReviewTasks(IProcessRepository processes, IPro
         .Where(p => p.ProcessCode == BuiltInProcesses.GeneralRenewalReview.ProcessCode && p.Status == ProcessStatus.Running).Select(p => p.Id).ToList();
 }
 
+/// <summary>
+/// F026: a General retention case gets an owner's task (GENERAL_RETENTION), in the queue the task type routes to, due in one
+/// business day; it closes when the case does.
+/// </summary>
+public sealed class GeneralRetentionTasks(IProcessRepository processes, IProcessQueries queries, IWorkflowConfiguration configuration, IBusinessDate businessDate,
+    IClock clock, IAuditTrail audit) :
+    IIntegrationEventHandler<General.Contracts.GeneralRetentionCaseOpened>,
+    IIntegrationEventHandler<General.Contracts.GeneralRetentionCaseClosed>
+{
+    public const string BusinessRefType = "GENERAL_RETENTION_CASE";
+
+    public async Task Handle(General.Contracts.GeneralRetentionCaseOpened opened, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if ((await Running(opened.CaseId, cancellationToken)).Count > 0)
+        {
+            return;
+        }
+
+        var now = clock.UtcNow;
+        var routing = await configuration.Routing(businessDate.Today, now, cancellationToken);
+        var process = ProcessInstance.StartProcess(Guid.CreateVersion7(), BuiltInProcesses.GeneralRetention, BusinessRefType, opened.CaseId, routing, now);
+        processes.Add(process.Value);
+        audit.Record(new AuditEntry("WORKFLOW", "StartProcess", nameof(ProcessInstance), process.Value.Id.ToString(), new Dictionary<string, string?>
+        {
+            ["process"] = $"{BuiltInProcesses.GeneralRetention.ProcessCode}@{BuiltInProcesses.GeneralRetention.Version}", ["policy"] = opened.PolicyNumber,
+            ["trigger"] = opened.Trigger,
+        }));
+    }
+
+    public async Task Handle(General.Contracts.GeneralRetentionCaseClosed closed, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        var definition = BuiltInProcesses.GeneralRetention;
+        foreach (var running in await Running(closed.CaseId, cancellationToken))
+        {
+            if (await processes.Get(running, cancellationToken) is not { OpenTask: { } task } process)
+            {
+                continue;
+            }
+
+            var completed = process.CompleteTask(task.Id, definition.States[^1], definition, new Dictionary<string, object?>(),
+                _ => new TaskRouting(task.QueueCode, null, clock.UtcNow), clock.UtcNow);
+            if (completed.IsFailure)
+            {
+                throw new InvalidOperationException($"The retention task of case {closed.CaseId} cannot be closed: {completed.Error.Code}");
+            }
+
+            audit.Record(new AuditEntry("WORKFLOW", "CompleteTask", nameof(ProcessInstance), process.Id.ToString(),
+                new Dictionary<string, string?> { ["outcome"] = closed.Outcome }));
+        }
+    }
+
+    private async Task<IReadOnlyList<Guid>> Running(Guid caseId, CancellationToken cancellationToken) =>
+        (await queries.List(BusinessRefType, caseId, null, 20, cancellationToken))
+        .Where(p => p.ProcessCode == BuiltInProcesses.GeneralRetention.ProcessCode && p.Status == ProcessStatus.Running).Select(p => p.Id).ToList();
+}
+
 /// <summary>Closes a General quote's referral task once the referral is decided: the task moves to DECIDED, and the audit records the decision.</summary>
 public sealed class CloseGeneralReferralTask(IProcessRepository processes, IProcessQueries queries, IClock clock, IAuditTrail audit)
     : IIntegrationEventHandler<General.Contracts.GeneralQuoteReferralDecided>

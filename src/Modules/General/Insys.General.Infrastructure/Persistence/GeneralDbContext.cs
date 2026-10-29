@@ -60,6 +60,8 @@ public sealed class GeneralDbContext(DbContextOptions<GeneralDbContext> options,
 
     public DbSet<Domain.Renewals.Renewal> Renewals => Set<Domain.Renewals.Renewal>();
 
+    public DbSet<Domain.Retention.RetentionCase> RetentionCases => Set<Domain.Retention.RetentionCase>();
+
     public DbSet<LossAssessment> Assessments => Set<LossAssessment>();
 
     public DbSet<RecoveryCase> Recoveries => Set<RecoveryCase>();
@@ -174,6 +176,31 @@ public sealed class GeneralDbContext(DbContextOptions<GeneralDbContext> options,
             policy.Navigation(p => p.Risks).UsePropertyAccessMode(PropertyAccessMode.Field);
             policy.HasMany(p => p.Cancellations).WithOne().HasForeignKey(c => new { c.TenantId, c.PolicyId });
             policy.Navigation(p => p.Cancellations).UsePropertyAccessMode(PropertyAccessMode.Field);
+        });
+
+        modelBuilder.Entity<Domain.Retention.RetentionCase>(retention =>
+        {
+            retention.ToTable("retention_case"); // Wave 4 §3.2, F026
+            Root(retention);
+            retention.Property(r => r.PolicyNumber).HasMaxLength(30);
+            retention.Property(r => r.ProductCode).HasMaxLength(15);
+            retention.Property(r => r.Trigger).HasMaxLength(25);
+            retention.Property(r => r.Status).HasMaxLength(10);
+            retention.Property(r => r.Outcome).HasMaxLength(10);
+            retention.Property(r => r.Note).HasMaxLength(500);
+            retention.HasMany(r => r.Offers).WithOne().HasForeignKey(o => new { o.TenantId, o.RetentionCaseId });
+            retention.Navigation(r => r.Offers).UsePropertyAccessMode(PropertyAccessMode.Field);
+        });
+
+        modelBuilder.Entity<Domain.Retention.RetentionOffer>(offer =>
+        {
+            offer.ToTable("retention_offer");
+            offer.HasKey(o => new { o.TenantId, o.Id });
+            offer.HasAuditColumns();
+            offer.Property(o => o.OfferCode).HasMaxLength(20);
+            offer.Property(o => o.Kind).HasMaxLength(16);
+            offer.Property(o => o.Value).HasPrecision(18, 2);
+            offer.Property(o => o.Outcome).HasMaxLength(10);
         });
 
         modelBuilder.Entity<Domain.Renewals.Renewal>(renewal =>

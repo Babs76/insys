@@ -34,7 +34,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Insys.General.Infrastructure.StaticData;
 
-/// <summary>The 47 static data tables owned by the General module.</summary>
+/// <summary>The 48 static data tables owned by the General module.</summary>
 public static class GeneralStaticData
 {
     public static readonly IReadOnlyList<StaticDataDescriptor> Descriptors =
@@ -57,6 +57,7 @@ public static class GeneralStaticData
         new("general", "cfg_renewal_review_rules", "cfg_renewal_review_rules", "Renewal review rules", "general", "renewal-review-rules", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(RenewalReviewRules), typeof(RenewalReviewRulesInput), "Policy administration"),
         new("general", "cfg_renewal_rules", "cfg_renewal_rules", "Renewal rules", "general", "renewal-rules", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(RenewalRules), typeof(RenewalRulesInput), "D · General Policy Administration"),
         new("general", "cfg_renewal_settings", "cfg_renewal_settings", "Renewal settings", "general", "renewal-settings", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(RenewalSettings), typeof(RenewalSettingsInput), "Policy administration"),
+        new("general", "cfg_retention_offers", "cfg_retention_offers", "Retention offers", "general", "retention-offers", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(RetentionOffers), typeof(RetentionOffersInput), "Policy administration"),
         new("general", "cfg_risk_object_types_and_attribute_schemas", "cfg_risk_object_types_and_attri_e6795ca1", "Risk object types and attribute schemas", "general", "risk-object-types-and-attribute-schemas", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(RiskObjectTypesAndAttributeSchemas), typeof(RiskObjectTypesAndAttributeSchemasInput), "C · Risk Object Management"),
         new("general", "cfg_settlement_authority_limits", "cfg_settlement_authority_limits", "Settlement authority limits", "general", "settlement-authority-limits", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(SettlementAuthorityLimits), typeof(SettlementAuthorityLimitsInput), "J · General Claims"),
         new("general", "cfg_short_period_scales", "cfg_short_period_scales", "Short-period scales", "general", "short-period-scales", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(ShortPeriodScales), typeof(ShortPeriodScalesInput), "Policy administration"),
@@ -254,6 +255,18 @@ public static class GeneralStaticData
             StaticModel.ConfigureCommon(entity);
             entity.Property(x => x.WorseTermsPct).HasColumnName("worse_terms_pct").HasPrecision(5, 2);
             entity.Property(x => x.ChangedTermsNoticeDays).HasColumnName("changed_terms_notice_days");
+            entity.Property(x => x.LapseRiskDays).HasColumnName("lapse_risk_days");
+        });
+        modelBuilder.Entity<RetentionOffers>(entity =>
+        {
+            entity.ToTable("cfg_retention_offers", "general");
+            StaticModel.ConfigureCommon(entity);
+            entity.Property(x => x.OfferCode).HasColumnName("offer_code").HasMaxLength(20);
+            entity.Property(x => x.ProductCode).HasColumnName("product_code").HasMaxLength(15);
+            entity.Property(x => x.Kind).HasColumnName("kind").HasMaxLength(16);
+            entity.Property(x => x.Value).HasColumnName("value").HasPrecision(18, 2);
+            entity.Property(x => x.MaxUsesPerPolicy).HasColumnName("max_uses_per_policy");
+            entity.Property(x => x.AuthorityRole).HasColumnName("authority_role").HasMaxLength(80);
         });
         modelBuilder.Entity<RiskObjectTypesAndAttributeSchemas>(entity =>
         {

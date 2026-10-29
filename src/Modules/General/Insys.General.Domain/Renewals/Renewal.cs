@@ -159,12 +159,25 @@ public sealed record GeneralRenewalNotEligible(Guid RenewalId, Guid PolicyId, st
     DateTimeOffset OccurredAt) : IDomainEvent;
 
 /// <summary>§4.4: the customer accepted the renewal (by the channel), or declined it.</summary>
-public sealed record GeneralRenewalAccepted(Guid RenewalId, Guid PolicyId, string PolicyNumber, string Channel, DateTimeOffset OccurredAt) : IDomainEvent;
+public sealed record GeneralRenewalAccepted(Guid RenewalId, Guid PolicyId, string PolicyNumber, string Channel, string ProductCode, DateOnly PeriodEnd,
+    DateTimeOffset OccurredAt) : IDomainEvent;
 
-public sealed record GeneralRenewalDeclined(Guid RenewalId, Guid PolicyId, string PolicyNumber, string Channel, DateTimeOffset OccurredAt) : IDomainEvent;
+public sealed record GeneralRenewalDeclined(Guid RenewalId, Guid PolicyId, string PolicyNumber, string Channel, string ProductCode, DateOnly PeriodEnd,
+    DateTimeOffset OccurredAt) : IDomainEvent;
 
 /// <summary>§4.4: a renewal needing acceptance was not accepted by the period end.</summary>
-public sealed record GeneralRenewalLapsed(Guid RenewalId, Guid PolicyId, string PolicyNumber, DateTimeOffset OccurredAt) : IDomainEvent;
+public sealed record GeneralRenewalLapsed(Guid RenewalId, Guid PolicyId, string PolicyNumber, string ProductCode, DateOnly PeriodEnd, DateTimeOffset OccurredAt)
+    : IDomainEvent;
+
+/// <summary>F027: a policy's renewal is on record (reviewed, or offered when invited): it is due in its period end's month.</summary>
+public sealed record GeneralRenewalOpened(Guid RenewalId, Guid PolicyId, string ProductCode, DateOnly PeriodEnd, DateTimeOffset OccurredAt) : IDomainEvent;
+
+/// <summary>F027: the policy renewed; the premium change is the renewed premium less the current one.</summary>
+public sealed record GeneralRenewalRenewed(Guid RenewalId, Guid PolicyId, string ProductCode, DateOnly PeriodEnd, decimal CurrentPremium, decimal RenewedPremium,
+    string Currency, DateTimeOffset OccurredAt) : IDomainEvent;
+
+/// <summary>F027: the insurer decided not to renew (the notice to the policyholder is GeneralPolicyNotRenewed).</summary>
+public sealed record GeneralRenewalNotRenewed(Guid RenewalId, Guid PolicyId, string ProductCode, DateOnly PeriodEnd, DateTimeOffset OccurredAt) : IDomainEvent;
 
 /// <summary>F025: a person proposed not renewing the policy, with a reason that a second person approves.</summary>
 public sealed record GeneralNonRenewalRequested(Guid RenewalId, Guid PolicyId, string PolicyNumber, string ReasonCode, Guid RequestedBy, DateTimeOffset OccurredAt)
@@ -315,6 +328,7 @@ public sealed class Renewal : AggregateRoot<Guid>
             PeriodEnd = periodEnd, Status = RenewalStatus.Reviewing, OpenedOn = today, Currency = Guard.MaxLength(currency, 3), CurrentPremium = currentPremium,
             SumInsured = sumInsured, Factor = 1m,
         };
+        renewal.Raise(new GeneralRenewalOpened(renewal.Id, policyId, renewal.ProductCode, periodEnd, now));
         renewal.Offer(now);
         renewal.MarkChanged();
         return renewal;
@@ -342,7 +356,7 @@ public sealed class Renewal : AggregateRoot<Guid>
 
         Status = RenewalStatus.Accepted;
         (AcceptedBy, AcceptedChannel, AcceptedAt) = (by, channel, now);
-        Raise(new GeneralRenewalAccepted(Id, PolicyId, PolicyNumber, channel, now));
+        Raise(new GeneralRenewalAccepted(Id, PolicyId, PolicyNumber, channel, ProductCode, PeriodEnd, now));
         MarkChanged();
         return Result.Success();
     }
@@ -357,7 +371,32 @@ public sealed class Renewal : AggregateRoot<Guid>
 
         Status = RenewalStatus.DeclinedByCustomer;
         (DeclinedBy, DeclinedChannel, DeclinedAt) = (by, channel, now);
-        Raise(new GeneralRenewalDeclined(Id, PolicyId, PolicyNumber, channel, now));
+        Raise(new GeneralRenewalDeclined(Id, PolicyId, PolicyNumber, channel, ProductCode, PeriodEnd, now));
+        MarkChanged();
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// F026: the customer accepted a retention discount on this renewal: the offered premium falls by the per cent, and the
+    /// renewal is accepted on it (recorded by the staff member), even if the customer had declined it.
+    /// </summary>
+    public Result ApplyRetentionDiscount(decimal percent, Guid by, DateTimeOffset now)
+    {
+        if (Status is not (RenewalStatus.Offered or RenewalStatus.Accepted or RenewalStatus.DeclinedByCustomer) || OfferedPremium is not { } offered)
+        {
+            return Error.Conflict(GeneralErrorCodes.RenewalNotOffered, $"Renewal of {PolicyNumber} is {Status}; a retention discount applies to an offered renewal.");
+        }
+
+        if (percent is <= 0 or >= 100)
+        {
+            return Error.Validation(ErrorCodes.ValidationFailed, "A retention discount is between 0 and 100 per cent.");
+        }
+
+        OfferedPremium = Math.Round(offered * (1 - percent / 100m), 2, MidpointRounding.AwayFromZero);
+        ChangedTerms = OfferedPremium != CurrentPremium;
+        Status = RenewalStatus.Accepted;
+        (AcceptedBy, AcceptedChannel, AcceptedAt) = (by, RenewalAcceptance.Staff, now);
+        Raise(new GeneralRenewalAccepted(Id, PolicyId, PolicyNumber, RenewalAcceptance.Staff, ProductCode, PeriodEnd, now));
         MarkChanged();
         return Result.Success();
     }
@@ -371,7 +410,7 @@ public sealed class Renewal : AggregateRoot<Guid>
         }
 
         Status = RenewalStatus.Lapsed;
-        Raise(new GeneralRenewalLapsed(Id, PolicyId, PolicyNumber, now));
+        Raise(new GeneralRenewalLapsed(Id, PolicyId, PolicyNumber, ProductCode, PeriodEnd, now));
         MarkChanged();
         return true;
     }
@@ -382,7 +421,7 @@ public sealed class Renewal : AggregateRoot<Guid>
         if (Status == RenewalStatus.Renewed && AcceptedAt is null)
         {
             (AcceptedChannel, AcceptedAt) = (RenewalAcceptance.Payment, now);
-            Raise(new GeneralRenewalAccepted(Id, PolicyId, PolicyNumber, RenewalAcceptance.Payment, now));
+            Raise(new GeneralRenewalAccepted(Id, PolicyId, PolicyNumber, RenewalAcceptance.Payment, ProductCode, PeriodEnd, now));
             MarkChanged();
         }
     }
@@ -393,7 +432,7 @@ public sealed class Renewal : AggregateRoot<Guid>
         if (Status == RenewalStatus.Renewed && AcceptedAt is null)
         {
             Status = RenewalStatus.Lapsed;
-            Raise(new GeneralRenewalLapsed(Id, PolicyId, PolicyNumber, now));
+            Raise(new GeneralRenewalLapsed(Id, PolicyId, PolicyNumber, ProductCode, PeriodEnd, now));
             MarkChanged();
         }
     }
@@ -450,6 +489,7 @@ public sealed class Renewal : AggregateRoot<Guid>
         CoverExtendedTo = noticeEnds > PeriodEnd ? noticeEnds : null;
         Raise(new GeneralPolicyNotRenewed(Id, PolicyId, PolicyNumber, ProductCode, NonRenewalReason!, customerWording, PeriodEnd, CoverExtendedTo ?? PeriodEnd,
             CoverExtendedTo is not null, policyholderPartyId, orgNodeCode, now));
+        Raise(new GeneralRenewalNotRenewed(Id, PolicyId, ProductCode, PeriodEnd, now));
         MarkChanged();
         return Result.Success();
     }
@@ -509,6 +549,7 @@ public sealed class Renewal : AggregateRoot<Guid>
             renewal.Raise(new RenewalRatingRequested(renewal.Id, policyId, now));
         }
 
+        renewal.Raise(new GeneralRenewalOpened(renewal.Id, policyId, renewal.ProductCode, periodEnd, now));
         renewal.Conclude(now);
         return renewal;
     }
@@ -648,7 +689,7 @@ public sealed class Renewal : AggregateRoot<Guid>
     }
 
     /// <summary>The policy was renewed on the offered terms: offered (and not awaiting acceptance) or accepted.</summary>
-    public Result MarkRenewed(Guid? renewalPolicyId = null)
+    public Result MarkRenewed(Guid? renewalPolicyId, DateTimeOffset now)
     {
         if (Status is not (RenewalStatus.Offered or RenewalStatus.Accepted) || AwaitsAcceptance)
         {
@@ -657,6 +698,7 @@ public sealed class Renewal : AggregateRoot<Guid>
 
         Status = RenewalStatus.Renewed;
         RenewalPolicyId = renewalPolicyId;
+        Raise(new GeneralRenewalRenewed(Id, PolicyId, ProductCode, PeriodEnd, CurrentPremium, OfferedPremium ?? CurrentPremium, Currency, now));
         MarkChanged();
         return Result.Success();
     }

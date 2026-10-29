@@ -43,10 +43,13 @@ public sealed class RenewalSettings : StaticRecord<RenewalSettingsInput>
 
     public int ChangedTermsNoticeDays { get; set; }
 
+    public int? LapseRiskDays { get; set; }
+
     public override void ApplyFields(RenewalSettingsInput input, IFieldProtector protector)
     {
         WorseTermsPct = input.WorseTermsPct.GetValueOrDefault();
         ChangedTermsNoticeDays = input.ChangedTermsNoticeDays.GetValueOrDefault();
+        LapseRiskDays = input.LapseRiskDays;
     }
 }
 
@@ -58,6 +61,8 @@ public sealed record RenewalSettingsInput : StaticRecordInput
 
     [Insys.BuildingBlocks.Domain.RequiredField]
     public int? ChangedTermsNoticeDays { get; init; }
+
+    public int? LapseRiskDays { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)
     {

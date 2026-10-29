@@ -44,6 +44,7 @@ public static class CodeLists
     public const string CatastropheEvents = "general.mst_catastrophe_event_register";
     public const string RecoveryTypes = "general.ref_recovery_types";
     public const string NonRenewalReasons = "general.cfg_non_renewal_reasons";
+    public const string RetentionOffers = "general.cfg_retention_offers";
     public const string DisposalMethods = "general.ref_salvage_disposal_methods";
     public const string CancellationReasons = "general.cfg_cancellation_reasons_and_refund_rules";
     public const string ReferralReasons = "general.ref_referral_reason_codes";

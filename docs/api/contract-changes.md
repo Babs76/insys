@@ -2,6 +2,19 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
+## Wave 4 batch 4.3b (branch `wave4-3b`): retention and the renewal figures (addendum §4.3, §4.7; F026, F027)
+
+### New
+- **`general.cfg_retention_offers`** (static data, tenant, Tier 2): `offerCode`, `productCode` (none: any), `kind` (`DISCOUNT_PERCENT`, `EXCESS_CHANGE`, `COVER_CHANGE`, `PAYMENT_TERMS`), `value`, `maxUsesPerPolicy`, `authorityRole` (none: any holder of the function). **`general.cfg_renewal_settings.lapseRiskDays`** (optional).
+- **Retention cases:** `GET /general/retention-cases` (`status`, `policyId`), `GET /general/retention-cases/{id}`, `POST /general/retention-cases` (`policyId`, `trigger`, `note`; Idempotency-Key), `POST …/{id}/offers` (`offerCode`), `POST …/{id}/offers/{offerId}/answer` (`accepted`), `POST …/{id}/outcome` (`RETAINED`, `LOST`, `WITHDRAWN`, `note`). Screen `GENERAL_RETENTION_CASES`, action `GENERAL_WORK_RETENTION_CASE`; permissions `general_retention.read`, `general_retention.update`. Errors 403 `GENERAL_RETENTION_OFFER_AUTHORITY`, 409 `GENERAL_RETENTION_OFFER_USED_UP`. One open case per policy.
+- **Workflow process `GENERAL_RETENTION`** (business reference `GENERAL_RETENTION_CASE`): the case's owner task, closed with the case.
+- **Analytics summary figures (F027):** `RENEWALS_DUE`, `RENEWALS_INVITED`, `RENEWALS_ACCEPTED`, `RENEWALS_RENEWED`, `RENEWALS_DECLINED_BY_CUSTOMER`, `RENEWALS_NOT_RENEWED_BY_INSURER`, `RENEWALS_LAPSED` (counts, by the month of the renewal date); `RENEWAL_RATE` (renewed over due) and `RETENTION_RATE` (retained over retention cases closed), as `rate` from 0 to 1; `AVERAGE_RENEWAL_PREMIUM_CHANGE` (money per currency, renewed less current, over renewals renewed); `RETENTION_OFFERS_MADE` and `RETENTION_OFFERS_ACCEPTED` (counts, `by` kind). Retention figures count in the month they happened. **`DashboardFigure` gains `rate`** (null with no denominator).
+- **Events:** `general.GeneralRenewalOpened`, `GeneralRenewalRenewed`, `GeneralRenewalNotRenewed`, `GeneralRetentionCaseOpened`, `GeneralRetentionOfferMade`, `GeneralRetentionOfferAccepted`, `GeneralRetentionCaseClosed`; `GeneralRenewalAccepted`, `Declined` and `Lapsed` gain `productCode` and `periodEnd`.
+
+### Changed behaviour
+- **A declined renewal opens a `NOT_RENEWING` case**, and a renewal still awaiting acceptance `lapseRiskDays` before its end opens a `LAPSE_RISK` case (the daily job), unless one is open.
+- **An accepted `DISCOUNT_PERCENT` on a case with a renewal** lowers the renewal's offered premium by the per cent and records it as accepted (channel `STAFF`), even after a decline; the policy renews on it.
+
 ## Wave 4 batch 4.3a (branch `wave4-3a`): renewal acceptance and insurer non-renewal (addendum §4.3, §4.4, §4.6; OQ-130, OQ-132)
 
 ### New

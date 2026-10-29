@@ -49,6 +49,9 @@ public sealed record ProjectionEntry(string Kind, DateOnly Day, string ProductCo
     public const string ClaimsIncurred = "CLAIMS_INCURRED";
     public const string ClaimRegistered = "CLAIM_REGISTERED";
 
+    /// <summary>F027: a renewal or retention measure (Dimension) by month, product and branch.</summary>
+    public const string Renewal = "RENEWAL";
+
     /// <summary>The month key of the claims incurred projection, yyyy-MM.</summary>
     public string MonthKey => Day.ToString("yyyy-MM", System.Globalization.CultureInfo.InvariantCulture);
 
@@ -56,7 +59,7 @@ public sealed record ProjectionEntry(string Kind, DateOnly Day, string ProductCo
     /// Whether the entry's day is the business date the event occurred on (ADR-025): written premium and registered claims.
     /// Claims incurred carry their movement's own date.
     /// </summary>
-    public bool DatedByOccurrence => Kind is WrittenPremium or ClaimRegistered;
+    public bool DatedByOccurrence => Kind is WrittenPremium or ClaimRegistered || (Kind == Renewal && RenewalMeasures.ByOccurrence(Dimension));
 }
 
 public sealed record WrittenPremiumRow(DateOnly DateKey, string ProductCode, string ChannelCode, string BranchCode, int PolicyCount, decimal WrittenPremium, string Currency);
@@ -103,12 +106,54 @@ public sealed record ClaimsIncurredQuery(string FromMonth, string ToMonth) : IQu
 /// </summary>
 public sealed record AnalyticsSummaryQuery(DateOnly From, DateOnly To) : IQuery<DashboardSummary>;
 
+/// <summary>
+/// The renewal and retention measures (F027) kept in analytics.fact_renewals. Renewal measures count in their renewal's
+/// period end month; retention ones (cases closed, offers) in the month they happened.
+/// </summary>
+public static class RenewalMeasures
+{
+    public const string Due = "DUE";
+    public const string Invited = "INVITED";
+    public const string Accepted = "ACCEPTED";
+    public const string Renewed = "RENEWED";
+    public const string Declined = "DECLINED";
+    public const string NotRenewed = "NOT_RENEWED";
+    public const string Lapsed = "LAPSED";
+    public const string RetentionClosed = "RETENTION_CLOSED";
+    public const string RetentionRetained = "RETENTION_RETAINED";
+    public const string OfferMade = "OFFER_MADE:";
+    public const string OfferAccepted = "OFFER_ACCEPTED:";
+
+    public static bool ByOccurrence(string measure) =>
+        measure is RetentionClosed or RetentionRetained || measure.StartsWith(OfferMade, StringComparison.Ordinal) || measure.StartsWith(OfferAccepted, StringComparison.Ordinal);
+}
+
 public static class AnalyticsFigures
 {
     public const string WrittenPremium = "WRITTEN_PREMIUM";
     public const string PoliciesWritten = "POLICIES_WRITTEN";
     public const string ClaimsIncurred = "CLAIMS_INCURRED";
     public const string ClaimsReported = "CLAIMS_REPORTED";
+
+    /// <summary>F027 (Wave 4 §4.7): renewals by the month of their renewal date, the rates, the premium change and retention offers.</summary>
+    public const string RenewalsDue = "RENEWALS_DUE";
+    public const string RenewalsInvited = "RENEWALS_INVITED";
+    public const string RenewalsAccepted = "RENEWALS_ACCEPTED";
+    public const string RenewalsRenewed = "RENEWALS_RENEWED";
+    public const string RenewalsDeclined = "RENEWALS_DECLINED_BY_CUSTOMER";
+    public const string RenewalsNotRenewed = "RENEWALS_NOT_RENEWED_BY_INSURER";
+    public const string RenewalsLapsed = "RENEWALS_LAPSED";
+    public const string RenewalRate = "RENEWAL_RATE";
+    public const string RetentionRate = "RETENTION_RATE";
+    public const string AveragePremiumChange = "AVERAGE_RENEWAL_PREMIUM_CHANGE";
+    public const string RetentionOffersMade = "RETENTION_OFFERS_MADE";
+    public const string RetentionOffersAccepted = "RETENTION_OFFERS_ACCEPTED";
+
+    public static readonly string[] Renewals =
+    [
+        RenewalsDue, RenewalsInvited, RenewalsAccepted, RenewalsRenewed, RenewalsDeclined, RenewalsNotRenewed, RenewalsLapsed, RenewalRate, RetentionRate,
+        AveragePremiumChange, RetentionOffersMade, RetentionOffersAccepted,
+    ];
 
     /// <summary>Health is not projected yet (decision 3: its figures come with Waves 5a and 5b).</summary>
     public const string Health = "HEALTH";
@@ -173,7 +218,17 @@ public sealed class ProjectionPolicies(IProjectionStore store, IEnumerable<IPoli
     IIntegrationEventHandler<GeneralPolicyCancelled>,
     IIntegrationEventHandler<LifePolicyIssued>,
     IIntegrationEventHandler<ClaimNumberAllocated>,
-    IIntegrationEventHandler<ClaimReserveChanged>
+    IIntegrationEventHandler<ClaimReserveChanged>,
+    IIntegrationEventHandler<GeneralRenewalOpened>,
+    IIntegrationEventHandler<GeneralRenewalInvited>,
+    IIntegrationEventHandler<GeneralRenewalAccepted>,
+    IIntegrationEventHandler<GeneralRenewalDeclined>,
+    IIntegrationEventHandler<GeneralRenewalLapsed>,
+    IIntegrationEventHandler<GeneralRenewalRenewed>,
+    IIntegrationEventHandler<GeneralRenewalNotRenewed>,
+    IIntegrationEventHandler<GeneralRetentionCaseClosed>,
+    IIntegrationEventHandler<GeneralRetentionOfferMade>,
+    IIntegrationEventHandler<GeneralRetentionOfferAccepted>
 {
     public const string AllBranches = "ALL";
     public const string UnknownCause = "UNKNOWN";
@@ -231,6 +286,65 @@ public sealed class ProjectionPolicies(IProjectionStore store, IEnumerable<IPoli
 
         await Project(envelope, new ProjectionEntry(ProjectionEntry.ClaimsIncurred, e.MovementDate, claim.ProductCode, UnknownCause, claim.Branch, e.Change, 0, e.Currency,
             e.ClaimNumber), cancellationToken);
+    }
+
+    // F027: renewal measures by their renewal's period end month; retention measures by the day they happened.
+    public Task Handle(GeneralRenewalOpened e, EventEnvelope envelope, CancellationToken cancellationToken) =>
+        Renewal(envelope, e.PolicyId, e.ProductCode, e.PeriodEnd, RenewalMeasures.Due, cancellationToken);
+
+    public Task Handle(GeneralRenewalInvited e, EventEnvelope envelope, CancellationToken cancellationToken) =>
+        Renewal(envelope, e.PolicyId, e.ProductCode, e.PeriodEnd, RenewalMeasures.Invited, cancellationToken);
+
+    public Task Handle(GeneralRenewalAccepted e, EventEnvelope envelope, CancellationToken cancellationToken) =>
+        Renewal(envelope, e.PolicyId, e.ProductCode, e.PeriodEnd, RenewalMeasures.Accepted, cancellationToken);
+
+    public Task Handle(GeneralRenewalDeclined e, EventEnvelope envelope, CancellationToken cancellationToken) =>
+        Renewal(envelope, e.PolicyId, e.ProductCode, e.PeriodEnd, RenewalMeasures.Declined, cancellationToken);
+
+    public Task Handle(GeneralRenewalLapsed e, EventEnvelope envelope, CancellationToken cancellationToken) =>
+        Renewal(envelope, e.PolicyId, e.ProductCode, e.PeriodEnd, RenewalMeasures.Lapsed, cancellationToken);
+
+    public Task Handle(GeneralRenewalNotRenewed e, EventEnvelope envelope, CancellationToken cancellationToken) =>
+        Renewal(envelope, e.PolicyId, e.ProductCode, e.PeriodEnd, RenewalMeasures.NotRenewed, cancellationToken);
+
+    /// <summary>A renewal renewed: counted, with its premium change (renewed less current) for the average.</summary>
+    public Task Handle(GeneralRenewalRenewed e, EventEnvelope envelope, CancellationToken cancellationToken) =>
+        Renewal(envelope, e.PolicyId, e.ProductCode, e.PeriodEnd, RenewalMeasures.Renewed, cancellationToken, e.RenewedPremium - e.CurrentPremium, e.Currency);
+
+    public async Task Handle(GeneralRetentionCaseClosed e, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        await Renewal(envelope, e.PolicyId, e.ProductCode, Day(envelope), RenewalMeasures.RetentionClosed, cancellationToken);
+        if (e.Outcome == "RETAINED")
+        {
+            await Renewal(envelope, e.PolicyId, e.ProductCode, Day(envelope), RenewalMeasures.RetentionRetained, cancellationToken, eventSuffix: "retained");
+        }
+    }
+
+    public Task Handle(GeneralRetentionOfferMade e, EventEnvelope envelope, CancellationToken cancellationToken) =>
+        Renewal(envelope, e.PolicyId, e.ProductCode, Day(envelope), RenewalMeasures.OfferMade + e.Kind, cancellationToken);
+
+    public Task Handle(GeneralRetentionOfferAccepted e, EventEnvelope envelope, CancellationToken cancellationToken) =>
+        Renewal(envelope, e.PolicyId, e.ProductCode, Day(envelope), RenewalMeasures.OfferAccepted + e.Kind, cancellationToken);
+
+    private async Task Renewal(EventEnvelope envelope, Guid policyId, string? productCode, DateOnly? day, string measure, CancellationToken cancellationToken,
+        decimal amount = 0m, string currency = "", string? eventSuffix = null)
+    {
+        if (productCode is null || day is not { } month)
+        {
+            return; // an event from before 4.3b carries no product or period: it is not projected
+        }
+
+        var (_, branch) = await Dimensions(GeneralRatingSubjects.SourceDomain, policyId, cancellationToken);
+        var entry = new ProjectionEntry(ProjectionEntry.Renewal, month, productCode, measure, branch, amount, 1, currency);
+        // One event can give two entries (a retained case is also closed): the second is logged under its own key.
+        var logged = eventSuffix is null ? envelope : envelope with { EventId = DeterministicId(envelope.EventId, eventSuffix) };
+        await Project(logged, entry, cancellationToken);
+    }
+
+    private static Guid DeterministicId(Guid eventId, string suffix)
+    {
+        var bytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes($"{eventId:N}:{suffix}"));
+        return new Guid(bytes.AsSpan(0, 16));
     }
 
     private async Task Project(EventEnvelope envelope, ProjectionEntry entry, CancellationToken cancellationToken)

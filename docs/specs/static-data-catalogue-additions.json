@@ -1283,6 +1283,57 @@
    "layer": "Insurance Domains · General",
    "module": "Policy administration",
    "subModule": "Renewal",
+   "entity": "Retention offers",
+   "table": "general.cfg_retention_offers",
+   "class": "CFG",
+   "scope": "T",
+   "tier": 2,
+   "proposedOwner": "General Product Manager",
+   "provenance": "Wave 4 addendum (addenda/renewals-and-retention.md), signed off by Ade, 29 October 2026",
+   "basis": "F026; addendum §4.3",
+   "fields": [
+    {
+     "name": "offer_code",
+     "logicalType": "Code(20)",
+     "mandatory": true,
+     "sample": "LOYAL-10"
+    },
+    {
+     "name": "product_code",
+     "logicalType": "Ref Product",
+     "mandatory": false,
+     "sample": "GEN-MOTOR-PV"
+    },
+    {
+     "name": "kind",
+     "logicalType": "Enum{DiscountPercent,ExcessChange,CoverChange,PaymentTerms}",
+     "mandatory": true,
+     "sample": "DISCOUNT_PERCENT"
+    },
+    {
+     "name": "value",
+     "logicalType": "Decimal(18,2)",
+     "mandatory": false,
+     "sample": "10"
+    },
+    {
+     "name": "max_uses_per_policy",
+     "logicalType": "Integer",
+     "mandatory": true,
+     "sample": "1"
+    },
+    {
+     "name": "authority_role",
+     "logicalType": "Code(80)",
+     "mandatory": false,
+     "sample": "RETENTION_LEAD"
+    }
+   ]
+  },
+  {
+   "layer": "Insurance Domains · General",
+   "module": "Policy administration",
+   "subModule": "Renewal",
    "entity": "Claims experience factors",
    "table": "general.cfg_claims_experience_factors",
    "class": "CFG",
@@ -1354,6 +1405,12 @@
      "logicalType": "Integer",
      "mandatory": true,
      "sample": "31"
+    },
+    {
+     "name": "lapse_risk_days",
+     "logicalType": "Integer",
+     "mandatory": false,
+     "sample": "14"
     }
    ]
   }
