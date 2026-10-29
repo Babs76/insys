@@ -40,7 +40,8 @@ using Insys.ProductFactory.Contracts;
 namespace Insys.Life.Application;
 
 /// <summary>Command NotifyClaim: an event on an insured life of the policy, by a claimant.</summary>
-public sealed record NotifyLifeClaim(Guid PolicyId, string ClaimType, DateOnly EventDate, string? CauseCode, Guid ClaimantPartyId, Guid InsuredLifeId)
+public sealed record NotifyLifeClaim(Guid PolicyId, [property: BuildingBlocks.Domain.CodeList(LifeCodeLists.ClaimTypes)] string ClaimType, DateOnly EventDate,
+    [property: BuildingBlocks.Domain.CodeList(LifeCodeLists.CausesOfEvent)] string? CauseCode, Guid ClaimantPartyId, Guid InsuredLifeId)
     : ICommand<LifeClaimView>;
 
 public sealed record RegisterLifeClaim(Guid ClaimId) : ICommand<LifeClaimView>;
@@ -330,6 +331,10 @@ internal sealed class GetLifeClaimHandler(ILifeRepository life, Workflow.Contrac
 {
     public async Task<Result<LifeClaimView>> Handle(GetLifeClaim query, CancellationToken cancellationToken) =>
         await life.Claim(query.ClaimId, cancellationToken) is { } claim
-            ? LifeClaimView.From(claim) with { LatestRejection = await history.Latest(Contracts.LifeApprovals.ClaimBusinessRefType, claim.Id, cancellationToken) }
+            ? LifeClaimView.From(claim) with
+            {
+                LatestRejection = await history.Latest(Contracts.LifeApprovals.ClaimBusinessRefType, claim.Id, cancellationToken),
+                ApprovalId = claim.ApprovalId ?? await history.Waiting(Contracts.LifeApprovals.ClaimBusinessRefType, claim.Id, cancellationToken),
+            }
             : Error.NotFound(ErrorCodes.NotFound, "The claim was not found.");
 }

@@ -41,7 +41,14 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Insys.Rules.Api;
 
 /// <param name="Kind">Eligibility (a ruleset_code) or Underwriting (a product code: acceptance, referral and decline rules).</param>
-public sealed record EvaluateRuleSetRequest(RuleSetKind Kind, string Code, string SubjectType, Guid SubjectId, JsonElement Inputs);
+/// <param name="Code">
+/// The rule set to evaluate (BR-078). For a Life proposal's eligibility (kind ELIGIBILITY, subjectType LIFE_PROPOSAL), the
+/// eligibilityRulesetCode of the proposal's product version: Life attaches no other rule set's result to a proposal. For a
+/// Life underwriting case (kind UNDERWRITING, subjectType LIFE_UNDERWRITING_CASE), an underwriting rule set in force.
+/// </param>
+/// <param name="SubjectType">The record the decision is about (BR-077): Life attaches the result to it once rules.RuleDecisionRecorded is handled.</param>
+public sealed record EvaluateRuleSetRequest(RuleSetKind Kind, string Code,
+    [property: BuildingBlocks.Domain.KnownValues("LIFE_PROPOSAL", "LIFE_UNDERWRITING_CASE")] string SubjectType, Guid SubjectId, JsonElement Inputs);
 
 /// <summary>The Rules module: evaluates eligibility and underwriting rule sets and records each decision (SRS §7.4, LIF-002).</summary>
 public sealed class RulesModule : IModule
@@ -63,6 +70,8 @@ public sealed class RulesModule : IModule
             .Produces<RuleDecisionView>(StatusCodes.Status201Created)
             .WithName("RulesEvaluateRuleSet")
             .WithSummary("Evaluate a rule set and record the decision")
+            .WithEventualEffects("for a LIFE_PROPOSAL, its eligibilityOutcome appears; for a LIFE_UNDERWRITING_CASE, its ruleOutcome appears, once Life handles "
+                + "rules.RuleDecisionRecorded (BR-077).")
             .WithDescription("The most severe outcome among the rules that fire is the decision. A rule that cannot be evaluated, for example "
                 + "because an input it reads is missing, fails the evaluation and nothing is recorded.")
             .RequirePermission(RulesPermissions.DecisionCreate)

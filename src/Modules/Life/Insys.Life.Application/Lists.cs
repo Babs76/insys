@@ -30,6 +30,7 @@ using Insys.Life.Domain.Claims;
 using Insys.Life.Domain.Groups;
 using Insys.Life.Domain.Policies;
 using Insys.Life.Domain.Proposals;
+using Insys.Life.Domain.Underwriting;
 
 namespace Insys.Life.Application;
 
@@ -38,8 +39,16 @@ namespace Insys.Life.Application;
 public sealed record LifeProposalSummary(Guid Id, string ProposalNumber, string ProductCode, Guid ApplicantPartyId, ProposalStatus Status, string Currency,
     decimal? QuotedPremium, DateOnly? InceptionDate);
 
+/// <param name="ProposalId">The proposal the policy was issued from (BR-086).</param>
 public sealed record LifePolicySummary(Guid Id, string PolicyNumber, string ProductCode, Guid PolicyholderPartyId, LifePolicyStatus Status, DateOnly InceptionDate,
-    DateOnly? TermEndDate, string Currency);
+    DateOnly? TermEndDate, string Currency, Guid ProposalId);
+
+/// <summary>A policy loan in a list (BR-062), in its policy's currency (BR-063).</summary>
+public sealed record LifeLoanSummary(Guid Id, string LoanNumber, Guid PolicyId, decimal Principal, decimal Balance, LoanStatus Status, DateOnly IssuedAt, string Currency);
+
+/// <summary>An underwriting case in a list (BR-074). DecisionPending: a decision is proposed and waits for a second person.</summary>
+public sealed record UnderwritingCaseSummary(Guid Id, Guid ProposalId, string ProposalNumber, CaseStatus Status, Guid? AssignedTo, bool DecisionPending,
+    string? DecisionCode, Guid? RequestedBy);
 
 /// <summary>ClaimNumber is null until the claim is registered.</summary>
 public sealed record LifeClaimSummary(Guid Id, string? ClaimNumber, Guid PolicyId, string ClaimType, Guid ClaimantPartyId, DateOnly EventDate, LifeClaimStatus Status,
@@ -51,8 +60,14 @@ public sealed record GroupSchemeSummary(Guid Id, string SchemeNumber, Guid Emplo
 public sealed record ListLifeProposals(Guid? ApplicantPartyId, string? ProposalNumber, ProposalStatus? Status, Guid? AfterId, int Limit)
     : IQuery<IReadOnlyList<LifeProposalSummary>>;
 
-public sealed record ListLifePolicies(Guid? PolicyholderPartyId, string? PolicyNumber, LifePolicyStatus? Status, Guid? AfterId, int Limit)
+public sealed record ListLifePolicies(Guid? PolicyholderPartyId, string? PolicyNumber, LifePolicyStatus? Status, Guid? AfterId, int Limit, Guid? ProposalId = null)
     : IQuery<IReadOnlyList<LifePolicySummary>>;
+
+public sealed record ListPolicyLoans(Guid? PolicyId, LoanStatus? Status, Guid? AfterId, int Limit) : IQuery<IReadOnlyList<LifeLoanSummary>>;
+
+/// <param name="UnderwriterId">The underwriter the case is assigned to.</param>
+public sealed record ListUnderwritingCases(CaseStatus? Status, Guid? UnderwriterId, bool? DecisionPending, Guid? AfterId, int Limit)
+    : IQuery<IReadOnlyList<UnderwritingCaseSummary>>;
 
 public sealed record ListLifeClaims(Guid? PolicyId, Guid? ClaimantPartyId, string? ClaimNumber, LifeClaimStatus? Status, Guid? AfterId, int Limit)
     : IQuery<IReadOnlyList<LifeClaimSummary>>;
@@ -69,13 +84,19 @@ public interface ILifeLists
     Task<IReadOnlyList<LifeClaimSummary>> Claims(ListLifeClaims query, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<GroupSchemeSummary>> Schemes(ListGroupSchemes query, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<LifeLoanSummary>> Loans(ListPolicyLoans query, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<UnderwritingCaseSummary>> Cases(ListUnderwritingCases query, CancellationToken cancellationToken);
 }
 
 internal sealed class LifeListHandlers(ILifeLists lists) :
     IQueryHandler<ListLifeProposals, IReadOnlyList<LifeProposalSummary>>,
     IQueryHandler<ListLifePolicies, IReadOnlyList<LifePolicySummary>>,
     IQueryHandler<ListLifeClaims, IReadOnlyList<LifeClaimSummary>>,
-    IQueryHandler<ListGroupSchemes, IReadOnlyList<GroupSchemeSummary>>
+    IQueryHandler<ListGroupSchemes, IReadOnlyList<GroupSchemeSummary>>,
+    IQueryHandler<ListPolicyLoans, IReadOnlyList<LifeLoanSummary>>,
+    IQueryHandler<ListUnderwritingCases, IReadOnlyList<UnderwritingCaseSummary>>
 {
     public async Task<Result<IReadOnlyList<LifeProposalSummary>>> Handle(ListLifeProposals query, CancellationToken cancellationToken) =>
         Result.Success(await lists.Proposals(query, cancellationToken));
@@ -88,4 +109,10 @@ internal sealed class LifeListHandlers(ILifeLists lists) :
 
     public async Task<Result<IReadOnlyList<GroupSchemeSummary>>> Handle(ListGroupSchemes query, CancellationToken cancellationToken) =>
         Result.Success(await lists.Schemes(query, cancellationToken));
+
+    public async Task<Result<IReadOnlyList<LifeLoanSummary>>> Handle(ListPolicyLoans query, CancellationToken cancellationToken) =>
+        Result.Success(await lists.Loans(query, cancellationToken));
+
+    public async Task<Result<IReadOnlyList<UnderwritingCaseSummary>>> Handle(ListUnderwritingCases query, CancellationToken cancellationToken) =>
+        Result.Success(await lists.Cases(query, cancellationToken));
 }

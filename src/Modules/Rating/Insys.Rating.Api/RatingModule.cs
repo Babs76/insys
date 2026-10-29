@@ -74,6 +74,7 @@ public sealed class RatingModule : IModule
             .Produces<CalculationView>(StatusCodes.Status201Created)
             .WithName("RatingCalculatePremium")
             .WithSummary("Calculate a premium and record it with its breakdown")
+            .WithEventualEffects("for a LIFE_PROPOSAL, its quotedPremium appears once Life handles rating.PremiumCalculated (BR-077).")
             .WithDescription("Uses the rating configuration in force on the rating date (today by default). The record keeps the inputs, the product "
                 + "version and the rating version, so recalculating as at the same date gives the same premium (PRD-008, LIF-002).")
             .RequirePermission(RatingPermissions.CalculationCreate)

@@ -98,6 +98,7 @@ internal sealed class GetUnderwritingCaseHandler(ILifeRepository life, Workflow.
             : CaseView.From(found.Value) with
             {
                 LatestRejection = await history.Latest(Contracts.LifeApprovals.UnderwritingBusinessRefType, found.Value.Id, cancellationToken),
+                ApprovalId = found.Value.ApprovalId ?? await history.Waiting(Contracts.LifeApprovals.UnderwritingBusinessRefType, found.Value.Id, cancellationToken),
             };
     }
 }
@@ -106,7 +107,11 @@ internal sealed class GetProposalCaseHandler(ILifeRepository life, Workflow.Cont
 {
     public async Task<Result<CaseView>> Handle(GetProposalCase query, CancellationToken cancellationToken) =>
         await life.CaseForProposal(query.ProposalId, cancellationToken) is { } found
-            ? CaseView.From(found) with { LatestRejection = await history.Latest(Contracts.LifeApprovals.UnderwritingBusinessRefType, found.Id, cancellationToken) }
+            ? CaseView.From(found) with
+            {
+                LatestRejection = await history.Latest(Contracts.LifeApprovals.UnderwritingBusinessRefType, found.Id, cancellationToken),
+                ApprovalId = found.ApprovalId ?? await history.Waiting(Contracts.LifeApprovals.UnderwritingBusinessRefType, found.Id, cancellationToken),
+            }
             : Error.NotFound(ErrorCodes.NotFound, "The proposal has no underwriting case.");
 }
 

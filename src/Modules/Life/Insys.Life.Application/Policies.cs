@@ -152,12 +152,14 @@ internal sealed class IssueLifePolicyHandler(ILifeRepository life, ILifeCodes co
     }
 }
 
-internal sealed class GetLifePolicyHandler(ILifeRepository life) : IQueryHandler<GetLifePolicy, PolicyView>
+internal sealed class GetLifePolicyHandler(ILifeRepository life, IBusinessDate businessDate) : IQueryHandler<GetLifePolicy, PolicyView>
 {
     public async Task<Result<PolicyView>> Handle(GetLifePolicy query, CancellationToken cancellationToken)
     {
         var policy = await LifePolicies.Load(life, query.PolicyId, cancellationToken);
-        return policy.IsFailure ? policy.Error : PolicyView.From(policy.Value);
+        return policy.IsFailure
+            ? policy.Error
+            : PolicyView.From(policy.Value).WithCashValue(await life.LatestCashValue(policy.Value.Id, businessDate.Today, cancellationToken));
     }
 }
 
@@ -290,7 +292,7 @@ internal sealed class IssuePolicyLoanHandler(ILifeRepository life, ILifeCodes co
 
         life.Add(loan.Value);
         audit.Record(new AuditEntry("LIFE", "IssueLoan", nameof(LifePolicyLoan), id.ToString(), new Dictionary<string, string?> { ["policy"] = policy.Value.Id.ToString() }));
-        return LoanView.From(loan.Value);
+        return LoanView.From(loan.Value, policy.Value.Currency);
     }
 }
 
@@ -305,12 +307,14 @@ internal sealed class RepayPolicyLoanHandler(ILifeRepository life, IBusinessDate
 
         audit.Record(new AuditEntry("LIFE", "RecordRepayment", nameof(LifePolicyLoan), loan.Id.ToString()));
         var result = loan.RecordRepayment(command.Amount, businessDate.Today, command.PaymentRef, clock.UtcNow);
-        return result.IsFailure ? result.Error : LoanView.From(loan);
+        return result.IsFailure ? result.Error : LoanView.From(loan, await life.PolicyCurrency(loan.PolicyId, cancellationToken));
     }
 }
 
 internal sealed class GetPolicyLoanHandler(ILifeRepository life) : IQueryHandler<GetPolicyLoan, LoanView>
 {
     public async Task<Result<LoanView>> Handle(GetPolicyLoan query, CancellationToken cancellationToken) =>
-        await life.Loan(query.LoanId, cancellationToken) is { } loan ? LoanView.From(loan) : Error.NotFound(ErrorCodes.NotFound, "The loan was not found.");
+        await life.Loan(query.LoanId, cancellationToken) is { } loan
+            ? LoanView.From(loan, await life.PolicyCurrency(loan.PolicyId, cancellationToken))
+            : Error.NotFound(ErrorCodes.NotFound, "The loan was not found.");
 }

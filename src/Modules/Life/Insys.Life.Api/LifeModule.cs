@@ -42,7 +42,8 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Insys.Life.Api;
 
-public sealed record EvidenceRequest(string EvidenceType, bool Mandatory);
+/// <param name="EvidenceType">The evidence asked for (a medical, a blood test, financial statements): a code of up to 20 characters; no static data table lists them yet.</param>
+public sealed record EvidenceRequest([property: System.ComponentModel.DataAnnotations.MaxLength(20)] string EvidenceType, bool Mandatory);
 
 public sealed record EvidenceReceivedRequest(Guid DocumentId);
 
@@ -50,23 +51,25 @@ public sealed record WaiverRequest(string Reason);
 
 public sealed record CaseReferralRequest(string ToRole);
 
-public sealed record CaseDecisionRequest(UnderwritingOutcome Outcome, string DecisionCode, string Reason, IReadOnlyList<DecisionItemRequest>? Items);
+public sealed record CaseDecisionRequest(UnderwritingOutcome Outcome, [property: BuildingBlocks.Domain.CodeList(LifeCodeLists.UnderwritingDecisions), System.ComponentModel.DataAnnotations.MaxLength(15)] string DecisionCode,
+    [property: System.ComponentModel.DataAnnotations.MaxLength(20)] string Reason, IReadOnlyList<DecisionItemRequest>? Items);
 
 public sealed record BeneficiariesRequest(DateOnly EffectiveDate, IReadOnlyList<BeneficiaryNomination> Nominations);
 
-public sealed record AlterationRequest(string AlterationCode, DateOnly EffectiveDate, string? IntermediaryCode);
+public sealed record AlterationRequest([property: BuildingBlocks.Domain.CodeList(LifeCodeLists.AlterationTypes)] string AlterationCode, DateOnly EffectiveDate, string? IntermediaryCode);
 
 public sealed record ReinstatementRequest(Guid? EvidenceRef);
 
-public sealed record LoanRequest(decimal Principal, string RateCode);
+public sealed record LoanRequest(decimal Principal, [property: BuildingBlocks.Domain.CodeList(LifeCodeLists.LoanRates)] string RateCode);
 
 public sealed record RepaymentRequest(decimal Amount, Guid? PaymentRef);
 
 public sealed record AssessmentRequest(IReadOnlyList<BenefitLineRequest> Lines);
 
-public sealed record ClaimApprovalRequest(IReadOnlyList<PayeeInput> Payees, string ReserveType, string DecisionReason, string Rationale);
+public sealed record ClaimApprovalRequest(IReadOnlyList<PayeeInput> Payees, [property: BuildingBlocks.Domain.CodeList(LifeCodeLists.ReserveTypes), System.ComponentModel.DataAnnotations.MaxLength(15)] string ReserveType,
+    [property: BuildingBlocks.Domain.CodeList(LifeCodeLists.ClaimDecisionReasons), System.ComponentModel.DataAnnotations.MaxLength(20)] string DecisionReason, string Rationale);
 
-public sealed record ClaimDeclineRequest(string DecisionReason, string Rationale);
+public sealed record ClaimDeclineRequest([property: BuildingBlocks.Domain.CodeList(LifeCodeLists.ClaimDecisionReasons), System.ComponentModel.DataAnnotations.MaxLength(20)] string DecisionReason, string Rationale);
 
 public sealed record MemberRequest(Guid PartyId, string CategoryCode, decimal? AnnualSalary, DateOnly JoinedOn, JsonElement? Facts);
 
@@ -141,6 +144,9 @@ public sealed class LifeModule : IModule
                 (await d.Send(r, ct)).ToHttp(v => Results.Created($"/api/v1/life/proposals/{v.Id}", v)))
             .Produces<ProposalView>(StatusCodes.Status201Created)
             .WithName("LifeCaptureProposal").WithSummary("Capture a proposal on a Life product version on sale (LIF-001)")
+            .WithEventualEffects("rate it with POST /api/v1/rating/calculations and evaluate its eligibility rule set (the product version's) with "
+                + "POST /api/v1/rules/decisions, each with subjectType LIFE_PROPOSAL; the proposal's quotedPremium and eligibilityOutcome appear once Life "
+                + "handles rating.PremiumCalculated and rules.RuleDecisionRecorded.")
             .RequirePermission(LifePermissions.ProposalCreate).RequireIdempotencyKey();
         life.MapGet("/proposals/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetLifeProposal(id), ct)).ToHttp(Results.Ok))
             .Produces<ProposalView>(StatusCodes.Status200OK)
@@ -149,6 +155,8 @@ public sealed class LifeModule : IModule
             .Produces<ProposalView>(StatusCodes.Status200OK)
             .TakesIfMatch()
             .WithName("LifeSubmitProposal").WithSummary("Submit a quoted, eligible proposal; its content is frozen from then (LIF-001)")
+            .WithEventualEffects("the underwriting case opens (GET /api/v1/life/proposals/{id}/underwriting-case) and the proposal then reads InUnderwriting; "
+                + "evaluate the underwriting rule set with POST /api/v1/rules/decisions (subjectType LIFE_UNDERWRITING_CASE), and the case's ruleOutcome appears.")
             .RequirePermission(LifePermissions.ProposalUpdate);
         life.MapPost("/proposals/{id:guid}/withdraw", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Send(new WithdrawLifeProposal(id), ct)).ToHttp(Results.Ok))
             .Produces<ProposalView>(StatusCodes.Status200OK)
@@ -198,6 +206,8 @@ public sealed class LifeModule : IModule
             .Produces<CaseView>(StatusCodes.Status200OK)
             .TakesIfMatch()
             .WithName("LifeDecideCase").WithSummary("Propose the decision and terms; a second person approves them in Workflow within authority (SRS-002)")
+            .WithEventualEffects("the Workflow approval appears (approvalId on the case); once it is granted the case is decided and the proposal reads "
+                + "Accepted, Declined or Postponed.")
             .RequirePermission(LifePermissions.UnderwritingDecide);
     }
 
@@ -207,6 +217,8 @@ public sealed class LifeModule : IModule
                 (await d.Send(r, ct)).ToHttp(v => Results.Created($"/api/v1/life/policies/{v.Id}", v)))
             .Produces<PolicyView>(StatusCodes.Status201Created)
             .WithName("LifeIssuePolicy").WithSummary("Issue a policy from an accepted proposal, on its product and rating versions (LIF-003)")
+            .WithEventualEffects("the proposal reads Converted once the policy's issue event (life.LifePolicyIssued) is handled; its policyId names the policy "
+                + "from the issue (BR-086).")
             .RequirePermission(LifePermissions.PolicyCreate).RequireIdempotencyKey();
         life.MapGet("/policies/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetLifePolicy(id), ct)).ToHttp(Results.Ok))
             .Produces<PolicyView>(StatusCodes.Status200OK)
@@ -334,11 +346,24 @@ public sealed class LifeModule : IModule
                 await Page(cursor, limit, (after, size) => d.Query(new ListLifeProposals(applicantPartyId, proposalNumber, status, after, size), ct), p => p.Id))
             .Produces<CursorPage<LifeProposalSummary>>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
             .WithName("LifeListProposals").WithSummary("List proposals, by applicant, number or status (GAP-040)").RequirePermission(LifePermissions.ProposalRead);
-        life.MapGet("/policies", async (Guid? policyholderPartyId, string? policyNumber, Domain.Policies.LifePolicyStatus? status, string? cursor, int? limit, IDispatcher d,
-                CancellationToken ct) =>
-                await Page(cursor, limit, (after, size) => d.Query(new ListLifePolicies(policyholderPartyId, policyNumber, status, after, size), ct), p => p.Id))
+        life.MapGet("/policies", async (Guid? policyholderPartyId, string? policyNumber, Domain.Policies.LifePolicyStatus? status, Guid? proposalId, string? cursor, int? limit,
+                IDispatcher d, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListLifePolicies(policyholderPartyId, policyNumber, status, after, size, proposalId), ct), p => p.Id))
             .Produces<CursorPage<LifePolicySummary>>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
-            .WithName("LifeListPolicies").WithSummary("List policies, by policyholder, number or status (GAP-040)").RequirePermission(LifePermissions.PolicyRead);
+            .WithName("LifeListPolicies").WithSummary("List policies, by policyholder, number, status or the proposal issued from (GAP-040, BR-075)")
+            .RequirePermission(LifePermissions.PolicyRead);
+        life.MapGet("/loans", async (Guid? policyId, Domain.Policies.LoanStatus? status, string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListPolicyLoans(policyId, status, after, size), ct), l => l.Id))
+            .Produces<CursorPage<LifeLoanSummary>>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("LifeListLoans").WithSummary("List policy loans, by policy or status, in their policies' currency (BR-062, BR-063)")
+            .RequirePermission(LifePermissions.LoanRead);
+        life.MapGet("/underwriting-cases", async (CaseStatus? status, Guid? underwriterId, bool? decisionPending, string? cursor, int? limit, IDispatcher d,
+                CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListUnderwritingCases(status, underwriterId, decisionPending, after, size), ct), c => c.Id))
+            .Produces<CursorPage<UnderwritingCaseSummary>>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("LifeListUnderwritingCases")
+            .WithSummary("List underwriting cases, by status, the underwriter assigned or whether a decision waits for a second person (BR-074)")
+            .RequirePermission(LifePermissions.UnderwritingRead);
         life.MapGet("/claims", async (Guid? policyId, Guid? claimantPartyId, string? claimNumber, LifeClaimStatus? status, string? cursor, int? limit, IDispatcher d,
                 CancellationToken ct) =>
                 await Page(cursor, limit, (after, size) => d.Query(new ListLifeClaims(policyId, claimantPartyId, claimNumber, status, after, size), ct), c => c.Id))

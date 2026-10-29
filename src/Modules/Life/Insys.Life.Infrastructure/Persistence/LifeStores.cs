@@ -93,6 +93,16 @@ internal sealed class LifeRepository(LifeDbContext db, IExecutionContext executi
         await db.CashValues.AsNoTracking().Where(v => v.PolicyId == policyId && v.ValuationDate <= asOf).OrderByDescending(v => v.ValuationDate)
             .Select(v => (decimal?)v.Value).FirstOrDefaultAsync(cancellationToken);
 
+    public async Task<(decimal Value, DateOnly Date)?> LatestCashValue(Guid policyId, DateOnly asOf, CancellationToken cancellationToken) =>
+        await db.CashValues.AsNoTracking().Where(v => v.PolicyId == policyId && v.ValuationDate <= asOf).OrderByDescending(v => v.ValuationDate)
+            .Select(v => new { v.Value, v.ValuationDate }).FirstOrDefaultAsync(cancellationToken) is { } row ? (row.Value, row.ValuationDate) : null;
+
+    public async Task<string> PolicyCurrency(Guid policyId, CancellationToken cancellationToken) =>
+        await db.Policies.AsNoTracking().Where(p => p.Id == policyId).Select(p => p.Currency).SingleAsync(cancellationToken);
+
+    public async Task<Guid?> PolicyIdForProposal(Guid proposalId, CancellationToken cancellationToken) =>
+        await db.Policies.AsNoTracking().Where(p => p.ProposalId == proposalId).Select(p => (Guid?)p.Id).FirstOrDefaultAsync(cancellationToken);
+
     public async Task<LifeClaim?> Claim(Guid id, CancellationToken cancellationToken) => Scoped(await Claims().SingleOrDefaultAsync(c => c.Id == id, cancellationToken));
 
     public async Task<LifeClaim?> ClaimByNumber(string claimNumber, CancellationToken cancellationToken) =>

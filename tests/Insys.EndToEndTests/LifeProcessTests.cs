@@ -57,7 +57,7 @@ public sealed class LifeProcessTests(PostgresServer server) : IAsyncLifetime
     private static readonly string[] Permissions =
     [
         LifePermissions.ProposalRead, LifePermissions.ProposalCreate, LifePermissions.ProposalUpdate, LifePermissions.UnderwritingRead, LifePermissions.UnderwritingUpdate,
-        LifePermissions.UnderwritingWaive, LifePermissions.UnderwritingDecide, LifePermissions.PolicyRead, LifePermissions.PolicyCreate, LifePermissions.PolicyUpdate,
+        LifePermissions.UnderwritingWaive, LifePermissions.UnderwritingDecide, LifePermissions.PolicyRead, LifePermissions.PolicyCreate, LifePermissions.PolicyUpdate, LifePermissions.LoanRead, LifePermissions.LoanCreate,
         LifePermissions.ClaimRead, LifePermissions.ClaimCreate, LifePermissions.ClaimUpdate, LifePermissions.ClaimDecide, RatingPermissions.CalculationCreate,
         RatingPermissions.CalculationRead, RulesPermissions.DecisionCreate, RulesPermissions.DecisionRead, BillingPermissions.AccountRead, BillingPermissions.InvoiceRead,
         PaymentPermissions.PaymentRead, PaymentPermissions.PayoutRead, PaymentPermissions.PayoutCreate, PaymentPermissions.PayoutRelease, PaymentPermissions.CallbackEndpointUpdate,
@@ -239,8 +239,25 @@ public sealed class LifeProcessTests(PostgresServer server) : IAsyncLifetime
         (await _maker.PostAsJsonAsync($"/api/v1/life/underwriting-cases/{caseId}/decision", decision)).StatusCode.ShouldBe(HttpStatusCode.OK);
         await _factory.DrainOutbox();
         (await Get($"/api/v1/life/proposals/{proposal}")).GetProperty("status").GetString().ShouldBe("InUnderwriting");
+
+        // BR-076, BR-074: a decision waiting for a second person names its proposer and approval, and the case is listed as pending.
+        var waiting = await Get($"/api/v1/life/underwriting-cases/{caseId}");
+        var approvalId = (await (await _maker.GetAsync(
+                $"/api/v1/workflow/approvals?status=Requested&businessRefType={LifeApprovals.UnderwritingBusinessRefType}&businessRefId={caseId}")).Json())
+            .GetProperty("items")[0].GetProperty("id").GetGuid();
+        (waiting.GetProperty("decisionPending").GetBoolean(), waiting.GetProperty("approvalId").GetGuid()).ShouldBe((true, approvalId));
+        waiting.GetProperty("requestedBy").GetGuid().ShouldBe(await UserId("life-underwriter"));
+        var pendingCases = await Get("/api/v1/life/underwriting-cases?decisionPending=true");
+        DocumentedSchema.ResponseProblems(pendingCases, "core", "LifeListUnderwritingCases").ShouldBeEmpty();
+        pendingCases.GetProperty("items").EnumerateArray().Select(c => c.GetProperty("id").GetGuid()).ShouldContain(caseId);
+        (await Get("/api/v1/life/underwriting-cases?decisionPending=false")).GetProperty("items").EnumerateArray().Select(c => c.GetProperty("id").GetGuid())
+            .ShouldNotContain(caseId);
         await Decide(LifeApprovals.UnderwritingBusinessRefType, caseId);
-        (await Get($"/api/v1/life/underwriting-cases/{caseId}")).GetProperty("status").GetString().ShouldBe("Decided");
+        var decided = await Get($"/api/v1/life/underwriting-cases/{caseId}");
+        decided.GetProperty("status").GetString().ShouldBe("Decided");
+        decided.GetProperty("decidedAt").ValueKind.ShouldBe(JsonValueKind.String);
+        (await Get("/api/v1/life/underwriting-cases?status=Decided")).GetProperty("items").EnumerateArray().Single(c => c.GetProperty("id").GetGuid() == caseId)
+            .GetProperty("proposalId").GetGuid().ShouldBe(proposal);
         (await Get($"/api/v1/life/proposals/{proposal}")).GetProperty("status").GetString().ShouldBe("Accepted");
 
         // IssuePolicy on the approved product and rating versions (LIF-003); Billing opens the account, schedule and invoice; Documents the schedule.
@@ -252,7 +269,10 @@ public sealed class LifeProcessTests(PostgresServer server) : IAsyncLifetime
         issued.GetProperty("benefits").EnumerateArray().Single(b => b.GetProperty("benefitCode").GetString() == "DEATH").GetProperty("exclusionCodes")[0].GetString()
             .ShouldBe("EXC-AVIATION");
         issued.GetProperty("beneficiaries").EnumerateArray().Single().GetProperty("partyId").GetGuid().ShouldBe(spouse);
-        (await Get($"/api/v1/life/proposals/{proposal}")).GetProperty("status").GetString().ShouldBe("Converted");
+        var converted = await Get($"/api/v1/life/proposals/{proposal}");
+        (converted.GetProperty("status").GetString(), converted.GetProperty("policyId").GetGuid()).ShouldBe(("Converted", policy), "BR-075, BR-086");
+        var byProposal = (await Get($"/api/v1/life/policies?proposalId={proposal}")).GetProperty("items").EnumerateArray().Single();
+        (byProposal.GetProperty("id").GetGuid(), byProposal.GetProperty("proposalId").GetGuid()).ShouldBe((policy, proposal));
 
         // GAP-040: the policy is found in the list by its number, by the policyholder, and by status.
         var policyNumber = issued.GetProperty("policyNumber").GetString()!;
@@ -394,7 +414,16 @@ public sealed class LifeProcessTests(PostgresServer server) : IAsyncLifetime
         (await (await _checker.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{pending}/approve", ifMatch: "\"1\"")).Code()).ShouldBe("APPROVAL_AUTHORITY_EXCEEDED");
         await Seed("life.cfg_claims_authority_limits", "EFFECTIVE", "CAL-DEATH-SNR", ("role", _approverRole), ("claim_type", "DEATH"), ("limit_value", 1_000_000m));
         await Decide(LifeApprovals.ClaimBusinessRefType, claim);
-        (await Get($"/api/v1/life/claims/{claim}")).GetProperty("status").GetString().ShouldBe("Approved");
+        // BR-065: the claim names its approval, who proposed and who decided it, when, when it was notified, and its reserve type.
+        var approved = await Get($"/api/v1/life/claims/{claim}");
+        approved.GetProperty("status").GetString().ShouldBe("Approved");
+        approved.GetProperty("approvalId").GetGuid().ShouldBe(pending);
+        approved.GetProperty("requestedBy").GetGuid().ShouldBe(await UserId("life-underwriter"));
+        approved.GetProperty("decidedBy").GetGuid().ShouldBe(await UserId("senior-life-underwriter"));
+        approved.GetProperty("decidedAt").ValueKind.ShouldBe(JsonValueKind.String);
+        approved.GetProperty("notifiedAt").ValueKind.ShouldBe(JsonValueKind.String);
+        approved.GetProperty("reserveType").GetString().ShouldBe("INDEMNITY");
+        DocumentedSchema.ResponseProblems(approved, "core", "LifeGetClaim").ShouldBeEmpty();
 
         // The Claims Framework releases one instruction per payee; Payments pays it in an approved batch; the claim settles and the policy closes.
         var instruction = await _db.ScalarAsOwner<Guid>("SELECT id FROM claims.claim_payment_instruction WHERE claim_number = @n", ("n", number));
@@ -438,6 +467,49 @@ public sealed class LifeProcessTests(PostgresServer server) : IAsyncLifetime
             "the stranger made that one");
         (await broker.GetAsync($"/api/v1/portal/life/claims/{claim}")).StatusCode.ShouldBe(HttpStatusCode.OK);
     }
+
+    /// <summary>
+    /// BR-062, BR-063, BR-065: a policy shows no cash value until one is stored (the actuarial basis, OQ-052, is not
+    /// defined), then its latest; a loan against it is listed by policy and status, in the policy's currency.
+    /// </summary>
+    [Fact]
+    public async Task PolicyLoans_AreListedInThePolicysCurrency_AndThePolicyShowsItsLatestCashValue_BR062_BR063_BR065()
+    {
+        var applicant = await _maker.RegisterPerson("Borrower");
+        var spouse = await _maker.RegisterPerson("Spouse");
+        var policy = await IssuedPolicy(applicant, spouse, Today.AddMonths(-2));
+        var before = await Get($"/api/v1/life/policies/{policy}");
+        (before.GetProperty("cashValue").ValueKind, before.GetProperty("cashValueDate").ValueKind).ShouldBe((JsonValueKind.Null, JsonValueKind.Null));
+
+        foreach (var (date, value) in new[] { (Today.AddMonths(-1), 8_000m), (Today.AddDays(-1), 10_000m), (Today.AddDays(5), 99_000m) })
+        {
+            await _db.ExecuteAsOwner("""
+                INSERT INTO life.cash_value (tenant_id, id, row_version, created_at, created_by, updated_at, updated_by, policy_id, valuation_date, cash_value,
+                                             surrender_value, scale_code, scale_version)
+                VALUES (@t, gen_random_uuid(), 1, now(), 'seed', now(), 'seed', @p, @d, @v, @v, 'SV-E2E', 1)
+                """, ("t", Tenant), ("p", policy), ("d", date), ("v", value));
+        }
+
+        var valued = await Get($"/api/v1/life/policies/{policy}");
+        (valued.GetProperty("cashValue").GetDecimal(), valued.GetProperty("cashValueDate").GetString()).ShouldBe((10_000m, $"{Today.AddDays(-1):yyyy-MM-dd}"),
+            "the latest on or before today; a future valuation is not shown");
+
+        await Seed("life.cfg_policy_loan_rates", "EFFECTIVE", "LR-STD", ("rate_code", "LR-STD"), ("rate", 9.5m), ("compounding", "MONTHLY"));
+        await Seed("life.cfg_loan_eligibility_limits", "EFFECTIVE", "LE-LTERM", ("product_code", Product), ("max_pct_cash_value", 80m),
+            ("min_policy_duration", TimeSpan.FromDays(1)));
+        var loan = await Created($"/api/v1/life/policies/{policy}/loans", new { principal = 5_000m, rateCode = "LR-STD" });
+        (await Get($"/api/v1/life/loans/{loan}")).GetProperty("currency").GetString().ShouldBe("ZAR");
+
+        var listed = await Get($"/api/v1/life/loans?policyId={policy}");
+        DocumentedSchema.ResponseProblems(listed, "core", "LifeListLoans").ShouldBeEmpty();
+        var row = listed.GetProperty("items").EnumerateArray().Single();
+        (row.GetProperty("id").GetGuid(), row.GetProperty("currency").GetString(), row.GetProperty("balance").GetDecimal()).ShouldBe((loan, "ZAR", 5_000m));
+        (await Get("/api/v1/life/loans?status=Active")).GetProperty("items").EnumerateArray().Select(l => l.GetProperty("id").GetGuid()).ShouldContain(loan);
+        (await Get("/api/v1/life/loans?status=Repaid")).GetProperty("items").EnumerateArray().Select(l => l.GetProperty("id").GetGuid()).ShouldNotContain(loan);
+    }
+
+    private Task<Guid> UserId(string subject) =>
+        _db.ScalarAsOwner<Guid>("SELECT id FROM iam.user_account WHERE tenant_id = @t AND external_subject = @s", ("t", Tenant), ("s", subject));
 
     private async Task Organisation()
     {

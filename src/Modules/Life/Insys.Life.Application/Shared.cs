@@ -60,6 +60,15 @@ public interface ILifeRepository
     /// <summary>The latest cash value on or before the day (life.cash_value). TODO(spec): no valuation writes it yet (OQ-052).</summary>
     Task<decimal?> CashValue(Guid policyId, DateOnly asOf, CancellationToken cancellationToken);
 
+    /// <summary>The latest cash value on or before the day, with its valuation date (BR-065).</summary>
+    Task<(decimal Value, DateOnly Date)?> LatestCashValue(Guid policyId, DateOnly asOf, CancellationToken cancellationToken);
+
+    /// <summary>The policy's currency, which its loans take (BR-063). The loan's own read has checked the scope.</summary>
+    Task<string> PolicyCurrency(Guid policyId, CancellationToken cancellationToken);
+
+    /// <summary>The policy issued from the proposal, if any (BR-075).</summary>
+    Task<Guid?> PolicyIdForProposal(Guid proposalId, CancellationToken cancellationToken);
+
     Task<LifeClaim?> Claim(Guid id, CancellationToken cancellationToken);
 
     Task<LifeClaim?> ClaimByNumber(string claimNumber, CancellationToken cancellationToken);
@@ -185,7 +194,8 @@ public sealed record CoverView(Guid Id, Guid InsuredLifeId, string BenefitCode, 
 
 public sealed record ProposalView(Guid Id, string ProposalNumber, string ProductCode, int ProductVersion, Guid ApplicantPartyId, ProposalStatus Status, string Currency,
     string Frequency, DateOnly? InceptionDate, decimal? QuotedPremium, Guid? RatingRequestId, int? RatingVersion, string? EligibilityOutcome, string? RulesetCode,
-    int? RulesetVersion, IReadOnlyList<InsuredLifeView> Lives, IReadOnlyList<CoverView> Covers, IReadOnlyList<BeneficiaryNomination> Nominations, long RowVersion)
+    int? RulesetVersion, IReadOnlyList<InsuredLifeView> Lives, IReadOnlyList<CoverView> Covers, IReadOnlyList<BeneficiaryNomination> Nominations, long RowVersion,
+    [property: BuildingBlocks.Contracts.AlwaysPresent] Guid? PolicyId = null)
 {
     public static ProposalView From(LifeProposal p) => new(p.Id, p.ProposalNumber, p.ProductCode, p.ProductVersion, p.ApplicantPartyId, p.Status, p.Currency,
         p.Frequency, p.InceptionDate, p.QuotedPremium, p.RatingRequestId, p.RatingVersion, p.EligibilityOutcome, p.RulesetCode, p.RulesetVersion,
@@ -197,12 +207,18 @@ public sealed record RequirementView(Guid Id, string EvidenceType, [property: On
 
 public sealed record CaseView(Guid Id, Guid ProposalId, CaseStatus Status, string? RulesetCode, int? RulesetVersion, string? RuleOutcome, string? Outcome, string? DecisionCode,
     string? DecisionReason, bool DecisionPending, Guid? DecidedBy, string? AuthorityRole, string? ReferredTo, IReadOnlyList<RequirementView> Requirements,
-    IReadOnlyList<DecisionItemRequest> Items, long RowVersion, Workflow.Contracts.LatestRejection? LatestRejection = null)
+    IReadOnlyList<DecisionItemRequest> Items, long RowVersion, Workflow.Contracts.LatestRejection? LatestRejection = null,
+    [property: BuildingBlocks.Contracts.AlwaysPresent] Guid? RequestedBy = null, [property: BuildingBlocks.Contracts.AlwaysPresent] Guid? ApprovalId = null,
+    [property: BuildingBlocks.Contracts.AlwaysPresent] DateTimeOffset? DecidedAt = null, [property: BuildingBlocks.Contracts.AlwaysPresent] Guid? AssignedTo = null)
 {
+    /// <summary>
+    /// BR-076: RequestedBy proposed the decision (waiting for a second person while DecisionPending). ApprovalId is the
+    /// Workflow approval: the one waiting, on a read, or the one that decided the case.
+    /// </summary>
     public static CaseView From(LifeUnderwritingCase c) => new(c.Id, c.ProposalId, c.Status, c.RulesetCode, c.RulesetVersion, c.RuleOutcome, c.Outcome?.ToString(),
         c.DecisionCode, c.DecisionReason, c.DecisionPending, c.DecidedBy, c.AuthorityRole, c.ReferredTo,
         c.Requirements.Select(r => new RequirementView(r.Id, r.EvidenceType, r.Status, r.Mandatory, r.DocumentId, r.WaivedBy, r.WaiverReason)).ToList(),
-        c.Items.Select(i => i.ToRequest()).ToList(), c.RowVersion);
+        c.Items.Select(i => i.ToRequest()).ToList(), c.RowVersion, null, c.RequestedBy, c.ApprovalId, c.DecidedAt, c.AssignedTo);
 }
 
 public sealed record BenefitView(Guid Id, Guid? InsuredLifeId, string BenefitCode, decimal SumAssured, decimal Premium, IReadOnlyList<string> ExclusionCodes,
@@ -217,8 +233,12 @@ public sealed record LapseView(string EventType, DateOnly EffectiveDate, string 
 public sealed record PolicyView(Guid Id, string PolicyNumber, Guid ProposalId, string ProductCode, int ProductVersion, int RatingVersion, int? RulesetVersion,
     Guid PolicyholderPartyId, LifePolicyStatus Status, DateOnly InceptionDate, DateOnly? TermEndDate, string Currency, Guid BillingAccountRef, string? IntermediaryCode,
     IReadOnlyList<InsuredLifeView> Lives, IReadOnlyList<BenefitView> Benefits, IReadOnlyList<BeneficiaryView> Beneficiaries, ScheduleView Schedule,
-    IReadOnlyList<LapseView> LapseHistory, long RowVersion)
+    IReadOnlyList<LapseView> LapseHistory, long RowVersion,
+    [property: BuildingBlocks.Contracts.AlwaysPresent] decimal? CashValue = null, [property: BuildingBlocks.Contracts.AlwaysPresent] DateOnly? CashValueDate = null)
 {
+    /// <summary>BR-065: the latest stored cash value on or before the day, with its valuation date; null until the actuarial basis is defined (OQ-052).</summary>
+    public PolicyView WithCashValue((decimal Value, DateOnly Date)? value) => this with { CashValue = value?.Value, CashValueDate = value?.Date };
+
     public static PolicyView From(LifePolicy p) => new(p.Id, p.PolicyNumber, p.ProposalId, p.ProductCode, p.ProductVersion, p.RatingVersion, p.RulesetVersion,
         p.PolicyholderPartyId, p.Status, p.InceptionDate, p.TermEndDate, p.Currency, p.BillingAccountRef, p.IntermediaryCode,
         p.Lives.Select(l => new InsuredLifeView(l.Id, l.PartyId, l.LifeRole, l.EntryAge, "", null)).ToList(),
@@ -230,11 +250,12 @@ public sealed record PolicyView(Guid Id, string PolicyNumber, Guid ProposalId, s
 
 public sealed record LoanTransactionView(string Type, decimal Amount, DateOnly Date);
 
+/// <param name="Currency">The policy's currency, in which the loan is issued and repaid (BR-063).</param>
 public sealed record LoanView(Guid Id, string LoanNumber, Guid PolicyId, decimal Principal, string RateCode, decimal Balance, LoanStatus Status, DateOnly IssuedAt,
-    IReadOnlyList<LoanTransactionView> Transactions, long RowVersion)
+    IReadOnlyList<LoanTransactionView> Transactions, long RowVersion, string Currency)
 {
-    public static LoanView From(LifePolicyLoan l) => new(l.Id, l.LoanNumber, l.PolicyId, l.Principal, l.RateCode, l.Balance, l.Status, l.IssuedAt,
-        l.Transactions.Select(t => new LoanTransactionView(t.TxnType, t.Amount, t.TxnDate)).ToList(), l.RowVersion);
+    public static LoanView From(LifePolicyLoan l, string currency) => new(l.Id, l.LoanNumber, l.PolicyId, l.Principal, l.RateCode, l.Balance, l.Status, l.IssuedAt,
+        l.Transactions.Select(t => new LoanTransactionView(t.TxnType, t.Amount, t.TxnDate)).ToList(), l.RowVersion, currency);
 }
 
 public sealed record ClaimLineView(Guid PolicyBenefitId, decimal Amount);
@@ -245,12 +266,20 @@ public sealed record LifeClaimView(Guid Id, string? ClaimNumber, Guid PolicyId, 
     Guid InsuredLifeId, LifeClaimStatus Status, string Currency, decimal? AssessedAmount, decimal? ApprovedAmount, decimal PaidAmount, string? DecisionReason,
     string? DecisionRationale, bool ApprovalPending, IReadOnlyList<ClaimLineView> Lines, IReadOnlyList<ClaimPayeeView> Payees, long RowVersion,
     [property: BuildingBlocks.Domain.OneOf(LifeClaimOutcomes.Approved, LifeClaimOutcomes.PartlyApproved, LifeClaimOutcomes.Declined), BuildingBlocks.Contracts.AlwaysPresent] string? Outcome = null,
-    [property: BuildingBlocks.Contracts.AlwaysPresent] decimal? ClaimedAmount = null, Workflow.Contracts.LatestRejection? LatestRejection = null)
+    [property: BuildingBlocks.Contracts.AlwaysPresent] decimal? ClaimedAmount = null, Workflow.Contracts.LatestRejection? LatestRejection = null,
+    [property: BuildingBlocks.Contracts.AlwaysPresent] DateTimeOffset? NotifiedAt = null, [property: BuildingBlocks.Contracts.AlwaysPresent] string? ReserveType = null,
+    [property: BuildingBlocks.Contracts.AlwaysPresent] Guid? ApprovalId = null, [property: BuildingBlocks.Contracts.AlwaysPresent] Guid? RequestedBy = null,
+    [property: BuildingBlocks.Contracts.AlwaysPresent] Guid? DecidedBy = null, [property: BuildingBlocks.Contracts.AlwaysPresent] DateTimeOffset? DecidedAt = null)
 {
+    /// <summary>
+    /// BR-065: the decision's approval (the one waiting, on a read, or the one that decided the claim), who proposed it and
+    /// who decided it, when, and the reserve type it was approved with.
+    /// </summary>
     public static LifeClaimView From(LifeClaim c) => new(c.Id, c.ClaimNumber, c.PolicyId, c.ClaimType, c.EventDate, c.CauseCode, c.ClaimantPartyId, c.InsuredLifeId,
         c.Status, c.Currency, c.AssessedAmount, c.ApprovedAmount, c.PaidAmount, c.DecisionReason, c.DecisionRationale, c.ApprovalPending,
         c.Lines.Select(l => new ClaimLineView(l.PolicyBenefitId, l.Amount)).ToList(),
-        c.Payees.Select(p => new ClaimPayeeView(p.PartyId, p.BankAccountId, p.SharePct, p.Amount)).ToList(), c.RowVersion, c.DecisionOutcome, c.ClaimedAmount);
+        c.Payees.Select(p => new ClaimPayeeView(p.PartyId, p.BankAccountId, p.SharePct, p.Amount)).ToList(), c.RowVersion, c.DecisionOutcome, c.ClaimedAmount, null,
+        c.NotifiedAt, c.ReserveType, c.ApprovalId, c.RequestedBy, c.DecidedBy, c.DecidedAt);
 }
 
 public sealed record MemberView(Guid Id, Guid PartyId, string CategoryCode, decimal? AnnualSalary, decimal CoverAmount, DateOnly JoinedOn, DateOnly? LeftOn,

@@ -29,6 +29,7 @@ using Insys.BuildingBlocks.Infrastructure.Persistence;
 using Insys.Life.Application;
 using Insys.Life.Domain.Claims;
 using Insys.Life.Domain.Policies;
+using Insys.Life.Domain.Underwriting;
 using Microsoft.EntityFrameworkCore;
 
 namespace Insys.Life.Infrastructure.Persistence;
@@ -54,9 +55,11 @@ internal sealed class LifeLists(LifeDbContext db, IExecutionContext execution) :
         if (q.PolicyholderPartyId is { } party) rows = rows.Where(p => p.PolicyholderPartyId == party);
         if (q.PolicyNumber is { } number) rows = rows.Where(p => p.PolicyNumber == number);
         if (q.Status is { } status) rows = rows.Where(p => p.Status == status);
+        if (q.ProposalId is { } proposal) rows = rows.Where(p => p.ProposalId == proposal);
         if (q.AfterId is { } after) rows = rows.Where(p => p.Id.CompareTo(after) > 0);
         return await rows.OrderBy(p => p.Id).Take(q.Limit)
-            .Select(p => new LifePolicySummary(p.Id, p.PolicyNumber, p.ProductCode, p.PolicyholderPartyId, p.Status, p.InceptionDate, p.TermEndDate, p.Currency))
+            .Select(p => new LifePolicySummary(p.Id, p.PolicyNumber, p.ProductCode, p.PolicyholderPartyId, p.Status, p.InceptionDate, p.TermEndDate, p.Currency,
+                p.ProposalId))
             .ToListAsync(cancellationToken);
     }
 
@@ -82,6 +85,42 @@ internal sealed class LifeLists(LifeDbContext db, IExecutionContext execution) :
         if (q.AfterId is { } after) rows = rows.Where(s => s.Id.CompareTo(after) > 0);
         return await rows.OrderBy(s => s.Id).Take(q.Limit)
             .Select(s => new GroupSchemeSummary(s.Id, s.SchemeNumber, s.EmployerPartyId, s.ProductCode, s.Status, s.StartDate, s.RenewalDate))
+            .ToListAsync(cancellationToken);
+    }
+
+    /// <summary>BR-062: a loan is in scope when its policy is; it is in the policy's currency (BR-063).</summary>
+    public async Task<IReadOnlyList<LifeLoanSummary>> Loans(ListPolicyLoans q, CancellationToken cancellationToken)
+    {
+        var policies = db.Policies.AsNoTracking().InScope(execution.CurrentScope, p => p.ProductCode, p => p.OrgNodeCode);
+        var rows = db.Loans.AsNoTracking();
+        if (q.PolicyId is { } policy) rows = rows.Where(l => l.PolicyId == policy);
+        if (q.Status is { } status) rows = rows.Where(l => l.Status == status);
+        if (q.AfterId is { } after) rows = rows.Where(l => l.Id.CompareTo(after) > 0);
+        return await rows.Join(policies, l => l.PolicyId, p => p.Id, (l, p) => new { l, p.Currency })
+            .OrderBy(x => x.l.Id).Take(q.Limit)
+            .Select(x => new LifeLoanSummary(x.l.Id, x.l.LoanNumber, x.l.PolicyId, x.l.Principal, x.l.Balance, x.l.Status, x.l.IssuedAt, x.Currency))
+            .ToListAsync(cancellationToken);
+    }
+
+    /// <summary>BR-074: a case is in scope when its proposal is. A decision is pending while it is in assessment with a proposer.</summary>
+    public async Task<IReadOnlyList<UnderwritingCaseSummary>> Cases(ListUnderwritingCases q, CancellationToken cancellationToken)
+    {
+        var proposals = db.Proposals.AsNoTracking().InScope(execution.CurrentScope, p => p.ProductCode, p => p.OrgNodeCode);
+        var rows = db.Cases.AsNoTracking();
+        if (q.Status is { } status) rows = rows.Where(c => c.Status == status);
+        if (q.UnderwriterId is { } underwriter) rows = rows.Where(c => c.AssignedTo == underwriter);
+        if (q.DecisionPending is { } pending)
+        {
+            rows = pending
+                ? rows.Where(c => c.Status == CaseStatus.InAssessment && c.RequestedBy != null)
+                : rows.Where(c => c.Status != CaseStatus.InAssessment || c.RequestedBy == null);
+        }
+
+        if (q.AfterId is { } after) rows = rows.Where(c => c.Id.CompareTo(after) > 0);
+        return await rows.Join(proposals, c => c.ProposalId, p => p.Id, (c, p) => new { c, p.ProposalNumber })
+            .OrderBy(x => x.c.Id).Take(q.Limit)
+            .Select(x => new UnderwritingCaseSummary(x.c.Id, x.c.ProposalId, x.ProposalNumber, x.c.Status, x.c.AssignedTo,
+                x.c.Status == CaseStatus.InAssessment && x.c.RequestedBy != null, x.c.DecisionCode, x.c.RequestedBy))
             .ToListAsync(cancellationToken);
     }
 }
