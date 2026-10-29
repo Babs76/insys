@@ -34,12 +34,17 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Insys.Party.Infrastructure.StaticData;
 
-/// <summary>The 11 static data tables owned by the Party module.</summary>
+/// <summary>The 16 static data tables owned by the Party module.</summary>
 public static class PartyStaticData
 {
     public static readonly IReadOnlyList<StaticDataDescriptor> Descriptors =
     [
         new("party", "cfg_consent_purposes", "cfg_consent_purposes", "Consent purposes", "party", "consent-purposes", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(ConsentPurposes), typeof(ConsentPurposesInput), "Party Management"),
+        new("party", "cfg_customer_risk_classes", "cfg_customer_risk_classes", "Customer risk classes", "party", "customer-risk-classes", StaticScope.GT, 1, StaticLifecycle.Configuration, typeof(CustomerRiskClasses), typeof(CustomerRiskClassesInput), "Party Management"),
+        new("party", "cfg_customer_risk_factors", "cfg_customer_risk_factors", "Customer risk factors", "party", "customer-risk-factors", StaticScope.GT, 1, StaticLifecycle.Configuration, typeof(CustomerRiskFactors), typeof(CustomerRiskFactorsInput), "Party Management"),
+        new("party", "cfg_due_diligence_gates", "cfg_due_diligence_gates", "Due diligence gates", "party", "due-diligence-gates", StaticScope.GT, 1, StaticLifecycle.Configuration, typeof(DueDiligenceGates), typeof(DueDiligenceGatesInput), "Party Management"),
+        new("party", "cfg_due_diligence_requirements", "cfg_due_diligence_requirements", "Due diligence requirements", "party", "due-diligence-requirements", StaticScope.GT, 1, StaticLifecycle.Configuration, typeof(DueDiligenceRequirements), typeof(DueDiligenceRequirementsInput), "Party Management"),
+        new("party", "cfg_due_diligence_settings", "cfg_due_diligence_settings", "Due diligence settings", "party", "due-diligence-settings", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(DueDiligenceSettings), typeof(DueDiligenceSettingsInput), "Party Management"),
         new("party", "cfg_matching_rules_and_thresholds", "cfg_matching_rules_and_thresholds", "Matching rules and thresholds", "party", "matching-rules-and-thresholds", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(MatchingRulesAndThresholds), typeof(MatchingRulesAndThresholdsInput), "Party Management"),
         new("party", "cfg_record_retention_policies", "cfg_record_retention_policies", "Record retention policies", "party", "record-retention-policies", StaticScope.GT, 1, StaticLifecycle.Configuration, typeof(RecordRetentionPolicies), typeof(RecordRetentionPoliciesInput), "Party Management"),
         new("party", "ref_address_formats_and_administrative_regions", "ref_address_formats_and_adminis_65cb55f1", "Address formats and administrative regions", "party", "address-formats-and-administrative-regions", StaticScope.G, 3, StaticLifecycle.Reference, typeof(AddressFormatsAndAdministrativeRegions), typeof(AddressFormatsAndAdministrativeRegionsInput), "Party Management"),
@@ -64,6 +69,51 @@ public static class PartyStaticData
             entity.Property(x => x.Jurisdiction).HasColumnName("jurisdiction").HasMaxLength(80);
             entity.Property(x => x.DefaultValue).HasColumnName("default_value");
             entity.Property(x => x.RetentionPeriod).HasColumnName("retention_period").HasConversion(StaticConverters.OptionalDuration).HasColumnType("interval");
+        });
+        modelBuilder.Entity<CustomerRiskClasses>(entity =>
+        {
+            entity.ToTable("cfg_customer_risk_classes", "party");
+            StaticModel.ConfigureCommon(entity);
+            entity.Property(x => x.RiskClass).HasColumnName("risk_class").HasMaxLength(6);
+            entity.Property(x => x.MinScore).HasColumnName("min_score");
+            entity.Property(x => x.MaxScore).HasColumnName("max_score");
+            entity.Property(x => x.DdLevel).HasColumnName("dd_level").HasMaxLength(12);
+            entity.Property(x => x.ReviewInterval).HasColumnName("review_interval").HasConversion(StaticConverters.Duration).HasColumnType("interval");
+        });
+        modelBuilder.Entity<CustomerRiskFactors>(entity =>
+        {
+            entity.ToTable("cfg_customer_risk_factors", "party");
+            StaticModel.ConfigureCommon(entity);
+            entity.Property(x => x.Factor).HasColumnName("factor").HasMaxLength(20);
+            entity.Property(x => x.MatchValues).HasColumnName("match_values");
+            entity.Property(x => x.Weight).HasColumnName("weight");
+        });
+        modelBuilder.Entity<DueDiligenceGates>(entity =>
+        {
+            entity.ToTable("cfg_due_diligence_gates", "party");
+            StaticModel.ConfigureCommon(entity);
+            entity.Property(x => x.Domain).HasColumnName("domain").HasMaxLength(10);
+            entity.Property(x => x.Step).HasColumnName("step").HasMaxLength(15);
+            entity.Property(x => x.Requirement).HasColumnName("requirement").HasMaxLength(10);
+            entity.Property(x => x.ScreeningMaxAge).HasColumnName("screening_max_age").HasConversion(StaticConverters.OptionalDuration).HasColumnType("interval");
+        });
+        modelBuilder.Entity<DueDiligenceRequirements>(entity =>
+        {
+            entity.ToTable("cfg_due_diligence_requirements", "party");
+            StaticModel.ConfigureCommon(entity);
+            entity.Property(x => x.PartyType).HasColumnName("party_type").HasMaxLength(15);
+            entity.Property(x => x.DdLevel).HasColumnName("dd_level").HasMaxLength(12);
+            entity.Property(x => x.Domain).HasColumnName("domain").HasMaxLength(10);
+            entity.Property(x => x.CheckType).HasColumnName("check_type").HasMaxLength(25);
+            entity.Property(x => x.Basis).HasColumnName("basis").HasMaxLength(200);
+        });
+        modelBuilder.Entity<DueDiligenceSettings>(entity =>
+        {
+            entity.ToTable("cfg_due_diligence_settings", "party");
+            StaticModel.ConfigureCommon(entity);
+            entity.Property(x => x.GatesEnabled).HasColumnName("gates_enabled");
+            entity.Property(x => x.AdverseMediaEnabled).HasColumnName("adverse_media_enabled");
+            entity.Property(x => x.AdverseMediaBasis).HasColumnName("adverse_media_basis").HasMaxLength(200);
         });
         modelBuilder.Entity<MatchingRulesAndThresholds>(entity =>
         {
