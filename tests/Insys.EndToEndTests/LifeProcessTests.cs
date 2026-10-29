@@ -77,6 +77,7 @@ public sealed class LifeProcessTests(PostgresServer server) : IAsyncLifetime
     public async ValueTask InitializeAsync()
     {
         _db = await server.CreateMigratedDatabase();
+        _watchdog = StallWatchdog.Start(_db, TimeSpan.FromSeconds(90), $"LifeProcessTests.{TestContext.Current.TestMethod?.MethodName}");
         await _db.SeedTenant(Tenant, "TENA");
         var underwriter = await _db.UserWithPermissions(Tenant, "life-underwriter", Permissions);
         var checker = await _db.UserWithPermissions(Tenant, "senior-life-underwriter", Permissions);
@@ -193,7 +194,16 @@ public sealed class LifeProcessTests(PostgresServer server) : IAsyncLifetime
         }
     }
 
-    public async ValueTask DisposeAsync() => await _factory.DisposeAsync();
+    private StallWatchdog? _watchdog;
+
+    public async ValueTask DisposeAsync()
+    {
+        await _factory.DisposeAsync();
+        if (_watchdog is not null)
+        {
+            await _watchdog.DisposeAsync();
+        }
+    }
 
     [Fact]
     public async Task LifeProposalToPolicy_QuotesChecksUnderwritesIssuesBillsAndDocuments_WithItsCompensations_LIF001_LIF005()
