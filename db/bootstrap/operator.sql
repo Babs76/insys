@@ -73,7 +73,9 @@ FROM unnest(ARRAY['PRIVILEGED_ROLE', 'TENANT_ADMINISTRATOR']) AS t
 ON CONFLICT DO NOTHING;
 
 -- The audit table is partitioned by month; a new environment's partitions may not exist before the host first starts.
-SELECT audit.ensure_monthly_partitions(3);
+-- This runs when an environment is provisioned, before any host: the provisioning date is the database's. From then on
+-- the hosts keep the partitions ahead by the application's clock (V0093).
+SELECT audit.ensure_monthly_partitions(current_date, 3);
 
 DO $$
 DECLARE
