@@ -45,6 +45,8 @@ namespace Insys.Distribution.Infrastructure.Persistence;
 
 internal sealed class DistributionRepository(DistributionDbContext db) : IDistributionRepository
 {
+    public void Request(Communications.Contracts.NotificationRequested notice, DateTimeOffset now) => db.Publish(notice, "GeneralPolicy", notice.SourceId, now);
+
     public Task<CommissionEntitlement?> Entitlement(Guid id, CancellationToken cancellationToken) =>
         Entitlements().SingleOrDefaultAsync(e => e.Id == id, cancellationToken);
 
@@ -151,7 +153,7 @@ internal sealed class DistributionCodes(DistributionDbContext db) : IDistributio
 {
     public async Task<IntermediaryInfo?> Intermediary(string intermediaryCode, DateOnly day, CancellationToken cancellationToken) =>
         await InForce<IntermediaryRegister>(day).Where(i => i.IntermediaryCode == intermediaryCode).OrderByDescending(i => i.Version)
-            .Select(i => new IntermediaryInfo(i.IntermediaryCode, i.Status, i.PartyId)).FirstOrDefaultAsync(cancellationToken);
+            .Select(i => new IntermediaryInfo(i.IntermediaryCode, i.Status, i.PartyId, i.ContactPartyId)).FirstOrDefaultAsync(cancellationToken);
 
     public async Task<string?> PlanCodeFor(string intermediaryCode, string productCode, DateOnly day, CancellationToken cancellationToken) =>
         await InForce<IntermediaryProductPermissions>(day).Where(p => p.Intermediary == intermediaryCode && p.Product == productCode && p.PlanCode != null)

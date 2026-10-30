@@ -293,6 +293,11 @@ public sealed record GeneralRenewalLapsed(Guid RenewalId, Guid PolicyId, string 
 public sealed record GeneralPolicyIntermediaryChanged(Guid PolicyId, string PolicyNumber, string ProductCode, string? PreviousIntermediaryCode, string IntermediaryCode,
     DateOnly EffectiveDate, DateOnly PeriodEnd, string? BillingFrequency) : IIntegrationEvent;
 
+/// <summary>B-010: a broker of record change was approved, whether it applies now or at a later date. Distribution tells both brokers' contact parties.</summary>
+[IntegrationEvent("general.GeneralBrokerChangeApproved")]
+public sealed record GeneralBrokerChangeApproved(Guid PolicyId, string PolicyNumber, string ProductCode, string? OutgoingIntermediaryCode, string IncomingIntermediaryCode,
+    DateOnly EffectiveDate) : IIntegrationEvent;
+
 /// <summary>F027: a policy's renewal is on record; it is due in its period end's month.</summary>
 [IntegrationEvent("general.GeneralRenewalOpened")]
 public sealed record GeneralRenewalOpened(Guid RenewalId, Guid PolicyId, string ProductCode, DateOnly PeriodEnd) : IIntegrationEvent;

@@ -93,6 +93,7 @@ public static class DistributionStaticData
             entity.Property(x => x.Status).HasColumnName("status").HasMaxLength(40);
             entity.Property(x => x.HierarchyNode).HasColumnName("hierarchy_node").HasMaxLength(80);
             entity.Property(x => x.PartyId).HasColumnName("party_id");
+            entity.Property(x => x.ContactPartyId).HasColumnName("contact_party_id");
         });
         modelBuilder.Entity<LicenceAndAppointmentTypes>(entity =>
         {

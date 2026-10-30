@@ -127,6 +127,7 @@ public static partial class MergeFields
         [NotificationTypes.ContributionSuspension] = ["member_number", "suspended_from", "notice_ends"],
         [NotificationTypes.SchemeRenewalNotice] = ["scheme_number", "renewal_date"],
         [NotificationTypes.NonRenewalNotice] = ["policy_number", "product_code", "period_end", "cover_ends_on", "reason"],
+        [NotificationTypes.BrokerChangeNotice] = ["policy_number", "product_code", "effective_date", "incoming_intermediary", "outgoing_intermediary", "broker_role"],
     };
 
     /// <summary>Whether the type is one the platform triggers (a service notice); any other is a tenant's marketing type.</summary>

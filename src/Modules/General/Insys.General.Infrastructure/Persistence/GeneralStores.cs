@@ -576,6 +576,8 @@ internal sealed class GeneralEventMapper : IDomainEventMapper
             }, e.ProductCode, e.OrgNodeCode),
         GeneralPolicyIntermediaryChanged e => new Contracts.GeneralPolicyIntermediaryChanged(e.PolicyId, e.PolicyNumber, e.ProductCode, e.PreviousIntermediaryCode,
             e.IntermediaryCode, e.EffectiveDate, e.PeriodEnd, e.BillingFrequency),
+        GeneralBrokerChangeApproved e => new Contracts.GeneralBrokerChangeApproved(e.PolicyId, e.PolicyNumber, e.ProductCode, e.OutgoingIntermediaryCode,
+            e.IncomingIntermediaryCode, e.EffectiveDate),
         GeneralCoverExtended e => new Contracts.GeneralCoverExtended(e.PolicyId, e.PolicyNumber, e.PreviousPeriodEnd, e.NewPeriodEnd, e.ExtraPremium, e.Currency),
         GeneralPolicyCancelled e => new Contracts.GeneralPolicyCancelled(e.PolicyId, e.PolicyNumber, e.ReasonCode, e.EffectiveDate, e.RefundAmount, e.Currency, e.ProductCode,
             e.ProductVersion),

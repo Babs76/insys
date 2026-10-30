@@ -818,8 +818,14 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
             ("requires_underwriting", false));
         await Seed("document.ref_document_categories", "ACTIVE", "APPOINTMENT", ("category_code", "APPOINTMENT"), ("label", "Broker appointment"),
             ("classification", "PERSONAL"), ("domain", "ALL"), ("allowed_roles", Array.Empty<string>()));
+        await _db.SeedEmailNotices(Tenant, Today.AddDays(-30), "BRK",
+            (Insys.Communications.Contracts.NotificationTypes.BrokerChangeNotice, "Broker change on {policy_number}",
+                "{policy_number} ({broker_role}): {outgoing_intermediary} to {incoming_intermediary} from {effective_date}."));
+        var incomingContact = await _maker.RegisterPerson("Incoming Contact");
+        await _db.AddContact(Tenant, incomingContact, "EMAIL", "incoming@broker.test");
         await Seed("commission.mst_intermediary_register", "ACTIVE", "BRK-4", ("intermediary_code", "BRK-4"), ("type", "BROKER"), ("legal_name", "BRK-4"),
-            ("licence_numbers", JsonSerializer.SerializeToElement(new[] { "FSP-4" })), ("status", "ACTIVE"), ("hierarchy_node", "NODE-BRK-4"));
+            ("licence_numbers", JsonSerializer.SerializeToElement(new[] { "FSP-4" })), ("status", "ACTIVE"), ("hierarchy_node", "NODE-BRK-4"),
+            ("contact_party_id", incomingContact));
         await Seed("commission.cfg_intermediary_product_permissions", "EFFECTIVE", "PERM-BRK4", ("intermediary", "BRK-4"), ("product", Product),
             ("transactions_allowed", Array.Empty<string>()), ("plan_code", "PLAN-10"));
         var policy = await IssuedPolicy(await Vehicle());
@@ -858,6 +864,14 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
         // OQ-136: approved for a later date, the policy stays with its broker, the change waiting on it.
         (await _db.ScalarAsOwner<string>("SELECT intermediary_code || ':' || pending_intermediary_code || ':' || pending_intermediary_from FROM general.policy WHERE id = @p",
             ("p", policy))).ShouldBe($"{Broker}:BRK-4:{Today.AddDays(10):yyyy-MM-dd}");
+
+        // B-010: told once it is approved, not when it applies: the incoming broker's contact party, and the outgoing broker through its own party (it has no contact party).
+        await _factory.Services.GetRequiredService<Insys.Communications.Infrastructure.NotificationSender>().RunForTenant(Tenant, CancellationToken.None);
+        var number = await _db.ScalarAsOwner<string>("SELECT policy_number FROM general.policy WHERE id = @p", ("p", policy));
+        (await _db.ScalarAsOwner<string>("SELECT status || ':' || body FROM communication.notification WHERE recipient_party_id = @c AND type_code = 'BROKER_CHANGE_NOTICE'",
+            ("c", incomingContact))).ShouldBe($"SENT:{number} (INCOMING): {Broker} to BRK-4 from {Today.AddDays(10):yyyy-MM-dd}.");
+        (await _db.ScalarAsOwner<string>("SELECT string_agg(merge_values->>'broker_role', ',' ORDER BY merge_values->>'broker_role') FROM communication.notification WHERE source_id = @p AND type_code = 'BROKER_CHANGE_NOTICE'",
+            ("p", policy))).ShouldBe("INCOMING,OUTGOING");
 
         // The date comes (brought to today): the daily job moves the policy, and the commission splits at it.
         await _db.ExecuteAsOwner("UPDATE general.policy SET pending_intermediary_from = @d WHERE id = @p", ("d", Today), ("p", policy));

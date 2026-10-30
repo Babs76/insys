@@ -115,6 +115,10 @@ public sealed record GeneralCoverExtended(Guid PolicyId, string PolicyNumber, Da
 public sealed record GeneralPolicyIntermediaryChanged(Guid PolicyId, string PolicyNumber, string ProductCode, string? PreviousIntermediaryCode, string IntermediaryCode,
     DateOnly EffectiveDate, DateOnly PeriodEnd, string? BillingFrequency, DateTimeOffset OccurredAt) : IDomainEvent;
 
+/// <summary>B-010: a broker of record change was approved, whether it applies now or at a later date. Both brokers are told.</summary>
+public sealed record GeneralBrokerChangeApproved(Guid PolicyId, string PolicyNumber, string ProductCode, string? OutgoingIntermediaryCode, string IncomingIntermediaryCode,
+    DateOnly EffectiveDate, DateTimeOffset OccurredAt) : IDomainEvent;
+
 /// <summary>Why a policy expired without renewal (Wave 4 §4.3, §4.4; general.policy.expiry_reason).</summary>
 public static class PolicyExpiryReasons
 {
@@ -810,11 +814,14 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
 
         if (endorsement.NewIntermediaryCode is { } intermediary)
         {
+            var outgoing = IntermediaryCode;
             var moved = ChangeIntermediary(intermediary, endorsement.EffectiveDate, today, now);
             if (moved.IsFailure)
             {
                 return moved;
             }
+
+            Raise(new GeneralBrokerChangeApproved(Id, PolicyNumber, ProductCode, outgoing, intermediary, endorsement.EffectiveDate, now));
         }
 
         var limits = product.Check(Coverages.Select(c => new CoverageRequest(c.CoverageCode, c.SumInsured, c.ExcessScheduleCode)), Currency);

@@ -76,10 +76,14 @@ public interface IDistributionRepository
     void Add(CommissionEntitlement entitlement);
 
     void Add(CommissionStatement statement);
+
+    /// <summary>B-010: asks Communications for a notice, in this transaction.</summary>
+    void Request(Communications.Contracts.NotificationRequested notice, DateTimeOffset now);
 }
 
 /// <summary>An intermediary in the register, in force.</summary>
-public sealed record IntermediaryInfo(string IntermediaryCode, string Status, Guid? PartyId);
+/// <param name="ContactPartyId">Who is told of a broker of record change (B-010), if not <paramref name="PartyId"/>.</param>
+public sealed record IntermediaryInfo(string IntermediaryCode, string Status, Guid? PartyId, Guid? ContactPartyId = null);
 
 /// <summary>The Distribution module's static data in force.</summary>
 public interface IDistributionCodes
@@ -509,4 +513,40 @@ public sealed class BrokerOfRecordCommission(IDistributionRepository repository,
     }
 
     private static DateOnly Min(DateOnly a, DateOnly b) => a < b ? a : b;
+}
+
+/// <summary>
+/// B-010: once a broker of record change is approved, the incoming and the outgoing broker's contact parties are told, each
+/// with its role. An intermediary with no contact party is told through its own party; with neither, it is logged for a person.
+/// </summary>
+public sealed class BrokerChangeNotices(IDistributionRepository repository, IDistributionCodes codes, IBusinessDate businessDate, IClock clock,
+    ILogger<BrokerChangeNotices> logger) : IIntegrationEventHandler<GeneralBrokerChangeApproved>
+{
+    public async Task Handle(GeneralBrokerChangeApproved approved, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        await Tell(approved, approved.IncomingIntermediaryCode, "INCOMING", cancellationToken);
+        if (approved.OutgoingIntermediaryCode is { Length: > 0 } outgoing && outgoing != approved.IncomingIntermediaryCode)
+        {
+            await Tell(approved, outgoing, "OUTGOING", cancellationToken);
+        }
+    }
+
+    private async Task Tell(GeneralBrokerChangeApproved approved, string intermediaryCode, string role, CancellationToken cancellationToken)
+    {
+        var intermediary = await codes.Intermediary(intermediaryCode, businessDate.Today, cancellationToken);
+        if ((intermediary?.ContactPartyId ?? intermediary?.PartyId) is not { } recipient)
+        {
+            logger.LogWarning("Intermediary {Intermediary} has no contact party: it is not told of the broker change on policy {Policy}", intermediaryCode, approved.PolicyNumber);
+            return;
+        }
+
+        repository.Request(new Communications.Contracts.NotificationRequested(Communications.Contracts.NotificationTypes.BrokerChangeNotice, recipient, "GENERAL_POLICY",
+            approved.PolicyId, new Dictionary<string, string>
+            {
+                ["policy_number"] = approved.PolicyNumber, ["product_code"] = approved.ProductCode,
+                ["effective_date"] = approved.EffectiveDate.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+                ["incoming_intermediary"] = approved.IncomingIntermediaryCode, ["outgoing_intermediary"] = approved.OutgoingIntermediaryCode ?? "",
+                ["broker_role"] = role,
+            }, approved.ProductCode), clock.UtcNow);
+    }
 }

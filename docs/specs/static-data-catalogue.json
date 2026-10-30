@@ -8790,6 +8790,12 @@
      "logicalType": "Ref Party",
      "mandatory": false,
      "note": "Added by V0021 (OQ-062): the intermediary's party, paid through its verified bank account."
+    },
+    {
+     "name": "contact_party_id",
+     "logicalType": "Ref Party",
+     "mandatory": false,
+     "note": "Added by V0103 (B-010): who is told of a broker of record change; with none, party_id."
     }
    ]
   },

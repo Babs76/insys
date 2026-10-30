@@ -78,4 +78,4 @@ Estimates are working days for one developer, including unit, integration and en
 - **Decided:** 30 October 2026, on 4.3c's question 2.
 - **What:** a contact party on the intermediary register (`commission.mst_intermediary_register`; a migration, the static data catalogue and generated code). Once a broker of record change is approved, both the incoming and the outgoing broker's contact party are sent a notice (a new notification type, with a template per tenant).
 - **Estimate:** 2 to 3 days.
-- **Until then:** the pending change shows on the policy and the endorsement, and staff tell the brokers.
+- **Built:** Wave 5, branch `wave5-b010`; see `docs/reports/2026-10-30-wave5-batch-b010.md`.

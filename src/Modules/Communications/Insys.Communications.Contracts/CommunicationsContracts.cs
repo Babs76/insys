@@ -97,6 +97,9 @@ public static class NotificationTypes
 
     /// <summary>The insurer will not renew a General policy (F025): the reason's customer wording and when cover ends (OQ-132), Wave 4 §4.3.</summary>
     public const string NonRenewalNotice = "NON_RENEWAL_NOTICE";
+
+    /// <summary>A broker of record change was approved (B-010): the incoming and the outgoing broker's contact parties are each told; <c>broker_role</c> says which.</summary>
+    public const string BrokerChangeNotice = "BROKER_CHANGE_NOTICE";
 }
 
 /// <summary>
