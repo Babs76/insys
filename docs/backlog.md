@@ -43,3 +43,35 @@ Work decided but not yet planned into a batch, by the wave it is meant for. Each
 - **Decided by:** Ade, 30 October 2026, after the 4.2 approval authority readiness item.
 - **What:** a readiness warning, not a blocker, for each approval type the tenant can raise whose deciding roles (as `APPROVAL_AUTHORITY` finds them: authority, `approval.approve` and the type's own permission) are held by no active user, and a second warning when only one active user holds them, since maker-checker (SRS-002) then cannot decide that person's own requests.
 - **Until then:** `APPROVAL_AUTHORITY` checks that a role can decide each type, not that anyone holds the role; staffing the roles is left to the tenant.
+
+## Wave 4 follow-ups (decided 30 October 2026, on the 4.3b and 4.3c reports)
+
+Estimates are working days for one developer, including unit, integration and end-to-end tests, snapshots and the batch report; CI and review time are not counted.
+
+### B-007: a premium adjustment endorsement (General)
+- **Decided:** 30 October 2026, option (b) of the 4.3b report, as a general feature, not retention-only.
+- **What:** a General endorsement action `PREMIUM_ADJUSTMENT` that changes a policy's annual premium by a per cent (a discount or a loading) from its effective date for the rest of the period, without re-rating the risk. It is approved like any endorsement (maker-checker, within the approver's authority) and billed through the existing `GeneralPolicyEndorsed` path (Billing's `AmendSchedule`; instalments already invoiced are not changed). An accepted mid-term retention discount drafts one for the case's owner to submit.
+- **Estimate:** 2 to 3 days.
+- **Until then:** the manual route stands: the case owner records the accepted offer and makes the change by hand, then closes the case.
+
+### B-008: a billing frequency change endorsement (General)
+- **Decided:** 30 October 2026, option (b) of the 4.3b report, as a general feature, not retention-only.
+- **What:** a General endorsement action that changes a policy's billing frequency from its next uninvoiced instalment, to a frequency the product allows (`cfg_product_billing_frequencies`), with that frequency's instalment loading. Billing amends the schedule's frequency and instalments from that date; invoices already issued stand. Approved like any endorsement. An accepted payment-terms retention offer drafts one.
+- **Estimate:** 3 to 4 days (Billing's schedule change by frequency is new; the endorsement side follows B-007).
+- **Until then:** the manual route stands (a billing change by hand).
+
+### B-009: recover commission already paid when a broker of record changes (tenant setting)
+- **Decided:** 30 October 2026, on 4.3c's question 1.
+- **What:** a tenant setting for a broker of record change when the outgoing broker's commission on the period is already paid on a settled statement:
+  - `RECOVER` (default): the unearned part (the days from the change's effective date) is offset against the outgoing broker's next statement and allocated to the incoming broker as a broker share.
+  - `KEEP`: paid commission stays with the outgoing broker (today's behaviour).
+  - With `RECOVER`, when the outgoing broker has no later commission to offset, the amount is recorded as owed by the broker and is visible to finance. It is never dropped.
+- **Needs:** a change to the commission lifecycle in `domain-model.json` (a paid entitlement gains a partial recovery), the setting (a configuration table and migration), the offset on statement generation, the broker debt record and a finance view of it.
+- **Estimate:** 4 to 6 days.
+- **Until then:** as built in 4.3c: a paid entitlement is logged, not recovered; the incoming broker gets nothing for those days.
+
+### B-010: a contact party for each intermediary, told of a broker of record change
+- **Decided:** 30 October 2026, on 4.3c's question 2.
+- **What:** a contact party on the intermediary register (`commission.mst_intermediary_register`; a migration, the static data catalogue and generated code). Once a broker of record change is approved, both the incoming and the outgoing broker's contact party are sent a notice (a new notification type, with a template per tenant).
+- **Estimate:** 2 to 3 days.
+- **Until then:** the pending change shows on the policy and the endorsement, and staff tell the brokers.
