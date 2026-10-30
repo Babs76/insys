@@ -280,7 +280,7 @@ public sealed class GeneralModule : IModule
             .WithName("GeneralRecordAppointmentLetter")
             .WithSummary("Record the policyholder's broker appointment letter on a broker of record change, before it is submitted (B-001, Wave 4 addition 3)")
             .WithDescription("documentId is a document filed against the endorsement (businessRefType GENERAL_ENDORSEMENT). An INTERMEDIARY endorsement without it "
-                + "is refused at submission with 422 GENERAL_APPOINTMENT_LETTER_REQUIRED.")
+                + "is refused at submission with 422 APPOINTMENT_LETTER_REQUIRED.")
             .RequirePermission(GeneralPermissions.EndorsementCreate);
         general.MapPost("/endorsements/{id:guid}/submit", async (Guid id, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new SubmitEndorsement(id), ct)).ToHttp(Results.Ok))

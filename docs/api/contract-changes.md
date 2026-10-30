@@ -6,7 +6,7 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 ### New
 - **`POST /general/policies/{id}/endorsements`** takes an optional **`intermediaryCode`**: with `endorsementType` `INTERMEDIARY` (a type the tenant configures, premium method `NONE`) and `changes: []`, it drafts a broker of record change to that intermediary from `effectiveDate`. The intermediary must be allowed to sell the product (DST-001 refusals as for a quote). It is `Rated` at once with no premium change.
-- **`POST /general/endorsements/{id}/appointment-letter`** (`GeneralRecordAppointmentLetter`), body `{ "documentId" }`: the policyholder's appointment letter, a document filed against the endorsement (`businessRefType` `GENERAL_ENDORSEMENT`). Submitting an `INTERMEDIARY` endorsement without it is 422 **`GENERAL_APPOINTMENT_LETTER_REQUIRED`**. Approval is the usual endorsement approval by a second person (OQ-134).
+- **`POST /general/endorsements/{id}/appointment-letter`** (`GeneralRecordAppointmentLetter`), body `{ "documentId" }`: the policyholder's appointment letter, a document filed against the endorsement (`businessRefType` `GENERAL_ENDORSEMENT`). Submitting an `INTERMEDIARY` endorsement without it is 422 **`APPOINTMENT_LETTER_REQUIRED`**. Approval is the usual endorsement approval by a second person (OQ-134).
 - **Endorsement view:** `newIntermediaryCode`, `appointmentLetterId`.
 - **Event `general.GeneralPolicyIntermediaryChanged`** (previous and new intermediary, effective date).
 

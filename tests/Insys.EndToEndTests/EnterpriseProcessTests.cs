@@ -837,7 +837,7 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
         (drafted.GetProperty("status").GetString(), drafted.GetProperty("premiumDelta").GetDecimal(), drafted.GetProperty("newIntermediaryCode").GetString())
             .ShouldBe(("Rated", 0m, "BRK-4"));
         (await (await _maker.Send(HttpMethod.Post, $"/api/v1/general/endorsements/{endorsement}/submit",
-            ifMatch: (await _maker.GetAsync($"/api/v1/general/endorsements/{endorsement}")).ETag())).Code()).ShouldBe("GENERAL_APPOINTMENT_LETTER_REQUIRED");
+            ifMatch: (await _maker.GetAsync($"/api/v1/general/endorsements/{endorsement}")).ETag())).Code()).ShouldBe("APPOINTMENT_LETTER_REQUIRED");
         var letter = await _maker.Send(HttpMethod.Post, "/api/v1/documents/documents", new
         {
             categoryCode = "APPOINTMENT", businessRefType = GeneralDocuments.EndorsementRefType, businessRefId = endorsement, mimeType = "text/plain",
