@@ -831,8 +831,10 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
         await _db.ExecuteAsOwner("UPDATE commission.commission_entitlement SET due_date = @d WHERE id = @e", ("d", due), ("e", outgoing.GetProperty("id").GetGuid()));
 
         // Drafted, rated at once (no premium change); refused at submission without the appointment letter.
-        var drafted = await (await _maker.Send(HttpMethod.Post, $"/api/v1/general/policies/{policy}/endorsements",
-            new { endorsementType = "INTERMEDIARY", effectiveDate = Today.AddDays(10), changes = Array.Empty<object>(), intermediaryCode = "BRK-4" }, idempotent: true)).Json();
+        var draft = await _maker.Send(HttpMethod.Post, $"/api/v1/general/policies/{policy}/endorsements",
+            new { endorsementType = "INTERMEDIARY", effectiveDate = Today.AddDays(10), changes = Array.Empty<object>(), intermediaryCode = "BRK-4" }, idempotent: true);
+        draft.StatusCode.ShouldBe(HttpStatusCode.Created, await draft.Content.ReadAsStringAsync());
+        var drafted = await draft.Json();
         var endorsement = drafted.GetProperty("id").GetGuid();
         (drafted.GetProperty("status").GetString(), drafted.GetProperty("premiumDelta").GetDecimal(), drafted.GetProperty("newIntermediaryCode").GetString())
             .ShouldBe(("Rated", 0m, "BRK-4"));

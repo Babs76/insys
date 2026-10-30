@@ -397,3 +397,5 @@ platform-operator	WorkflowOmbudSchemes.schemeCode	to declare
 platform-operator	WorkflowOmbudSchemesInput.schemeCode	to declare
 core	GeneralRenewalView.productCode	to declare
 core	GeneralRetentionCaseView.productCode	to declare
+core	GeneralEndorsementRequest.intermediaryCode	to declare
+core	GeneralEndorsementView.newIntermediaryCode	to declare
