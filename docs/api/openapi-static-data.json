@@ -262430,6 +262430,24 @@
               "string"
             ]
           },
+          "productCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "domain": {
+            "enum": [
+              "LIFE",
+              "GENERAL",
+              "HEALTH",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "id": {
             "type": "string",
             "format": "uuid"
@@ -262650,6 +262668,24 @@
             ]
           },
           "referralQueue": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "productCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "domain": {
+            "enum": [
+              "LIFE",
+              "GENERAL",
+              "HEALTH",
+              null
+            ],
             "type": [
               "null",
               "string"

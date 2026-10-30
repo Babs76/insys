@@ -80,7 +80,10 @@ public interface IDueDiligenceConfiguration
     /// <summary>The day an ISO 8601 interval (a class's review interval) after the day; three years when it does not parse.</summary>
     DateOnly After(DateOnly day, string interval);
 
-    /// <summary>The day an ISO 8601 interval (a gate's screening age) before the day; 30 days when it does not parse.</summary>
+    /// <summary>
+    /// The day an ISO 8601 interval (a gate's screening age) before the day; 30 days when it does not parse. Hours count as
+    /// whole days, rounded down, and the interval as at least one day (BR-112).
+    /// </summary>
     DateOnly Before(DateOnly day, string interval);
 
     /// <summary>The tenant's setting, or null with no settings row in force (then the gates apply to a tenant entitled to LIFE, OQ-123).</summary>

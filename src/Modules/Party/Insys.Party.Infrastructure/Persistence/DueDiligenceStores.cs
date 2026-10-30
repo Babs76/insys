@@ -128,11 +128,13 @@ internal sealed class DueDiligenceConfiguration(PartyDbContext db) : IDueDiligen
             return day.AddDays(-30);
         }
 
-        // BR-112: a business date's unit is the day, so hours in an interval count as whole days, rounded up.
+        // BR-112: a business date's unit is the day, so hours in an interval count as whole days, rounded down (the stricter
+        // direction for a screening's age, decided 30 October 2026), and a limit is at least one day.
         var p = parsed.Value;
         var hours = (Period.FromHours(p.Hours) + Period.FromMinutes(p.Minutes) + Period.FromSeconds(p.Seconds)).ToDuration().TotalDays;
-        var days = Period.FromYears(p.Years) + Period.FromMonths(p.Months) + Period.FromWeeks(p.Weeks) + Period.FromDays(p.Days + (int)Math.Ceiling(hours));
-        return LocalDate.FromDateOnly(day).Minus(days).ToDateOnly();
+        var days = Period.FromYears(p.Years) + Period.FromMonths(p.Months) + Period.FromWeeks(p.Weeks) + Period.FromDays(p.Days + (int)Math.Floor(hours));
+        var before = LocalDate.FromDateOnly(day).Minus(days).ToDateOnly();
+        return before < day ? before : day.AddDays(-1);
     }
 
     /// <summary>The tenant's settings in force: the one in force from the latest day, should two codes overlap.</summary>

@@ -48,6 +48,10 @@ Work decided but not yet planned into a batch, by the wave it is meant for. Each
 
 Estimates are working days for one developer, including unit, integration and end-to-end tests, snapshots and the batch report; CI and review time are not counted.
 
+**Scheduled (30 October 2026):**
+- **B-010** at the start of Wave 5.
+- **B-007, B-008 and B-009** together, as one batch after Wave 6 and before the first go-live.
+
 ### B-007: a premium adjustment endorsement (General)
 - **Decided:** 30 October 2026, option (b) of the 4.3b report, as a general feature, not retention-only.
 - **What:** a General endorsement action `PREMIUM_ADJUSTMENT` that changes a policy's annual premium by a per cent (a discount or a loading) from its effective date for the rest of the period, without re-rating the risk. It is approved like any endorsement (maker-checker, within the approver's authority) and billed through the existing `GeneralPolicyEndorsed` path (Billing's `AmendSchedule`; instalments already invoiced are not changed). An accepted mid-term retention discount drafts one for the case's owner to submit.

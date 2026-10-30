@@ -211,6 +211,32 @@ public sealed class OnboardingReadinessTests(DatabaseFixture fixture) : IClassFi
     }
 
     /// <summary>
+    /// BR-113 (decided 30 October 2026): an acceptance or referral rule in force with no product and no domain applies to
+    /// every product. It is listed as a warning, which does not stop the step; it clears once the rule has a scope.
+    /// </summary>
+    [Fact]
+    public async Task AnUnscopedUnderwritingRule_IsListedAsAWarning_ThatDoesNotStopTheStep_BR113()
+    {
+        var (tenantId, url) = await Register("UNSCOPED");
+        await fixture.Database.SeedReadyTenant(tenantId, From);
+        Check(await Readiness(url), "PRODUCT_FACTORY", "UNSCOPED_UNDERWRITING_RULES").GetProperty("ready").GetBoolean().ShouldBeTrue();
+
+        await fixture.Database.SeedStatic(tenantId, "rules.cfg_acceptance_and_referral_rules", "EFFECTIVE", "UW-SA", From, ("rule_code", "UW-SA"),
+            ("condition", "sum_assured > threshold"), ("threshold", 5_000_000m), ("outcome", "REFER"));
+        await fixture.Database.SeedStatic(tenantId, "rules.cfg_acceptance_and_referral_rules", "EFFECTIVE", "UW-GEN", From, ("rule_code", "UW-GEN"),
+            ("condition", "claims_count >= 1"), ("threshold", 0m), ("outcome", "REFER"), ("domain", "GENERAL"));
+        var readiness = await Readiness(url);
+        var check = Check(readiness, "PRODUCT_FACTORY", "UNSCOPED_UNDERWRITING_RULES");
+        (check.GetProperty("ready").GetBoolean(), check.GetProperty("advisory").GetBoolean()).ShouldBe((false, true));
+        check.GetProperty("missing").EnumerateArray().Select(m => m.GetString()).ShouldBe(["UW-SA"], "the rule with a domain is scoped");
+        readiness.GetProperty("steps").EnumerateArray().Single(s => s.GetProperty("step").GetString() == "PRODUCT_FACTORY").GetProperty("ready").GetBoolean()
+            .ShouldBeTrue("a warning does not stop the step");
+
+        await fixture.Database.ExecuteAsOwner("UPDATE rules.cfg_acceptance_and_referral_rules SET domain = 'LIFE' WHERE tenant_id = @t AND code = 'UW-SA'", ("t", tenantId));
+        Check(await Readiness(url), "PRODUCT_FACTORY", "UNSCOPED_UNDERWRITING_RULES").GetProperty("ready").GetBoolean().ShouldBeTrue();
+    }
+
+    /// <summary>
     /// Every approval type the tenant can raise has a role that can decide it (Ade, 29 October 2026). With due diligence on,
     /// the enhanced due diligence approval is listed while no role holds authority for it, or while the role with authority
     /// lacks its permission; with the gates off it cannot be raised, and is not listed.

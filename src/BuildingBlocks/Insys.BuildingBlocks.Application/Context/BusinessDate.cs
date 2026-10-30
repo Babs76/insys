@@ -166,7 +166,10 @@ public sealed class TenantBusinessDates(TenantTimeZones zones, IClock clock)
         return Start(day, zones.For(tenantId));
     }
 
-    /// <summary>A day's first instant in a zone. A zone that skips midnight for daylight saving starts the day at its first valid time.</summary>
+    /// <summary>
+    /// A day's first instant in a zone, in UTC (as timestamps are stored). A zone that skips midnight for daylight saving
+    /// starts the day at its first valid time.
+    /// </summary>
     internal static DateTimeOffset Start(DateOnly day, TimeZoneInfo zone)
     {
         var midnight = day.ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified);
@@ -175,7 +178,7 @@ public sealed class TenantBusinessDates(TenantTimeZones zones, IClock clock)
             midnight = midnight.AddMinutes(15);
         }
 
-        return new DateTimeOffset(midnight, zone.GetUtcOffset(midnight));
+        return new DateTimeOffset(midnight, zone.GetUtcOffset(midnight)).ToUniversalTime();
     }
 }
 

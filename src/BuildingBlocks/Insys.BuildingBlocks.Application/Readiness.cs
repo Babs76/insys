@@ -33,9 +33,13 @@ namespace Insys.BuildingBlocks.Application;
 /// <param name="Code">The check's code, for example COLLECTION_METHODS.</param>
 /// <param name="What">What must be in force, in words.</param>
 /// <param name="Missing">What is missing, when not ready: table names, codes or types, never personal data.</param>
-public sealed record ReadinessResult(string Step, string Code, bool Ready, string What, IReadOnlyList<string> Missing)
+/// <param name="Advisory">A warning the tenant should see before go-live, which does not stop its step being completed.</param>
+public sealed record ReadinessResult(string Step, string Code, bool Ready, string What, IReadOnlyList<string> Missing, bool Advisory = false)
 {
     public static ReadinessResult Of(string step, string code, string what, IReadOnlyList<string> missing) => new(step, code, missing.Count == 0, what, missing);
+
+    /// <summary>A warning, not a blocker: listed with what it found, but the step completes without it.</summary>
+    public static ReadinessResult Warning(string step, string code, string what, IReadOnlyList<string> found) => new(step, code, found.Count == 0, what, found, true);
 }
 
 /// <summary>

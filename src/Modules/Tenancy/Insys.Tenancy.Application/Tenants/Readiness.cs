@@ -108,9 +108,12 @@ internal sealed class SmokeRunHandlers(ITenantRepository tenants, IExecutionCont
 }
 
 /// <param name="Attestation">The waiver or evidence that stands in for this check, if recorded.</param>
-public sealed record ReadinessCheckView(string Code, bool Ready, string What, IReadOnlyList<string> Missing, OnboardingAttestationView? Attestation);
+/// <param name="Advisory">A warning: shown when not ready, but it does not stop the step being completed (BR-113).</param>
+public sealed record ReadinessCheckView(string Code, bool Ready, string What, IReadOnlyList<string> Missing, OnboardingAttestationView? Attestation,
+    [property: BuildingBlocks.Contracts.AlwaysPresent] bool Advisory = false);
 
 /// <param name="Label">The step's English label (BR-020), for example "Organisation and access".</param>
+/// <param name="Ready">Every check that is not advisory is ready.</param>
 public sealed record StepReadinessView(string Step, string Label, bool Completed, bool Ready, IReadOnlyList<ReadinessCheckView> Checks);
 
 /// <param name="Day">The tenant's business date the checks ran on (ADR-025).</param>
@@ -179,9 +182,9 @@ public sealed class OnboardingReadiness(IEnumerable<IReadinessCheck> checks, ITe
                 var shown = attested ?? pending;
                 return new ReadinessCheckView(g.Key, missing.Count == 0 || attested is not null, g.First().What, attested is null ? missing : [],
                     shown is null ? null : new OnboardingAttestationView(shown.Kind, shown.Note, shown.By, shown.At, shown.RunDate, shown.Outcome, shown.RanBy,
-                        shown.ApprovedBy, shown.ApprovedAt));
+                        shown.ApprovedBy, shown.ApprovedAt), g.All(r => r.Advisory));
             }).OrderBy(v => v.Code, StringComparer.Ordinal).ToList();
-            return new StepReadinessView(step, OnboardingSteps.Labels[step], index < current, views.All(v => v.Ready), views);
+            return new StepReadinessView(step, OnboardingSteps.Labels[step], index < current, views.All(v => v.Ready || v.Advisory), views);
         }).ToList();
         return new TenantReadinessView(tenant.Id, day, steps);
     }
@@ -189,8 +192,9 @@ public sealed class OnboardingReadiness(IEnumerable<IReadinessCheck> checks, ITe
     /// <summary>The step's checks that are not ready, as the 422's details: each check code with what is missing.</summary>
     public static Error? NotReady(TenantReadinessView readiness, string step) =>
         readiness.Steps.Single(s => s.Step == step) is { Ready: false } view
-            ? Error.Validation(TenancyErrorCodes.OnboardingStepNotReady, $"{step} is not ready: {string.Join(", ", view.Checks.Where(c => !c.Ready).Select(c => c.Code))}.",
-                view.Checks.Where(c => !c.Ready).ToDictionary(c => c.Code, c => c.Missing.ToArray()))
+            ? Error.Validation(TenancyErrorCodes.OnboardingStepNotReady,
+                $"{step} is not ready: {string.Join(", ", view.Checks.Where(c => !c.Ready && !c.Advisory).Select(c => c.Code))}.",
+                view.Checks.Where(c => !c.Ready && !c.Advisory).ToDictionary(c => c.Code, c => c.Missing.ToArray()))
             : null;
 }
 

@@ -390,7 +390,7 @@ public sealed class DueDiligenceTests(DatabaseFixture fixture) : IClassFixture<D
     public async Task AScreeningJustAfterLocalMidnightOnTheReviewDate_IsFreshForTheReview_BR112()
     {
         var instant = new DateTimeOffset(2026, 11, 1, 22, 30, 0, TimeSpan.Zero);
-        var host = await fixture.Shared("dd-br112-2230-utc", () => new InsysApiFactory(fixture.Database, time: new FakeTimeProvider(instant)).Warm());
+        var host = await Br112Host();
         var w = await World(host);
         var reviewDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(instant, TimeZoneInfo.FindSystemTimeZoneById(TestClock.DefaultTimeZone)).DateTime);
         reviewDate.ShouldBeGreaterThan(DateOnly.FromDateTime(instant.UtcDateTime), "the tenant's day has begun; UTC's has not");
@@ -412,6 +412,36 @@ public sealed class DueDiligenceTests(DatabaseFixture fixture) : IClassFixture<D
         (view.GetProperty("status").GetString(), view.GetProperty("reviewedBySystem").GetBoolean()).ShouldBe(("CLEARED", true), view.GetRawText());
         (await Gate(w, party, DueDiligenceSteps.Payout, "GENERAL")).Cleared.ShouldBeTrue("screened today, within the payout's 30 days");
     }
+
+    /// <summary>
+    /// BR-112 (decided 30 October 2026): a screening age in hours counts in whole days rounded down, at least one, the stricter
+    /// direction for a sanctions check. A 36-hour limit is one day: a screening yesterday (locally) is fresh, the day before not.
+    /// </summary>
+    [Fact]
+    public async Task AScreeningAgeOf36Hours_IsOneDay_RoundedDown_BR112()
+    {
+        var w = await World(await Br112Host());
+        await fixture.Database.SeedStatic(w.Tenant, "party.cfg_due_diligence_gates", "EFFECTIVE", "GENERAL-PAYOUT", Today.AddDays(-1), ("domain", "GENERAL"),
+            ("step", DueDiligenceSteps.Payout), ("requirement", "SCREENED"), ("screening_max_age", TimeSpan.FromHours(36)));
+        var party = await w.Clerk.RegisterPerson("Hourly");
+        await w.Factory.DrainOutbox();
+
+        // The host's business date is 2 November (Johannesburg): noon on 1 November is a day ago, noon on 31 October two.
+        foreach (var (screened, fresh) in new[] { (new DateTimeOffset(2026, 11, 1, 10, 0, 0, TimeSpan.Zero), true), (new DateTimeOffset(2026, 10, 31, 10, 0, 0, TimeSpan.Zero), false) })
+        {
+            await fixture.Database.ExecuteAsOwner("UPDATE party.due_diligence SET last_screened_at = @s WHERE party_id = @p", ("s", screened), ("p", party));
+            var gate = await Gate(w, party, DueDiligenceSteps.Payout, "GENERAL");
+            (gate.Outstanding.Contains("SCREENING")).ShouldBe(!fresh, $"screened {screened:u}: {string.Join(", ", gate.Outstanding)}");
+        }
+    }
+
+    /// <summary>
+    /// A host of this class's own whose clock is 22:30 UTC on 1 November, 00:30 on 2 November in Johannesburg (BR-112). The
+    /// class's shared host runs on the same database, so this one is allowed alongside it.
+    /// </summary>
+    private Task<InsysApiFactory> Br112Host() => fixture.Shared("dd-br112-2230-utc", () => new InsysApiFactory(fixture.Database,
+        new Dictionary<string, string?> { ["Identity:PermissionCache:AllowMultipleInstances"] = "true" },
+        time: new FakeTimeProvider(new DateTimeOffset(2026, 11, 1, 22, 30, 0, TimeSpan.Zero))).Warm());
 
     /// <summary>
     /// OQ-138: the reviewer contributed to the assessment, so they cannot give the party's enhanced approval on review; a person

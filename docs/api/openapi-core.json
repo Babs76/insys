@@ -5103,7 +5103,7 @@
           "Rules"
         ],
         "summary": "Evaluate a rule set and record the decision",
-        "description": "The most severe outcome among the rules that fire is the decision. A rule that cannot be evaluated, for example because an input it reads is missing, fails the evaluation and nothing is recorded. Completes asynchronously (GAP-027): for a LIFE_PROPOSAL, its eligibilityOutcome appears; for a LIFE_UNDERWRITING_CASE, its ruleOutcome appears, once Life handles rules.RuleDecisionRecorded (BR-077).",
+        "description": "The most severe outcome among the rules that fire is the decision. A rule whose input is missing refers the decision to a person (BR-113), listed in firedRules as \u0022RULE (no input name)\u0022. A rule that cannot otherwise be evaluated, for example an input of the wrong kind, fails the evaluation and nothing is recorded. An underwriting rule set (code: a product) has the decline conditions of the product or of all products, and the acceptance and referral rules of the product, of its domain, or with no scope. Completes asynchronously (GAP-027): for a LIFE_PROPOSAL, its eligibilityOutcome appears; for a LIFE_UNDERWRITING_CASE, its ruleOutcome appears, once Life handles rules.RuleDecisionRecorded (BR-077).",
         "operationId": "RulesEvaluateRuleSet",
         "parameters": [
           {
