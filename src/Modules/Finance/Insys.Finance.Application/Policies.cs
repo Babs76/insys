@@ -164,6 +164,44 @@ public sealed class PostingPolicies(EventPoster poster, IBusinessDate businessDa
     }
 }
 
+/// <summary>
+/// A paid Health claim was reversed: its claim-paid journal is reversed (FIN-003), on the reversal's business date, so the
+/// claims-paid balance nets to zero. No posting rule is needed: the reversal swaps the original's lines. With no journal
+/// yet (its posting is waiting on a posting exception), or no open period on the date, the delivery parks for a person.
+/// </summary>
+public sealed class MedicalClaimReversalPolicy(IJournalRepository journals, IAccountingPeriods periods, IBusinessDate businessDate, IClock clock)
+    : IIntegrationEventHandler<Health.Contracts.MedicalClaimReversed>
+{
+    public async Task Handle(Health.Contracts.MedicalClaimReversed reversed, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (reversed.Amount <= 0)
+        {
+            return; // nothing was paid, so nothing was posted
+        }
+
+        var posted = await journals.ForBusinessRef("MEDICAL_CLAIM", reversed.ClaimId, cancellationToken);
+        var original = posted.FirstOrDefault(j => j.ReversesJournalId is null);
+        if (original is null)
+        {
+            throw new PrerequisiteMissingException(PrerequisiteCodes.ClaimReversalNotPostable, reversed.ClaimNumber);
+        }
+
+        if (posted.Any(j => j.ReversesJournalId == original.Id))
+        {
+            return; // already reversed: a redelivery
+        }
+
+        var day = businessDate.DateOf(envelope.OccurredAt);
+        if (await periods.Covering(day, cancellationToken) is not { } period
+            || Journal.ReverseJournal(Guid.CreateVersion7(), original, false, envelope.EventId, day, period, clock.UtcNow) is not { IsSuccess: true } reversal)
+        {
+            throw new PrerequisiteMissingException(PrerequisiteCodes.ClaimReversalNotPostable, reversed.ClaimNumber);
+        }
+
+        journals.Add(reversal.Value);
+    }
+}
+
 /// <summary>Workflow's decision on reopening a soft-closed period (ADR-009).</summary>
 public sealed class PeriodReopenPolicy(IAccountingPeriods periods) : IIntegrationEventHandler<ApprovalGranted>, IIntegrationEventHandler<ApprovalRejected>
 {

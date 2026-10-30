@@ -71,6 +71,12 @@ public static class PrerequisiteCodes
     /// <summary>Item: kind and code ("ELIGIBILITY:RS-REN"). A rule set asked for by a module (a renewal review) is not in force.</summary>
     public const string RuleSetNotInForce = "RULE_SET_NOT_IN_FORCE";
 
+    /// <summary>
+    /// Item: the claim number. A Health claim's reversal is waiting for its claim-paid journal, or for an open accounting
+    /// period on the reversal's date. Parked, never dropped, and retried once the journal is posted or the period opened.
+    /// </summary>
+    public const string ClaimReversalNotPostable = "CLAIM_REVERSAL_NOT_POSTABLE";
+
     /// <summary>Item: the realm (insys). Keycloak's admin API could not be reached or failed (keycloak-user-provisioning §4).</summary>
     public const string KeycloakUnavailable = "KEYCLOAK_UNAVAILABLE";
 

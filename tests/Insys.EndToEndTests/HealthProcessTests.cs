@@ -425,6 +425,14 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         (await _maker.PostAsJsonAsync($"/api/v1/health/claims/{claim}/reverse", new { reason = "BILLED_IN_ERROR" })).StatusCode.ShouldBe(HttpStatusCode.OK);
         (await Accumulator(membership, "MEMBER")).ShouldBe((0m, 0m));
 
+        // The ledger follows: the claim-paid journal is reversed, so the claims-paid balance is net zero, on every dated clock. A redelivery changes nothing.
+        await _factory.DrainOutbox();
+        const string ClaimLines = "FROM finance.subledger_entry WHERE business_ref_type = 'MEDICAL_CLAIM' AND business_ref_id = @c AND account_code = '2100'";
+        (await _db.ScalarAsOwner<decimal>($"SELECT sum(debit) {ClaimLines}", ("c", claim))).ShouldBeGreaterThan(0m, "the paid claim was posted");
+        (await _db.ScalarAsOwner<decimal>($"SELECT sum(debit) - sum(credit) {ClaimLines}", ("c", claim))).ShouldBe(0m);
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM finance.journal WHERE reverses_journal_id IS NOT NULL AND source_event_id IN (SELECT id FROM health.outbox_event WHERE event_type = 'health.MedicalClaimReversed' AND aggregate_id = @c)",
+            ("c", claim))).ShouldBe(1L);
+
         // Compensation: an authorisation that expires releases its reservation.
         var expiring = await Authorisation(membership, principal);
         var expiringLine = (await Get($"/api/v1/health/preauthorisations/{expiring}")).GetProperty("lines")[0].GetProperty("id").GetGuid();
