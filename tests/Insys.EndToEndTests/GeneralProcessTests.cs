@@ -698,7 +698,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         // F019: the underwriter's authority (50 000) does not cover the 100 000 sum insured; the senior underwriter's does.
         var version = $"\"{renewal.GetProperty("rowVersion").GetInt64()}\"";
         (await (await _maker.Send(HttpMethod.Post, $"/api/v1/general/renewals/{id}/decision", new { offer = true, decisionCode = "ACCEPT_LOADED", loadingPct = 10m },
-            ifMatch: version)).Code()).ShouldBe("UNDERWRITING_AUTHORITY_EXCEEDED");
+            ifMatch: version)).Code()).ShouldBe(Insys.General.Domain.GeneralErrorCodes.UnderwritingAuthorityExceeded);
         var decided = await _checker.Send(HttpMethod.Post, $"/api/v1/general/renewals/{id}/decision", new { offer = true, decisionCode = "ACCEPT_LOADED", loadingPct = 10m },
             ifMatch: version);
         decided.StatusCode.ShouldBe(HttpStatusCode.OK, await decided.Content.ReadAsStringAsync());
