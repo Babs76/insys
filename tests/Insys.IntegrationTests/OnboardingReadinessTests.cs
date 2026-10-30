@@ -219,7 +219,7 @@ public sealed class OnboardingReadinessTests(DatabaseFixture fixture) : IClassFi
     public async Task AnApprovalTypeTheTenantCanRaise_WithNoRoleToDecideIt_IsListed_DueDiligenceOn()
     {
         const string enhanced = Party.Contracts.PartyApprovals.EnhancedDueDiligenceType;
-        var (tenantId, url) = await Register("UNDECIDABLE");
+        var (tenantId, url) = await Register("NODECIDER");
         await fixture.Database.SeedReadyTenant(tenantId, From);
         Check(await Readiness(url), "SHARED_OPERATIONAL_SETUP", "APPROVAL_AUTHORITY").GetProperty("ready").GetBoolean().ShouldBeTrue();
 

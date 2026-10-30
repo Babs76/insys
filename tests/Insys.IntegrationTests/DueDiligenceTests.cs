@@ -257,7 +257,9 @@ public sealed class DueDiligenceTests(DatabaseFixture fixture) : IClassFixture<D
             Guid.Empty, null, null, "Clear enhanced due diligence", null, PartyPermissions.DueDiligenceApproveEnhanced);
         var envelope = new EventEnvelope(Guid.CreateVersion7(), w.Tenant, "workflow.ApprovalRequested", 1, DateTimeOffset.UtcNow, "DueDiligence", party, Guid.CreateVersion7(),
             null, JsonSerializer.SerializeToElement(requested, JsonSerializerOptions.Web));
-        await w.Factory.Services.GetRequiredService<IEventBus>().Publish(envelope, CancellationToken.None);
+        // The delivery fails (Workflow refuses an approval with no requester): the bus says so, and the ledger keeps it to retry.
+        (await Should.ThrowAsync<AggregateException>(() => w.Factory.Services.GetRequiredService<IEventBus>().Publish(envelope, CancellationToken.None)))
+            .InnerExceptions.Single().ShouldBeOfType<ArgumentException>();
 
         (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM workflow.approval WHERE tenant_id = @t AND business_ref_id = @p", ("t", w.Tenant), ("p", party)))
             .ShouldBe(0);
