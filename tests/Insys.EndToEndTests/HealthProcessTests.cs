@@ -56,8 +56,9 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         HealthPermissions.SchemeRead, HealthPermissions.SchemeCreate, HealthPermissions.SchemeUpdate, HealthPermissions.MembershipRead, HealthPermissions.MembershipCreate,
         HealthPermissions.MembershipUpdate, HealthPermissions.EligibilityCheck, HealthPermissions.PreauthRead, HealthPermissions.PreauthCreate,
         HealthPermissions.PreauthReview, HealthPermissions.ClaimRead, HealthPermissions.ClaimCreate, HealthPermissions.ClaimUpdate, HealthPermissions.ClaimApprove,
-        HealthPermissions.AccumulatorRead, HealthPermissions.CaseRead, HealthPermissions.CaseUpdate, HealthPermissions.RunRead, HealthPermissions.RunUpdate,
-        HealthPermissions.ProviderRead, HealthPermissions.ProviderUpdate,
+        HealthPermissions.AccumulatorRead, HealthPermissions.CaseRead, HealthPermissions.CaseUpdate, HealthPermissions.RunRead, HealthPermissions.RunUpdate, HealthPermissions.RecoveryRead, HealthPermissions.RecoveryManage, HealthPermissions.CreditNoteRead, HealthPermissions.CreditNoteCreate,
+        HealthPermissions.ProviderRead, HealthPermissions.ProviderUpdate, HealthPermissions.ComplexCaseRead, HealthPermissions.ComplexCaseUpdate, HealthPermissions.ReferralRead,
+        HealthPermissions.ReferralCreate, HealthPermissions.ReferralDecide, HealthPermissions.ReferralConsent,
         BillingPermissions.AccountRead, BillingPermissions.InvoiceRead, PaymentPermissions.PaymentRead, PaymentPermissions.PayoutRead, PaymentPermissions.PayoutCreate,
         PaymentPermissions.PayoutRelease, PaymentPermissions.CallbackEndpointUpdate, FinancePermissions.JournalRead, FinancePermissions.PeriodUpdate,
         WorkflowPermissions.ApprovalRead, WorkflowPermissions.ApprovalApprove, IntegrationPermissions.DeadLetterRead, PartyPermissions.PartyCreate,
@@ -81,7 +82,7 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         await _db.AllowBankAccountVerification(Tenant, approverRole, Today.AddYears(-1));
         var from = Today.AddYears(-2);
 
-        foreach (var type in new[] { HealthApprovals.RunApprovalType, PaymentApprovals.PayoutApprovalType })
+        foreach (var type in new[] { HealthApprovals.RunApprovalType, PaymentApprovals.PayoutApprovalType, HealthApprovals.CreditNoteApprovalType, HealthApprovals.RecoveryWriteOffApprovalType, HealthApprovals.RecoveryFindingApprovalType })
         {
             await Seed("workflow.cfg_delegation_and_approval_authority", "EFFECTIVE", $"AUTH-{type}", ("role_code", approverRole), ("transaction_type", type),
                 ("limit_value", 5_000_000m), ("delegation_allowed", false));
@@ -171,6 +172,9 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
                  {
                      ("PR-PREM", TransactionTypes.PremiumDue, "1100", "4000"), ("PR-RECEIPT", TransactionTypes.PaymentReceived, "1200", "1100"),
                      ("PR-CLM-PAID", TransactionTypes.ClaimPaid, "2100", "1200"), ("PR-CLM-REV", TransactionTypes.ClaimPaidReversed, "1300", "2100"),
+                     ("PR-REC-RAISED", TransactionTypes.ProviderRecoveryRaised, "1300", "2100"), ("PR-REC-OFFSET", TransactionTypes.ProviderRecoveryOffset, "1200", "1300"),
+                     ("PR-REC-REPAID", TransactionTypes.ProviderRecoveryRepaid, "1300", "1200"), ("PR-REC-WOFF", TransactionTypes.ProviderRecoveryWrittenOff, "4000", "1300"),
+                     ("PR-REC-REV", TransactionTypes.ProviderRecoveryReversed, "2100", "1300"), ("PR-REC-SETTLED", TransactionTypes.ProviderRecoverySettled, "1100", "1300"),
                  })
         {
             await Seed("finance.cfg_posting_rules", "EFFECTIVE", rule, ("rule_code", rule), ("transaction_type", type), ("debit_account", debit), ("credit_account", credit));
@@ -423,8 +427,9 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         (await (await north.GetAsync(byRemittance)).Json()).GetProperty("items").GetArrayLength().ShouldBe(1);
 
         // Compensation: a reversed claim gives its benefit use back.
+        await Seed("health.cfg_provider_recovery_settings", "EFFECTIVE", "DEFAULT", ("setting_code", "DEFAULT"), ("medical_scheme", true), ("review_after_days", 90), ("invoice_collection_method", "EFT"));
         (await _maker.PostAsJsonAsync($"/api/v1/health/claims/{claim}/reverse", new { reason = "BILLED_IN_ERROR" })).StatusCode.ShouldBe(HttpStatusCode.OK);
-        (await Accumulator(membership, "MEMBER")).ShouldBe((0m, 0m));
+        (await Accumulator(membership, "MEMBER")).Used.ShouldBe(0m, "the claim's use is given back");
 
         // The ledger follows, on every dated clock: claims paid (2100) nets to zero and the provider owes it (1300). The bank (1200) keeps its credit: no cash came back.
         await _factory.DrainOutbox();
@@ -434,6 +439,101 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         paidAmount.ShouldBeGreaterThan(0m);
         ((await Net("2100"), await Net("1300"), await Net("1200"))).ShouldBe((0m, paidAmount, -paidAmount));
 
+        // 5a.3: within validity and used by nothing else, the authorisation is restored with what the claim consumed.
+        var restored = await Get($"/api/v1/health/preauthorisations/{preauth}");
+        (restored.GetProperty("status").GetString(), restored.GetProperty("lines")[0].GetProperty("consumedAmount").GetDecimal(), restored.GetProperty("lines")[0].GetProperty("reservedAmount").GetDecimal())
+            .ShouldBe(("Approved", 0m, restored.GetProperty("lines")[0].GetProperty("authorisedAmount").GetDecimal()));
+
+        // The reversal raises a recovery: a medical scheme's provider is offset by default (OQ-139, addition 1).
+        var recovery = (await Get("/api/v1/health/provider-recoveries?providerId=PR-1")).GetProperty("items").EnumerateArray().Single();
+        var recoveryId = recovery.GetProperty("id").GetGuid();
+        (recovery.GetProperty("basis").GetString(), recovery.GetProperty("status").GetString(), recovery.GetProperty("balance").GetDecimal()).ShouldBe(("OFFSET", "OPEN", paidAmount));
+        DocumentedSchema.ResponseProblems(recovery, "core", "HealthGetRecovery").ShouldBeEmpty();
+
+        // The provider reprocesses: the new claim names the reversed one, shown both ways.
+        var replacement = await Created("/api/v1/health/claims", new
+        {
+            source = "PROVIDER", providerId = "PR-1", membershipId = membership, patientPartyId = principal, serviceDate = Today, formatCode = "API", currency = "ZAR", replacesClaimId = claim,
+            lines = new[] { new { tariffCode = "0300", diagnosisCode = "K35", quantity = 1, claimedAmount = 1_200m } },
+        });
+        (await Get($"/api/v1/health/claims/{replacement}")).GetProperty("replacesClaimId").GetGuid().ShouldBe(claim);
+        (await Get($"/api/v1/health/claims/{claim}")).GetProperty("replacedByClaimId").GetGuid().ShouldBe(replacement);
+        (await _maker.PostAsync($"/api/v1/health/claims/{replacement}/validate", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await _maker.PostAsync($"/api/v1/health/claims/{replacement}/adjudicate", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        var pendedReplacement = await Get($"/api/v1/health/claims/{replacement}");
+        pendedReplacement.GetProperty("status").GetString().ShouldBe("Adjudicated", pendedReplacement.GetRawText());
+        (await _maker.PostAsync($"/api/v1/health/claims/{replacement}/approve", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        await _factory.DrainOutbox();
+
+        // Gap 2: the next run deducts the recovery. Its total is the sum of the nets, and a net of nil is an advice with no payment.
+        var nextRun = await Created("/api/v1/health/payment-runs", new { runCode = "PRV-WEEKLY", currency = "ZAR" });
+        (await _maker.PostAsync($"/api/v1/health/payment-runs/{nextRun}/cut-off", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        var nextCalculate = await _maker.PostAsync($"/api/v1/health/payment-runs/{nextRun}/calculate", null);
+        nextCalculate.StatusCode.ShouldBe(HttpStatusCode.OK, await nextCalculate.Content.ReadAsStringAsync());
+        var nextCalculated = await nextCalculate.Json();
+        var nextRemittance = nextCalculated.GetProperty("remittances").EnumerateArray().Single();
+        (nextRemittance.GetProperty("grossAmount").GetDecimal(), nextRemittance.GetProperty("offsetAmount").GetDecimal(), nextRemittance.GetProperty("amount").GetDecimal(), nextCalculated.GetProperty("totalAmount").GetDecimal())
+            .ShouldBe((paidAmount, paidAmount, 0m, 0m));
+        await _factory.DrainOutbox();
+        await Decide(HealthApprovals.RunBusinessRefType, nextRun);
+        (await _maker.PostAsync($"/api/v1/health/payment-runs/{nextRun}/release", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        await _factory.DrainOutbox();
+        await _factory.DrainOutbox();
+        (await Get($"/api/v1/health/payment-runs/{nextRun}")).GetProperty("status").GetString().ShouldBe("Reconciled", "nothing was to pay");
+        var nextRemittanceId = nextRemittance.GetProperty("id").GetGuid();
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM payment.payment WHERE business_ref_id = @r", ("r", nextRemittanceId))).ShouldBe(0L);
+        (await _db.ScalarAsOwner<Guid?>("SELECT document_id FROM health.remittance_advice WHERE id = @r", ("r", nextRemittanceId))).ShouldNotBeNull("the provider still gets its advice");
+
+        // The remittance shows the original, the reversal, the new claim and the net.
+        var detail = await Get($"/api/v1/health/remittances/{nextRemittanceId}");
+        DocumentedSchema.ResponseProblems(detail, "core", "HealthGetRemittance").ShouldBeEmpty();
+        var originalNumber = (await Get($"/api/v1/health/claims/{claim}")).GetProperty("claimNumber").GetString();
+        var replacementNumber = pendedReplacement.GetProperty("claimNumber").GetString();
+        (detail.GetProperty("netAmount").GetDecimal(), detail.GetProperty("paymentDue").GetBoolean()).ShouldBe((0m, false));
+        (detail.GetProperty("claims")[0].GetProperty("claimNumber").GetString(), detail.GetProperty("claims")[0].GetProperty("replacesClaimNumber").GetString()).ShouldBe((replacementNumber, originalNumber));
+        var offsetLine = detail.GetProperty("offsets")[0];
+        (offsetLine.GetProperty("originalClaimNumber").GetString(), offsetLine.GetProperty("newClaimNumber").GetString(), offsetLine.GetProperty("amount").GetDecimal()).ShouldBe((originalNumber, replacementNumber, paidAmount));
+        offsetLine.GetProperty("reversedOn").ValueKind.ShouldBe(JsonValueKind.String);
+
+        // Recovered; the ledger balances: the receivable is nil and the bank paid only what really left it.
+        (await Get($"/api/v1/health/provider-recoveries/{recoveryId}")).GetProperty("status").GetString().ShouldBe("RECOVERED");
+        async Task<decimal> RecoveryNet(string account) => await _db.ScalarAsOwner<decimal>(
+            "SELECT coalesce(sum(debit - credit), 0) FROM finance.subledger_entry WHERE business_ref_type = 'HEALTH_RECOVERY' AND business_ref_id = @c AND account_code = @a", ("c", recoveryId), ("a", account));
+        ((await RecoveryNet("1300"), await RecoveryNet("1200"))).ShouldBe((-paidAmount, paidAmount));
+
+        // A provider's credit note needs a second person, and then raises a recovery.
+        var note = await Created("/api/v1/health/provider-credit-notes", new { providerId = "PR-1", providerReference = "CN-1", claimId = replacement, amount = 100m, currency = "ZAR", reason = "Billed one visit too many" });
+        await _factory.DrainOutbox();
+        (await Get("/api/v1/health/provider-recoveries?providerId=PR-1")).GetProperty("items").GetArrayLength().ShouldBe(1, "nothing is owed until it is approved");
+        await Decide(HealthApprovals.CreditNoteBusinessRefType, note);
+        await _factory.DrainOutbox();
+        var noteRecovery = (await Get($"/api/v1/health/provider-credit-notes/{note}")).GetProperty("recoveryId").GetGuid();
+        (await Get($"/api/v1/health/provider-recoveries/{noteRecovery}")).GetProperty("balance").GetDecimal().ShouldBe(100m);
+        await _factory.DrainOutbox();
+        (await RecoveryNetOf(noteRecovery, "1300")).ShouldBe(100m);
+
+        // OQ-146: held for a dispute, it is not deducted; the case closing releases it.
+        var holdCase = Guid.CreateVersion7();
+        var noteUrl = $"/api/v1/health/provider-recoveries/{noteRecovery}";
+        (await _maker.Send(HttpMethod.Post, $"{noteUrl}/hold", new { caseId = holdCase }, ifMatch: (await _maker.GetAsync(noteUrl)).ETag())).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await _maker.Send(HttpMethod.Post, $"{noteUrl}/invoice", ifMatch: (await _maker.GetAsync(noteUrl)).ETag())).StatusCode.ShouldBe(HttpStatusCode.Conflict, "not while it is disputed");
+
+        // A write-off needs a reason and a second person; it is never simply dropped (addition 3).
+        var writeOff = await _maker.Send(HttpMethod.Post, $"{noteUrl}/write-off", new { reason = "" }, ifMatch: (await _maker.GetAsync(noteUrl)).ETag());
+        writeOff.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+        (await _maker.Send(HttpMethod.Post, $"{noteUrl}/write-off", new { reason = "Provider liquidated" }, ifMatch: (await _maker.GetAsync(noteUrl)).ETag())).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await Get(noteUrl)).GetProperty("balance").GetDecimal().ShouldBe(100m, "still owed until a second person approves");
+        await _factory.DrainOutbox();
+        await Decide(HealthApprovals.RecoveryBusinessRefType, noteRecovery);
+        await _factory.DrainOutbox();
+        var writtenOff = await Get(noteUrl);
+        (writtenOff.GetProperty("status").GetString(), writtenOff.GetProperty("balance").GetDecimal()).ShouldBe(("WRITTEN_OFF", 0m));
+        await _factory.DrainOutbox();
+        (await RecoveryNetOf(noteRecovery, "1300")).ShouldBe(0m);
+
+        async Task<decimal> RecoveryNetOf(Guid id, string account) => await _db.ScalarAsOwner<decimal>(
+            "SELECT coalesce(sum(debit - credit), 0) FROM finance.subledger_entry WHERE business_ref_type = 'HEALTH_RECOVERY' AND business_ref_id = @c AND account_code = @a", ("c", id), ("a", account));
+
         // Compensation: an authorisation that expires releases its reservation.
         var expiring = await Authorisation(membership, principal);
         var expiringLine = (await Get($"/api/v1/health/preauthorisations/{expiring}")).GetProperty("lines")[0].GetProperty("id").GetGuid();
@@ -441,11 +541,11 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         (await _maker.PostAsJsonAsync($"/api/v1/health/preauthorisations/{expiring}/approve",
             new { lines = new[] { new { lineId = expiringLine, authorisedAmount = 600m } }, validFrom = Today.AddDays(-40) })).StatusCode.ShouldBe(HttpStatusCode.OK);
         await _factory.DrainOutbox();
-        (await Accumulator(membership, "MEMBER", Today.AddDays(-40))).ShouldBe((0m, 600m), "reserved in the benefit period it is valid from");
+        (await Accumulator(membership, "MEMBER", Today.AddDays(-40))).Reserved.ShouldBe(600m, "reserved in the benefit period it is valid from");
         await _factory.Services.GetRequiredService<Insys.Health.Infrastructure.HealthJobs>().Run(CancellationToken.None);
         await _factory.DrainOutbox();
         (await Get($"/api/v1/health/preauthorisations/{expiring}")).GetProperty("status").GetString().ShouldBe("Expired");
-        (await Accumulator(membership, "MEMBER", Today.AddDays(-40))).ShouldBe((0m, 0m), "the expired reservation is released");
+        (await Accumulator(membership, "MEMBER", Today.AddDays(-40))).Reserved.ShouldBe(0m, "the expired reservation is released");
 
         (await _db.ScalarAsOwner<long>("SELECT count(*) FROM health.outbox_event WHERE payload::text LIKE '%K35%'")).ShouldBe(0L);
         (await _db.ScalarAsOwner<long>("SELECT count(*) FROM integration.dead_letter_message")).ShouldBe(0L);
@@ -645,6 +745,358 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
     }
 
     /// <summary>
+    /// F034 to F037, OQ-143: a complex case's clinical detail is for its current manager or the clinical function, with a purpose,
+    /// and every read is audited. Reassigning ends the previous manager's access. A plan's change keeps the last version; an
+    /// overdue activity raises one task, for the manager, carrying no clinical text.
+    /// </summary>
+    [Fact]
+    public async Task AComplexCasesClinicalDetail_IsForItsCurrentManager_AndReassigningEndsTheLastManagersAccess_OQ143_F034_F037()
+    {
+        string[] managerPermissions = [HealthPermissions.ComplexCaseRead, HealthPermissions.ComplexCaseUpdate, HealthPermissions.ComplexCaseManage];
+        var firstId = await _db.UserWithPermissions(Tenant, "case-manager-1", managerPermissions);
+        var secondId = await _db.UserWithPermissions(Tenant, "case-manager-2", managerPermissions);
+        var outsiderId = await _db.UserWithPermissions(Tenant, "case-reader", HealthPermissions.ComplexCaseRead, HealthPermissions.ComplexCaseUpdate);
+        await _db.UserWithPermissions(Tenant, "medical-adviser", HealthPermissions.ComplexCaseRead, HealthPermissions.ClinicalRead);
+        await _db.AdoptFunctionCatalogue();
+        var first = _factory.ClientFor(Tenant, "case-manager-1");
+        var second = _factory.ClientFor(Tenant, "case-manager-2");
+        var outsider = _factory.ClientFor(Tenant, "case-reader");
+        var adviser = _factory.ClientFor(Tenant, "medical-adviser");
+        const string Secret = "Stage 3 kidney disease";
+
+        var scheme = await Created("/api/v1/health/schemes", new { sponsorCode = "S-ACME", startDate = Today.AddYears(-1), renewalDate = Today.AddMonths(6), currency = "ZAR" });
+        var principal = await _maker.RegisterPerson("Complex");
+        var membership = await Created("/api/v1/health/memberships", new
+        {
+            principalPartyId = principal, schemeId = scheme, memberCategory = "ALL_STAFF", planCode = "HLT-CORE", optionCode = "A", startDate = Today.AddMonths(-6),
+            currency = "ZAR", collectionMethod = "DEBIT_ORDER", facts = new { employment_type = "PERMANENT" },
+        });
+        await _factory.DrainOutbox();
+        var id = await Created("/api/v1/health/complex-cases", new { membershipId = membership, patientPartyId = principal, openedFrom = "MEMBERSHIP", conditionCategory = Secret });
+        var url = $"/api/v1/health/complex-cases/{id}";
+        var clinical = $"{url}/clinical?purpose=Care%20review";
+        (await Get(url)).GetRawText().ShouldNotContain(Secret, Case.Sensitive, "a case's view holds no clinical detail");
+
+        // Only someone holding the case manager function may be assigned.
+        (await (await _maker.Send(HttpMethod.Post, $"{url}/case-manager", new { caseManagerId = outsiderId }, ifMatch: (await _maker.GetAsync(url)).ETag())).Code()).ShouldBe("NOT_A_CASE_MANAGER");
+        var assigned = await _maker.Send(HttpMethod.Post, $"{url}/case-manager", new { caseManagerId = firstId }, ifMatch: (await _maker.GetAsync(url)).ETag());
+        assigned.StatusCode.ShouldBe(HttpStatusCode.OK, await assigned.Content.ReadAsStringAsync());
+        (await assigned.Json()).GetProperty("status").GetString().ShouldBe("ACTIVE");
+
+        // The manager reads, with a purpose; someone else with case access does not, and that is audited too.
+        (await (await first.GetAsync($"{url}/clinical")).Code()).ShouldBe("HEALTH_PURPOSE_REQUIRED");
+        var read = await first.GetAsync(clinical);
+        read.StatusCode.ShouldBe(HttpStatusCode.OK, await read.Content.ReadAsStringAsync());
+        (await read.Json()).GetProperty("conditionCategory").GetString().ShouldBe(Secret);
+        (await (await outsider.GetAsync(clinical)).Code()).ShouldBe("NOT_THE_CASE_MANAGER");
+        (await adviser.GetAsync(clinical)).StatusCode.ShouldBe(HttpStatusCode.OK, "the clinical function");
+        (await outsider.Send(HttpMethod.Post, $"{url}/notes", new { contactType = "INTERNAL", note = "Should not land" }, ifMatch: (await outsider.GetAsync(url)).ETag())).StatusCode
+            .ShouldBe(HttpStatusCode.Forbidden, "writing it needs the same access");
+
+        // A plan, with an activity past its date; a note shared with a provider names the consent.
+        var plan = await first.Send(HttpMethod.Post, $"{url}/care-plan", new
+        {
+            items = new object[]
+            {
+                new { kind = "GOAL", description = "Stable renal function", responsible = (string?)null, dueOn = (DateOnly?)null },
+                new { kind = "ACTIVITY", description = "Nephrology visit", responsible = "PR-1", dueOn = (DateOnly?)Today.AddDays(-1) },
+            },
+        }, ifMatch: (await first.GetAsync(url)).ETag());
+        plan.StatusCode.ShouldBe(HttpStatusCode.OK, await plan.Content.ReadAsStringAsync());
+        (await (await first.Send(HttpMethod.Post, $"{url}/notes", new { contactType = "PROVIDER", note = "Results shared", sharedWithProviderId = "PR-1" },
+            ifMatch: (await first.GetAsync(url)).ETag())).Code()).ShouldBe("CARE_CONSENT_REQUIRED");
+        (await first.Send(HttpMethod.Post, $"{url}/notes", new { contactType = "PROVIDER", note = "Results shared", sharedWithProviderId = "PR-1", consentReference = "CONSENT-1" },
+            ifMatch: (await first.GetAsync(url)).ETag())).StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        // The daily job raises one task, for the manager, however often it runs; it carries no clinical text.
+        var jobs = _factory.Services.GetRequiredService<Insys.Health.Infrastructure.HealthJobs>();
+        await jobs.Run(CancellationToken.None);
+        await _factory.DrainOutbox();
+        await jobs.Run(CancellationToken.None);
+        await _factory.DrainOutbox();
+        (await _db.ScalarAsOwner<long>("""
+            SELECT count(*) FROM workflow.process_instance p JOIN workflow.task t ON t.tenant_id = p.tenant_id AND t.process_instance_id = p.id
+            WHERE p.process_code = 'HEALTH_CARE_ACTIVITY_FOLLOW_UP' AND t.assignee_id = @m
+            """, ("m", firstId))).ShouldBe(1L);
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM health.outbox_event WHERE payload::text ILIKE '%nephrology%' OR payload::text ILIKE '%kidney%'")).ShouldBe(0L);
+
+        // Reassigned, with a reason: the first manager's access ends at once, the second's starts.
+        var etag = (await _maker.GetAsync(url)).ETag();
+        (await _maker.Send(HttpMethod.Post, $"{url}/case-manager", new { caseManagerId = secondId }, ifMatch: etag)).StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity, "needs a reason");
+        var moved = await _maker.Send(HttpMethod.Post, $"{url}/case-manager", new { caseManagerId = secondId, reason = "Leave" }, ifMatch: etag);
+        moved.StatusCode.ShouldBe(HttpStatusCode.OK, await moved.Content.ReadAsStringAsync());
+        (await (await first.GetAsync(clinical)).Code()).ShouldBe("NOT_THE_CASE_MANAGER", "addition 2: reassigning ends the previous manager's access");
+        (await first.Send(HttpMethod.Post, $"{url}/notes", new { contactType = "INTERNAL", note = "Late note" }, ifMatch: (await first.GetAsync(url)).ETag())).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await second.GetAsync(clinical)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        var history = (await moved.Json()).GetProperty("assignments");
+        history.GetArrayLength().ShouldBe(2);
+        history[0].GetProperty("endedAt").ValueKind.ShouldBe(JsonValueKind.String);
+
+        // A change keeps the last version.
+        (await second.Send(HttpMethod.Post, $"{url}/care-plan", new { items = new object[] { new { kind = "GOAL", description = "New goal" } } }, ifMatch: (await second.GetAsync(url)).ETag())).StatusCode
+            .ShouldBe(HttpStatusCode.UnprocessableEntity, "a change needs a reason");
+        (await second.Send(HttpMethod.Post, $"{url}/care-plan", new { items = new object[] { new { kind = "GOAL", description = "New goal" } }, reason = "Reassessed" }, ifMatch: (await second.GetAsync(url)).ETag())).StatusCode
+            .ShouldBe(HttpStatusCode.OK);
+        var plans = (await (await second.GetAsync(clinical)).Json()).GetProperty("plans");
+        (plans.GetArrayLength(), plans[0].GetProperty("isCurrent").GetBoolean(), plans[1].GetProperty("isCurrent").GetBoolean()).ShouldBe((2, false, true));
+
+        // Every clinical read is in the audit trail, with its purpose and no clinical content.
+        await _factory.DrainOutbox();
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM audit.audit_event WHERE operation = 'ReadClinical' AND target_id = @e", ("e", id.ToString()))).ShouldBeGreaterThanOrEqualTo(5L);
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM audit.audit_event WHERE details::text ILIKE '%kidney%'")).ShouldBe(0L);
+
+        // Never closed by itself; closing needs a reason.
+        (await (await _maker.PostAsJsonAsync($"{url}/close", new { reason = "" })).Code()).ShouldBe("VALIDATION_FAILED");
+    }
+
+    /// <summary>F038, OQ-144: a referral is recorded, decided and used up, its reason read only through the clinical route; past its date it expires. It affects no claim.</summary>
+    [Fact]
+    public async Task AClinicalReferral_IsDecidedAndUsedUp_ItsReasonIsClinical_AndItExpires_F038_OQ144()
+    {
+        const string Secret = "Suspected renal failure";
+        var scheme = await Created("/api/v1/health/schemes", new { sponsorCode = "S-ACME", startDate = Today.AddYears(-1), renewalDate = Today.AddMonths(6), currency = "ZAR" });
+        var principal = await _maker.RegisterPerson("Referred");
+        var membership = await Created("/api/v1/health/memberships", new
+        {
+            principalPartyId = principal, schemeId = scheme, memberCategory = "ALL_STAFF", planCode = "HLT-CORE", optionCode = "A", startDate = Today.AddMonths(-6),
+            currency = "ZAR", collectionMethod = "DEBIT_ORDER", facts = new { employment_type = "PERMANENT" },
+        });
+        await _factory.DrainOutbox();
+        Task<Guid> Refer(DateOnly to) => Created("/api/v1/health/referrals", new
+        {
+            membershipId = membership, patientPartyId = principal, referringProviderId = "PR-1", referredSpecialty = "NEPHROLOGY", clinicalReason = Secret, validFrom = Today.AddDays(-5), validTo = to, visitsAllowed = 2,
+        });
+        var id = await Refer(Today.AddDays(30));
+        var url = $"/api/v1/health/referrals/{id}";
+        (await Get(url)).GetRawText().ShouldNotContain(Secret, Case.Sensitive);
+        (await _maker.GetAsync($"{url}/clinical?purpose=Review")).StatusCode.ShouldBe(HttpStatusCode.Forbidden, "the clinical function only");
+
+        (await (await _maker.Send(HttpMethod.Post, $"{url}/visits", ifMatch: (await _maker.GetAsync(url)).ETag())).Code()).ShouldBe("INVALID_STATE_TRANSITION", "not yet approved");
+        (await _maker.Send(HttpMethod.Post, $"{url}/decide", new { approved = false }, ifMatch: (await _maker.GetAsync(url)).ETag())).StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity, "a decline needs a reason");
+        (await _maker.Send(HttpMethod.Post, $"{url}/decide", new { approved = true }, ifMatch: (await _maker.GetAsync(url)).ETag())).StatusCode.ShouldBe(HttpStatusCode.OK);
+        for (var visit = 0; visit < 2; visit++)
+        {
+            (await _maker.Send(HttpMethod.Post, $"{url}/visits", ifMatch: (await _maker.GetAsync(url)).ETag())).StatusCode.ShouldBe(HttpStatusCode.OK);
+        }
+
+        (await Get(url)).GetProperty("status").GetString().ShouldBe("USED");
+
+        var late = await Refer(Today.AddDays(-1));
+        await _factory.Services.GetRequiredService<Insys.Health.Infrastructure.HealthJobs>().Run(CancellationToken.None);
+        (await Get($"/api/v1/health/referrals/{late}")).GetProperty("status").GetString().ShouldBe("EXPIRED");
+    }
+
+    /// <summary>
+    /// F038 (Ade, 30 October 2026): on the portal, a referral's reason is for the provider who wrote it, and for the one it names only
+    /// with the member's consent; a third gets not found. Each needs a purpose, and every read and refusal is audited.
+    /// </summary>
+    [Fact]
+    public async Task AReferralsReason_IsForItsWriter_ForItsReceiverWithConsent_AndNotForAThirdProvider_F038()
+    {
+        const string Secret = "Suspected renal failure";
+        foreach (var code in new[] { "PR-1", "PR-2", "PR-3" })
+        {
+            await _db.ExecuteAsOwner("""
+                INSERT INTO health.mst_provider_register (tenant_id, code, version, effective_from, record_status, created_by, change_reason, provider_id, name,
+                                                          registration_numbers, locations, status, provider_type)
+                VALUES (@t, @p, 1, @from, 'ACTIVE', 'seed', 'seed', @p, @p, '{"practice":"P"}', '[]', 'ACTIVE', 'SPEC')
+                ON CONFLICT DO NOTHING
+                """, ("t", Tenant), ("p", code), ("from", Today.AddYears(-2)));
+            var user = await _db.UserWithPermissions(Tenant, $"referral-{code}", HealthPermissions.ReferralRead, HealthPermissions.ReferralCreate);
+            await _db.ExecuteAsOwner("""
+                INSERT INTO iam.user_subject_link (tenant_id, id, row_version, created_at, created_by, updated_at, updated_by, user_id, kind, provider_id, status, requested_by, decided_by, decided_at)
+                VALUES (@t, gen_random_uuid(), 1, now(), 'seed', now(), 'seed', @u, 'PROVIDER', @v, 'ACTIVE', gen_random_uuid(), gen_random_uuid(), now())
+                """, ("t", Tenant), ("u", user), ("v", code));
+        }
+
+        var writer = _factory.ClientFor(Tenant, "referral-PR-1", "provider-portal", multiFactor: true);
+        var receiver = _factory.ClientFor(Tenant, "referral-PR-2", "provider-portal", multiFactor: true);
+        var third = _factory.ClientFor(Tenant, "referral-PR-3", "provider-portal", multiFactor: true);
+
+        var scheme = await Created("/api/v1/health/schemes", new { sponsorCode = "S-ACME", startDate = Today.AddYears(-1), renewalDate = Today.AddMonths(6), currency = "ZAR" });
+        var principal = await _maker.RegisterPerson("ReferredPortal");
+        var membership = await Created("/api/v1/health/memberships", new
+        {
+            principalPartyId = principal, schemeId = scheme, memberCategory = "ALL_STAFF", planCode = "HLT-CORE", optionCode = "A", startDate = Today.AddMonths(-6),
+            currency = "ZAR", collectionMethod = "DEBIT_ORDER", facts = new { employment_type = "PERMANENT" },
+        });
+        await _factory.DrainOutbox();
+        var memberNumber = (await Get($"/api/v1/health/memberships/{membership}")).GetProperty("memberNumber").GetString();
+
+        // With channels in force, the writer refers on its portal and staff record consent through the back office.
+        await Seed("channel.cfg_channel_definitions", "EFFECTIVE", "CH-PRV", ("channel_code", "PRV"), ("audience", "PROVIDER"), ("name", "Provider portal"), ("client_ids", new[] { "provider-portal" }));
+        await Seed("channel.cfg_channel_definitions", "EFFECTIVE", "CH-STF", ("channel_code", "STF"), ("audience", "STAFF"), ("name", "Back office"), ("client_ids", new[] { "insys-web" }));
+        var writerRole = (await _db.ScalarAsOwner<string>("""
+            SELECT a.role_code FROM iam.user_role_assignment a JOIN iam.user_account u ON u.tenant_id = a.tenant_id AND u.id = a.user_id WHERE u.external_subject = 'referral-PR-1'
+            """))!;
+        await Seed("channel.cfg_channel_transaction_permissions", "EFFECTIVE", "CP-PRV-R", ("channel_code", "PRV"), ("role_code", writerRole),
+            ("transaction_type", HealthPermissions.ReferralCreate), ("allowed", true));
+        var staffRoles = (await _db.ScalarAsOwner<string[]>("""
+            SELECT array_agg(DISTINCT a.role_code) FROM iam.user_role_assignment a JOIN iam.user_account u ON u.tenant_id = a.tenant_id AND u.id = a.user_id WHERE u.external_subject = 'health-administrator'
+            """))!;
+        foreach (var (role, i) in staffRoles.Select((r, i) => (r, i)))
+        {
+            await Seed("channel.cfg_channel_transaction_permissions", "EFFECTIVE", $"CP-STF-{i}", ("channel_code", "STF"), ("role_code", role),
+                ("transaction_type", HealthPermissions.ReferralConsent), ("allowed", true));
+        }
+
+        await _db.AdoptFunctionCatalogue();
+        _maker = _factory.ClientFor(Tenant, "health-administrator", "insys-web");
+
+        async Task<string> Refer(string? consent)
+        {
+            var referred = await writer.Send(HttpMethod.Post, "/api/v1/portal/health/referrals", new
+            {
+                memberNumber, referredProviderId = "PR-2", clinicalReason = Secret, validFrom = Today, validTo = Today.AddDays(30), visitsAllowed = 1, consentReference = consent,
+            }, idempotent: true);
+            referred.StatusCode.ShouldBe(HttpStatusCode.Created, await referred.Content.ReadAsStringAsync());
+            var body = await referred.Json();
+            body.GetRawText().ShouldNotContain(Secret, Case.Sensitive);
+            body.GetProperty("referringProviderId").GetString().ShouldBe("PR-1", "as itself, whatever a request says");
+            return $"/api/v1/portal/health/referrals/{body.GetProperty("id").GetGuid()}/clinical";
+        }
+
+        var withoutConsent = await Refer(null);
+        var withConsent = await Refer("CONSENT-1");
+        const string Purpose = "?purpose=Treatment";
+
+        // The writer reads its own reason, with a purpose.
+        (await (await writer.GetAsync(withoutConsent)).Code()).ShouldBe("HEALTH_PURPOSE_REQUIRED");
+        (await (await writer.GetAsync(withoutConsent + Purpose)).Json()).GetProperty("clinicalReason").GetString().ShouldBe(Secret);
+
+        // The receiver only when the referral names the member's consent.
+        var refused = await receiver.GetAsync(withoutConsent + Purpose);
+        (refused.StatusCode, await refused.Code()).ShouldBe((HttpStatusCode.Forbidden, "CARE_CONSENT_REQUIRED"));
+        (await (await receiver.GetAsync(withConsent + Purpose)).Json()).GetProperty("clinicalReason").GetString().ShouldBe(Secret);
+
+        // Consent given later opens it to the receiver at once; withdrawn, it is 403 from then on. Both need a reason, and both are audited.
+        var referralUrl = withoutConsent.Replace("/portal/health/referrals/", "/health/referrals/").Replace("/clinical", "");
+        (await _maker.Send(HttpMethod.Post, $"{referralUrl}/consent", new { consentReference = "CONSENT-2", reason = "" }, ifMatch: (await _maker.GetAsync(referralUrl)).ETag())).StatusCode
+            .ShouldBe(HttpStatusCode.UnprocessableEntity, "a reason is required");
+        (await _maker.Send(HttpMethod.Post, $"{referralUrl}/consent", new { consentReference = "CONSENT-2", reason = "Member signed the form" }, ifMatch: (await _maker.GetAsync(referralUrl)).ETag()))
+            .StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await (await receiver.GetAsync(withoutConsent + Purpose)).Json()).GetProperty("clinicalReason").GetString().ShouldBe(Secret);
+        (await _maker.Send(HttpMethod.Post, $"{referralUrl}/consent/withdraw", new { reason = "" }, ifMatch: (await _maker.GetAsync(referralUrl)).ETag())).StatusCode
+            .ShouldBe(HttpStatusCode.UnprocessableEntity, "a reason is required");
+        var withdrawn = await _maker.Send(HttpMethod.Post, $"{referralUrl}/consent/withdraw", new { reason = "Member withdrew by phone" }, ifMatch: (await _maker.GetAsync(referralUrl)).ETag());
+        withdrawn.StatusCode.ShouldBe(HttpStatusCode.OK, await withdrawn.Content.ReadAsStringAsync());
+        var after = await withdrawn.Json();
+        (after.GetProperty("consentReference").ValueKind, after.GetProperty("consentWithdrawnAt").ValueKind).ShouldBe((JsonValueKind.Null, JsonValueKind.String));
+        (await receiver.GetAsync(withoutConsent + Purpose)).StatusCode.ShouldBe(HttpStatusCode.Forbidden, "withdrawal ends it at once");
+        (await writer.GetAsync(withoutConsent + Purpose)).StatusCode.ShouldBe(HttpStatusCode.OK, "the writer's access does not depend on consent");
+        await _factory.DrainOutbox();
+        (await _db.ScalarAsOwner<string>("""
+            SELECT string_agg(operation || ':' || (details->>'reason'), ',' ORDER BY occurred_at) FROM audit.audit_event WHERE operation IN ('RecordReferralConsent', 'WithdrawReferralConsent')
+            """)).ShouldBe("RecordReferralConsent:Member signed the form,WithdrawReferralConsent:Member withdrew by phone");
+
+        // A third provider gets not found on both, and sees neither listed.
+        (await third.GetAsync(withConsent + Purpose)).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await third.GetAsync(withoutConsent + Purpose)).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await (await third.GetAsync("/api/v1/portal/health/referrals")).Json()).GetProperty("items").GetArrayLength().ShouldBe(0);
+        (await (await receiver.GetAsync("/api/v1/portal/health/referrals")).Json()).GetProperty("items").GetArrayLength().ShouldBe(2);
+
+        // Every read and refusal is audited, without the reason.
+        await _factory.DrainOutbox();
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM audit.audit_event WHERE operation = 'ReadClinical' AND target_type = 'ClinicalReferral' AND outcome = 'DENIED'")).ShouldBe(5L, "no purpose, no consent, withdrawn, and the third provider's two");
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM audit.audit_event WHERE operation = 'ReadClinical' AND target_type = 'ClinicalReferral' AND outcome <> 'DENIED'")).ShouldBe(4L, "the writer's two, and the receiver's with each consent");
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM audit.audit_event WHERE details::text ILIKE '%renal%'")).ShouldBe(0L);
+    }
+
+    /// <summary>
+    /// F049, F050, OQ-139, OQ-146 (5a.3): with no offset flag a finding is invoiced through Billing, and posts no premium. A real dispute case on a claim holds that
+    /// claim's recovery from offsets, and the case closing releases it. A reversed claim's member overpayment goes to a person, with a task.
+    /// </summary>
+    [Fact]
+    public async Task ARecovery_WithNoOffsetFlagIsInvoiced_AndADisputeCaseHoldsOneUntilItCloses_F049_F050_OQ146()
+    {
+        var providerParty = await _maker.RegisterPerson("RecoveryProvider");
+        await _db.ExecuteAsOwner("""
+            INSERT INTO health.mst_provider_register (tenant_id, code, version, effective_from, record_status, created_by, change_reason, provider_id, name,
+                                                      registration_numbers, locations, status, provider_type, party_id)
+            VALUES (@t, 'PR-R', 1, @from, 'ACTIVE', 'seed', 'seed', 'PR-R', 'Dr Recovery', '{"practice":"PRR"}', '[]', 'ACTIVE', 'SPEC', @party)
+            """, ("t", Tenant), ("from", Today.AddYears(-2)), ("party", providerParty));
+        await Seed("health.cfg_provider_recovery_settings", "EFFECTIVE", "DEFAULT", ("setting_code", "DEFAULT"), ("medical_scheme", false), ("review_after_days", 90), ("invoice_collection_method", "DEBIT_ORDER"));
+
+        // No flag and not a medical scheme: a second person approves the finding, and it is invoiced.
+        var finding = await Created("/api/v1/health/provider-recoveries", new { providerId = "PR-R", amount = 500m, currency = "ZAR", reason = "Audit found a duplicate payment" });
+        (await Get($"/api/v1/health/provider-recoveries/{finding}")).GetProperty("status").GetString().ShouldBe("PROPOSED");
+        await _factory.DrainOutbox();
+        await Decide(HealthApprovals.RecoveryBusinessRefType, finding);
+        await _factory.DrainOutbox();
+        await _factory.DrainOutbox();
+        var invoiced = await Get($"/api/v1/health/provider-recoveries/{finding}");
+        (invoiced.GetProperty("status").GetString(), invoiced.GetProperty("basis").GetString()).ShouldBe(("INVOICED", "INVOICE"));
+        var invoiceId = invoiced.GetProperty("invoiceId").GetGuid();
+        (await _db.ScalarAsOwner<decimal>("SELECT total_amount FROM billing.invoice WHERE id = @i AND source_domain = 'HEALTH_REC'", ("i", invoiceId))).ShouldBe(500m);
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM finance.subledger_entry WHERE business_ref_type = 'INVOICE' AND business_ref_id = @i", ("i", invoiceId))).ShouldBe(0L, "a recovery is no premium");
+        (await _db.ScalarAsOwner<decimal>("SELECT coalesce(sum(debit - credit), 0) FROM finance.subledger_entry WHERE business_ref_type = 'HEALTH_RECOVERY' AND business_ref_id = @r AND account_code = '1300'", ("r", finding))).ShouldBe(500m);
+
+        // The agreement's own flag decides over the tenant's default (addition 1); a dispute linking the claim holds its recovery.
+        await Seed("health.cfg_provider_contracts", "EFFECTIVE", "C-PR-R", ("contract_id", "C-PR-R"), ("provider", "PR-R"), ("network", "NET-A"), ("terms_ref", "doc://contracts/pr-r"), ("offset_allowed", true));
+        var principal = await _maker.RegisterPerson("DisputedMember");
+        var scheme = await Created("/api/v1/health/schemes", new { sponsorCode = "S-ACME", startDate = Today.AddYears(-1), renewalDate = Today.AddMonths(6), currency = "ZAR" });
+        var membership = await Created("/api/v1/health/memberships", new
+        {
+            principalPartyId = principal, schemeId = scheme, memberCategory = "ALL_STAFF", planCode = "HLT-CORE", optionCode = "A", startDate = Today.AddMonths(-6),
+            currency = "ZAR", collectionMethod = "DEBIT_ORDER", facts = new { employment_type = "PERMANENT" },
+        });
+        await _factory.DrainOutbox();
+        var claim = await Created("/api/v1/health/claims", new
+        {
+            source = "PROVIDER", providerId = "PR-R", membershipId = membership, patientPartyId = principal, serviceDate = Today, formatCode = "API", currency = "ZAR",
+            lines = new[] { new { tariffCode = "0300", diagnosisCode = "K35", quantity = 1, claimedAmount = 100m } },
+        });
+        var note = await Created("/api/v1/health/provider-credit-notes", new { providerId = "PR-R", providerReference = "CN-R", claimId = claim, amount = 80m, currency = "ZAR", reason = "Overbilled" });
+        await _factory.DrainOutbox();
+        await Decide(HealthApprovals.CreditNoteBusinessRefType, note);
+        await _factory.DrainOutbox();
+        var recovery = (await Get($"/api/v1/health/provider-credit-notes/{note}")).GetProperty("recoveryId").GetGuid();
+        (await Get($"/api/v1/health/provider-recoveries/{recovery}")).GetProperty("basis").GetString().ShouldBe("OFFSET");
+
+        await Seed("workflow.cfg_workflow_definitions", "EFFECTIVE", "DISPUTE_P", ("process_code", "DISPUTE_P"), ("states", new[] { "HANDLE", "DONE" }),
+            ("transitions", JsonDocument.Parse("""[{"from":"HANDLE","to":"DONE"}]""").RootElement), ("domain_validation", ""));
+        await Seed("workflow.cfg_case_types", "EFFECTIVE", "DISPUTE_T", ("case_type_code", "DISPUTE_T"), ("family", "DISPUTE"), ("process_code", "DISPUTE_P"),
+            ("link_types", new[] { "CLAIM", "REMITTANCE" }), ("requires_category", false), ("appeal_route", "PPR_NFO"), ("ombud_scheme_codes", Array.Empty<string>()), ("portal_audiences", Array.Empty<string>()));
+        foreach (var (step, duration) in new[] { ("ACKNOWLEDGE", "P2D"), ("RESOLVE", "P42D") })
+        {
+            await Seed("workflow.cfg_case_timelines", "EFFECTIVE", $"DISPUTE_T-{step}", ("case_type_code", "DISPUTE_T"), ("step", step), ("duration", duration), ("basis", "CALENDAR"), ("extension_allowed", false));
+        }
+
+        await _db.UserWithPermissions(Tenant, "dispute-handler", CasePermissions.Read, CasePermissions.Create, CasePermissions.Update, CasePermissions.Decide);
+        await _db.AdoptFunctionCatalogue();
+        var handler = _factory.ClientFor(Tenant, "dispute-handler");
+        var opened = await handler.Send(HttpMethod.Post, "/api/v1/workflow/cases", new
+        {
+            caseTypeCode = "DISPUTE_T", receivedChannel = "PHONE", complainantPartyId = providerParty, summary = "We dispute this recovery", links = new[] { new { linkType = "CLAIM", recordId = claim, reference = "C" } },
+        }, idempotent: true);
+        opened.StatusCode.ShouldBe(HttpStatusCode.Created, await opened.Content.ReadAsStringAsync());
+        var caseId = (await opened.Json()).GetProperty("id").GetGuid();
+        await _factory.DrainOutbox();
+        (await Get($"/api/v1/health/provider-recoveries/{recovery}")).GetProperty("heldByCaseId").GetGuid().ShouldBe(caseId);
+
+        async Task Act(string action, object body)
+        {
+            var url = $"/api/v1/workflow/cases/{caseId}";
+            var done = await handler.Send(HttpMethod.Post, $"{url}/{action}", body, ifMatch: (await handler.GetAsync(url)).ETag());
+            done.IsSuccessStatusCode.ShouldBeTrue(await done.Content.ReadAsStringAsync());
+        }
+
+        await Act("acknowledge", new { });
+        await Act("decide", new { outcome = "REJECTED", reasons = "The recovery stands." });
+        (await Get($"/api/v1/health/provider-recoveries/{recovery}")).GetProperty("heldByCaseId").GetGuid().ShouldBe(caseId, "while the case is open");
+        await Act("close", new { });
+        await _factory.DrainOutbox();
+        (await Get($"/api/v1/health/provider-recoveries/{recovery}")).GetProperty("heldByCaseId").ValueKind.ShouldBe(JsonValueKind.Null);
+
+        // Uncollected past the tenant's period, it goes to a person, once.
+        await _db.ExecuteAsOwner("UPDATE health.provider_recovery SET review_due_on = @d WHERE id = @r", ("d", Today), ("r", recovery));
+        await _factory.Services.GetRequiredService<Insys.Health.Infrastructure.HealthJobs>().Run(CancellationToken.None);
+        await _factory.DrainOutbox();
+        (await Get($"/api/v1/health/provider-recoveries/{recovery}")).GetProperty("inReview").GetBoolean().ShouldBeTrue();
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM workflow.process_instance WHERE business_ref_type = 'HEALTH_RECOVERY_REVIEW' AND business_ref_id = @r", ("r", recovery))).ShouldBe(1L);
+    }
+
+    /// <summary>
     /// F028 to F030 (Wave 5a batch 5a.1): last month's claims give a provider its measures. A breach asks a person to look and
     /// changes nothing about the provider; a month with too few claims is shown but not judged. A provider's statement is matched
     /// against its paid claims, and is reconciled once a person has resolved each exception with a reason.
@@ -652,6 +1104,7 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
     [Fact]
     public async Task AProvidersMonth_IsMeasuredAndABreachAsksAPerson_AndItsStatementIsMatchedAndReconciled_F028_F029_F030()
     {
+        await Seed("health.cfg_provider_recovery_settings", "EFFECTIVE", "DEFAULT", ("setting_code", "DEFAULT"), ("medical_scheme", true), ("review_after_days", 90), ("invoice_collection_method", "EFT"));
         await Seed("health.cfg_provider_measures", "EFFECTIVE", "PM-REJECT", ("measure_code", "REJECTION_RATE"), ("threshold", 0.25m), ("direction", "ABOVE"), ("min_claims", 2));
         await Seed("health.cfg_provider_measures", "EFFECTIVE", "PM-DISPUTES", ("measure_code", "DISPUTES_PER_100"), ("threshold", 1m), ("direction", "ABOVE"), ("min_claims", 100));
         await Provider();

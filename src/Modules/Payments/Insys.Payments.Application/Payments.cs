@@ -973,7 +973,8 @@ public sealed class PaymentPolicies(IPaymentRepository payments, PaymentStarter 
     /// <summary>A released provider payment run: each remittance is paid to the provider's verified account through a payout batch (HLT-009).</summary>
     public async Task Handle(Health.Contracts.ProviderPaymentRunReleased released, EventEnvelope envelope, CancellationToken cancellationToken)
     {
-        foreach (var remittance in released.Remittances)
+        // Gap 2: a remittance whose offsets took all of it is an advice with no payment.
+        foreach (var remittance in released.Remittances.Where(r => r.Amount > 0))
         {
             await Payout($"REMITTANCE:{remittance.RemittanceId:N}", PaymentPurposes.ClaimPayout, remittance.Amount, released.Currency, remittance.ProviderPartyId,
                 Health.Contracts.HealthReferences.RemittanceRefType, remittance.RemittanceId, remittance.BankAccountId, cancellationToken);

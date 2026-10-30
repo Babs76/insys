@@ -27,6 +27,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <ProjectReference Include="..\..\..\BuildingBlocks\Insys.BuildingBlocks.Infrastructure\Insys.BuildingBlocks.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\Identity\Insys.Identity.Contracts\Insys.Identity.Contracts.csproj" />
     <ProjectReference Include="..\Insys.Communications.Application\Insys.Communications.Application.csproj" />
   </ItemGroup>
 </Project>

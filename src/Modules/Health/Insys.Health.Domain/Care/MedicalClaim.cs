@@ -238,6 +238,11 @@ public sealed class MedicalClaim : AggregateRoot<Guid>
 
     public Guid? PaymentRunId { get; private set; }
 
+    /// <summary>Reverse-and-reprocess: the reversed claim this one replaces, and the claim that replaced this one; shown both ways.</summary>
+    public Guid? ReplacesClaimId { get; private set; }
+
+    public Guid? ReplacedByClaimId { get; private set; }
+
     public DateTimeOffset? ReversedAt { get; private set; }
 
     /// <summary>The approval's outcome (OQ-102): APPROVED, or PARTLY_APPROVED when some lines were declined; null until approved.</summary>
@@ -433,6 +438,21 @@ public sealed class MedicalClaim : AggregateRoot<Guid>
         }
 
         return result;
+    }
+
+    /// <summary>This new claim replaces a reversed one: same member, patient and provider, and at most once.</summary>
+    public Result Replaces(MedicalClaim original)
+    {
+        if (original.Status != MedicalClaimStatus.Reversed || original.ReplacedByClaimId is not null || original.MembershipId != MembershipId
+            || original.PatientPartyId != PatientPartyId || original.ProviderId != ProviderId || original.Id == Id)
+        {
+            return Error.Validation(HealthErrorCodes.ClaimInvalid, "Only a reversed claim of the same member and provider, not already replaced, can be replaced.");
+        }
+
+        ReplacesClaimId = original.Id;
+        original.ReplacedByClaimId = Id;
+        original.MarkChanged();
+        return Result.Success();
     }
 
     /// <summary>Command ReverseClaim: the consumption is reversed (by the application, with this claim) and a recovery is raised.</summary>

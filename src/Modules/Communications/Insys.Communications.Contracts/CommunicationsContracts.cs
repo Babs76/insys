@@ -36,6 +36,13 @@ public static class CommunicationPermissions
     public const string DeviceUpdate = "notification_device.update";
     public const string CallbackEndpointRead = "communication_callback_endpoint.read";
     public const string CallbackEndpointUpdate = "communication_callback_endpoint.update";
+    public const string CallbackCreate = "communication_callback.create";
+}
+
+/// <summary>The function a messaging provider's client-credentials service identity holds (ADR-023 decision 4).</summary>
+public static class CommunicationFunctionCodes
+{
+    public const string CallbackClient = "COMMUNICATIONS_CALLBACK_CLIENT";
 }
 
 /// <summary>The channel codes (communication.ref_channels, OQ-090).</summary>
@@ -100,6 +107,9 @@ public static class NotificationTypes
 
     /// <summary>A broker of record change was approved (B-010): the incoming and the outgoing broker's contact parties are each told; <c>broker_role</c> says which.</summary>
     public const string BrokerChangeNotice = "BROKER_CHANGE_NOTICE";
+
+    /// <summary>An overpayment is owed by a provider (Wave 5a §4.7). Business references only.</summary>
+    public const string ProviderRecoveryNotice = "PROVIDER_RECOVERY_NOTICE";
 }
 
 /// <summary>

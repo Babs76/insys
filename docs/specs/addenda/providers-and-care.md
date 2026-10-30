@@ -9,6 +9,9 @@
 - **Task routing (5a.1, §3, §6):** a breached measure's task routes by its task type, as every other task does, not by a queue on the measure. `cfg_provider_measures` has no queue column, and readiness has no warning for one.
 - **A reversed claim on a statement (5a.1, §4.2):** it is on our records, so it has its own result, `REVERSED_BY_US`, showing the reversal date and the recovery status (`OWED`, `OFFSET`, `INVOICED`, `RECOVERED`). It remains an exception for a person to resolve.
 
+- **The clinical function (5a.2, §4.3):** it means access to all cases, and outlasts a person's reassignment from one. Tenants should grant it sparingly.
+- **A referral's reason on the portal (5a.2, §4.5):** the referring provider may read the reason it wrote, through the clinical route with a stated purpose, every read audited. The receiving provider may read it only when the referral names the member's consent, as for shared care notes. Any other provider gets not found. Consent may be recorded after the referral is made and withdrawn, each with a reason and audited; withdrawal ends the receiving provider's access at once.
+
 **Build order:** gap 1 (§0, the ledger) first, on its own, as a defect on main; then 5a.1, 5a.2 and 5a.3 (§9).
 
 ## 0. Why an addendum
@@ -143,6 +146,12 @@ Names are proposals. `CFG` is tenant configuration; the others are records.
 | **OQ-146** | A disputed recovery | (a) held from offsets until the dispute ends; (b) offsets continue and are repaid if it is upheld | **(a)**: the fairer default, with the case's timeline limiting the delay. |
 
 Also for compliance: §1's s 59(3) point, any time limit on recoveries, and consent for sharing in §4.4.
+
+### Changes at build (5a.3, 30 October 2026)
+- **Settings.** The offset flag's default, the review period and the invoice's collection method are in `health.cfg_provider_recovery_settings`. With none, a provider is invoiced and the period is 90 days.
+- **A finding** always needs a second person, not only over a limit: the stricter reading of §4.7.
+- **Credit notes post** debit `1300`, credit claims, because they raise what is owed. Offsets and write-offs credit `1300`. See the 5a.3 report's decisions.
+- **A recovery on a member** uses the same record, with `debtorKind` `MEMBER` and basis `PERSON`.
 
 ## 9. How it is built
 - **5a.1 (F028–F030):** measures and their job, quality reviews, statements and matching. Readiness warnings.

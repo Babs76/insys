@@ -133,6 +133,7 @@ core	HealthPortalMembershipView.planCode	to declare
 core	HealthPortalMembershipView.productCode	to declare
 core	HealthPortalPreauthLineView.procedureCode	to declare
 core	HealthPortalRemittanceView.runCode	to declare
+core	HealthRemittanceDetailView.runCode	to declare
 core	HealthPreauthLineRequest.procedureCode	to declare
 core	HealthPreauthLineView.procedureCode	to declare
 core	HealthPreauthorisationView.serviceType	to declare

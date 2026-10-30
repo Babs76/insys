@@ -1458,6 +1458,45 @@
      "sample": "20"
     }
    ]
+  },
+  {
+   "layer": "Domain",
+   "module": "Health claims",
+   "subModule": "Provider recoveries",
+   "entity": "Provider recovery settings",
+   "table": "health.cfg_provider_recovery_settings",
+   "class": "CFG",
+   "scope": "T",
+   "tier": 2,
+   "proposedOwner": "Finance Manager",
+   "provenance": "Wave 5a addendum (addenda/providers-and-care.md), signed off by Ade, 30 October 2026",
+   "basis": "F049; OQ-139",
+   "fields": [
+    {
+     "name": "setting_code",
+     "logicalType": "String(15)",
+     "mandatory": true,
+     "sample": "DEFAULT"
+    },
+    {
+     "name": "medical_scheme",
+     "logicalType": "Boolean",
+     "mandatory": true,
+     "sample": "true"
+    },
+    {
+     "name": "review_after_days",
+     "logicalType": "Integer",
+     "mandatory": true,
+     "sample": "90"
+    },
+    {
+     "name": "invoice_collection_method",
+     "logicalType": "String(15)",
+     "mandatory": true,
+     "sample": "EFT"
+    }
+   ]
   }
  ]
 }

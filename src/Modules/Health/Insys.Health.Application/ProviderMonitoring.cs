@@ -94,11 +94,10 @@ public sealed record ProviderStatementLineView(Guid Id, string Reference, decima
 public sealed record ProviderStatementView(Guid Id, string ProviderId, string StatementRef, DateOnly PeriodFrom, DateOnly PeriodTo, string Currency,
     [property: OneOf(StatementStatus.Exceptions, StatementStatus.Reconciled)] string Status, IReadOnlyList<ProviderStatementLineView> Lines, long RowVersion)
 {
-    public static ProviderStatementView From(ProviderStatement s) => new(s.Id, s.ProviderId, s.StatementRef, s.PeriodFrom, s.PeriodTo, s.Currency, s.Status,
+    public static ProviderStatementView From(ProviderStatement s, IReadOnlyDictionary<string, string>? recoveries = null) => new(s.Id, s.ProviderId, s.StatementRef, s.PeriodFrom, s.PeriodTo, s.Currency, s.Status,
         s.Lines.OrderBy(l => l.Reference, StringComparer.Ordinal).Select(l => new ProviderStatementLineView(l.Id, l.Reference, l.StatementAmount, l.OurAmount, l.MatchResult,
             l.Resolution, l.ResolvedBy, l.ResolvedAt, l.ReversedOn,
-            // TODO(spec): every reversal is owed until 5a.3 builds recoveries, which then says whether it is offset, invoiced or recovered.
-            l.MatchResult == StatementMatch.ReversedByUs ? ReversalRecovery.Owed : null)).ToList(), s.RowVersion);
+            l.MatchResult == StatementMatch.ReversedByUs ? recoveries?.GetValueOrDefault(l.Reference) ?? ReversalRecovery.Owed : null)).ToList(), s.RowVersion);
 }
 
 public sealed class SubmitProviderStatementValidator : AbstractValidator<SubmitProviderStatement>
@@ -282,7 +281,7 @@ internal sealed class ProviderMonitoringHandlers(IHealthRepository health, IHeal
         health.Add(statement.Value);
         audit.Record(new AuditEntry("HEALTH", "RecordProviderStatement", nameof(ProviderStatement), statement.Value.Id.ToString(),
             new Dictionary<string, string?> { ["provider"] = providerId, ["statement"] = statementRef }));
-        return ProviderStatementView.From(statement.Value);
+        return ProviderStatementView.From(statement.Value, await health.RecoveryStatusesByClaim(statement.Value.ProviderId, cancellationToken));
     }
 
     public async Task<Result<ProviderStatementView>> Handle(ResolveStatementLine command, CancellationToken cancellationToken)
@@ -306,12 +305,12 @@ internal sealed class ProviderMonitoringHandlers(IHealthRepository health, IHeal
 
         audit.Record(new AuditEntry("HEALTH", "ResolveStatementLine", nameof(ProviderStatement), statement.Id.ToString(),
             new Dictionary<string, string?> { ["line"] = command.LineId.ToString(), ["reason"] = command.Reason }));
-        return ProviderStatementView.From(statement);
+        return ProviderStatementView.From(statement, await health.RecoveryStatusesByClaim(statement.ProviderId, cancellationToken));
     }
 
     public async Task<Result<ProviderStatementView>> Handle(GetProviderStatement query, CancellationToken cancellationToken) =>
         await health.ProviderStatement(query.Id, cancellationToken) is { } statement
-            ? ProviderStatementView.From(statement)
+            ? ProviderStatementView.From(statement, await health.RecoveryStatusesByClaim(statement.ProviderId, cancellationToken))
             : Error.NotFound(ErrorCodes.NotFound, "The statement was not found.");
 
     public async Task<Result<IReadOnlyList<ProviderStatementSummary>>> Handle(ListProviderStatements query, CancellationToken cancellationToken) =>

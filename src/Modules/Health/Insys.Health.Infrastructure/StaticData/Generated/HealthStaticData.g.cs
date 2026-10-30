@@ -34,7 +34,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Insys.Health.Infrastructure.StaticData;
 
-/// <summary>The 44 static data tables owned by the Health module.</summary>
+/// <summary>The 45 static data tables owned by the Health module.</summary>
 public static class HealthStaticData
 {
     public static readonly IReadOnlyList<StaticDataDescriptor> Descriptors =
@@ -63,6 +63,7 @@ public static class HealthStaticData
         new("health", "cfg_preauthorisation_required_lists", "cfg_preauthorisation_required_lists", "Preauthorisation-required lists", "health", "preauthorisation-required-lists", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(PreauthorisationRequiredLists), typeof(PreauthorisationRequiredListsInput), "G · Preauthorisation Management"),
         new("health", "cfg_provider_contracts", "cfg_provider_contracts", "Provider contracts", "health", "provider-contracts", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(ProviderContracts), typeof(ProviderContractsInput), "F · Provider Network Management"),
         new("health", "cfg_provider_measures", "cfg_provider_measures", "Provider measures", "health", "provider-measures", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(ProviderMeasures), typeof(ProviderMeasuresInput), "Health claims"),
+        new("health", "cfg_provider_recovery_settings", "cfg_provider_recovery_settings", "Provider recovery settings", "health", "provider-recovery-settings", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(ProviderRecoverySettings), typeof(ProviderRecoverySettingsInput), "Health claims"),
         new("health", "cfg_remittance_advice_formats", "cfg_remittance_advice_formats", "Remittance advice formats", "health", "remittance-advice-formats", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(RemittanceAdviceFormats), typeof(RemittanceAdviceFormatsInput), "J · Health Payments"),
         new("health", "cfg_repeat_service_intervals", "cfg_repeat_service_intervals", "Repeat-service intervals", "health", "repeat-service-intervals", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(RepeatServiceIntervals), typeof(RepeatServiceIntervalsInput), "I · Utilisation Management"),
         new("health", "cfg_scheme_member_categories", "cfg_scheme_member_categories", "Scheme member categories", "health", "scheme-member-categories", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(SchemeMemberCategories), typeof(SchemeMemberCategoriesInput), "B · Scheme and Group Administration"),
@@ -301,6 +302,7 @@ public static class HealthStaticData
             entity.Property(x => x.Network).HasColumnName("network").HasMaxLength(80);
             entity.Property(x => x.TermsRef).HasColumnName("terms_ref").HasMaxLength(300);
             entity.Property(x => x.TariffScheduleCode).HasColumnName("tariff_schedule_code").HasMaxLength(15);
+            entity.Property(x => x.OffsetAllowed).HasColumnName("offset_allowed");
         });
         modelBuilder.Entity<ProviderMeasures>(entity =>
         {
@@ -311,6 +313,15 @@ public static class HealthStaticData
             entity.Property(x => x.Threshold).HasColumnName("threshold").HasPrecision(18, 4);
             entity.Property(x => x.Direction).HasColumnName("direction").HasMaxLength(6);
             entity.Property(x => x.MinClaims).HasColumnName("min_claims");
+        });
+        modelBuilder.Entity<ProviderRecoverySettings>(entity =>
+        {
+            entity.ToTable("cfg_provider_recovery_settings", "health");
+            StaticModel.ConfigureCommon(entity);
+            entity.Property(x => x.SettingCode).HasColumnName("setting_code").HasMaxLength(15);
+            entity.Property(x => x.MedicalScheme).HasColumnName("medical_scheme");
+            entity.Property(x => x.ReviewAfterDays).HasColumnName("review_after_days");
+            entity.Property(x => x.InvoiceCollectionMethod).HasColumnName("invoice_collection_method").HasMaxLength(15);
         });
         modelBuilder.Entity<RemittanceAdviceFormats>(entity =>
         {

@@ -543,13 +543,40 @@ public sealed class CommunicationsTests(DatabaseFixture fixture) : IClassFixture
         return _factory.ClientFor(Tenant, subject, "member-portal");
     }
 
-    private async Task<HttpResponseMessage> Callback(string path, string secret, string body, string callbackId)
+    /// <summary>ADR-023 decision 4: an endpoint that requires a client token takes a delivery report only with a signature and a token holding communication_callback.create; any staff user's token is refused.</summary>
+    [Fact]
+    public async Task AnEndpointRequiringAClientToken_TakesAHoldersToken_AndNoStaffUsers_ADR023()
+    {
+        var issued = await (await _staff.Send(HttpMethod.Post, "/api/v1/communications/callback-endpoints", new { providerCode = "MAIL-2", requireClientToken = true }, idempotent: true)).Json();
+        var path = issued.GetProperty("callbackPath").GetString()!;
+        var secret = issued.GetProperty("signingSecret").GetString()!;
+        await fixture.Database.UserWithPermissions(Tenant, "delivery-staff", CommunicationPermissions.NotificationRead);
+        await fixture.Database.UserWithFunctions(Tenant, "delivery-client", CommunicationFunctionCodes.CallbackClient);
+
+        var party = await Party("TokenDelivered", email: "t@example.com", mobile: null, language: null);
+        await Publish(Request(NotificationTypes.ClaimStatus, party, new() { ["claim_number"] = "GC-0006", ["status"] = "APPROVED" }));
+        await Send();
+        var providerRef = (await Single(party)).GetProperty("attempts")[0].GetProperty("providerRef").GetString()!;
+        var body = JsonSerializer.Serialize(new { providerRef, status = "DELIVERED" });
+
+        (await Callback(path, secret, body, "tok-1")).StatusCode.ShouldBe(HttpStatusCode.Unauthorized, "no token");
+        (await Callback(path, secret, body, "tok-2", TestTokens.For(Tenant, "delivery-staff", DateTime.UtcNow))).StatusCode.ShouldBe(HttpStatusCode.Unauthorized, "a staff user's token, without the function");
+        var taken = await Callback(path, secret, body, "tok-3", TestTokens.For(Tenant, "delivery-client", DateTime.UtcNow));
+        taken.StatusCode.ShouldBe(HttpStatusCode.NoContent, await taken.Content.ReadAsStringAsync());
+    }
+
+    private async Task<HttpResponseMessage> Callback(string path, string secret, string body, string callbackId, string? bearer = null)
     {
         var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(System.Globalization.CultureInfo.InvariantCulture);
         using var request = new HttpRequestMessage(HttpMethod.Post, path) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
         request.Headers.Add("X-Callback-Timestamp", timestamp);
         request.Headers.Add("X-Callback-Id", callbackId);
         request.Headers.Add("X-Signature", CallbackKeys.Sign(secret, timestamp, callbackId, body));
+        if (bearer is not null)
+        {
+            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", bearer);
+        }
+
         return await _factory.CreateClient().SendAsync(request);
     }
 

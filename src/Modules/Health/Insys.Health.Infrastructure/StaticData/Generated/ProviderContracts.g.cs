@@ -49,6 +49,8 @@ public sealed class ProviderContracts : StaticRecord<ProviderContractsInput>
 
     public string? TariffScheduleCode { get; set; }
 
+    public bool? OffsetAllowed { get; set; }
+
     public override void ApplyFields(ProviderContractsInput input, IFieldProtector protector)
     {
         ContractId = input.ContractId!;
@@ -56,6 +58,7 @@ public sealed class ProviderContracts : StaticRecord<ProviderContractsInput>
         Network = input.Network!;
         TermsRef = input.TermsRef!;
         TariffScheduleCode = input.TariffScheduleCode;
+        OffsetAllowed = input.OffsetAllowed;
     }
 }
 
@@ -75,6 +78,8 @@ public sealed record ProviderContractsInput : StaticRecordInput
     public string? TermsRef { get; init; }
 
     public string? TariffScheduleCode { get; init; }
+
+    public bool? OffsetAllowed { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)
     {

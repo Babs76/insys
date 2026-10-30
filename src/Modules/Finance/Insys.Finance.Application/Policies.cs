@@ -53,6 +53,12 @@ public sealed class PostingPolicies(EventPoster poster, IBusinessDate businessDa
     IIntegrationEventHandler<ClaimPaymentCompleted>,
     IIntegrationEventHandler<Health.Contracts.MedicalClaimSettled>,
     IIntegrationEventHandler<Health.Contracts.MedicalClaimReversed>,
+    IIntegrationEventHandler<Health.Contracts.ProviderRecoveryRaised>,
+    IIntegrationEventHandler<Health.Contracts.ProviderRecoveryOffsetTaken>,
+    IIntegrationEventHandler<Health.Contracts.ProviderRecoveryRepaid>,
+    IIntegrationEventHandler<Health.Contracts.ProviderRecoveryWrittenOff>,
+    IIntegrationEventHandler<Health.Contracts.ProviderRecoveryReversed>,
+    IIntegrationEventHandler<Health.Contracts.ProviderRecoverySettled>,
     IIntegrationEventHandler<ClaimRecoveryRecorded>,
     IIntegrationEventHandler<Distribution.Contracts.CommissionAccrued>,
     IIntegrationEventHandler<Distribution.Contracts.CommissionClawedBack>,
@@ -83,7 +89,7 @@ public sealed class PostingPolicies(EventPoster poster, IBusinessDate businessDa
                 new() { ["domain"] = e.SourceDomain, ["treaty"] = e.TreatyCode }, cancellationToken);
 
     public Task Handle(InvoiceIssued e, EventEnvelope envelope, CancellationToken cancellationToken) =>
-        Post(envelope, e.SourceDomain, TransactionTypes.PremiumDue, e.IssueDate, e.TotalAmount, e.Currency, "INVOICE", e.InvoiceId,
+        e.SourceDomain == Health.Contracts.HealthReferences.RecoverySourceDomain ? Task.CompletedTask : Post(envelope, e.SourceDomain, TransactionTypes.PremiumDue, e.IssueDate, e.TotalAmount, e.Currency, "INVOICE", e.InvoiceId,
             new() { ["domain"] = e.SourceDomain, ["product_version"] = e.ProductVersionRef }, cancellationToken);
 
     public Task Handle(CreditNoteIssued e, EventEnvelope envelope, CancellationToken cancellationToken) =>
@@ -124,6 +130,31 @@ public sealed class PostingPolicies(EventPoster poster, IBusinessDate businessDa
                 {
                     ["domain"] = Health.Contracts.HealthReferences.SourceDomain, ["reserve_type"] = "HEALTH", ["recover_from"] = e.ProviderId is null ? "MEMBER" : "PROVIDER",
                 }, cancellationToken);
+
+    /// <summary>Wave 5a §4.7. A reversal's overpayment was already posted by CLAIM_PAID_REVERSED, so only a credit note's or finding's posts here.</summary>
+    public Task Handle(Health.Contracts.ProviderRecoveryRaised e, EventEnvelope envelope, CancellationToken cancellationToken) =>
+        e.Source == "REVERSAL" ? Task.CompletedTask : Recovery(envelope, TransactionTypes.ProviderRecoveryRaised, e.RaisedOn, e.Amount, e.Currency, e.RecoveryId, e.DebtorKind, cancellationToken);
+
+    public Task Handle(Health.Contracts.ProviderRecoveryOffsetTaken e, EventEnvelope envelope, CancellationToken cancellationToken) =>
+        Recovery(envelope, TransactionTypes.ProviderRecoveryOffset, e.TakenOn, e.Amount, e.Currency, e.RecoveryId, "PROVIDER", cancellationToken);
+
+    public Task Handle(Health.Contracts.ProviderRecoveryRepaid e, EventEnvelope envelope, CancellationToken cancellationToken) =>
+        Recovery(envelope, TransactionTypes.ProviderRecoveryRepaid, e.RepaidOn, e.Amount, e.Currency, e.RecoveryId, "PROVIDER", cancellationToken);
+
+    public Task Handle(Health.Contracts.ProviderRecoveryWrittenOff e, EventEnvelope envelope, CancellationToken cancellationToken) =>
+        Recovery(envelope, TransactionTypes.ProviderRecoveryWrittenOff, e.WrittenOffOn, e.Amount, e.Currency, e.RecoveryId, e.ProviderId is null ? "MEMBER" : "PROVIDER", cancellationToken);
+
+    public Task Handle(Health.Contracts.ProviderRecoveryReversed e, EventEnvelope envelope, CancellationToken cancellationToken) =>
+        Recovery(envelope, TransactionTypes.ProviderRecoveryReversed, e.ReversedOn, e.Amount, e.Currency, e.RecoveryId, e.ProviderId is null ? "MEMBER" : "PROVIDER", cancellationToken);
+
+    public Task Handle(Health.Contracts.ProviderRecoverySettled e, EventEnvelope envelope, CancellationToken cancellationToken) =>
+        Recovery(envelope, TransactionTypes.ProviderRecoverySettled, e.SettledOn, e.Amount, e.Currency, e.RecoveryId, "PROVIDER", cancellationToken);
+
+    private Task Recovery(EventEnvelope envelope, string type, DateOnly on, decimal amount, string currency, Guid recoveryId, string from, CancellationToken cancellationToken) =>
+        amount <= 0
+            ? Task.CompletedTask
+            : Post(envelope, Health.Contracts.HealthReferences.SourceDomain, type, on, amount, currency, "HEALTH_RECOVERY", recoveryId,
+                new() { ["domain"] = Health.Contracts.HealthReferences.SourceDomain, ["recover_from"] = from }, cancellationToken);
 
     public Task Handle(Distribution.Contracts.CommissionAccrued e, EventEnvelope envelope, CancellationToken cancellationToken) =>
         Post(envelope, e.SourceDomain, TransactionTypes.CommissionAccrued, e.AccruedOn, e.Amount, e.Currency, "COMMISSION", e.EntitlementId,

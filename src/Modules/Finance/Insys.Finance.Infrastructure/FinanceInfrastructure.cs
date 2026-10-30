@@ -67,6 +67,12 @@ public static class FinanceInfrastructure
         services.AddIntegrationEventHandler<ClaimPaymentCompleted, PostingPolicies, FinanceDbContext>(schema, "ClaimPaymentCompleted");
         services.AddIntegrationEventHandler<Health.Contracts.MedicalClaimSettled, PostingPolicies, FinanceDbContext>(schema, "MedicalClaimSettled");
         services.AddIntegrationEventHandler<Health.Contracts.MedicalClaimReversed, PostingPolicies, FinanceDbContext>(schema, "MedicalClaimReversed");
+        services.AddIntegrationEventHandler<Health.Contracts.ProviderRecoveryRaised, PostingPolicies, FinanceDbContext>(schema, "ProviderRecoveryRaised");
+        services.AddIntegrationEventHandler<Health.Contracts.ProviderRecoveryOffsetTaken, PostingPolicies, FinanceDbContext>(schema, "ProviderRecoveryOffsetTaken");
+        services.AddIntegrationEventHandler<Health.Contracts.ProviderRecoveryRepaid, PostingPolicies, FinanceDbContext>(schema, "ProviderRecoveryRepaid");
+        services.AddIntegrationEventHandler<Health.Contracts.ProviderRecoveryWrittenOff, PostingPolicies, FinanceDbContext>(schema, "ProviderRecoveryWrittenOff");
+        services.AddIntegrationEventHandler<Health.Contracts.ProviderRecoveryReversed, PostingPolicies, FinanceDbContext>(schema, "ProviderRecoveryReversed");
+        services.AddIntegrationEventHandler<Health.Contracts.ProviderRecoverySettled, PostingPolicies, FinanceDbContext>(schema, "ProviderRecoverySettled");
         services.AddSingleton<BuildingBlocks.Application.IReadinessCheck, HealthReversalPostingReadiness>();
         services.AddIntegrationEventHandler<ClaimRecoveryRecorded, PostingPolicies, FinanceDbContext>(schema, "ClaimRecoveryRecorded");
         services.AddIntegrationEventHandler<Distribution.Contracts.CommissionAccrued, PostingPolicies, FinanceDbContext>(schema, "CommissionAccrued");

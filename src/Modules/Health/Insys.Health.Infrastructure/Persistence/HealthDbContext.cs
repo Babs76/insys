@@ -63,11 +63,19 @@ public sealed class HealthDbContext(DbContextOptions<HealthDbContext> options, M
 
     public DbSet<UtilisationCase> UtilisationCases => Set<UtilisationCase>();
 
+    public DbSet<ComplexCase> ComplexCases => Set<ComplexCase>();
+
+    public DbSet<ClinicalReferral> ClinicalReferrals => Set<ClinicalReferral>();
+
     public DbSet<Domain.Providers.ProviderMeasureResult> ProviderMeasureResults => Set<Domain.Providers.ProviderMeasureResult>();
 
     public DbSet<Domain.Providers.ProviderQualityReview> ProviderQualityReviews => Set<Domain.Providers.ProviderQualityReview>();
 
     public DbSet<Domain.Providers.ProviderStatement> ProviderStatements => Set<Domain.Providers.ProviderStatement>();
+
+    public DbSet<ProviderRecovery> ProviderRecoveries => Set<ProviderRecovery>();
+
+    public DbSet<ProviderCreditNote> ProviderCreditNotes => Set<ProviderCreditNote>();
 
     public DbSet<HealthFraudCase> FraudCases => Set<HealthFraudCase>();
 
@@ -231,6 +239,122 @@ public sealed class HealthDbContext(DbContextOptions<HealthDbContext> options, M
             line.Property(l => l.DeductibleAmount).HasPrecision(18, 2);
             line.Property(l => l.MemberLiability).HasPrecision(18, 2);
             line.Property(l => l.Outcome).HasMaxLength(10);
+        });
+
+        modelBuilder.Entity<ComplexCase>(complex =>
+        {
+            complex.ToTable("complex_case"); // Wave 5a §4.3, F034 to F037
+            Root(complex);
+            complex.Ignore(c => c.CurrentPlan);
+            complex.Property(c => c.CaseNumber).HasMaxLength(25);
+            complex.Property(c => c.OpenedFrom).HasMaxLength(15);
+            complex.Property(c => c.ConditionCategory).HasMaxLength(120);
+            complex.Property(c => c.Status).HasMaxLength(10);
+            complex.Property(c => c.CloseReason).HasMaxLength(500);
+            complex.HasMany(c => c.Assignments).WithOne().HasForeignKey(a => new { a.TenantId, a.ComplexCaseId });
+            complex.HasMany(c => c.Plans).WithOne().HasForeignKey(p => new { p.TenantId, p.ComplexCaseId });
+            complex.HasMany(c => c.Notes).WithOne().HasForeignKey(n => new { n.TenantId, n.ComplexCaseId });
+            complex.Navigation(c => c.Assignments).UsePropertyAccessMode(PropertyAccessMode.Field);
+            complex.Navigation(c => c.Plans).UsePropertyAccessMode(PropertyAccessMode.Field);
+            complex.Navigation(c => c.Notes).UsePropertyAccessMode(PropertyAccessMode.Field);
+        });
+
+        modelBuilder.Entity<ComplexCaseAssignment>(assignment =>
+        {
+            assignment.ToTable("complex_case_assignment");
+            Child(assignment);
+            assignment.Property(a => a.Reason).HasMaxLength(500);
+        });
+
+        modelBuilder.Entity<CarePlan>(plan =>
+        {
+            plan.ToTable("care_plan");
+            Child(plan);
+            plan.Property(p => p.ChangeReason).HasMaxLength(500);
+            plan.HasMany(p => p.Items).WithOne().HasForeignKey(i => new { i.TenantId, i.CarePlanId });
+            plan.Navigation(p => p.Items).UsePropertyAccessMode(PropertyAccessMode.Field);
+        });
+
+        modelBuilder.Entity<CarePlanItem>(item =>
+        {
+            item.ToTable("care_plan_item");
+            Child(item);
+            item.Property(i => i.Kind).HasMaxLength(10);
+            item.Property(i => i.Description).HasMaxLength(1000);
+            item.Property(i => i.Responsible).HasMaxLength(120);
+            item.Property(i => i.Status).HasMaxLength(10);
+            item.Property(i => i.ProgressNote).HasMaxLength(1000);
+        });
+
+        modelBuilder.Entity<CareCoordinationNote>(note =>
+        {
+            note.ToTable("care_coordination_note");
+            Child(note);
+            note.Property(n => n.ContactType).HasMaxLength(10);
+            note.Property(n => n.ContactRef).HasMaxLength(120);
+            note.Property(n => n.Note).HasMaxLength(2000);
+            note.Property(n => n.SharedWithProviderId).HasMaxLength(15);
+            note.Property(n => n.ConsentReference).HasMaxLength(120);
+        });
+
+        modelBuilder.Entity<ClinicalReferral>(referral =>
+        {
+            referral.ToTable("clinical_referral"); // Wave 5a §4.5, F038
+            Root(referral);
+            referral.Property(r => r.ReferralNumber).HasMaxLength(25);
+            referral.Property(r => r.ReferringProviderId).HasMaxLength(15);
+            referral.Property(r => r.ReferredProviderId).HasMaxLength(15);
+            referral.Property(r => r.ReferredSpecialty).HasMaxLength(40);
+            referral.Property(r => r.ClinicalReason).HasMaxLength(1000);
+            referral.Property(r => r.ConsentReference).HasMaxLength(120);
+            referral.Property(r => r.Status).HasMaxLength(10);
+            referral.Property(r => r.DeclineReason).HasMaxLength(500);
+        });
+
+        modelBuilder.Entity<ProviderRecovery>(recovery =>
+        {
+            recovery.ToTable("provider_recovery"); // Wave 5a §4.7, F049
+            Root(recovery);
+            recovery.Property(r => r.RecoveryNumber).HasMaxLength(25);
+            recovery.Property(r => r.DebtorKind).HasMaxLength(10);
+            recovery.Property(r => r.ProviderId).HasMaxLength(15);
+            recovery.Property(r => r.Source).HasMaxLength(12);
+            recovery.Property(r => r.ClaimNumber).HasMaxLength(25);
+            recovery.Property(r => r.OriginalAmount).HasPrecision(18, 2);
+            recovery.Property(r => r.Balance).HasPrecision(18, 2);
+            recovery.Property(r => r.RepayAmount).HasPrecision(18, 2);
+            recovery.Property(r => r.Currency).HasMaxLength(3).IsFixedLength();
+            recovery.Property(r => r.Basis).HasMaxLength(10);
+            recovery.Property(r => r.Status).HasMaxLength(12);
+            recovery.Property(r => r.Reason).HasMaxLength(500);
+            recovery.Property(r => r.WriteOffReason).HasMaxLength(500);
+            recovery.Ignore(r => r.Taken);
+            recovery.Ignore(r => r.Offsettable);
+            recovery.Ignore(r => r.WriteOffHash);
+            recovery.Ignore(r => r.FindingHash);
+            Children(recovery, r => r.Offsets, "RecoveryId");
+        });
+
+        modelBuilder.Entity<ProviderRecoveryOffset>(offset =>
+        {
+            offset.ToTable("provider_recovery_offset");
+            Child(offset);
+            offset.Property(o => o.Amount).HasPrecision(18, 2);
+            offset.Property(o => o.Status).HasMaxLength(10);
+        });
+
+        modelBuilder.Entity<ProviderCreditNote>(note =>
+        {
+            note.ToTable("provider_credit_note"); // Wave 5a §4.6, F048
+            Root(note);
+            note.Property(n => n.CreditNoteNumber).HasMaxLength(25);
+            note.Property(n => n.ProviderId).HasMaxLength(15);
+            note.Property(n => n.ProviderReference).HasMaxLength(40);
+            note.Property(n => n.Amount).HasPrecision(18, 2);
+            note.Property(n => n.Currency).HasMaxLength(3).IsFixedLength();
+            note.Property(n => n.Status).HasMaxLength(10);
+            note.Property(n => n.Reason).HasMaxLength(500);
+            note.Ignore(n => n.SubjectHash);
         });
 
         modelBuilder.Entity<Domain.Providers.ProviderMeasureResult>(result =>

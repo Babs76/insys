@@ -72,6 +72,20 @@ public sealed record ApproveClaimRequest(string? ReasonCode = null);
 
 public sealed record ProviderQualityReviewRequest(int Score, string Reason);
 
+public sealed record ReferralConsentRequest(string ConsentReference, string Reason);
+
+public sealed record PortalReferralRequest(string MemberNumber, string? DependantSuffix, string? ReferredProviderId, string? ReferredSpecialty, string ClinicalReason, DateOnly ValidFrom, DateOnly ValidTo, int VisitsAllowed, string? ConsentReference = null);
+
+public sealed record AssignCaseManagerRequest(Guid CaseManagerId, string? Reason);
+
+public sealed record CarePlanRequest(IReadOnlyList<Domain.Care.CarePlanItemInput> Items, string? Reason);
+
+public sealed record CareProgressRequest([property: BuildingBlocks.Domain.OneOf("DONE", "MISSED", "CHANGED")] string Status, string? Note);
+
+public sealed record CareNoteRequest([property: BuildingBlocks.Domain.OneOf("PROVIDER", "MEMBER", "INTERNAL")] string ContactType, string? ContactRef, string Note, string? SharedWithProviderId, string? ConsentReference);
+
+public sealed record DecideReferralRequest(bool Approved, string? Reason);
+
 public sealed record CaseOutcomeRequest(string Outcome);
 
 /// <summary>
@@ -102,8 +116,86 @@ public sealed class HealthModule : IModule
         MapCare(health);
         MapRuns(health);
         MapProviders(health);
+        MapComplexCases(health);
 
+        MapRecoveries(health);
         MapPortal(api.MapGroup("/portal/health").WithTags(Name));
+    }
+
+    /// <summary>Wave 5a §4.3 to §4.5 (F034 to F038): complex cases and referrals. Their views hold no clinical detail; the clinical routes are audited with a purpose (HLT-008).</summary>
+    private static void MapComplexCases(RouteGroupBuilder health)
+    {
+        health.MapPost("/complex-cases", async (OpenComplexCase r, IDispatcher d, CancellationToken ct) =>
+                (await d.Send(r, ct)).ToHttp(v => Results.Created($"/api/v1/health/complex-cases/{v.Id}", v)))
+            .Produces<ComplexCaseView>(StatusCodes.Status201Created).ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("HealthOpenComplexCase").WithSummary("Open a complex medical case (F034)").RequirePermission(HealthPermissions.ComplexCaseUpdate).RequireIdempotencyKey();
+        health.MapGet("/complex-cases", async (Guid? membershipId, Guid? caseManagerId, string? status, string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListComplexCases(membershipId, caseManagerId, status, after, size), ct), c => c.Id))
+            .Produces<CursorPage<ComplexCaseView>>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("HealthListComplexCases").WithSummary("Complex cases, by membership, case manager or status, within your scope; no clinical detail").RequirePermission(HealthPermissions.ComplexCaseRead);
+        health.MapGet("/complex-cases/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetComplexCase(id), ct)).ToHttp(Results.Ok))
+            .Produces<ComplexCaseView>(StatusCodes.Status200OK)
+            .WithName("HealthGetComplexCase").WithSummary("A complex case, with who has managed it; no clinical detail").RequirePermission(HealthPermissions.ComplexCaseRead);
+        health.MapGet("/complex-cases/{id:guid}/clinical", async (Guid id, string? purpose, IDispatcher d, CancellationToken ct) => (await d.Send(new ReadComplexCaseClinical(id, purpose), ct)).ToHttp(Results.Ok))
+            .Produces<ComplexCaseClinicalView>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status403Forbidden).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("HealthReadComplexCaseClinical").WithSummary("A case's condition, care plans and notes: for its current manager or the clinical function, with a purpose; every read is audited (OQ-143)")
+            .RequirePermission(HealthPermissions.ComplexCaseRead);
+        health.MapPost("/complex-cases/{id:guid}/case-manager", async (Guid id, AssignCaseManagerRequest r, IDispatcher d, CancellationToken ct) =>
+                (await d.Send(new AssignCaseManager(id, r.CaseManagerId, r.Reason), ct)).ToHttp(Results.Ok))
+            .Produces<ComplexCaseView>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity).TakesIfMatch()
+            .WithName("HealthAssignCaseManager").WithSummary("Assign or reassign the case manager, who must hold the function; reassigning needs a reason and ends the last manager's access (F035)")
+            .RequirePermission(HealthPermissions.ComplexCaseUpdate);
+        foreach (var (route, action, name) in new[] { ("hold", "HOLD", "HealthHoldComplexCase"), ("resume", "RESUME", "HealthResumeComplexCase") })
+        {
+            health.MapPost($"/complex-cases/{{id:guid}}/{route}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Send(new ChangeComplexCaseStatus(id, action), ct)).ToHttp(Results.Ok))
+                .Produces<ComplexCaseView>(StatusCodes.Status200OK).TakesIfMatch().WithName(name).WithSummary($"Case status: {route}").RequirePermission(HealthPermissions.ComplexCaseUpdate);
+        }
+
+        health.MapPost("/complex-cases/{id:guid}/close", async (Guid id, ReasonRequest r, IDispatcher d, CancellationToken ct) => (await d.Send(new CloseComplexCase(id, r.Reason), ct)).ToHttp(Results.Ok))
+            .Produces<ComplexCaseView>(StatusCodes.Status200OK).TakesIfMatch()
+            .WithName("HealthCloseComplexCase").WithSummary("Close a case with a reason; it never closes by itself").RequirePermission(HealthPermissions.ComplexCaseUpdate);
+        health.MapPost("/complex-cases/{id:guid}/care-plan", async (Guid id, CarePlanRequest r, IDispatcher d, CancellationToken ct) => (await d.Send(new SetCarePlan(id, r.Items, r.Reason), ct)).ToHttp(Results.Ok))
+            .Produces<ComplexCaseView>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status403Forbidden).ProducesProblem(StatusCodes.Status422UnprocessableEntity).TakesIfMatch()
+            .WithName("HealthSetCarePlan").WithSummary("Set the care plan; a change needs a reason and keeps the earlier version (F036)").RequirePermission(HealthPermissions.ComplexCaseUpdate);
+        health.MapPost("/complex-cases/{id:guid}/care-plan/items/{itemId:guid}/progress", async (Guid id, Guid itemId, CareProgressRequest r, IDispatcher d, CancellationToken ct) =>
+                (await d.Send(new RecordCareProgress(id, itemId, r.Status, r.Note), ct)).ToHttp(Results.Ok))
+            .Produces<ComplexCaseView>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status403Forbidden).TakesIfMatch()
+            .WithName("HealthRecordCareProgress").WithSummary("Mark a plan item done, missed or changed (F037)").RequirePermission(HealthPermissions.ComplexCaseUpdate);
+        health.MapPost("/complex-cases/{id:guid}/notes", async (Guid id, CareNoteRequest r, IDispatcher d, CancellationToken ct) =>
+                (await d.Send(new AddCareNote(id, r.ContactType, r.ContactRef, r.Note, r.SharedWithProviderId, r.ConsentReference), ct)).ToHttp(Results.Ok))
+            .Produces<ComplexCaseView>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status403Forbidden).ProducesProblem(StatusCodes.Status422UnprocessableEntity).TakesIfMatch()
+            .WithName("HealthAddCareNote").WithSummary("Add a coordination note; one shared with another provider names the member's consent (F036)").RequirePermission(HealthPermissions.ComplexCaseUpdate);
+
+        health.MapPost("/referrals", async (RequestClinicalReferral r, IDispatcher d, CancellationToken ct) =>
+                (await d.Send(r, ct)).ToHttp(v => Results.Created($"/api/v1/health/referrals/{v.Id}", v)))
+            .Produces<ClinicalReferralView>(StatusCodes.Status201Created).ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("HealthRequestReferral").WithSummary("Record a clinical referral (F038); it does not affect claims (OQ-144)").RequirePermission(HealthPermissions.ReferralCreate).RequireIdempotencyKey();
+        health.MapGet("/referrals", async (Guid? membershipId, string? providerId, string? status, string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListClinicalReferrals(membershipId, providerId, status, after, size), ct), r => r.Id))
+            .Produces<CursorPage<ClinicalReferralView>>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("HealthListReferrals").WithSummary("Referrals, by membership, referring provider or status; no clinical reason").RequirePermission(HealthPermissions.ReferralRead);
+        health.MapGet("/referrals/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetClinicalReferral(id), ct)).ToHttp(Results.Ok))
+            .Produces<ClinicalReferralView>(StatusCodes.Status200OK).WithName("HealthGetReferral").WithSummary("A referral; no clinical reason").RequirePermission(HealthPermissions.ReferralRead);
+        health.MapGet("/referrals/{id:guid}/clinical", async (Guid id, string? purpose, IDispatcher d, CancellationToken ct) => (await d.Send(new ReadReferralClinical(id, purpose), ct)).ToHttp(Results.Ok))
+            .Produces<ReferralClinicalView>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("HealthReadReferralClinical").WithSummary("A referral's clinical reason, for the clinical function, with a purpose; every read is audited").RequirePermission(HealthPermissions.ClinicalRead);
+        health.MapPost("/referrals/{id:guid}/decide", async (Guid id, DecideReferralRequest r, IDispatcher d, CancellationToken ct) =>
+                (await d.Send(new DecideClinicalReferral(id, r.Approved, r.Reason), ct)).ToHttp(Results.Ok))
+            .Produces<ClinicalReferralView>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity).TakesIfMatch()
+            .WithName("HealthDecideReferral").WithSummary("Approve a referral, or decline it with a reason").RequirePermission(HealthPermissions.ReferralDecide);
+        health.MapPost("/referrals/{id:guid}/consent", async (Guid id, ReferralConsentRequest r, IDispatcher d, CancellationToken ct) =>
+                (await d.Send(new RecordReferralConsent(id, r.ConsentReference, r.Reason), ct)).ToHttp(Results.Ok))
+            .Produces<ClinicalReferralView>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity).TakesIfMatch()
+            .WithName("HealthRecordReferralConsent").WithSummary("Record the member's consent after the referral was made, with a reason: the receiving provider may then read its reason")
+            .RequirePermission(HealthPermissions.ReferralConsent);
+        health.MapPost("/referrals/{id:guid}/consent/withdraw", async (Guid id, ReasonRequest r, IDispatcher d, CancellationToken ct) =>
+                (await d.Send(new WithdrawReferralConsent(id, r.Reason), ct)).ToHttp(Results.Ok))
+            .Produces<ClinicalReferralView>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity).TakesIfMatch()
+            .WithName("HealthWithdrawReferralConsent").WithSummary("Withdraw the member's consent, with a reason: the receiving provider's access to the reason ends at once")
+            .RequirePermission(HealthPermissions.ReferralConsent);
+        health.MapPost("/referrals/{id:guid}/visits", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Send(new RecordReferralVisit(id), ct)).ToHttp(Results.Ok))
+            .Produces<ClinicalReferralView>(StatusCodes.Status200OK).TakesIfMatch()
+            .WithName("HealthRecordReferralVisit").WithSummary("Record a visit under an approved referral; it is USED when none is left").RequirePermission(HealthPermissions.ReferralCreate);
     }
 
     /// <summary>Wave 5a §4.1, §4.2: provider measures, quality reviews and statements (F028 to F030). Staff only: providers do not see their measures yet (OQ-141).</summary>
@@ -433,6 +525,48 @@ public sealed class HealthModule : IModule
     /// The member and provider portals (external-user access): a member's memberships; a provider's own claims,
     /// preauthorisations and remittances. A provider submits only as itself.
     /// </summary>
+    /// <summary>Wave 5a §4.6, §4.7: credit notes and overpayment recoveries.</summary>
+    private static void MapRecoveries(RouteGroupBuilder health)
+    {
+        health.MapGet("/provider-recoveries", async (string? providerId, string? status, string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListProviderRecoveries(providerId, status, after, size), ct), r => r.Id))
+            .Produces<CursorPage<ProviderRecoveryView>>(StatusCodes.Status200OK)
+            .WithName("HealthListRecoveries").WithSummary("Overpayments owed by providers and members (F049)").RequirePermission(HealthPermissions.RecoveryRead);
+        health.MapGet("/provider-recoveries/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetProviderRecovery(id), ct)).ToHttp(Results.Ok))
+            .Produces<ProviderRecoveryView>(StatusCodes.Status200OK)
+            .WithName("HealthGetRecovery").WithSummary("A recovery, with its offsets").RequirePermission(HealthPermissions.RecoveryRead);
+        health.MapPost("/provider-recoveries", async (ProposeRecoveryFinding r, IDispatcher d, CancellationToken ct) =>
+                (await d.Send(r, ct)).ToHttp(v => Results.Created($"/api/v1/health/provider-recoveries/{v.Id}", v)))
+            .Produces<ProviderRecoveryView>(StatusCodes.Status201Created)
+            .WithName("HealthProposeRecoveryFinding").WithSummary("A person's overpayment finding; a second person approves it before anything is owed").RequirePermission(HealthPermissions.RecoveryManage).RequireIdempotencyKey();
+        health.MapPost("/provider-recoveries/{id:guid}/invoice", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Send(new InvoiceProviderRecovery(id), ct)).ToHttp(Results.Ok))
+            .Produces<ProviderRecoveryView>(StatusCodes.Status200OK).TakesIfMatch()
+            .WithName("HealthInvoiceRecovery").WithSummary("A person's decision: the balance is invoiced through Billing").RequirePermission(HealthPermissions.RecoveryManage);
+        health.MapPost("/provider-recoveries/{id:guid}/write-off", async (Guid id, ReasonRequest r, IDispatcher d, CancellationToken ct) => (await d.Send(new RequestRecoveryWriteOff(id, r.Reason), ct)).ToHttp(Results.Ok))
+            .Produces<ProviderRecoveryView>(StatusCodes.Status200OK).TakesIfMatch()
+            .WithName("HealthWriteOffRecovery").WithSummary("Ask to write off the balance, with a reason; a second person approves").RequirePermission(HealthPermissions.RecoveryManage);
+        health.MapPost("/provider-recoveries/{id:guid}/reverse", async (Guid id, ReasonRequest r, IDispatcher d, CancellationToken ct) => (await d.Send(new ReverseProviderRecovery(id, r.Reason), ct)).ToHttp(Results.Ok))
+            .Produces<ProviderRecoveryView>(StatusCodes.Status200OK).TakesIfMatch()
+            .WithName("HealthReverseRecovery").WithSummary("A recovery raised in error is reversed; an offset already taken is repaid in the next run").RequirePermission(HealthPermissions.RecoveryManage);
+        health.MapPost("/provider-recoveries/{id:guid}/hold", async (Guid id, RecoveryHoldRequest r, IDispatcher d, CancellationToken ct) => (await d.Send(new HoldRecoveryForDispute(id, r.CaseId), ct)).ToHttp(Results.Ok))
+            .Produces<ProviderRecoveryView>(StatusCodes.Status200OK).TakesIfMatch()
+            .WithName("HealthHoldRecovery").WithSummary("Hold a recovery from offsets for a dispute case; the case closing releases it (OQ-146)").RequirePermission(HealthPermissions.RecoveryManage);
+        health.MapGet("/provider-credit-notes", async (string? providerId, string? status, string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListCreditNotes(providerId, status, after, size), ct), n => n.Id))
+            .Produces<CursorPage<ProviderCreditNoteView>>(StatusCodes.Status200OK)
+            .WithName("HealthListCreditNotes").WithSummary("Providers' credit notes (F048)").RequirePermission(HealthPermissions.CreditNoteRead);
+        health.MapGet("/provider-credit-notes/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetCreditNote(id), ct)).ToHttp(Results.Ok))
+            .Produces<ProviderCreditNoteView>(StatusCodes.Status200OK)
+            .WithName("HealthGetCreditNote").WithSummary("A provider's credit note").RequirePermission(HealthPermissions.CreditNoteRead);
+        health.MapPost("/provider-credit-notes", async (SubmitCreditNote r, IDispatcher d, CancellationToken ct) =>
+                (await d.Send(r, ct)).ToHttp(v => Results.Created($"/api/v1/health/provider-credit-notes/{v.Id}", v)))
+            .Produces<ProviderCreditNoteView>(StatusCodes.Status201Created)
+            .WithName("HealthSubmitCreditNote").WithSummary("Record a provider's credit note; a second person approves it, and it then raises a recovery").RequirePermission(HealthPermissions.CreditNoteCreate).RequireIdempotencyKey();
+        health.MapGet("/remittances/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetRemittanceDetail(id), ct)).ToHttp(Results.Ok))
+            .Produces<RemittanceDetailView>(StatusCodes.Status200OK)
+            .WithName("HealthGetRemittance").WithSummary("A remittance: gross, offsets with the original claim, its reversal and its replacement, and the net").RequirePermission(HealthPermissions.RunRead);
+    }
+
     private static void MapPortal(RouteGroupBuilder portal)
     {
         const string member = BuildingBlocks.Application.Context.ExternalSubject.Party, provider = BuildingBlocks.Application.Context.ExternalSubject.Provider;
@@ -464,7 +598,7 @@ public sealed class HealthModule : IModule
                     }
 
                     var submitted = await d.Send(new SubmitMedicalClaim(Domain.Care.ClaimSources.Provider, execution.External!.ProviderId, patient.Value.MembershipId,
-                        patient.Value.PatientPartyId, r.ServiceDate, "PORTAL", r.Currency, r.PreauthorisationId, r.Lines), ct);
+                        patient.Value.PatientPartyId, r.ServiceDate, "PORTAL", r.Currency, r.PreauthorisationId, r.Lines, r.ReplacesClaimId), ct);
                     return submitted.IsFailure
                         ? submitted.ToHttp(_ => Results.Ok())
                         : (await d.Query(new GetPortalMedicalClaim(submitted.Value.Id), ct)).ToHttp(v => Results.Created($"/api/v1/portal/health/claims/{v.Id}", v));
@@ -476,6 +610,27 @@ public sealed class HealthModule : IModule
                 (await d.Query(new GetPortalPreauthorisation(id), ct)).ToHttp(Results.Ok))
             .Produces<PortalPreauthorisationView>(StatusCodes.Status200OK)
             .WithName("PortalHealthGetPreauthorisation").WithSummary("A preauthorisation of the provider's").RequirePermission(HealthPermissions.PreauthRead).ForPortal(provider);
+        // Wave 5a §7: a provider's own referrals: it is the referring provider, whatever a request says (external-user access §3).
+        portal.MapPost("/referrals", async (PortalReferralRequest r, IDispatcher d, IExecutionContext execution, CancellationToken ct) =>
+                {
+                    var patient = await d.Query(new PortalPatientOf(r.MemberNumber, r.DependantSuffix), ct);
+                    return patient.IsFailure
+                        ? patient.ToHttp(_ => Results.Ok())
+                        : (await d.Send(new RequestClinicalReferral(patient.Value.MembershipId, patient.Value.PatientPartyId, execution.External!.ProviderId!, r.ReferredProviderId, r.ReferredSpecialty,
+                            r.ClinicalReason, r.ValidFrom, r.ValidTo, r.VisitsAllowed, null, null, r.ConsentReference), ct)).ToHttp(v => Results.Created($"/api/v1/portal/health/referrals/{v.Id}", v));
+                })
+            .Produces<ClinicalReferralView>(StatusCodes.Status201Created).ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("PortalHealthRequestReferral").WithSummary("Refer a member, as yourself (F038); name the member's consent for the receiving provider to read the reason")
+            .RequirePermission(HealthPermissions.ReferralCreate).ForPortal(provider).RequireIdempotencyKey();
+        portal.MapGet("/referrals", async (string? status, string? cursor, int? limit, IDispatcher d, IExecutionContext execution, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListClinicalReferrals(null, execution.External!.ProviderId!, status, after, size), ct), r => r.Id))
+            .Produces<CursorPage<ClinicalReferralView>>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("PortalHealthListReferrals").WithSummary("Referrals you made or received; no clinical reason").RequirePermission(HealthPermissions.ReferralRead).ForPortal(provider);
+        portal.MapGet("/referrals/{id:guid}/clinical", async (Guid id, string? purpose, IDispatcher d, CancellationToken ct) => (await d.Send(new ReadPortalReferralClinical(id, purpose), ct)).ToHttp(Results.Ok))
+            .Produces<ReferralClinicalView>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status403Forbidden).ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("PortalHealthReadReferralClinical").WithSummary("A referral's reason, with a purpose: for the provider who wrote it, or the one it names with the member's consent; every read is audited")
+            .RequirePermission(HealthPermissions.ReferralRead).ForPortal(provider);
+
         portal.MapPost("/preauthorisations", async (PortalPreauthorisationRequest r, IDispatcher d, IExecutionContext execution, CancellationToken ct) =>
                 {
                     var patient = await d.Query(new PortalPatientOf(r.MemberNumber, r.DependantSuffix), ct);
@@ -493,6 +648,22 @@ public sealed class HealthModule : IModule
             .Produces<PortalPreauthorisationView>(StatusCodes.Status201Created)
             .WithName("PortalHealthRequestAuthorisation").WithSummary("A provider requests a preauthorisation, as itself").RequirePermission(HealthPermissions.PreauthCreate)
             .RequireIdempotencyKey().ForPortal(provider);
+        portal.MapGet("/remittances/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetPortalRemittance(id), ct)).ToHttp(Results.Ok))
+            .Produces<RemittanceDetailView>(StatusCodes.Status200OK)
+            .WithName("PortalHealthGetRemittance").WithSummary("The provider's remittance: gross, offsets with the original claim, its reversal and its replacement, and the net").RequirePermission(HealthPermissions.RunRead).ForPortal(provider);
+        portal.MapGet("/recoveries", async (string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListPortalRecoveries(after, size), ct), r => r.Id))
+            .Produces<CursorPage<PortalRecoveryView>>(StatusCodes.Status200OK)
+            .WithName("PortalHealthListRecoveries").WithSummary("What the provider owes, and what has been deducted").RequirePermission(HealthPermissions.RecoveryRead).ForPortal(provider);
+        portal.MapGet("/credit-notes", async (string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListPortalCreditNotes(after, size), ct), n => n.Id))
+            .Produces<CursorPage<ProviderCreditNoteView>>(StatusCodes.Status200OK)
+            .WithName("PortalHealthListCreditNotes").WithSummary("The provider's credit notes").RequirePermission(HealthPermissions.CreditNoteRead).ForPortal(provider);
+        portal.MapPost("/credit-notes", async (SubmitPortalCreditNote r, IDispatcher d, CancellationToken ct) =>
+                (await d.Send(r, ct)).ToHttp(v => Results.Created($"/api/v1/portal/health/credit-notes/{v.Id}", v)))
+            .Produces<ProviderCreditNoteView>(StatusCodes.Status201Created)
+            .WithName("PortalHealthSubmitCreditNote").WithSummary("A provider submits a credit note on its own claim or remittance, as itself").RequirePermission(HealthPermissions.CreditNoteCreate)
+            .RequireIdempotencyKey().ForPortal(provider);
         portal.MapGet("/remittances", async (string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
                 await Page(cursor, limit, (after, size) => d.Query(new ListPortalRemittances(after, size), ct), r => r.Id))
             .Produces<CursorPage<PortalRemittanceView>>(StatusCodes.Status200OK)
@@ -500,8 +671,10 @@ public sealed class HealthModule : IModule
     }
 }
 
+public sealed record RecoveryHoldRequest(Guid CaseId);
+
 public sealed record PortalMedicalClaimRequest(string MemberNumber, string? DependantSuffix, DateOnly ServiceDate, string Currency, Guid? PreauthorisationId,
-    IReadOnlyList<Domain.Care.ClaimLineRequest> Lines);
+    IReadOnlyList<Domain.Care.ClaimLineRequest> Lines, Guid? ReplacesClaimId = null);
 
 public sealed record PortalPreauthorisationRequest(string MemberNumber, string? DependantSuffix, [property: BuildingBlocks.Domain.CodeList(HealthCodeLists.Diagnoses, "code")] IReadOnlyList<string> DiagnosisCodes,
     [property: BuildingBlocks.Domain.CodeList(HealthCodeLists.AuthorisationServiceTypes, "service_type")] string ServiceType,

@@ -69,7 +69,7 @@ public sealed record GetAuthorisation(Guid PreauthorisationId) : IQuery<Preautho
 public sealed record ReadAuthorisationClinical(Guid PreauthorisationId, string? Purpose) : ICommand<PreauthorisationClinicalView>;
 
 public sealed record SubmitMedicalClaim(string Source, string? ProviderId, Guid MembershipId, Guid PatientPartyId, DateOnly ServiceDate, string FormatCode, string Currency,
-    Guid? PreauthorisationId, IReadOnlyList<ClaimLineRequest> Lines) : ICommand<MedicalClaimView>;
+    Guid? PreauthorisationId, IReadOnlyList<ClaimLineRequest> Lines, Guid? ReplacesClaimId = null) : ICommand<MedicalClaimView>;
 
 public sealed record ValidateMedicalClaim(Guid ClaimId) : ICommand<MedicalClaimView>;
 
@@ -397,6 +397,15 @@ internal sealed class SubmitMedicalClaimHandler(IHealthRepository health, IHealt
             return claim.Error;
         }
 
+        if (command.ReplacesClaimId is { } replaced)
+        {
+            var replacing = await health.Claim(replaced, cancellationToken) is { } original ? claim.Value.Replaces(original) : Error.NotFound(ErrorCodes.NotFound, "The claim to replace was not found.");
+            if (replacing.IsFailure)
+            {
+                return replacing.Error;
+            }
+        }
+
         health.Add(claim.Value);
         audit.Record(new AuditEntry("HEALTH", "SubmitClaim", nameof(MedicalClaim), id.ToString()));
 
@@ -616,6 +625,18 @@ internal sealed class MedicalClaimDecisions(IHealthRepository health, ClaimsFram
                     {
                         accumulator.ReverseConsumption(line.PaidAmount);
                     }
+                }
+            }
+
+            // Within validity and used by no other claim, the authorisation is restored with what the claim consumed.
+            foreach (var used in claim.Lines.Where(l => l.PreauthLineId is not null && l.PaidAmount > 0).GroupBy(l => l.PreauthLineId!.Value)
+                         .Select(g => (Line: g.Key, Amount: g.Sum(l => l.PaidAmount))).ToList())
+            {
+                if (await health.PreauthorisationWithLine(used.Line, cancellationToken) is { } preauth)
+                {
+                    var lines = claim.Lines.Where(l => l.PreauthLineId is not null && preauth.Lines.Any(p => p.Id == l.PreauthLineId)).GroupBy(l => l.PreauthLineId!.Value)
+                        .ToDictionary(g => g.Key, g => g.Sum(l => l.PaidAmount));
+                    preauth.RestoreAfterReversal(lines, businessDate.Today, clock.UtcNow);
                 }
             }
 

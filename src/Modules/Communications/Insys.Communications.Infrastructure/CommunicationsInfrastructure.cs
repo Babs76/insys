@@ -67,6 +67,8 @@ public static class CommunicationsInfrastructure
         services.AddIntegrationEventHandler<Party.Contracts.ConsentGranted, ClearOptOutOnConsent, CommunicationsDbContext>(schema);
         services.AddIntegrationEventHandler<Party.Contracts.PartyAnonymised, AnonymiseNotifications, CommunicationsDbContext>(schema);
 
+        services.AddSingleton<BuildingBlocks.Application.IReadinessCheck, CommunicationCallbackClientReadiness>();
+
         // Onboarding readiness (OQ-110, addenda/cases.md §10): the three case notification types, each with a template in force.
         BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddSqlReadiness(services, schema, ["SHARED_OPERATIONAL_SETUP"], async (context, connection, transaction, ct) =>
         {

@@ -70,10 +70,11 @@ public sealed record PortalClaimLineView(int LineNo, string TariffCode, int Quan
     [property: BuildingBlocks.Domain.OneOf("PAY", "PEND", "REJECT")] string? Outcome);
 
 public sealed record PortalMedicalClaimView(Guid Id, string ClaimNumber, string? ProviderId, DateOnly ServiceDate, MedicalClaimStatus Status, decimal TotalClaimed,
-    decimal? TotalPaid, string Currency, IReadOnlyList<PortalClaimLineView> Lines)
+    decimal? TotalPaid, string Currency, IReadOnlyList<PortalClaimLineView> Lines,
+    [property: BuildingBlocks.Contracts.AlwaysPresent] Guid? ReplacesClaimId = null, [property: BuildingBlocks.Contracts.AlwaysPresent] Guid? ReplacedByClaimId = null)
 {
     public static PortalMedicalClaimView From(MedicalClaim c) => new(c.Id, c.ClaimNumber, c.ProviderId, c.ServiceDate, c.Status, c.TotalClaimed, c.TotalPaid, c.Currency,
-        c.Lines.OrderBy(l => l.LineNo).Select(l => new PortalClaimLineView(l.LineNo, l.TariffCode, l.Quantity, l.ClaimedAmount, l.PaidAmount, l.Outcome)).ToList());
+        c.Lines.OrderBy(l => l.LineNo).Select(l => new PortalClaimLineView(l.LineNo, l.TariffCode, l.Quantity, l.ClaimedAmount, l.PaidAmount, l.Outcome)).ToList(), c.ReplacesClaimId, c.ReplacedByClaimId);
 }
 
 public sealed record PortalPreauthLineView(string ProcedureCode, int Quantity, decimal AuthorisedAmount);
@@ -85,7 +86,7 @@ public sealed record PortalPreauthorisationView(Guid Id, string AuthNumber, stri
         p.ValidTo, p.Lines.Select(l => new PortalPreauthLineView(l.ProcedureCode, l.Quantity, l.AuthorisedAmount)).ToList());
 }
 
-public sealed record PortalRemittanceView(Guid Id, string RunCode, decimal Amount, int ClaimCount, string Currency, Guid? PaymentId, DateOnly? PaidOn);
+public sealed record PortalRemittanceView(Guid Id, string RunCode, decimal Amount, int ClaimCount, string Currency, Guid? PaymentId, DateOnly? PaidOn, decimal GrossAmount = 0, decimal OffsetAmount = 0, decimal RepaidAmount = 0);
 
 /// <summary>The member being treated: the membership, and the principal or the dependant with the suffix.</summary>
 public sealed record PortalPatient(Guid MembershipId, Guid PatientPartyId);

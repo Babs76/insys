@@ -375,6 +375,20 @@ public sealed partial class OpenApiContractTests(DatabaseFixture fixture) : ICla
     }
 
     /// <summary>
+    /// External-user access §3: every portal route names its permission and the actors it is for. Without ForPortal, an external user
+    /// is refused and only staff reach the route, so it would pass a staff test and fail a real provider or member.
+    /// </summary>
+    [Fact]
+    public void EveryPortalRoute_DeclaresItsPermissionAndItsActors()
+    {
+        var portal = ApiEndpoints().Where(e => e.RoutePattern.RawText?.Contains("/portal/", StringComparison.Ordinal) == true).ToList();
+
+        portal.ShouldNotBeEmpty();
+        portal.Where(e => e.Metadata.GetMetadata<RequiredPermissionMetadata>() is null).Select(e => e.DisplayName).ShouldBeEmpty("a portal route without RequirePermission");
+        portal.Where(e => e.Metadata.GetMetadata<PortalEndpointMetadata>() is not { Kinds.Count: > 0 }).Select(e => e.DisplayName).ShouldBeEmpty("a portal route without ForPortal(<actor>)");
+    }
+
+    /// <summary>
     /// BR-105: a code field that names its static data table (x-code-list) also names the column holding its value
     /// (x-code-list-column), and the table has that column, and the filter's column, in the database.
     /// </summary>

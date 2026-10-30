@@ -54,9 +54,27 @@ public static class HealthPermissions
     public const string CaseRead = "health_case.read";
     public const string CaseUpdate = "health_case.update";
     public const string RunRead = "provider_payment_run.read";
+    public const string ComplexCaseRead = "health_complex_case.read";
+    public const string ComplexCaseUpdate = "health_complex_case.update";
+
+    /// <summary>The case manager function: who may be assigned a complex case (F035).</summary>
+    public const string ComplexCaseManage = "health_complex_case.manage";
+
+    /// <summary>The clinical function: reads and writes any complex case's clinical detail (OQ-143).</summary>
+    public const string ClinicalRead = "health_case.read_clinical";
+    public const string ReferralRead = "health_referral.read";
+    public const string ReferralCreate = "health_referral.create";
+    public const string ReferralDecide = "health_referral.decide";
+
+    /// <summary>Records or withdraws the member's consent on a referral.</summary>
+    public const string ReferralConsent = "health_referral.consent";
     public const string ProviderRead = "health_provider.read";
     public const string ProviderUpdate = "health_provider.update";
     public const string RunUpdate = "provider_payment_run.update";
+    public const string RecoveryRead = "health_recovery.read";
+    public const string RecoveryManage = "health_recovery.manage";
+    public const string CreditNoteRead = "health_credit_note.read";
+    public const string CreditNoteCreate = "health_credit_note.create";
 }
 
 /// <summary>What Health asks Workflow to approve (ADR-009).</summary>
@@ -64,11 +82,19 @@ public static class HealthApprovals
 {
     public const string RunBusinessRefType = "HEALTH_PAYMENT_RUN";
     public const string RunApprovalType = "PROVIDER_PAYMENT_RUN";
+    public const string RecoveryBusinessRefType = "HEALTH_RECOVERY";
+    public const string RecoveryWriteOffApprovalType = "PROVIDER_RECOVERY_WRITE_OFF";
+    public const string RecoveryFindingApprovalType = "PROVIDER_RECOVERY_FINDING";
+    public const string CreditNoteBusinessRefType = "HEALTH_CREDIT_NOTE";
+    public const string CreditNoteApprovalType = "PROVIDER_CREDIT_NOTE";
 }
 
 /// <summary>Business references Health gives Payments and Billing.</summary>
 public static class HealthReferences
 {
+    /// <summary>The source domain of a recovery's invoice (5a.3): its PolicyRef is the recovery. Not a contribution, so it posts no premium.</summary>
+    public const string RecoverySourceDomain = "HEALTH_REC";
+
     public const string SourceDomain = "HEALTH";
 
     /// <summary>The employer's share of a scheme member's contribution is billed to the sponsor under this source domain.</summary>
@@ -169,6 +195,10 @@ public sealed record MedicalClaimSettled(Guid ClaimId, string ClaimNumber, strin
 /// A paid claim was reversed: its benefit consumption was given back, Finance reverses its claim-paid journal, and the amount
 /// is to be recovered (collected in Wave 5a batch 5a.3, OQ-139).
 /// </summary>
+/// <summary>F037: a care plan's activity is past its date; Workflow opens a task for the case manager. References only (HLT-008).</summary>
+[IntegrationEvent("health.CareActivityOverdue")]
+public sealed record CareActivityOverdue(Guid CaseId, string CaseNumber, Guid ActivityId, Guid? CaseManagerId) : IIntegrationEvent;
+
 /// <summary>F028: a provider's month is past a measure's threshold; Workflow asks a person to look. Counts and amounts only.</summary>
 [IntegrationEvent("health.ProviderMeasureBreached")]
 public sealed record ProviderMeasureBreached(Guid ResultId, string ProviderId, string MonthKey, string MeasureCode, decimal Value, decimal Threshold) : IIntegrationEvent;
@@ -183,7 +213,7 @@ public sealed record UtilisationCaseConcluded(Guid CaseId, Guid MembershipId, st
 public sealed record FraudCaseConcluded(Guid CaseId, string SubjectType, string SubjectRef, string OutcomeCode) : IIntegrationEvent;
 
 /// <param name="BankAccountId">The provider's verified bank account (party.bank_account) the run was approved with; never its details.</param>
-public sealed record RemittanceReleased(Guid RemittanceId, string ProviderId, Guid ProviderPartyId, Guid BankAccountId, decimal Amount);
+public sealed record RemittanceReleased(Guid RemittanceId, string ProviderId, Guid ProviderPartyId, Guid BankAccountId, decimal Amount, decimal Gross = 0, decimal Offset = 0, decimal Repaid = 0);
 
 /// <summary>
 /// An approved run was released: Payments pays each remittance in a payout batch; the run's claims are paid; Documents
@@ -203,6 +233,32 @@ public interface IProviderDirectory
 }
 
 /// <summary>A medical claim was rejected after validation; the member is told (communications §6.3). The reason is a code, never clinical.</summary>
+/// <summary>An overpayment is owed (5a.3). A reversal's was posted as CLAIM_PAID_REVERSED; a credit note's or finding's posts on this.</summary>
+[IntegrationEvent("health.ProviderRecoveryRaised")]
+public sealed record ProviderRecoveryRaised(Guid RecoveryId, string RecoveryNumber, string DebtorKind, string? ProviderId, string Source, decimal Amount, string Currency, DateOnly RaisedOn) : IIntegrationEvent;
+
+[IntegrationEvent("health.ProviderRecoveryInvoiceRequested")]
+public sealed record ProviderRecoveryInvoiceRequested(Guid RecoveryId, string RecoveryNumber, Guid PayerPartyId, decimal Amount, string Currency, DateOnly DueOn, string? CollectionMethod) : IIntegrationEvent;
+
+[IntegrationEvent("health.ProviderRecoveryOffsetTaken")]
+public sealed record ProviderRecoveryOffsetTaken(Guid OffsetId, Guid RecoveryId, Guid RunId, Guid RemittanceId, decimal Amount, string Currency, DateOnly TakenOn) : IIntegrationEvent;
+
+[IntegrationEvent("health.ProviderRecoveryRepaid")]
+public sealed record ProviderRecoveryRepaid(Guid RecoveryId, Guid RunId, decimal Amount, string Currency, DateOnly RepaidOn) : IIntegrationEvent;
+
+[IntegrationEvent("health.ProviderRecoveryWrittenOff")]
+public sealed record ProviderRecoveryWrittenOff(Guid RecoveryId, string RecoveryNumber, string? ProviderId, decimal Amount, string Currency, DateOnly WrittenOffOn) : IIntegrationEvent;
+
+[IntegrationEvent("health.ProviderRecoveryReversed")]
+public sealed record ProviderRecoveryReversed(Guid RecoveryId, string RecoveryNumber, string? ProviderId, string Source, decimal Amount, string Currency, DateOnly ReversedOn) : IIntegrationEvent;
+
+[IntegrationEvent("health.ProviderRecoverySettled")]
+public sealed record ProviderRecoverySettled(Guid RecoveryId, decimal Amount, string Currency, DateOnly SettledOn) : IIntegrationEvent;
+
+/// <summary>A person decides: a recovery uncollected for the tenant's period, or a member's overpayment (OQ-139, OQ-145).</summary>
+[IntegrationEvent("health.ProviderRecoveryReviewDue")]
+public sealed record ProviderRecoveryReviewDue(Guid RecoveryId, string RecoveryNumber, string DebtorKind, string? ProviderId) : IIntegrationEvent;
+
 [IntegrationEvent("health.MedicalClaimRejected")]
 public sealed record MedicalClaimRejected(Guid ClaimId, string ClaimNumber, Guid MembershipId, string ReasonCode) : IIntegrationEvent;
 

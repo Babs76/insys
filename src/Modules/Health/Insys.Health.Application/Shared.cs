@@ -88,6 +88,39 @@ public interface IHealthRepository
 
     Task<ProviderPaymentRun?> RunForRemittance(Guid remittanceId, CancellationToken cancellationToken);
 
+    Task<ProviderRecovery?> Recovery(Guid id, CancellationToken cancellationToken);
+
+    Task<ProviderRecovery?> RecoveryForSource(string source, Guid sourceId, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<ProviderRecovery>> Recoveries(string? providerId, string? status, Guid? afterId, int limit, CancellationToken cancellationToken);
+
+    /// <summary>What can be deducted from the provider's next payment, oldest first (OQ-139): not held, not being written off.</summary>
+    Task<IReadOnlyList<ProviderRecovery>> OffsettableRecoveries(string providerId, string currency, CancellationToken cancellationToken);
+
+    /// <summary>Reversed recoveries with offsets still to repay in the next run (§4.7), by provider.</summary>
+    Task<IReadOnlyList<ProviderRecovery>> RecoveriesToRepay(string currency, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<ProviderRecovery>> RecoveriesInRun(Guid runId, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<ProviderRecovery>> RecoveriesOnRemittance(Guid remittanceId, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<ProviderRecovery>> RecoveriesOfClaim(Guid claimId, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<ProviderRecovery>> RecoveriesHeldBy(Guid caseId, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<Guid>> RecoveriesDueForReview(DateOnly day, int limit, CancellationToken cancellationToken);
+
+    Task<ProviderCreditNote?> CreditNote(Guid id, CancellationToken cancellationToken);
+
+    Task<bool> CreditNoteExists(string providerId, string reference, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<ProviderCreditNote>> CreditNotes(string? providerId, string? status, Guid? afterId, int limit, CancellationToken cancellationToken);
+
+    /// <summary>What a provider's claims' recoveries stand at, by claim number (the statement's recoveryStatus).</summary>
+    Task<IReadOnlyDictionary<string, string>> RecoveryStatusesByClaim(string providerId, CancellationToken cancellationToken);
+
+    Task<Preauthorisation?> PreauthorisationWithLine(Guid lineId, CancellationToken cancellationToken);
+
     Task<IReadOnlyList<Guid>> PreauthorisationsToExpire(DateOnly day, int limit, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<Guid>> MembershipsToActivate(DateOnly day, int limit, CancellationToken cancellationToken);
@@ -146,6 +179,23 @@ public interface IHealthRepository
 
     Task<IReadOnlyList<ProviderStatementSummary>> ProviderStatements(string? providerId, string? status, Guid? afterId, int limit, CancellationToken cancellationToken);
 
+    // Wave 5a batch 5a.2: complex cases and referrals (F034 to F038).
+    Task<ComplexCase?> ComplexCase(Guid id, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<ComplexCase>> ComplexCases(Guid? membershipId, Guid? caseManagerId, string? status, Guid? afterId, int limit, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<Guid>> CasesWithOverdueActivities(DateOnly day, int limit, CancellationToken cancellationToken);
+
+    Task<ClinicalReferral?> ClinicalReferral(Guid id, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<ClinicalReferral>> ClinicalReferrals(Guid? membershipId, string? providerId, string? status, Guid? afterId, int limit, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<Guid>> ReferralsToExpire(DateOnly day, int limit, CancellationToken cancellationToken);
+
+    void Add(ComplexCase complexCase);
+
+    void Add(ClinicalReferral referral);
+
     void Add(Domain.Providers.ProviderMeasureResult result);
 
     void Add(Domain.Providers.ProviderQualityReview review);
@@ -155,6 +205,10 @@ public interface IHealthRepository
     void Add(HealthFraudCase fraudCase);
 
     void Add(ProviderPaymentRun run);
+
+    void Add(ProviderRecovery recovery);
+
+    void Add(ProviderCreditNote note);
 }
 
 /// <summary>A plan option in force and the version of its row.</summary>
@@ -182,8 +236,16 @@ public sealed record BenefitRules(IReadOnlyList<ScheduleLimit> ScheduleLimits, I
 /// <summary>The Health module's static data in force.</summary>
 public sealed record ContributionRule(decimal Rate, decimal EmployerSharePct);
 
+/// <summary>health.cfg_provider_recovery_settings: the default of the offset flag, the review period and the invoice's collection method.</summary>
+public sealed record RecoverySettings(bool MedicalScheme, int ReviewAfterDays, string InvoiceCollectionMethod);
+
 public interface IHealthCodes
 {
+    Task<RecoverySettings?> RecoverySettings(DateOnly day, CancellationToken cancellationToken);
+
+    /// <summary>The offset flag of each of the provider's contracts in force; null where a contract leaves it to the tenant's default.</summary>
+    Task<IReadOnlyList<bool?>> ProviderOffsetFlags(string providerId, DateOnly day, CancellationToken cancellationToken);
+
     /// <summary>The provider measures in force (health.cfg_provider_measures, F028).</summary>
     Task<IReadOnlyList<Domain.Providers.ProviderMeasure>> ProviderMeasures(DateOnly day, CancellationToken cancellationToken);
 
@@ -328,14 +390,15 @@ public sealed record ClaimLineView(int LineNo, string TariffCode, int Quantity, 
 public sealed record MedicalClaimView(Guid Id, string ClaimNumber, string Source, string? ProviderId, Guid MembershipId, Guid PatientPartyId, DateOnly ServiceDate,
     MedicalClaimStatus Status, string Currency, decimal TotalClaimed, decimal? TotalPaid, string? PendReason, Guid? PaymentRunId, IReadOnlyList<ClaimLineView> Lines, long RowVersion,
     [property: BuildingBlocks.Domain.OneOf(MedicalClaimOutcomes.Approved, MedicalClaimOutcomes.PartlyApproved), BuildingBlocks.Contracts.AlwaysPresent] string? Outcome = null,
-    [property: BuildingBlocks.Contracts.AlwaysPresent] string? DecisionReasonCode = null, [property: BuildingBlocks.Contracts.AlwaysPresent] Guid? ApprovedBy = null, [property: BuildingBlocks.Contracts.AlwaysPresent] DateTimeOffset? ApprovedAt = null)
+    [property: BuildingBlocks.Contracts.AlwaysPresent] string? DecisionReasonCode = null, [property: BuildingBlocks.Contracts.AlwaysPresent] Guid? ApprovedBy = null, [property: BuildingBlocks.Contracts.AlwaysPresent] DateTimeOffset? ApprovedAt = null,
+    [property: BuildingBlocks.Contracts.AlwaysPresent] Guid? ReplacesClaimId = null, [property: BuildingBlocks.Contracts.AlwaysPresent] Guid? ReplacedByClaimId = null)
 {
     /// <summary>BR-079: who approved the claim, and when.</summary>
     public static MedicalClaimView From(MedicalClaim c) => new(c.Id, c.ClaimNumber, c.Source, c.ProviderId, c.MembershipId, c.PatientPartyId, c.ServiceDate,
         c.Status, c.Currency, c.TotalClaimed, c.TotalPaid, c.PendReason, c.PaymentRunId,
         c.Lines.OrderBy(l => l.LineNo).Select(l => new ClaimLineView(l.LineNo, l.TariffCode, l.Quantity, l.ClaimedAmount, l.Outcome, l.AdjustmentReason, l.BenefitCategory,
             l.NetworkStatus, l.TariffAmount, l.AllowedAmount, l.DeductibleAmount, l.CopayAmount, l.PaidAmount, l.MemberLiability, l.PreauthLineId)).ToList(), c.RowVersion,
-        c.DecisionOutcome, c.DecisionReasonCode, c.ApprovedBy, c.ApprovedAt);
+        c.DecisionOutcome, c.DecisionReasonCode, c.ApprovedBy, c.ApprovedAt, c.ReplacesClaimId, c.ReplacedByClaimId);
 }
 
 public sealed record UtilisationCaseView(Guid Id, Guid MembershipId, string RuleCode, UtilisationStatus Status, Guid? ReviewerId, string? Outcome, Guid? ClaimId, long RowVersion,
@@ -356,7 +419,7 @@ public sealed record FraudCaseView(Guid Id, string SubjectType, string SubjectRe
 
 /// <param name="DocumentId">The remittance advice document, once produced (BR-079).</param>
 public sealed record RemittanceView(Guid Id, string ProviderId, Guid ProviderPartyId, Guid BankAccountId, decimal Amount, int ClaimCount, Guid? PaymentId, DateOnly? PaidOn,
-    [property: BuildingBlocks.Contracts.AlwaysPresent] Guid? DocumentId = null);
+    [property: BuildingBlocks.Contracts.AlwaysPresent] Guid? DocumentId = null, decimal GrossAmount = 0, decimal OffsetAmount = 0, decimal RepaidAmount = 0);
 
 /// <param name="PartlyInScope">
 /// True when the run also pays claims outside the caller's scope (F103): only the remittances whose claims are all in scope
@@ -370,7 +433,7 @@ public sealed record PaymentRunView(Guid Id, string RunCode, DateTimeOffset CutO
 
     public static PaymentRunView Of(ProviderPaymentRun r, IReadOnlyList<RemittanceAdvice> visible, bool partly) => new(r.Id, r.RunCode, r.CutOff, r.Status, r.Currency,
         partly ? visible.Sum(x => x.ClaimCount) : r.ClaimCount, partly ? visible.Sum(x => x.Amount) : r.TotalAmount,
-        visible.Select(x => new RemittanceView(x.Id, x.ProviderId, x.ProviderPartyId, x.BankAccountId, x.Amount, x.ClaimCount, x.PaymentId, x.PaidOn, x.DocumentId)).ToList(),
+        visible.Select(x => new RemittanceView(x.Id, x.ProviderId, x.ProviderPartyId, x.BankAccountId, x.Amount, x.ClaimCount, x.PaymentId, x.PaidOn, x.DocumentId, x.GrossAmount, x.OffsetAmount, x.RepaidAmount)).ToList(),
         r.RowVersion, partly, null, r.ApprovalId, r.ApprovedBy, r.ReleasedAt);
 }
 

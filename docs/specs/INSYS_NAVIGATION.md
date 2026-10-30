@@ -54,8 +54,8 @@ A Partial process area shows a dashed `demo-note`: "Partially available in INSYS
 | Membership | `id-card` | Enrolment · Dependants · Plan changes · Suspension & termination · Benefit totals | HealthMembership, BenefitAccumulator | Built |
 | Access to Care | `badge-check` | Eligibility checks · Preauthorisations | EligibilityDecision, Preauthorisation | Built |
 | Medical Claims | `file-heart` | Validation · Line adjudication · Review · Approve / reject / reverse | MedicalClaim | Built |
-| Fraud & Utilisation | `scan-search` | Fraud cases · Utilisation cases: **Built**. Complex case management · Case manager assignment: **Partial (Wave 5a)** | HealthFraudCase, UtilisationCase | Built |
-| Provider Payments | `banknote` | Payment runs (second-person release) · Remittances · Provider reconciliation: **Built**. Overpayment recovery: **Partial (Wave 5a)** | ProviderPaymentRun | Built |
+| Fraud & Utilisation | `scan-search` | Fraud cases · Utilisation cases: **Built**. Complex case management · Case manager assignment: **Built** | HealthFraudCase, UtilisationCase | Built |
+| Provider Payments | `banknote` | Payment runs (second-person release) · Remittances · Provider reconciliation · Overpayment recovery · Credit notes: **Built** | ProviderPaymentRun | Built |
 | Provider Management | `hospital` | Performance & quality monitoring: **Built**. Credit notes · Provider disputes: **Planned (Wave 5a)** | ProviderMeasureResult, ProviderQualityReview | Partial |
 | Pharmacy & Medication | `pill` | Pharmacy claims · Prescription & quantity validation · Formulary · Medication limits · Duplicate detection | (none yet) | Planned (Wave 5b) |
 | Care Programmes | `activity` | Chronic conditions · Disease management · Preventive & vaccination · Wellness · Treatment monitoring | (none yet) | Planned (Wave 5b) |

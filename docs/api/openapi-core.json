@@ -30211,6 +30211,2503 @@
         ]
       }
     },
+    "/api/v1/health/complex-cases": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Open a complex medical case (F034)",
+        "operationId": "HealthOpenComplexCase",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealthOpenComplexCase"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthComplexCaseView"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          }
+        },
+        "x-permission": "health_complex_case.update",
+        "x-function": [
+          "HEALTH_OPEN_COMPLEX_CASE"
+        ]
+      },
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Complex cases, by membership, case manager or status, within your scope; no clinical detail",
+        "operationId": "HealthListComplexCases",
+        "parameters": [
+          {
+            "name": "membershipId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "caseManagerId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfHealthComplexCaseView"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "health_complex_case.read",
+        "x-function": [
+          "HEALTH_COMPLEX_CASES"
+        ]
+      }
+    },
+    "/api/v1/health/complex-cases/{id}": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "A complex case, with who has managed it; no clinical detail",
+        "operationId": "HealthGetComplexCase",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthComplexCaseView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "health_complex_case.read",
+        "x-function": [
+          "HEALTH_COMPLEX_CASES"
+        ]
+      }
+    },
+    "/api/v1/health/complex-cases/{id}/clinical": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "A case\u0027s condition, care plans and notes: for its current manager or the clinical function, with a purpose; every read is audited (OQ-143)",
+        "operationId": "HealthReadComplexCaseClinical",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthComplexCaseClinicalView"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "health_complex_case.read",
+        "x-function": [
+          "HEALTH_READ_COMPLEX_CASE_CLINICAL"
+        ]
+      }
+    },
+    "/api/v1/health/complex-cases/{id}/case-manager": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Assign or reassign the case manager, who must hold the function; reassigning needs a reason and ends the last manager\u0027s access (F035)",
+        "operationId": "HealthAssignCaseManager",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealthAssignCaseManagerRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthComplexCaseView"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          }
+        },
+        "x-permission": "health_complex_case.update",
+        "x-function": [
+          "HEALTH_ASSIGN_CASE_MANAGER"
+        ]
+      }
+    },
+    "/api/v1/health/complex-cases/{id}/hold": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Case status: hold",
+        "operationId": "HealthHoldComplexCase",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthComplexCaseView"
+                }
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "health_complex_case.update",
+        "x-function": [
+          "HEALTH_HOLD_COMPLEX_CASE"
+        ]
+      }
+    },
+    "/api/v1/health/complex-cases/{id}/resume": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Case status: resume",
+        "operationId": "HealthResumeComplexCase",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthComplexCaseView"
+                }
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "health_complex_case.update",
+        "x-function": [
+          "HEALTH_RESUME_COMPLEX_CASE"
+        ]
+      }
+    },
+    "/api/v1/health/complex-cases/{id}/close": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Close a case with a reason; it never closes by itself",
+        "operationId": "HealthCloseComplexCase",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealthReasonRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthComplexCaseView"
+                }
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "health_complex_case.update",
+        "x-function": [
+          "HEALTH_CLOSE_COMPLEX_CASE"
+        ]
+      }
+    },
+    "/api/v1/health/complex-cases/{id}/care-plan": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Set the care plan; a change needs a reason and keeps the earlier version (F036)",
+        "operationId": "HealthSetCarePlan",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealthCarePlanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthComplexCaseView"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          }
+        },
+        "x-permission": "health_complex_case.update",
+        "x-function": [
+          "HEALTH_SET_CARE_PLAN"
+        ]
+      }
+    },
+    "/api/v1/health/complex-cases/{id}/care-plan/items/{itemId}/progress": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Mark a plan item done, missed or changed (F037)",
+        "operationId": "HealthRecordCareProgress",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "itemId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealthCareProgressRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthComplexCaseView"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "health_complex_case.update",
+        "x-function": [
+          "HEALTH_RECORD_CARE_PROGRESS"
+        ]
+      }
+    },
+    "/api/v1/health/complex-cases/{id}/notes": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Add a coordination note; one shared with another provider names the member\u0027s consent (F036)",
+        "operationId": "HealthAddCareNote",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealthCareNoteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthComplexCaseView"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          }
+        },
+        "x-permission": "health_complex_case.update",
+        "x-function": [
+          "HEALTH_ADD_CARE_NOTE"
+        ]
+      }
+    },
+    "/api/v1/health/referrals": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Record a clinical referral (F038); it does not affect claims (OQ-144)",
+        "operationId": "HealthRequestReferral",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealthRequestClinicalReferral"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthClinicalReferralView"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          }
+        },
+        "x-permission": "health_referral.create",
+        "x-function": [
+          "HEALTH_REQUEST_REFERRAL"
+        ]
+      },
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Referrals, by membership, referring provider or status; no clinical reason",
+        "operationId": "HealthListReferrals",
+        "parameters": [
+          {
+            "name": "membershipId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "providerId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfHealthClinicalReferralView"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "health_referral.read",
+        "x-function": [
+          "HEALTH_REFERRALS"
+        ]
+      }
+    },
+    "/api/v1/health/referrals/{id}": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "A referral; no clinical reason",
+        "operationId": "HealthGetReferral",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthClinicalReferralView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "health_referral.read",
+        "x-function": [
+          "HEALTH_REFERRALS"
+        ]
+      }
+    },
+    "/api/v1/health/referrals/{id}/clinical": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "A referral\u0027s clinical reason, for the clinical function, with a purpose; every read is audited",
+        "operationId": "HealthReadReferralClinical",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthReferralClinicalView"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "health_case.read_clinical",
+        "x-function": [
+          "HEALTH_READ_REFERRAL_CLINICAL"
+        ]
+      }
+    },
+    "/api/v1/health/referrals/{id}/decide": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Approve a referral, or decline it with a reason",
+        "operationId": "HealthDecideReferral",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealthDecideReferralRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthClinicalReferralView"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          }
+        },
+        "x-permission": "health_referral.decide",
+        "x-function": [
+          "HEALTH_DECIDE_REFERRAL"
+        ]
+      }
+    },
+    "/api/v1/health/referrals/{id}/consent": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Record the member\u0027s consent after the referral was made, with a reason: the receiving provider may then read its reason",
+        "operationId": "HealthRecordReferralConsent",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealthReferralConsentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthClinicalReferralView"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          }
+        },
+        "x-permission": "health_referral.consent",
+        "x-function": [
+          "HEALTH_RECORD_REFERRAL_CONSENT"
+        ]
+      }
+    },
+    "/api/v1/health/referrals/{id}/consent/withdraw": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Withdraw the member\u0027s consent, with a reason: the receiving provider\u0027s access to the reason ends at once",
+        "operationId": "HealthWithdrawReferralConsent",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealthReasonRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthClinicalReferralView"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          }
+        },
+        "x-permission": "health_referral.consent",
+        "x-function": [
+          "HEALTH_WITHDRAW_REFERRAL_CONSENT"
+        ]
+      }
+    },
+    "/api/v1/health/referrals/{id}/visits": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Record a visit under an approved referral; it is USED when none is left",
+        "operationId": "HealthRecordReferralVisit",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthClinicalReferralView"
+                }
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "health_referral.create",
+        "x-function": [
+          "HEALTH_RECORD_REFERRAL_VISIT"
+        ]
+      }
+    },
+    "/api/v1/health/provider-recoveries": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Overpayments owed by providers and members (F049)",
+        "operationId": "HealthListRecoveries",
+        "parameters": [
+          {
+            "name": "providerId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfHealthProviderRecoveryView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "health_recovery.read",
+        "x-function": [
+          "HEALTH_RECOVERIES"
+        ]
+      },
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "A person\u0027s overpayment finding; a second person approves it before anything is owed",
+        "operationId": "HealthProposeRecoveryFinding",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealthProposeRecoveryFinding"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthProviderRecoveryView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "health_recovery.manage",
+        "x-function": [
+          "HEALTH_PROPOSE_RECOVERY_FINDING"
+        ]
+      }
+    },
+    "/api/v1/health/provider-recoveries/{id}": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "A recovery, with its offsets",
+        "operationId": "HealthGetRecovery",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthProviderRecoveryView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "health_recovery.read",
+        "x-function": [
+          "HEALTH_RECOVERIES"
+        ]
+      }
+    },
+    "/api/v1/health/provider-recoveries/{id}/invoice": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "A person\u0027s decision: the balance is invoiced through Billing",
+        "operationId": "HealthInvoiceRecovery",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthProviderRecoveryView"
+                }
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "health_recovery.manage",
+        "x-function": [
+          "HEALTH_INVOICE_RECOVERY"
+        ]
+      }
+    },
+    "/api/v1/health/provider-recoveries/{id}/write-off": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Ask to write off the balance, with a reason; a second person approves",
+        "operationId": "HealthWriteOffRecovery",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealthReasonRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthProviderRecoveryView"
+                }
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "health_recovery.manage",
+        "x-function": [
+          "HEALTH_WRITE_OFF_RECOVERY"
+        ]
+      }
+    },
+    "/api/v1/health/provider-recoveries/{id}/reverse": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "A recovery raised in error is reversed; an offset already taken is repaid in the next run",
+        "operationId": "HealthReverseRecovery",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealthReasonRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthProviderRecoveryView"
+                }
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "health_recovery.manage",
+        "x-function": [
+          "HEALTH_REVERSE_RECOVERY"
+        ]
+      }
+    },
+    "/api/v1/health/provider-recoveries/{id}/hold": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Hold a recovery from offsets for a dispute case; the case closing releases it (OQ-146)",
+        "operationId": "HealthHoldRecovery",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealthRecoveryHoldRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthProviderRecoveryView"
+                }
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "health_recovery.manage",
+        "x-function": [
+          "HEALTH_HOLD_RECOVERY"
+        ]
+      }
+    },
+    "/api/v1/health/provider-credit-notes": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Providers\u0027 credit notes (F048)",
+        "operationId": "HealthListCreditNotes",
+        "parameters": [
+          {
+            "name": "providerId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfHealthProviderCreditNoteView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "health_credit_note.read",
+        "x-function": [
+          "HEALTH_CREDIT_NOTES"
+        ]
+      },
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Record a provider\u0027s credit note; a second person approves it, and it then raises a recovery",
+        "operationId": "HealthSubmitCreditNote",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealthSubmitCreditNote"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthProviderCreditNoteView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "health_credit_note.create",
+        "x-function": [
+          "HEALTH_SUBMIT_CREDIT_NOTE"
+        ]
+      }
+    },
+    "/api/v1/health/provider-credit-notes/{id}": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "A provider\u0027s credit note",
+        "operationId": "HealthGetCreditNote",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthProviderCreditNoteView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "health_credit_note.read",
+        "x-function": [
+          "HEALTH_CREDIT_NOTES"
+        ]
+      }
+    },
+    "/api/v1/health/remittances/{id}": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "A remittance: gross, offsets with the original claim, its reversal and its replacement, and the net",
+        "operationId": "HealthGetRemittance",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthRemittanceDetailView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "provider_payment_run.read",
+        "x-function": [
+          "HEALTH_REMITTANCES"
+        ]
+      }
+    },
     "/api/v1/portal/health/memberships": {
       "get": {
         "tags": [
@@ -30575,6 +33072,216 @@
         ]
       }
     },
+    "/api/v1/portal/health/referrals": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Refer a member, as yourself (F038); name the member\u0027s consent for the receiving provider to read the reason",
+        "operationId": "PortalHealthRequestReferral",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealthPortalReferralRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthClinicalReferralView"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          }
+        },
+        "x-permission": "health_referral.create",
+        "x-function": [
+          "PROVIDER_PORTAL_HEALTH_REQUEST_REFERRAL"
+        ]
+      },
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Referrals you made or received; no clinical reason",
+        "operationId": "PortalHealthListReferrals",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfHealthClinicalReferralView"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "health_referral.read",
+        "x-function": [
+          "PROVIDER_PORTAL_HEALTH_REFERRALS"
+        ]
+      }
+    },
+    "/api/v1/portal/health/referrals/{id}/clinical": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "A referral\u0027s reason, with a purpose: for the provider who wrote it, or the one it names with the member\u0027s consent; every read is audited",
+        "operationId": "PortalHealthReadReferralClinical",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthReferralClinicalView"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          }
+        },
+        "x-permission": "health_referral.read",
+        "x-function": [
+          "PROVIDER_PORTAL_HEALTH_READ_REFERRAL_CLINICAL"
+        ]
+      }
+    },
     "/api/v1/portal/health/preauthorisations": {
       "post": {
         "tags": [
@@ -30643,6 +33350,254 @@
         "x-permission": "health_preauthorisation.create",
         "x-function": [
           "PROVIDER_PORTAL_HEALTH_REQUEST_AUTHORISATION"
+        ]
+      }
+    },
+    "/api/v1/portal/health/remittances/{id}": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "The provider\u0027s remittance: gross, offsets with the original claim, its reversal and its replacement, and the net",
+        "operationId": "PortalHealthGetRemittance",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthRemittanceDetailView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "provider_payment_run.read",
+        "x-function": [
+          "PROVIDER_PORTAL_HEALTH_REMITTANCES"
+        ]
+      }
+    },
+    "/api/v1/portal/health/recoveries": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "What the provider owes, and what has been deducted",
+        "operationId": "PortalHealthListRecoveries",
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfHealthPortalRecoveryView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "health_recovery.read",
+        "x-function": [
+          "PROVIDER_PORTAL_HEALTH_RECOVERIES"
+        ]
+      }
+    },
+    "/api/v1/portal/health/credit-notes": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "The provider\u0027s credit notes",
+        "operationId": "PortalHealthListCreditNotes",
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfHealthProviderCreditNoteView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "health_credit_note.read",
+        "x-function": [
+          "PROVIDER_PORTAL_HEALTH_CREDIT_NOTES"
+        ]
+      },
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "A provider submits a credit note on its own claim or remittance, as itself",
+        "operationId": "PortalHealthSubmitCreditNote",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealthSubmitPortalCreditNote"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthProviderCreditNoteView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "health_credit_note.create",
+        "x-function": [
+          "PROVIDER_PORTAL_HEALTH_SUBMIT_CREDIT_NOTE"
         ]
       }
     },
@@ -36861,8 +39816,10 @@
                 "ClaimFinancials",
                 "ClaimPaymentInstruction",
                 "ClaimRegistration",
+                "ClinicalReferral",
                 "CommissionEntitlement",
                 "CommissionStatement",
+                "ComplexCase",
                 "ConsentRecord",
                 "DeadLetter",
                 "DeviceRegistration",
@@ -36907,9 +39864,11 @@
                 "PrivilegedAccessGrant",
                 "ProcessInstance",
                 "ProductVersion",
+                "ProviderCreditNote",
                 "ProviderMeasureResult",
                 "ProviderPaymentRun",
                 "ProviderQualityReview",
+                "ProviderRecovery",
                 "ProviderStatement",
                 "ReconciliationException",
                 "RecordHold",
@@ -37058,6 +40017,7 @@
                 "cfg_product_template_assignmen",
                 "cfg_provider_contracts",
                 "cfg_provider_measures",
+                "cfg_provider_recovery_settings",
                 "cfg_question_bank_and_question",
                 "cfg_quote_validity_periods",
                 "cfg_rate_limit_policies",
@@ -37316,8 +40276,10 @@
                 "ClaimFinancials",
                 "ClaimPaymentInstruction",
                 "ClaimRegistration",
+                "ClinicalReferral",
                 "CommissionEntitlement",
                 "CommissionStatement",
+                "ComplexCase",
                 "ConsentRecord",
                 "DeadLetter",
                 "DeviceRegistration",
@@ -37362,9 +40324,11 @@
                 "PrivilegedAccessGrant",
                 "ProcessInstance",
                 "ProductVersion",
+                "ProviderCreditNote",
                 "ProviderMeasureResult",
                 "ProviderPaymentRun",
                 "ProviderQualityReview",
+                "ProviderRecovery",
                 "ProviderStatement",
                 "ReconciliationException",
                 "RecordHold",
@@ -37513,6 +40477,7 @@
                 "cfg_product_template_assignmen",
                 "cfg_provider_contracts",
                 "cfg_provider_measures",
+                "cfg_provider_recovery_settings",
                 "cfg_question_bank_and_question",
                 "cfg_quote_validity_periods",
                 "cfg_rate_limit_policies",
@@ -42079,6 +45044,48 @@
           }
         }
       },
+      "CursorPageOfHealthClinicalReferralView": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthClinicalReferralView"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CursorPageOfHealthComplexCaseView": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthComplexCaseView"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "CursorPageOfHealthEligibilityDecisionSummary": {
         "required": [
           "items",
@@ -42226,6 +45233,27 @@
           }
         }
       },
+      "CursorPageOfHealthPortalRecoveryView": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthPortalRecoveryView"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "CursorPageOfHealthPortalRemittanceView": {
         "required": [
           "items",
@@ -42268,6 +45296,27 @@
           }
         }
       },
+      "CursorPageOfHealthProviderCreditNoteView": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthProviderCreditNoteView"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "CursorPageOfHealthProviderMeasureView": {
         "required": [
           "items",
@@ -42300,6 +45349,27 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/HealthProviderQualityReviewView"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CursorPageOfHealthProviderRecoveryView": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthProviderRecoveryView"
             }
           },
           "nextCursor": {
@@ -48811,6 +51881,25 @@
           }
         }
       },
+      "HealthAssignCaseManagerRequest": {
+        "required": [
+          "caseManagerId",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "caseManagerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "HealthAuthorisationChangeRequest": {
         "required": [
           "lineId",
@@ -48866,6 +51955,257 @@
         "properties": {
           "reason": {
             "type": "string"
+          }
+        }
+      },
+      "HealthCareNoteRequest": {
+        "required": [
+          "contactType",
+          "contactRef",
+          "note",
+          "sharedWithProviderId",
+          "consentReference"
+        ],
+        "type": "object",
+        "properties": {
+          "contactType": {
+            "enum": [
+              "PROVIDER",
+              "MEMBER",
+              "INTERNAL"
+            ],
+            "type": "string"
+          },
+          "contactRef": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "note": {
+            "type": "string"
+          },
+          "sharedWithProviderId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "consentReference": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "HealthCareNoteView": {
+        "required": [
+          "id",
+          "contactType",
+          "contactRef",
+          "note",
+          "sharedWithProviderId",
+          "consentReference",
+          "writtenBy",
+          "writtenAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "contactType": {
+            "enum": [
+              "PROVIDER",
+              "MEMBER",
+              "INTERNAL"
+            ],
+            "type": "string"
+          },
+          "contactRef": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "note": {
+            "type": "string"
+          },
+          "sharedWithProviderId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "consentReference": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "writtenBy": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "writtenAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "HealthCarePlanItemInput": {
+        "required": [
+          "kind",
+          "description",
+          "responsible",
+          "dueOn"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "responsible": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "dueOn": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          }
+        }
+      },
+      "HealthCarePlanItemView": {
+        "required": [
+          "id",
+          "kind",
+          "description",
+          "responsible",
+          "dueOn",
+          "status",
+          "progressNote"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "responsible": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "dueOn": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "status": {
+            "type": "string"
+          },
+          "progressNote": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "HealthCarePlanRequest": {
+        "required": [
+          "items",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthCarePlanItemInput"
+            }
+          },
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "HealthCarePlanView": {
+        "required": [
+          "planVersion",
+          "isCurrent",
+          "changeReason",
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "planVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "isCurrent": {
+            "type": "boolean"
+          },
+          "changeReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthCarePlanItemView"
+            }
+          }
+        }
+      },
+      "HealthCareProgressRequest": {
+        "required": [
+          "status",
+          "note"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "enum": [
+              "DONE",
+              "MISSED",
+              "CHANGED"
+            ],
+            "type": "string"
+          },
+          "note": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -49094,6 +52434,314 @@
               "string"
             ],
             "format": "uuid"
+          }
+        }
+      },
+      "HealthClinicalReferralView": {
+        "required": [
+          "id",
+          "referralNumber",
+          "membershipId",
+          "patientPartyId",
+          "referringProviderId",
+          "referredProviderId",
+          "referredSpecialty",
+          "validFrom",
+          "validTo",
+          "visitsAllowed",
+          "visitsUsed",
+          "complexCaseId",
+          "preauthorisationId",
+          "status",
+          "declineReason",
+          "rowVersion",
+          "consentReference",
+          "consentWithdrawnAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "referralNumber": {
+            "type": "string"
+          },
+          "membershipId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "patientPartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "referringProviderId": {
+            "type": "string"
+          },
+          "referredProviderId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "referredSpecialty": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "validFrom": {
+            "type": "string",
+            "format": "date"
+          },
+          "validTo": {
+            "type": "string",
+            "format": "date"
+          },
+          "visitsAllowed": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "visitsUsed": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "complexCaseId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "preauthorisationId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "status": {
+            "enum": [
+              "REQUESTED",
+              "APPROVED",
+              "DECLINED",
+              "USED",
+              "EXPIRED"
+            ],
+            "type": "string"
+          },
+          "declineReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "consentReference": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "consentWithdrawnAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "HealthComplexCaseAssignmentView": {
+        "required": [
+          "caseManagerId",
+          "assignedAt",
+          "assignedBy",
+          "reason",
+          "endedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "caseManagerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "assignedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "assignedBy": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "endedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "HealthComplexCaseClinicalView": {
+        "required": [
+          "caseId",
+          "caseNumber",
+          "conditionCategory",
+          "plans",
+          "notes"
+        ],
+        "type": "object",
+        "properties": {
+          "caseId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "caseNumber": {
+            "type": "string"
+          },
+          "conditionCategory": {
+            "type": "string"
+          },
+          "plans": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthCarePlanView"
+            }
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthCareNoteView"
+            }
+          }
+        }
+      },
+      "HealthComplexCaseView": {
+        "required": [
+          "id",
+          "caseNumber",
+          "membershipId",
+          "patientPartyId",
+          "openedFrom",
+          "sourceId",
+          "status",
+          "caseManagerId",
+          "closeReason",
+          "assignments",
+          "currentPlanVersion",
+          "rowVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "caseNumber": {
+            "type": "string"
+          },
+          "membershipId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "patientPartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "openedFrom": {
+            "type": "string"
+          },
+          "sourceId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "status": {
+            "enum": [
+              "OPEN",
+              "ACTIVE",
+              "ON_HOLD",
+              "CLOSED"
+            ],
+            "type": "string"
+          },
+          "caseManagerId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "closeReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "assignments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthComplexCaseAssignmentView"
+            }
+          },
+          "currentPlanVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "HealthDecideReferralRequest": {
+        "required": [
+          "approved",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "approved": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -49682,7 +53330,9 @@
           "outcome",
           "decisionReasonCode",
           "approvedBy",
-          "approvedAt"
+          "approvedAt",
+          "replacesClaimId",
+          "replacedByClaimId"
         ],
         "type": "object",
         "properties": {
@@ -49794,6 +53444,20 @@
               "string"
             ],
             "format": "date-time"
+          },
+          "replacesClaimId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "replacedByClaimId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
@@ -50093,6 +53757,44 @@
               "null",
               "string"
             ]
+          }
+        }
+      },
+      "HealthOpenComplexCase": {
+        "required": [
+          "membershipId",
+          "patientPartyId",
+          "openedFrom",
+          "sourceId",
+          "conditionCategory"
+        ],
+        "type": "object",
+        "properties": {
+          "membershipId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "patientPartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "openedFrom": {
+            "enum": [
+              "MEMBERSHIP",
+              "UTILISATION",
+              "HIGH_COST"
+            ],
+            "type": "string"
+          },
+          "sourceId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "conditionCategory": {
+            "type": "string"
           }
         }
       },
@@ -50462,6 +54164,13 @@
             "items": {
               "$ref": "#/components/schemas/HealthClaimLineRequest"
             }
+          },
+          "replacesClaimId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
@@ -50475,7 +54184,9 @@
           "totalClaimed",
           "totalPaid",
           "currency",
-          "lines"
+          "lines",
+          "replacesClaimId",
+          "replacedByClaimId"
         ],
         "type": "object",
         "properties": {
@@ -50524,6 +54235,20 @@
             "items": {
               "$ref": "#/components/schemas/HealthPortalClaimLineView"
             }
+          },
+          "replacesClaimId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "replacedByClaimId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
@@ -50733,6 +54458,159 @@
           }
         }
       },
+      "HealthPortalRecoveryView": {
+        "required": [
+          "id",
+          "recoveryNumber",
+          "source",
+          "claimNumber",
+          "originalAmount",
+          "balance",
+          "currency",
+          "basis",
+          "status",
+          "disputed",
+          "raisedOn",
+          "offsets"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "recoveryNumber": {
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "REVERSAL",
+              "CREDIT_NOTE",
+              "FINDING"
+            ],
+            "type": "string"
+          },
+          "claimNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "originalAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "balance": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "basis": {
+            "enum": [
+              "OFFSET",
+              "INVOICE",
+              "PERSON"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "PROPOSED",
+              "OPEN",
+              "INVOICED",
+              "RECOVERED",
+              "WRITTEN_OFF",
+              "REVERSED",
+              "REJECTED"
+            ],
+            "type": "string"
+          },
+          "disputed": {
+            "type": "boolean"
+          },
+          "raisedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "offsets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthRecoveryOffsetView"
+            }
+          }
+        }
+      },
+      "HealthPortalReferralRequest": {
+        "required": [
+          "memberNumber",
+          "dependantSuffix",
+          "referredProviderId",
+          "referredSpecialty",
+          "clinicalReason",
+          "validFrom",
+          "validTo",
+          "visitsAllowed"
+        ],
+        "type": "object",
+        "properties": {
+          "memberNumber": {
+            "type": "string"
+          },
+          "dependantSuffix": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "referredProviderId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "referredSpecialty": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "clinicalReason": {
+            "type": "string"
+          },
+          "validFrom": {
+            "type": "string",
+            "format": "date"
+          },
+          "validTo": {
+            "type": "string",
+            "format": "date"
+          },
+          "visitsAllowed": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "consentReference": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "HealthPortalRemittanceView": {
         "required": [
           "id",
@@ -50784,6 +54662,33 @@
               "string"
             ],
             "format": "date"
+          },
+          "grossAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double",
+            "default": 0
+          },
+          "offsetAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double",
+            "default": 0
+          },
+          "repaidAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double",
+            "default": 0
           }
         }
       },
@@ -51118,6 +55023,125 @@
           }
         }
       },
+      "HealthProposeRecoveryFinding": {
+        "required": [
+          "providerId",
+          "amount",
+          "currency",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "providerId": {
+            "type": "string"
+          },
+          "amount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "HealthProviderCreditNoteView": {
+        "required": [
+          "id",
+          "creditNoteNumber",
+          "providerId",
+          "providerReference",
+          "claimId",
+          "remittanceId",
+          "amount",
+          "currency",
+          "status",
+          "reason",
+          "decidedAt",
+          "recoveryId",
+          "rowVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "creditNoteNumber": {
+            "type": "string"
+          },
+          "providerId": {
+            "type": "string"
+          },
+          "providerReference": {
+            "type": "string"
+          },
+          "claimId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "remittanceId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "amount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "SUBMITTED",
+              "APPROVED",
+              "REJECTED"
+            ],
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "decidedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "recoveryId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          }
+        }
+      },
       "HealthProviderMeasureView": {
         "required": [
           "id",
@@ -51242,6 +55266,190 @@
           "reviewedBy": {
             "type": "string",
             "format": "uuid"
+          }
+        }
+      },
+      "HealthProviderRecoveryView": {
+        "required": [
+          "id",
+          "recoveryNumber",
+          "debtorKind",
+          "providerId",
+          "source",
+          "claimId",
+          "claimNumber",
+          "originalAmount",
+          "balance",
+          "currency",
+          "basis",
+          "status",
+          "reason",
+          "raisedOn",
+          "reviewDueOn",
+          "inReview",
+          "heldByCaseId",
+          "invoiceId",
+          "writeOffReason",
+          "repayAmount",
+          "repaidInRunId",
+          "closedOn",
+          "offsets",
+          "rowVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "recoveryNumber": {
+            "type": "string"
+          },
+          "debtorKind": {
+            "enum": [
+              "PROVIDER",
+              "MEMBER"
+            ],
+            "type": "string"
+          },
+          "providerId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "source": {
+            "enum": [
+              "REVERSAL",
+              "CREDIT_NOTE",
+              "FINDING"
+            ],
+            "type": "string"
+          },
+          "claimId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "claimNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "originalAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "balance": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "basis": {
+            "enum": [
+              "OFFSET",
+              "INVOICE",
+              "PERSON"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "PROPOSED",
+              "OPEN",
+              "INVOICED",
+              "RECOVERED",
+              "WRITTEN_OFF",
+              "REVERSED",
+              "REJECTED"
+            ],
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "raisedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "reviewDueOn": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "inReview": {
+            "type": "boolean"
+          },
+          "heldByCaseId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "invoiceId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "writeOffReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "repayAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "repaidInRunId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "closedOn": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "offsets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthRecoveryOffsetView"
+            }
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
           }
         }
       },
@@ -51444,6 +55652,89 @@
           }
         }
       },
+      "HealthRecoveryHoldRequest": {
+        "required": [
+          "caseId"
+        ],
+        "type": "object",
+        "properties": {
+          "caseId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "HealthRecoveryOffsetView": {
+        "required": [
+          "id",
+          "runId",
+          "remittanceId",
+          "amount",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "runId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "remittanceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "status": {
+            "enum": [
+              "RESERVED",
+              "TAKEN",
+              "RELEASED"
+            ],
+            "type": "string"
+          }
+        }
+      },
+      "HealthReferralClinicalView": {
+        "required": [
+          "referralId",
+          "clinicalReason"
+        ],
+        "type": "object",
+        "properties": {
+          "referralId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "clinicalReason": {
+            "type": "string"
+          }
+        }
+      },
+      "HealthReferralConsentRequest": {
+        "required": [
+          "consentReference",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "consentReference": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
       "HealthRegisterHealthScheme": {
         "required": [
           "sponsorCode",
@@ -51468,6 +55759,187 @@
           },
           "currency": {
             "type": "string"
+          }
+        }
+      },
+      "HealthRemittanceClaimLine": {
+        "required": [
+          "claimId",
+          "claimNumber",
+          "amount",
+          "replacesClaimNumber"
+        ],
+        "type": "object",
+        "properties": {
+          "claimId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "claimNumber": {
+            "type": "string"
+          },
+          "amount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "replacesClaimNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "HealthRemittanceDetailView": {
+        "required": [
+          "id",
+          "runId",
+          "runCode",
+          "providerId",
+          "currency",
+          "grossAmount",
+          "offsetAmount",
+          "repaidAmount",
+          "netAmount",
+          "paymentDue",
+          "paymentId",
+          "paidOn",
+          "documentId",
+          "claims",
+          "offsets"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "runId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "runCode": {
+            "type": "string"
+          },
+          "providerId": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "grossAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "offsetAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "repaidAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "netAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "paymentDue": {
+            "type": "boolean"
+          },
+          "paymentId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "paidOn": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "documentId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "claims": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthRemittanceClaimLine"
+            }
+          },
+          "offsets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthRemittanceOffsetLine"
+            }
+          }
+        }
+      },
+      "HealthRemittanceOffsetLine": {
+        "required": [
+          "recoveryNumber",
+          "originalClaimNumber",
+          "reversedOn",
+          "newClaimNumber",
+          "amount"
+        ],
+        "type": "object",
+        "properties": {
+          "recoveryNumber": {
+            "type": "string"
+          },
+          "originalClaimNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reversedOn": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "newClaimNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "amount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
           }
         }
       },
@@ -51536,6 +56008,33 @@
               "string"
             ],
             "format": "uuid"
+          },
+          "grossAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double",
+            "default": 0
+          },
+          "offsetAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double",
+            "default": 0
+          },
+          "repaidAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double",
+            "default": 0
           }
         }
       },
@@ -51579,6 +56078,86 @@
             "items": {
               "$ref": "#/components/schemas/HealthPreauthLineRequest"
             }
+          }
+        }
+      },
+      "HealthRequestClinicalReferral": {
+        "required": [
+          "membershipId",
+          "patientPartyId",
+          "referringProviderId",
+          "referredProviderId",
+          "referredSpecialty",
+          "clinicalReason",
+          "validFrom",
+          "validTo",
+          "visitsAllowed",
+          "complexCaseId",
+          "preauthorisationId"
+        ],
+        "type": "object",
+        "properties": {
+          "membershipId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "patientPartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "referringProviderId": {
+            "type": "string"
+          },
+          "referredProviderId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "referredSpecialty": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "clinicalReason": {
+            "type": "string"
+          },
+          "validFrom": {
+            "type": "string",
+            "format": "date"
+          },
+          "validTo": {
+            "type": "string",
+            "format": "date"
+          },
+          "visitsAllowed": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "complexCaseId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "preauthorisationId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "consentReference": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -51719,6 +56298,54 @@
           }
         }
       },
+      "HealthSubmitCreditNote": {
+        "required": [
+          "providerId",
+          "providerReference",
+          "claimId",
+          "remittanceId",
+          "amount",
+          "currency",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "providerId": {
+            "type": "string"
+          },
+          "providerReference": {
+            "type": "string"
+          },
+          "claimId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "remittanceId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "amount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
       "HealthSubmitMedicalClaim": {
         "required": [
           "source",
@@ -51772,6 +56399,57 @@
             "items": {
               "$ref": "#/components/schemas/HealthClaimLineRequest"
             }
+          },
+          "replacesClaimId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
+      "HealthSubmitPortalCreditNote": {
+        "required": [
+          "providerReference",
+          "claimId",
+          "remittanceId",
+          "amount",
+          "currency",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "providerReference": {
+            "type": "string"
+          },
+          "claimId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "remittanceId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "amount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
           }
         }
       },
@@ -61293,7 +65971,9 @@
               "GENERAL_ENDORSEMENT",
               "GENERAL_RENEWAL",
               "GOVERNANCE_SETTING",
+              "HEALTH_CREDIT_NOTE",
               "HEALTH_PAYMENT_RUN",
+              "HEALTH_RECOVERY",
               "LIFE_CLAIM",
               "LIFE_UNDERWRITING_CASE",
               "PARTY_MATCH",
@@ -61335,7 +66015,10 @@
               "PERIOD_REOPEN",
               "PRIVILEGED_ROLE",
               "PRODUCT_PUBLICATION",
+              "PROVIDER_CREDIT_NOTE",
               "PROVIDER_PAYMENT_RUN",
+              "PROVIDER_RECOVERY_FINDING",
+              "PROVIDER_RECOVERY_WRITE_OFF",
               "REFUND",
               "STATIC_DATA_T1",
               "STATIC_DATA_T2",
@@ -61509,7 +66192,10 @@
               "PERIOD_REOPEN",
               "PRIVILEGED_ROLE",
               "PRODUCT_PUBLICATION",
+              "PROVIDER_CREDIT_NOTE",
               "PROVIDER_PAYMENT_RUN",
+              "PROVIDER_RECOVERY_FINDING",
+              "PROVIDER_RECOVERY_WRITE_OFF",
               "REFUND",
               "STATIC_DATA_T1",
               "STATIC_DATA_T2",
@@ -62701,7 +67387,10 @@
               "PERIOD_REOPEN",
               "PRIVILEGED_ROLE",
               "PRODUCT_PUBLICATION",
+              "PROVIDER_CREDIT_NOTE",
               "PROVIDER_PAYMENT_RUN",
+              "PROVIDER_RECOVERY_FINDING",
+              "PROVIDER_RECOVERY_WRITE_OFF",
               "REFUND",
               "STATIC_DATA_T1",
               "STATIC_DATA_T2",

@@ -61,6 +61,12 @@ public static class HealthErrorCodes
     [ErrorCode(422, "error.health.authorisation_above_benefit")]
     public const string AuthorisationAboveBenefit = "AUTHORISATION_ABOVE_BENEFIT";
 
+    [ErrorCode(422, "error.health.reason_required")]
+    public const string ReasonRequired = "HEALTH_REASON_REQUIRED";
+
+    [ErrorCode(422, "error.health.credit_note_invalid")]
+    public const string CreditNoteInvalid = "CREDIT_NOTE_INVALID";
+
     [ErrorCode(422, "error.health.claim_invalid")]
     public const string ClaimInvalid = "MEDICAL_CLAIM_INVALID";
 
@@ -78,6 +84,15 @@ public static class HealthErrorCodes
 
     /// <summary>The provider's statement reference is already recorded (F030).</summary>
     public const string ProviderStatementDuplicate = "PROVIDER_STATEMENT_DUPLICATE";
+
+    /// <summary>The person named does not hold the case manager function (F035).</summary>
+    public const string NotACaseManager = "NOT_A_CASE_MANAGER";
+
+    /// <summary>Only a complex case's current manager, or a holder of the clinical function, reads or writes its clinical detail (OQ-143).</summary>
+    public const string NotTheCaseManager = "NOT_THE_CASE_MANAGER";
+
+    /// <summary>A coordination note shared with another provider names the member's consent (addendum §4.4).</summary>
+    public const string CareConsentRequired = "CARE_CONSENT_REQUIRED";
 
     [ErrorCode(422, "error.health.rationale_required")]
     public const string RationaleRequired = "HEALTH_RATIONALE_REQUIRED";

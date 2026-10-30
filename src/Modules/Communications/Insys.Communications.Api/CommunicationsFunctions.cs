@@ -25,6 +25,7 @@
  * ============================================================================
  */
 using Insys.BuildingBlocks.Api.Functions;
+using Insys.Communications.Contracts;
 
 namespace Insys.Communications.Api;
 
@@ -41,6 +42,7 @@ internal static class CommunicationsFunctions
         .Screen("COMMUNICATION_CALLBACK_ENDPOINTS", "NOTIFICATIONS", "Delivery tracking", "communications/callback-endpoints", "CommunicationsListCallbackEndpoints")
         .Action("COMMUNICATIONS_ISSUE_CALLBACK_ENDPOINT", "COMMUNICATION_CALLBACK_ENDPOINTS", "CommunicationsIssueCallbackEndpoint", privileged: true)
         .Action("COMMUNICATIONS_REVOKE_CALLBACK_ENDPOINT", "COMMUNICATION_CALLBACK_ENDPOINTS", "CommunicationsRevokeCallbackEndpoint", privileged: true)
+        .Permission(CommunicationFunctionCodes.CallbackClient, "COMMUNICATION_CALLBACK_ENDPOINTS", CommunicationPermissions.CallbackCreate, privileged: true)
         .Screen("COMMUNICATION_NOTIFICATIONS", "NOTIFICATIONS", "Delivery tracking", "communications/notifications", "CommunicationsListNotifications", "CommunicationsGetNotification")
         .Screen("COMMUNICATION_PREFERENCES", "CONSENT_PREFERENCES", "Communication preferences", "communications/preferences", "CommunicationsGetPreferences")
         .Action("COMMUNICATIONS_SET_PREFERENCE", "COMMUNICATION_PREFERENCES", "CommunicationsSetPreference")

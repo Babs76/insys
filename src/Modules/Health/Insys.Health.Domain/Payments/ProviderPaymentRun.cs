@@ -53,9 +53,9 @@ public enum RunTrigger
 }
 
 /// <summary>A provider's share of a run: its party, its verified bank account (ADR-013), the amount and the claims in it.</summary>
-public sealed record RemittanceRequest(string ProviderId, Guid ProviderPartyId, Guid BankAccountId, decimal Amount, int ClaimCount);
+public sealed record RemittanceRequest(string ProviderId, Guid ProviderPartyId, Guid BankAccountId, decimal Amount, int ClaimCount, decimal? Gross = null, decimal Offset = 0, decimal Repaid = 0, Guid? Id = null);
 
-public sealed record RemittanceReleased(Guid RemittanceId, string ProviderId, Guid ProviderPartyId, Guid BankAccountId, decimal Amount);
+public sealed record RemittanceReleased(Guid RemittanceId, string ProviderId, Guid ProviderPartyId, Guid BankAccountId, decimal Amount, decimal Gross, decimal Offset, decimal Repaid);
 
 /// <summary>Asks Workflow for a second person's approval of the run's total, within authority (SRS-002).</summary>
 public sealed record PaymentRunCalculated(Guid RunId, string RunCode, Guid RequestedBy, decimal Total, string Currency, string SubjectHash, DateTimeOffset OccurredAt)
@@ -80,7 +80,14 @@ public sealed class RemittanceAdvice : Entity<Guid>, ITenantScoped
 
     public string ProviderId { get; private set; } = "";
 
+    /// <summary>What is paid: gross, less offsets, plus repayments (gap 2).</summary>
     public decimal Amount { get; private set; }
+
+    public decimal GrossAmount { get; private set; }
+
+    public decimal OffsetAmount { get; private set; }
+
+    public decimal RepaidAmount { get; private set; }
 
     public Guid? DocumentId { get; private set; }
 
@@ -96,7 +103,7 @@ public sealed class RemittanceAdvice : Entity<Guid>, ITenantScoped
 
     internal static RemittanceAdvice Create(Guid runId, RemittanceRequest request) => new()
     {
-        Id = Guid.CreateVersion7(), RunId = runId, ProviderId = Guard.MaxLength(request.ProviderId, 15), Amount = request.Amount, ProviderPartyId = request.ProviderPartyId,
+        Id = request.Id ?? Guid.CreateVersion7(), RunId = runId, ProviderId = Guard.MaxLength(request.ProviderId, 15), Amount = request.Amount, GrossAmount = request.Gross ?? request.Amount, OffsetAmount = request.Offset, RepaidAmount = request.Repaid, ProviderPartyId = request.ProviderPartyId,
         BankAccountId = request.BankAccountId, ClaimCount = request.ClaimCount,
     };
 
@@ -154,7 +161,7 @@ public sealed class ProviderPaymentRun : AggregateRoot<Guid>
 
     public string SubjectHash => ApprovalSubject.Hash([
         "HEALTH_PAYMENT_RUN", Id, TotalAmount, Currency,
-        .. _remittances.OrderBy(r => r.ProviderId, StringComparer.Ordinal).SelectMany(r => new object?[] { r.ProviderId, r.ProviderPartyId, r.BankAccountId, r.Amount }),
+        .. _remittances.OrderBy(r => r.ProviderId, StringComparer.Ordinal).SelectMany(r => new object?[] { r.ProviderId, r.ProviderPartyId, r.BankAccountId, r.Amount, r.GrossAmount, r.OffsetAmount, r.RepaidAmount }),
     ]);
 
     /// <summary>Command OpenRun, on a run calendar (health.cfg_payment_run_calendars).</summary>
@@ -176,10 +183,13 @@ public sealed class ProviderPaymentRun : AggregateRoot<Guid>
         return result;
     }
 
-    /// <summary>Command CalculateRun: one remittance per provider; the total is their sum. Workflow is asked to approve it.</summary>
+    /// <summary>
+    /// Command CalculateRun: one remittance per provider; the total is their net sum, which Workflow is asked to approve with the
+    /// offsets in its subject. A net of nil is an advice with no payment (gap 2); it never goes below nil.
+    /// </summary>
     public Result CalculateRun(IReadOnlyList<RemittanceRequest> remittances, Guid requestedBy, DateTimeOffset now)
     {
-        if (remittances.Count == 0 || remittances.Any(r => r.Amount <= 0))
+        if (remittances.Count == 0 || remittances.Any(r => r.Amount < 0))
         {
             return Error.Conflict(HealthErrorCodes.RunEmpty, "No claims approved for payment before the cut-off are waiting for a run.");
         }
@@ -254,7 +264,12 @@ public sealed class ProviderPaymentRun : AggregateRoot<Guid>
         {
             ReleasedAt = now;
             Raise(new ProviderPaymentRunReleased(Id, RunCode, TotalAmount, Currency,
-                _remittances.Select(r => new RemittanceReleased(r.Id, r.ProviderId, r.ProviderPartyId, r.BankAccountId, r.Amount)).ToList(), today, remittanceTemplate, now));
+                _remittances.Select(r => new RemittanceReleased(r.Id, r.ProviderId, r.ProviderPartyId, r.BankAccountId, r.Amount, r.GrossAmount, r.OffsetAmount, r.RepaidAmount)).ToList(),
+                today, remittanceTemplate, now));
+            if (_remittances.All(r => r.Amount == 0))
+            {
+                return Fire(RunTrigger.PaymentsMatched);
+            }
         }
 
         return result;
@@ -282,7 +297,7 @@ public sealed class ProviderPaymentRun : AggregateRoot<Guid>
 
         remittance.Paid(paymentId, paidOn);
         MarkChanged();
-        return Status == RunStatus.Released && _remittances.All(r => r.PaymentId is not null) ? Fire(RunTrigger.PaymentsMatched) : Result.Success();
+        return Status == RunStatus.Released && _remittances.Where(r => r.Amount > 0).All(r => r.PaymentId is not null) ? Fire(RunTrigger.PaymentsMatched) : Result.Success();
     }
 
     private Result Fire(RunTrigger trigger)
