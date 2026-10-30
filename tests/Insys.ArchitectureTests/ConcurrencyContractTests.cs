@@ -73,6 +73,84 @@ public sealed partial class ConcurrencyContractTests
         missing.ShouldBeEmpty();
     }
 
+    /// <summary>
+    /// BR-116: an operation taking If-Match can be called only by someone who can read the version it asks for. Its caller's own
+    /// read, on its path or a parent within the same area (a portal's stays in the portal), gives an ETag or a rowVersion.
+    /// </summary>
+    [Theory]
+    [InlineData("core")]
+    [InlineData("platform-operator")]
+    [InlineData("static-data")]
+    public void EveryIfMatchOperation_HasAReadByTheSameCaller_GivingItsVersion_BR116(string document)
+    {
+        var root = JsonDocument.Parse(File.ReadAllText(Path.Combine(RepositoryPaths.Root, "docs", "api", $"openapi-{document}.json"))).RootElement;
+        var paths = root.GetProperty("paths");
+        var schemas = root.GetProperty("components").GetProperty("schemas");
+        var missing = new List<string>();
+        foreach (var path in paths.EnumerateObject())
+        {
+            foreach (var operation in path.Value.EnumerateObject().Where(o => o.Name is "post" or "put" or "patch" or "delete" && TakesIfMatch(o.Value)))
+            {
+                var candidates = Ancestors(path.Name).Where(p => paths.TryGetProperty(p, out _)).Select(p => paths.GetProperty(p))
+                    .Where(p => p.TryGetProperty("get", out _)).Select(p => p.GetProperty("get"));
+                if (!candidates.Any(get => GivesVersion(get, schemas)))
+                {
+                    missing.Add($"{operation.Value.GetProperty("operationId").GetString()}: {path.Name}");
+                }
+            }
+        }
+
+        missing.ShouldBeEmpty();
+    }
+
+    private static bool TakesIfMatch(JsonElement operation) =>
+        operation.TryGetProperty("parameters", out var parameters) && parameters.EnumerateArray().Any(p => p.GetProperty("name").GetString() == "If-Match");
+
+    private static IEnumerable<string> Ancestors(string path)
+    {
+        for (var at = path; at.Count(c => c == '/') >= 3; at = at[..at.LastIndexOf('/')])
+        {
+            yield return at;
+        }
+    }
+
+    private static bool GivesVersion(JsonElement get, JsonElement schemas)
+    {
+        if (!get.GetProperty("responses").TryGetProperty("200", out var ok))
+        {
+            return false;
+        }
+
+        if (ok.TryGetProperty("headers", out var headers) && headers.TryGetProperty("ETag", out _))
+        {
+            return true;
+        }
+
+        return ok.TryGetProperty("content", out var content) && content.TryGetProperty("application/json", out var json) && NamesRowVersion(json.GetProperty("schema"), schemas, 0);
+    }
+
+    /// <summary>The schema, or a page's or a list's items, has a rowVersion.</summary>
+    private static bool NamesRowVersion(JsonElement schema, JsonElement schemas, int depth)
+    {
+        if (depth > 3)
+        {
+            return false;
+        }
+
+        if (schema.TryGetProperty("$ref", out var reference))
+        {
+            return NamesRowVersion(schemas.GetProperty(reference.GetString()!.Split('/')[^1]), schemas, depth + 1);
+        }
+
+        if (schema.TryGetProperty("items", out var items) && NamesRowVersion(items, schemas, depth + 1))
+        {
+            return true;
+        }
+
+        return schema.TryGetProperty("properties", out var properties)
+            && (properties.TryGetProperty("rowVersion", out _) || (properties.TryGetProperty("items", out var page) && NamesRowVersion(page, schemas, depth + 1)));
+    }
+
     private static IEnumerable<(string Method, string Path, string OperationId, HashSet<string> Headers)> Writes() =>
         Paths.EnumerateObject()
             .Where(p => ModulePath().IsMatch(p.Name))

@@ -821,8 +821,14 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         var other = await RenewalOf(lapsing);
         (await member.Send(HttpMethod.Post, $"/api/v1/portal/general/renewals/{other.GetProperty("id").GetGuid()}/accept",
             ifMatch: $"\"{other.GetProperty("rowVersion").GetInt64()}\"")).StatusCode.ShouldBe(HttpStatusCode.NotFound, "another member's renewal");
-        var accepted = await member.Send(HttpMethod.Post, $"/api/v1/portal/general/renewals/{listed[0].GetProperty("id").GetGuid()}/accept",
-            ifMatch: $"\"{invited.GetProperty("rowVersion").GetInt64()}\"");
+        // BR-116: the member reads the renewal with its ETag and answers with it; a stale one is refused.
+        var renewalUrl = $"/api/v1/portal/general/renewals/{listed[0].GetProperty("id").GetGuid()}";
+        var opened = await member.GetAsync(renewalUrl);
+        opened.StatusCode.ShouldBe(HttpStatusCode.OK, await opened.Content.ReadAsStringAsync());
+        var etag = opened.ETag();
+        etag.ShouldBe($"\"{(await opened.Json()).GetProperty("rowVersion").GetInt64()}\"");
+        (await member.Send(HttpMethod.Post, $"{renewalUrl}/accept", ifMatch: "\"999999\"")).StatusCode.ShouldBe(HttpStatusCode.PreconditionFailed, "a stale ETag");
+        var accepted = await member.Send(HttpMethod.Post, $"{renewalUrl}/accept", ifMatch: etag);
         accepted.StatusCode.ShouldBe(HttpStatusCode.OK, await accepted.Content.ReadAsStringAsync());
         (await accepted.Json()).GetProperty("status").GetString().ShouldBe("ACCEPTED");
 

@@ -20601,7 +20601,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "general_endorsement.create"
+        "x-permission": "general_endorsement.create",
+        "x-function": [
+          "GENERAL_DRAFT_ENDORSEMENT"
+        ]
       }
     },
     "/api/v1/general/endorsements/{id}/submit": {
@@ -24448,6 +24451,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -24515,6 +24526,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -24594,6 +24613,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -46717,7 +46744,8 @@
           "currentPremium",
           "offeredPremium",
           "needsAcceptance",
-          "coverEndsOn"
+          "coverEndsOn",
+          "rowVersion"
         ],
         "type": "object",
         "properties": {
@@ -46776,6 +46804,14 @@
               "string"
             ],
             "format": "date"
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
           }
         }
       },
