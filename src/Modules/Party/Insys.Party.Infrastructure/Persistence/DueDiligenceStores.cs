@@ -121,10 +121,19 @@ internal sealed class DueDiligenceConfiguration(PartyDbContext db) : IDueDiligen
     public DateOnly After(DateOnly day, string interval) =>
         PeriodPattern.NormalizingIso.Parse(interval) is { Success: true } period ? LocalDate.FromDateOnly(day).Plus(period.Value).ToDateOnly() : day.AddYears(3);
 
-    public DateTimeOffset Before(DateTimeOffset at, string interval) =>
-        PeriodPattern.NormalizingIso.Parse(interval) is { Success: true } period
-            ? LocalDateTime.FromDateTime(at.UtcDateTime).Minus(period.Value).InUtc().ToDateTimeOffset()
-            : at.AddDays(-30);
+    public DateOnly Before(DateOnly day, string interval)
+    {
+        if (PeriodPattern.NormalizingIso.Parse(interval) is not { Success: true } parsed)
+        {
+            return day.AddDays(-30);
+        }
+
+        // BR-112: a business date's unit is the day, so hours in an interval count as whole days, rounded up.
+        var p = parsed.Value;
+        var hours = (Period.FromHours(p.Hours) + Period.FromMinutes(p.Minutes) + Period.FromSeconds(p.Seconds)).ToDuration().TotalDays;
+        var days = Period.FromYears(p.Years) + Period.FromMonths(p.Months) + Period.FromWeeks(p.Weeks) + Period.FromDays(p.Days + (int)Math.Ceiling(hours));
+        return LocalDate.FromDateOnly(day).Minus(days).ToDateOnly();
+    }
 
     /// <summary>The tenant's settings in force: the one in force from the latest day, should two codes overlap.</summary>
     private Task<DueDiligenceSettings?> Settings(DateOnly day, CancellationToken cancellationToken) =>

@@ -39,6 +39,7 @@ using Insys.Tenancy.Contracts;
 using Insys.Testing;
 using Insys.Workflow.Contracts;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Insys.IntegrationTests;
 
@@ -381,6 +382,38 @@ public sealed class DueDiligenceTests(DatabaseFixture fixture) : IClassFixture<D
     }
 
     /// <summary>
+    /// BR-112 (GAP-116, ADR-025): a screening is fresh for a review from the start of the review date as the tenant sees
+    /// it. At 22:30 UTC on 1 November it is 00:30 on 2 November in Johannesburg: a screening then, on the review date,
+    /// ends an AUTOMATIC class's review. Judged from UTC midnight, it was a day early and the review stayed open.
+    /// </summary>
+    [Fact]
+    public async Task AScreeningJustAfterLocalMidnightOnTheReviewDate_IsFreshForTheReview_BR112()
+    {
+        var instant = new DateTimeOffset(2026, 11, 1, 22, 30, 0, TimeSpan.Zero);
+        var host = await fixture.Shared("dd-br112-2230-utc", () => new InsysApiFactory(fixture.Database, time: new FakeTimeProvider(instant)).Warm());
+        var w = await World(host);
+        var reviewDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(instant, TimeZoneInfo.FindSystemTimeZoneById(TestClock.DefaultTimeZone)).DateTime);
+        reviewDate.ShouldBeGreaterThan(DateOnly.FromDateTime(instant.UtcDateTime), "the tenant's day has begun; UTC's has not");
+        await fixture.Database.SeedStatic(w.Tenant, "party.cfg_customer_risk_classes", "EFFECTIVE", "LOW", Today.AddDays(-1), ("risk_class", "LOW"), ("min_score", -1000),
+            ("max_score", 29), ("dd_level", "STANDARD"), ("review_interval", TimeSpan.FromDays(365 * 5)), ("review_mode", "AUTOMATIC"));
+        var party = await w.Clerk.RegisterPerson("Midnight");
+        await w.Factory.DrainOutbox();
+        await AddIdentifier(w, party, "7708085009086");
+        await Check(w, party, "ADDRESS", await Document(w, party));
+        (await DueDiligence(w.Clerk, party)).GetProperty("status").GetString().ShouldBe("CLEARED");
+
+        // The review date is today, locally: the job expires the party, and a screening now (00:30 locally) is fresh for it.
+        await fixture.Database.ExecuteAsOwner("UPDATE party.due_diligence SET next_review_on = @d WHERE party_id = @p", ("d", reviewDate), ("p", party));
+        (await w.Factory.Services.GetRequiredService<DueDiligenceJobs>().RunForTenant(w.Tenant, CancellationToken.None))!.Expired.ShouldBe(1);
+        await w.Factory.DrainOutbox();
+        (await DueDiligence(w.Clerk, party)).GetProperty("status").GetString().ShouldBe("EXPIRED");
+        await Screen(w, party);
+        var view = await DueDiligence(w.Clerk, party);
+        (view.GetProperty("status").GetString(), view.GetProperty("reviewedBySystem").GetBoolean()).ShouldBe(("CLEARED", true), view.GetRawText());
+        (await Gate(w, party, DueDiligenceSteps.Payout, "GENERAL")).Cleared.ShouldBeTrue("screened today, within the payout's 30 days");
+    }
+
+    /// <summary>
     /// OQ-138: the reviewer contributed to the assessment, so they cannot give the party's enhanced approval on review; a person
     /// who took no part does. The approval of the earlier cycle does not make its approver a contributor now.
     /// </summary>
@@ -595,9 +628,9 @@ public sealed class DueDiligenceTests(DatabaseFixture fixture) : IClassFixture<D
 
     private sealed record DdWorld(InsysApiFactory Factory, Guid Tenant, HttpClient Clerk, HttpClient Reviewer, Guid ReviewerId, HttpClient Approver, Guid ApproverId);
 
-    private async Task<DdWorld> World()
+    private async Task<DdWorld> World(InsysApiFactory? host = null)
     {
-        var factory = await fixture.Host();
+        var factory = host ?? await fixture.Host();
         var suffix = Guid.NewGuid().ToString("N")[..8];
         var tenant = Guid.CreateVersion7();
         var db = fixture.Database;

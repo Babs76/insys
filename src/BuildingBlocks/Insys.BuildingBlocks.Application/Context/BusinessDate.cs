@@ -47,6 +47,9 @@ public interface IBusinessDate
 
     /// <summary>The current tenant's time zone.</summary>
     TimeZoneInfo Zone { get; }
+
+    /// <summary>The instant a business date starts in the current tenant's time zone (BR-112), to compare timestamps with a day.</summary>
+    DateTimeOffset StartOf(DateOnly day);
 }
 
 /// <summary>A tenant's IANA time zone (tenant.cfg_locale_defaults), read without awaiting; implemented by the Tenancy module.</summary>
@@ -160,9 +163,13 @@ public sealed class TenantBusinessDates(TenantTimeZones zones, IClock clock)
             return null;
         }
 
-        var zone = zones.For(tenantId);
+        return Start(day, zones.For(tenantId));
+    }
+
+    /// <summary>A day's first instant in a zone. A zone that skips midnight for daylight saving starts the day at its first valid time.</summary>
+    internal static DateTimeOffset Start(DateOnly day, TimeZoneInfo zone)
+    {
         var midnight = day.ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified);
-        // A zone that skips midnight for daylight saving starts the day at its first valid time.
         while (zone.IsInvalidTime(midnight))
         {
             midnight = midnight.AddMinutes(15);
@@ -183,4 +190,6 @@ public sealed class BusinessDate(ITenantContext tenant, TenantTimeZones zones, I
         BusinessDateOverride.Day ?? zones.TestDate ?? DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(clock.UtcNow, zones.For(tenantId)).DateTime);
 
     public DateOnly DateOf(DateTimeOffset instant) => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(instant, Zone).DateTime);
+
+    public DateTimeOffset StartOf(DateOnly day) => TenantBusinessDates.Start(day, Zone);
 }

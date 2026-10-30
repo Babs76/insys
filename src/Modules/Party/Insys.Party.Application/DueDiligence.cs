@@ -80,8 +80,8 @@ public interface IDueDiligenceConfiguration
     /// <summary>The day an ISO 8601 interval (a class's review interval) after the day; three years when it does not parse.</summary>
     DateOnly After(DateOnly day, string interval);
 
-    /// <summary>The instant an ISO 8601 interval (a gate's screening age) before the instant.</summary>
-    DateTimeOffset Before(DateTimeOffset at, string interval);
+    /// <summary>The day an ISO 8601 interval (a gate's screening age) before the day; 30 days when it does not parse.</summary>
+    DateOnly Before(DateOnly day, string interval);
 
     /// <summary>The tenant's setting, or null with no settings row in force (then the gates apply to a tenant entitled to LIFE, OQ-123).</summary>
     Task<bool?> GatesEnabled(DateOnly day, CancellationToken cancellationToken);
@@ -99,7 +99,7 @@ public sealed record DueDiligenceClearedFor(Guid PartyId, string Step, string Do
 /// CLEARED needs the due diligence CLEARED as well. What is outstanding names check types and states, never a hit.
 /// </summary>
 internal sealed class DueDiligenceClearedForHandler(IDueDiligenceStore store, IDueDiligenceConfiguration configuration, Tenancy.Contracts.ITenantFunctionSettings tenantSettings,
-    ITenantContext tenant, IBusinessDate businessDate, IClock clock) : IQueryHandler<DueDiligenceClearedFor, DueDiligenceAnswer>
+    ITenantContext tenant, IBusinessDate businessDate) : IQueryHandler<DueDiligenceClearedFor, DueDiligenceAnswer>
 {
     public async Task<Result<DueDiligenceAnswer>> Handle(DueDiligenceClearedFor query, CancellationToken cancellationToken)
     {
@@ -128,7 +128,7 @@ internal sealed class DueDiligenceClearedForHandler(IDueDiligenceStore store, ID
         }
 
         if (dueDiligence.LastScreenedAt is not { } screened
-            || (gate.ScreeningMaxAge is { } age && screened < configuration.Before(clock.UtcNow, age)))
+            || (gate.ScreeningMaxAge is { } age && businessDate.DateOf(screened) < configuration.Before(today, age))) // BR-112: counted in business days
         {
             outstanding.Add("SCREENING");
         }
@@ -254,9 +254,8 @@ public sealed class DueDiligenceService(IPartyRepository parties, IDueDiligenceS
         var required = await configuration.Requirements(party.Kind == PartyKind.Organisation ? "ORGANISATION" : "INDIVIDUAL", dueDiligence.Level,
             domains.Count > 0 ? domains : DomainFeatures, today, cancellationToken);
         var adverseMedia = await configuration.AdverseMediaEnabled(today, cancellationToken);
-        var since = dueDiligence.ReviewDue && dueDiligence.NextReviewOn is { } due
-            ? new DateTimeOffset(due.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero)
-            : (DateTimeOffset?)null;
+        // BR-112: fresh for a review means on or after the review date as the tenant sees it, not after UTC midnight.
+        var since = dueDiligence.ReviewDue && dueDiligence.NextReviewOn is { } due ? businessDate.StartOf(due) : (DateTimeOffset?)null;
         var missing = required.Distinct().Where(t => t != DueDiligenceCodes.AdverseMedia || adverseMedia).Where(t => !Met(t, checks, owners, since)).ToList();
         var fresh = since is { } from && checks.Any(c => c.CheckType == DueDiligenceCodes.Sanctions && c.CheckedAt >= from);
         var nextReview = configuration.After(today, band?.ReviewInterval ?? "P3Y");
@@ -811,7 +810,7 @@ internal sealed class RunDueDiligenceJobsHandler(IPartyRepository parties, IDueD
         var tenantId = tenant.RequireTenantId();
         var partner = await partners.ActivePartner(tenantId, PartnerTypes.Screening, businessDate.Today, cancellationToken);
         var version = partner is null ? null : await screening.ListVersion(tenantId, partner, cancellationToken);
-        var (expiring, rescreen) = await store.Due(businessDate.Today, version, clock.UtcNow.AddMonths(-1), cancellationToken);
+        var (expiring, rescreen) = await store.Due(businessDate.Today, version, businessDate.StartOf(businessDate.Today.AddMonths(-1)), cancellationToken);
         var expired = 0;
         foreach (var partyId in expiring)
         {
