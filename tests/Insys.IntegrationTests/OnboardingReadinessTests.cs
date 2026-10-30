@@ -210,6 +210,7 @@ public sealed class OnboardingReadinessTests(DatabaseFixture fixture) : IClassFi
         Check(await Readiness(url), "PRODUCT_FACTORY", "GENERAL_REFERRAL_AUTHORITY").GetProperty("ready").GetBoolean().ShouldBeTrue();
     }
 
+<<<<<<< HEAD
     /// <summary>B-010: an active broker with neither a contact party nor a party is listed as a warning, which does not stop the step.</summary>
     [Fact]
     public async Task ABrokerWithNoContactPartyOrParty_IsListedAsAWarning_B010()
@@ -233,6 +234,24 @@ public sealed class OnboardingReadinessTests(DatabaseFixture fixture) : IClassFi
         var codes = readiness.GetProperty("steps").EnumerateArray().Single(s => s.GetProperty("step").GetString() == "PAYMENTS_AND_DISTRIBUTION")
             .GetProperty("checks").EnumerateArray().Where(c => !c.GetProperty("ready").GetBoolean() && !c.GetProperty("advisory").GetBoolean()).Select(c => c.GetProperty("code").GetString());
         codes.ShouldNotContain("INTERMEDIARY_NO_CONTACT");
+=======
+    /// <summary>A HEALTH tenant whose reversal rule credits an account CLAIM_PAID does not debit gets a warning, not a blocker: the reversal will not net to zero.</summary>
+    [Fact]
+    public async Task AReversalRuleCreditingAnotherAccount_IsListedAsAWarning_ThatDoesNotStopTheStep()
+    {
+        var (tenantId, url) = await Register("REVACCT");
+        await fixture.Database.SeedReadyTenant(tenantId, From);
+        await fixture.Database.EntitleToAllFeatures("REVACCT");
+        Check(await Readiness(url), "FINANCIAL_FOUNDATIONS", "CLAIM_REVERSAL_ACCOUNTS").GetProperty("ready").GetBoolean().ShouldBeTrue("the seeded rules use one account");
+
+        await fixture.Database.SeedStaticFilled(tenantId, "finance.cfg_posting_rules", "EFFECTIVE", "PR-REV-OTHER", From, ("rule_code", "PR-REV-OTHER"),
+            ("transaction_type", "CLAIM_PAID_REVERSED"), ("debit_account", "1100"), ("credit_account", "2199"));
+        var readiness = await Readiness(url);
+        var check = Check(readiness, "FINANCIAL_FOUNDATIONS", "CLAIM_REVERSAL_ACCOUNTS");
+        (check.GetProperty("ready").GetBoolean(), check.GetProperty("advisory").GetBoolean()).ShouldBe((false, true));
+        check.GetProperty("missing").EnumerateArray().Select(m => m.GetString()).ShouldBe(["2199"]);
+        Check(readiness, "FINANCIAL_FOUNDATIONS", "POSTING_RULES").GetProperty("ready").GetBoolean().ShouldBeTrue();
+>>>>>>> wave5a-addendum
     }
 
     /// <summary>
