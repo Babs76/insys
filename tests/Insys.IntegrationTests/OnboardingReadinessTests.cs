@@ -240,8 +240,8 @@ public sealed class OnboardingReadinessTests(DatabaseFixture fixture) : IClassFi
         Check(await Readiness(url), "SHARED_OPERATIONAL_SETUP", "APPROVAL_AUTHORITY").GetProperty("missing").EnumerateArray().Select(m => m.GetString())
             .ShouldBe([enhanced]);
 
-        // With the gates off the due diligence approvals are never raised.
-        await fixture.Database.ExecuteAsOwner("UPDATE party.cfg_due_diligence_settings SET gates_enabled = false WHERE tenant_id = @t", ("t", tenantId));
+        // With the gates off (the settings row retired: a tenant not entitled to LIFE then has none) the due diligence approvals are never raised.
+        await fixture.Database.ExecuteAsOwner("UPDATE party.cfg_due_diligence_settings SET record_status = 'RETIRED' WHERE tenant_id = @t", ("t", tenantId));
         Check(await Readiness(url), "SHARED_OPERATIONAL_SETUP", "APPROVAL_AUTHORITY").GetProperty("ready").GetBoolean().ShouldBeTrue();
     }
 

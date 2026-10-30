@@ -22345,6 +22345,15 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -22381,6 +22390,12 @@
           },
           "409": {
             "$ref": "#/components/responses/Problem409"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
           },
           "401": {
             "$ref": "#/components/responses/Problem401"
@@ -45347,6 +45362,16 @@
         "type": "object",
         "properties": {
           "checkCode": {
+            "enum": [
+              "PRODUCT_ON_SALE",
+              "DUE_DILIGENCE",
+              "FRAUD_REFERRALS",
+              "CLAIMS_HISTORY",
+              "RISK_CHANGES",
+              "ELIGIBILITY_RULES",
+              "UNDERWRITING_RULES",
+              "RE_RATING"
+            ],
             "type": "string"
           },
           "outcome": {
