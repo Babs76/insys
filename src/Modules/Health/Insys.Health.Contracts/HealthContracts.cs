@@ -163,7 +163,10 @@ public sealed record MedicalClaimAdjudicated(Guid ClaimId, string ClaimNumber, G
 public sealed record MedicalClaimSettled(Guid ClaimId, string ClaimNumber, string? ProviderId, Guid PaymentRunId, decimal Amount, string Currency, DateOnly PaidOn)
     : IIntegrationEvent;
 
-/// <summary>A paid claim was reversed: its benefit consumption was given back, and the amount is to be recovered. TODO(spec): recovery collection (OQ-061).</summary>
+/// <summary>
+/// A paid claim was reversed: its benefit consumption was given back, Finance reverses its claim-paid journal, and the amount
+/// is to be recovered (collected in Wave 5a batch 5a.3, OQ-139).
+/// </summary>
 [IntegrationEvent("health.MedicalClaimReversed")]
 public sealed record MedicalClaimReversed(Guid ClaimId, string ClaimNumber, string? ProviderId, decimal Amount, string Currency, string Reason) : IIntegrationEvent;
 
