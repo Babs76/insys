@@ -814,9 +814,9 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
             ("customer_wording", "We no longer offer this cover."), ("requires_approval", false));
         var (approved, _) = await IssuedPolicy();
         var (late, _) = await IssuedPolicy();
-        var holder = (await Policy(approved)).GetProperty("policyholderPartyId").GetGuid();
+        var holder = await _maker.RegisterPerson("Noticed");
         await _db.AddContact(Tenant, holder, "EMAIL", "notice@example.com");
-        await _db.ExecuteAsOwner("UPDATE general.policy SET period_end = @e WHERE id = @p", ("e", Today.AddDays(60)), ("p", approved));
+        await _db.ExecuteAsOwner("UPDATE general.policy SET policyholder_party_id = @h, period_end = @e WHERE id = @p", ("h", holder), ("e", Today.AddDays(60)), ("p", approved));
         await _db.ExecuteAsOwner("UPDATE general.policy SET period_end = @e WHERE id = @p", ("e", Today.AddDays(10)), ("p", late));
 
         // Needing approval: proposed by one person, approved by another; then the notice goes.
