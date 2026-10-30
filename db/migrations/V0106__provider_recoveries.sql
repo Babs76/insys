@@ -95,6 +95,8 @@ ALTER TABLE health.remittance_advice ADD COLUMN gross_amount numeric(18,2) NOT N
 ALTER TABLE health.remittance_advice ADD COLUMN offset_amount numeric(18,2) NOT NULL DEFAULT 0;
 ALTER TABLE health.remittance_advice ADD COLUMN repaid_amount numeric(18,2) NOT NULL DEFAULT 0;
 UPDATE health.remittance_advice SET gross_amount = amount;
+ALTER TABLE health.remittance_advice DROP CONSTRAINT ck_remittance_advice_amount;
+ALTER TABLE health.remittance_advice ADD CONSTRAINT ck_remittance_advice_amount CHECK (amount >= 0);
 
 CREATE TABLE health.provider_credit_note (
   tenant_id                  uuid NOT NULL,

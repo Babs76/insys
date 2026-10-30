@@ -34,7 +34,7 @@ using Insys.Health.Contracts;
 namespace Insys.Billing.Application;
 
 /// <summary>
-/// Wave 5a §4.7: a recovery to be invoiced becomes one invoice to its debtor, with source domain HEALTH_RECOVERY and the recovery as its
+/// Wave 5a §4.7: a recovery to be invoiced becomes one invoice to its debtor, with source domain HEALTH_REC and the recovery as its
 /// reference. A one-instalment schedule carries it, as every invoice is billed from a schedule. Paid, it settles the recovery (InvoiceSettled).
 /// </summary>
 public sealed class RecoveryInvoicing(IBillingRepository billing, IBillingCodes codes, IBusinessDate businessDate, IClock clock) : IIntegrationEventHandler<ProviderRecoveryInvoiceRequested>

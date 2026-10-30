@@ -93,7 +93,7 @@ public static class HealthApprovals
 public static class HealthReferences
 {
     /// <summary>The source domain of a recovery's invoice (5a.3): its PolicyRef is the recovery. Not a contribution, so it posts no premium.</summary>
-    public const string RecoverySourceDomain = "HEALTH_RECOVERY";
+    public const string RecoverySourceDomain = "HEALTH_REC";
 
     public const string SourceDomain = "HEALTH";
 

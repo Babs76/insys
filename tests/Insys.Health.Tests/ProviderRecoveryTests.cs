@@ -156,6 +156,17 @@ public sealed class ProviderRecoveryTests
     }
 
     [Fact]
+    public void ARecoverysInvoice_SettlesIt_Once()
+    {
+        var recovery = Recovery(offset: false);
+        recovery.InvoiceIssued(Guid.CreateVersion7());
+        recovery.InvoiceSettled(Today, Now);
+        recovery.InvoiceSettled(Today, Now);
+        (recovery.Status, recovery.Balance).ShouldBe((RecoveryStatuses.Recovered, 0m));
+        recovery.DomainEvents.OfType<ProviderRecoverySettled>().Single().Amount.ShouldBe(500m);
+    }
+
+    [Fact]
     public void AFinding_OwesNothingUntilASecondPersonApproves()
     {
         var finding = ProviderRecovery.ProposeFinding(Guid.CreateVersion7(), "RC2", "PR-1", Guid.CreateVersion7(), 300m, "ZAR", "Audit", Guid.CreateVersion7(), Today, Now);
