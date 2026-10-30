@@ -5601,6 +5601,10 @@
           {
             "permission": "due_diligence.unblock",
             "when": "the approval unblocks a party\u0027s due diligence (businessRefType DUE_DILIGENCE_UNBLOCK; requiredPermission names it)"
+          },
+          {
+            "permission": "general_policy.non_renew",
+            "when": "the approval is an insurer\u0027s non-renewal (businessRefType GENERAL_RENEWAL, type GENERAL_NON_RENEWAL; requiredPermission names it)"
           }
         ],
         "x-eventual-effects": "the decision reaches the record that asked for it (a static data version, product version, role assignment, bank account, payment or claim instruction, first tenant administrator ...) and its own follow-ups, such as a product\u0027s publication; read that record again to see it."
@@ -5706,6 +5710,10 @@
           {
             "permission": "due_diligence.unblock",
             "when": "the approval unblocks a party\u0027s due diligence (businessRefType DUE_DILIGENCE_UNBLOCK; requiredPermission names it)"
+          },
+          {
+            "permission": "general_policy.non_renew",
+            "when": "the approval is an insurer\u0027s non-renewal (businessRefType GENERAL_RENEWAL, type GENERAL_NON_RENEWAL; requiredPermission names it)"
           }
         ],
         "x-eventual-effects": "the rejection reaches the record that asked for it, which is put back in a defined state (an expiry or withdrawal does the same); read that record again."

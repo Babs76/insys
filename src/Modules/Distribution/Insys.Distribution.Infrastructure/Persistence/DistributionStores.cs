@@ -309,6 +309,9 @@ internal sealed class DistributionEventMapper : IDomainEventMapper
             e.PlanVersion, e.Amount, e.Currency, e.AccruedOn),
         Domain.Commission.CommissionClawedBack e => new Contracts.CommissionClawedBack(e.ClawbackId, e.EntitlementId, e.IntermediaryCode, e.SourceDomain, e.PolicyRef,
             e.Amount, e.Currency, e.Reason, e.ClawedBackOn),
+        // B-001: the cut part of an outgoing broker's commission, reversed by Finance like any clawback.
+        Domain.Commission.CommissionShared e => new Contracts.CommissionClawedBack(e.AdjustmentId, e.EntitlementId, e.IntermediaryCode, e.SourceDomain, e.PolicyRef,
+            e.AmountBefore - e.Amount, e.Currency, e.Reason, e.SharedOn),
         Domain.Commission.CommissionStatementApproved e => new Contracts.CommissionStatementApproved(e.StatementId, e.IntermediaryCode, e.PeriodCode, e.PayeePartyId,
             e.BankAccountId, e.NetAmount, e.Currency),
         StatementSubmitted e => new BuildingBlocks.Contracts.Approvals.ApprovalRequested(DistributionApprovals.StatementBusinessRefType, e.StatementId,

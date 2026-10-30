@@ -66,9 +66,12 @@ public sealed record CommissionSource(string SourceDomain, Guid InvoiceId, Guid 
 public sealed record CommissionAccrued(Guid EntitlementId, string IntermediaryCode, string SourceDomain, Guid PolicyRef, Guid InvoiceId, string PlanCode, int PlanVersion,
     decimal Amount, string Currency, DateOnly AccruedOn, DateTimeOffset OccurredAt) : IDomainEvent;
 
-/// <summary>B-001: an outgoing broker's commission on an invoice was cut to the share before the broker of record change.</summary>
-public sealed record CommissionShared(Guid EntitlementId, string IntermediaryCode, Guid PolicyRef, decimal AmountBefore, decimal Amount, string Currency, string Reason,
-    DateTimeOffset OccurredAt) : IDomainEvent;
+/// <summary>
+/// B-001: an outgoing broker's commission on an invoice was cut to the share before the broker of record change. Published as
+/// a clawback of the difference (<paramref name="AdjustmentId"/>), so Finance reverses the part of the accrual it posted.
+/// </summary>
+public sealed record CommissionShared(Guid AdjustmentId, Guid EntitlementId, string IntermediaryCode, string SourceDomain, Guid PolicyRef, decimal AmountBefore,
+    decimal Amount, string Currency, string Reason, DateOnly SharedOn, DateTimeOffset OccurredAt) : IDomainEvent;
 
 public sealed record CommissionClawedBack(Guid ClawbackId, Guid EntitlementId, string IntermediaryCode, string SourceDomain, Guid PolicyRef, decimal Amount,
     string Currency, string Reason, DateOnly ClawedBackOn, DateTimeOffset OccurredAt) : IDomainEvent;
@@ -207,7 +210,7 @@ public sealed class CommissionEntitlement : AggregateRoot<Guid>
     /// <paramref name="keptFraction"/> of the commission (the days before the change). Only while not yet on a statement;
     /// one already on a statement is clawed back and its kept share accrued again.
     /// </summary>
-    public Result Share(decimal keptFraction, string reason, DateTimeOffset now)
+    public Result Share(decimal keptFraction, string reason, DateOnly on, DateTimeOffset now)
     {
         if (Status is not (EntitlementStatus.Accrued or EntitlementStatus.Payable) || StatementId is not null || keptFraction is <= 0 or >= 1)
         {
@@ -217,7 +220,7 @@ public sealed class CommissionEntitlement : AggregateRoot<Guid>
         var before = Amount;
         Amount = Money(Amount * keptFraction);
         BasisAmount = RateBasis == CommissionBases.PolicyCount ? BasisAmount : Money(BasisAmount * keptFraction);
-        Raise(new CommissionShared(Id, IntermediaryCode, PolicyRef, before, Amount, Currency, Guard.MaxLength(reason, 40), now));
+        Raise(new CommissionShared(Guid.CreateVersion7(), Id, IntermediaryCode, SourceDomain, PolicyRef, before, Amount, Currency, Guard.MaxLength(reason, 40), on, now));
         MarkChanged();
         return Result.Success();
     }
