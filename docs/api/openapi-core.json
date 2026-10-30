@@ -20601,7 +20601,10 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "general_endorsement.create"
+        "x-permission": "general_endorsement.create",
+        "x-function": [
+          "GENERAL_DRAFT_ENDORSEMENT"
+        ]
       }
     },
     "/api/v1/general/endorsements/{id}/submit": {

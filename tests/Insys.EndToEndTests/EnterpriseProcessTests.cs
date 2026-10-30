@@ -418,6 +418,49 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
         (portalStatement.GetProperty("status").GetString(), portalStatement.TryGetProperty("bankAccountId", out _)).ShouldBe(("Paid", false));
     }
 
+    /// <summary>BR-117: with channels in force, a broker of record change takes its appointment letter and is submitted: the letter is part of drafting, under its function.</summary>
+    [Fact]
+    public async Task ABrokerOfRecordChange_TakesItsLetterAndIsSubmitted_InAChannelEnabledTenant_BR117()
+    {
+        await Seed("general.cfg_endorsement_types", "EFFECTIVE", "INTERMEDIARY", ("premium_method", "NONE"), ("documents", Array.Empty<string>()),
+            ("requires_underwriting", false));
+        await Seed("document.ref_document_categories", "ACTIVE", "APPOINTMENT", ("category_code", "APPOINTMENT"), ("label", "Broker appointment"),
+            ("classification", "PERSONAL"), ("domain", "ALL"), ("allowed_roles", Array.Empty<string>()));
+        await Seed("commission.mst_intermediary_register", "ACTIVE", "BRK-4", ("intermediary_code", "BRK-4"), ("type", "BROKER"), ("legal_name", "BRK-4"),
+            ("licence_numbers", JsonSerializer.SerializeToElement(new[] { "FSP-4" })), ("status", "ACTIVE"), ("hierarchy_node", "NODE-BRK-4"));
+        await Seed("commission.cfg_intermediary_product_permissions", "EFFECTIVE", "PERM-BRK4", ("intermediary", "BRK-4"), ("product", Product),
+            ("transactions_allowed", Array.Empty<string>()), ("plan_code", "PLAN-10"));
+        var policy = await IssuedPolicy(await Vehicle());
+        var draft = await _maker.Send(HttpMethod.Post, $"/api/v1/general/policies/{policy}/endorsements",
+            new { endorsementType = "INTERMEDIARY", effectiveDate = Today.AddDays(10), changes = Array.Empty<object>(), intermediaryCode = "BRK-4" }, idempotent: true);
+        draft.StatusCode.ShouldBe(HttpStatusCode.Created, await draft.Content.ReadAsStringAsync());
+        var endorsement = (await draft.Json()).GetProperty("id").GetGuid();
+        var letter = await _maker.Send(HttpMethod.Post, "/api/v1/documents/documents", new
+        {
+            categoryCode = "APPOINTMENT", businessRefType = GeneralDocuments.EndorsementRefType, businessRefId = endorsement, mimeType = "text/plain",
+            contentBase64 = Convert.ToBase64String("I appoint BRK-4"u8.ToArray()),
+        }, idempotent: true);
+        letter.StatusCode.ShouldBe(HttpStatusCode.Created, await letter.Content.ReadAsStringAsync());
+
+        await Seed("channel.cfg_channel_definitions", "EFFECTIVE", "CH-STF", ("channel_code", "STF"), ("audience", "STAFF"), ("name", "Back office"), ("client_ids", new[] { "insys-web" }));
+        var roles = (await _db.ScalarAsOwner<string[]>("""
+            SELECT array_agg(DISTINCT a.role_code) FROM iam.user_role_assignment a JOIN iam.user_account u ON u.tenant_id = a.tenant_id AND u.id = a.user_id WHERE u.external_subject = 'underwriter'
+            """))!;
+        foreach (var (role, i) in roles.Select((r, i) => (r, i)))
+        {
+            await Seed("channel.cfg_channel_transaction_permissions", "EFFECTIVE", $"CP-STF-D{i}", ("channel_code", "STF"), ("role_code", role),
+                ("transaction_type", GeneralPermissions.EndorsementCreate), ("allowed", true));
+        }
+
+        await _db.AdoptFunctionCatalogue();
+        var staff = _factory.ClientFor(Tenant, "underwriter", "insys-web");
+        var url = $"/api/v1/general/endorsements/{endorsement}";
+        var recorded = await staff.Send(HttpMethod.Post, $"{url}/appointment-letter", new { documentId = (await letter.Json()).GetProperty("id").GetGuid() }, ifMatch: (await staff.GetAsync(url)).ETag());
+        recorded.StatusCode.ShouldBe(HttpStatusCode.OK, await recorded.Content.ReadAsStringAsync());
+        var submitted = await staff.Send(HttpMethod.Post, $"{url}/submit", ifMatch: (await staff.GetAsync(url)).ETag());
+        submitted.StatusCode.ShouldBe(HttpStatusCode.OK, await submitted.Content.ReadAsStringAsync());
+    }
+
     [Fact]
     public async Task Cancellation_ClawsBackUnearnedCommission_AndASettledClaimRecoversTheCededShare_REI003()
     {

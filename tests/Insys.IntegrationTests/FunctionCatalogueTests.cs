@@ -162,6 +162,28 @@ public sealed class FunctionCatalogueTests(DatabaseFixture fixture) : IClassFixt
     }
 
     /// <summary>
+    /// A route with no function skips the function check (tenant status, enablement, feature, grant, ADR-026 §2), and the channel
+    /// check looks its rules up by function, so on a channel-scoped command it refuses every caller (BR-117). Every route with a
+    /// permission declares a function in the catalogue. Those for any signed-in user and signed provider callbacks have neither.
+    /// </summary>
+    [Fact]
+    public async Task EveryPermissionedRoute_DeclaresAFunctionInTheCatalogue_BR117()
+    {
+        var host = await fixture.Host();
+        _ = host.CreateClient();
+        var catalogue = FunctionRegistry.All().Select(f => f.Function.Code).ToHashSet(StringComparer.Ordinal);
+        var routes = host.Services.GetServices<EndpointDataSource>().SelectMany(s => s.Endpoints).OfType<RouteEndpoint>()
+            .Where(e => e.RoutePattern.RawText?.StartsWith("/api/", StringComparison.Ordinal) == true
+                && e.Metadata.GetMetadata<RequiredPermissionMetadata>()?.Permission is not (null or EndpointSecurityExtensions.SignedInUser or EndpointSecurityExtensions.SignedProviderCallback)
+                && e.Metadata.GetMetadata<StaticDataDecisionFunctionMetadata>() is null)
+            .ToList();
+        routes.Count(e => e.Metadata.GetMetadata<ChannelScopedMetadata>() is not null).ShouldBeGreaterThan(0, "the channel-scoped commands are among them");
+
+        routes.Where(e => e.Metadata.GetMetadata<RequiredFunctionMetadata>() is not { Codes.Length: > 0 }).Select(e => e.DisplayName).ShouldBeEmpty("a route with no function");
+        routes.SelectMany(e => e.Metadata.GetMetadata<RequiredFunctionMetadata>()?.Codes ?? []).Where(c => !catalogue.Contains(c)).Distinct().ShouldBeEmpty("a function not in the catalogue");
+    }
+
+    /// <summary>
     /// The catalogue holds only functions that exist in the release: every operation a function names is an endpoint of
     /// this build, and every JOB function is one a consumer or daily job runs under. Planned functions are not catalogued.
     /// </summary>
