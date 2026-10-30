@@ -58,14 +58,15 @@ public sealed class MigrationTests(DatabaseFixture fixture) : IClassFixture<Data
         // V0075: general.cfg_claim_party_roles (OQ-122); V0078: general.cfg_product_billing_frequencies (BR-095 follow-up);
         // V0091: party.due_diligence_check (F001); V0092: party.due_diligence, screening_hit, beneficial_owner and five due diligence configuration tables;
         // V0094: health.cfg_service_types (BR-105); V0095: general.cfg_grace_period_rules, general.cfg_short_period_scales, health.cfg_contribution_grace_rules (F006, F007);
-        // V0096: general.cfg_renewal_review_rules, cfg_claims_experience_factors, cfg_renewal_settings, renewal, renewal_check (Wave 4 §4.2).
+        // V0096: general.cfg_renewal_review_rules, cfg_claims_experience_factors, cfg_renewal_settings, renewal, renewal_check (Wave 4 §4.2);
+        // V0099: general.cfg_non_renewal_reasons (Wave 4 §4.3).
         // Partitions excluded.
         var tables = await fixture.Database.ScalarAsOwner<long>("""
             SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
             WHERE c.relkind IN ('r', 'p') AND NOT c.relispartition
               AND n.nspname NOT IN ('pg_catalog', 'information_schema', 'public', 'test_mod')
             """);
-        tables.ShouldBe(154 + 252 + 23 + 3 + 2 + 1 + 3 + 1 + 1 + 1 + 1 + 1 + 2 + 1 + 2 + 1 + 1 + 12 + 5 + 1 + 1 - 1 + 12 + 1 + 7 + 1 + 1 + 1 + 1 + 1 + 1 + 8 + 1 + 3 + 5);
+        tables.ShouldBe(154 + 252 + 23 + 3 + 2 + 1 + 3 + 1 + 1 + 1 + 1 + 1 + 2 + 1 + 2 + 1 + 1 + 12 + 5 + 1 + 1 - 1 + 12 + 1 + 7 + 1 + 1 + 1 + 1 + 1 + 1 + 8 + 1 + 3 + 5 + 1);
     }
 
     [Fact]
