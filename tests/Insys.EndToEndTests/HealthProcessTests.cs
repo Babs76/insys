@@ -742,6 +742,7 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         (plans.GetArrayLength(), plans[0].GetProperty("isCurrent").GetBoolean(), plans[1].GetProperty("isCurrent").GetBoolean()).ShouldBe((2, false, true));
 
         // Every clinical read is in the audit trail, with its purpose and no clinical content.
+        await _factory.DrainOutbox();
         (await _db.ScalarAsOwner<long>("SELECT count(*) FROM audit.audit_event WHERE operation = 'ReadClinical' AND target_id = @e", ("e", id.ToString()))).ShouldBeGreaterThanOrEqualTo(5L);
         (await _db.ScalarAsOwner<long>("SELECT count(*) FROM audit.audit_event WHERE details::text ILIKE '%kidney%'")).ShouldBe(0L);
 
@@ -809,8 +810,6 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
                 """, ("t", Tenant), ("u", user), ("v", code));
         }
 
-        await Seed("channel.cfg_channel_definitions", "EFFECTIVE", "CH-PRV", ("channel_code", "PRV"), ("audience", "PROVIDER"), ("name", "Provider portal"), ("client_ids", new[] { "provider-portal" }));
-        await _db.AdoptFunctionCatalogue();
         var writer = _factory.ClientFor(Tenant, "referral-PR-1", "provider-portal", multiFactor: true);
         var receiver = _factory.ClientFor(Tenant, "referral-PR-2", "provider-portal", multiFactor: true);
         var third = _factory.ClientFor(Tenant, "referral-PR-3", "provider-portal", multiFactor: true);
@@ -824,6 +823,26 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         });
         await _factory.DrainOutbox();
         var memberNumber = (await Get($"/api/v1/health/memberships/{membership}")).GetProperty("memberNumber").GetString();
+
+        // With channels in force, the writer refers on its portal and staff record consent through the back office.
+        await Seed("channel.cfg_channel_definitions", "EFFECTIVE", "CH-PRV", ("channel_code", "PRV"), ("audience", "PROVIDER"), ("name", "Provider portal"), ("client_ids", new[] { "provider-portal" }));
+        await Seed("channel.cfg_channel_definitions", "EFFECTIVE", "CH-STF", ("channel_code", "STF"), ("audience", "STAFF"), ("name", "Back office"), ("client_ids", new[] { "insys-web" }));
+        var writerRole = (await _db.ScalarAsOwner<string>("""
+            SELECT a.role_code FROM iam.user_role_assignment a JOIN iam.user_account u ON u.tenant_id = a.tenant_id AND u.id = a.user_id WHERE u.external_subject = 'referral-PR-1'
+            """))!;
+        await Seed("channel.cfg_channel_transaction_permissions", "EFFECTIVE", "CP-PRV-R", ("channel_code", "PRV"), ("role_code", writerRole),
+            ("transaction_type", HealthPermissions.ReferralCreate), ("allowed", true));
+        var staffRoles = (await _db.ScalarAsOwner<string[]>("""
+            SELECT array_agg(DISTINCT a.role_code) FROM iam.user_role_assignment a JOIN iam.user_account u ON u.tenant_id = a.tenant_id AND u.id = a.user_id WHERE u.external_subject = 'health-administrator'
+            """))!;
+        foreach (var (role, i) in staffRoles.Select((r, i) => (r, i)))
+        {
+            await Seed("channel.cfg_channel_transaction_permissions", "EFFECTIVE", $"CP-STF-{i}", ("channel_code", "STF"), ("role_code", role),
+                ("transaction_type", HealthPermissions.ReferralConsent), ("allowed", true));
+        }
+
+        await _db.AdoptFunctionCatalogue();
+        _maker = _factory.ClientFor(Tenant, "health-administrator", "insys-web");
 
         async Task<string> Refer(string? consent)
         {
@@ -866,6 +885,7 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         (after.GetProperty("consentReference").ValueKind, after.GetProperty("consentWithdrawnAt").ValueKind).ShouldBe((JsonValueKind.Null, JsonValueKind.String));
         (await receiver.GetAsync(withoutConsent + Purpose)).StatusCode.ShouldBe(HttpStatusCode.Forbidden, "withdrawal ends it at once");
         (await writer.GetAsync(withoutConsent + Purpose)).StatusCode.ShouldBe(HttpStatusCode.OK, "the writer's access does not depend on consent");
+        await _factory.DrainOutbox();
         (await _db.ScalarAsOwner<string>("""
             SELECT string_agg(operation || ':' || (details->>'reason'), ',' ORDER BY occurred_at) FROM audit.audit_event WHERE operation IN ('RecordReferralConsent', 'WithdrawReferralConsent')
             """)).ShouldBe("RecordReferralConsent:Member signed the form,WithdrawReferralConsent:Member withdrew by phone");
@@ -877,6 +897,7 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         (await (await receiver.GetAsync("/api/v1/portal/health/referrals")).Json()).GetProperty("items").GetArrayLength().ShouldBe(2);
 
         // Every read and refusal is audited, without the reason.
+        await _factory.DrainOutbox();
         (await _db.ScalarAsOwner<long>("SELECT count(*) FROM audit.audit_event WHERE operation = 'ReadClinical' AND target_type = 'ClinicalReferral' AND outcome = 'DENIED'")).ShouldBe(5L, "no purpose, no consent, withdrawn, and the third provider's two");
         (await _db.ScalarAsOwner<long>("SELECT count(*) FROM audit.audit_event WHERE operation = 'ReadClinical' AND target_type = 'ClinicalReferral' AND outcome <> 'DENIED'")).ShouldBe(4L, "the writer's two, and the receiver's with each consent");
         (await _db.ScalarAsOwner<long>("SELECT count(*) FROM audit.audit_event WHERE details::text ILIKE '%renal%'")).ShouldBe(0L);

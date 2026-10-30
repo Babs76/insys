@@ -82,7 +82,7 @@ public sealed record CarePlanItemView(Guid Id, string Kind, string Description, 
 
 public sealed record CarePlanView(int PlanVersion, bool IsCurrent, string? ChangeReason, IReadOnlyList<CarePlanItemView> Items);
 
-public sealed record CareNoteView(Guid Id, string ContactType, string? ContactRef, string Note, string? SharedWithProviderId, string? ConsentReference, Guid WrittenBy, DateTimeOffset WrittenAt);
+public sealed record CareNoteView(Guid Id, [property: OneOf("PROVIDER", "MEMBER", "INTERNAL")] string ContactType, string? ContactRef, string Note, string? SharedWithProviderId, string? ConsentReference, Guid WrittenBy, DateTimeOffset WrittenAt);
 
 public sealed record ComplexCaseClinicalView(Guid CaseId, string CaseNumber, string ConditionCategory, IReadOnlyList<CarePlanView> Plans, IReadOnlyList<CareNoteView> Notes);
 

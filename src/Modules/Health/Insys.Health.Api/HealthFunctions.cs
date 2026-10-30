@@ -25,6 +25,7 @@
  * ============================================================================
  */
 using Insys.BuildingBlocks.Api.Functions;
+using Insys.Health.Contracts;
 
 namespace Insys.Health.Api;
 
@@ -92,6 +93,7 @@ internal static class HealthFunctions
         .Action("HEALTH_RECORD_CARE_PROGRESS", "HEALTH_COMPLEX_CASES", "HealthRecordCareProgress")
         .Action("HEALTH_ADD_CARE_NOTE", "HEALTH_COMPLEX_CASES", "HealthAddCareNote")
         .Action("HEALTH_READ_COMPLEX_CASE_CLINICAL", "HEALTH_COMPLEX_CASES", "HealthReadComplexCaseClinical")
+        .Permission("HEALTH_CASE_MANAGER", "HEALTH_COMPLEX_CASES", HealthPermissions.ComplexCaseManage)
         .Screen("HEALTH_REFERRALS", "HEALTH_ACCESS_TO_CARE", "Clinical referrals", "health/referrals", "HealthListReferrals", "HealthGetReferral")
         .Action("HEALTH_REQUEST_REFERRAL", "HEALTH_REFERRALS", "HealthRequestReferral")
         .Action("HEALTH_RECORD_REFERRAL_VISIT", "HEALTH_REFERRALS", "HealthRecordReferralVisit")
