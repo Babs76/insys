@@ -212,9 +212,15 @@ public sealed class HealthEventPolicies(IHealthRepository health, BenefitContext
 
 public sealed record HealthDueWork(IReadOnlyList<Guid> AuthorisationsToExpire, IReadOnlyList<Guid> MembershipsToActivate, IReadOnlyList<Guid> SchemesToActivate,
     IReadOnlyList<Guid>? MembershipsToSuspend = null, IReadOnlyList<Guid>? TerminationsDue = null, IReadOnlyList<Guid>? HeldClaimsToRelease = null,
-    IReadOnlyList<Guid>? HeldClaimsToDecline = null, IReadOnlyList<Guid>? SchemesToNotice = null);
+    IReadOnlyList<Guid>? SchemesToNotice = null);
 
 public sealed record FindHealthDueWork(DateOnly Day, int Limit) : IQuery<HealthDueWork>;
+
+/// <summary>
+/// F006: claims held for arrears whose membership is suspended for them. Found after the run's suspensions, so a claim is
+/// declined in the same run as its membership's suspension (addenda/renewals-and-retention.md, Health grace).
+/// </summary>
+public sealed record FindHeldClaimsToDecline(int Limit) : IQuery<IReadOnlyList<Guid>>;
 
 /// <summary>Memberships with no product take their plan's, once it names one (addenda/health-plan-products.md §4).</summary>
 public sealed record AssignPlanProducts(DateOnly Day) : ICommand<int>;
@@ -254,12 +260,18 @@ internal sealed class FindHealthDueWorkHandler(IHealthRepository health) : IQuer
 {
     public async Task<Result<HealthDueWork>> Handle(FindHealthDueWork query, CancellationToken cancellationToken)
     {
-        var (release, decline) = await health.HeldClaims(query.Limit, cancellationToken);
+        var (release, _) = await health.HeldClaims(query.Limit, cancellationToken);
         return new HealthDueWork(await health.PreauthorisationsToExpire(query.Day, query.Limit, cancellationToken),
             await health.MembershipsToActivate(query.Day, query.Limit, cancellationToken), await health.SchemesToActivate(query.Day, query.Limit, cancellationToken),
             await health.MembershipsToSuspendForArrears(query.Day, query.Limit, cancellationToken), await health.MembershipsTerminationDue(query.Day, query.Limit, cancellationToken),
-            release, decline, await health.SchemesToNotice(query.Day, query.Limit, cancellationToken));
+            release, await health.SchemesToNotice(query.Day, query.Limit, cancellationToken));
     }
+}
+
+internal sealed class FindHeldClaimsToDeclineHandler(IHealthRepository health) : IQueryHandler<FindHeldClaimsToDecline, IReadOnlyList<Guid>>
+{
+    public async Task<Result<IReadOnlyList<Guid>>> Handle(FindHeldClaimsToDecline query, CancellationToken cancellationToken) =>
+        Result.Success((await health.HeldClaims(query.Limit, cancellationToken)).Decline);
 }
 
 /// <summary>Transitions "Validity ends" (HLT-005: authorisations expire automatically) and "Start date reached".</summary>

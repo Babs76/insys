@@ -199,7 +199,6 @@ public sealed class HealthJobs(IServiceScopeFactory scopes, ITenantDirectory ten
                          .Concat(work.SchemesToActivate.Select(id => (id, HealthDueAction.ActivateScheme)))
                          .Concat((work.MembershipsToSuspend ?? []).Select(id => (id, HealthDueAction.SuspendForArrears)))
                          .Concat((work.TerminationsDue ?? []).Select(id => (id, HealthDueAction.RaiseTerminationDue)))
-                         .Concat((work.HeldClaimsToDecline ?? []).Select(id => (id, HealthDueAction.DeclineHeldClaim)))
                          .Concat((work.SchemesToNotice ?? []).Select(id => (id, HealthDueAction.NoticeSchemeRenewal))))
             {
                 await using var scope = Scope(tenantId);
@@ -212,6 +211,41 @@ public sealed class HealthJobs(IServiceScopeFactory scopes, ITenantDirectory ten
                 {
                     logger.LogWarning("Health job {Action} on {Id} failed: {Code}", action, id, result.Error.Code);
                 }
+            }
+
+            done += await DeclineHeldClaims(tenantId, day, cancellationToken);
+        }
+
+        return done;
+    }
+
+    /// <summary>F006: claims held for arrears are declined in the same run as their membership's suspension, which the run has just recorded.</summary>
+    private async Task<int> DeclineHeldClaims(Guid tenantId, DateOnly day, CancellationToken cancellationToken)
+    {
+        IReadOnlyList<Guid> claims;
+        await using (var scope = Scope(tenantId))
+        {
+            var found = await scope.ServiceProvider.GetRequiredService<IDispatcher>().Query(new FindHeldClaimsToDecline(500), cancellationToken);
+            if (found.IsFailure)
+            {
+                return 0;
+            }
+
+            claims = found.Value;
+        }
+
+        var done = 0;
+        foreach (var id in claims)
+        {
+            await using var scope = Scope(tenantId);
+            var result = await scope.ServiceProvider.GetRequiredService<IDispatcher>().Send(new RunHealthDue(id, HealthDueAction.DeclineHeldClaim, day), cancellationToken);
+            if (result.IsSuccess)
+            {
+                done++;
+            }
+            else if (result.Error.Code != BuildingBlocks.Domain.ErrorCodes.InvalidStateTransition)
+            {
+                logger.LogWarning("Health job {Action} on {Id} failed: {Code}", HealthDueAction.DeclineHeldClaim, id, result.Error.Code);
             }
         }
 

@@ -29,4 +29,16 @@ Any fresh screening (the monthly automatic re-screen, a list update, or a clerk'
 - **`detailsCurrent` must be true**, as the reviewer's confirmation; the note is audited with the review.
 
 ## Local results
-(filled after the locked run)
+Locked run on `a749c52` (GAP-113 with 4.2 merged) with the catalogues and snapshots regenerated, the content committed as `7996160`:
+- Snapshots: regenerated (error codes, functions, role-template addendum, OpenAPI). The writing pass reports the five files it rewrote as failures, as it always does.
+- Integration (due diligence, periodic review, readiness, tenancy, tenant administrators, workflow, communications, case consumers, static data, migrations and others): 135 passed, 0 failed.
+- Architecture: 882 passed, 0 failed.
+- End-to-end (General, Health, Life, Enterprise process tests): 42 passed, 0 failed.
+
+The first CI run on `a749c52` (40988293839) failed 18 tests, all from the stale generated files: the function catalogue lacked `PARTY_COMPLETE_DUE_DILIGENCE_REVIEW` (so the review was `FUNCTION_DISABLED` and no role met `DUE_DILIGENCE_REVIEWER` readiness), and the static-data contract did not list `reviewMode` as required. `7996160` commits the regenerated files and nothing else.
+
+## CI and merge
+CI run 40995515680 on `7996160`: green, finished 30 October 2026 05:25 SAST. Main was fast-forwarded to `7996160` at 05:26 SAST.
+- Unit and architecture: 1574 passed, 10 skipped, 0 failed.
+- Integration shards: 126, 132, 248 and 67 passed (15.4, 18.1, 14.7 and 12.5 minutes).
+- Sweeps and end-to-end: 28 and 23 passed; end-to-end on every dated clock: General 19 and Life, Health and Enterprise 23 each, 0 failed.

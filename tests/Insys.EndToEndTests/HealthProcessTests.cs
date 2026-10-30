@@ -611,13 +611,10 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
             (held.GetProperty("status").GetString(), held.GetProperty("pendReason").GetString()).ShouldBe(("Pended", "CONTRIBUTIONS_UNPAID"), held.ToString());
         }
 
-        // The suspension day has passed for one: suspended for arrears, then its held claim is declined; the other stays in grace.
+        // The suspension day has passed for one: one job run suspends it for arrears and declines its held claim; the other stays in grace.
         var jobs = _factory.Services.GetRequiredService<Insys.Health.Infrastructure.HealthJobs>();
-        for (var run = 0; run < 2; run++)
-        {
-            await jobs.Run(CancellationToken.None);
-            await _factory.DrainOutbox();
-        }
+        await jobs.Run(CancellationToken.None);
+        await _factory.DrainOutbox();
 
         (await Get($"/api/v1/health/memberships/{lapsing.Membership}")).GetProperty("status").GetString().ShouldBe("Suspended");
         (await Get($"/api/v1/health/memberships/{paying.Membership}")).GetProperty("status").GetString().ShouldBe("Active");
