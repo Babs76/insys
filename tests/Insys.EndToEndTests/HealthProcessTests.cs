@@ -160,7 +160,7 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
             ("t", Tenant));
         await Seed("tenant.cfg_locale_defaults", "EFFECTIVE", "LOCALE-A", ("tenant", "A"), ("base_currency", "ZAR"), ("languages", new[] { "en" }), ("default_language", "en"),
             ("time_zone", "Africa/Johannesburg"), ("country", "ZA"));
-        foreach (var account in new[] { "1100", "1200", "2100", "4000" })
+        foreach (var account in new[] { "1100", "1200", "1300", "2100", "4000" })
         {
             await Seed("finance.mst_chart_of_accounts", "ACTIVE", $"ACC-{account}", ("account_code", account), ("name", account), ("type", "ASSET"),
                 ("gl_account", "GL" + account), ("status", "ACTIVE"));
@@ -169,7 +169,7 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         foreach (var (rule, type, debit, credit) in new[]
                  {
                      ("PR-PREM", TransactionTypes.PremiumDue, "1100", "4000"), ("PR-RECEIPT", TransactionTypes.PaymentReceived, "1200", "1100"),
-                     ("PR-CLM-PAID", TransactionTypes.ClaimPaid, "2100", "1200"),
+                     ("PR-CLM-PAID", TransactionTypes.ClaimPaid, "2100", "1200"), ("PR-CLM-REV", TransactionTypes.ClaimPaidReversed, "1300", "2100"),
                  })
         {
             await Seed("finance.cfg_posting_rules", "EFFECTIVE", rule, ("rule_code", rule), ("transaction_type", type), ("debit_account", debit), ("credit_account", credit));
@@ -425,13 +425,13 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         (await _maker.PostAsJsonAsync($"/api/v1/health/claims/{claim}/reverse", new { reason = "BILLED_IN_ERROR" })).StatusCode.ShouldBe(HttpStatusCode.OK);
         (await Accumulator(membership, "MEMBER")).ShouldBe((0m, 0m));
 
-        // The ledger follows: the claim-paid journal is reversed, so the claims-paid balance is net zero, on every dated clock. A redelivery changes nothing.
+        // The ledger follows, on every dated clock: claims paid (2100) nets to zero and the provider owes it (1300). The bank (1200) keeps its credit: no cash came back.
         await _factory.DrainOutbox();
-        const string ClaimLines = "FROM finance.subledger_entry WHERE business_ref_type = 'MEDICAL_CLAIM' AND business_ref_id = @c AND account_code = '2100'";
-        (await _db.ScalarAsOwner<decimal>($"SELECT sum(debit) {ClaimLines}", ("c", claim))).ShouldBeGreaterThan(0m, "the paid claim was posted");
-        (await _db.ScalarAsOwner<decimal>($"SELECT sum(debit) - sum(credit) {ClaimLines}", ("c", claim))).ShouldBe(0m);
-        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM finance.journal WHERE reverses_journal_id IS NOT NULL AND source_event_id IN (SELECT id FROM health.outbox_event WHERE event_type = 'health.MedicalClaimReversed' AND aggregate_id = @c)",
-            ("c", claim))).ShouldBe(1L);
+        async Task<decimal> Net(string account) => await _db.ScalarAsOwner<decimal>(
+            "SELECT coalesce(sum(debit - credit), 0) FROM finance.subledger_entry WHERE business_ref_type = 'MEDICAL_CLAIM' AND business_ref_id = @c AND account_code = @a", ("c", claim), ("a", account));
+        var paidAmount = await _db.ScalarAsOwner<decimal>("SELECT total_paid FROM health.medical_claim WHERE id = @c", ("c", claim));
+        paidAmount.ShouldBeGreaterThan(0m);
+        ((await Net("2100"), await Net("1300"), await Net("1200"))).ShouldBe((0m, paidAmount, -paidAmount));
 
         // Compensation: an authorisation that expires releases its reservation.
         var expiring = await Authorisation(membership, principal);

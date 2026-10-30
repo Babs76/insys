@@ -5,8 +5,8 @@ What changed in the API contract, newest first, so the front end can sync. The O
 ## Defect: a reversed Health claim is posted to the ledger (branch `fix-health-reversal`)
 
 ### Changed behaviour
-- **`POST /health/claims/{id}/reverse`** on a paid claim now also reverses its claim-paid journal, on the reversal's business date, so `GET /finance/journals` shows the reversal (`reversesJournalId`). No request or response changes, and no posting rule is needed.
-- **New parking code `CLAIM_REVERSAL_NOT_POSTABLE`** (item: the claim number): no claim-paid journal yet, or no open period on the date. Retried once the journal is posted or the period opened.
+- **`POST /health/claims/{id}/reverse`** on a paid claim now posts to the ledger: new Finance transaction type **`CLAIM_PAID_REVERSED`**, business reference `MEDICAL_CLAIM`, with the variable `recover_from` (`PROVIDER` or `MEMBER`). No request or response changes.
+- **Setup needed:** a tenant entitled to HEALTH needs a posting rule for it: debit an overpayment receivable, credit the account its `CLAIM_PAID` rule debits. Readiness `POSTING_RULES` lists it when missing, and this blocks `FINANCIAL_FOUNDATIONS`. Without a rule, each reversal waits as a posting exception.
 
 ## Wave 4 batch 4.3c (branch `wave4-3c`): B-001, broker of record change (addendum §4.8; OQ-134 to OQ-136; addition 3)
 

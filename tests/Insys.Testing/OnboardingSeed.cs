@@ -182,7 +182,7 @@ public static class OnboardingSeed
         // FINANCIAL_FOUNDATIONS
         await database.SeedStaticFilled(tenantId, "finance.mst_chart_of_accounts", "ACTIVE", "ACC-1100", from, ("account_code", "1100"), ("type", "ASSET"), ("status", "ACTIVE"));
         var rule = 0;
-        foreach (var type in new[] { "PREMIUM_DUE", "PAYMENT_RECEIVED", "REFUND_PAID", "CLAIM_RESERVE_UP", "CLAIM_RESERVE_DOWN", "CLAIM_PAID" })
+        foreach (var type in new[] { "PREMIUM_DUE", "PAYMENT_RECEIVED", "REFUND_PAID", "CLAIM_RESERVE_UP", "CLAIM_RESERVE_DOWN", "CLAIM_PAID", "CLAIM_PAID_REVERSED" })
         {
             await database.SeedStaticFilled(tenantId, "finance.cfg_posting_rules", "EFFECTIVE", $"PR-READY-{++rule}", from, ("rule_code", $"PR-READY-{rule}"),
                 ("transaction_type", type), ("debit_account", "1100"), ("credit_account", "1100"));
