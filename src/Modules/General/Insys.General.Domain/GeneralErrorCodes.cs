@@ -89,11 +89,11 @@ public static class GeneralErrorCodes
 
     /// <summary>F026: a retention offer made on the policy as often as its uses allow.</summary>
     [ErrorCode(409, "error.general.retention_offer_used_up")]
-    public const string RetentionOfferUsedUp = "GENERAL_RETENTION_OFFER_USED_UP";
+    public const string RetentionOfferUsedUp = "RETENTION_OFFER_USED_UP";
 
     /// <summary>F026: the retention offer's authority role is not one of the caller's roles.</summary>
-    [ErrorCode(403, "error.general.retention_offer_authority")]
-    public const string RetentionOfferAuthority = "GENERAL_RETENTION_OFFER_AUTHORITY";
+    [ErrorCode(403, "error.general.retention_offer_not_permitted")]
+    public const string RetentionOfferAuthority = "RETENTION_OFFER_NOT_PERMITTED";
 
     [ErrorCode(422, "error.general.rule_not_specified")]
     public const string RuleNotSpecified = "GENERAL_RULE_NOT_SPECIFIED";

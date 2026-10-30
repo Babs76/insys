@@ -428,7 +428,7 @@ public sealed class GeneralModule : IModule
             .ProducesProblem(StatusCodes.Status409Conflict)
             .TakesIfMatch().WithName("GeneralMakeRetentionOffer")
             .WithSummary("Make an offer from the tenant's list (general.cfg_retention_offers), within your authority (F026)")
-            .WithDescription("403 GENERAL_RETENTION_OFFER_AUTHORITY when the offer names a role you do not hold; 409 GENERAL_RETENTION_OFFER_USED_UP when it has "
+            .WithDescription("403 RETENTION_OFFER_NOT_PERMITTED when the offer names a role you do not hold; 409 RETENTION_OFFER_USED_UP when it has "
                 + "been made on the policy as often as it may be.")
             .RequirePermission(GeneralPermissions.RetentionUpdate);
         general.MapPost("/retention-cases/{id:guid}/offers/{offerId:guid}/answer", async (Guid id, Guid offerId, RetentionAnswerRequest r, IDispatcher d,

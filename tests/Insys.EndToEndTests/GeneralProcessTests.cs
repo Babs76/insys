@@ -891,12 +891,12 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         async Task<string> CaseVersion(Guid id) =>
             $"\"{(await (await _maker.GetAsync($"/api/v1/general/retention-cases/{id}")).Json()).GetProperty("rowVersion").GetInt64()}\"";
         (await (await _maker.Send(HttpMethod.Post, $"/api/v1/general/retention-cases/{caseId}/offers", new { offerCode = "LEAD-25" }, ifMatch: await CaseVersion(caseId)))
-            .Code()).ShouldBe("GENERAL_RETENTION_OFFER_AUTHORITY");
+            .Code()).ShouldBe("RETENTION_OFFER_NOT_PERMITTED");
         var offered = await (await _maker.Send(HttpMethod.Post, $"/api/v1/general/retention-cases/{caseId}/offers", new { offerCode = "LOYAL-10" },
             ifMatch: await CaseVersion(caseId))).Json();
         var offerId = offered.GetProperty("offers").EnumerateArray().Single().GetProperty("id").GetGuid();
         (await (await _maker.Send(HttpMethod.Post, $"/api/v1/general/retention-cases/{caseId}/offers", new { offerCode = "LOYAL-10" }, ifMatch: await CaseVersion(caseId)))
-            .Code()).ShouldBe("GENERAL_RETENTION_OFFER_USED_UP");
+            .Code()).ShouldBe("RETENTION_OFFER_USED_UP");
         (await _maker.Send(HttpMethod.Post, $"/api/v1/general/retention-cases/{caseId}/offers/{offerId}/answer", new { accepted = true },
             ifMatch: await CaseVersion(caseId))).StatusCode.ShouldBe(HttpStatusCode.OK);
         await _factory.DrainOutbox();
