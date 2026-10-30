@@ -21,7 +21,7 @@ Three gaps found while checking, which this wave closes:
 2. **A payment run cannot carry a deduction.** `CalculateRun` refuses a remittance of zero or less, and a remittance holds one amount, with no gross and net.
 3. **A provider cannot link its own records to a case from the portal** (`CasePortal`, `TODO(spec)`), so it cannot raise a dispute about its remittance.
 
-Of these 11 functions, 6 have no SRS basis and 4 only a listing, so most of the rules below are proposals for you to accept or change.
+Of these 11 functions, 5 have no SRS basis (F029, F036, F037, F048, F050) and 6 are only partly specified, so most of the rules below are proposals for you to accept or change.
 
 ## 1. The rules it serves (summary, **for compliance to confirm**)
 - **HLT-008 and POPIA (ss 26 and 32):** health information is special personal information. It is restricted by role, purpose and minimum necessary access, and never appears in events, logs, notices or exceptions.
