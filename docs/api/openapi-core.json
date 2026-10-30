@@ -53950,7 +53950,7 @@
           }
         }
       },
-      "JsonElement": { },
+      "JsonElement": {},
       "LedgerStatus": {
         "enum": [
           "Parked",
