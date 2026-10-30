@@ -850,7 +850,8 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
             """, ("p", late)));
 
         // At the period's end the approved one expires, not renewed by the insurer.
-        await _db.ExecuteAsOwner("UPDATE general.policy SET period_end = @e WHERE id = @p", ("e", Today.AddDays(-1)), ("p", approved));
+        await _db.ExecuteAsOwner("UPDATE general.policy SET period_start = @s, period_end = @e WHERE id = @p", ("s", Today.AddYears(-1)), ("e", Today.AddDays(-1)),
+            ("p", approved));
         await _factory.Services.GetRequiredService<Insys.General.Infrastructure.GeneralJobs>().Run(CancellationToken.None);
         await _factory.DrainOutbox();
         (await _db.ScalarAsOwner<string>("SELECT status || ':' || expiry_reason FROM general.policy WHERE id = @p", ("p", approved))).ShouldBe("EXPIRED:NOT_RENEWED_BY_INSURER");
