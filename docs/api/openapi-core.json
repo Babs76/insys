@@ -2355,6 +2355,103 @@
         ]
       }
     },
+    "/api/v1/party/parties/{id}/due-diligence/review": {
+      "post": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "Complete the periodic review of a party past its review date, confirming its details are current (OQ-138)",
+        "description": "If-Match is the due diligence\u0027s ETag. For a party whose risk class reviews by a person (review mode PERSON, the default), only this ends the review: a fresh screening runs as part of it, and the party clears when nothing else is outstanding (at ENHANCED, after the enhanced approval, which the reviewer cannot give). Identity and address checks are not redone. 409 DUE_DILIGENCE_NOT_UNDER_REVIEW when no review is due; 422 DD_IDENTITY_DOCUMENT_EXPIRED while the identity check\u0027s document has expired and no newer one of its kind is on file. The DUE_DILIGENCE_REVIEW task closes when the party clears.",
+        "operationId": "PartyCompleteDueDiligenceReview",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartyDueDiligenceReviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyDueDiligenceView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "due_diligence.review",
+        "x-function": [
+          "PARTY_COMPLETE_DUE_DILIGENCE_REVIEW"
+        ]
+      }
+    },
     "/api/v1/party/parties/{id}/due-diligence/risk-class": {
       "post": {
         "tags": [
@@ -54191,6 +54288,24 @@
           }
         }
       },
+      "PartyDueDiligenceReviewRequest": {
+        "required": [
+          "detailsCurrent",
+          "note"
+        ],
+        "type": "object",
+        "properties": {
+          "detailsCurrent": {
+            "type": "boolean"
+          },
+          "note": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "PartyDueDiligenceSummary": {
         "required": [
           "id",
@@ -54287,7 +54402,10 @@
           "checks",
           "beneficialOwners",
           "hits",
-          "rowVersion"
+          "rowVersion",
+          "reviewDue",
+          "reviewedAt",
+          "reviewedBy"
         ],
         "type": "object",
         "properties": {
@@ -54422,6 +54540,27 @@
               "string"
             ],
             "format": "int64"
+          },
+          "reviewDue": {
+            "type": "boolean",
+            "default": false
+          },
+          "reviewedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "reviewedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "reviewedBySystem": {
+            "type": "boolean"
           }
         }
       },
@@ -54511,6 +54650,13 @@
           },
           "number": {
             "type": "string"
+          },
+          "expiryDate": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
           }
         }
       },
@@ -54521,7 +54667,8 @@
           "country",
           "maskedNumber",
           "verified",
-          "verifiedAt"
+          "verifiedAt",
+          "expiryDate"
         ],
         "type": "object",
         "properties": {
@@ -54551,6 +54698,13 @@
               "string"
             ],
             "format": "date-time"
+          },
+          "expiryDate": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
           }
         }
       },
