@@ -35,6 +35,12 @@ ALTER TABLE general.endorsement ADD COLUMN appointment_letter_id uuid;
 COMMENT ON COLUMN general.endorsement.new_intermediary_code IS 'B-001: the intermediary an INTERMEDIARY endorsement moves the policy to, from its effective date.';
 COMMENT ON COLUMN general.endorsement.appointment_letter_id IS 'B-001, Wave 4 addition 3: the policyholder''s broker appointment letter, a document filed against the endorsement, required before it is submitted.';
 
+-- An INTERMEDIARY endorsement changes nothing in the cover, so it is rated at once at the current premium with no rating
+-- request; every other endorsement past DRAFT still needs one (V0016).
+ALTER TABLE general.endorsement DROP CONSTRAINT ck_endorsement_rated;
+ALTER TABLE general.endorsement ADD CONSTRAINT ck_endorsement_rated CHECK (status = 'DRAFT' OR (new_annual_premium IS NOT NULL
+  AND (rating_request_id IS NOT NULL OR (endorsement_type = 'INTERMEDIARY' AND new_intermediary_code IS NOT NULL))));
+
 ALTER TABLE general.policy ADD COLUMN pending_intermediary_code varchar(15);
 ALTER TABLE general.policy ADD COLUMN pending_intermediary_from date;
 ALTER TABLE general.policy ADD CONSTRAINT ck_policy_pending_intermediary CHECK ((pending_intermediary_code IS NULL) = (pending_intermediary_from IS NULL));
