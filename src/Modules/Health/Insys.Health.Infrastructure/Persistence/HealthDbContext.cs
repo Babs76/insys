@@ -302,6 +302,7 @@ public sealed class HealthDbContext(DbContextOptions<HealthDbContext> options, M
             referral.Property(r => r.ReferredProviderId).HasMaxLength(15);
             referral.Property(r => r.ReferredSpecialty).HasMaxLength(40);
             referral.Property(r => r.ClinicalReason).HasMaxLength(1000);
+            referral.Property(r => r.ConsentReference).HasMaxLength(120);
             referral.Property(r => r.Status).HasMaxLength(10);
             referral.Property(r => r.DeclineReason).HasMaxLength(500);
         });

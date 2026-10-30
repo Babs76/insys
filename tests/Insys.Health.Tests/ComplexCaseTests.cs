@@ -113,6 +113,17 @@ public sealed class ComplexCaseTests
         r.Status.ShouldBe(ReferralStatus.Used);
     }
 
+    [Theory]
+    [InlineData("PR-1", null, true)] // its writer
+    [InlineData("PR-2", null, false)] // its receiver, without consent
+    [InlineData("PR-2", "CONSENT-1", true)]
+    [InlineData("PR-3", "CONSENT-1", false)] // anyone else
+    public void AReferralsReason_IsOpenToItsWriter_AndToItsReceiverWithConsent_F038(string provider, string? consent, bool open)
+    {
+        var r = ClinicalReferral.Request(Guid.CreateVersion7(), "RF-1", Guid.CreateVersion7(), Guid.CreateVersion7(), "PR-1", "PR-2", null, "Reason", Today, Today, 1, null, null, consent).Value;
+        r.ReasonOpenTo(provider).ShouldBe(open);
+    }
+
     [Fact]
     public void AReferral_ExpiresOnlyPastItsDate_AndNeedsADestination_F038()
     {

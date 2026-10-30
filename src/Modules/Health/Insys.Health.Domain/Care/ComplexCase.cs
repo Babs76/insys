@@ -418,6 +418,9 @@ public sealed class ClinicalReferral : AggregateRoot<Guid>
 
     public string ClinicalReason { get; private set; } = "";
 
+    /// <summary>The member's consent to the receiving provider reading the reason, as for a shared care note. Without it, only the referring provider and the clinical function may.</summary>
+    public string? ConsentReference { get; private set; }
+
     public DateOnly ValidFrom { get; private set; }
 
     public DateOnly ValidTo { get; private set; }
@@ -439,7 +442,7 @@ public sealed class ClinicalReferral : AggregateRoot<Guid>
     public string? DeclineReason { get; private set; }
 
     public static Result<ClinicalReferral> Request(Guid id, string number, Guid membershipId, Guid patientPartyId, string referringProviderId, string? referredProviderId,
-        string? referredSpecialty, string clinicalReason, DateOnly validFrom, DateOnly validTo, int visitsAllowed, Guid? complexCaseId, Guid? preauthorisationId)
+        string? referredSpecialty, string clinicalReason, DateOnly validFrom, DateOnly validTo, int visitsAllowed, Guid? complexCaseId, Guid? preauthorisationId, string? consentReference = null)
     {
         if (referredProviderId is null && string.IsNullOrWhiteSpace(referredSpecialty))
         {
@@ -456,11 +459,16 @@ public sealed class ClinicalReferral : AggregateRoot<Guid>
             Id = Guard.NotEmpty(id), ReferralNumber = Guard.MaxLength(number, 25), MembershipId = Guard.NotEmpty(membershipId), PatientPartyId = Guard.NotEmpty(patientPartyId),
             ReferringProviderId = Guard.MaxLength(referringProviderId, 15), ReferredProviderId = referredProviderId, ReferredSpecialty = referredSpecialty,
             ClinicalReason = Guard.MaxLength(Guard.NotNullOrWhiteSpace(clinicalReason), 1000), ValidFrom = validFrom, ValidTo = validTo, VisitsAllowed = visitsAllowed,
-            ComplexCaseId = complexCaseId, PreauthorisationId = preauthorisationId,
+            ComplexCaseId = complexCaseId, PreauthorisationId = preauthorisationId, ConsentReference = string.IsNullOrWhiteSpace(consentReference) ? null : Guard.MaxLength(consentReference, 120),
         };
         referral.MarkChanged();
         return referral;
     }
+
+    /// <summary>Whether a provider may read the reason: the one who wrote it, or the one it is referred to with the member's consent (Ade, 30 October 2026).</summary>
+    public bool ReasonOpenTo(string providerId) => providerId == ReferringProviderId || (providerId == ReferredProviderId && ConsentReference is not null);
+
+    public bool Concerns(string providerId) => providerId == ReferringProviderId || providerId == ReferredProviderId;
 
     public Result Decide(bool approved, string? reason, Guid by, DateTimeOffset now)
     {

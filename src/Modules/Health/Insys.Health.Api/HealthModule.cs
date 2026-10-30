@@ -72,7 +72,7 @@ public sealed record ApproveClaimRequest(string? ReasonCode = null);
 
 public sealed record ProviderQualityReviewRequest(int Score, string Reason);
 
-public sealed record PortalReferralRequest(string MemberNumber, string? DependantSuffix, string? ReferredProviderId, string? ReferredSpecialty, string ClinicalReason, DateOnly ValidFrom, DateOnly ValidTo, int VisitsAllowed);
+public sealed record PortalReferralRequest(string MemberNumber, string? DependantSuffix, string? ReferredProviderId, string? ReferredSpecialty, string ClinicalReason, DateOnly ValidFrom, DateOnly ValidTo, int VisitsAllowed, string? ConsentReference = null);
 
 public sealed record AssignCaseManagerRequest(Guid CaseManagerId, string? Reason);
 
@@ -562,14 +562,19 @@ public sealed class HealthModule : IModule
                     return patient.IsFailure
                         ? patient.ToHttp(_ => Results.Ok())
                         : (await d.Send(new RequestClinicalReferral(patient.Value.MembershipId, patient.Value.PatientPartyId, execution.External!.ProviderId!, r.ReferredProviderId, r.ReferredSpecialty,
-                            r.ClinicalReason, r.ValidFrom, r.ValidTo, r.VisitsAllowed, null, null), ct)).ToHttp(v => Results.Created($"/api/v1/portal/health/referrals/{v.Id}", v));
+                            r.ClinicalReason, r.ValidFrom, r.ValidTo, r.VisitsAllowed, null, null, r.ConsentReference), ct)).ToHttp(v => Results.Created($"/api/v1/portal/health/referrals/{v.Id}", v));
                 })
             .Produces<ClinicalReferralView>(StatusCodes.Status201Created).ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
-            .WithName("PortalHealthRequestReferral").WithSummary("Refer a member, as yourself (F038)").RequireIdempotencyKey();
+            .WithName("PortalHealthRequestReferral").WithSummary("Refer a member, as yourself (F038); name the member's consent for the receiving provider to read the reason")
+            .RequirePermission(HealthPermissions.ReferralCreate).ForPortal(provider).RequireIdempotencyKey();
         portal.MapGet("/referrals", async (string? status, string? cursor, int? limit, IDispatcher d, IExecutionContext execution, CancellationToken ct) =>
                 await Page(cursor, limit, (after, size) => d.Query(new ListClinicalReferrals(null, execution.External!.ProviderId!, status, after, size), ct), r => r.Id))
             .Produces<CursorPage<ClinicalReferralView>>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
-            .WithName("PortalHealthListReferrals").WithSummary("Your own referrals; no clinical reason");
+            .WithName("PortalHealthListReferrals").WithSummary("Referrals you made or received; no clinical reason").RequirePermission(HealthPermissions.ReferralRead).ForPortal(provider);
+        portal.MapGet("/referrals/{id:guid}/clinical", async (Guid id, string? purpose, IDispatcher d, CancellationToken ct) => (await d.Send(new ReadPortalReferralClinical(id, purpose), ct)).ToHttp(Results.Ok))
+            .Produces<ReferralClinicalView>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status403Forbidden).ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("PortalHealthReadReferralClinical").WithSummary("A referral's reason, with a purpose: for the provider who wrote it, or the one it names with the member's consent; every read is audited")
+            .RequirePermission(HealthPermissions.ReferralRead).ForPortal(provider);
 
         portal.MapPost("/preauthorisations", async (PortalPreauthorisationRequest r, IDispatcher d, IExecutionContext execution, CancellationToken ct) =>
                 {

@@ -102,7 +102,7 @@ public sealed class AddCareNoteValidator : AbstractValidator<AddCareNote>
 }
 
 public sealed record RequestClinicalReferral(Guid MembershipId, Guid PatientPartyId, string ReferringProviderId, string? ReferredProviderId, string? ReferredSpecialty,
-    string ClinicalReason, DateOnly ValidFrom, DateOnly ValidTo, int VisitsAllowed, Guid? ComplexCaseId, Guid? PreauthorisationId) : ICommand<ClinicalReferralView>;
+    string ClinicalReason, DateOnly ValidFrom, DateOnly ValidTo, int VisitsAllowed, Guid? ComplexCaseId, Guid? PreauthorisationId, string? ConsentReference = null) : ICommand<ClinicalReferralView>;
 
 public sealed record DecideClinicalReferral(Guid ReferralId, bool Approved, string? Reason) : ICommand<ClinicalReferralView>;
 
@@ -117,6 +117,9 @@ public sealed record ListClinicalReferrals(Guid? MembershipId, string? ProviderI
 public sealed record ReadReferralClinical(Guid ReferralId, string? Purpose) : ICommand<ReferralClinicalView>;
 
 public sealed record ReferralClinicalView(Guid ReferralId, string ClinicalReason);
+
+/// <summary>A provider reads a referral's reason through the portal: the referring provider, or the receiving one with the member's consent; another gets not found.</summary>
+public sealed record ReadPortalReferralClinical(Guid ReferralId, string? Purpose) : ICommand<ReferralClinicalView>;
 
 /// <summary>A referral without its clinical reason.</summary>
 public sealed record ClinicalReferralView(Guid Id, string ReferralNumber, Guid MembershipId, Guid PatientPartyId, string ReferringProviderId, string? ReferredProviderId, string? ReferredSpecialty,
@@ -314,6 +317,7 @@ internal sealed class ClinicalReferralHandlers(IHealthRepository health, IExecut
     IQueryHandler<GetClinicalReferral, ClinicalReferralView>,
     IQueryHandler<ListClinicalReferrals, IReadOnlyList<ClinicalReferralView>>,
     ICommandHandler<ReadReferralClinical, ReferralClinicalView>,
+    ICommandHandler<ReadPortalReferralClinical, ReferralClinicalView>,
     ICommandHandler<ExpireClinicalReferral, bool>
 {
     private static Error NotFound => Error.NotFound(ErrorCodes.NotFound, "The referral was not found.");
@@ -327,7 +331,7 @@ internal sealed class ClinicalReferralHandlers(IHealthRepository health, IExecut
 
         var id = Guid.CreateVersion7();
         var referral = ClinicalReferral.Request(id, Numbers.Of("RF", id, 25), command.MembershipId, command.PatientPartyId, command.ReferringProviderId, command.ReferredProviderId,
-            command.ReferredSpecialty, command.ClinicalReason, command.ValidFrom, command.ValidTo, command.VisitsAllowed, command.ComplexCaseId, command.PreauthorisationId);
+            command.ReferredSpecialty, command.ClinicalReason, command.ValidFrom, command.ValidTo, command.VisitsAllowed, command.ComplexCaseId, command.PreauthorisationId, command.ConsentReference);
         if (referral.IsFailure)
         {
             return referral.Error;
@@ -396,6 +400,35 @@ internal sealed class ClinicalReferralHandlers(IHealthRepository health, IExecut
         audit.Record(new AuditEntry("HEALTH", "ReadClinical", nameof(ClinicalReferral), target, new Dictionary<string, string?> { ["purpose"] = command.Purpose }));
         return new ReferralClinicalView(referral.Id, referral.ClinicalReason);
     }
+
+    public async Task<Result<ReferralClinicalView>> Handle(ReadPortalReferralClinical command, CancellationToken cancellationToken)
+    {
+        var target = command.ReferralId.ToString();
+        var provider = execution.External?.ProviderId;
+        if (string.IsNullOrWhiteSpace(command.Purpose) || command.Purpose.Length > ComplexCaseHandlers.PurposeMaxLength)
+        {
+            audit.Record(Denied(target, "PURPOSE_REQUIRED", null));
+            return Error.Validation(HealthErrorCodes.PurposeRequired, "Reading clinical information needs a purpose, which is recorded.");
+        }
+
+        if (provider is null || await health.ClinicalReferral(command.ReferralId, cancellationToken) is not { } referral || !referral.Concerns(provider))
+        {
+            audit.Record(Denied(target, "NOT_THIS_PROVIDERS", command.Purpose));
+            return NotFound;
+        }
+
+        if (!referral.ReasonOpenTo(provider))
+        {
+            audit.Record(Denied(target, "NO_CONSENT", command.Purpose));
+            return Error.Forbidden(HealthErrorCodes.CareConsentRequired, "The referral does not name the member's consent to your reading its reason.");
+        }
+
+        audit.Record(new AuditEntry("HEALTH", "ReadClinical", nameof(ClinicalReferral), target, new Dictionary<string, string?> { ["purpose"] = command.Purpose, ["provider"] = provider }));
+        return new ReferralClinicalView(referral.Id, referral.ClinicalReason);
+    }
+
+    private static AuditEntry Denied(string target, string why, string? purpose) =>
+        new("HEALTH", "ReadClinical", nameof(ClinicalReferral), target, new Dictionary<string, string?> { ["refused"] = why, ["purpose"] = purpose }) { Outcome = AuditOutcome.Denied };
 
     public async Task<Result<bool>> Handle(ExpireClinicalReferral command, CancellationToken cancellationToken)
     {

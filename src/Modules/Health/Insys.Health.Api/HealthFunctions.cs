@@ -119,6 +119,7 @@ internal static class HealthFunctions
         .Action("PROVIDER_PORTAL_HEALTH_REQUEST_AUTHORISATION", "PROVIDER_PORTAL_HEALTH_PREAUTHORISATIONS", "PortalHealthRequestAuthorisation")
         .Screen("PROVIDER_PORTAL_HEALTH_REFERRALS", "PROVIDER_PORTAL", "Referrals", "portal/health/referrals", "PortalHealthListReferrals")
         .Action("PROVIDER_PORTAL_HEALTH_REQUEST_REFERRAL", "PROVIDER_PORTAL_HEALTH_REFERRALS", "PortalHealthRequestReferral")
+        .Action("PROVIDER_PORTAL_HEALTH_READ_REFERRAL_CLINICAL", "PROVIDER_PORTAL_HEALTH_REFERRALS", "PortalHealthReadReferralClinical")
         .Screen("PROVIDER_PORTAL_HEALTH_REMITTANCES", "PROVIDER_PORTAL", "Remittances", "portal/health/remittances", "PortalHealthListRemittances")
             .Functions,
     ];

@@ -315,7 +315,7 @@ internal sealed class HealthRepository(HealthDbContext db, IExecutionContext exe
             rows = rows.Where(r => MembershipsInScope.Contains(r.MembershipId));
         }
 
-        return await rows.Where(r => (membershipId == null || r.MembershipId == membershipId) && (providerId == null || r.ReferringProviderId == providerId)
+        return await rows.Where(r => (membershipId == null || r.MembershipId == membershipId) && (providerId == null || r.ReferringProviderId == providerId || r.ReferredProviderId == providerId)
                 && (status == null || r.Status == status) && (afterId == null || r.Id.CompareTo(afterId.Value) > 0)).OrderBy(r => r.Id).Take(limit).ToListAsync(cancellationToken);
     }
 

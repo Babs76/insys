@@ -10,7 +10,7 @@ What changed in the API contract, newest first, so the front end can sync. The O
 - **`POST .../case-manager`** (`caseManagerId`, `reason`): the person must hold the case manager function (`NOT_A_CASE_MANAGER`); reassigning needs a reason and **ends the last manager's clinical access**.
 - **`POST .../hold`, `.../resume`, `.../close`** (`reason`), **`.../care-plan`** (`items`, `reason` for a change), **`.../care-plan/items/{itemId}/progress`** (`DONE`, `MISSED`, `CHANGED`), **`.../notes`** (one with `sharedWithProviderId` needs `consentReference`: `CARE_CONSENT_REQUIRED`).
 - **`/health/referrals`**: `POST`, `GET`, `GET /{id}` (no clinical reason), **`GET /{id}/clinical?purpose=`** (`health_case.read_clinical`), **`POST /{id}/decide`**, **`POST /{id}/visits`**. States `REQUESTED`, `APPROVED`, `DECLINED`, `USED`, `EXPIRED`. They affect no claim (OQ-144).
-- **Provider portal:** `POST`, `GET /portal/health/referrals`: its own, as itself.
+- **Provider portal:** `POST /portal/health/referrals` (as itself; optional `consentReference`), `GET /portal/health/referrals` (made or received), **`GET /portal/health/referrals/{id}/clinical?purpose=`**: for the provider who wrote it, or the one it names with consent (otherwise 403 `CARE_CONSENT_REQUIRED`); any other provider gets 404. Staff `POST /health/referrals` also takes `consentReference`.
 - **Permissions** `health_complex_case.read`, `.update`, `.manage` (the case manager function), `health_case.read_clinical` (the clinical function), `health_referral.read`, `.create`, `.decide`.
 - **Workflow task** `FOLLOW_UP_CARE` (process `HEALTH_CARE_ACTIVITY_FOLLOW_UP`), assigned to the case manager. **Event** `health.CareActivityOverdue`: references only.
 

@@ -787,6 +787,83 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
     }
 
     /// <summary>
+    /// F038 (Ade, 30 October 2026): on the portal, a referral's reason is for the provider who wrote it, and for the one it names only
+    /// with the member's consent; a third gets not found. Each needs a purpose, and every read and refusal is audited.
+    /// </summary>
+    [Fact]
+    public async Task AReferralsReason_IsForItsWriter_ForItsReceiverWithConsent_AndNotForAThirdProvider_F038()
+    {
+        const string Secret = "Suspected renal failure";
+        foreach (var code in new[] { "PR-1", "PR-2", "PR-3" })
+        {
+            await _db.ExecuteAsOwner("""
+                INSERT INTO health.mst_provider_register (tenant_id, code, version, effective_from, record_status, created_by, change_reason, provider_id, name,
+                                                          registration_numbers, locations, status, provider_type)
+                VALUES (@t, @p, 1, @from, 'ACTIVE', 'seed', 'seed', @p, @p, '{"practice":"P"}', '[]', 'ACTIVE', 'SPEC')
+                ON CONFLICT DO NOTHING
+                """, ("t", Tenant), ("p", code), ("from", Today.AddYears(-2)));
+            var user = await _db.UserWithPermissions(Tenant, $"referral-{code}", HealthPermissions.ReferralRead, HealthPermissions.ReferralCreate);
+            await _db.ExecuteAsOwner("""
+                INSERT INTO iam.user_subject_link (tenant_id, id, row_version, created_at, created_by, updated_at, updated_by, user_id, kind, provider_id, status, requested_by, decided_by, decided_at)
+                VALUES (@t, gen_random_uuid(), 1, now(), 'seed', now(), 'seed', @u, 'PROVIDER', @v, 'ACTIVE', gen_random_uuid(), gen_random_uuid(), now())
+                """, ("t", Tenant), ("u", user), ("v", code));
+        }
+
+        await Seed("channel.cfg_channel_definitions", "EFFECTIVE", "CH-PRV", ("channel_code", "PRV"), ("audience", "PROVIDER"), ("name", "Provider portal"), ("client_ids", new[] { "provider-portal" }));
+        await _db.AdoptFunctionCatalogue();
+        var writer = _factory.ClientFor(Tenant, "referral-PR-1", "provider-portal", multiFactor: true);
+        var receiver = _factory.ClientFor(Tenant, "referral-PR-2", "provider-portal", multiFactor: true);
+        var third = _factory.ClientFor(Tenant, "referral-PR-3", "provider-portal", multiFactor: true);
+
+        var scheme = await Created("/api/v1/health/schemes", new { sponsorCode = "S-ACME", startDate = Today.AddYears(-1), renewalDate = Today.AddMonths(6), currency = "ZAR" });
+        var principal = await _maker.RegisterPerson("ReferredPortal");
+        var membership = await Created("/api/v1/health/memberships", new
+        {
+            principalPartyId = principal, schemeId = scheme, memberCategory = "ALL_STAFF", planCode = "HLT-CORE", optionCode = "A", startDate = Today.AddMonths(-6),
+            currency = "ZAR", collectionMethod = "DEBIT_ORDER", facts = new { employment_type = "PERMANENT" },
+        });
+        await _factory.DrainOutbox();
+        var memberNumber = (await Get($"/api/v1/health/memberships/{membership}")).GetProperty("memberNumber").GetString();
+
+        async Task<string> Refer(string? consent)
+        {
+            var referred = await writer.Send(HttpMethod.Post, "/api/v1/portal/health/referrals", new
+            {
+                memberNumber, referredProviderId = "PR-2", clinicalReason = Secret, validFrom = Today, validTo = Today.AddDays(30), visitsAllowed = 1, consentReference = consent,
+            }, idempotent: true);
+            referred.StatusCode.ShouldBe(HttpStatusCode.Created, await referred.Content.ReadAsStringAsync());
+            var body = await referred.Json();
+            body.GetRawText().ShouldNotContain(Secret, Case.Sensitive);
+            body.GetProperty("referringProviderId").GetString().ShouldBe("PR-1", "as itself, whatever a request says");
+            return $"/api/v1/portal/health/referrals/{body.GetProperty("id").GetGuid()}/clinical";
+        }
+
+        var withoutConsent = await Refer(null);
+        var withConsent = await Refer("CONSENT-1");
+        const string Purpose = "?purpose=Treatment";
+
+        // The writer reads its own reason, with a purpose.
+        (await (await writer.GetAsync(withoutConsent)).Code()).ShouldBe("HEALTH_PURPOSE_REQUIRED");
+        (await (await writer.GetAsync(withoutConsent + Purpose)).Json()).GetProperty("clinicalReason").GetString().ShouldBe(Secret);
+
+        // The receiver only when the referral names the member's consent.
+        var refused = await receiver.GetAsync(withoutConsent + Purpose);
+        (refused.StatusCode, await refused.Code()).ShouldBe((HttpStatusCode.Forbidden, "CARE_CONSENT_REQUIRED"));
+        (await (await receiver.GetAsync(withConsent + Purpose)).Json()).GetProperty("clinicalReason").GetString().ShouldBe(Secret);
+
+        // A third provider gets not found on both, and sees neither listed.
+        (await third.GetAsync(withConsent + Purpose)).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await third.GetAsync(withoutConsent + Purpose)).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await (await third.GetAsync("/api/v1/portal/health/referrals")).Json()).GetProperty("items").GetArrayLength().ShouldBe(0);
+        (await (await receiver.GetAsync("/api/v1/portal/health/referrals")).Json()).GetProperty("items").GetArrayLength().ShouldBe(2);
+
+        // Every read and refusal is audited, without the reason.
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM audit.audit_event WHERE operation = 'ReadClinical' AND target_type = 'ClinicalReferral' AND outcome = 'DENIED'")).ShouldBe(4L, "no purpose, no consent, and the third provider's two");
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM audit.audit_event WHERE operation = 'ReadClinical' AND target_type = 'ClinicalReferral' AND outcome <> 'DENIED'")).ShouldBe(2L);
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM audit.audit_event WHERE details::text ILIKE '%renal%'")).ShouldBe(0L);
+    }
+
+    /// <summary>
     /// F028 to F030 (Wave 5a batch 5a.1): last month's claims give a provider its measures. A breach asks a person to look and
     /// changes nothing about the provider; a month with too few claims is shown but not judged. A provider's statement is matched
     /// against its paid claims, and is reconciled once a person has resolved each exception with a reason.
