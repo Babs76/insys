@@ -50,7 +50,7 @@ Estimates are working days for one developer, including unit, integration and en
 
 **Scheduled (30 October 2026):**
 - **B-010** at the start of Wave 5.
-- **B-007, B-008 and B-009** together, as one batch after Wave 6 and before the first go-live.
+- **B-007, B-008, B-009 and B-011** together, as one batch after Wave 6 and before the first go-live.
 
 ### B-007: a premium adjustment endorsement (General)
 - **Decided:** 30 October 2026, option (b) of the 4.3b report, as a general feature, not retention-only.
@@ -79,3 +79,9 @@ Estimates are working days for one developer, including unit, integration and en
 - **What:** a contact party on the intermediary register (`commission.mst_intermediary_register`; a migration, the static data catalogue and generated code). Once a broker of record change is approved, both the incoming and the outgoing broker's contact party are sent a notice (a new notification type, with a template per tenant).
 - **Estimate:** 2 to 3 days.
 - **Built:** Wave 5, branch `wave5-b010`; see `docs/reports/2026-10-30-wave5-batch-b010.md`.
+
+### B-011: callback tokens only from service accounts
+- **Decided:** 30 October 2026, by Ade.
+- **What:** callback tokens (Payments and Communications) are accepted only from service accounts, that is Keycloak client-credentials tokens: never a person's token, even if it holds the function. IAM marks service accounts, and the readiness checks `PAYMENT_CALLBACK_CLIENT` and `COMMUNICATION_CALLBACK_CLIENT` require a service account holder.
+- **Estimate:** 3 to 4 days (a migration and a kind on the user account, provisioning a service account per tenant and provider, the token check, both readiness checks, tests).
+- **Until then:** the functions `PAYMENTS_CALLBACK_CLIENT` and `COMMUNICATIONS_CALLBACK_CLIENT` are privileged and in no role template, so only a role made for the purpose grants them, and a person given such a role could pass the check.

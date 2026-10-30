@@ -224,6 +224,28 @@ public sealed class ProviderCallbackTests(DatabaseFixture fixture) : IClassFixtu
         return client;
     }
 
+    /// <summary>ADR-023 decision 4: an endpoint that requires a client token takes a callback only with a signature and a token holding payment_callback.create.</summary>
+    [Fact]
+    public async Task AnEndpointRequiringAClientToken_TakesAHoldersToken_AndNoOther_ADR023()
+    {
+        var tenant = DatabaseFixture.TenantA;
+        var response = await Client(tenant).Send(HttpMethod.Post, "/api/v1/payments/callback-endpoints", new { providerCode = "SIMULATOR", requireClientToken = true }, idempotent: true);
+        response.StatusCode.ShouldBe(HttpStatusCode.Created, await response.Content.ReadAsStringAsync());
+        var endpoint = (await response.Content.ReadFromJsonAsync<IssuedCallbackEndpoint>(Json))!;
+        await fixture.Database.UserWithPermissions(tenant, "callback-client", PaymentPermissions.CallbackCreate);
+        await fixture.Database.UserWithPermissions(tenant, "callback-other", PaymentPermissions.CallbackEndpointRead);
+        await fixture.Database.AdoptFunctionCatalogue();
+        var payment = await PendingPayment(tenant);
+        var body = await Body(payment, "PAID");
+
+        (await Callback(endpoint.CallbackPath, endpoint.SigningSecret, body)).StatusCode.ShouldBe(HttpStatusCode.Unauthorized, "no token");
+        (await Callback(endpoint.CallbackPath, endpoint.SigningSecret, body, bearer: TestTokens.For(tenant, "callback-other", DateTime.UtcNow))).StatusCode
+            .ShouldBe(HttpStatusCode.Unauthorized, "a token without the permission");
+        var taken = await Callback(endpoint.CallbackPath, endpoint.SigningSecret, body, bearer: TestTokens.For(tenant, "callback-client", DateTime.UtcNow));
+        taken.IsSuccessStatusCode.ShouldBeTrue(await taken.Content.ReadAsStringAsync());
+        (await Status(payment)).ShouldBe("SUCCEEDED");
+    }
+
     private async Task<IssuedCallbackEndpoint> Issue(Guid tenant)
     {
         var response = await Client(tenant).Send(HttpMethod.Post, "/api/v1/payments/callback-endpoints", new { providerCode = "SIMULATOR" }, idempotent: true);
@@ -246,7 +268,7 @@ public sealed class ProviderCallbackTests(DatabaseFixture fixture) : IClassFixtu
 
     private Task<string?> Status(Guid payment) => fixture.Database.ScalarAsOwner<string>("SELECT status FROM payment.payment WHERE id = @p", ("p", payment));
 
-    private Task<HttpResponseMessage> Callback(string path, string secret, string body, DateTimeOffset? sentAt = null, string? callbackId = null)
+    private Task<HttpResponseMessage> Callback(string path, string secret, string body, DateTimeOffset? sentAt = null, string? callbackId = null, string? bearer = null)
     {
         var timestamp = (sentAt ?? DateTimeOffset.UtcNow).ToUnixTimeSeconds().ToString(System.Globalization.CultureInfo.InvariantCulture);
         var id = callbackId ?? Guid.CreateVersion7().ToString();
@@ -254,6 +276,11 @@ public sealed class ProviderCallbackTests(DatabaseFixture fixture) : IClassFixtu
         request.Headers.Add("X-Callback-Timestamp", timestamp);
         request.Headers.Add("X-Callback-Id", id);
         request.Headers.Add("X-Signature", CallbackKeys.Sign(secret, timestamp, id, body));
+        if (bearer is not null)
+        {
+            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", bearer);
+        }
+
         return _app.CreateClient().SendAsync(request);
     }
 

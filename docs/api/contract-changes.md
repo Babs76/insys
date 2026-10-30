@@ -14,6 +14,14 @@ What changed in the API contract, newest first, so the front end can sync. The O
 - **`POST /health/referrals/{id}/consent`** (`consentReference`, `reason`) and **`POST /health/referrals/{id}/consent/withdraw`** (`reason`), If-Match, permission `health_referral.consent`: withdrawal ends the receiving provider's access at once. The view gains `consentReference`, `consentWithdrawnAt`.
 - **Permissions** `health_complex_case.read`, `.update`, `.manage` (the case manager function), `health_case.read_clinical` (the clinical function), `health_referral.read`, `.create`, `.decide`.
 - **Workflow task** `FOLLOW_UP_CARE` (process `HEALTH_CARE_ACTIVITY_FOLLOW_UP`), assigned to the case manager. **Event** `health.CareActivityOverdue`: references only.
+## Communications callbacks (branch `comms-callback`): a client token must hold the function
+
+- **`POST /communications/callbacks/{endpointKey}`:** at an endpoint with `requireClientToken`, a token must now hold `communication_callback.create`. Before, any authenticated token of the tenant passed. A signature is still required.
+- **Function** `COMMUNICATIONS_CALLBACK_CLIENT`, privileged and in no role template. **Readiness** `COMMUNICATION_CALLBACK_CLIENT` on `SHARED_OPERATIONAL_SETUP`, blocking.
+## BR-116 (branch `br-116`): a portal user can answer a renewal
+
+- **`GET /portal/general/renewals/{id}`** now returns an `ETag`, and `PortalRenewalView` has `rowVersion` (also in the list). Accept and decline return the new `ETag`. Send it as `If-Match` on accept and decline: a stale one gets 412. Before this, a portal user had no way to get the version these operations require.
+- **Preferences:** `CommunicationsSetPreference` and `PortalCommunicationsSetPreference` are unchanged. `If-Match` stays optional, and each item of the list read has its `rowVersion`.
 
 ## Wave 5a batch 5a.1 (branch `wave5a-1`): provider measures, quality reviews and statements (addendum §4.1, §4.2; F028 to F030)
 

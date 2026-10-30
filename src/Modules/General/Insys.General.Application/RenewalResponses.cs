@@ -64,11 +64,11 @@ public sealed record ProposeNonRenewal(Guid PolicyId, [property: CodeList(CodeLi
 /// </summary>
 public sealed record PortalRenewalView(Guid Id, Guid PolicyId, string PolicyNumber, DateOnly PeriodEnd,
     [property: OneOf("OFFERED", "ACCEPTED", "RENEWED", "DECLINED_BY_CUSTOMER", "NOT_RENEWED_BY_INSURER", "LAPSED")] string Status, string Currency,
-    decimal CurrentPremium, decimal? OfferedPremium, bool NeedsAcceptance, DateOnly? CoverEndsOn)
+    decimal CurrentPremium, decimal? OfferedPremium, bool NeedsAcceptance, DateOnly? CoverEndsOn, long RowVersion)
 {
     public static PortalRenewalView From(Renewal r) => new(r.Id, r.PolicyId, r.PolicyNumber, r.PeriodEnd, Upper(r.Status), r.Currency, r.CurrentPremium,
         r.Status == RenewalStatus.NotRenewedByInsurer ? null : r.OfferedPremium, r.NeedsAcceptance,
-        r.Status == RenewalStatus.NotRenewedByInsurer ? r.CoverExtendedTo ?? r.PeriodEnd : null);
+        r.Status == RenewalStatus.NotRenewedByInsurer ? r.CoverExtendedTo ?? r.PeriodEnd : null, r.RowVersion);
 
     private static string Upper(RenewalStatus status) => System.Text.RegularExpressions.Regex.Replace(status.ToString(), "(?<!^)([A-Z])", "_$1").ToUpperInvariant();
 }
