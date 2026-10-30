@@ -787,7 +787,7 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
             ? ChangeIntermediary(code, from, today, now)
             : Error.Conflict(ErrorCodes.InvalidStateTransition, $"Policy {PolicyNumber} has no broker of record change due.");
 
-    public Result ApplyEndorsement(GeneralEndorsement endorsement, ProductTerms product, IReadOnlyList<string> documentTypes, DateTimeOffset now, DateOnly? today = null)
+    public Result ApplyEndorsement(GeneralEndorsement endorsement, ProductTerms product, IReadOnlyList<string> documentTypes, DateTimeOffset now, DateOnly today)
     {
         if (endorsement.PolicyId != Id || endorsement.Status != EndorsementStatus.Approved)
         {
@@ -810,7 +810,7 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
 
         if (endorsement.NewIntermediaryCode is { } intermediary)
         {
-            var moved = ChangeIntermediary(intermediary, endorsement.EffectiveDate, today ?? DateOnly.FromDateTime(now.UtcDateTime), now);
+            var moved = ChangeIntermediary(intermediary, endorsement.EffectiveDate, today, now);
             if (moved.IsFailure)
             {
                 return moved;

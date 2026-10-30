@@ -416,13 +416,13 @@ public sealed class GeneralTests
 
         endorsement.RateEndorsement(Guid.CreateVersion7(), 15_000m, policy, type).IsSuccess.ShouldBeTrue();
         endorsement.PremiumDelta.ShouldBe(Math.Round(3_000m * (End.DayNumber - effective.DayNumber + 1) / (End.DayNumber - Start.DayNumber + 1), 2, MidpointRounding.AwayFromZero));
-        policy.ApplyEndorsement(endorsement, Motor, [], Now).IsFailure.ShouldBeTrue();
+        policy.ApplyEndorsement(endorsement, Motor, [], Now, Today).IsFailure.ShouldBeTrue();
 
         endorsement.SubmitEndorsement(maker, "ZAR", Now).IsSuccess.ShouldBeTrue();
         endorsement.Decide(true, Guid.CreateVersion7(), maker, Now).Error!.Code.ShouldBe(ErrorCodes.MakerCheckerSamePerson);
         endorsement.Decide(true, Guid.CreateVersion7(), Guid.CreateVersion7(), Now).IsSuccess.ShouldBeTrue();
 
-        policy.ApplyEndorsement(endorsement, Motor, ["ENDORSEMENT"], Now).IsSuccess.ShouldBeTrue();
+        policy.ApplyEndorsement(endorsement, Motor, ["ENDORSEMENT"], Now, Today).IsSuccess.ShouldBeTrue();
         policy.AnnualPremium.ShouldBe(15_000m);
         policy.Coverages.Sum(c => c.Premium).ShouldBe(15_000m);
         policy.Coverages.Single(c => c.CoverageCode == "OWN_DAMAGE").SumInsured.ShouldBe(300_000m);
@@ -440,7 +440,7 @@ public sealed class GeneralTests
         endorsement.SubmitEndorsement(Guid.CreateVersion7(), "ZAR", Now);
         endorsement.Decide(true, Guid.CreateVersion7(), Guid.CreateVersion7(), Now);
 
-        policy.ApplyEndorsement(endorsement, Motor, [], Now).Error!.Code.ShouldBe(GeneralErrorCodes.OutsideProductLimits);
+        policy.ApplyEndorsement(endorsement, Motor, [], Now, Today).Error!.Code.ShouldBe(GeneralErrorCodes.OutsideProductLimits);
     }
 
     [Fact]
