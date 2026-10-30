@@ -24,8 +24,13 @@
  * UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
  * ============================================================================
  */
+using System.Reflection;
+using System.Text.RegularExpressions;
+using Insys.BuildingBlocks.Api;
 using Insys.BuildingBlocks.Api.Functions;
 using Insys.Testing;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Insys.IntegrationTests;
@@ -101,6 +106,59 @@ public sealed class FunctionCatalogueTests(DatabaseFixture fixture) : IClassFixt
             .Select(f => f.Function.Code).ToList().ShouldBe([]);
         functions.Where(f => f.Function.Kind == FunctionKind.Action && (f.Function.Parent is null || !codes.Contains(f.Function.Parent)))
             .Select(f => f.Function.Code).ToList().ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// A permission only reaches a role through a function (ADR-026 §7), so one that is checked and that no function grants can
+    /// never be held: its check always refuses. Checked means on an endpoint, named by AlsoChecks, or a constant of a
+    /// ...Permissions class that the source uses (a handler's HasPermission, a role lookup, an approval's required permission).
+    /// </summary>
+    [Fact]
+    public async Task EveryPermissionChecked_IsGrantedByAFunction_ADR026()
+    {
+        var host = await fixture.Host();
+        _ = host.CreateClient();
+        var granted = FunctionRegistry.All().SelectMany(f => f.Permissions).ToHashSet(StringComparer.Ordinal);
+        var ungranted = new SortedSet<string>(StringComparer.Ordinal);
+
+        foreach (var endpoint in host.Services.GetServices<EndpointDataSource>().SelectMany(s => s.Endpoints).OfType<RouteEndpoint>()
+            .Where(e => e.RoutePattern.RawText?.StartsWith("/api/", StringComparison.Ordinal) == true && e.Metadata.GetMetadata<PlatformOperatorEndpointMetadata>() is null))
+        {
+            foreach (var permission in endpoint.Metadata.OfType<RequiredPermissionMetadata>().Select(m => m.Permission)
+                .Where(p => p is not (EndpointSecurityExtensions.SignedInUser or EndpointSecurityExtensions.SignedProviderCallback))
+                .Concat(endpoint.Metadata.OfType<AdditionalPermissionMetadata>().Select(m => m.Permission)))
+            {
+                if (!granted.Contains(permission))
+                {
+                    ungranted.Add($"{permission} (endpoint {endpoint.RoutePattern.RawText})");
+                }
+            }
+        }
+
+        foreach (var file in Directory.EnumerateFiles(AppContext.BaseDirectory, "Insys.*.dll"))
+        {
+            Assembly.LoadFrom(file);
+        }
+
+        var source = string.Concat(Directory.EnumerateFiles(Path.Combine(RepositoryPaths.Root, "src"), "*.cs", SearchOption.AllDirectories)
+            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            .Select(File.ReadAllText));
+        var classes = AppDomain.CurrentDomain.GetAssemblies().Where(a => a.GetName().Name?.StartsWith("Insys.", StringComparison.Ordinal) == true)
+            .SelectMany(a => a.GetTypes()).Where(t => t is { IsAbstract: true, IsSealed: true } && t.Name.EndsWith("Permissions", StringComparison.Ordinal)).ToList();
+        classes.Count.ShouldBeGreaterThan(20, "the ...Permissions classes were not found");
+        foreach (var type in classes)
+        {
+            foreach (var constant in type.GetFields(BindingFlags.Public | BindingFlags.Static).Where(f => f is { IsLiteral: true } && f.FieldType == typeof(string)))
+            {
+                var permission = (string)constant.GetRawConstantValue()!;
+                if (!granted.Contains(permission) && Regex.IsMatch(source, $@"\b{type.Name}\.{constant.Name}\b"))
+                {
+                    ungranted.Add($"{permission} ({type.Name}.{constant.Name})");
+                }
+            }
+        }
+
+        ungranted.ShouldBeEmpty("no role can ever hold these: declare a function that grants each (FunctionMap.Permission), or remove the check");
     }
 
     /// <summary>

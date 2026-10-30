@@ -87,6 +87,7 @@ public static class RoleTemplates
         new("DISCARD_MESSAGE", "Drops a dead-lettered message for good", Flagged: true),
         new("PAYMENTS_ISSUE_CALLBACK_ENDPOINT", "Issues a signing secret a payment provider uses to report payments", Flagged: true),
         new("PAYMENTS_REVOKE_CALLBACK_ENDPOINT", "Stops a payment provider's reports being accepted", Flagged: true),
+        new("PAYMENTS_CALLBACK_CLIENT", "Lets a token through to report payments at an endpoint requiring one: for a provider's service identity, in no template", Flagged: true),
         new("COMMUNICATIONS_ISSUE_CALLBACK_ENDPOINT", "Issues a signing secret a messaging provider uses to report deliveries", Flagged: true),
         new("COMMUNICATIONS_REVOKE_CALLBACK_ENDPOINT", "Stops a messaging provider's reports being accepted", Flagged: true),
         new("PAYMENTS_REVERSE", "Reverses a payment already made", Flagged: true),

@@ -65,4 +65,29 @@ internal sealed class UserRoleQuery([FromKeyedServices(IdentityDbContext.SchemaN
         await transaction.CommitAsync(cancellationToken);
         return roles;
     }
+
+    public async Task<bool> AnyActiveHolder(Guid tenantId, string functionCode, DateOnly day, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await TenantSession.SetTenant(connection, transaction, tenantId, cancellationToken);
+        await using var command = new NpgsqlCommand("""
+            SELECT EXISTS (
+                SELECT 1 FROM iam.user_role_assignment a
+                JOIN iam.user_account u ON u.tenant_id = a.tenant_id AND u.id = a.user_id AND u.status = @active
+                JOIN iam.cfg_role_function_assignments g ON g.tenant_id = a.tenant_id AND g.role_code = a.role_code AND g.function_code = @function
+                 AND g.record_status = ANY(@inForce) AND g.effective_from <= @day AND (g.effective_to IS NULL OR g.effective_to > @day)
+                JOIN iam.cfg_roles_and_permission_sets r ON r.tenant_id = a.tenant_id AND r.role_code = a.role_code
+                 AND r.record_status = ANY(@inForce) AND r.effective_from <= @day AND (r.effective_to IS NULL OR r.effective_to > @day)
+                WHERE a.tenant_id = @t AND a.status = 'ACTIVE' AND a.valid_from <= @day AND (a.valid_to IS NULL OR a.valid_to > @day))
+            """, connection, transaction);
+        command.Parameters.AddWithValue("active", UpperCaseEnumConverter<UserStatus>.ToCode(UserStatus.Active));
+        command.Parameters.AddWithValue("function", functionCode);
+        command.Parameters.AddWithValue("inForce", BuildingBlocks.Infrastructure.StaticData.StaticLifecycle.Configuration.InForce);
+        command.Parameters.AddWithValue("day", day);
+        command.Parameters.AddWithValue("t", tenantId);
+        var held = (bool)(await command.ExecuteScalarAsync(cancellationToken))!;
+        await transaction.CommitAsync(cancellationToken);
+        return held;
+    }
 }

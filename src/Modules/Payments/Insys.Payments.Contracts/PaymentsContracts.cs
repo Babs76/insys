@@ -49,6 +49,12 @@ public static class PaymentPermissions
     public const string CallbackEndpointUpdate = "payment_callback_endpoint.update";
 }
 
+/// <summary>The function a provider's client-credentials service identity holds (ADR-023 decision 4).</summary>
+public static class PaymentFunctionCodes
+{
+    public const string CallbackClient = "PAYMENTS_CALLBACK_CLIENT";
+}
+
 public static class PaymentApprovals
 {
     public const string PayoutBusinessRefType = "PAYOUT_BATCH";

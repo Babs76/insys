@@ -75,6 +75,9 @@ public sealed record UserInvitationRequested(Guid UserId, IReadOnlyList<string> 
 public interface IUserRoleQuery
 {
     Task<IReadOnlyList<string>> EffectiveRoles(Guid tenantId, Guid userId, CancellationToken cancellationToken);
+
+    /// <summary>Whether an active user holds, on the day, a role in force granting the function: for onboarding readiness.</summary>
+    Task<bool> AnyActiveHolder(Guid tenantId, string functionCode, DateOnly day, CancellationToken cancellationToken);
 }
 
 /// <summary>A privileged role assignment is approved in Workflow (SRS-002, ADR-009): one approval per assignment.</summary>

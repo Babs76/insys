@@ -25,6 +25,7 @@
  * ============================================================================
  */
 using Insys.BuildingBlocks.Api.Functions;
+using Insys.Payments.Contracts;
 
 namespace Insys.Payments.Api;
 
@@ -42,6 +43,7 @@ internal static class PaymentsFunctions
             "PaymentsGetCallbackEndpoint")
         .Action("PAYMENTS_ISSUE_CALLBACK_ENDPOINT", "PAYMENT_CALLBACK_ENDPOINTS", "PaymentsIssueCallbackEndpoint", privileged: true)
         .Action("PAYMENTS_REVOKE_CALLBACK_ENDPOINT", "PAYMENT_CALLBACK_ENDPOINTS", "PaymentsRevokeCallbackEndpoint", privileged: true)
+        .Permission(PaymentFunctionCodes.CallbackClient, "PAYMENT_CALLBACK_ENDPOINTS", PaymentPermissions.CallbackCreate, privileged: true)
         .Screen("PAYMENTS", "PAYMENTS", "Collections (debit order)", "payments/payments", "PaymentsList", "PaymentsGet")
         .Action("PAYMENTS_INITIATE", "PAYMENTS", "PaymentsInitiate")
         .Action("PAYMENTS_RESOLVE_UNKNOWN", "PAYMENTS", "PaymentsResolveUnknown")

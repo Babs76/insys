@@ -4,7 +4,7 @@
 
 Generated from `src/Modules/Identity/Insys.Identity.Api/RoleTemplates.cs` (published at `GET /api/v1/identity/role-templates`, BR-088) from the function catalogue as built; `RoleTemplateTests` checks every template against every segregation-of-duties rule and the privileged list. Optional starting points a tenant copies and adjusts: copying a template creates the tenant's own role (`iam.cfg_roles_and_permission_sets`) and its function grants (`iam.cfg_role_function_assignments`), which go through approval like any Tier 1 change. INSYS never changes a tenant's copy when a template changes.
 
-- **Basis:** ADR-026 (a role holds functions), the function catalogue as built (627 functions), `INSYS_NAVIGATION.md` (sub-domains), the approval types and authority (`frontend-integration-guide.md` §3).
+- **Basis:** ADR-026 (a role holds functions), the function catalogue as built (628 functions), `INSYS_NAVIGATION.md` (sub-domains), the approval types and authority (`frontend-integration-guide.md` §3).
 - **How a template is made:** the sub-domains it covers, every screen and action in them for its actor type, less JOB functions, privileged functions and named exclusions; then further functions, and the privileged functions it is meant to hold, named one by one. An action brings its screen. A checker template adds the Workflow approvals screen with approve and reject; what it may approve, and up to what amount, is its authority rows.
 - **Separation of duties:** makers and checkers are separate templates, and no template holds both functions of any rule below (tested).
 - **Audit read:** only the audit roles (`AUDITOR`, `COMPLIANCE_OFFICER`, `DATA_PROTECTION_OFFICER`, `HEALTH_AUDITOR`) hold a function that needs `audit_event.read`: the audit trail, a record's audit history and the party search log (tested). The tenant and platform administrators no longer read the audit trail.
@@ -79,6 +79,7 @@ Assigning a role that holds a privileged function is itself an approval (`PRIVIL
 | `DISCARD_MESSAGE` | Flagged | Drops a dead-lettered message for good | `INTEGRATION_ADMINISTRATOR` |
 | `PAYMENTS_ISSUE_CALLBACK_ENDPOINT` | Flagged | Issues a signing secret a payment provider uses to report payments | `INTEGRATION_ADMINISTRATOR` |
 | `PAYMENTS_REVOKE_CALLBACK_ENDPOINT` | Flagged | Stops a payment provider's reports being accepted | `INTEGRATION_ADMINISTRATOR` |
+| `PAYMENTS_CALLBACK_CLIENT` | Flagged | Lets a token through to report payments at an endpoint requiring one: for a provider's service identity, in no template | granted one by one |
 | `COMMUNICATIONS_ISSUE_CALLBACK_ENDPOINT` | Flagged | Issues a signing secret a messaging provider uses to report deliveries | `INTEGRATION_ADMINISTRATOR` |
 | `COMMUNICATIONS_REVOKE_CALLBACK_ENDPOINT` | Flagged | Stops a messaging provider's reports being accepted | `INTEGRATION_ADMINISTRATOR` |
 | `PAYMENTS_REVERSE` | Flagged | Reverses a payment already made | `FINANCE_MANAGER` |
