@@ -84,7 +84,9 @@ public sealed class DraftEndorsementValidator : AbstractValidator<DraftEndorseme
     public DraftEndorsementValidator()
     {
         RuleFor(c => c.EndorsementType).NotEmpty().MaximumLength(15);
-        RuleFor(c => c.Changes).NotEmpty();
+        RuleFor(c => c.Changes).NotNull();
+        // B-001: a broker of record change changes nothing in the cover; its handler refuses any change.
+        RuleFor(c => c.Changes).NotEmpty().When(c => c.EndorsementType != GeneralEndorsement.IntermediaryType);
         RuleForEach(c => c.Changes).ChildRules(change =>
         {
             change.RuleFor(x => x.RiskObjectId).NotEmpty();
