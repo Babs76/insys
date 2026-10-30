@@ -69,7 +69,7 @@ internal static class GeneralFunctions
         .Action("GENERAL_RENEW_POLICY", "GENERAL_POLICIES", "GeneralRenewPolicy")
         .Action("GENERAL_CANCEL_POLICY", "GENERAL_POLICIES", "GeneralCancelPolicy")
         .Action("GENERAL_REINSTATE_POLICY", "GENERAL_POLICIES", "GeneralReinstatePolicy")
-        .Action("GENERAL_DRAFT_ENDORSEMENT", "GENERAL_POLICIES", "GeneralDraftEndorsement")
+        .Action("GENERAL_DRAFT_ENDORSEMENT", "GENERAL_POLICIES", ["GeneralDraftEndorsement", "GeneralRecordAppointmentLetter"])
         .Screen("GENERAL_PROPOSALS", "GENERAL_POLICY_ADMIN", "Proposal", "general/proposals", "GeneralListProposals", "GeneralGetProposal")
         .Action("GENERAL_SUBMIT_PROPOSAL", "GENERAL_PROPOSALS", "GeneralSubmitProposal")
         .Action("GENERAL_ACCEPT_PROPOSAL", "GENERAL_PROPOSALS", "GeneralAcceptProposal")
