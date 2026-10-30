@@ -12,6 +12,11 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 ### Changed behaviour
 - **Told at approval, not when the change applies.** A change approved for a later date tells both brokers at once.
+## Defect: a reversed Health claim is posted to the ledger (branch `fix-health-reversal`)
+
+### Changed behaviour
+- **`POST /health/claims/{id}/reverse`** on a paid claim now also reverses its claim-paid journal, on the reversal's business date, so `GET /finance/journals` shows the reversal (`reversesJournalId`). No request or response changes, and no posting rule is needed.
+- **New parking code `CLAIM_REVERSAL_NOT_POSTABLE`** (item: the claim number): no claim-paid journal yet, or no open period on the date. Retried once the journal is posted or the period opened.
 
 ## Wave 4 batch 4.3c (branch `wave4-3c`): B-001, broker of record change (addendum §4.8; OQ-134 to OQ-136; addition 3)
 

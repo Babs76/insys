@@ -1248,3 +1248,14 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
   - `next_review_on` counts from the day the review completes;
   - readiness: with the gates on, a role holds the review function.
 - Recorded in the due diligence addendum. **Closed; built in its own batch after Wave 4 batch 4.2.**
+
+### OQ-139 to OQ-146 Providers and care management (Wave 5a addendum, 30 October 2026)
+**Decided (Ade, 30 October 2026), in `docs/specs/addenda/providers-and-care.md` §8. Every recommendation accepted, with three additions.**
+- **OQ-139:** (a) deducted from later runs, invoiced by exception; 90 days before it goes to a person, tenant-set. Settles OQ-061's open point. **Addition:** only with a basis: an offset flag on the provider agreement, true by default for a medical scheme (Medical Schemes Act s 59(3)) and false otherwise. Without it, the recovery is invoiced. **Compliance still to confirm** applicability and any time limit.
+- **OQ-140:** (a) a Health aggregate, using Workflow for tasks and approvals, changing the plan. Disputes stay Workflow cases.
+- **OQ-141:** the addendum's measures; providers see nothing at first.
+- **OQ-142:** a fixed INSYS CSV layout, plus manual entry.
+- **OQ-143:** the case manager and holders of the clinical function only, every read audited. **Addition:** reassigning ends the previous case manager's access, tested.
+- **OQ-144:** recorded only in this wave.
+- **OQ-145:** a person decides each. **Addition:** never dropped; a write-off needs a second person and a reason.
+- **OQ-146:** held from offsets until the dispute ends.

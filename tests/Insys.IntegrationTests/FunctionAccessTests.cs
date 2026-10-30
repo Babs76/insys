@@ -174,6 +174,19 @@ public sealed class FunctionAccessTests(DatabaseFixture fixture) : IClassFixture
         (await refused.Code()).ShouldBe("MFA_REQUIRED");
     }
 
+    /// <summary>A Health claim's reversal with no claim-paid journal to reverse is parked for a person, never dropped (FIN-003).</summary>
+    [Fact]
+    public async Task AHealthClaimReversal_WithNoJournalToReverse_ParksItsDelivery_FIN003()
+    {
+        var (tenant, _) = await NewTenant();
+        var claim = Guid.CreateVersion7();
+        var reversed = new Insys.Health.Contracts.MedicalClaimReversed(claim, "MC-PARKED", "PR-1", 100m, "ZAR", "BILLED_IN_ERROR");
+        var envelope = Envelope(tenant, reversed, "health.MedicalClaimReversed", "MedicalClaim", claim);
+        await _factory.Services.GetRequiredService<IEventBus>().Deliver(envelope, CancellationToken.None);
+
+        (await Parked(envelope.EventId, "finance.MedicalClaimReversalPolicy")).ShouldBe($"{PrerequisiteCodes.ClaimReversalNotPostable} MC-PARKED");
+    }
+
     [Fact]
     public async Task AConsumerWhoseJobFunctionIsDisabled_ParksItsDelivery_UntilTheFunctionIsEnabled_ADR026()
     {
