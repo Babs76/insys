@@ -843,7 +843,10 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         (await Policy(late)).GetProperty("periodEnd").GetString().ShouldBe(Today.AddDays(31).ToString("yyyy-MM-dd"));
         (await _db.ScalarAsOwner<decimal>("""
             SELECT i.amount FROM billing.premium_instalment i JOIN billing.premium_schedule s ON s.id = i.schedule_id WHERE s.policy_ref = @p AND i.due_date = @d
-            """, ("p", late), ("d", Today.AddDays(11)))).ShouldBe(Math.Round(annual * 21 / 365m, 2, MidpointRounding.AwayFromZero));
+            """, ("p", late), ("d", Today.AddDays(11)))).ShouldBe(Math.Round(annual * 21 / 365m, 2, MidpointRounding.AwayFromZero), await _db.ScalarAsOwner<string>("""
+            SELECT s.end_date || ' ' || coalesce(string_agg(i.due_date || ':' || i.amount || ':' || i.status, ', ' ORDER BY i.due_date), '')
+            FROM billing.premium_schedule s LEFT JOIN billing.premium_instalment i ON i.schedule_id = s.id WHERE s.policy_ref = @p GROUP BY s.id, s.end_date
+            """, ("p", late)));
 
         // At the period's end the approved one expires, not renewed by the insurer.
         await _db.ExecuteAsOwner("UPDATE general.policy SET period_end = @e WHERE id = @p", ("e", Today.AddDays(-1)), ("p", approved));
