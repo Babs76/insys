@@ -96,6 +96,8 @@ internal static class HealthFunctions
         .Action("HEALTH_REQUEST_REFERRAL", "HEALTH_REFERRALS", "HealthRequestReferral")
         .Action("HEALTH_RECORD_REFERRAL_VISIT", "HEALTH_REFERRALS", "HealthRecordReferralVisit")
         .Action("HEALTH_DECIDE_REFERRAL", "HEALTH_REFERRALS", "HealthDecideReferral")
+        .Action("HEALTH_RECORD_REFERRAL_CONSENT", "HEALTH_REFERRALS", "HealthRecordReferralConsent")
+        .Action("HEALTH_WITHDRAW_REFERRAL_CONSENT", "HEALTH_REFERRALS", "HealthWithdrawReferralConsent")
         .Action("HEALTH_READ_REFERRAL_CLINICAL", "HEALTH_REFERRALS", "HealthReadReferralClinical")
         .Screen("HEALTH_PROVIDER_PERFORMANCE", "HEALTH_PROVIDER_MANAGEMENT", "Performance & quality monitoring", "health/providers", "HealthListProviderMeasures",
             "HealthListProviderQualityReviews")

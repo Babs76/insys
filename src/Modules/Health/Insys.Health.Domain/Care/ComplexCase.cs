@@ -421,6 +421,8 @@ public sealed class ClinicalReferral : AggregateRoot<Guid>
     /// <summary>The member's consent to the receiving provider reading the reason, as for a shared care note. Without it, only the referring provider and the clinical function may.</summary>
     public string? ConsentReference { get; private set; }
 
+    public DateTimeOffset? ConsentWithdrawnAt { get; private set; }
+
     public DateOnly ValidFrom { get; private set; }
 
     public DateOnly ValidTo { get; private set; }
@@ -463,6 +465,34 @@ public sealed class ClinicalReferral : AggregateRoot<Guid>
         };
         referral.MarkChanged();
         return referral;
+    }
+
+    /// <summary>The member's consent recorded after the referral was made. A referral past its life takes none.</summary>
+    public Result RecordConsent(string consentReference)
+    {
+        if (Status is ReferralStatus.Declined or ReferralStatus.Expired)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, $"Referral {ReferralNumber} is {Status}.");
+        }
+
+        ConsentReference = Guard.MaxLength(Guard.NotNullOrWhiteSpace(consentReference), 120);
+        ConsentWithdrawnAt = null;
+        MarkChanged();
+        return Result.Success();
+    }
+
+    /// <summary>The member withdrew consent: the receiving provider's access to the reason ends at once. The referring provider's does not depend on it.</summary>
+    public Result WithdrawConsent(DateTimeOffset now)
+    {
+        if (ConsentReference is null)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, $"Referral {ReferralNumber} names no consent.");
+        }
+
+        ConsentReference = null;
+        ConsentWithdrawnAt = now;
+        MarkChanged();
+        return Result.Success();
     }
 
     /// <summary>Whether a provider may read the reason: the one who wrote it, or the one it is referred to with the member's consent (Ade, 30 October 2026).</summary>

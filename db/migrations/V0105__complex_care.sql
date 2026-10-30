@@ -155,6 +155,7 @@ CREATE TABLE health.clinical_referral (
   referred_specialty         varchar(40),
   clinical_reason            varchar(1000) NOT NULL,
   consent_reference          varchar(120),
+  consent_withdrawn_at       timestamptz,
   valid_from                 date NOT NULL,
   valid_to                   date NOT NULL,
   visits_allowed             integer NOT NULL,

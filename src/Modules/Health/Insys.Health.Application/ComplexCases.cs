@@ -108,6 +108,12 @@ public sealed record DecideClinicalReferral(Guid ReferralId, bool Approved, stri
 
 public sealed record RecordReferralVisit(Guid ReferralId) : ICommand<ClinicalReferralView>;
 
+/// <summary>The member's consent, recorded after the referral was made; audited with a reason.</summary>
+public sealed record RecordReferralConsent(Guid ReferralId, string ConsentReference, string Reason) : ICommand<ClinicalReferralView>;
+
+/// <summary>The member withdrew consent; audited with a reason. The receiving provider's access to the reason ends at once.</summary>
+public sealed record WithdrawReferralConsent(Guid ReferralId, string Reason) : ICommand<ClinicalReferralView>;
+
 public sealed record GetClinicalReferral(Guid Id) : IQuery<ClinicalReferralView>;
 
 public sealed record ListClinicalReferrals(Guid? MembershipId, string? ProviderId,
@@ -124,10 +130,25 @@ public sealed record ReadPortalReferralClinical(Guid ReferralId, string? Purpose
 /// <summary>A referral without its clinical reason.</summary>
 public sealed record ClinicalReferralView(Guid Id, string ReferralNumber, Guid MembershipId, Guid PatientPartyId, string ReferringProviderId, string? ReferredProviderId, string? ReferredSpecialty,
     DateOnly ValidFrom, DateOnly ValidTo, int VisitsAllowed, int VisitsUsed, Guid? ComplexCaseId, Guid? PreauthorisationId,
-    [property: OneOf(ReferralStatus.Requested, ReferralStatus.Approved, ReferralStatus.Declined, ReferralStatus.Used, ReferralStatus.Expired)] string Status, string? DeclineReason, long RowVersion)
+    [property: OneOf(ReferralStatus.Requested, ReferralStatus.Approved, ReferralStatus.Declined, ReferralStatus.Used, ReferralStatus.Expired)] string Status, string? DeclineReason, long RowVersion,
+    [property: BuildingBlocks.Contracts.AlwaysPresent] string? ConsentReference = null, [property: BuildingBlocks.Contracts.AlwaysPresent] DateTimeOffset? ConsentWithdrawnAt = null)
 {
     public static ClinicalReferralView From(ClinicalReferral r) => new(r.Id, r.ReferralNumber, r.MembershipId, r.PatientPartyId, r.ReferringProviderId, r.ReferredProviderId, r.ReferredSpecialty,
-        r.ValidFrom, r.ValidTo, r.VisitsAllowed, r.VisitsUsed, r.ComplexCaseId, r.PreauthorisationId, r.Status, r.DeclineReason, r.RowVersion);
+        r.ValidFrom, r.ValidTo, r.VisitsAllowed, r.VisitsUsed, r.ComplexCaseId, r.PreauthorisationId, r.Status, r.DeclineReason, r.RowVersion, r.ConsentReference, r.ConsentWithdrawnAt);
+}
+
+public sealed class RecordReferralConsentValidator : AbstractValidator<RecordReferralConsent>
+{
+    public RecordReferralConsentValidator()
+    {
+        RuleFor(c => c.ConsentReference).NotEmpty().MaximumLength(120);
+        RuleFor(c => c.Reason).NotEmpty().MaximumLength(500);
+    }
+}
+
+public sealed class WithdrawReferralConsentValidator : AbstractValidator<WithdrawReferralConsent>
+{
+    public WithdrawReferralConsentValidator() => RuleFor(c => c.Reason).NotEmpty().MaximumLength(500);
 }
 
 public sealed class RequestClinicalReferralValidator : AbstractValidator<RequestClinicalReferral>
@@ -314,6 +335,8 @@ internal sealed class ClinicalReferralHandlers(IHealthRepository health, IExecut
     ICommandHandler<RequestClinicalReferral, ClinicalReferralView>,
     ICommandHandler<DecideClinicalReferral, ClinicalReferralView>,
     ICommandHandler<RecordReferralVisit, ClinicalReferralView>,
+    ICommandHandler<RecordReferralConsent, ClinicalReferralView>,
+    ICommandHandler<WithdrawReferralConsent, ClinicalReferralView>,
     IQueryHandler<GetClinicalReferral, ClinicalReferralView>,
     IQueryHandler<ListClinicalReferrals, IReadOnlyList<ClinicalReferralView>>,
     ICommandHandler<ReadReferralClinical, ReferralClinicalView>,
@@ -374,6 +397,29 @@ internal sealed class ClinicalReferralHandlers(IHealthRepository health, IExecut
 
         var visited = referral.RecordVisit(businessDate.Today);
         return visited.IsFailure ? visited.Error : ClinicalReferralView.From(referral);
+    }
+
+    public Task<Result<ClinicalReferralView>> Handle(RecordReferralConsent command, CancellationToken cancellationToken) =>
+        Consent(command.ReferralId, "RecordReferralConsent", r => r.RecordConsent(command.ConsentReference), command.Reason, command.ConsentReference, cancellationToken);
+
+    public Task<Result<ClinicalReferralView>> Handle(WithdrawReferralConsent command, CancellationToken cancellationToken) =>
+        Consent(command.ReferralId, "WithdrawReferralConsent", r => r.WithdrawConsent(clock.UtcNow), command.Reason, null, cancellationToken);
+
+    private async Task<Result<ClinicalReferralView>> Consent(Guid id, string operation, Func<ClinicalReferral, Result> change, string reason, string? reference, CancellationToken cancellationToken)
+    {
+        if (await health.ClinicalReferral(id, cancellationToken) is not { } referral)
+        {
+            return NotFound;
+        }
+
+        var changed = change(referral);
+        if (changed.IsFailure)
+        {
+            return changed.Error;
+        }
+
+        audit.Record(new AuditEntry("HEALTH", operation, nameof(ClinicalReferral), id.ToString(), new Dictionary<string, string?> { ["reason"] = reason, ["consent"] = reference }));
+        return ClinicalReferralView.From(referral);
     }
 
     public async Task<Result<ClinicalReferralView>> Handle(GetClinicalReferral query, CancellationToken cancellationToken) =>

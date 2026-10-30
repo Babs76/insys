@@ -125,6 +125,19 @@ public sealed class ComplexCaseTests
     }
 
     [Fact]
+    public void ConsentAddedLater_OpensTheReasonToTheReceiver_AndWithdrawingEndsIt_F038()
+    {
+        var r = ClinicalReferral.Request(Guid.CreateVersion7(), "RF-1", Guid.CreateVersion7(), Guid.CreateVersion7(), "PR-1", "PR-2", null, "Reason", Today, Today.AddDays(5), 1, null, null).Value;
+        r.WithdrawConsent(Now).IsFailure.ShouldBeTrue("none to withdraw");
+        r.RecordConsent("CONSENT-1").IsSuccess.ShouldBeTrue();
+        r.ReasonOpenTo("PR-2").ShouldBeTrue();
+        r.WithdrawConsent(Now).IsSuccess.ShouldBeTrue();
+        (r.ReasonOpenTo("PR-2"), r.ReasonOpenTo("PR-1"), r.ConsentWithdrawnAt).ShouldBe((false, true, (DateTimeOffset?)Now));
+        r.Expire(Today.AddDays(6)).IsSuccess.ShouldBeTrue();
+        r.RecordConsent("CONSENT-2").IsFailure.ShouldBeTrue("a referral past its life takes none");
+    }
+
+    [Fact]
     public void AReferral_ExpiresOnlyPastItsDate_AndNeedsADestination_F038()
     {
         var r = Referral();

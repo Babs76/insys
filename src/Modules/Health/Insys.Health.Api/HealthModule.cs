@@ -72,6 +72,8 @@ public sealed record ApproveClaimRequest(string? ReasonCode = null);
 
 public sealed record ProviderQualityReviewRequest(int Score, string Reason);
 
+public sealed record ReferralConsentRequest(string ConsentReference, string Reason);
+
 public sealed record PortalReferralRequest(string MemberNumber, string? DependantSuffix, string? ReferredProviderId, string? ReferredSpecialty, string ClinicalReason, DateOnly ValidFrom, DateOnly ValidTo, int VisitsAllowed, string? ConsentReference = null);
 
 public sealed record AssignCaseManagerRequest(Guid CaseManagerId, string? Reason);
@@ -180,6 +182,16 @@ public sealed class HealthModule : IModule
                 (await d.Send(new DecideClinicalReferral(id, r.Approved, r.Reason), ct)).ToHttp(Results.Ok))
             .Produces<ClinicalReferralView>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity).TakesIfMatch()
             .WithName("HealthDecideReferral").WithSummary("Approve a referral, or decline it with a reason").RequirePermission(HealthPermissions.ReferralDecide);
+        health.MapPost("/referrals/{id:guid}/consent", async (Guid id, ReferralConsentRequest r, IDispatcher d, CancellationToken ct) =>
+                (await d.Send(new RecordReferralConsent(id, r.ConsentReference, r.Reason), ct)).ToHttp(Results.Ok))
+            .Produces<ClinicalReferralView>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity).TakesIfMatch()
+            .WithName("HealthRecordReferralConsent").WithSummary("Record the member's consent after the referral was made, with a reason: the receiving provider may then read its reason")
+            .RequirePermission(HealthPermissions.ReferralConsent);
+        health.MapPost("/referrals/{id:guid}/consent/withdraw", async (Guid id, ReasonRequest r, IDispatcher d, CancellationToken ct) =>
+                (await d.Send(new WithdrawReferralConsent(id, r.Reason), ct)).ToHttp(Results.Ok))
+            .Produces<ClinicalReferralView>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity).TakesIfMatch()
+            .WithName("HealthWithdrawReferralConsent").WithSummary("Withdraw the member's consent, with a reason: the receiving provider's access to the reason ends at once")
+            .RequirePermission(HealthPermissions.ReferralConsent);
         health.MapPost("/referrals/{id:guid}/visits", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Send(new RecordReferralVisit(id), ct)).ToHttp(Results.Ok))
             .Produces<ClinicalReferralView>(StatusCodes.Status200OK).TakesIfMatch()
             .WithName("HealthRecordReferralVisit").WithSummary("Record a visit under an approved referral; it is USED when none is left").RequirePermission(HealthPermissions.ReferralCreate);

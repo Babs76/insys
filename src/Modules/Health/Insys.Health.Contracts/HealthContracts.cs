@@ -65,6 +65,9 @@ public static class HealthPermissions
     public const string ReferralRead = "health_referral.read";
     public const string ReferralCreate = "health_referral.create";
     public const string ReferralDecide = "health_referral.decide";
+
+    /// <summary>Records or withdraws the member's consent on a referral.</summary>
+    public const string ReferralConsent = "health_referral.consent";
     public const string ProviderRead = "health_provider.read";
     public const string ProviderUpdate = "health_provider.update";
     public const string RunUpdate = "provider_payment_run.update";

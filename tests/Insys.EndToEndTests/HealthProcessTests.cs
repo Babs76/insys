@@ -58,7 +58,7 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         HealthPermissions.PreauthReview, HealthPermissions.ClaimRead, HealthPermissions.ClaimCreate, HealthPermissions.ClaimUpdate, HealthPermissions.ClaimApprove,
         HealthPermissions.AccumulatorRead, HealthPermissions.CaseRead, HealthPermissions.CaseUpdate, HealthPermissions.RunRead, HealthPermissions.RunUpdate,
         HealthPermissions.ProviderRead, HealthPermissions.ProviderUpdate, HealthPermissions.ComplexCaseRead, HealthPermissions.ComplexCaseUpdate, HealthPermissions.ReferralRead,
-        HealthPermissions.ReferralCreate, HealthPermissions.ReferralDecide,
+        HealthPermissions.ReferralCreate, HealthPermissions.ReferralDecide, HealthPermissions.ReferralConsent,
         BillingPermissions.AccountRead, BillingPermissions.InvoiceRead, PaymentPermissions.PaymentRead, PaymentPermissions.PayoutRead, PaymentPermissions.PayoutCreate,
         PaymentPermissions.PayoutRelease, PaymentPermissions.CallbackEndpointUpdate, FinancePermissions.JournalRead, FinancePermissions.PeriodUpdate,
         WorkflowPermissions.ApprovalRead, WorkflowPermissions.ApprovalApprove, IntegrationPermissions.DeadLetterRead, PartyPermissions.PartyCreate,
@@ -851,6 +851,25 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         (refused.StatusCode, await refused.Code()).ShouldBe((HttpStatusCode.Forbidden, "CARE_CONSENT_REQUIRED"));
         (await (await receiver.GetAsync(withConsent + Purpose)).Json()).GetProperty("clinicalReason").GetString().ShouldBe(Secret);
 
+        // Consent given later opens it to the receiver at once; withdrawn, it is 403 from then on. Both need a reason, and both are audited.
+        var referralUrl = withoutConsent.Replace("/portal/health/referrals/", "/health/referrals/").Replace("/clinical", "");
+        (await _maker.Send(HttpMethod.Post, $"{referralUrl}/consent", new { consentReference = "CONSENT-2", reason = "" }, ifMatch: (await _maker.GetAsync(referralUrl)).ETag())).StatusCode
+            .ShouldBe(HttpStatusCode.UnprocessableEntity, "a reason is required");
+        (await _maker.Send(HttpMethod.Post, $"{referralUrl}/consent", new { consentReference = "CONSENT-2", reason = "Member signed the form" }, ifMatch: (await _maker.GetAsync(referralUrl)).ETag()))
+            .StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await (await receiver.GetAsync(withoutConsent + Purpose)).Json()).GetProperty("clinicalReason").GetString().ShouldBe(Secret);
+        (await _maker.Send(HttpMethod.Post, $"{referralUrl}/consent/withdraw", new { reason = "" }, ifMatch: (await _maker.GetAsync(referralUrl)).ETag())).StatusCode
+            .ShouldBe(HttpStatusCode.UnprocessableEntity, "a reason is required");
+        var withdrawn = await _maker.Send(HttpMethod.Post, $"{referralUrl}/consent/withdraw", new { reason = "Member withdrew by phone" }, ifMatch: (await _maker.GetAsync(referralUrl)).ETag());
+        withdrawn.StatusCode.ShouldBe(HttpStatusCode.OK, await withdrawn.Content.ReadAsStringAsync());
+        var after = await withdrawn.Json();
+        (after.GetProperty("consentReference").ValueKind, after.GetProperty("consentWithdrawnAt").ValueKind).ShouldBe((JsonValueKind.Null, JsonValueKind.String));
+        (await receiver.GetAsync(withoutConsent + Purpose)).StatusCode.ShouldBe(HttpStatusCode.Forbidden, "withdrawal ends it at once");
+        (await writer.GetAsync(withoutConsent + Purpose)).StatusCode.ShouldBe(HttpStatusCode.OK, "the writer's access does not depend on consent");
+        (await _db.ScalarAsOwner<string>("""
+            SELECT string_agg(operation || ':' || (details->>'reason'), ',' ORDER BY occurred_at) FROM audit.audit_event WHERE operation IN ('RecordReferralConsent', 'WithdrawReferralConsent')
+            """)).ShouldBe("RecordReferralConsent:Member signed the form,WithdrawReferralConsent:Member withdrew by phone");
+
         // A third provider gets not found on both, and sees neither listed.
         (await third.GetAsync(withConsent + Purpose)).StatusCode.ShouldBe(HttpStatusCode.NotFound);
         (await third.GetAsync(withoutConsent + Purpose)).StatusCode.ShouldBe(HttpStatusCode.NotFound);
@@ -858,8 +877,8 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         (await (await receiver.GetAsync("/api/v1/portal/health/referrals")).Json()).GetProperty("items").GetArrayLength().ShouldBe(2);
 
         // Every read and refusal is audited, without the reason.
-        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM audit.audit_event WHERE operation = 'ReadClinical' AND target_type = 'ClinicalReferral' AND outcome = 'DENIED'")).ShouldBe(4L, "no purpose, no consent, and the third provider's two");
-        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM audit.audit_event WHERE operation = 'ReadClinical' AND target_type = 'ClinicalReferral' AND outcome <> 'DENIED'")).ShouldBe(2L);
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM audit.audit_event WHERE operation = 'ReadClinical' AND target_type = 'ClinicalReferral' AND outcome = 'DENIED'")).ShouldBe(5L, "no purpose, no consent, withdrawn, and the third provider's two");
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM audit.audit_event WHERE operation = 'ReadClinical' AND target_type = 'ClinicalReferral' AND outcome <> 'DENIED'")).ShouldBe(4L, "the writer's two, and the receiver's with each consent");
         (await _db.ScalarAsOwner<long>("SELECT count(*) FROM audit.audit_event WHERE details::text ILIKE '%renal%'")).ShouldBe(0L);
     }
 
