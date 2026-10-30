@@ -128,6 +128,10 @@ internal sealed class GeneralRepository(GeneralDbContext db, IExecutionContext e
         await db.Policies.AsNoTracking().Where(p => p.Status == PolicyStatus.InForce && p.PeriodEnd < day).OrderBy(p => p.Id).Select(p => p.Id).Take(limit)
             .ToListAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<Guid>> PoliciesWithIntermediaryDue(DateOnly day, int limit, CancellationToken cancellationToken) =>
+        await db.Policies.AsNoTracking().Where(p => p.PendingIntermediaryFrom != null && p.PendingIntermediaryFrom <= day && p.Status == PolicyStatus.InForce)
+            .OrderBy(p => p.Id).Select(p => p.Id).Take(limit).ToListAsync(cancellationToken);
+
     public async Task<IReadOnlyList<Guid>> PoliciesPastGrace(DateOnly day, int limit, CancellationToken cancellationToken) =>
         await db.Policies.AsNoTracking().Where(p => p.Status == PolicyStatus.InForce && p.GraceUntil != null && p.GraceUntil < day && p.ArrearsCount > 0)
             .OrderBy(p => p.Id).Select(p => p.Id).Take(limit).ToListAsync(cancellationToken);
@@ -570,6 +574,8 @@ internal sealed class GeneralEventMapper : IDomainEventMapper
                 ["period_end"] = e.PeriodEnd.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
                 ["cover_ends_on"] = e.CoverEndsOn.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
             }, e.ProductCode, e.OrgNodeCode),
+        GeneralPolicyIntermediaryChanged e => new Contracts.GeneralPolicyIntermediaryChanged(e.PolicyId, e.PolicyNumber, e.ProductCode, e.PreviousIntermediaryCode,
+            e.IntermediaryCode, e.EffectiveDate, e.PeriodEnd, e.BillingFrequency),
         GeneralCoverExtended e => new Contracts.GeneralCoverExtended(e.PolicyId, e.PolicyNumber, e.PreviousPeriodEnd, e.NewPeriodEnd, e.ExtraPremium, e.Currency),
         GeneralPolicyCancelled e => new Contracts.GeneralPolicyCancelled(e.PolicyId, e.PolicyNumber, e.ReasonCode, e.EffectiveDate, e.RefundAmount, e.Currency, e.ProductCode,
             e.ProductVersion),

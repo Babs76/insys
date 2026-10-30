@@ -219,4 +219,15 @@ public sealed class CommissionTests
         statement.ApproveStatement(false, Guid.CreateVersion7(), Guid.CreateVersion7(), "other", Now, [payable]).Error!.Code.ShouldBe(DistributionErrorCodes.StatementChanged);
         (statement.ApprovalPending, payable.StatementId).ShouldBe((true, (Guid?)statement.Id));
     }
+
+    /// <summary>B-001 (OQ-135): the outgoing broker's commission not yet on a statement is cut to its share before the change; nothing else is.</summary>
+    [Fact]
+    public void ABrokerOfRecordChange_CutsTheOutgoingCommissionToItsShare_OnlyBeforeAStatement_B001()
+    {
+        var entitlement = CommissionEntitlement.AccrueCommission(Guid.CreateVersion7(), "BRK-1", Invoice(1_000m, new DateOnly(2026, 10, 1)), Premium, false, Now).Value;
+        entitlement.Share(1m, "BROKER_OF_RECORD_CHANGED", Now).IsFailure.ShouldBeTrue("a share is a part");
+        entitlement.Share(0.5m, "BROKER_OF_RECORD_CHANGED", Now).IsSuccess.ShouldBeTrue();
+        (entitlement.Amount, entitlement.BasisAmount, entitlement.Status).ShouldBe((62.5m, 500m, EntitlementStatus.Accrued));
+        entitlement.DomainEvents.OfType<CommissionShared>().Single().ShouldSatisfyAllConditions(e => e.AmountBefore.ShouldBe(125m), e => e.Amount.ShouldBe(62.5m));
+    }
 }

@@ -66,6 +66,10 @@ public sealed record CommissionSource(string SourceDomain, Guid InvoiceId, Guid 
 public sealed record CommissionAccrued(Guid EntitlementId, string IntermediaryCode, string SourceDomain, Guid PolicyRef, Guid InvoiceId, string PlanCode, int PlanVersion,
     decimal Amount, string Currency, DateOnly AccruedOn, DateTimeOffset OccurredAt) : IDomainEvent;
 
+/// <summary>B-001: an outgoing broker's commission on an invoice was cut to the share before the broker of record change.</summary>
+public sealed record CommissionShared(Guid EntitlementId, string IntermediaryCode, Guid PolicyRef, decimal AmountBefore, decimal Amount, string Currency, string Reason,
+    DateTimeOffset OccurredAt) : IDomainEvent;
+
 public sealed record CommissionClawedBack(Guid ClawbackId, Guid EntitlementId, string IntermediaryCode, string SourceDomain, Guid PolicyRef, decimal Amount,
     string Currency, string Reason, DateOnly ClawedBackOn, DateTimeOffset OccurredAt) : IDomainEvent;
 
@@ -107,6 +111,9 @@ public sealed class Clawback : Entity<Guid>, ITenantScoped
 public sealed class CommissionEntitlement : AggregateRoot<Guid>
 {
     public const string InvoiceSource = "INVOICE";
+
+    /// <summary>B-001: the share an outgoing broker keeps of an invoice's commission already on a statement, accrued again after its full clawback.</summary>
+    public const string BrokerShareSource = "BROKER_SHARE";
 
     public static readonly StateMachine<EntitlementStatus, EntitlementTrigger> Lifecycle = new StateMachine<EntitlementStatus, EntitlementTrigger>()
         .Allow(EntitlementStatus.Accrued, EntitlementTrigger.PremiumReceived, EntitlementStatus.Payable)
@@ -163,7 +170,7 @@ public sealed class CommissionEntitlement : AggregateRoot<Guid>
     /// for a zero amount.
     /// </summary>
     public static Result<CommissionEntitlement> AccrueCommission(Guid id, string intermediaryCode, CommissionSource source, CommissionPlan plan, bool firstForPolicy,
-        DateTimeOffset now)
+        DateTimeOffset now, string sourceType = InvoiceSource)
     {
         var (basis, amount) = plan.Basis switch
         {
@@ -185,7 +192,7 @@ public sealed class CommissionEntitlement : AggregateRoot<Guid>
 
         var entitlement = new CommissionEntitlement
         {
-            Id = Guard.NotEmpty(id), IntermediaryCode = Guard.MaxLength(intermediaryCode, 15), SourceType = InvoiceSource, SourceId = source.InvoiceId,
+            Id = Guard.NotEmpty(id), IntermediaryCode = Guard.MaxLength(intermediaryCode, 15), SourceType = sourceType, SourceId = source.InvoiceId,
             SourceDomain = Guard.MaxLength(source.SourceDomain, 10), PolicyRef = source.PolicyRef, ProductCode = Guard.MaxLength(source.ProductCode, 15),
             PlanCode = plan.PlanCode, PlanVersion = plan.Version, BasisAmount = basis, Rate = plan.Rate, RateBasis = Guard.MaxLength(plan.Basis, 15), Amount = amount, Currency = source.Currency,
             DueDate = source.DueDate, Status = EntitlementStatus.Accrued,
@@ -193,6 +200,26 @@ public sealed class CommissionEntitlement : AggregateRoot<Guid>
         entitlement.Raise(new CommissionAccrued(entitlement.Id, entitlement.IntermediaryCode, entitlement.SourceDomain, entitlement.PolicyRef, source.InvoiceId,
             plan.PlanCode, plan.Version, amount, source.Currency, source.IssueDate, now));
         return entitlement;
+    }
+
+    /// <summary>
+    /// B-001 (OQ-135): a broker of record change mid-way through the invoice's cover: the outgoing broker keeps
+    /// <paramref name="keptFraction"/> of the commission (the days before the change). Only while not yet on a statement;
+    /// one already on a statement is clawed back and its kept share accrued again.
+    /// </summary>
+    public Result Share(decimal keptFraction, string reason, DateTimeOffset now)
+    {
+        if (Status is not (EntitlementStatus.Accrued or EntitlementStatus.Payable) || StatementId is not null || keptFraction is <= 0 or >= 1)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, "Only commission not yet on a statement is shared, for a part of it.");
+        }
+
+        var before = Amount;
+        Amount = Money(Amount * keptFraction);
+        BasisAmount = RateBasis == CommissionBases.PolicyCount ? BasisAmount : Money(BasisAmount * keptFraction);
+        Raise(new CommissionShared(Id, IntermediaryCode, PolicyRef, before, Amount, Currency, Guard.MaxLength(reason, 40), now));
+        MarkChanged();
+        return Result.Success();
     }
 
     /// <summary>Command MarkPayable ("Premium received"): the invoice was paid in full (OQ-062 item 4).</summary>

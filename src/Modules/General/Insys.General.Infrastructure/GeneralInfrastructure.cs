@@ -277,7 +277,8 @@ public sealed class GeneralJobs(IServiceScopeFactory scopes, ITenantDirectory te
                          .Concat(work.PoliciesToInvite.Select(id => (id, DueAction.InviteRenewal)))
                          .Concat(work.PoliciesToExpire.Select(id => (id, DueAction.ExpirePolicy)))
                          .Concat(work.QuotesToExpire.Select(id => (id, DueAction.ExpireQuote)))
-                         .Concat((work.PoliciesPastGrace ?? []).Select(id => (id, DueAction.CancelForNonPayment))))
+                         .Concat((work.PoliciesPastGrace ?? []).Select(id => (id, DueAction.CancelForNonPayment)))
+                         .Concat((work.IntermediaryChangesDue ?? []).Select(id => (id, DueAction.ChangeIntermediary))))
             {
                 await using var scope = Scope(tenantId);
                 var result = await scope.ServiceProvider.GetRequiredService<IDispatcher>().Send(new RunDue(id, action, day), cancellationToken);

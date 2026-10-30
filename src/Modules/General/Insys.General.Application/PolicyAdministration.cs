@@ -54,8 +54,12 @@ public sealed record ReinstatePolicy(Guid PolicyId) : ICommand<PolicyView>;
 public sealed record GetPolicy(Guid PolicyId) : IQuery<PolicyView>;
 
 /// <summary>Command DraftEndorsement: changes effective from a date within the policy period (GEN-003).</summary>
+/// <param name="IntermediaryCode">B-001: for an INTERMEDIARY endorsement (a broker of record change), the intermediary the policy moves to; it has no changes.</param>
 public sealed record DraftEndorsement(Guid PolicyId, [property: CodeList(CodeLists.EndorsementTypes, "code")] string EndorsementType, DateOnly EffectiveDate,
-    IReadOnlyList<EndorsementChange> Changes) : ICommand<EndorsementView>;
+    IReadOnlyList<EndorsementChange> Changes, string? IntermediaryCode = null) : ICommand<EndorsementView>;
+
+/// <summary>B-001, Wave 4 addition 3: the policyholder's broker appointment letter, a document filed against the endorsement, before it is submitted.</summary>
+public sealed record RecordAppointmentLetter(Guid EndorsementId, Guid DocumentId) : ICommand<EndorsementView>;
 
 public sealed record SubmitEndorsement(Guid EndorsementId) : ICommand<EndorsementView>;
 
@@ -276,9 +280,35 @@ internal sealed class GetPolicyHandler(IGeneralRepository general) : IQueryHandl
             : Error.NotFound(ErrorCodes.NotFound, "The policy was not found.");
 }
 
-internal sealed class DraftEndorsementHandler(IGeneralRepository general, IGeneralCodes codes, IExecutionContext execution, IBusinessDate businessDate, IAuditTrail audit)
-    : ICommandHandler<DraftEndorsement, EndorsementView>
+internal sealed class DraftEndorsementHandler(IGeneralRepository general, IGeneralCodes codes, IExecutionContext execution, IBusinessDate businessDate, IAuditTrail audit,
+    Distribution.Contracts.IIntermediaries intermediaries, Documents.Contracts.IDocumentOwnership documents, ITenantContext tenant)
+    : ICommandHandler<DraftEndorsement, EndorsementView>, ICommandHandler<RecordAppointmentLetter, EndorsementView>
 {
+    /// <summary>B-001: the appointment letter is a document filed against the endorsement.</summary>
+    public async Task<Result<EndorsementView>> Handle(RecordAppointmentLetter command, CancellationToken cancellationToken)
+    {
+        var user = Users.Require(execution);
+        if (user.IsFailure)
+        {
+            return user.Error;
+        }
+
+        if (await general.Endorsement(command.EndorsementId, cancellationToken) is not { } endorsement)
+        {
+            return Error.NotFound(ErrorCodes.NotFound, "The endorsement was not found.");
+        }
+
+        if (!await documents.FiledAgainst(command.DocumentId, Contracts.GeneralDocuments.EndorsementRefType, endorsement.Id, cancellationToken))
+        {
+            return Error.Validation(ErrorCodes.ValidationFailed, "documentId is not a document filed against this endorsement.");
+        }
+
+        var recorded = endorsement.RecordAppointmentLetter(command.DocumentId);
+        audit.Record(new AuditEntry("GENERAL", "RecordAppointmentLetter", nameof(GeneralEndorsement), endorsement.Id.ToString(),
+            new Dictionary<string, string?> { ["document"] = command.DocumentId.ToString() }));
+        return recorded.IsFailure ? recorded.Error : EndorsementView.From(endorsement);
+    }
+
     public async Task<Result<EndorsementView>> Handle(DraftEndorsement command, CancellationToken cancellationToken)
     {
         var user = Users.Require(execution);
@@ -295,6 +325,39 @@ internal sealed class DraftEndorsementHandler(IGeneralRepository general, IGener
         if (await codes.EndorsementType(command.EndorsementType, businessDate.Today, cancellationToken) is not { } type)
         {
             return Error.Validation(GeneralErrorCodes.CodeNotInForce, $"{command.EndorsementType} is not an endorsement type in force.");
+        }
+
+        // B-001: a broker of record change names an intermediary that may sell the product, and changes nothing else.
+        if (type.Code == GeneralEndorsement.IntermediaryType)
+        {
+            if (command.IntermediaryCode is not { Length: > 0 } intermediary || command.Changes.Count > 0)
+            {
+                return Error.Validation(ErrorCodes.ValidationFailed, "An INTERMEDIARY endorsement names intermediaryCode and has no changes.");
+            }
+
+            if (await intermediaries.CanSell(tenant.RequireTenantId(), intermediary, policy.ProductCode, Distribution.Contracts.IntermediaryTransactions.NewBusiness,
+                    command.EffectiveDate, cancellationToken) is { } refusal)
+            {
+                return Error.Validation(refusal.Code, refusal.Message);
+            }
+
+            var count = await general.EndorsementCount(policy.Id, cancellationToken) + 1;
+            var change = GeneralEndorsement.DraftIntermediaryChange(Guid.CreateVersion7(), $"{policy.PolicyNumber}-E{count:D3}", policy, type, command.EffectiveDate,
+                intermediary, user.Value);
+            if (change.IsFailure)
+            {
+                return change.Error;
+            }
+
+            general.Add(change.Value);
+            audit.Record(new AuditEntry("GENERAL", "DraftEndorsement", nameof(GeneralEndorsement), change.Value.Id.ToString(),
+                new Dictionary<string, string?> { ["intermediary"] = intermediary }));
+            return EndorsementView.From(change.Value);
+        }
+
+        if (command.IntermediaryCode is not null)
+        {
+            return Error.Validation(ErrorCodes.ValidationFailed, $"intermediaryCode is for an {GeneralEndorsement.IntermediaryType} endorsement.");
         }
 
         foreach (var change in command.Changes.Where(c => c.Action == EndorsementAction.AttachRisk))

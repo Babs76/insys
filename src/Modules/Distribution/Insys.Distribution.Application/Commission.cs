@@ -405,3 +405,108 @@ public sealed class CommissionPolicies(IDistributionRepository repository, IDist
         }
     }
 }
+
+/// <summary>
+/// B-001 (OQ-135): a broker of record change splits commission pro rata at the effective date. On each of the outgoing broker's
+/// invoices whose cover runs past the date (an instalment's cover is its frequency's months from its due date, to the period
+/// end), the outgoing broker keeps the days before the date and the incoming broker accrues the days from it, on its own plan.
+/// Commission already paid is not recovered (a paid entitlement has no clawback); it is logged for a person.
+/// </summary>
+public sealed class BrokerOfRecordCommission(IDistributionRepository repository, IDistributionCodes codes, IPolicyArrears billing, ITenantContext tenant, IClock clock,
+    ILogger<BrokerOfRecordCommission> logger) : IIntegrationEventHandler<GeneralPolicyIntermediaryChanged>
+{
+    public const string Reason = "BROKER_OF_RECORD_CHANGED";
+
+    public async Task Handle(GeneralPolicyIntermediaryChanged changed, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (changed.PreviousIntermediaryCode is not { Length: > 0 } outgoing)
+        {
+            return; // direct business: nothing earned to split
+        }
+
+        const string domain = GeneralRatingSubjects.SourceDomain;
+        var periods = changed.BillingFrequency is { } frequency
+            ? await billing.PeriodsPerYear(tenant.RequireTenantId(), frequency, changed.EffectiveDate, cancellationToken) ?? 1
+            : 1;
+        var plan = await codes.PlanCodeFor(changed.IntermediaryCode, changed.ProductCode, changed.EffectiveDate, cancellationToken) is { } planCode
+            ? await codes.Plan(planCode, changed.EffectiveDate, cancellationToken)
+            : null;
+        if (plan is null)
+        {
+            logger.LogWarning("No commission plan for intermediary {Intermediary} on product {Product}; it earns nothing on policy {Policy}'s current invoices",
+                changed.IntermediaryCode, changed.ProductCode, changed.PolicyNumber);
+        }
+
+        var first = !await repository.HasEntitlement(domain, changed.PolicyId, changed.IntermediaryCode, cancellationToken);
+        foreach (var entitlement in await repository.EntitlementsForPolicy(domain, changed.PolicyId, cancellationToken))
+        {
+            if (entitlement.IntermediaryCode != outgoing || entitlement.SourceType != CommissionEntitlement.InvoiceSource
+                || entitlement.Status == EntitlementStatus.ClawedBack)
+            {
+                continue;
+            }
+
+            var coverEnd = Min(entitlement.DueDate.AddMonths(12 / Math.Max(periods, 1)).AddDays(-1), changed.PeriodEnd);
+            if (coverEnd < changed.EffectiveDate)
+            {
+                continue;
+            }
+
+            var from = changed.EffectiveDate > entitlement.DueDate ? changed.EffectiveDate : entitlement.DueDate;
+            var share = Math.Round((decimal)(coverEnd.DayNumber - from.DayNumber + 1) / (coverEnd.DayNumber - entitlement.DueDate.DayNumber + 1), 6);
+            var kept = 1m - share;
+            var settled = entitlement.Status is EntitlementStatus.Payable or EntitlementStatus.Paid;
+            var basis = entitlement.BasisAmount; // the invoice's net premium, before the outgoing broker's share is cut
+            if (entitlement.Status == EntitlementStatus.Paid)
+            {
+                logger.LogWarning("Commission {Entitlement} of {Intermediary} on policy {Policy} is paid: its share after the broker change ({Share:P2}) is not recovered",
+                    entitlement.Id, outgoing, changed.PolicyNumber, share);
+            }
+            else if (kept <= 0)
+            {
+                entitlement.ClawBack(Reason, changed.EffectiveDate, clock.UtcNow);
+            }
+            else if (entitlement.StatementId is null)
+            {
+                entitlement.Share(kept, Reason, clock.UtcNow);
+            }
+            else
+            {
+                // On a statement: clawed back (recovered on the next one), and the share the outgoing broker keeps accrued again.
+                entitlement.ClawBack(Reason, changed.EffectiveDate, clock.UtcNow);
+                if (await codes.PlanVersion(entitlement.PlanCode, entitlement.PlanVersion, cancellationToken) is { } outgoingPlan
+                    && await repository.EntitlementFor(CommissionEntitlement.BrokerShareSource, entitlement.SourceId, outgoing, cancellationToken) is null)
+                {
+                    Accrue(outgoing, outgoingPlan, entitlement, basis * kept, false, settled, CommissionEntitlement.BrokerShareSource);
+                }
+            }
+
+            if (plan is not null && entitlement.Status != EntitlementStatus.Paid
+                && await repository.EntitlementFor(CommissionEntitlement.InvoiceSource, entitlement.SourceId, changed.IntermediaryCode, cancellationToken) is null)
+            {
+                Accrue(changed.IntermediaryCode, plan, entitlement, basis * share, first, settled, CommissionEntitlement.InvoiceSource);
+                first = false;
+            }
+        }
+    }
+
+    private void Accrue(string intermediary, CommissionPlan plan, CommissionEntitlement from, decimal netAmount, bool first, bool payable, string sourceType)
+    {
+        var source = new CommissionSource(from.SourceDomain, from.SourceId, from.PolicyRef, from.ProductCode, Math.Round(netAmount, 2, MidpointRounding.AwayFromZero),
+            from.Currency, from.DueDate, from.DueDate);
+        var accrued = CommissionEntitlement.AccrueCommission(Guid.CreateVersion7(), intermediary, source, plan, first, clock.UtcNow, sourceType);
+        if (accrued.IsFailure)
+        {
+            return; // nothing to accrue (a zero share)
+        }
+
+        if (payable)
+        {
+            accrued.Value.MarkPayable();
+        }
+
+        repository.Add(accrued.Value);
+    }
+
+    private static DateOnly Min(DateOnly a, DateOnly b) => a < b ? a : b;
+}

@@ -108,6 +108,13 @@ public sealed record GeneralPolicyReinstated(Guid PolicyId, string PolicyNumber,
 public sealed record GeneralCoverExtended(Guid PolicyId, string PolicyNumber, DateOnly PreviousPeriodEnd, DateOnly NewPeriodEnd, decimal ExtraPremium, string Currency,
     DateTimeOffset OccurredAt) : IDomainEvent;
 
+/// <summary>
+/// B-001: the policy moved to another intermediary from <paramref name="EffectiveDate"/>: access moves with it (external-user
+/// access §2), and commission splits pro rata at the date (OQ-135).
+/// </summary>
+public sealed record GeneralPolicyIntermediaryChanged(Guid PolicyId, string PolicyNumber, string ProductCode, string? PreviousIntermediaryCode, string IntermediaryCode,
+    DateOnly EffectiveDate, DateOnly PeriodEnd, string? BillingFrequency, DateTimeOffset OccurredAt) : IDomainEvent;
+
 /// <summary>Why a policy expired without renewal (Wave 4 §4.3, §4.4; general.policy.expiry_reason).</summary>
 public static class PolicyExpiryReasons
 {
@@ -746,7 +753,41 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
     /// Command ApplyEndorsement: an approved endorsement's changes, effective from its date, and the new annual premium
     /// (transition "Policy updated" of the endorsement). Coverages stay within the product's limits.
     /// </summary>
-    public Result ApplyEndorsement(GeneralEndorsement endorsement, ProductTerms product, IReadOnlyList<string> documentTypes, DateTimeOffset now)
+    /// <summary>B-001: a broker of record change approved for a later date, waiting for it (OQ-136: until then only the current broker sees the policy).</summary>
+    public string? PendingIntermediaryCode { get; private set; }
+
+    public DateOnly? PendingIntermediaryFrom { get; private set; }
+
+    /// <summary>B-001: the policy moves to the intermediary today, or waits for a later effective date (the daily job then moves it).</summary>
+    public Result ChangeIntermediary(string intermediaryCode, DateOnly effectiveDate, DateOnly today, DateTimeOffset now)
+    {
+        if (!TakesEndorsements)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, $"Policy {PolicyNumber} is {Status}.");
+        }
+
+        if (effectiveDate > today)
+        {
+            (PendingIntermediaryCode, PendingIntermediaryFrom) = (intermediaryCode, effectiveDate);
+            MarkChanged();
+            return Result.Success();
+        }
+
+        var previous = IntermediaryCode;
+        IntermediaryCode = intermediaryCode;
+        (PendingIntermediaryCode, PendingIntermediaryFrom) = (null, null);
+        Raise(new GeneralPolicyIntermediaryChanged(Id, PolicyNumber, ProductCode, previous, intermediaryCode, effectiveDate, PeriodEnd, BillingFrequency, now));
+        MarkChanged();
+        return Result.Success();
+    }
+
+    /// <summary>B-001: a pending broker of record change whose effective date has come (the daily job).</summary>
+    public Result ApplyPendingIntermediary(DateOnly today, DateTimeOffset now) =>
+        PendingIntermediaryCode is { } code && PendingIntermediaryFrom is { } from && from <= today
+            ? ChangeIntermediary(code, from, today, now)
+            : Error.Conflict(ErrorCodes.InvalidStateTransition, $"Policy {PolicyNumber} has no broker of record change due.");
+
+    public Result ApplyEndorsement(GeneralEndorsement endorsement, ProductTerms product, IReadOnlyList<string> documentTypes, DateTimeOffset now, DateOnly? today = null)
     {
         if (endorsement.PolicyId != Id || endorsement.Status != EndorsementStatus.Approved)
         {
@@ -764,6 +805,15 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
             if (applied.IsFailure)
             {
                 return applied;
+            }
+        }
+
+        if (endorsement.NewIntermediaryCode is { } intermediary)
+        {
+            var moved = ChangeIntermediary(intermediary, endorsement.EffectiveDate, today ?? DateOnly.FromDateTime(now.UtcDateTime), now);
+            if (moved.IsFailure)
+            {
+                return moved;
             }
         }
 

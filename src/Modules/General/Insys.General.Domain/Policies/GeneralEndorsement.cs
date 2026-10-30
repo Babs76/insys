@@ -126,6 +126,75 @@ public sealed class GeneralEndorsement : AggregateRoot<Guid>
 
     public Guid? DecidedBy { get; private set; }
 
+    /// <summary>B-001: the intermediary an INTERMEDIARY endorsement moves the policy to, from its effective date.</summary>
+    public string? NewIntermediaryCode { get; private set; }
+
+    /// <summary>B-001, Wave 4 addition 3: the policyholder's broker appointment letter, a document filed against the endorsement.</summary>
+    public Guid? AppointmentLetterId { get; private set; }
+
+    /// <summary>B-001: an endorsement that moves the policy to another intermediary (a broker of record change).</summary>
+    public bool ChangesIntermediary => NewIntermediaryCode is not null;
+
+    /// <summary>The endorsement type of a broker of record change (B-001, addendum §4.8).</summary>
+    public const string IntermediaryType = "INTERMEDIARY";
+
+    /// <summary>
+    /// B-001: a broker of record change. It changes nothing in the cover, so it is rated at once at the current premium (no
+    /// change); it needs the policyholder's appointment letter before it is submitted, and a second person's approval (OQ-134).
+    /// </summary>
+    public static Result<GeneralEndorsement> DraftIntermediaryChange(Guid id, string number, GeneralPolicy policy, EndorsementType type, DateOnly effectiveDate,
+        string newIntermediaryCode, Guid requestedBy)
+    {
+        if (type.Code != IntermediaryType)
+        {
+            return Error.Validation(ErrorCodes.ValidationFailed, $"A broker of record change is an {IntermediaryType} endorsement.");
+        }
+
+        if (newIntermediaryCode == policy.IntermediaryCode)
+        {
+            return Error.Validation(ErrorCodes.ValidationFailed, $"Policy {policy.PolicyNumber} is already with {newIntermediaryCode}.");
+        }
+
+        if (policy.Status is not (PolicyStatus.Issued or PolicyStatus.InForce))
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, $"Policy {policy.PolicyNumber} is {policy.Status}.");
+        }
+
+        if (effectiveDate < policy.PeriodStart || effectiveDate > policy.PeriodEnd)
+        {
+            return Error.Validation(GeneralErrorCodes.OutsidePolicyPeriod,
+                $"{effectiveDate:yyyy-MM-dd} is outside the policy period {policy.PeriodStart:yyyy-MM-dd} to {policy.PeriodEnd:yyyy-MM-dd} (GEN-003).");
+        }
+
+        var endorsement = new GeneralEndorsement
+        {
+            Id = Guard.NotEmpty(id), EndorsementNumber = Guard.MaxLength(number, 20), PolicyId = policy.Id, EndorsementType = type.Code, EffectiveDate = effectiveDate,
+            RequestedBy = requestedBy, Status = EndorsementStatus.Draft, Currency = policy.Currency, NewIntermediaryCode = Guard.MaxLength(newIntermediaryCode, 15),
+            NewAnnualPremium = policy.AnnualPremium, PremiumDelta = 0m,
+        };
+        var rated = endorsement.Fire(EndorsementTrigger.RateEndorsement);
+        if (rated.IsFailure)
+        {
+            return rated.Error;
+        }
+
+        endorsement.MarkChanged();
+        return endorsement;
+    }
+
+    /// <summary>B-001, addition 3: the appointment letter, before the change is submitted.</summary>
+    public Result RecordAppointmentLetter(Guid documentId)
+    {
+        if (!ChangesIntermediary || Status is not (EndorsementStatus.Draft or EndorsementStatus.Rated))
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, "An appointment letter is recorded on a broker of record change before it is submitted.");
+        }
+
+        AppointmentLetterId = Guard.NotEmpty(documentId);
+        MarkChanged();
+        return Result.Success();
+    }
+
     /// <summary>Command DraftEndorsement: effective within the policy period (GEN-003), with at least one change.</summary>
     public static Result<GeneralEndorsement> DraftEndorsement(Guid id, string number, GeneralPolicy policy, EndorsementType type, DateOnly effectiveDate,
         IReadOnlyList<EndorsementChange> changes, Guid requestedBy)
@@ -194,6 +263,11 @@ public sealed class GeneralEndorsement : AggregateRoot<Guid>
     /// <summary>Command SubmitEndorsement: Workflow asks a second person to approve it.</summary>
     public Result SubmitEndorsement(Guid submittedBy, string currency, DateTimeOffset now, string? exceededLimit = null)
     {
+        if (ChangesIntermediary && AppointmentLetterId is null)
+        {
+            return Error.Validation(GeneralErrorCodes.AppointmentLetterRequired, "A broker of record change needs the policyholder's appointment letter first (B-001).");
+        }
+
         var result = Fire(EndorsementTrigger.SubmitEndorsement);
         if (result.IsSuccess)
         {

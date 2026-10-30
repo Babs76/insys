@@ -82,7 +82,7 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
         ReinsurancePermissions.RecoveryRead, ReinsurancePermissions.RecoveryUpdate, ReinsurancePermissions.BordereauRead, ReinsurancePermissions.BordereauCreate,
         ReinsurancePermissions.BordereauUpdate, AnalyticsPermissions.ProjectionRead, AnalyticsPermissions.ProjectionUpdate, CompliancePermissions.ReturnRead,
         CompliancePermissions.ReturnCreate, CompliancePermissions.ReturnUpdate, CompliancePermissions.ReturnApprove, CompliancePermissions.ReportRead,
-        CompliancePermissions.ReportCreate,
+        CompliancePermissions.ReportCreate, GeneralPermissions.EndorsementRead, GeneralPermissions.EndorsementCreate, DocumentPermissions.DocumentCreate,
     ];
 
     private TestDatabase _db = null!;
@@ -108,7 +108,7 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
         foreach (var type in new[]
                  {
                      GeneralApprovals.SettlementApprovalType, PaymentApprovals.PayoutApprovalType, ClaimsApprovals.InstructionApprovalType,
-                     DistributionApprovals.StatementApprovalType,
+                     DistributionApprovals.StatementApprovalType, GeneralApprovals.EndorsementApprovalType,
                  })
         {
             await Seed("workflow.cfg_delegation_and_approval_authority", "EFFECTIVE", $"AUTH-{type}", ("role_code", approverRole), ("transaction_type", type),
@@ -804,6 +804,75 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
         });
 
     /// <summary>A quote through BRK-1, rated, issued, accepted and proposed; the policy issued from it, its events relayed.</summary>
+    /// <summary>
+    /// B-001 (Wave 4 §4.8; OQ-134 to OQ-136; addition 3): a broker of record change is an INTERMEDIARY endorsement. It is
+    /// refused at submission until the policyholder's appointment letter is filed on it, and a second person approves it.
+    /// Future-dated, the policy stays with its broker (only it sees the policy) until the date, when the daily job moves it.
+    /// The commission on the invoice whose cover runs over the date splits pro rata: the outgoing broker keeps the days
+    /// before, and the incoming broker accrues the days from it on its own plan.
+    /// </summary>
+    [Fact]
+    public async Task ABrokerOfRecordChange_NeedsTheAppointmentLetterAndASecondPerson_MovesAtItsDate_AndSplitsCommissionProRata_B001()
+    {
+        await Seed("general.cfg_endorsement_types", "EFFECTIVE", "INTERMEDIARY", ("premium_method", "NONE"), ("documents", Array.Empty<string>()),
+            ("requires_underwriting", false));
+        await Seed("document.ref_document_categories", "ACTIVE", "APPOINTMENT", ("category_code", "APPOINTMENT"), ("label", "Broker appointment"),
+            ("classification", "PERSONAL"), ("domain", "ALL"), ("allowed_roles", Array.Empty<string>()));
+        await Seed("commission.mst_intermediary_register", "ACTIVE", "BRK-4", ("intermediary_code", "BRK-4"), ("type", "BROKER"), ("legal_name", "BRK-4"),
+            ("licence_numbers", JsonSerializer.SerializeToElement(new[] { "FSP-4" })), ("status", "ACTIVE"), ("hierarchy_node", "NODE-BRK-4"));
+        await Seed("commission.cfg_intermediary_product_permissions", "EFFECTIVE", "PERM-BRK4", ("intermediary", "BRK-4"), ("product", Product),
+            ("transactions_allowed", Array.Empty<string>()), ("plan_code", "PLAN-10"));
+        var policy = await IssuedPolicy(await Vehicle());
+        var outgoing = (await Entitlements(policy)).Single();
+        var invoice = outgoing.GetProperty("sourceId").GetGuid();
+        var basis = outgoing.GetProperty("basisAmount").GetDecimal();
+        // The first instalment's cover started 15 days ago, so the change today falls in the middle of it.
+        var due = Today.AddDays(-15);
+        await _db.ExecuteAsOwner("UPDATE commission.commission_entitlement SET due_date = @d WHERE id = @e", ("d", due), ("e", outgoing.GetProperty("id").GetGuid()));
+
+        // Drafted, rated at once (no premium change); refused at submission without the appointment letter.
+        var drafted = await (await _maker.Send(HttpMethod.Post, $"/api/v1/general/policies/{policy}/endorsements",
+            new { endorsementType = "INTERMEDIARY", effectiveDate = Today.AddDays(10), changes = Array.Empty<object>(), intermediaryCode = "BRK-4" }, idempotent: true)).Json();
+        var endorsement = drafted.GetProperty("id").GetGuid();
+        (drafted.GetProperty("status").GetString(), drafted.GetProperty("premiumDelta").GetDecimal(), drafted.GetProperty("newIntermediaryCode").GetString())
+            .ShouldBe(("Rated", 0m, "BRK-4"));
+        (await (await _maker.Send(HttpMethod.Post, $"/api/v1/general/endorsements/{endorsement}/submit",
+            ifMatch: (await _maker.GetAsync($"/api/v1/general/endorsements/{endorsement}")).ETag())).Code()).ShouldBe("GENERAL_APPOINTMENT_LETTER_REQUIRED");
+        var letter = await _maker.Send(HttpMethod.Post, "/api/v1/documents/documents", new
+        {
+            categoryCode = "APPOINTMENT", businessRefType = GeneralDocuments.EndorsementRefType, businessRefId = endorsement, mimeType = "text/plain",
+            contentBase64 = Convert.ToBase64String("I appoint BRK-4"u8.ToArray()),
+        }, idempotent: true);
+        letter.StatusCode.ShouldBe(HttpStatusCode.Created, await letter.Content.ReadAsStringAsync());
+        var recorded = await _maker.PostAsJsonAsync($"/api/v1/general/endorsements/{endorsement}/appointment-letter",
+            new { documentId = (await letter.Json()).GetProperty("id").GetGuid() });
+        recorded.StatusCode.ShouldBe(HttpStatusCode.OK, await recorded.Content.ReadAsStringAsync());
+        var version = (await _maker.GetAsync($"/api/v1/general/endorsements/{endorsement}")).ETag();
+        (await _maker.Send(HttpMethod.Post, $"/api/v1/general/endorsements/{endorsement}/submit", ifMatch: version)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        await _factory.DrainOutbox();
+        await Decide(GeneralApprovals.EndorsementBusinessRefType, endorsement);
+        await _factory.DrainOutbox();
+
+        // OQ-136: approved for a later date, the policy stays with its broker, the change waiting on it.
+        (await _db.ScalarAsOwner<string>("SELECT intermediary_code || ':' || pending_intermediary_code || ':' || pending_intermediary_from FROM general.policy WHERE id = @p",
+            ("p", policy))).ShouldBe($"{Broker}:BRK-4:{Today.AddDays(10):yyyy-MM-dd}");
+
+        // The date comes (brought to today): the daily job moves the policy, and the commission splits at it.
+        await _db.ExecuteAsOwner("UPDATE general.policy SET pending_intermediary_from = @d WHERE id = @p", ("d", Today), ("p", policy));
+        await _factory.Services.GetRequiredService<Insys.General.Infrastructure.GeneralJobs>().Run(CancellationToken.None);
+        await _factory.DrainOutbox();
+        (await _db.ScalarAsOwner<string>("SELECT intermediary_code || ':' || coalesce(pending_intermediary_code, '-') FROM general.policy WHERE id = @p", ("p", policy)))
+            .ShouldBe("BRK-4:-");
+        var coverEnd = due.AddMonths(1).AddDays(-1);
+        var share = Math.Round((decimal)(coverEnd.DayNumber - Today.DayNumber + 1) / (coverEnd.DayNumber - due.DayNumber + 1), 6);
+        var entitlements = await Entitlements(policy);
+        entitlements.Single(e => e.GetProperty("intermediaryCode").GetString() == Broker).GetProperty("amount").GetDecimal()
+            .ShouldBe(Math.Round(Math.Round(basis * 0.10m, 2, MidpointRounding.AwayFromZero) * (1m - share), 2, MidpointRounding.AwayFromZero), "the outgoing broker keeps the days before");
+        var incoming = entitlements.Single(e => e.GetProperty("intermediaryCode").GetString() == "BRK-4");
+        (incoming.GetProperty("sourceId").GetGuid(), incoming.GetProperty("amount").GetDecimal())
+            .ShouldBe((invoice, Math.Round(Math.Round(basis * share, 2, MidpointRounding.AwayFromZero) * 0.10m, 2, MidpointRounding.AwayFromZero)));
+    }
+
     private async Task<Guid> IssuedPolicy(Guid vehicle)
     {
         var quote = await Created("/api/v1/general/quotes", QuoteBody(vehicle, Broker));

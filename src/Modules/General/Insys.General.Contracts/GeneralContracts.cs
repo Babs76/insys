@@ -285,6 +285,14 @@ public sealed record GeneralRenewalDeclined(Guid RenewalId, Guid PolicyId, strin
 [IntegrationEvent("general.GeneralRenewalLapsed")]
 public sealed record GeneralRenewalLapsed(Guid RenewalId, Guid PolicyId, string PolicyNumber, string? ProductCode = null, DateOnly? PeriodEnd = null) : IIntegrationEvent;
 
+/// <summary>
+/// B-001: the policy moved to another intermediary from <paramref name="EffectiveDate"/>. Distribution splits the commission on
+/// the invoices around the date pro rata (OQ-135); portal access follows the policy's intermediary.
+/// </summary>
+[IntegrationEvent("general.GeneralPolicyIntermediaryChanged")]
+public sealed record GeneralPolicyIntermediaryChanged(Guid PolicyId, string PolicyNumber, string ProductCode, string? PreviousIntermediaryCode, string IntermediaryCode,
+    DateOnly EffectiveDate, DateOnly PeriodEnd, string? BillingFrequency) : IIntegrationEvent;
+
 /// <summary>F027: a policy's renewal is on record; it is due in its period end's month.</summary>
 [IntegrationEvent("general.GeneralRenewalOpened")]
 public sealed record GeneralRenewalOpened(Guid RenewalId, Guid PolicyId, string ProductCode, DateOnly PeriodEnd) : IIntegrationEvent;

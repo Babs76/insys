@@ -348,6 +348,34 @@ public sealed class GeneralTests
         (policy.Status, policy.ExpiryReason).ShouldBe((PolicyStatus.Expired, PolicyExpiryReasons.NotRenewedByInsurer));
     }
 
+    /// <summary>B-001: a broker of record change is rated at once with no premium change, needs the appointment letter before submission, and moves the policy at its date.</summary>
+    [Fact]
+    public void ABrokerOfRecordChange_NeedsItsLetter_AndMovesThePolicyAtItsDate_B001()
+    {
+        var policy = Policy();
+        var type = new EndorsementType(GeneralEndorsement.IntermediaryType, "NONE", [], false);
+        GeneralEndorsement.DraftIntermediaryChange(Guid.CreateVersion7(), "GP1-E001", policy, new EndorsementType("CHANGE_SI", "PRO_RATA", [], false), Today, "BRK-9",
+            Guid.CreateVersion7()).IsFailure.ShouldBeTrue("only an INTERMEDIARY endorsement");
+        GeneralEndorsement.DraftIntermediaryChange(Guid.CreateVersion7(), "GP1-E001", policy, type, End.AddDays(1), "BRK-9", Guid.CreateVersion7()).Error!.Code
+            .ShouldBe(GeneralErrorCodes.OutsidePolicyPeriod);
+        var endorsement = GeneralEndorsement.DraftIntermediaryChange(Guid.CreateVersion7(), "GP1-E001", policy, type, Today.AddDays(10), "BRK-9", Guid.CreateVersion7()).Value;
+        (endorsement.Status, endorsement.PremiumDelta, endorsement.NewAnnualPremium).ShouldBe((EndorsementStatus.Rated, 0m, (decimal?)policy.AnnualPremium));
+        endorsement.SubmitEndorsement(Guid.CreateVersion7(), "ZAR", Now).Error!.Code.ShouldBe(GeneralErrorCodes.AppointmentLetterRequired);
+        endorsement.RecordAppointmentLetter(Guid.CreateVersion7()).IsSuccess.ShouldBeTrue();
+        endorsement.SubmitEndorsement(Guid.CreateVersion7(), "ZAR", Now).IsSuccess.ShouldBeTrue();
+        endorsement.RecordAppointmentLetter(Guid.CreateVersion7()).IsFailure.ShouldBeTrue("not once submitted");
+
+        // OQ-136: future-dated, the policy keeps its broker until the date; then it moves, announced once.
+        var previous = policy.IntermediaryCode;
+        policy.ChangeIntermediary("BRK-9", Today.AddDays(10), Today, Now).IsSuccess.ShouldBeTrue();
+        (policy.IntermediaryCode, policy.PendingIntermediaryCode).ShouldBe((previous, "BRK-9"));
+        policy.ApplyPendingIntermediary(Today, Now).IsFailure.ShouldBeTrue("not yet");
+        policy.ApplyPendingIntermediary(Today.AddDays(10), Now).IsSuccess.ShouldBeTrue();
+        (policy.IntermediaryCode, policy.PendingIntermediaryCode).ShouldBe(("BRK-9", (string?)null));
+        policy.DomainEvents.OfType<GeneralPolicyIntermediaryChanged>().Single().ShouldSatisfyAllConditions(e => e.PreviousIntermediaryCode.ShouldBe(previous),
+            e => e.EffectiveDate.ShouldBe(Today.AddDays(10)));
+    }
+
     [Fact]
     public void Renewal_IsTheNextPeriod_AndThePolicyBecomesRenewed()
     {

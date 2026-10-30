@@ -95,6 +95,9 @@ public interface IGeneralRepository
     /// <summary>Policies in force whose grace ended before the day with instalments still unpaid (F006): cancelled for non-payment.</summary>
     Task<IReadOnlyList<Guid>> PoliciesPastGrace(DateOnly day, int limit, CancellationToken cancellationToken);
 
+    /// <summary>B-001: policies whose approved broker of record change takes effect by the day.</summary>
+    Task<IReadOnlyList<Guid>> PoliciesWithIntermediaryDue(DateOnly day, int limit, CancellationToken cancellationToken);
+
     Task<Domain.Renewals.Renewal?> Renewal(Guid id, CancellationToken cancellationToken);
 
     /// <summary>The renewal of a policy's period, if one was opened.</summary>
@@ -438,10 +441,11 @@ public sealed record PolicyView(Guid Id, string PolicyNumber, string ProductCode
 public sealed record EndorsementView(Guid Id, string EndorsementNumber, Guid PolicyId, [property: CodeList(CodeLists.EndorsementTypes, "code")] string EndorsementType,
     DateOnly EffectiveDate, EndorsementStatus Status,
     decimal PremiumDelta, decimal? NewAnnualPremium, string Currency, Guid? RatingRequestId, Guid? DocumentId, IReadOnlyList<EndorsementChange> Changes, long RowVersion,
-    Workflow.Contracts.LatestRejection? LatestRejection = null)
+    Workflow.Contracts.LatestRejection? LatestRejection = null, [property: BuildingBlocks.Contracts.AlwaysPresent] string? NewIntermediaryCode = null,
+    [property: BuildingBlocks.Contracts.AlwaysPresent] Guid? AppointmentLetterId = null)
 {
     public static EndorsementView From(GeneralEndorsement e) => new(e.Id, e.EndorsementNumber, e.PolicyId, e.EndorsementType, e.EffectiveDate, e.Status,
-        e.PremiumDelta, e.NewAnnualPremium, e.Currency, e.RatingRequestId, e.DocumentId, e.Changes, e.RowVersion);
+        e.PremiumDelta, e.NewAnnualPremium, e.Currency, e.RatingRequestId, e.DocumentId, e.Changes, e.RowVersion, null, e.NewIntermediaryCode, e.AppointmentLetterId);
 }
 
 public sealed record ClaimPartyView(Guid PartyId, [property: CodeList(CodeLists.ClaimPartyRoles, "code")] string Role, string? InsurerRef);

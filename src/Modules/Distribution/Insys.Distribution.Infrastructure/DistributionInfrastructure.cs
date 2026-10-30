@@ -61,6 +61,7 @@ public static class DistributionInfrastructure
         services.AddIntegrationEventHandler<InvoiceIssued, CommissionPolicies, DistributionDbContext>(schema, "InvoiceIssued");
         services.AddIntegrationEventHandler<InvoiceSettled, CommissionPolicies, DistributionDbContext>(schema, "InvoiceSettled");
         services.AddIntegrationEventHandler<GeneralPolicyCancelled, CommissionPolicies, DistributionDbContext>(schema, "GeneralPolicyCancelled");
+        services.AddIntegrationEventHandler<GeneralPolicyIntermediaryChanged, BrokerOfRecordCommission, DistributionDbContext>(schema); // B-001, OQ-135
         services.AddIntegrationEventHandler<LifePolicyLapsed, CommissionPolicies, DistributionDbContext>(schema, "LifePolicyLapsed");
         services.AddIntegrationEventHandler<ApprovalGranted, CommissionPolicies, DistributionDbContext>(schema, "ApprovalGranted");
         services.AddIntegrationEventHandler<ApprovalRejected, CommissionPolicies, DistributionDbContext>(schema, "ApprovalRejected");

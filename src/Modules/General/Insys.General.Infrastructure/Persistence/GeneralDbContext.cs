@@ -172,6 +172,7 @@ public sealed class GeneralDbContext(DbContextOptions<GeneralDbContext> options,
             policy.Property(p => p.CollectionMethod).HasMaxLength(15);
             policy.Property(p => p.CoverStartsOn).HasMaxLength(15);
             policy.Ignore(p => p.PeriodDays);
+            policy.Property(p => p.PendingIntermediaryCode).HasMaxLength(15); // B-001
             policy.HasMany(p => p.Risks).WithOne().HasForeignKey(r => new { r.TenantId, r.PolicyId });
             policy.Navigation(p => p.Risks).UsePropertyAccessMode(PropertyAccessMode.Field);
             policy.HasMany(p => p.Cancellations).WithOne().HasForeignKey(c => new { c.TenantId, c.PolicyId });
@@ -295,6 +296,8 @@ public sealed class GeneralDbContext(DbContextOptions<GeneralDbContext> options,
             endorsement.Property(e => e.PremiumDelta).HasPrecision(18, 2);
             endorsement.Property(e => e.NewAnnualPremium).HasPrecision(18, 2);
             endorsement.Property(e => e.Status).HasConversion(new UpperCaseEnumConverter<EndorsementStatus>()).HasMaxLength(30);
+            endorsement.Property(e => e.NewIntermediaryCode).HasMaxLength(15); // B-001
+            endorsement.Ignore(e => e.ChangesIntermediary);
             endorsement.Property(e => e.Changes).HasColumnName("change_set").HasColumnType("jsonb")
                 .HasConversion(
                     changes => JsonSerializer.Serialize(changes, Json),

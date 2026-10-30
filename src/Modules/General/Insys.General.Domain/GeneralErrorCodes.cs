@@ -88,6 +88,10 @@ public static class GeneralErrorCodes
     public const string RenewalNotOffered = "GENERAL_RENEWAL_NOT_OFFERED";
 
     /// <summary>F026: a retention offer made on the policy as often as its uses allow.</summary>
+    /// <summary>B-001, Wave 4 addition 3: a broker of record change is submitted only with the policyholder's appointment letter.</summary>
+    [ErrorCode(422, "error.general.appointment_letter_required")]
+    public const string AppointmentLetterRequired = "GENERAL_APPOINTMENT_LETTER_REQUIRED";
+
     [ErrorCode(409, "error.general.retention_offer_used_up")]
     public const string RetentionOfferUsedUp = "GENERAL_RETENTION_OFFER_USED_UP";
 

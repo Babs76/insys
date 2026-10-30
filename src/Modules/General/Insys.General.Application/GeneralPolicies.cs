@@ -182,7 +182,7 @@ public sealed class GeneralPolicies(IGeneralRepository general, IGeneralCodes co
 
         var product = await Products.Issued(products, tenant.RequireTenantId(), policy.ProductCode, policy.ProductVersion, businessDate.Today, cancellationToken);
         var type = await codes.EndorsementType(endorsement.EndorsementType, businessDate.Today, cancellationToken);
-        var applied = product.IsFailure ? product : policy.ApplyEndorsement(endorsement, product.Value, type?.Documents ?? [], clock.UtcNow);
+        var applied = product.IsFailure ? product : policy.ApplyEndorsement(endorsement, product.Value, type?.Documents ?? [], clock.UtcNow, businessDate.Today);
         if (applied.IsFailure)
         {
             // Approved but not applicable (a limit breached since, say): retried, then dead-lettered for a person.
@@ -315,7 +315,8 @@ public sealed class GeneralPolicies(IGeneralRepository general, IGeneralCodes co
 
 public sealed record DueWork(IReadOnlyList<Guid> PoliciesToStart, IReadOnlyList<Guid> PoliciesToExpire, IReadOnlyList<Guid> QuotesToExpire,
     IReadOnlyList<Guid> PoliciesToInvite, IReadOnlyList<Guid> PoliciesToRenew, IReadOnlyList<RenewalReminder>? RenewalReminders = null,
-    IReadOnlyList<Guid>? PoliciesPastGrace = null, IReadOnlyList<Guid>? PoliciesToReview = null, IReadOnlyList<Guid>? RenewalsAtLapseRisk = null);
+    IReadOnlyList<Guid>? PoliciesPastGrace = null, IReadOnlyList<Guid>? PoliciesToReview = null, IReadOnlyList<Guid>? RenewalsAtLapseRisk = null,
+    IReadOnlyList<Guid>? IntermediaryChangesDue = null);
 
 /// <summary>A renewal reminder due today: the policy, and how many days before its period ends (OQ-089).</summary>
 public sealed record RenewalReminder(Guid PolicyId, int DaysBefore);
@@ -352,6 +353,9 @@ public enum DueAction
 
     /// <summary>Grace ended with instalments unpaid (F006): cancel for non-payment with the grace rule's reason.</summary>
     CancelForNonPayment,
+
+    /// <summary>B-001: an approved broker of record change whose effective date has come.</summary>
+    ChangeIntermediary,
 }
 
 /// <summary>The day's exposure snapshot (general.exposure_snapshot), for reinsurance aggregation.</summary>
@@ -395,7 +399,8 @@ internal sealed class FindDueWorkHandler(IGeneralRepository general, IGeneralCod
         return new DueWork(await general.PoliciesToStart(query.Day, query.Limit, cancellationToken), await general.PoliciesToExpire(query.Day, query.Limit, cancellationToken),
             await general.QuotesToExpire(query.Day, query.Limit, cancellationToken), invite, renew, remind,
             await general.PoliciesPastGrace(query.Day, query.Limit, cancellationToken), review,
-            settings.LapseRiskDays is { } lapseRisk ? await general.RenewalsAtLapseRisk(query.Day.AddDays(lapseRisk), query.Limit, cancellationToken) : []);
+            settings.LapseRiskDays is { } lapseRisk ? await general.RenewalsAtLapseRisk(query.Day.AddDays(lapseRisk), query.Limit, cancellationToken) : [],
+            await general.PoliciesWithIntermediaryDue(query.Day, query.Limit, cancellationToken));
     }
 }
 
@@ -448,6 +453,12 @@ internal sealed class RunDueHandler(IGeneralRepository general, IGeneralCodes co
                 if (await general.Policy(command.Id, cancellationToken) is not { } policy)
                 {
                     return false;
+                }
+
+                if (command.Action == DueAction.ChangeIntermediary)
+                {
+                    result = policy.ApplyPendingIntermediary(command.Day, clock.UtcNow);
+                    break;
                 }
 
                 if (command.Action == DueAction.CancelForNonPayment)

@@ -56,8 +56,12 @@ public sealed record ReferralDecisionRequest(bool Approved, [property: BuildingB
 
 public sealed record CancelRequest([property: BuildingBlocks.Domain.CodeList(CodeLists.CancellationReasons, "reason_code")] string ReasonCode, DateOnly EffectiveDate);
 
+/// <param name="IntermediaryCode">B-001: for an INTERMEDIARY endorsement (a broker of record change, with no changes), the intermediary the policy moves to.</param>
 public sealed record EndorsementRequest([property: BuildingBlocks.Domain.CodeList(CodeLists.EndorsementTypes, "code")] string EndorsementType, DateOnly EffectiveDate,
-    IReadOnlyList<EndorsementChange> Changes);
+    IReadOnlyList<EndorsementChange> Changes, string? IntermediaryCode = null);
+
+/// <param name="DocumentId">The appointment letter, a document filed against the endorsement.</param>
+public sealed record AppointmentLetterRequest(Guid DocumentId);
 
 /// <param name="Role">The party's role on the claim, in force in general.cfg_claim_party_roles (OQ-122).</param>
 public sealed record PartyRequest(Guid PartyId, [property: BuildingBlocks.Domain.CodeList(CodeLists.ClaimPartyRoles, "code")] string Role, string? InsurerRef);
@@ -253,7 +257,7 @@ public sealed class GeneralModule : IModule
             .WithDescription("Reinstated before its period starts (a policy cancelled from inception), it is Issued again; otherwise In force (BR-037).").RequirePermission(GeneralPermissions.PolicyCancel);
 
         general.MapPost("/policies/{id:guid}/endorsements", async (Guid id, EndorsementRequest r, IDispatcher d, CancellationToken ct) =>
-                (await d.Send(new DraftEndorsement(id, r.EndorsementType, r.EffectiveDate, r.Changes), ct))
+                (await d.Send(new DraftEndorsement(id, r.EndorsementType, r.EffectiveDate, r.Changes, r.IntermediaryCode), ct))
                 .ToHttp(v => Results.Created($"/api/v1/general/endorsements/{v.Id}", v)))
             .Produces<EndorsementView>(StatusCodes.Status201Created)
             .WithName("GeneralDraftEndorsement").WithSummary("Draft an endorsement effective within the policy period (GEN-003)")
@@ -269,6 +273,14 @@ public sealed class GeneralModule : IModule
         general.MapGet("/endorsements/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetEndorsement(id), ct)).ToHttp(Results.Ok))
             .Produces<EndorsementView>(StatusCodes.Status200OK)
             .WithName("GeneralGetEndorsement").WithSummary("Get an endorsement").RequirePermission(GeneralPermissions.EndorsementRead);
+        general.MapPost("/endorsements/{id:guid}/appointment-letter", async (Guid id, AppointmentLetterRequest r, IDispatcher d, CancellationToken ct) =>
+                (await d.Send(new RecordAppointmentLetter(id, r.DocumentId), ct)).ToHttp(Results.Ok))
+            .Produces<EndorsementView>(StatusCodes.Status200OK)
+            .WithName("GeneralRecordAppointmentLetter")
+            .WithSummary("Record the policyholder's broker appointment letter on a broker of record change, before it is submitted (B-001, Wave 4 addition 3)")
+            .WithDescription("documentId is a document filed against the endorsement (businessRefType GENERAL_ENDORSEMENT). An INTERMEDIARY endorsement without it "
+                + "is refused at submission with 422 GENERAL_APPOINTMENT_LETTER_REQUIRED.")
+            .RequirePermission(GeneralPermissions.EndorsementCreate);
         general.MapPost("/endorsements/{id:guid}/submit", async (Guid id, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new SubmitEndorsement(id), ct)).ToHttp(Results.Ok))
             .Produces<EndorsementView>(StatusCodes.Status200OK)

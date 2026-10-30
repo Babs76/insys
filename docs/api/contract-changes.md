@@ -2,6 +2,18 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
+## Wave 4 batch 4.3c (branch `wave4-3c`): B-001, broker of record change (addendum §4.8; OQ-134 to OQ-136; addition 3)
+
+### New
+- **`POST /general/policies/{id}/endorsements`** takes an optional **`intermediaryCode`**: with `endorsementType` `INTERMEDIARY` (a type the tenant configures, premium method `NONE`) and `changes: []`, it drafts a broker of record change to that intermediary from `effectiveDate`. The intermediary must be allowed to sell the product (DST-001 refusals as for a quote). It is `Rated` at once with no premium change.
+- **`POST /general/endorsements/{id}/appointment-letter`** (`GeneralRecordAppointmentLetter`), body `{ "documentId" }`: the policyholder's appointment letter, a document filed against the endorsement (`businessRefType` `GENERAL_ENDORSEMENT`). Submitting an `INTERMEDIARY` endorsement without it is 422 **`GENERAL_APPOINTMENT_LETTER_REQUIRED`**. Approval is the usual endorsement approval by a second person (OQ-134).
+- **Endorsement view:** `newIntermediaryCode`, `appointmentLetterId`.
+- **Event `general.GeneralPolicyIntermediaryChanged`** (previous and new intermediary, effective date).
+
+### Changed behaviour
+- **The policy moves at the effective date.** Approved for today or earlier, the policy's `intermediaryCode` changes at once; for a later date it waits on the policy (`pending_intermediary_code`, `_from`) and the daily job moves it on the day. Until then only the current broker sees the policy on the broker portal (OQ-136).
+- **Commission splits pro rata at the date (OQ-135).** On each of the outgoing broker's invoices whose cover (the frequency's months from its due date, to the period end) runs over the date, the outgoing broker keeps the days before and the incoming broker accrues the days from it on its own plan. Commission not yet on a statement is cut (event `CommissionShared`); commission on an unpaid statement is clawed back and the kept share accrued again (source `BROKER_SHARE`); commission already paid is not recovered (see the report). Later invoices accrue to the new broker as usual.
+
 ## Wave 4 batch 4.3b (branch `wave4-3b`): retention and the renewal figures (addendum §4.3, §4.7; F026, F027)
 
 ### New
