@@ -716,7 +716,8 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         // OQ-130: the offer is 32 % above the current premium, more than the tenant's 15 %: it renews only once the customer accepts.
         var answer = (await Get($"/api/v1/general/renewals/{id}")).GetProperty("answer");
         (answer.GetProperty("acceptance").GetString(), answer.GetProperty("needsAcceptance").GetBoolean()).ShouldBe(("AUTOMATIC", true));
-        var accepted = await _maker.PostAsync($"/api/v1/general/renewals/{id}/accept", null);
+        var accepted = await _maker.Send(HttpMethod.Post, $"/api/v1/general/renewals/{id}/accept",
+            ifMatch: $"\"{(await Get($"/api/v1/general/renewals/{id}")).GetProperty("rowVersion").GetInt64()}\"");
         accepted.StatusCode.ShouldBe(HttpStatusCode.OK, await accepted.Content.ReadAsStringAsync());
 
         // At the period's end it renews on the offered terms.
@@ -767,9 +768,11 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         listed.Select(r => r.GetProperty("policyId").GetGuid()).ShouldBe([accepting]);
         (listed[0].GetProperty("status").GetString(), listed[0].GetProperty("needsAcceptance").GetBoolean()).ShouldBe(("OFFERED", true));
         listed[0].TryGetProperty("factor", out _).ShouldBeFalse("the review is not shown");
-        (await member.PostAsync($"/api/v1/portal/general/renewals/{(await RenewalOf(lapsing)).GetProperty("id").GetGuid()}/accept", null)).StatusCode
-            .ShouldBe(HttpStatusCode.NotFound, "another member's renewal");
-        var accepted = await member.PostAsync($"/api/v1/portal/general/renewals/{listed[0].GetProperty("id").GetGuid()}/accept", null);
+        var other = await RenewalOf(lapsing);
+        (await member.Send(HttpMethod.Post, $"/api/v1/portal/general/renewals/{other.GetProperty("id").GetGuid()}/accept",
+            ifMatch: $"\"{other.GetProperty("rowVersion").GetInt64()}\"")).StatusCode.ShouldBe(HttpStatusCode.NotFound, "another member's renewal");
+        var accepted = await member.Send(HttpMethod.Post, $"/api/v1/portal/general/renewals/{listed[0].GetProperty("id").GetGuid()}/accept",
+            ifMatch: $"\"{invited.GetProperty("rowVersion").GetInt64()}\"");
         accepted.StatusCode.ShouldBe(HttpStatusCode.OK, await accepted.Content.ReadAsStringAsync());
         (await accepted.Json()).GetProperty("status").GetString().ShouldBe("ACCEPTED");
 
@@ -812,7 +815,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         await _db.ExecuteAsOwner("UPDATE general.policy SET period_end = @e WHERE id = @p", ("e", Today.AddDays(10)), ("p", late));
 
         // Needing approval: proposed by one person, approved by another; then the notice goes.
-        var proposed = await (await _maker.PostAsJsonAsync($"/api/v1/general/policies/{approved}/non-renewal", new { reasonCode = "CLAIMS" })).Json();
+        var proposed = await (await _maker.Send(HttpMethod.Post, $"/api/v1/general/policies/{approved}/non-renewal", new { reasonCode = "CLAIMS" }, idempotent: true)).Json();
         proposed.GetProperty("nonRenewal").GetProperty("status").GetString().ShouldBe("REQUESTED");
         var renewalId = proposed.GetProperty("id").GetGuid();
         await _factory.DrainOutbox();
@@ -828,7 +831,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
 
         // Too late for its 31 days' notice (10 days left): decided at once, cover runs to the notice's end, and the extra 21 days are billed.
         var annual = (await Policy(late)).GetProperty("annualPremium").GetDecimal();
-        var extended = await (await _maker.PostAsJsonAsync($"/api/v1/general/policies/{late}/non-renewal", new { reasonCode = "PRODUCT_EXIT" })).Json();
+        var extended = await (await _maker.Send(HttpMethod.Post, $"/api/v1/general/policies/{late}/non-renewal", new { reasonCode = "PRODUCT_EXIT" }, idempotent: true)).Json();
         extended.GetProperty("nonRenewal").GetProperty("coverExtendedTo").GetString().ShouldBe(Today.AddDays(31).ToString("yyyy-MM-dd"));
         await _factory.DrainOutbox();
         (await Policy(late)).GetProperty("periodEnd").GetString().ShouldBe(Today.AddDays(31).ToString("yyyy-MM-dd"));

@@ -388,6 +388,7 @@ public sealed class GeneralModule : IModule
         general.MapPost("/renewals/{id:guid}/accept", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Send(new AcceptRenewal(id), ct)).ToHttp(Results.Ok))
             .Produces<RenewalView>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status409Conflict)
+            .TakesIfMatch()
             .WithName("GeneralAcceptRenewal")
             .WithSummary("Record the customer's acceptance of an offered renewal (Wave 4 §4.4, channel STAFF)")
             .WithDescription("Only an OFFERED renewal is accepted (409 GENERAL_RENEWAL_NOT_OFFERED otherwise). An ON_ACCEPTANCE renewal, or one on worse terms "
@@ -396,6 +397,7 @@ public sealed class GeneralModule : IModule
         general.MapPost("/renewals/{id:guid}/decline", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Send(new DeclineRenewal(id), ct)).ToHttp(Results.Ok))
             .Produces<RenewalView>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status409Conflict)
+            .TakesIfMatch()
             .WithName("GeneralDeclineRenewal")
             .WithSummary("Record the customer's decline of a renewal (Wave 4 §4.4): the policy expires at its period end")
             .RequirePermission(GeneralPermissions.RenewalRespond);
@@ -453,7 +455,7 @@ public sealed class GeneralModule : IModule
                 + "Once decided, the policyholder gets NON_RENEWAL_NOTICE with the wording, and the renewal is NOT_RENEWED_BY_INSURER: the policy expires at its "
                 + "period end. A decision less than the notice before the period end extends cover, pro rata, until the notice runs out (OQ-132 (b)); the "
                 + "extra days are billed.")
-            .RequirePermission(GeneralPermissions.PolicyNonRenew);
+            .RequirePermission(GeneralPermissions.PolicyNonRenew).RequireIdempotencyKey();
         general.MapGet("/aggregation-alerts", async (string? zone, string? peril, Guid? zoneReference, DateOnly? from, DateOnly? to, string? cursor, int? limit,
                 IDispatcher d, CancellationToken ct) =>
                 await Page(cursor, limit, (after, size) => d.Query(new ListAggregationAlerts(zone, peril, zoneReference, from, to, after, size), ct), a => a.Id))
@@ -534,11 +536,11 @@ public sealed class GeneralModule : IModule
             .ForPortal(party, broker);
         portal.MapPost("/renewals/{id:guid}/accept", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Send(new PortalAcceptRenewal(id), ct)).ToHttp(Results.Ok))
             .Produces<PortalRenewalView>(StatusCodes.Status200OK)
-            .WithName("PortalGeneralAcceptRenewal").WithSummary("Accept the renewal invitation (channel PORTAL for the member, BROKER for the broker)")
+            .TakesIfMatch().WithName("PortalGeneralAcceptRenewal").WithSummary("Accept the renewal invitation (channel PORTAL for the member, BROKER for the broker)")
             .RequirePermission(GeneralPermissions.RenewalRespond).ForPortal(party, broker);
         portal.MapPost("/renewals/{id:guid}/decline", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Send(new PortalDeclineRenewal(id), ct)).ToHttp(Results.Ok))
             .Produces<PortalRenewalView>(StatusCodes.Status200OK)
-            .WithName("PortalGeneralDeclineRenewal").WithSummary("Decline the renewal: the policy is not renewed")
+            .TakesIfMatch().WithName("PortalGeneralDeclineRenewal").WithSummary("Decline the renewal: the policy is not renewed")
             .RequirePermission(GeneralPermissions.RenewalRespond).ForPortal(party, broker);
         portal.MapGet("/quotes", async (string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
                 await Page(cursor, limit, (after, size) => d.Query(new ListPortalQuotes(after, size), ct), q => q.Id))
