@@ -29,6 +29,7 @@ using Insys.BuildingBlocks.Application.Messaging;
 using Insys.BuildingBlocks.Contracts;
 using Insys.BuildingBlocks.Contracts.Approvals;
 using Insys.BuildingBlocks.Domain;
+using Insys.BuildingBlocks.Infrastructure.Persistence;
 using Insys.BuildingBlocks.Infrastructure.StaticData;
 using Insys.Health.Application;
 using Insys.Health.Contracts;
@@ -273,6 +274,59 @@ internal sealed class HealthRepository(HealthDbContext db, IExecutionContext exe
                 && (afterId == null || s.Id.CompareTo(afterId.Value) > 0)).OrderBy(s => s.Id).Take(limit)
             .Select(s => new ProviderStatementSummary(s.Id, s.ProviderId, s.StatementRef, s.PeriodFrom, s.PeriodTo, s.Status)).ToListAsync(cancellationToken);
 
+    private IQueryable<Guid> MembershipsInScope => db.Memberships.AsNoTracking().InScope(execution.CurrentScope, m => m.ProductCode, m => m.OrgNodeCode).Select(m => m.Id);
+
+    private IQueryable<ComplexCase> ComplexCaseGraph => db.ComplexCases.Include(c => c.Assignments).Include(c => c.Notes).Include(c => c.Plans).ThenInclude(p => p.Items).AsSplitQuery();
+
+    public async Task<ComplexCase?> ComplexCase(Guid id, CancellationToken cancellationToken)
+    {
+        var complex = await ComplexCaseGraph.SingleOrDefaultAsync(c => c.Id == id, cancellationToken);
+        return await OfMembership(complex, complex?.MembershipId, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<ComplexCase>> ComplexCases(Guid? membershipId, Guid? caseManagerId, string? status, Guid? afterId, int limit, CancellationToken cancellationToken)
+    {
+        var rows = db.ComplexCases.AsNoTracking().Include(c => c.Assignments).Include(c => c.Plans).AsSplitQuery();
+        if (!execution.CurrentScope.IsUnrestricted)
+        {
+            rows = rows.Where(c => MembershipsInScope.Contains(c.MembershipId));
+        }
+
+        return await rows.Where(c => (membershipId == null || c.MembershipId == membershipId) && (caseManagerId == null || c.CaseManagerId == caseManagerId)
+                && (status == null || c.Status == status) && (afterId == null || c.Id.CompareTo(afterId.Value) > 0)).OrderBy(c => c.Id).Take(limit).ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Guid>> CasesWithOverdueActivities(DateOnly day, int limit, CancellationToken cancellationToken) =>
+        await db.ComplexCases.AsNoTracking().Where(c => c.Status == ComplexCaseStatus.Active && c.Plans.Any(p => p.IsCurrent && p.Items.Any(i =>
+                i.Kind == CarePlanItemKind.Activity && i.Status == CarePlanItemStatus.Open && !i.OverdueRaised && i.DueOn < day)))
+            .OrderBy(c => c.Id).Select(c => c.Id).Take(limit).ToListAsync(cancellationToken);
+
+    public async Task<ClinicalReferral?> ClinicalReferral(Guid id, CancellationToken cancellationToken)
+    {
+        var referral = await db.ClinicalReferrals.SingleOrDefaultAsync(r => r.Id == id, cancellationToken);
+        return await OfMembership(referral, referral?.MembershipId, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<ClinicalReferral>> ClinicalReferrals(Guid? membershipId, string? providerId, string? status, Guid? afterId, int limit, CancellationToken cancellationToken)
+    {
+        var rows = db.ClinicalReferrals.AsNoTracking();
+        if (!execution.CurrentScope.IsUnrestricted)
+        {
+            rows = rows.Where(r => MembershipsInScope.Contains(r.MembershipId));
+        }
+
+        return await rows.Where(r => (membershipId == null || r.MembershipId == membershipId) && (providerId == null || r.ReferringProviderId == providerId)
+                && (status == null || r.Status == status) && (afterId == null || r.Id.CompareTo(afterId.Value) > 0)).OrderBy(r => r.Id).Take(limit).ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Guid>> ReferralsToExpire(DateOnly day, int limit, CancellationToken cancellationToken) =>
+        await db.ClinicalReferrals.AsNoTracking().Where(r => (r.Status == ReferralStatus.Requested || r.Status == ReferralStatus.Approved) && r.ValidTo < day)
+            .OrderBy(r => r.Id).Select(r => r.Id).Take(limit).ToListAsync(cancellationToken);
+
+    public void Add(ComplexCase complexCase) => db.ComplexCases.Add(complexCase);
+
+    public void Add(ClinicalReferral referral) => db.ClinicalReferrals.Add(referral);
+
     public void Add(Domain.Providers.ProviderMeasureResult result) => db.ProviderMeasureResults.Add(result);
 
     public void Add(Domain.Providers.ProviderQualityReview review) => db.ProviderQualityReviews.Add(review);
@@ -497,6 +551,7 @@ internal sealed class HealthEventMapper : IDomainEventMapper
         Domain.Care.MedicalClaimRejected e => new Contracts.MedicalClaimRejected(e.ClaimId, e.ClaimNumber, e.MembershipId, e.ReasonCode),
         Domain.Care.MedicalClaimDecisionRightsDue e => new Communications.Contracts.NotificationRequested(Communications.Contracts.NotificationTypes.ClaimDecisionRights,
             e.RecipientPartyId, "HEALTH_CLAIM", e.ClaimId, RightsMerge(e), e.ProductCode, e.OrgNodeCode),
+        Domain.Care.CareActivityOverdue e => new Contracts.CareActivityOverdue(e.CaseId, e.CaseNumber, e.ActivityId, e.CaseManagerId),
         Domain.Providers.ProviderMeasureBreached e => new Contracts.ProviderMeasureBreached(e.ResultId, e.ProviderId, e.MonthKey, e.MeasureCode, e.Value, e.Threshold),
         Domain.Care.MedicalClaimReversed e => new Contracts.MedicalClaimReversed(e.ClaimId, e.ClaimNumber, e.ProviderId, e.Amount, e.Currency, e.Reason),
         Domain.Care.UtilisationCaseConcluded e => new Contracts.UtilisationCaseConcluded(e.CaseId, e.MembershipId, e.RuleCode, e.Outcome),

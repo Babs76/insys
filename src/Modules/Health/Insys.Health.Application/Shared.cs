@@ -146,6 +146,23 @@ public interface IHealthRepository
 
     Task<IReadOnlyList<ProviderStatementSummary>> ProviderStatements(string? providerId, string? status, Guid? afterId, int limit, CancellationToken cancellationToken);
 
+    // Wave 5a batch 5a.2: complex cases and referrals (F034 to F038).
+    Task<ComplexCase?> ComplexCase(Guid id, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<ComplexCase>> ComplexCases(Guid? membershipId, Guid? caseManagerId, string? status, Guid? afterId, int limit, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<Guid>> CasesWithOverdueActivities(DateOnly day, int limit, CancellationToken cancellationToken);
+
+    Task<ClinicalReferral?> ClinicalReferral(Guid id, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<ClinicalReferral>> ClinicalReferrals(Guid? membershipId, string? providerId, string? status, Guid? afterId, int limit, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<Guid>> ReferralsToExpire(DateOnly day, int limit, CancellationToken cancellationToken);
+
+    void Add(ComplexCase complexCase);
+
+    void Add(ClinicalReferral referral);
+
     void Add(Domain.Providers.ProviderMeasureResult result);
 
     void Add(Domain.Providers.ProviderQualityReview review);

@@ -57,7 +57,8 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         HealthPermissions.MembershipUpdate, HealthPermissions.EligibilityCheck, HealthPermissions.PreauthRead, HealthPermissions.PreauthCreate,
         HealthPermissions.PreauthReview, HealthPermissions.ClaimRead, HealthPermissions.ClaimCreate, HealthPermissions.ClaimUpdate, HealthPermissions.ClaimApprove,
         HealthPermissions.AccumulatorRead, HealthPermissions.CaseRead, HealthPermissions.CaseUpdate, HealthPermissions.RunRead, HealthPermissions.RunUpdate,
-        HealthPermissions.ProviderRead, HealthPermissions.ProviderUpdate,
+        HealthPermissions.ProviderRead, HealthPermissions.ProviderUpdate, HealthPermissions.ComplexCaseRead, HealthPermissions.ComplexCaseUpdate, HealthPermissions.ReferralRead,
+        HealthPermissions.ReferralCreate, HealthPermissions.ReferralDecide,
         BillingPermissions.AccountRead, BillingPermissions.InvoiceRead, PaymentPermissions.PaymentRead, PaymentPermissions.PayoutRead, PaymentPermissions.PayoutCreate,
         PaymentPermissions.PayoutRelease, PaymentPermissions.CallbackEndpointUpdate, FinancePermissions.JournalRead, FinancePermissions.PeriodUpdate,
         WorkflowPermissions.ApprovalRead, WorkflowPermissions.ApprovalApprove, IntegrationPermissions.DeadLetterRead, PartyPermissions.PartyCreate,
@@ -642,6 +643,147 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         (await Member(spouse)).ShouldBe("360.00/100.00/40.00");
         (await Member(principal)).ShouldBe("360.00/100.00/40.00");
         (await Family()).ShouldBe(720m);
+    }
+
+    /// <summary>
+    /// F034 to F037, OQ-143: a complex case's clinical detail is for its current manager or the clinical function, with a purpose,
+    /// and every read is audited. Reassigning ends the previous manager's access. A plan's change keeps the last version; an
+    /// overdue activity raises one task, for the manager, carrying no clinical text.
+    /// </summary>
+    [Fact]
+    public async Task AComplexCasesClinicalDetail_IsForItsCurrentManager_AndReassigningEndsTheLastManagersAccess_OQ143_F034_F037()
+    {
+        string[] managerPermissions = [HealthPermissions.ComplexCaseRead, HealthPermissions.ComplexCaseUpdate, HealthPermissions.ComplexCaseManage];
+        var firstId = await _db.UserWithPermissions(Tenant, "case-manager-1", managerPermissions);
+        var secondId = await _db.UserWithPermissions(Tenant, "case-manager-2", managerPermissions);
+        var outsiderId = await _db.UserWithPermissions(Tenant, "case-reader", HealthPermissions.ComplexCaseRead, HealthPermissions.ComplexCaseUpdate);
+        await _db.UserWithPermissions(Tenant, "medical-adviser", HealthPermissions.ComplexCaseRead, HealthPermissions.ClinicalRead);
+        await _db.AdoptFunctionCatalogue();
+        var first = _factory.ClientFor(Tenant, "case-manager-1");
+        var second = _factory.ClientFor(Tenant, "case-manager-2");
+        var outsider = _factory.ClientFor(Tenant, "case-reader");
+        var adviser = _factory.ClientFor(Tenant, "medical-adviser");
+        const string Secret = "Stage 3 kidney disease";
+
+        var scheme = await Created("/api/v1/health/schemes", new { sponsorCode = "S-ACME", startDate = Today.AddYears(-1), renewalDate = Today.AddMonths(6), currency = "ZAR" });
+        var principal = await _maker.RegisterPerson("Complex");
+        var membership = await Created("/api/v1/health/memberships", new
+        {
+            principalPartyId = principal, schemeId = scheme, memberCategory = "ALL_STAFF", planCode = "HLT-CORE", optionCode = "A", startDate = Today.AddMonths(-6),
+            currency = "ZAR", collectionMethod = "DEBIT_ORDER", facts = new { employment_type = "PERMANENT" },
+        });
+        await _factory.DrainOutbox();
+        var id = await Created("/api/v1/health/complex-cases", new { membershipId = membership, patientPartyId = principal, openedFrom = "MEMBERSHIP", conditionCategory = Secret });
+        var url = $"/api/v1/health/complex-cases/{id}";
+        var clinical = $"{url}/clinical?purpose=Care%20review";
+        (await Get(url)).GetRawText().ShouldNotContain(Secret, Case.Sensitive, "a case's view holds no clinical detail");
+
+        // Only someone holding the case manager function may be assigned.
+        (await (await _maker.Send(HttpMethod.Post, $"{url}/case-manager", new { caseManagerId = outsiderId }, ifMatch: (await _maker.GetAsync(url)).ETag())).Code()).ShouldBe("NOT_A_CASE_MANAGER");
+        var assigned = await _maker.Send(HttpMethod.Post, $"{url}/case-manager", new { caseManagerId = firstId }, ifMatch: (await _maker.GetAsync(url)).ETag());
+        assigned.StatusCode.ShouldBe(HttpStatusCode.OK, await assigned.Content.ReadAsStringAsync());
+        (await assigned.Json()).GetProperty("status").GetString().ShouldBe("ACTIVE");
+
+        // The manager reads, with a purpose; someone else with case access does not, and that is audited too.
+        (await (await first.GetAsync($"{url}/clinical")).Code()).ShouldBe("HEALTH_PURPOSE_REQUIRED");
+        var read = await first.GetAsync(clinical);
+        read.StatusCode.ShouldBe(HttpStatusCode.OK, await read.Content.ReadAsStringAsync());
+        (await read.Json()).GetProperty("conditionCategory").GetString().ShouldBe(Secret);
+        (await (await outsider.GetAsync(clinical)).Code()).ShouldBe("NOT_THE_CASE_MANAGER");
+        (await adviser.GetAsync(clinical)).StatusCode.ShouldBe(HttpStatusCode.OK, "the clinical function");
+        (await outsider.Send(HttpMethod.Post, $"{url}/notes", new { contactType = "INTERNAL", note = "Should not land" }, ifMatch: (await outsider.GetAsync(url)).ETag())).StatusCode
+            .ShouldBe(HttpStatusCode.Forbidden, "writing it needs the same access");
+
+        // A plan, with an activity past its date; a note shared with a provider names the consent.
+        var plan = await first.Send(HttpMethod.Post, $"{url}/care-plan", new
+        {
+            items = new object[]
+            {
+                new { kind = "GOAL", description = "Stable renal function", responsible = (string?)null, dueOn = (DateOnly?)null },
+                new { kind = "ACTIVITY", description = "Nephrology visit", responsible = "PR-1", dueOn = (DateOnly?)Today.AddDays(-1) },
+            },
+        }, ifMatch: (await first.GetAsync(url)).ETag());
+        plan.StatusCode.ShouldBe(HttpStatusCode.OK, await plan.Content.ReadAsStringAsync());
+        (await (await first.Send(HttpMethod.Post, $"{url}/notes", new { contactType = "PROVIDER", note = "Results shared", sharedWithProviderId = "PR-1" },
+            ifMatch: (await first.GetAsync(url)).ETag())).Code()).ShouldBe("CARE_CONSENT_REQUIRED");
+        (await first.Send(HttpMethod.Post, $"{url}/notes", new { contactType = "PROVIDER", note = "Results shared", sharedWithProviderId = "PR-1", consentReference = "CONSENT-1" },
+            ifMatch: (await first.GetAsync(url)).ETag())).StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        // The daily job raises one task, for the manager, however often it runs; it carries no clinical text.
+        var jobs = _factory.Services.GetRequiredService<Insys.Health.Infrastructure.HealthJobs>();
+        await jobs.Run(CancellationToken.None);
+        await _factory.DrainOutbox();
+        await jobs.Run(CancellationToken.None);
+        await _factory.DrainOutbox();
+        (await _db.ScalarAsOwner<long>("""
+            SELECT count(*) FROM workflow.process_instance p JOIN workflow.task t ON t.tenant_id = p.tenant_id AND t.process_instance_id = p.id
+            WHERE p.process_code = 'HEALTH_CARE_ACTIVITY_FOLLOW_UP' AND t.assignee_id = @m
+            """, ("m", firstId))).ShouldBe(1L);
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM health.outbox_event WHERE payload::text ILIKE '%nephrology%' OR payload::text ILIKE '%kidney%'")).ShouldBe(0L);
+
+        // Reassigned, with a reason: the first manager's access ends at once, the second's starts.
+        var etag = (await _maker.GetAsync(url)).ETag();
+        (await _maker.Send(HttpMethod.Post, $"{url}/case-manager", new { caseManagerId = secondId }, ifMatch: etag)).StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity, "needs a reason");
+        var moved = await _maker.Send(HttpMethod.Post, $"{url}/case-manager", new { caseManagerId = secondId, reason = "Leave" }, ifMatch: etag);
+        moved.StatusCode.ShouldBe(HttpStatusCode.OK, await moved.Content.ReadAsStringAsync());
+        (await (await first.GetAsync(clinical)).Code()).ShouldBe("NOT_THE_CASE_MANAGER", "addition 2: reassigning ends the previous manager's access");
+        (await first.Send(HttpMethod.Post, $"{url}/notes", new { contactType = "INTERNAL", note = "Late note" }, ifMatch: (await first.GetAsync(url)).ETag())).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await second.GetAsync(clinical)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        var history = (await moved.Json()).GetProperty("assignments");
+        history.GetArrayLength().ShouldBe(2);
+        history[0].GetProperty("endedAt").ValueKind.ShouldBe(JsonValueKind.String);
+
+        // A change keeps the last version.
+        (await second.Send(HttpMethod.Post, $"{url}/care-plan", new { items = new object[] { new { kind = "GOAL", description = "New goal" } } }, ifMatch: (await second.GetAsync(url)).ETag())).StatusCode
+            .ShouldBe(HttpStatusCode.UnprocessableEntity, "a change needs a reason");
+        (await second.Send(HttpMethod.Post, $"{url}/care-plan", new { items = new object[] { new { kind = "GOAL", description = "New goal" } }, reason = "Reassessed" }, ifMatch: (await second.GetAsync(url)).ETag())).StatusCode
+            .ShouldBe(HttpStatusCode.OK);
+        var plans = (await (await second.GetAsync(clinical)).Json()).GetProperty("plans");
+        (plans.GetArrayLength(), plans[0].GetProperty("isCurrent").GetBoolean(), plans[1].GetProperty("isCurrent").GetBoolean()).ShouldBe((2, false, true));
+
+        // Every clinical read is in the audit trail, with its purpose and no clinical content.
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM audit.audit_event WHERE operation = 'ReadClinical' AND target_id = @e", ("e", id.ToString()))).ShouldBeGreaterThanOrEqualTo(5L);
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM audit.audit_event WHERE details::text ILIKE '%kidney%'")).ShouldBe(0L);
+
+        // Never closed by itself; closing needs a reason.
+        (await (await _maker.PostAsJsonAsync($"{url}/close", new { reason = "" })).Code()).ShouldBe("VALIDATION_FAILED");
+    }
+
+    /// <summary>F038, OQ-144: a referral is recorded, decided and used up, its reason read only through the clinical route; past its date it expires. It affects no claim.</summary>
+    [Fact]
+    public async Task AClinicalReferral_IsDecidedAndUsedUp_ItsReasonIsClinical_AndItExpires_F038_OQ144()
+    {
+        const string Secret = "Suspected renal failure";
+        var scheme = await Created("/api/v1/health/schemes", new { sponsorCode = "S-ACME", startDate = Today.AddYears(-1), renewalDate = Today.AddMonths(6), currency = "ZAR" });
+        var principal = await _maker.RegisterPerson("Referred");
+        var membership = await Created("/api/v1/health/memberships", new
+        {
+            principalPartyId = principal, schemeId = scheme, memberCategory = "ALL_STAFF", planCode = "HLT-CORE", optionCode = "A", startDate = Today.AddMonths(-6),
+            currency = "ZAR", collectionMethod = "DEBIT_ORDER", facts = new { employment_type = "PERMANENT" },
+        });
+        await _factory.DrainOutbox();
+        Task<Guid> Refer(DateOnly to) => Created("/api/v1/health/referrals", new
+        {
+            membershipId = membership, patientPartyId = principal, referringProviderId = "PR-1", referredSpecialty = "NEPHROLOGY", clinicalReason = Secret, validFrom = Today.AddDays(-5), validTo = to, visitsAllowed = 2,
+        });
+        var id = await Refer(Today.AddDays(30));
+        var url = $"/api/v1/health/referrals/{id}";
+        (await Get(url)).GetRawText().ShouldNotContain(Secret, Case.Sensitive);
+        (await _maker.GetAsync($"{url}/clinical?purpose=Review")).StatusCode.ShouldBe(HttpStatusCode.Forbidden, "the clinical function only");
+
+        (await (await _maker.Send(HttpMethod.Post, $"{url}/visits", ifMatch: (await _maker.GetAsync(url)).ETag())).Code()).ShouldBe("INVALID_STATE_TRANSITION", "not yet approved");
+        (await _maker.Send(HttpMethod.Post, $"{url}/decide", new { approved = false }, ifMatch: (await _maker.GetAsync(url)).ETag())).StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity, "a decline needs a reason");
+        (await _maker.Send(HttpMethod.Post, $"{url}/decide", new { approved = true }, ifMatch: (await _maker.GetAsync(url)).ETag())).StatusCode.ShouldBe(HttpStatusCode.OK);
+        for (var visit = 0; visit < 2; visit++)
+        {
+            (await _maker.Send(HttpMethod.Post, $"{url}/visits", ifMatch: (await _maker.GetAsync(url)).ETag())).StatusCode.ShouldBe(HttpStatusCode.OK);
+        }
+
+        (await Get(url)).GetProperty("status").GetString().ShouldBe("USED");
+
+        var late = await Refer(Today.AddDays(-1));
+        await _factory.Services.GetRequiredService<Insys.Health.Infrastructure.HealthJobs>().Run(CancellationToken.None);
+        (await Get($"/api/v1/health/referrals/{late}")).GetProperty("status").GetString().ShouldBe("EXPIRED");
     }
 
     /// <summary>

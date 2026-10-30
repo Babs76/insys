@@ -228,6 +228,40 @@ public sealed class HealthJobs(IServiceScopeFactory scopes, ITenantDirectory ten
 
             done += await DeclineHeldClaims(tenantId, day, cancellationToken);
             done += await MeasureProviders(tenantId, day, cancellationToken);
+            done += await CareDue(tenantId, day, cancellationToken);
+        }
+
+        return done;
+    }
+
+    /// <summary>F037, F038: overdue care activities each raise one task; referrals past their date expire.</summary>
+    private async Task<int> CareDue(Guid tenantId, DateOnly day, CancellationToken cancellationToken)
+    {
+        (IReadOnlyList<Guid> Cases, IReadOnlyList<Guid> Referrals) work;
+        await using (var scope = Scope(tenantId))
+        {
+            var found = await scope.ServiceProvider.GetRequiredService<IDispatcher>().Query(new FindCareDueWork(day, 500), cancellationToken);
+            if (found.IsFailure)
+            {
+                return 0;
+            }
+
+            work = found.Value;
+        }
+
+        var done = 0;
+        foreach (var id in work.Cases)
+        {
+            await using var scope = Scope(tenantId);
+            var raised = await scope.ServiceProvider.GetRequiredService<IDispatcher>().Send(new RaiseOverdueCareActivities(id, day), cancellationToken);
+            done += raised.IsSuccess ? 1 : 0;
+        }
+
+        foreach (var id in work.Referrals)
+        {
+            await using var scope = Scope(tenantId);
+            var expired = await scope.ServiceProvider.GetRequiredService<IDispatcher>().Send(new ExpireClinicalReferral(id, day), cancellationToken);
+            done += expired.IsSuccess ? 1 : 0;
         }
 
         return done;

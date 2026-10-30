@@ -941,6 +941,35 @@ public sealed class GeneralRetentionTasks(IProcessRepository processes, IProcess
         .Where(p => p.ProcessCode == BuiltInProcesses.GeneralRetention.ProcessCode && p.Status == ProcessStatus.Running).Select(p => p.Id).ToList();
 }
 
+/// <summary>F037: an overdue care activity gets a task, assigned to the case manager. It carries the case's reference only: the activity's text is clinical and stays in Health (HLT-008).</summary>
+public sealed class CareActivityFollowUpTasks(IProcessRepository processes, IProcessQueries queries, IWorkflowConfiguration configuration, IBusinessDate businessDate,
+    IClock clock, IAuditTrail audit) : IIntegrationEventHandler<Health.Contracts.CareActivityOverdue>
+{
+    public const string BusinessRefType = "HEALTH_CARE_ACTIVITY";
+
+    public async Task Handle(Health.Contracts.CareActivityOverdue overdue, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if ((await queries.List(BusinessRefType, overdue.ActivityId, null, 1, cancellationToken)).Count > 0)
+        {
+            return;
+        }
+
+        var now = clock.UtcNow;
+        var routing = await configuration.Routing(businessDate.Today, now, cancellationToken);
+        var process = ProcessInstance.StartProcess(Guid.CreateVersion7(), BuiltInProcesses.CareActivityFollowUp, BusinessRefType, overdue.ActivityId, routing, now);
+        if (overdue.CaseManagerId is { } manager && process.Value.OpenTask is { } task)
+        {
+            process.Value.AssignTask(task.Id, manager);
+        }
+
+        processes.Add(process.Value);
+        audit.Record(new AuditEntry("WORKFLOW", "StartProcess", nameof(ProcessInstance), process.Value.Id.ToString(), new Dictionary<string, string?>
+        {
+            ["process"] = $"{BuiltInProcesses.CareActivityFollowUp.ProcessCode}@{BuiltInProcesses.CareActivityFollowUp.Version}", ["case"] = overdue.CaseNumber,
+        }));
+    }
+}
+
 /// <summary>F028: a breached provider measure gets a person's task (HEALTH_PROVIDER_MEASURE_REVIEW), in the queue its task type routes to; a person closes it.</summary>
 public sealed class ProviderMeasureReviewTasks(IProcessRepository processes, IProcessQueries queries, IWorkflowConfiguration configuration, IBusinessDate businessDate,
     IClock clock, IAuditTrail audit) : IIntegrationEventHandler<Health.Contracts.ProviderMeasureBreached>

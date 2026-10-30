@@ -54,6 +54,17 @@ public static class HealthPermissions
     public const string CaseRead = "health_case.read";
     public const string CaseUpdate = "health_case.update";
     public const string RunRead = "provider_payment_run.read";
+    public const string ComplexCaseRead = "health_complex_case.read";
+    public const string ComplexCaseUpdate = "health_complex_case.update";
+
+    /// <summary>The case manager function: who may be assigned a complex case (F035).</summary>
+    public const string ComplexCaseManage = "health_complex_case.manage";
+
+    /// <summary>The clinical function: reads and writes any complex case's clinical detail (OQ-143).</summary>
+    public const string ClinicalRead = "health_case.read_clinical";
+    public const string ReferralRead = "health_referral.read";
+    public const string ReferralCreate = "health_referral.create";
+    public const string ReferralDecide = "health_referral.decide";
     public const string ProviderRead = "health_provider.read";
     public const string ProviderUpdate = "health_provider.update";
     public const string RunUpdate = "provider_payment_run.update";
@@ -169,6 +180,10 @@ public sealed record MedicalClaimSettled(Guid ClaimId, string ClaimNumber, strin
 /// A paid claim was reversed: its benefit consumption was given back, Finance reverses its claim-paid journal, and the amount
 /// is to be recovered (collected in Wave 5a batch 5a.3, OQ-139).
 /// </summary>
+/// <summary>F037: a care plan's activity is past its date; Workflow opens a task for the case manager. References only (HLT-008).</summary>
+[IntegrationEvent("health.CareActivityOverdue")]
+public sealed record CareActivityOverdue(Guid CaseId, string CaseNumber, Guid ActivityId, Guid? CaseManagerId) : IIntegrationEvent;
+
 /// <summary>F028: a provider's month is past a measure's threshold; Workflow asks a person to look. Counts and amounts only.</summary>
 [IntegrationEvent("health.ProviderMeasureBreached")]
 public sealed record ProviderMeasureBreached(Guid ResultId, string ProviderId, string MonthKey, string MeasureCode, decimal Value, decimal Threshold) : IIntegrationEvent;

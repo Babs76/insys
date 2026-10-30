@@ -2,6 +2,18 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
+## Wave 5a batch 5a.2 (branch `wave5a-2`): complex cases, care plans and referrals (addendum §4.3 to §4.5; F034 to F038)
+
+### New
+- **`/health/complex-cases`**: `POST`, `GET` (by `membershipId`, `caseManagerId`, `status`), `GET /{id}`. These views hold **no clinical detail**.
+- **`GET /health/complex-cases/{id}/clinical?purpose=`**: condition, care plans and notes, for the current case manager or the clinical function. A purpose is required, and every read and refusal is audited. Errors `HEALTH_PURPOSE_REQUIRED`, `NOT_THE_CASE_MANAGER` (403).
+- **`POST .../case-manager`** (`caseManagerId`, `reason`): the person must hold the case manager function (`NOT_A_CASE_MANAGER`); reassigning needs a reason and **ends the last manager's clinical access**.
+- **`POST .../hold`, `.../resume`, `.../close`** (`reason`), **`.../care-plan`** (`items`, `reason` for a change), **`.../care-plan/items/{itemId}/progress`** (`DONE`, `MISSED`, `CHANGED`), **`.../notes`** (one with `sharedWithProviderId` needs `consentReference`: `CARE_CONSENT_REQUIRED`).
+- **`/health/referrals`**: `POST`, `GET`, `GET /{id}` (no clinical reason), **`GET /{id}/clinical?purpose=`** (`health_case.read_clinical`), **`POST /{id}/decide`**, **`POST /{id}/visits`**. States `REQUESTED`, `APPROVED`, `DECLINED`, `USED`, `EXPIRED`. They affect no claim (OQ-144).
+- **Provider portal:** `POST`, `GET /portal/health/referrals`: its own, as itself.
+- **Permissions** `health_complex_case.read`, `.update`, `.manage` (the case manager function), `health_case.read_clinical` (the clinical function), `health_referral.read`, `.create`, `.decide`.
+- **Workflow task** `FOLLOW_UP_CARE` (process `HEALTH_CARE_ACTIVITY_FOLLOW_UP`), assigned to the case manager. **Event** `health.CareActivityOverdue`: references only.
+
 ## Wave 5a batch 5a.1 (branch `wave5a-1`): provider measures, quality reviews and statements (addendum §4.1, §4.2; F028 to F030)
 
 ### New

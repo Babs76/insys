@@ -146,9 +146,13 @@ public static class BuiltInProcesses
     public static readonly ProcessDefinition ProviderMeasureReview = new("HEALTH_PROVIDER_MEASURE_REVIEW", 1, ["REVIEW_MEASURE", "REVIEWED"],
         [new TransitionDefinition("REVIEW_MEASURE", "REVIEWED", null)], null);
 
+    /// <summary>F037: a care plan's activity is past its date: the case manager follows it up.</summary>
+    public static readonly ProcessDefinition CareActivityFollowUp = new("HEALTH_CARE_ACTIVITY_FOLLOW_UP", 1, ["FOLLOW_UP_CARE", "DONE"],
+        [new TransitionDefinition("FOLLOW_UP_CARE", "DONE", null)], null);
+
     public static ProcessDefinition? Find(string processCode, int? version) =>
         new[] { ParkedDelivery, ConfigurationReview, HeldClaimPayment, PartyMatchReview, AggregationReview, ApprovalFollowUp, GeneralReferral, DueDiligenceHitReview,
-            DueDiligenceSanctionsMatch, DueDiligenceReview, HealthArrearsTermination, GeneralRenewalReview, GeneralRetention, ProviderMeasureReview }.FirstOrDefault(d => d.ProcessCode == processCode && (version is null || version == d.Version));
+            DueDiligenceSanctionsMatch, DueDiligenceReview, HealthArrearsTermination, GeneralRenewalReview, GeneralRetention, ProviderMeasureReview, CareActivityFollowUp }.FirstOrDefault(d => d.ProcessCode == processCode && (version is null || version == d.Version));
 }
 
 /// <summary>Where a new task goes and when it is due: from the task type, queue and SLA definitions in force.</summary>
