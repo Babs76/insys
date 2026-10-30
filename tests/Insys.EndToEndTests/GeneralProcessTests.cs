@@ -814,6 +814,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
             ("customer_wording", "We no longer offer this cover."), ("requires_approval", false));
         var (approved, _) = await IssuedPolicy();
         var (late, _) = await IssuedPolicy();
+        await _factory.DrainOutbox(); // Billing's schedules exist before the late one's is shortened
         var holder = await _maker.RegisterPerson("Noticed");
         await _db.AddContact(Tenant, holder, "EMAIL", "notice@example.com");
         await _db.ExecuteAsOwner("UPDATE general.policy SET policyholder_party_id = @h, period_end = @e WHERE id = @p", ("h", holder), ("e", Today.AddDays(60)), ("p", approved));

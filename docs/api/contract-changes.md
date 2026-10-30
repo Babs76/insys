@@ -12,7 +12,7 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 ### Changed behaviour
 - **The policy moves at the effective date.** Approved for today or earlier, the policy's `intermediaryCode` changes at once; for a later date it waits on the policy (`pending_intermediary_code`, `_from`) and the daily job moves it on the day. Until then only the current broker sees the policy on the broker portal (OQ-136).
-- **Commission splits pro rata at the date (OQ-135).** On each of the outgoing broker's invoices whose cover (the frequency's months from its due date, to the period end) runs over the date, the outgoing broker keeps the days before and the incoming broker accrues the days from it on its own plan. Commission not yet on a statement is cut (event `CommissionShared`); commission on an unpaid statement is clawed back and the kept share accrued again (source `BROKER_SHARE`); commission already paid is not recovered (see the report). Later invoices accrue to the new broker as usual.
+- **Commission splits pro rata at the date (OQ-135).** On each of the outgoing broker's invoices whose cover (the frequency's months from its due date, to the period end) runs over the date, the outgoing broker keeps the days before and the incoming broker accrues the days from it on its own plan. Commission not yet on a statement is cut, published as a `commission.CommissionClawedBack` of the cut part so Finance reverses it; commission on an unpaid statement is clawed back and the kept share accrued again (source `BROKER_SHARE`); commission already paid is not recovered (see the report). Later invoices accrue to the new broker as usual.
 
 ## Wave 4 batch 4.3b (branch `wave4-3b`): retention and the renewal figures (addendum §4.3, §4.7; F026, F027)
 

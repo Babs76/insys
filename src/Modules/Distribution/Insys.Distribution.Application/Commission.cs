@@ -468,7 +468,7 @@ public sealed class BrokerOfRecordCommission(IDistributionRepository repository,
             }
             else if (entitlement.StatementId is null)
             {
-                entitlement.Share(kept, Reason, clock.UtcNow);
+                entitlement.Share(kept, Reason, changed.EffectiveDate, clock.UtcNow);
             }
             else
             {
