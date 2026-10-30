@@ -716,7 +716,8 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         // OQ-130: the offer is 32 % above the current premium, more than the tenant's 15 %: it renews only once the customer accepts.
         var answer = (await Get($"/api/v1/general/renewals/{id}")).GetProperty("answer");
         (answer.GetProperty("acceptance").GetString(), answer.GetProperty("needsAcceptance").GetBoolean()).ShouldBe(("AUTOMATIC", true));
-        var accepted = await _maker.PostAsync($"/api/v1/general/renewals/{id}/accept", null);
+        var accepted = await _maker.Send(HttpMethod.Post, $"/api/v1/general/renewals/{id}/accept",
+            ifMatch: $"\"{(await Get($"/api/v1/general/renewals/{id}")).GetProperty("rowVersion").GetInt64()}\"");
         accepted.StatusCode.ShouldBe(HttpStatusCode.OK, await accepted.Content.ReadAsStringAsync());
 
         // At the period's end it renews on the offered terms.
@@ -767,9 +768,11 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         listed.Select(r => r.GetProperty("policyId").GetGuid()).ShouldBe([accepting]);
         (listed[0].GetProperty("status").GetString(), listed[0].GetProperty("needsAcceptance").GetBoolean()).ShouldBe(("OFFERED", true));
         listed[0].TryGetProperty("factor", out _).ShouldBeFalse("the review is not shown");
-        (await member.PostAsync($"/api/v1/portal/general/renewals/{(await RenewalOf(lapsing)).GetProperty("id").GetGuid()}/accept", null)).StatusCode
-            .ShouldBe(HttpStatusCode.NotFound, "another member's renewal");
-        var accepted = await member.PostAsync($"/api/v1/portal/general/renewals/{listed[0].GetProperty("id").GetGuid()}/accept", null);
+        var other = await RenewalOf(lapsing);
+        (await member.Send(HttpMethod.Post, $"/api/v1/portal/general/renewals/{other.GetProperty("id").GetGuid()}/accept",
+            ifMatch: $"\"{other.GetProperty("rowVersion").GetInt64()}\"")).StatusCode.ShouldBe(HttpStatusCode.NotFound, "another member's renewal");
+        var accepted = await member.Send(HttpMethod.Post, $"/api/v1/portal/general/renewals/{listed[0].GetProperty("id").GetGuid()}/accept",
+            ifMatch: $"\"{invited.GetProperty("rowVersion").GetInt64()}\"");
         accepted.StatusCode.ShouldBe(HttpStatusCode.OK, await accepted.Content.ReadAsStringAsync());
         (await accepted.Json()).GetProperty("status").GetString().ShouldBe("ACCEPTED");
 
@@ -812,7 +815,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         await _db.ExecuteAsOwner("UPDATE general.policy SET period_end = @e WHERE id = @p", ("e", Today.AddDays(10)), ("p", late));
 
         // Needing approval: proposed by one person, approved by another; then the notice goes.
-        var proposed = await (await _maker.PostAsJsonAsync($"/api/v1/general/policies/{approved}/non-renewal", new { reasonCode = "CLAIMS" })).Json();
+        var proposed = await (await _maker.Send(HttpMethod.Post, $"/api/v1/general/policies/{approved}/non-renewal", new { reasonCode = "CLAIMS" }, idempotent: true)).Json();
         proposed.GetProperty("nonRenewal").GetProperty("status").GetString().ShouldBe("REQUESTED");
         var renewalId = proposed.GetProperty("id").GetGuid();
         await _factory.DrainOutbox();
@@ -828,7 +831,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
 
         // Too late for its 31 days' notice (10 days left): decided at once, cover runs to the notice's end, and the extra 21 days are billed.
         var annual = (await Policy(late)).GetProperty("annualPremium").GetDecimal();
-        var extended = await (await _maker.PostAsJsonAsync($"/api/v1/general/policies/{late}/non-renewal", new { reasonCode = "PRODUCT_EXIT" })).Json();
+        var extended = await (await _maker.Send(HttpMethod.Post, $"/api/v1/general/policies/{late}/non-renewal", new { reasonCode = "PRODUCT_EXIT" }, idempotent: true)).Json();
         extended.GetProperty("nonRenewal").GetProperty("coverExtendedTo").GetString().ShouldBe(Today.AddDays(31).ToString("yyyy-MM-dd"));
         await _factory.DrainOutbox();
         (await Policy(late)).GetProperty("periodEnd").GetString().ShouldBe(Today.AddDays(31).ToString("yyyy-MM-dd"));
@@ -874,7 +877,8 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
 
         // The customer declines: a NOT_RENEWING case, owned through a Workflow task.
         var renewalId = (await RenewalOf(kept)).GetProperty("id").GetGuid();
-        (await _maker.PostAsync($"/api/v1/general/renewals/{renewalId}/decline", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await _maker.Send(HttpMethod.Post, $"/api/v1/general/renewals/{renewalId}/decline",
+            ifMatch: $"\"{(await RenewalOf(kept)).GetProperty("rowVersion").GetInt64()}\"")).StatusCode.ShouldBe(HttpStatusCode.OK);
         await _factory.DrainOutbox();
         var retention = await CaseOf(kept);
         (retention.GetProperty("trigger").GetString(), retention.GetProperty("status").GetString(), retention.GetProperty("renewalId").GetGuid())
@@ -884,18 +888,23 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
             ("c", caseId))).ShouldBe(1);
 
         // Offers: one the caller's roles do not cover is refused; the loyalty discount is made once, and accepted.
-        (await (await _maker.PostAsJsonAsync($"/api/v1/general/retention-cases/{caseId}/offers", new { offerCode = "LEAD-25" })).Code())
-            .ShouldBe("GENERAL_RETENTION_OFFER_AUTHORITY");
-        var offered = await (await _maker.PostAsJsonAsync($"/api/v1/general/retention-cases/{caseId}/offers", new { offerCode = "LOYAL-10" })).Json();
+        async Task<string> CaseVersion(Guid id) =>
+            $"\"{(await (await _maker.GetAsync($"/api/v1/general/retention-cases/{id}")).Json()).GetProperty("rowVersion").GetInt64()}\"";
+        (await (await _maker.Send(HttpMethod.Post, $"/api/v1/general/retention-cases/{caseId}/offers", new { offerCode = "LEAD-25" }, ifMatch: await CaseVersion(caseId)))
+            .Code()).ShouldBe("GENERAL_RETENTION_OFFER_AUTHORITY");
+        var offered = await (await _maker.Send(HttpMethod.Post, $"/api/v1/general/retention-cases/{caseId}/offers", new { offerCode = "LOYAL-10" },
+            ifMatch: await CaseVersion(caseId))).Json();
         var offerId = offered.GetProperty("offers").EnumerateArray().Single().GetProperty("id").GetGuid();
-        (await (await _maker.PostAsJsonAsync($"/api/v1/general/retention-cases/{caseId}/offers", new { offerCode = "LOYAL-10" })).Code())
-            .ShouldBe("GENERAL_RETENTION_OFFER_USED_UP");
-        (await _maker.PostAsJsonAsync($"/api/v1/general/retention-cases/{caseId}/offers/{offerId}/answer", new { accepted = true })).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await (await _maker.Send(HttpMethod.Post, $"/api/v1/general/retention-cases/{caseId}/offers", new { offerCode = "LOYAL-10" }, ifMatch: await CaseVersion(caseId)))
+            .Code()).ShouldBe("GENERAL_RETENTION_OFFER_USED_UP");
+        (await _maker.Send(HttpMethod.Post, $"/api/v1/general/retention-cases/{caseId}/offers/{offerId}/answer", new { accepted = true },
+            ifMatch: await CaseVersion(caseId))).StatusCode.ShouldBe(HttpStatusCode.OK);
         await _factory.DrainOutbox();
         var discounted = await RenewalOf(kept);
         (discounted.GetProperty("status").GetString(), discounted.GetProperty("offeredPremium").GetDecimal())
             .ShouldBe(("Accepted", Math.Round(premium * 0.9m, 2, MidpointRounding.AwayFromZero)));
-        (await _maker.PostAsJsonAsync($"/api/v1/general/retention-cases/{caseId}/outcome", new { outcome = "RETAINED" })).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await _maker.Send(HttpMethod.Post, $"/api/v1/general/retention-cases/{caseId}/outcome", new { outcome = "RETAINED" }, ifMatch: await CaseVersion(caseId)))
+            .StatusCode.ShouldBe(HttpStatusCode.OK);
         await _factory.DrainOutbox();
         (await _db.ScalarAsOwner<long>("SELECT count(*) FROM workflow.process_instance WHERE process_code = 'GENERAL_RETENTION' AND business_ref_id = @c AND ended_at IS NULL",
             ("c", caseId))).ShouldBe(0, "the task closed with the case");
@@ -905,8 +914,9 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         await _factory.DrainOutbox();
         var atRisk = await CaseOf(lost);
         atRisk.GetProperty("trigger").GetString().ShouldBe("LAPSE_RISK");
-        (await _maker.PostAsJsonAsync($"/api/v1/general/retention-cases/{atRisk.GetProperty("id").GetGuid()}/outcome", new { outcome = "LOST" })).StatusCode
-            .ShouldBe(HttpStatusCode.OK);
+        var atRiskId = atRisk.GetProperty("id").GetGuid();
+        (await _maker.Send(HttpMethod.Post, $"/api/v1/general/retention-cases/{atRiskId}/outcome", new { outcome = "LOST" }, ifMatch: await CaseVersion(atRiskId)))
+            .StatusCode.ShouldBe(HttpStatusCode.OK);
 
         // The period ends: the kept one renews on the discounted premium; the other lapses.
         await _db.ExecuteAsOwner("UPDATE general.policy SET period_end = @e WHERE id IN (@a, @b)", ("e", Today.AddDays(-1)), ("a", kept), ("b", lost));
