@@ -76,6 +76,9 @@ public static class HealthErrorCodes
     [ErrorCode(409, "error.health.run_empty")]
     public const string RunEmpty = "PAYMENT_RUN_EMPTY";
 
+    /// <summary>The provider's statement reference is already recorded (F030).</summary>
+    public const string ProviderStatementDuplicate = "PROVIDER_STATEMENT_DUPLICATE";
+
     [ErrorCode(422, "error.health.rationale_required")]
     public const string RationaleRequired = "HEALTH_RATIONALE_REQUIRED";
 }

@@ -70,6 +70,8 @@ public sealed record ReasonRequest(string Reason);
 /// paid. A decision reason of type PARTIAL from claims/static/claim-decision-reason-codes; 422 HEALTH_RATIONALE_REQUIRED without one.</param>
 public sealed record ApproveClaimRequest(string? ReasonCode = null);
 
+public sealed record ProviderQualityReviewRequest(int Score, string Reason);
+
 public sealed record CaseOutcomeRequest(string Outcome);
 
 /// <summary>
@@ -99,8 +101,52 @@ public sealed class HealthModule : IModule
         MapMembers(health);
         MapCare(health);
         MapRuns(health);
+        MapProviders(health);
 
         MapPortal(api.MapGroup("/portal/health").WithTags(Name));
+    }
+
+    /// <summary>Wave 5a §4.1, §4.2: provider measures, quality reviews and statements (F028 to F030). Staff only: providers do not see their measures yet (OQ-141).</summary>
+    private static void MapProviders(RouteGroupBuilder health)
+    {
+        health.MapGet("/providers/{providerId}/measures", async (string providerId, string? monthKey, string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListProviderMeasures(providerId, monthKey, after, size), ct), m => m.Id))
+            .Produces<CursorPage<ProviderMeasureView>>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("HealthListProviderMeasures").WithSummary("A provider's measures by month, with whether each was judged and breached (F028)")
+            .RequirePermission(HealthPermissions.ProviderRead);
+        health.MapGet("/providers/{providerId}/quality-reviews", async (string providerId, string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListProviderQualityReviews(providerId, after, size), ct), r => r.Id))
+            .Produces<CursorPage<ProviderQualityReviewView>>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("HealthListProviderQualityReviews").WithSummary("A provider's quality reviews (F029)").RequirePermission(HealthPermissions.ProviderRead);
+        health.MapPost("/providers/{providerId}/quality-reviews", async (string providerId, ProviderQualityReviewRequest r, IDispatcher d, CancellationToken ct) =>
+                (await d.Send(new RecordProviderQualityReview(providerId, r.Score, r.Reason), ct)).ToHttp(v => Results.Created($"/api/v1/health/providers/{providerId}/quality-reviews/{v.Id}", v)))
+            .Produces<ProviderQualityReviewView>(StatusCodes.Status201Created).ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("HealthRecordProviderQualityReview").WithSummary("Record a scored review of a provider, 1 to 5, with a reason (F029)")
+            .RequirePermission(HealthPermissions.ProviderUpdate).RequireIdempotencyKey();
+        health.MapGet("/provider-statements", async (string? providerId, string? status, string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListProviderStatements(providerId, status, after, size), ct), s => s.Id))
+            .Produces<CursorPage<ProviderStatementSummary>>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("HealthListProviderStatements").WithSummary("Providers' statements, by provider or status (F030)").RequirePermission(HealthPermissions.ProviderRead);
+        health.MapGet("/provider-statements/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetProviderStatement(id), ct)).ToHttp(Results.Ok))
+            .Produces<ProviderStatementView>(StatusCodes.Status200OK)
+            .WithName("HealthGetProviderStatement").WithSummary("A statement with each line's match result and resolution (F030)").RequirePermission(HealthPermissions.ProviderRead);
+        health.MapPost("/provider-statements", async (SubmitProviderStatement r, IDispatcher d, CancellationToken ct) =>
+                (await d.Send(r, ct)).ToHttp(v => Results.Created($"/api/v1/health/provider-statements/{v.Id}", v)))
+            .Produces<ProviderStatementView>(StatusCodes.Status201Created).ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("HealthSubmitProviderStatement").WithSummary("Enter a provider's statement; each line is matched at once against its paid claims (F030)")
+            .RequirePermission(HealthPermissions.ProviderUpdate).RequireIdempotencyKey();
+        health.MapPost("/provider-statements/import", async (ImportProviderStatement r, IDispatcher d, CancellationToken ct) =>
+                (await d.Send(r, ct)).ToHttp(v => Results.Created($"/api/v1/health/provider-statements/{v.Id}", v)))
+            .Produces<ProviderStatementView>(StatusCodes.Status201Created).ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("HealthImportProviderStatement").WithSummary("The same from CSV text in the fixed layout: a header claim_number,amount, then one line per claim (OQ-142)")
+            .RequirePermission(HealthPermissions.ProviderUpdate).RequireIdempotencyKey();
+        health.MapPost("/provider-statements/{id:guid}/lines/{lineId:guid}/resolve", async (Guid id, Guid lineId, ReasonRequest r, IDispatcher d, CancellationToken ct) =>
+                (await d.Send(new ResolveStatementLine(id, lineId, r.Reason), ct)).ToHttp(Results.Ok))
+            .Produces<ProviderStatementView>(StatusCodes.Status200OK).TakesIfMatch()
+            .WithName("HealthResolveStatementLine").WithSummary("Resolve an exception with a reason; the statement is RECONCILED when none is open. It changes no payment (F030)")
+            .RequirePermission(HealthPermissions.ProviderUpdate);
     }
 
     private static void MapMembers(RouteGroupBuilder health)

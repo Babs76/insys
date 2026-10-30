@@ -82,6 +82,14 @@ internal static class HealthFunctions
         .Action("HEALTH_CONCLUDE_UTILISATION_CASE", "HEALTH_UTILISATION_CASES", "HealthConcludeUtilisationCase")
         .Action("HEALTH_CHECK_ELIGIBILITY", "HEALTH_PREAUTHORISATIONS", "HealthCheckEligibility")
         .Action("HEALTH_READ_AUTHORISATION_CLINICAL", "HEALTH_PREAUTHORISATIONS", "HealthGetAuthorisationClinical")
+        .Screen("HEALTH_PROVIDER_PERFORMANCE", "HEALTH_PROVIDER_MANAGEMENT", "Performance & quality monitoring", "health/providers", "HealthListProviderMeasures",
+            "HealthListProviderQualityReviews")
+        .Action("HEALTH_RECORD_PROVIDER_QUALITY_REVIEW", "HEALTH_PROVIDER_PERFORMANCE", "HealthRecordProviderQualityReview")
+        .Screen("HEALTH_PROVIDER_STATEMENTS", "HEALTH_PROVIDER_PAYMENTS", "Provider reconciliation", "health/provider-statements", "HealthListProviderStatements",
+            "HealthGetProviderStatement")
+        .Action("HEALTH_SUBMIT_PROVIDER_STATEMENT", "HEALTH_PROVIDER_STATEMENTS", "HealthSubmitProviderStatement")
+        .Action("HEALTH_IMPORT_PROVIDER_STATEMENT", "HEALTH_PROVIDER_STATEMENTS", "HealthImportProviderStatement")
+        .Action("HEALTH_RESOLVE_STATEMENT_LINE", "HEALTH_PROVIDER_STATEMENTS", "HealthResolveStatementLine")
         .Job("HEALTH_EVENT_PROCESSING", "HEALTH_MEMBERSHIP", "Background processing")
         .Job("HEALTH_DAILY_JOBS", "HEALTH_MEMBERSHIP", "Background processing")
             .Functions,

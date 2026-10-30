@@ -2,6 +2,20 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
+## Wave 5a batch 5a.1 (branch `wave5a-1`): provider measures, quality reviews and statements (addendum §4.1, §4.2; F028 to F030)
+
+### New
+- **`health.cfg_provider_measures`** (static data, tenant, Tier 2): `measureCode` (`CLAIMS_SUBMITTED`, `REJECTION_RATE`, `AVERAGE_PAID`, `DECISION_DAYS`, `REPEAT_SERVICE_RATE`, `DISPUTES_PER_100`), `providerType` (none: all), `threshold`, `direction` (`ABOVE`, `BELOW`), `minClaims`.
+- **`GET /health/providers/{providerId}/measures`** (`monthKey`), staff only (OQ-141): each measure's `value`, `claimCount`, `threshold`, `judged`, `breached`.
+- **`GET`, `POST /health/providers/{providerId}/quality-reviews`**: `score` 1 to 5, `reason`.
+- **`GET`, `POST /health/provider-statements`, `GET /health/provider-statements/{id}`, `POST /health/provider-statements/import`** (`csv`: a header `claim_number,amount`, then one line per claim, OQ-142), **`POST /health/provider-statements/{id}/lines/{lineId}/resolve`** (`reason`, If-Match). Lines have `matchResult`: `MATCHED`, `AMOUNT_DIFFERS`, `NOT_ON_OUR_RECORDS`, `NOT_ON_STATEMENT`. Status: `EXCEPTIONS`, `RECONCILED`. Error `PROVIDER_STATEMENT_DUPLICATE`.
+- **Permissions** `health_provider.read`, `health_provider.update`. **Screens** `HEALTH_PROVIDER_PERFORMANCE`, `HEALTH_PROVIDER_STATEMENTS`.
+- **Workflow task** `REVIEW_PROVIDER_MEASURE` (process `HEALTH_PROVIDER_MEASURE_REVIEW`, reference `HEALTH_PROVIDER_MEASURE`) on a breach. Its queue comes from the task type's routing. **Event** `health.ProviderMeasureBreached`.
+- **Readiness warning `PROVIDER_MEASURES`** (`DOMAIN_REFERENCE_DATA`, advisory).
+
+### Changed behaviour
+- **The Health daily job** measures last month's providers once each. A breach only opens a task: it changes nothing about the provider.
+
 ## Defect: a reversal gives back the right accumulators (branch `fix-accumulator-giveback`)
 
 ### Changed behaviour

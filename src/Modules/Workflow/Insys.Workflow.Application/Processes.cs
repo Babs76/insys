@@ -941,6 +941,31 @@ public sealed class GeneralRetentionTasks(IProcessRepository processes, IProcess
         .Where(p => p.ProcessCode == BuiltInProcesses.GeneralRetention.ProcessCode && p.Status == ProcessStatus.Running).Select(p => p.Id).ToList();
 }
 
+/// <summary>F028: a breached provider measure gets a person's task (HEALTH_PROVIDER_MEASURE_REVIEW), in the queue its task type routes to; a person closes it.</summary>
+public sealed class ProviderMeasureReviewTasks(IProcessRepository processes, IProcessQueries queries, IWorkflowConfiguration configuration, IBusinessDate businessDate,
+    IClock clock, IAuditTrail audit) : IIntegrationEventHandler<Health.Contracts.ProviderMeasureBreached>
+{
+    public const string BusinessRefType = "HEALTH_PROVIDER_MEASURE";
+
+    public async Task Handle(Health.Contracts.ProviderMeasureBreached breached, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if ((await queries.List(BusinessRefType, breached.ResultId, null, 1, cancellationToken)).Count > 0)
+        {
+            return;
+        }
+
+        var now = clock.UtcNow;
+        var routing = await configuration.Routing(businessDate.Today, now, cancellationToken);
+        var process = ProcessInstance.StartProcess(Guid.CreateVersion7(), BuiltInProcesses.ProviderMeasureReview, BusinessRefType, breached.ResultId, routing, now);
+        processes.Add(process.Value);
+        audit.Record(new AuditEntry("WORKFLOW", "StartProcess", nameof(ProcessInstance), process.Value.Id.ToString(), new Dictionary<string, string?>
+        {
+            ["process"] = $"{BuiltInProcesses.ProviderMeasureReview.ProcessCode}@{BuiltInProcesses.ProviderMeasureReview.Version}", ["provider"] = breached.ProviderId,
+            ["measure"] = breached.MeasureCode, ["month"] = breached.MonthKey,
+        }));
+    }
+}
+
 /// <summary>Closes a General quote's referral task once the referral is decided: the task moves to DECIDED, and the audit records the decision.</summary>
 public sealed class CloseGeneralReferralTask(IProcessRepository processes, IProcessQueries queries, IClock clock, IAuditTrail audit)
     : IIntegrationEventHandler<General.Contracts.GeneralQuoteReferralDecided>

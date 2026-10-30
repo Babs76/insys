@@ -54,6 +54,8 @@ public static class HealthPermissions
     public const string CaseRead = "health_case.read";
     public const string CaseUpdate = "health_case.update";
     public const string RunRead = "provider_payment_run.read";
+    public const string ProviderRead = "health_provider.read";
+    public const string ProviderUpdate = "health_provider.update";
     public const string RunUpdate = "provider_payment_run.update";
 }
 
@@ -167,6 +169,10 @@ public sealed record MedicalClaimSettled(Guid ClaimId, string ClaimNumber, strin
 /// A paid claim was reversed: its benefit consumption was given back, Finance reverses its claim-paid journal, and the amount
 /// is to be recovered (collected in Wave 5a batch 5a.3, OQ-139).
 /// </summary>
+/// <summary>F028: a provider's month is past a measure's threshold; Workflow asks a person to look. Counts and amounts only.</summary>
+[IntegrationEvent("health.ProviderMeasureBreached")]
+public sealed record ProviderMeasureBreached(Guid ResultId, string ProviderId, string MonthKey, string MeasureCode, decimal Value, decimal Threshold) : IIntegrationEvent;
+
 [IntegrationEvent("health.MedicalClaimReversed")]
 public sealed record MedicalClaimReversed(Guid ClaimId, string ClaimNumber, string? ProviderId, decimal Amount, string Currency, string Reason) : IIntegrationEvent;
 

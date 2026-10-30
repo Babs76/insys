@@ -123,6 +123,31 @@ public interface IHealthRepository
 
     void Add(UtilisationCase utilisationCase);
 
+    // Wave 5a batch 5a.1: provider measures, reviews and statements (F028 to F030).
+    Task<IReadOnlyList<string>> ProvidersToMeasure(string monthKey, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<ProviderClaimFact>> ProviderClaimFacts(string providerId, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<Domain.Providers.ProviderMeasureResult>> ProviderMeasures(string providerId, string? monthKey, Guid? afterId, int limit, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<Domain.Providers.ProviderQualityReview>> ProviderQualityReviews(string providerId, Guid? afterId, int limit, CancellationToken cancellationToken);
+
+    Task<bool> ProviderStatementExists(string providerId, string statementRef, CancellationToken cancellationToken);
+
+    /// <summary>The provider's paid claims with a service date in the period, and any paid claims of its that the references name.</summary>
+    Task<IReadOnlyList<(string ClaimNumber, decimal Paid, bool InPeriod)>> ProviderPaidClaims(string providerId, DateOnly from, DateOnly to, IReadOnlyCollection<string> references,
+        CancellationToken cancellationToken);
+
+    Task<Domain.Providers.ProviderStatement?> ProviderStatement(Guid id, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<ProviderStatementSummary>> ProviderStatements(string? providerId, string? status, Guid? afterId, int limit, CancellationToken cancellationToken);
+
+    void Add(Domain.Providers.ProviderMeasureResult result);
+
+    void Add(Domain.Providers.ProviderQualityReview review);
+
+    void Add(Domain.Providers.ProviderStatement statement);
+
     void Add(HealthFraudCase fraudCase);
 
     void Add(ProviderPaymentRun run);
@@ -155,6 +180,11 @@ public sealed record ContributionRule(decimal Rate, decimal EmployerSharePct);
 
 public interface IHealthCodes
 {
+    /// <summary>The provider measures in force (health.cfg_provider_measures, F028).</summary>
+    Task<IReadOnlyList<Domain.Providers.ProviderMeasure>> ProviderMeasures(DateOnly day, CancellationToken cancellationToken);
+
+    Task<string?> ProviderType(string providerId, DateOnly day, CancellationToken cancellationToken);
+
     Task<string?> MemberNumberPrefix(DateOnly day, CancellationToken cancellationToken);
 
     Task<PlanDefinition?> Plan(string planCode, string optionCode, DateOnly day, CancellationToken cancellationToken);

@@ -225,6 +225,51 @@ internal sealed class HealthRepository(HealthDbContext db, IExecutionContext exe
 
     public void Add(MedicalClaim claim) => db.Claims.Add(claim);
 
+    public async Task<IReadOnlyList<string>> ProvidersToMeasure(string monthKey, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken) =>
+        await db.Claims.AsNoTracking().Where(c => c.ProviderId != null && c.SubmittedAt >= from && c.SubmittedAt < to)
+            .Select(c => c.ProviderId!).Distinct()
+            .Where(p => !db.ProviderMeasureResults.Any(r => r.ProviderId == p && r.MonthKey == monthKey)).OrderBy(p => p).Take(500).ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<ProviderClaimFact>> ProviderClaimFacts(string providerId, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken) =>
+        await db.Claims.AsNoTracking().Where(c => c.ProviderId == providerId && c.SubmittedAt >= from && c.SubmittedAt < to)
+            .Select(c => new ProviderClaimFact(c.ProviderId!, c.Status, c.TotalPaid, c.SubmittedAt, c.AdjudicatedAt, c.Lines.Count,
+                c.Lines.Count(l => l.AdjustmentReason == Domain.Adjudication.AdjudicationReasons.RepeatService))).ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<Domain.Providers.ProviderMeasureResult>> ProviderMeasures(string providerId, string? monthKey, Guid? afterId, int limit, CancellationToken cancellationToken) =>
+        await db.ProviderMeasureResults.AsNoTracking().Where(r => r.ProviderId == providerId && (monthKey == null || r.MonthKey == monthKey)
+                && (afterId == null || r.Id.CompareTo(afterId.Value) > 0)).OrderBy(r => r.Id).Take(limit).ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<Domain.Providers.ProviderQualityReview>> ProviderQualityReviews(string providerId, Guid? afterId, int limit, CancellationToken cancellationToken) =>
+        await db.ProviderQualityReviews.AsNoTracking().Where(r => r.ProviderId == providerId && (afterId == null || r.Id.CompareTo(afterId.Value) > 0))
+            .OrderBy(r => r.Id).Take(limit).ToListAsync(cancellationToken);
+
+    public Task<bool> ProviderStatementExists(string providerId, string statementRef, CancellationToken cancellationToken) =>
+        db.ProviderStatements.AnyAsync(s => s.ProviderId == providerId && s.StatementRef == statementRef, cancellationToken);
+
+    public async Task<IReadOnlyList<(string ClaimNumber, decimal Paid, bool InPeriod)>> ProviderPaidClaims(string providerId, DateOnly from, DateOnly to, IReadOnlyCollection<string> references,
+        CancellationToken cancellationToken)
+    {
+        var numbers = references.ToList();
+        var rows = await db.Claims.AsNoTracking()
+            .Where(c => c.ProviderId == providerId && c.Status == MedicalClaimStatus.Paid && ((c.ServiceDate >= from && c.ServiceDate <= to) || numbers.Contains(c.ClaimNumber)))
+            .Select(c => new { c.ClaimNumber, c.TotalPaid, c.ServiceDate }).ToListAsync(cancellationToken);
+        return rows.Select(c => (c.ClaimNumber, c.TotalPaid ?? 0, c.ServiceDate >= from && c.ServiceDate <= to)).ToList();
+    }
+
+    public Task<Domain.Providers.ProviderStatement?> ProviderStatement(Guid id, CancellationToken cancellationToken) =>
+        db.ProviderStatements.Include(s => s.Lines).SingleOrDefaultAsync(s => s.Id == id, cancellationToken);
+
+    public async Task<IReadOnlyList<ProviderStatementSummary>> ProviderStatements(string? providerId, string? status, Guid? afterId, int limit, CancellationToken cancellationToken) =>
+        await db.ProviderStatements.AsNoTracking().Where(s => (providerId == null || s.ProviderId == providerId) && (status == null || s.Status == status)
+                && (afterId == null || s.Id.CompareTo(afterId.Value) > 0)).OrderBy(s => s.Id).Take(limit)
+            .Select(s => new ProviderStatementSummary(s.Id, s.ProviderId, s.StatementRef, s.PeriodFrom, s.PeriodTo, s.Status)).ToListAsync(cancellationToken);
+
+    public void Add(Domain.Providers.ProviderMeasureResult result) => db.ProviderMeasureResults.Add(result);
+
+    public void Add(Domain.Providers.ProviderQualityReview review) => db.ProviderQualityReviews.Add(review);
+
+    public void Add(Domain.Providers.ProviderStatement statement) => db.ProviderStatements.Add(statement);
+
     public void Add(UtilisationCase utilisationCase) => db.UtilisationCases.Add(utilisationCase);
 
     public void Add(HealthFraudCase fraudCase) => db.FraudCases.Add(fraudCase);
@@ -250,6 +295,13 @@ internal sealed class HealthRepository(HealthDbContext db, IExecutionContext exe
 
 internal sealed class HealthCodes(HealthDbContext db) : IHealthCodes
 {
+    public async Task<IReadOnlyList<Domain.Providers.ProviderMeasure>> ProviderMeasures(DateOnly day, CancellationToken cancellationToken) =>
+        await InForce<StaticData.ProviderMeasures>(day).Select(m => new Domain.Providers.ProviderMeasure(m.MeasureCode, m.ProviderType, m.Threshold, m.Direction, m.MinClaims))
+            .ToListAsync(cancellationToken);
+
+    public async Task<string?> ProviderType(string providerId, DateOnly day, CancellationToken cancellationToken) =>
+        await InForce<ProviderRegister>(day).Where(p => p.ProviderId == providerId).OrderByDescending(p => p.Version).Select(p => p.ProviderType).FirstOrDefaultAsync(cancellationToken);
+
     public async Task<(int NoticeDays, string ReRatingBasis)?> SchemeRenewalRule(string schemeNumber, DateOnly day, CancellationToken cancellationToken) =>
         await InForce<SchemeRenewalRules>(day).Where(r => r.Scheme == schemeNumber).Select(r => new { r.NoticeDays, r.ReRatingBasis }).FirstOrDefaultAsync(cancellationToken)
             is { } rule ? (rule.NoticeDays, rule.ReRatingBasis) : null;
@@ -436,6 +488,7 @@ internal sealed class HealthEventMapper : IDomainEventMapper
         Domain.Care.MedicalClaimRejected e => new Contracts.MedicalClaimRejected(e.ClaimId, e.ClaimNumber, e.MembershipId, e.ReasonCode),
         Domain.Care.MedicalClaimDecisionRightsDue e => new Communications.Contracts.NotificationRequested(Communications.Contracts.NotificationTypes.ClaimDecisionRights,
             e.RecipientPartyId, "HEALTH_CLAIM", e.ClaimId, RightsMerge(e), e.ProductCode, e.OrgNodeCode),
+        Domain.Providers.ProviderMeasureBreached e => new Contracts.ProviderMeasureBreached(e.ResultId, e.ProviderId, e.MonthKey, e.MeasureCode, e.Value, e.Threshold),
         Domain.Care.MedicalClaimReversed e => new Contracts.MedicalClaimReversed(e.ClaimId, e.ClaimNumber, e.ProviderId, e.Amount, e.Currency, e.Reason),
         Domain.Care.UtilisationCaseConcluded e => new Contracts.UtilisationCaseConcluded(e.CaseId, e.MembershipId, e.RuleCode, e.Outcome),
         Domain.Care.FraudCaseConcluded e => new Contracts.FraudCaseConcluded(e.CaseId, e.SubjectType, e.SubjectRef, e.OutcomeCode),

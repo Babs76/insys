@@ -79,6 +79,19 @@ public static class HealthInfrastructure
         services.AddSingleton<Workflow.Contracts.IApprovalScopeSource, PaymentRunApprovalScopes>();
         services.AddHealthChecks().AddCheck<PlanProductsHealthCheck>("health-plan-products");
         services.AddScoped<IHealthCodes, HealthCodes>();
+        // F028: a warning: with no measure configured, providers' months are shown but never judged.
+        BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddSqlReadiness(services, Persistence.HealthDbContext.SchemaName, ["DOMAIN_REFERENCE_DATA"], async (context, connection, transaction, ct) =>
+        {
+            var measures = await BuildingBlocks.Infrastructure.Readiness.ReadinessSql.Count(connection, transaction,
+                $"SELECT count(*) FROM health.cfg_provider_measures WHERE tenant_id = @t AND {BuildingBlocks.Infrastructure.Readiness.ReadinessSql.InForce}", ct,
+                ("t", context.TenantId), ("inForce", BuildingBlocks.Infrastructure.StaticData.StaticLifecycle.Configuration.InForce), ("day", context.Day));
+            var plans = await BuildingBlocks.Infrastructure.Readiness.ReadinessSql.Count(connection, transaction,
+                $"SELECT count(*) FROM health.cfg_plans_and_options WHERE tenant_id = @t AND {BuildingBlocks.Infrastructure.Readiness.ReadinessSql.InForce}", ct,
+                ("t", context.TenantId), ("inForce", BuildingBlocks.Infrastructure.StaticData.StaticLifecycle.Configuration.InForce), ("day", context.Day));
+            return [BuildingBlocks.Application.ReadinessResult.Warning("DOMAIN_REFERENCE_DATA", "PROVIDER_MEASURES",
+                "A tenant selling Health watches its providers with measures; with none, their months are shown but not judged (a warning, not a blocker)",
+                plans > 0 && measures == 0 ? ["health.cfg_provider_measures"] : [])];
+        });
         services.AddScoped<HealthDeclineRights>(); // OQ-102
         services.AddScoped<IHealthLists, HealthLists>();
         services.AddScoped<BenefitContexts>();
@@ -214,6 +227,41 @@ public sealed class HealthJobs(IServiceScopeFactory scopes, ITenantDirectory ten
             }
 
             done += await DeclineHeldClaims(tenantId, day, cancellationToken);
+            done += await MeasureProviders(tenantId, day, cancellationToken);
+        }
+
+        return done;
+    }
+
+    /// <summary>F028: last month's measures, for each provider with claims in it and no results yet; a provider that fails is tried again tomorrow.</summary>
+    private async Task<int> MeasureProviders(Guid tenantId, DateOnly day, CancellationToken cancellationToken)
+    {
+        var monthKey = day.AddMonths(-1).ToString("yyyy-MM", System.Globalization.CultureInfo.InvariantCulture);
+        IReadOnlyList<string> providers;
+        await using (var scope = Scope(tenantId))
+        {
+            var found = await scope.ServiceProvider.GetRequiredService<IDispatcher>().Query(new FindProvidersToMeasure(monthKey), cancellationToken);
+            if (found.IsFailure)
+            {
+                return 0;
+            }
+
+            providers = found.Value;
+        }
+
+        var done = 0;
+        foreach (var provider in providers)
+        {
+            await using var scope = Scope(tenantId);
+            var measured = await scope.ServiceProvider.GetRequiredService<IDispatcher>().Send(new MeasureProvider(provider, monthKey), cancellationToken);
+            if (measured.IsSuccess)
+            {
+                done++;
+            }
+            else
+            {
+                logger.LogWarning("Provider {Provider}'s measures for {Month} failed: {Code}", provider, monthKey, measured.Error.Code);
+            }
         }
 
         return done;

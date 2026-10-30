@@ -142,9 +142,13 @@ public static class BuiltInProcesses
     public static readonly ProcessDefinition GeneralRetention = new("GENERAL_RETENTION", 1, ["KEEP_POLICY", "CLOSED"],
         [new TransitionDefinition("KEEP_POLICY", "CLOSED", null)], null);
 
+    /// <summary>F028: a provider's month is past a measure's threshold: a person looks. It changes nothing about the provider by itself.</summary>
+    public static readonly ProcessDefinition ProviderMeasureReview = new("HEALTH_PROVIDER_MEASURE_REVIEW", 1, ["REVIEW_PROVIDER_MEASURE", "REVIEWED"],
+        [new TransitionDefinition("REVIEW_PROVIDER_MEASURE", "REVIEWED", null)], null);
+
     public static ProcessDefinition? Find(string processCode, int? version) =>
         new[] { ParkedDelivery, ConfigurationReview, HeldClaimPayment, PartyMatchReview, AggregationReview, ApprovalFollowUp, GeneralReferral, DueDiligenceHitReview,
-            DueDiligenceSanctionsMatch, DueDiligenceReview, HealthArrearsTermination, GeneralRenewalReview, GeneralRetention }.FirstOrDefault(d => d.ProcessCode == processCode && (version is null || version == d.Version));
+            DueDiligenceSanctionsMatch, DueDiligenceReview, HealthArrearsTermination, GeneralRenewalReview, GeneralRetention, ProviderMeasureReview }.FirstOrDefault(d => d.ProcessCode == processCode && (version is null || version == d.Version));
 }
 
 /// <summary>Where a new task goes and when it is due: from the task type, queue and SLA definitions in force.</summary>

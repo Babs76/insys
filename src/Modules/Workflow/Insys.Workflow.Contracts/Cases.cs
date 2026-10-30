@@ -74,6 +74,13 @@ public static class CaseLinkTypes
     public const string Intermediary = "INTERMEDIARY";
 }
 
+/// <summary>Public query interface: how many cases concern a provider (F029).</summary>
+public interface IProviderCaseCounts
+{
+    /// <summary>The cases received in the period that the provider raised or is linked to. A count only, never their content.</summary>
+    Task<int> Count(Guid tenantId, string providerId, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken);
+}
+
 /// <summary>
 /// BR-101: whether a portal user may link one of a module's records to a case they raise. The module answers as its
 /// own portal read of the record does, for the current caller: a record that read would not show (another member's

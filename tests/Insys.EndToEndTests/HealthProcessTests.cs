@@ -57,6 +57,7 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         HealthPermissions.MembershipUpdate, HealthPermissions.EligibilityCheck, HealthPermissions.PreauthRead, HealthPermissions.PreauthCreate,
         HealthPermissions.PreauthReview, HealthPermissions.ClaimRead, HealthPermissions.ClaimCreate, HealthPermissions.ClaimUpdate, HealthPermissions.ClaimApprove,
         HealthPermissions.AccumulatorRead, HealthPermissions.CaseRead, HealthPermissions.CaseUpdate, HealthPermissions.RunRead, HealthPermissions.RunUpdate,
+        HealthPermissions.ProviderRead, HealthPermissions.ProviderUpdate,
         BillingPermissions.AccountRead, BillingPermissions.InvoiceRead, PaymentPermissions.PaymentRead, PaymentPermissions.PayoutRead, PaymentPermissions.PayoutCreate,
         PaymentPermissions.PayoutRelease, PaymentPermissions.CallbackEndpointUpdate, FinancePermissions.JournalRead, FinancePermissions.PeriodUpdate,
         WorkflowPermissions.ApprovalRead, WorkflowPermissions.ApprovalApprove, IntegrationPermissions.DeadLetterRead, PartyPermissions.PartyCreate,
@@ -641,6 +642,89 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         (await Member(spouse)).ShouldBe("360.00/100.00/40.00");
         (await Member(principal)).ShouldBe("360.00/100.00/40.00");
         (await Family()).ShouldBe(720m);
+    }
+
+    /// <summary>
+    /// F028 to F030 (Wave 5a batch 5a.1): last month's claims give a provider its measures. A breach asks a person to look and
+    /// changes nothing about the provider; a month with too few claims is shown but not judged. A provider's statement is matched
+    /// against its paid claims, and is reconciled once a person has resolved each exception with a reason.
+    /// </summary>
+    [Fact]
+    public async Task AProvidersMonth_IsMeasuredAndABreachAsksAPerson_AndItsStatementIsMatchedAndReconciled_F028_F029_F030()
+    {
+        await Seed("health.cfg_provider_measures", "EFFECTIVE", "PM-REJECT", ("measure_code", "REJECTION_RATE"), ("threshold", 0.25m), ("direction", "ABOVE"), ("min_claims", 2));
+        await Seed("health.cfg_provider_measures", "EFFECTIVE", "PM-DISPUTES", ("measure_code", "DISPUTES_PER_100"), ("threshold", 1m), ("direction", "ABOVE"), ("min_claims", 100));
+        await Provider();
+        var scheme = await Created("/api/v1/health/schemes", new { sponsorCode = "S-ACME", startDate = Today.AddYears(-1), renewalDate = Today.AddMonths(6), currency = "ZAR" });
+        var principal = await _maker.RegisterPerson("Measured");
+        var membership = await Created("/api/v1/health/memberships", new
+        {
+            principalPartyId = principal, schemeId = scheme, memberCategory = "ALL_STAFF", planCode = "HLT-CORE", optionCode = "A", startDate = Today.AddMonths(-6),
+            currency = "ZAR", collectionMethod = "DEBIT_ORDER", facts = new { employment_type = "PERMANENT" },
+        });
+        await _factory.DrainOutbox();
+        async Task<Guid> Visit(int daysAgo) => await Created("/api/v1/health/claims", new
+        {
+            source = "PROVIDER", providerId = "PR-1", membershipId = membership, patientPartyId = principal, serviceDate = Today.AddDays(-daysAgo),
+            formatCode = "API", currency = "ZAR", lines = new[] { new { tariffCode = "0190", quantity = 1, claimedAmount = 500m } },
+        });
+        var paid = await Visit(1);
+        var other = await Visit(2);
+        var rejected = await Visit(3);
+        (await _maker.PostAsync($"/api/v1/health/claims/{rejected}/validate", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await _maker.PostAsJsonAsync($"/api/v1/health/claims/{rejected}/reject", new { reason = "NOT_COVERED" })).StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        // Last month's, as the job reads them, and two of them paid.
+        var month = Today.AddMonths(-1);
+        var monthKey = $"{month:yyyy-MM}";
+        await _db.ExecuteAsOwner("UPDATE health.medical_claim SET submitted_at = @at WHERE membership_id = @m", ("at", new DateTimeOffset(month.Year, month.Month, 15, 10, 0, 0, TimeSpan.Zero)), ("m", membership));
+        await _db.ExecuteAsOwner("UPDATE health.medical_claim SET status = 'PAID', total_paid = 500 WHERE id IN (@a, @b)", ("a", paid), ("b", other));
+
+        await _factory.Services.GetRequiredService<Insys.Health.Infrastructure.HealthJobs>().Run(CancellationToken.None);
+        await _factory.DrainOutbox();
+        var measures = (await Get($"/api/v1/health/providers/PR-1/measures?monthKey={monthKey}")).GetProperty("items").EnumerateArray().ToDictionary(m => m.GetProperty("measureCode").GetString()!);
+        measures.Count.ShouldBe(6);
+        (measures["CLAIMS_SUBMITTED"].GetProperty("value").GetDecimal(), measures["AVERAGE_PAID"].GetProperty("value").GetDecimal()).ShouldBe((3m, 500m));
+        var rate = measures["REJECTION_RATE"];
+        (rate.GetProperty("value").GetDecimal(), rate.GetProperty("judged").GetBoolean(), rate.GetProperty("breached").GetBoolean()).ShouldBe((0.3333m, true, true));
+        (measures["DISPUTES_PER_100"].GetProperty("judged").GetBoolean(), measures["DISPUTES_PER_100"].GetProperty("breached").GetBoolean()).ShouldBe((false, false), "too few claims to judge");
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM workflow.process_instance WHERE process_code = 'HEALTH_PROVIDER_MEASURE_REVIEW' AND business_ref_id = @r",
+            ("r", rate.GetProperty("id").GetGuid()))).ShouldBe(1L, "a person is asked to look");
+
+        // Run again: the month is measured once.
+        await _factory.Services.GetRequiredService<Insys.Health.Infrastructure.HealthJobs>().Run(CancellationToken.None);
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM health.provider_measure_result WHERE provider_id = 'PR-1' AND month_key = @k", ("k", monthKey))).ShouldBe(6L);
+
+        // A person's review, with a score and a reason.
+        (await _maker.Send(HttpMethod.Post, "/api/v1/health/providers/PR-1/quality-reviews", new { score = 6, reason = "Too high" }, idempotent: true)).StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+        (await _maker.Send(HttpMethod.Post, "/api/v1/health/providers/PR-1/quality-reviews", new { score = 2, reason = "Late submissions" }, idempotent: true)).StatusCode.ShouldBe(HttpStatusCode.Created);
+        (await Get("/api/v1/health/providers/PR-1/quality-reviews")).GetProperty("items")[0].GetProperty("score").GetInt32().ShouldBe(2);
+
+        // The statement: one claim agrees, one INSYS has no record of, and the other paid claim is left out.
+        var paidNumber = (await Get($"/api/v1/health/claims/{paid}")).GetProperty("claimNumber").GetString();
+        var otherNumber = (await Get($"/api/v1/health/claims/{other}")).GetProperty("claimNumber").GetString();
+        var csv = $"claim_number,amount\n{paidNumber},500.00\nMC-UNKNOWN,120.00\n";
+        var body = new { providerId = "PR-1", statementRef = "ST-1", periodFrom = Today.AddDays(-10), periodTo = Today, currency = "ZAR", csv };
+        var imported = await _maker.Send(HttpMethod.Post, "/api/v1/health/provider-statements/import", body, idempotent: true);
+        imported.StatusCode.ShouldBe(HttpStatusCode.Created, await imported.Content.ReadAsStringAsync());
+        var statement = await imported.Json();
+        statement.GetProperty("status").GetString().ShouldBe("EXCEPTIONS");
+        var lines = statement.GetProperty("lines").EnumerateArray().ToDictionary(l => l.GetProperty("reference").GetString()!, l => l);
+        lines[paidNumber!].GetProperty("matchResult").GetString().ShouldBe("MATCHED");
+        lines["MC-UNKNOWN"].GetProperty("matchResult").GetString().ShouldBe("NOT_ON_OUR_RECORDS");
+        lines[otherNumber!].GetProperty("matchResult").GetString().ShouldBe("NOT_ON_STATEMENT");
+        (await (await _maker.Send(HttpMethod.Post, "/api/v1/health/provider-statements/import", body, idempotent: true)).Code()).ShouldBe("PROVIDER_STATEMENT_DUPLICATE");
+        var id = statement.GetProperty("id").GetGuid();
+        foreach (var reference in new[] { "MC-UNKNOWN", otherNumber! })
+        {
+            var current = await _maker.GetAsync($"/api/v1/health/provider-statements/{id}");
+            var resolved = await _maker.Send(HttpMethod.Post, $"/api/v1/health/provider-statements/{id}/lines/{lines[reference].GetProperty("id").GetGuid()}/resolve",
+                new { reason = "Agreed with the provider" }, ifMatch: current.ETag());
+            resolved.StatusCode.ShouldBe(HttpStatusCode.OK, await resolved.Content.ReadAsStringAsync());
+        }
+
+        (await Get($"/api/v1/health/provider-statements/{id}")).GetProperty("status").GetString().ShouldBe("RECONCILED");
+        (await _db.ScalarAsOwner<decimal>("SELECT total_paid FROM health.medical_claim WHERE id = @c", ("c", other))).ShouldBe(500m, "reconciling changes no payment");
     }
 
     /// <summary>

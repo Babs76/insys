@@ -94,6 +94,8 @@ public static class WorkflowInfrastructure
         services.AddIntegrationEventHandler<General.Contracts.GeneralRetentionCaseOpened, GeneralRetentionTasks, WorkflowDbContext>(schema, "Opened"); // F026
         services.AddIntegrationEventHandler<General.Contracts.GeneralRetentionCaseClosed, GeneralRetentionTasks, WorkflowDbContext>(schema, "Closed");
         services.AddIntegrationEventHandler<Health.Contracts.MembershipArrearsCleared, HealthArrearsTerminationTasks, WorkflowDbContext>(schema, "Cleared");
+        services.AddIntegrationEventHandler<Health.Contracts.ProviderMeasureBreached, ProviderMeasureReviewTasks, WorkflowDbContext>(schema); // F028
+        services.AddSingleton<Contracts.IProviderCaseCounts, Persistence.ProviderCaseCounts>(); // F029
 
         services.AddSingleton<WorkflowJobs>();
         services.AddSingleton<CaseTimelineJobs>();

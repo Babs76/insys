@@ -1413,6 +1413,51 @@
      "sample": "14"
     }
    ]
+  },
+  {
+   "layer": "Domain",
+   "module": "Health claims",
+   "subModule": "Provider monitoring",
+   "entity": "Provider measures",
+   "table": "health.cfg_provider_measures",
+   "class": "CFG",
+   "scope": "T",
+   "tier": 2,
+   "proposedOwner": "Provider Network Manager",
+   "provenance": "Wave 5a addendum (addenda/providers-and-care.md), signed off by Ade, 30 October 2026",
+   "basis": "F028, F029; OQ-141",
+   "fields": [
+    {
+     "name": "measure_code",
+     "logicalType": "Enum{CLAIMS_SUBMITTED,REJECTION_RATE,AVERAGE_PAID,DECISION_DAYS,REPEAT_SERVICE_RATE,DISPUTES_PER_100}",
+     "mandatory": true,
+     "sample": "REJECTION_RATE"
+    },
+    {
+     "name": "provider_type",
+     "logicalType": "String(40)",
+     "mandatory": false,
+     "sample": "GP"
+    },
+    {
+     "name": "threshold",
+     "logicalType": "Decimal",
+     "mandatory": true,
+     "sample": "0.25"
+    },
+    {
+     "name": "direction",
+     "logicalType": "Enum{ABOVE,BELOW}",
+     "mandatory": true,
+     "sample": "ABOVE"
+    },
+    {
+     "name": "min_claims",
+     "logicalType": "Integer",
+     "mandatory": true,
+     "sample": "20"
+    }
+   ]
   }
  ]
 }

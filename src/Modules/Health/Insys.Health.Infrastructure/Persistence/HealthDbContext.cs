@@ -63,6 +63,12 @@ public sealed class HealthDbContext(DbContextOptions<HealthDbContext> options, M
 
     public DbSet<UtilisationCase> UtilisationCases => Set<UtilisationCase>();
 
+    public DbSet<Domain.Providers.ProviderMeasureResult> ProviderMeasureResults => Set<Domain.Providers.ProviderMeasureResult>();
+
+    public DbSet<Domain.Providers.ProviderQualityReview> ProviderQualityReviews => Set<Domain.Providers.ProviderQualityReview>();
+
+    public DbSet<Domain.Providers.ProviderStatement> ProviderStatements => Set<Domain.Providers.ProviderStatement>();
+
     public DbSet<HealthFraudCase> FraudCases => Set<HealthFraudCase>();
 
     public DbSet<ProviderPaymentRun> Runs => Set<ProviderPaymentRun>();
@@ -225,6 +231,50 @@ public sealed class HealthDbContext(DbContextOptions<HealthDbContext> options, M
             line.Property(l => l.DeductibleAmount).HasPrecision(18, 2);
             line.Property(l => l.MemberLiability).HasPrecision(18, 2);
             line.Property(l => l.Outcome).HasMaxLength(10);
+        });
+
+        modelBuilder.Entity<Domain.Providers.ProviderMeasureResult>(result =>
+        {
+            result.ToTable("provider_measure_result"); // Wave 5a §4.1, F028
+            Root(result);
+            result.Property(r => r.ProviderId).HasMaxLength(15);
+            result.Property(r => r.MonthKey).HasMaxLength(7).IsFixedLength();
+            result.Property(r => r.MeasureCode).HasMaxLength(25);
+            result.Property(r => r.Value).HasPrecision(18, 4);
+            result.Property(r => r.Threshold).HasPrecision(18, 4);
+            result.Property(r => r.IsBreached).HasColumnName("breached");
+        });
+
+        modelBuilder.Entity<Domain.Providers.ProviderQualityReview>(review =>
+        {
+            review.ToTable("provider_quality_review"); // F029
+            Root(review);
+            review.Property(r => r.ProviderId).HasMaxLength(15);
+            review.Property(r => r.Reason).HasMaxLength(500);
+        });
+
+        modelBuilder.Entity<Domain.Providers.ProviderStatement>(statement =>
+        {
+            statement.ToTable("provider_statement"); // F030
+            Root(statement);
+            statement.Property(s => s.ProviderId).HasMaxLength(15);
+            statement.Property(s => s.StatementRef).HasMaxLength(40);
+            statement.Property(s => s.Currency).HasMaxLength(3).IsFixedLength();
+            statement.Property(s => s.Status).HasMaxLength(10);
+            statement.HasMany(s => s.Lines).WithOne().HasForeignKey(l => new { l.TenantId, l.StatementId });
+            statement.Navigation(s => s.Lines).UsePropertyAccessMode(PropertyAccessMode.Field);
+        });
+
+        modelBuilder.Entity<Domain.Providers.ProviderStatementLine>(line =>
+        {
+            line.ToTable("provider_statement_line");
+            Child(line);
+            line.Ignore(l => l.Open);
+            line.Property(l => l.Reference).HasMaxLength(25);
+            line.Property(l => l.StatementAmount).HasPrecision(18, 2);
+            line.Property(l => l.OurAmount).HasPrecision(18, 2);
+            line.Property(l => l.MatchResult).HasMaxLength(20);
+            line.Property(l => l.Resolution).HasMaxLength(500);
         });
 
         modelBuilder.Entity<UtilisationCase>(utilisation =>
