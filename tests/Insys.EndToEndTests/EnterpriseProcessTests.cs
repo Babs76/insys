@@ -844,8 +844,8 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
             contentBase64 = Convert.ToBase64String("I appoint BRK-4"u8.ToArray()),
         }, idempotent: true);
         letter.StatusCode.ShouldBe(HttpStatusCode.Created, await letter.Content.ReadAsStringAsync());
-        var recorded = await _maker.PostAsJsonAsync($"/api/v1/general/endorsements/{endorsement}/appointment-letter",
-            new { documentId = (await letter.Json()).GetProperty("id").GetGuid() });
+        var recorded = await _maker.Send(HttpMethod.Post, $"/api/v1/general/endorsements/{endorsement}/appointment-letter",
+            new { documentId = (await letter.Json()).GetProperty("id").GetGuid() }, ifMatch: (await _maker.GetAsync($"/api/v1/general/endorsements/{endorsement}")).ETag());
         recorded.StatusCode.ShouldBe(HttpStatusCode.OK, await recorded.Content.ReadAsStringAsync());
         var version = (await _maker.GetAsync($"/api/v1/general/endorsements/{endorsement}")).ETag();
         (await _maker.Send(HttpMethod.Post, $"/api/v1/general/endorsements/{endorsement}/submit", ifMatch: version)).StatusCode.ShouldBe(HttpStatusCode.OK);

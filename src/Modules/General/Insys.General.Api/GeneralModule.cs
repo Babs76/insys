@@ -276,6 +276,7 @@ public sealed class GeneralModule : IModule
         general.MapPost("/endorsements/{id:guid}/appointment-letter", async (Guid id, AppointmentLetterRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new RecordAppointmentLetter(id, r.DocumentId), ct)).ToHttp(Results.Ok))
             .Produces<EndorsementView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
             .WithName("GeneralRecordAppointmentLetter")
             .WithSummary("Record the policyholder's broker appointment letter on a broker of record change, before it is submitted (B-001, Wave 4 addition 3)")
             .WithDescription("documentId is a document filed against the endorsement (businessRefType GENERAL_ENDORSEMENT). An INTERMEDIARY endorsement without it "
