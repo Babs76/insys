@@ -137769,6 +137769,705 @@
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear; after the approval, every line reads APPROVED."
       }
     },
+    "/api/v1/health/static/provider-measures": {
+      "get": {
+        "tags": [
+          "Health static data"
+        ],
+        "summary": "List Provider measures in force",
+        "description": "Provider measures records in force on asAt (default today), tenant rows over global baselines (SDM-008, SDM-015).",
+        "operationId": "ListHealthProviderMeasures",
+        "parameters": [
+          {
+            "name": "asAt",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfHealthProviderMeasures"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_HEALTH_CLAIMS_VIEW"
+        ]
+      },
+      "post": {
+        "tags": [
+          "Health static data"
+        ],
+        "summary": "Create a tenant Provider measures draft",
+        "description": "Creates version 1 of a new code, or the next version of an existing one. The caller is the maker.",
+        "operationId": "CreateHealthProviderMeasuresDraft",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealthProviderMeasuresInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthProviderMeasures"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_HEALTH_CLAIMS_MAINTAIN"
+        ]
+      }
+    },
+    "/api/v1/health/static/provider-measures/{code}": {
+      "get": {
+        "tags": [
+          "Health static data"
+        ],
+        "summary": "Get the Provider measures version in force",
+        "operationId": "GetHealthProviderMeasures",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "asAt",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthProviderMeasures"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_HEALTH_CLAIMS_VIEW"
+        ]
+      }
+    },
+    "/api/v1/health/static/provider-measures/{code}/versions": {
+      "get": {
+        "tags": [
+          "Health static data"
+        ],
+        "summary": "List every tenant version of a Provider measures code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
+        "operationId": "ListHealthProviderMeasuresVersions",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HealthProviderMeasures"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_HEALTH_CLAIMS_VIEW"
+        ]
+      }
+    },
+    "/api/v1/health/static/provider-measures/{code}/versions/{versionNumber}": {
+      "put": {
+        "tags": [
+          "Health static data"
+        ],
+        "summary": "Edit a tenant Provider measures draft",
+        "description": "Only the maker edits a draft; approved versions are immutable (SDM-002).",
+        "operationId": "EditHealthProviderMeasuresDraft",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealthProviderMeasuresInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthProviderMeasures"
+                }
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_HEALTH_CLAIMS_MAINTAIN"
+        ]
+      }
+    },
+    "/api/v1/health/static/provider-measures/{code}/versions/{versionNumber}/{action}": {
+      "post": {
+        "tags": [
+          "Health static data"
+        ],
+        "summary": "Submit, activate, deprecate or retire a tenant Provider measures version",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
+        "operationId": "ChangeHealthProviderMeasuresLifecycle",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "action",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^(submit|activate|deprecate|retire)$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthProviderMeasures"
+                }
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_HEALTH_CLAIMS_MAINTAIN"
+        ],
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
+      }
+    },
+    "/api/v1/health/static/provider-measures/imports": {
+      "post": {
+        "tags": [
+          "Health static data"
+        ],
+        "summary": "Import tenant Provider measures drafts, all or nothing",
+        "description": "Every line is validated; if any line fails, nothing is saved and each rejected line is reported (SDM-012). The drafts are the import\u0027s lines (BR-016): submit them as one change at /imports/{batchId}/submit, not one by one.",
+        "operationId": "ImportHealthProviderMeasures",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaticDataImportOfHealthProviderMeasuresInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaticDataImportResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_HEALTH_CLAIMS_MAINTAIN"
+        ]
+      }
+    },
+    "/api/v1/health/static/provider-measures/imports/{batchId}": {
+      "get": {
+        "tags": [
+          "Health static data"
+        ],
+        "summary": "Every line of a tenant Provider measures import, in code order",
+        "description": "What the checker approves as one change (BR-016): each line\u0027s proposed record, its status, and its change request once submitted.",
+        "operationId": "GetHealthProviderMeasuresImport",
+        "parameters": [
+          {
+            "name": "batchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HealthProviderMeasures"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_HEALTH_CLAIMS_VIEW"
+        ]
+      }
+    },
+    "/api/v1/health/static/provider-measures/imports/{batchId}/{action}": {
+      "post": {
+        "tags": [
+          "Health static data"
+        ],
+        "summary": "Submit a tenant Provider measures import as one change, or put an approved one in force",
+        "description": "submit (BR-016) returns the submission: every line must be a draft of the caller\u0027s; all go to one change request and one approval of the table\u0027s tier, bound to the hash of the complete import, so any change to a line needs a new approval. The import is approved or rejected as a whole, never partly; a rejection returns every line to draft. activate returns {imported, batchId}: once approved, every line is put in force together. Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear; after the approval, every line reads APPROVED.",
+        "operationId": "ChangeHealthProviderMeasuresImport",
+        "parameters": [
+          {
+            "name": "batchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "action",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^(submit|activate)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaticDataImportSubmissionResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_HEALTH_CLAIMS_MAINTAIN"
+        ],
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear; after the approval, every line reads APPROVED."
+      }
+    },
     "/api/v1/health/static/remittance-advice-formats": {
       "get": {
         "tags": [
@@ -189953,6 +190652,27 @@
           }
         }
       },
+      "CursorPageOfHealthProviderMeasures": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthProviderMeasures"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "CursorPageOfHealthProviderPaymentDetails": {
         "required": [
           "items",
@@ -223707,6 +224427,370 @@
               "null",
               "string"
             ]
+          },
+          "code": {
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "effectiveTo": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "labels": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSource": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSourceVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "externalMappings": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "recordClass": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sortOrder": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "displayFlags": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "changeReason": {
+            "type": "string"
+          }
+        }
+      },
+      "HealthProviderMeasures": {
+        "type": "object",
+        "properties": {
+          "measureCode": {
+            "enum": [
+              "CLAIMS_SUBMITTED",
+              "REJECTION_RATE",
+              "AVERAGE_PAID",
+              "DECISION_DAYS",
+              "REPEAT_SERVICE_RATE",
+              "DISPUTES_PER_100"
+            ],
+            "type": "string"
+          },
+          "providerType": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "threshold": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "direction": {
+            "enum": [
+              "ABOVE",
+              "BELOW"
+            ],
+            "type": "string"
+          },
+          "minClaims": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenantId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "version": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "effectiveFrom": {
+            "type": "string",
+            "format": "date"
+          },
+          "effectiveTo": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "recordStatus": {
+            "enum": [
+              "DRAFT",
+              "VALIDATED",
+              "SUBMITTED",
+              "APPROVED",
+              "PUBLISHED",
+              "EFFECTIVE",
+              "WITHDRAWN",
+              "RETIRED"
+            ],
+            "type": "string"
+          },
+          "supersedesId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "labels": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSource": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSourceVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "externalMappings": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "recordClass": {
+            "type": "string"
+          },
+          "sortOrder": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "displayFlags": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "changeRequestId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "importBatchId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "approvedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "approvedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "changeReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "displayLabel": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "displayLabelLanguage": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "HealthProviderMeasuresInput": {
+        "required": [
+          "measureCode",
+          "threshold",
+          "direction",
+          "minClaims",
+          "code",
+          "changeReason"
+        ],
+        "type": "object",
+        "properties": {
+          "measureCode": {
+            "enum": [
+              "CLAIMS_SUBMITTED",
+              "REJECTION_RATE",
+              "AVERAGE_PAID",
+              "DECISION_DAYS",
+              "REPEAT_SERVICE_RATE",
+              "DISPUTES_PER_100",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "providerType": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "threshold": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "direction": {
+            "enum": [
+              "ABOVE",
+              "BELOW",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "minClaims": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           },
           "code": {
             "type": "string"
@@ -268682,6 +269766,24 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/HealthProviderContractsInput"
+            }
+          }
+        }
+      },
+      "StaticDataImportOfHealthProviderMeasuresInput": {
+        "required": [
+          "fileRef",
+          "lines"
+        ],
+        "type": "object",
+        "properties": {
+          "fileRef": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthProviderMeasuresInput"
             }
           }
         }

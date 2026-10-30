@@ -10,7 +10,7 @@ What changed in the API contract, newest first, so the front end can sync. The O
 - **`GET`, `POST /health/providers/{providerId}/quality-reviews`**: `score` 1 to 5, `reason`.
 - **`GET`, `POST /health/provider-statements`, `GET /health/provider-statements/{id}`, `POST /health/provider-statements/import`** (`csv`: a header `claim_number,amount`, then one line per claim, OQ-142), **`POST /health/provider-statements/{id}/lines/{lineId}/resolve`** (`reason`, If-Match). Lines have `matchResult`: `MATCHED`, `AMOUNT_DIFFERS`, `NOT_ON_OUR_RECORDS`, `NOT_ON_STATEMENT`. Status: `EXCEPTIONS`, `RECONCILED`. Error `PROVIDER_STATEMENT_DUPLICATE`.
 - **Permissions** `health_provider.read`, `health_provider.update`. **Screens** `HEALTH_PROVIDER_PERFORMANCE`, `HEALTH_PROVIDER_STATEMENTS`.
-- **Workflow task** `REVIEW_PROVIDER_MEASURE` (process `HEALTH_PROVIDER_MEASURE_REVIEW`, reference `HEALTH_PROVIDER_MEASURE`) on a breach. Its queue comes from the task type's routing. **Event** `health.ProviderMeasureBreached`.
+- **Workflow task** `REVIEW_MEASURE` (process `HEALTH_PROVIDER_MEASURE_REVIEW`, reference `HEALTH_PROVIDER_MEASURE`) on a breach. Its queue comes from the task type's routing. **Event** `health.ProviderMeasureBreached`.
 - **Readiness warning `PROVIDER_MEASURES`** (`DOMAIN_REFERENCE_DATA`, advisory).
 
 ### Changed behaviour

@@ -29531,6 +29531,659 @@
         ]
       }
     },
+    "/api/v1/health/providers/{providerId}/measures": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "A provider\u0027s measures by month, with whether each was judged and breached (F028)",
+        "operationId": "HealthListProviderMeasures",
+        "parameters": [
+          {
+            "name": "providerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "monthKey",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfHealthProviderMeasureView"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "health_provider.read",
+        "x-function": [
+          "HEALTH_PROVIDER_PERFORMANCE"
+        ]
+      }
+    },
+    "/api/v1/health/providers/{providerId}/quality-reviews": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "A provider\u0027s quality reviews (F029)",
+        "operationId": "HealthListProviderQualityReviews",
+        "parameters": [
+          {
+            "name": "providerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfHealthProviderQualityReviewView"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "health_provider.read",
+        "x-function": [
+          "HEALTH_PROVIDER_PERFORMANCE"
+        ]
+      },
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Record a scored review of a provider, 1 to 5, with a reason (F029)",
+        "operationId": "HealthRecordProviderQualityReview",
+        "parameters": [
+          {
+            "name": "providerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealthProviderQualityReviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthProviderQualityReviewView"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          }
+        },
+        "x-permission": "health_provider.update",
+        "x-function": [
+          "HEALTH_RECORD_PROVIDER_QUALITY_REVIEW"
+        ]
+      }
+    },
+    "/api/v1/health/provider-statements": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Providers\u0027 statements, by provider or status (F030)",
+        "operationId": "HealthListProviderStatements",
+        "parameters": [
+          {
+            "name": "providerId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfHealthProviderStatementSummary"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "health_provider.read",
+        "x-function": [
+          "HEALTH_PROVIDER_STATEMENTS"
+        ]
+      },
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Enter a provider\u0027s statement; each line is matched at once against its paid claims (F030)",
+        "operationId": "HealthSubmitProviderStatement",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealthSubmitProviderStatement"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthProviderStatementView"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          }
+        },
+        "x-permission": "health_provider.update",
+        "x-function": [
+          "HEALTH_SUBMIT_PROVIDER_STATEMENT"
+        ]
+      }
+    },
+    "/api/v1/health/provider-statements/{id}": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "A statement with each line\u0027s match result and resolution (F030)",
+        "operationId": "HealthGetProviderStatement",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthProviderStatementView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "health_provider.read",
+        "x-function": [
+          "HEALTH_PROVIDER_STATEMENTS"
+        ]
+      }
+    },
+    "/api/v1/health/provider-statements/import": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "The same from CSV text in the fixed layout: a header claim_number,amount, then one line per claim (OQ-142)",
+        "operationId": "HealthImportProviderStatement",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealthImportProviderStatement"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthProviderStatementView"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          }
+        },
+        "x-permission": "health_provider.update",
+        "x-function": [
+          "HEALTH_IMPORT_PROVIDER_STATEMENT"
+        ]
+      }
+    },
+    "/api/v1/health/provider-statements/{id}/lines/{lineId}/resolve": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Resolve an exception with a reason; the statement is RECONCILED when none is open. It changes no payment (F030)",
+        "operationId": "HealthResolveStatementLine",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "lineId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealthReasonRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthProviderStatementView"
+                }
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "health_provider.update",
+        "x-function": [
+          "HEALTH_RESOLVE_STATEMENT_LINE"
+        ]
+      }
+    },
     "/api/v1/portal/health/memberships": {
       "get": {
         "tags": [
@@ -36227,7 +36880,10 @@
                 "PrivilegedAccessGrant",
                 "ProcessInstance",
                 "ProductVersion",
+                "ProviderMeasureResult",
                 "ProviderPaymentRun",
+                "ProviderQualityReview",
+                "ProviderStatement",
                 "ReconciliationException",
                 "RecordHold",
                 "RecoveryCase",
@@ -36374,6 +37030,7 @@
                 "cfg_product_eligibility_criter",
                 "cfg_product_template_assignmen",
                 "cfg_provider_contracts",
+                "cfg_provider_measures",
                 "cfg_question_bank_and_question",
                 "cfg_quote_validity_periods",
                 "cfg_rate_limit_policies",
@@ -36678,7 +37335,10 @@
                 "PrivilegedAccessGrant",
                 "ProcessInstance",
                 "ProductVersion",
+                "ProviderMeasureResult",
                 "ProviderPaymentRun",
+                "ProviderQualityReview",
+                "ProviderStatement",
                 "ReconciliationException",
                 "RecordHold",
                 "RecoveryCase",
@@ -36825,6 +37485,7 @@
                 "cfg_product_eligibility_criter",
                 "cfg_product_template_assignmen",
                 "cfg_provider_contracts",
+                "cfg_provider_measures",
                 "cfg_question_bank_and_question",
                 "cfg_quote_validity_periods",
                 "cfg_rate_limit_policies",
@@ -41570,6 +42231,69 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/HealthPreauthorisationSummary"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CursorPageOfHealthProviderMeasureView": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthProviderMeasureView"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CursorPageOfHealthProviderQualityReviewView": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthProviderQualityReviewView"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CursorPageOfHealthProviderStatementSummary": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthProviderStatementSummary"
             }
           },
           "nextCursor": {
@@ -48751,6 +49475,39 @@
           "Concluded"
         ]
       },
+      "HealthImportProviderStatement": {
+        "required": [
+          "providerId",
+          "statementRef",
+          "periodFrom",
+          "periodTo",
+          "currency",
+          "csv"
+        ],
+        "type": "object",
+        "properties": {
+          "providerId": {
+            "type": "string"
+          },
+          "statementRef": {
+            "type": "string"
+          },
+          "periodFrom": {
+            "type": "string",
+            "format": "date"
+          },
+          "periodTo": {
+            "type": "string",
+            "format": "date"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "csv": {
+            "type": "string"
+          }
+        }
+      },
       "HealthLineAmount": {
         "required": [
           "lineId",
@@ -50325,6 +51082,298 @@
           }
         }
       },
+      "HealthProviderMeasureView": {
+        "required": [
+          "id",
+          "providerId",
+          "monthKey",
+          "measureCode",
+          "value",
+          "claimCount",
+          "threshold",
+          "judged",
+          "breached"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "providerId": {
+            "type": "string"
+          },
+          "monthKey": {
+            "type": "string"
+          },
+          "measureCode": {
+            "enum": [
+              "CLAIMS_SUBMITTED",
+              "REJECTION_RATE",
+              "AVERAGE_PAID",
+              "DECISION_DAYS",
+              "REPEAT_SERVICE_RATE",
+              "DISPUTES_PER_100"
+            ],
+            "type": "string"
+          },
+          "value": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "claimCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "threshold": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "judged": {
+            "type": "boolean"
+          },
+          "breached": {
+            "type": "boolean"
+          }
+        }
+      },
+      "HealthProviderQualityReviewRequest": {
+        "required": [
+          "score",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "score": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "HealthProviderQualityReviewView": {
+        "required": [
+          "id",
+          "providerId",
+          "reviewedOn",
+          "score",
+          "reason",
+          "reviewedBy"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "providerId": {
+            "type": "string"
+          },
+          "reviewedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "score": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "reviewedBy": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "HealthProviderStatementLineView": {
+        "required": [
+          "id",
+          "reference",
+          "statementAmount",
+          "ourAmount",
+          "matchResult",
+          "resolution",
+          "resolvedBy",
+          "resolvedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reference": {
+            "type": "string"
+          },
+          "statementAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "ourAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "matchResult": {
+            "enum": [
+              "MATCHED",
+              "AMOUNT_DIFFERS",
+              "NOT_ON_OUR_RECORDS",
+              "NOT_ON_STATEMENT"
+            ],
+            "type": "string"
+          },
+          "resolution": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "resolvedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "resolvedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "HealthProviderStatementSummary": {
+        "required": [
+          "id",
+          "providerId",
+          "statementRef",
+          "periodFrom",
+          "periodTo",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "providerId": {
+            "type": "string"
+          },
+          "statementRef": {
+            "type": "string"
+          },
+          "periodFrom": {
+            "type": "string",
+            "format": "date"
+          },
+          "periodTo": {
+            "type": "string",
+            "format": "date"
+          },
+          "status": {
+            "enum": [
+              "EXCEPTIONS",
+              "RECONCILED"
+            ],
+            "type": "string"
+          }
+        }
+      },
+      "HealthProviderStatementView": {
+        "required": [
+          "id",
+          "providerId",
+          "statementRef",
+          "periodFrom",
+          "periodTo",
+          "currency",
+          "status",
+          "lines",
+          "rowVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "providerId": {
+            "type": "string"
+          },
+          "statementRef": {
+            "type": "string"
+          },
+          "periodFrom": {
+            "type": "string",
+            "format": "date"
+          },
+          "periodTo": {
+            "type": "string",
+            "format": "date"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "EXCEPTIONS",
+              "RECONCILED"
+            ],
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthProviderStatementLineView"
+            }
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          }
+        }
+      },
       "HealthReasonRequest": {
         "required": [
           "reason"
@@ -50591,6 +51640,26 @@
           }
         }
       },
+      "HealthStatementLineInput": {
+        "required": [
+          "reference",
+          "amount"
+        ],
+        "type": "object",
+        "properties": {
+          "reference": {
+            "type": "string"
+          },
+          "amount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          }
+        }
+      },
       "HealthSubmitMedicalClaim": {
         "required": [
           "source",
@@ -50643,6 +51712,42 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/HealthClaimLineRequest"
+            }
+          }
+        }
+      },
+      "HealthSubmitProviderStatement": {
+        "required": [
+          "providerId",
+          "statementRef",
+          "periodFrom",
+          "periodTo",
+          "currency",
+          "lines"
+        ],
+        "type": "object",
+        "properties": {
+          "providerId": {
+            "type": "string"
+          },
+          "statementRef": {
+            "type": "string"
+          },
+          "periodFrom": {
+            "type": "string",
+            "format": "date"
+          },
+          "periodTo": {
+            "type": "string",
+            "format": "date"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthStatementLineInput"
             }
           }
         }

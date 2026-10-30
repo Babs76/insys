@@ -143,8 +143,8 @@ public static class BuiltInProcesses
         [new TransitionDefinition("KEEP_POLICY", "CLOSED", null)], null);
 
     /// <summary>F028: a provider's month is past a measure's threshold: a person looks. It changes nothing about the provider by itself.</summary>
-    public static readonly ProcessDefinition ProviderMeasureReview = new("HEALTH_PROVIDER_MEASURE_REVIEW", 1, ["REVIEW_PROVIDER_MEASURE", "REVIEWED"],
-        [new TransitionDefinition("REVIEW_PROVIDER_MEASURE", "REVIEWED", null)], null);
+    public static readonly ProcessDefinition ProviderMeasureReview = new("HEALTH_PROVIDER_MEASURE_REVIEW", 1, ["REVIEW_MEASURE", "REVIEWED"],
+        [new TransitionDefinition("REVIEW_MEASURE", "REVIEWED", null)], null);
 
     public static ProcessDefinition? Find(string processCode, int? version) =>
         new[] { ParkedDelivery, ConfigurationReview, HeldClaimPayment, PartyMatchReview, AggregationReview, ApprovalFollowUp, GeneralReferral, DueDiligenceHitReview,
