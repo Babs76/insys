@@ -588,7 +588,11 @@ internal sealed class MedicalClaimDecisions(IHealthRepository health, ClaimsFram
             return rejected.IsFailure ? rejected : await rights.Notice(c, command.Reason, cancellationToken); // OQ-102
         }, cancellationToken);
 
-    /// <summary>Command ReverseClaim: the claim's consumption is given back on the accumulators covering its service date (same transaction, ADR-012).</summary>
+    /// <summary>
+    /// Command ReverseClaim: the claim's consumption is given back in the same transaction (ADR-012), on the accumulators it
+    /// consumed: the patient's own and the family's, never another dependant's. Its deductible and co-payment go back on the
+    /// patient's year accumulator, where the engine tracks them, even for a line the deductible absorbed whole.
+    /// </summary>
     public Task<Result<MedicalClaimView>> Handle(ReverseMedicalClaim command, CancellationToken cancellationToken) =>
         Apply(command.ClaimId, "ReverseClaim", async (claim, _) =>
         {
@@ -599,11 +603,19 @@ internal sealed class MedicalClaimDecisions(IHealthRepository health, ClaimsFram
                 return reversed;
             }
 
-            foreach (var line in claim.Lines.Where(l => l.PaidAmount > 0 && l.BenefitCategory is not null))
+            foreach (var line in claim.Lines.Where(l => (l.PaidAmount > 0 || l.DeductibleAmount > 0 || l.CopayAmount > 0) && l.BenefitCategory is not null))
             {
                 foreach (var accumulator in await health.AccumulatorsCovering(claim.MembershipId, line.BenefitCategory!, claim.ServiceDate, cancellationToken))
                 {
-                    accumulator.ReverseConsumption(line.PaidAmount);
+                    var own = accumulator.Scope == AccumulatorScope.Member && accumulator.BeneficiaryPartyId == claim.PatientPartyId;
+                    if (own && accumulator.PeriodEnd != BenefitPeriods.LifetimeEnd)
+                    {
+                        accumulator.ReverseConsumption(line.PaidAmount, line.DeductibleAmount, line.CopayAmount);
+                    }
+                    else if (own || accumulator.Scope == AccumulatorScope.Family)
+                    {
+                        accumulator.ReverseConsumption(line.PaidAmount);
+                    }
                 }
             }
 

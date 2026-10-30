@@ -118,6 +118,20 @@ public sealed class HealthTests
     }
 
     [Fact]
+    public void ReversingConsumption_GivesBackUseDeductibleAndCopayment_NeverBelowZero()
+    {
+        var key = new AccumulatorKey(AccumulatorScope.Member, Principal, "SPECIALIST", new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31));
+        var accumulator = BenefitAccumulator.OpenNewPeriod(Guid.CreateVersion7(), Guid.CreateVersion7(), key, 1_000m);
+        accumulator.ConsumeBenefit(new AccumulatorChange(key, 1_000m, 360m, 0, 100m, 40m), DateTimeOffset.UtcNow).IsSuccess.ShouldBeTrue();
+
+        accumulator.ReverseConsumption(360m, 100m, 40m);
+        (accumulator.UsedAmount, accumulator.DeductibleMet, accumulator.CopayTaken).ShouldBe((0m, 0m, 0m));
+
+        accumulator.ReverseConsumption(1m, 1m, 1m);
+        (accumulator.UsedAmount, accumulator.DeductibleMet, accumulator.CopayTaken).ShouldBe((0m, 0m, 0m));
+    }
+
+    [Fact]
     public void Accumulator_UsedPlusReservedNeverExceedsTheLimit_HLT007()
     {
         var key = new AccumulatorKey(AccumulatorScope.Member, Principal, "SPECIALIST", new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31));

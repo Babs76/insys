@@ -2,6 +2,11 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
+## Defect: a reversal gives back the right accumulators (branch `fix-accumulator-giveback`)
+
+### Changed behaviour
+- **`POST /health/claims/{id}/reverse`** now also gives back the claim's deductible and co-payment, and changes only the patient's own and the family's accumulators. No request or response changes. A dependant's accumulators no longer drop when someone else's claim is reversed.
+
 ## Wave 5, B-010 (branch `wave5-b010`): both brokers are told of a broker of record change
 
 ### New

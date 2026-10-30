@@ -576,6 +576,74 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
     }
 
     /// <summary>
+    /// A reversal gives back what the claim consumed: the deductible and co-payment too, on the patient's accumulators and the
+    /// family's, never another dependant's. A reprocessed claim for the same service then takes them again, and is no duplicate.
+    /// </summary>
+    [Fact]
+    public async Task AReversedClaim_GivesBackDeductibleAndCopayment_OnItsOwnAndTheFamilysAccumulators_AndAReprocessedClaimTakesThemAgain()
+    {
+        await Seed("health.cfg_co_payment_and_deductible_rules", "EFFECTIVE", "DED-GP", ("rule_code", "DED-GP"), ("benefit", "GP_VISITS"), ("type", "AMOUNT"),
+            ("value", 100m), ("network_status", "IN_NETWORK"), ("rule_kind", "DEDUCTIBLE"), ("cap_basis", "PER_LINE"));
+        await Seed("health.cfg_co_payment_and_deductible_rules", "EFFECTIVE", "CP-GP", ("rule_code", "CP-GP"), ("benefit", "GP_VISITS"), ("type", "PERCENT"),
+            ("value", 10m), ("network_status", "IN_NETWORK"), ("cap", 40m), ("rule_kind", "CO_PAYMENT"), ("cap_basis", "PER_YEAR"));
+        await Provider();
+        var scheme = await Created("/api/v1/health/schemes", new { sponsorCode = "S-ACME", startDate = Today.AddYears(-1), renewalDate = Today.AddMonths(6), currency = "ZAR" });
+        var principal = await _maker.RegisterPerson("Giveback");
+        var spouse = await _maker.RegisterPerson("GivebackSpouse");
+        var membership = await Created("/api/v1/health/memberships", new
+        {
+            principalPartyId = principal, schemeId = scheme, memberCategory = "ALL_STAFF", planCode = "HLT-CORE", optionCode = "A", startDate = Today.AddMonths(-6),
+            currency = "ZAR", collectionMethod = "DEBIT_ORDER", facts = new { employment_type = "PERMANENT" },
+        });
+        (await _maker.Send(HttpMethod.Post, $"/api/v1/health/memberships/{membership}/dependants",
+            new { partyId = spouse, dependantType = "SPOUSE", student = false, startDate = Today.AddMonths(-6) }, idempotent: true)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        await _factory.DrainOutbox();
+
+        async Task<Guid> Visit(Guid patient, int daysAgo)
+        {
+            var claim = await Created("/api/v1/health/claims", new
+            {
+                source = "PROVIDER", providerId = "PR-1", membershipId = membership, patientPartyId = patient, serviceDate = Today.AddDays(-daysAgo),
+                formatCode = "API", currency = "ZAR", lines = new[] { new { tariffCode = "0190", quantity = 1, claimedAmount = 500m } },
+            });
+            (await _maker.PostAsync($"/api/v1/health/claims/{claim}/validate", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+            var adjudicated = await _maker.PostAsync($"/api/v1/health/claims/{claim}/adjudicate", null);
+            adjudicated.StatusCode.ShouldBe(HttpStatusCode.OK, await adjudicated.Content.ReadAsStringAsync());
+            (await adjudicated.Json()).GetProperty("status").GetString().ShouldBe("Adjudicated", "neither a duplicate nor a repeat");
+            return claim;
+        }
+
+        Task<string?> Member(Guid patient) => _db.ScalarAsOwner<string>("""
+            SELECT used_amount::numeric(18,2) || '/' || deductible_met::numeric(18,2) || '/' || copay_taken::numeric(18,2) FROM health.benefit_accumulator
+            WHERE membership_id = @m AND benefit_category = 'GP_VISITS' AND scope = 'MEMBER' AND beneficiary_party_id = @p
+            """, ("m", membership), ("p", patient));
+        Task<decimal> Family() => _db.ScalarAsOwner<decimal>(
+            "SELECT used_amount FROM health.benefit_accumulator WHERE membership_id = @m AND benefit_category = 'GP_VISITS' AND scope = 'FAMILY'", ("m", membership));
+
+        // 500 less the deductible of 100, less 10% of the 400 (40, the year's cap): 360 paid.
+        await Visit(principal, 1);
+        var original = await Visit(spouse, 1);
+        (await Member(principal)).ShouldBe("360.00/100.00/40.00");
+        (await Member(spouse)).ShouldBe("360.00/100.00/40.00");
+        (await Family()).ShouldBe(720m);
+
+        // Paid (the run is covered by the flow above), then reversed.
+        await _db.ExecuteAsOwner("UPDATE health.medical_claim SET status = 'PAID' WHERE id = @c", ("c", original));
+        var reversed = await _maker.PostAsJsonAsync($"/api/v1/health/claims/{original}/reverse", new { reason = "BILLED_IN_ERROR" });
+        reversed.StatusCode.ShouldBe(HttpStatusCode.OK, await reversed.Content.ReadAsStringAsync());
+        (await Member(spouse)).ShouldBe("0.00/0.00/0.00", "the patient's own are given back");
+        (await Member(principal)).ShouldBe("360.00/100.00/40.00", "another person's individual limit is not touched");
+        (await Family()).ShouldBe(360m, "the family limit is shared, and given back");
+
+        // Reprocessed: the same service, on a new claim, takes them again in full.
+        var reprocessed = await Visit(spouse, 1);
+        (await _db.ScalarAsOwner<decimal>("SELECT total_paid FROM health.medical_claim WHERE id = @c", ("c", reprocessed))).ShouldBe(360m);
+        (await Member(spouse)).ShouldBe("360.00/100.00/40.00");
+        (await Member(principal)).ShouldBe("360.00/100.00/40.00");
+        (await Family()).ShouldBe(720m);
+    }
+
+    /// <summary>
     /// F006 (Wave 4 batch 4.1): contributions unpaid past their due date start grace. A claim for a service from then is held,
     /// not declined, and is adjudicated once they are paid. Still unpaid on the suspension day, the membership is suspended
     /// for arrears and the member told; its held claims are declined. When the notice runs out a person is asked whether to

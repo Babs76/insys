@@ -119,10 +119,12 @@ public sealed class BenefitAccumulator : AggregateRoot<Guid>
         return Result.Success();
     }
 
-    /// <summary>A reversed claim gives back what it consumed.</summary>
-    public void ReverseConsumption(decimal amount)
+    /// <summary>A reversed claim gives back what it consumed, with its deductible and co-payment (tracked on the member's year accumulator).</summary>
+    public void ReverseConsumption(decimal amount, decimal deductible = 0, decimal coPayment = 0)
     {
         UsedAmount -= Math.Min(Math.Max(0, amount), UsedAmount);
+        DeductibleMet -= Math.Min(Math.Max(0, deductible), DeductibleMet);
+        CopayTaken -= Math.Min(Math.Max(0, coPayment), CopayTaken);
         MarkChanged();
     }
 
