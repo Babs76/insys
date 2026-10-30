@@ -102,7 +102,7 @@ Names are proposals. `CFG` is tenant configuration; the others are records.
 - **Collected** per OQ-139: deducted from the provider's next payment runs, oldest first. A run shows gross, offsets and net per remittance, and its approval covers the net with the offsets visible. Offsets never take a remittance below zero. A provider whose net is zero gets a remittance advice and no payment; the balance carries forward.
 - **Not collected.** With no payment for the configured period, the recovery goes to a person, who may invoice the provider (through Billing, OQ-139) or write it off with a second person's approval and a reason. Never dropped.
 - **Reversal.** A recovery raised in error is reversed, not edited. An offset already taken is repaid in the next run.
-- **Ledger.** Finance posts the claim's reversal (closing gap 1), each offset, each write-off and each credit note.
+- **Ledger.** Finance posts the claim's reversal (closing gap 1, as `CLAIM_PAID_REVERSED`: debit the overpayment receivable, credit claims; the bank is untouched), each offset, each write-off and each credit note.
 - **Notice.** The provider gets a notice when a recovery is raised and sees offsets on its remittance. Business references only.
 - **Member reimbursements.** A member has no future provider run to deduct from. A person decides each (OQ-145). It is never dropped: a write-off needs a second person and a reason (addition 3).
 
