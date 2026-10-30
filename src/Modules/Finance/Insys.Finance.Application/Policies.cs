@@ -52,6 +52,7 @@ public sealed class PostingPolicies(EventPoster poster, IBusinessDate businessDa
     IIntegrationEventHandler<ClaimReserveChanged>,
     IIntegrationEventHandler<ClaimPaymentCompleted>,
     IIntegrationEventHandler<Health.Contracts.MedicalClaimSettled>,
+    IIntegrationEventHandler<Health.Contracts.MedicalClaimReversed>,
     IIntegrationEventHandler<ClaimRecoveryRecorded>,
     IIntegrationEventHandler<Distribution.Contracts.CommissionAccrued>,
     IIntegrationEventHandler<Distribution.Contracts.CommissionClawedBack>,
@@ -109,6 +110,21 @@ public sealed class PostingPolicies(EventPoster poster, IBusinessDate businessDa
     };
 
     /// <summary>Commission accrued on an invoice (process "General quote to cash": PostBusinessEvent for commission).</summary>
+    /// <summary>
+    /// A paid Health claim was reversed, the money still with the payee. CLAIM_PAID credited the bank, so reversing that journal
+    /// would show cash that never arrived: this posts its own rule instead, debiting an overpayment receivable and crediting the
+    /// claims account CLAIM_PAID debited. <c>recover_from</c> lets a rule tell a provider's overpayment from a member's. With no
+    /// rule or no open period it waits as a posting exception, as any posting does.
+    /// </summary>
+    public Task Handle(Health.Contracts.MedicalClaimReversed e, EventEnvelope envelope, CancellationToken cancellationToken) =>
+        e.Amount <= 0
+            ? Task.CompletedTask
+            : Post(envelope, Health.Contracts.HealthReferences.SourceDomain, TransactionTypes.ClaimPaidReversed, businessDate.DateOf(envelope.OccurredAt), e.Amount, e.Currency,
+                "MEDICAL_CLAIM", e.ClaimId, new()
+                {
+                    ["domain"] = Health.Contracts.HealthReferences.SourceDomain, ["reserve_type"] = "HEALTH", ["recover_from"] = e.ProviderId is null ? "MEMBER" : "PROVIDER",
+                }, cancellationToken);
+
     public Task Handle(Distribution.Contracts.CommissionAccrued e, EventEnvelope envelope, CancellationToken cancellationToken) =>
         Post(envelope, e.SourceDomain, TransactionTypes.CommissionAccrued, e.AccruedOn, e.Amount, e.Currency, "COMMISSION", e.EntitlementId,
             new() { ["domain"] = e.SourceDomain, ["intermediary"] = e.IntermediaryCode, ["plan"] = e.PlanCode }, cancellationToken);
@@ -161,44 +177,6 @@ public sealed class PostingPolicies(EventPoster poster, IBusinessDate businessDa
         variables["source_domain"] = sourceDomain;
         return poster.Post(new BusinessEvent(envelope.EventId, sourceDomain.Length <= 10 ? sourceDomain : sourceDomain[..10], transactionType, accountingDate,
             businessDate.DateOf(envelope.OccurredAt), amount, currency, businessRefType, businessRefId, variables), envelope.EventType, cancellationToken);
-    }
-}
-
-/// <summary>
-/// A paid Health claim was reversed: its claim-paid journal is reversed (FIN-003), on the reversal's business date, so the
-/// claims-paid balance nets to zero. No posting rule is needed: the reversal swaps the original's lines. With no journal
-/// yet (its posting is waiting on a posting exception), or no open period on the date, the delivery parks for a person.
-/// </summary>
-public sealed class MedicalClaimReversalPolicy(IJournalRepository journals, IAccountingPeriods periods, IBusinessDate businessDate, IClock clock)
-    : IIntegrationEventHandler<Health.Contracts.MedicalClaimReversed>
-{
-    public async Task Handle(Health.Contracts.MedicalClaimReversed reversed, EventEnvelope envelope, CancellationToken cancellationToken)
-    {
-        if (reversed.Amount <= 0)
-        {
-            return; // nothing was paid, so nothing was posted
-        }
-
-        var posted = await journals.ForBusinessRef("MEDICAL_CLAIM", reversed.ClaimId, cancellationToken);
-        var original = posted.FirstOrDefault(j => j.ReversesJournalId is null);
-        if (original is null)
-        {
-            throw new PrerequisiteMissingException(PrerequisiteCodes.ClaimReversalNotPostable, reversed.ClaimNumber);
-        }
-
-        if (posted.Any(j => j.ReversesJournalId == original.Id))
-        {
-            return; // already reversed: a redelivery
-        }
-
-        var day = businessDate.DateOf(envelope.OccurredAt);
-        if (await periods.Covering(day, cancellationToken) is not { } period
-            || Journal.ReverseJournal(Guid.CreateVersion7(), original, false, envelope.EventId, day, period, clock.UtcNow) is not { IsSuccess: true } reversal)
-        {
-            throw new PrerequisiteMissingException(PrerequisiteCodes.ClaimReversalNotPostable, reversed.ClaimNumber);
-        }
-
-        journals.Add(reversal.Value);
     }
 }
 
