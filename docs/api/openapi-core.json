@@ -51218,7 +51218,9 @@
           "matchResult",
           "resolution",
           "resolvedBy",
-          "resolvedAt"
+          "resolvedAt",
+          "reversedOn",
+          "recoveryStatus"
         ],
         "type": "object",
         "properties": {
@@ -51252,7 +51254,8 @@
               "MATCHED",
               "AMOUNT_DIFFERS",
               "NOT_ON_OUR_RECORDS",
-              "NOT_ON_STATEMENT"
+              "NOT_ON_STATEMENT",
+              "REVERSED_BY_US"
             ],
             "type": "string"
           },
@@ -51275,6 +51278,26 @@
               "string"
             ],
             "format": "date-time"
+          },
+          "reversedOn": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "recoveryStatus": {
+            "enum": [
+              "OWED",
+              "OFFSET",
+              "INVOICED",
+              "RECOVERED",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
