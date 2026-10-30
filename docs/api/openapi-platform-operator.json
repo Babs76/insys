@@ -63308,6 +63308,13 @@
             "type": "string",
             "description": "An ISO 8601 duration, such as P7Y, P18M or P30D."
           },
+          "reviewMode": {
+            "enum": [
+              "PERSON",
+              "AUTOMATIC"
+            ],
+            "type": "string"
+          },
           "id": {
             "type": "string",
             "format": "uuid"
@@ -63489,6 +63496,7 @@
           "minScore",
           "ddLevel",
           "reviewInterval",
+          "reviewMode",
           "code",
           "changeReason"
         ],
@@ -63542,6 +63550,17 @@
               "string"
             ],
             "description": "An ISO 8601 duration, such as P7Y, P18M or P30D."
+          },
+          "reviewMode": {
+            "enum": [
+              "PERSON",
+              "AUTOMATIC",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "code": {
             "type": "string"
