@@ -661,7 +661,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         await Seed("general.cfg_renewal_review_rules", "EFFECTIVE", "RV-GMOT", ("product_code", Product), ("underwriting_rules", true), ("claims_lookback_years", 3),
             ("review_days_before_invitation", 14));
         await Seed("general.cfg_claims_experience_factors", "EFFECTIVE", "CF-GMOT-1", ("product_code", Product), ("claims_count_from", 1), ("factor", 1.2m));
-        await Seed("general.ref_underwriting_decision_codes", "ACTIVE", "ACCEPT_LOADED", ("label", "Accepted with a loading"), ("requires_terms", false));
+        await Seed("general.ref_underwriting_decision_codes", "ACTIVE", "ACCEPT", ("label", "Accepted"), ("requires_terms", false));
         await Seed("rules.cfg_acceptance_and_referral_rules", "EFFECTIVE", "UW-REN-CLAIMS", ("rule_code", "UW-REN-CLAIMS"), ("condition", "claims_count >= 1"),
             ("threshold", 0m), ("outcome", "REFER"));
 
@@ -698,9 +698,9 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
 
         // F019: the underwriter's authority (50 000) does not cover the 100 000 sum insured; the senior underwriter's does.
         var version = $"\"{renewal.GetProperty("rowVersion").GetInt64()}\"";
-        (await (await _maker.Send(HttpMethod.Post, $"/api/v1/general/renewals/{id}/decision", new { offer = true, decisionCode = "ACCEPT_LOADED", loadingPct = 10m },
-            ifMatch: version)).Code()).ShouldBe("UNDERWRITING_AUTHORITY_EXCEEDED");
-        var decided = await _checker.Send(HttpMethod.Post, $"/api/v1/general/renewals/{id}/decision", new { offer = true, decisionCode = "ACCEPT_LOADED", loadingPct = 10m },
+        (await (await _maker.Send(HttpMethod.Post, $"/api/v1/general/renewals/{id}/decision", new { offer = true, decisionCode = "ACCEPT", loadingPct = 10m },
+            ifMatch: version)).Code()).ShouldBe(Insys.General.Domain.GeneralErrorCodes.UnderwritingAuthorityExceeded);
+        var decided = await _checker.Send(HttpMethod.Post, $"/api/v1/general/renewals/{id}/decision", new { offer = true, decisionCode = "ACCEPT", loadingPct = 10m },
             ifMatch: version);
         decided.StatusCode.ShouldBe(HttpStatusCode.OK, await decided.Content.ReadAsStringAsync());
         var offered = await decided.Json();
