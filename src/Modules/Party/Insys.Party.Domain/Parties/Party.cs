@@ -1089,6 +1089,6 @@ public static class PartyErrorCodes
     public const string DueDiligenceNotUnderReview = "DUE_DILIGENCE_NOT_UNDER_REVIEW";
 
     /// <summary>OQ-138: the identity check's document has expired and no newer one of its kind is on file; the problem names the document type only.</summary>
-    [ErrorCode(422, "error.party.due_diligence_identity_document_expired")]
-    public const string IdentityDocumentExpired = "DUE_DILIGENCE_IDENTITY_DOCUMENT_EXPIRED";
+    [ErrorCode(422, "error.party.dd_identity_document_expired")]
+    public const string IdentityDocumentExpired = "DD_IDENTITY_DOCUMENT_EXPIRED";
 }

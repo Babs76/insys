@@ -93918,6 +93918,705 @@
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear; after the approval, every line reads APPROVED."
       }
     },
+    "/api/v1/general/static/claims-experience-factors": {
+      "get": {
+        "tags": [
+          "General static data"
+        ],
+        "summary": "List Claims experience factors in force",
+        "description": "Claims experience factors records in force on asAt (default today), tenant rows over global baselines (SDM-008, SDM-015).",
+        "operationId": "ListGeneralClaimsExperienceFactors",
+        "parameters": [
+          {
+            "name": "asAt",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfGeneralClaimsExperienceFactors"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_POLICY_ADMINISTRATION_VIEW"
+        ]
+      },
+      "post": {
+        "tags": [
+          "General static data"
+        ],
+        "summary": "Create a tenant Claims experience factors draft",
+        "description": "Creates version 1 of a new code, or the next version of an existing one. The caller is the maker.",
+        "operationId": "CreateGeneralClaimsExperienceFactorsDraft",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GeneralClaimsExperienceFactorsInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneralClaimsExperienceFactors"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_POLICY_ADMINISTRATION_MAINTAIN"
+        ]
+      }
+    },
+    "/api/v1/general/static/claims-experience-factors/{code}": {
+      "get": {
+        "tags": [
+          "General static data"
+        ],
+        "summary": "Get the Claims experience factors version in force",
+        "operationId": "GetGeneralClaimsExperienceFactors",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "asAt",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneralClaimsExperienceFactors"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_POLICY_ADMINISTRATION_VIEW"
+        ]
+      }
+    },
+    "/api/v1/general/static/claims-experience-factors/{code}/versions": {
+      "get": {
+        "tags": [
+          "General static data"
+        ],
+        "summary": "List every tenant version of a Claims experience factors code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
+        "operationId": "ListGeneralClaimsExperienceFactorsVersions",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GeneralClaimsExperienceFactors"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_POLICY_ADMINISTRATION_VIEW"
+        ]
+      }
+    },
+    "/api/v1/general/static/claims-experience-factors/{code}/versions/{versionNumber}": {
+      "put": {
+        "tags": [
+          "General static data"
+        ],
+        "summary": "Edit a tenant Claims experience factors draft",
+        "description": "Only the maker edits a draft; approved versions are immutable (SDM-002).",
+        "operationId": "EditGeneralClaimsExperienceFactorsDraft",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GeneralClaimsExperienceFactorsInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneralClaimsExperienceFactors"
+                }
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_POLICY_ADMINISTRATION_MAINTAIN"
+        ]
+      }
+    },
+    "/api/v1/general/static/claims-experience-factors/{code}/versions/{versionNumber}/{action}": {
+      "post": {
+        "tags": [
+          "General static data"
+        ],
+        "summary": "Submit, activate, deprecate or retire a tenant Claims experience factors version",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
+        "operationId": "ChangeGeneralClaimsExperienceFactorsLifecycle",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "action",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^(submit|activate|deprecate|retire)$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneralClaimsExperienceFactors"
+                }
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_POLICY_ADMINISTRATION_MAINTAIN"
+        ],
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
+      }
+    },
+    "/api/v1/general/static/claims-experience-factors/imports": {
+      "post": {
+        "tags": [
+          "General static data"
+        ],
+        "summary": "Import tenant Claims experience factors drafts, all or nothing",
+        "description": "Every line is validated; if any line fails, nothing is saved and each rejected line is reported (SDM-012). The drafts are the import\u0027s lines (BR-016): submit them as one change at /imports/{batchId}/submit, not one by one.",
+        "operationId": "ImportGeneralClaimsExperienceFactors",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaticDataImportOfGeneralClaimsExperienceFactorsInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaticDataImportResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_POLICY_ADMINISTRATION_MAINTAIN"
+        ]
+      }
+    },
+    "/api/v1/general/static/claims-experience-factors/imports/{batchId}": {
+      "get": {
+        "tags": [
+          "General static data"
+        ],
+        "summary": "Every line of a tenant Claims experience factors import, in code order",
+        "description": "What the checker approves as one change (BR-016): each line\u0027s proposed record, its status, and its change request once submitted.",
+        "operationId": "GetGeneralClaimsExperienceFactorsImport",
+        "parameters": [
+          {
+            "name": "batchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GeneralClaimsExperienceFactors"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_POLICY_ADMINISTRATION_VIEW"
+        ]
+      }
+    },
+    "/api/v1/general/static/claims-experience-factors/imports/{batchId}/{action}": {
+      "post": {
+        "tags": [
+          "General static data"
+        ],
+        "summary": "Submit a tenant Claims experience factors import as one change, or put an approved one in force",
+        "description": "submit (BR-016) returns the submission: every line must be a draft of the caller\u0027s; all go to one change request and one approval of the table\u0027s tier, bound to the hash of the complete import, so any change to a line needs a new approval. The import is approved or rejected as a whole, never partly; a rejection returns every line to draft. activate returns {imported, batchId}: once approved, every line is put in force together. Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear; after the approval, every line reads APPROVED.",
+        "operationId": "ChangeGeneralClaimsExperienceFactorsImport",
+        "parameters": [
+          {
+            "name": "batchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "action",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^(submit|activate)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaticDataImportSubmissionResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_POLICY_ADMINISTRATION_MAINTAIN"
+        ],
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear; after the approval, every line reads APPROVED."
+      }
+    },
     "/api/v1/general/static/endorsement-types": {
       "get": {
         "tags": [
@@ -100209,6 +100908,705 @@
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear; after the approval, every line reads APPROVED."
       }
     },
+    "/api/v1/general/static/renewal-review-rules": {
+      "get": {
+        "tags": [
+          "General static data"
+        ],
+        "summary": "List Renewal review rules in force",
+        "description": "Renewal review rules records in force on asAt (default today), tenant rows over global baselines (SDM-008, SDM-015).",
+        "operationId": "ListGeneralRenewalReviewRules",
+        "parameters": [
+          {
+            "name": "asAt",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfGeneralRenewalReviewRules"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_POLICY_ADMINISTRATION_VIEW"
+        ]
+      },
+      "post": {
+        "tags": [
+          "General static data"
+        ],
+        "summary": "Create a tenant Renewal review rules draft",
+        "description": "Creates version 1 of a new code, or the next version of an existing one. The caller is the maker.",
+        "operationId": "CreateGeneralRenewalReviewRulesDraft",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GeneralRenewalReviewRulesInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneralRenewalReviewRules"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_POLICY_ADMINISTRATION_MAINTAIN"
+        ]
+      }
+    },
+    "/api/v1/general/static/renewal-review-rules/{code}": {
+      "get": {
+        "tags": [
+          "General static data"
+        ],
+        "summary": "Get the Renewal review rules version in force",
+        "operationId": "GetGeneralRenewalReviewRules",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "asAt",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneralRenewalReviewRules"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_POLICY_ADMINISTRATION_VIEW"
+        ]
+      }
+    },
+    "/api/v1/general/static/renewal-review-rules/{code}/versions": {
+      "get": {
+        "tags": [
+          "General static data"
+        ],
+        "summary": "List every tenant version of a Renewal review rules code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
+        "operationId": "ListGeneralRenewalReviewRulesVersions",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GeneralRenewalReviewRules"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_POLICY_ADMINISTRATION_VIEW"
+        ]
+      }
+    },
+    "/api/v1/general/static/renewal-review-rules/{code}/versions/{versionNumber}": {
+      "put": {
+        "tags": [
+          "General static data"
+        ],
+        "summary": "Edit a tenant Renewal review rules draft",
+        "description": "Only the maker edits a draft; approved versions are immutable (SDM-002).",
+        "operationId": "EditGeneralRenewalReviewRulesDraft",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GeneralRenewalReviewRulesInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneralRenewalReviewRules"
+                }
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_POLICY_ADMINISTRATION_MAINTAIN"
+        ]
+      }
+    },
+    "/api/v1/general/static/renewal-review-rules/{code}/versions/{versionNumber}/{action}": {
+      "post": {
+        "tags": [
+          "General static data"
+        ],
+        "summary": "Submit, activate, deprecate or retire a tenant Renewal review rules version",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
+        "operationId": "ChangeGeneralRenewalReviewRulesLifecycle",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "action",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^(submit|activate|deprecate|retire)$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneralRenewalReviewRules"
+                }
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_POLICY_ADMINISTRATION_MAINTAIN"
+        ],
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
+      }
+    },
+    "/api/v1/general/static/renewal-review-rules/imports": {
+      "post": {
+        "tags": [
+          "General static data"
+        ],
+        "summary": "Import tenant Renewal review rules drafts, all or nothing",
+        "description": "Every line is validated; if any line fails, nothing is saved and each rejected line is reported (SDM-012). The drafts are the import\u0027s lines (BR-016): submit them as one change at /imports/{batchId}/submit, not one by one.",
+        "operationId": "ImportGeneralRenewalReviewRules",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaticDataImportOfGeneralRenewalReviewRulesInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaticDataImportResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_POLICY_ADMINISTRATION_MAINTAIN"
+        ]
+      }
+    },
+    "/api/v1/general/static/renewal-review-rules/imports/{batchId}": {
+      "get": {
+        "tags": [
+          "General static data"
+        ],
+        "summary": "Every line of a tenant Renewal review rules import, in code order",
+        "description": "What the checker approves as one change (BR-016): each line\u0027s proposed record, its status, and its change request once submitted.",
+        "operationId": "GetGeneralRenewalReviewRulesImport",
+        "parameters": [
+          {
+            "name": "batchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GeneralRenewalReviewRules"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_POLICY_ADMINISTRATION_VIEW"
+        ]
+      }
+    },
+    "/api/v1/general/static/renewal-review-rules/imports/{batchId}/{action}": {
+      "post": {
+        "tags": [
+          "General static data"
+        ],
+        "summary": "Submit a tenant Renewal review rules import as one change, or put an approved one in force",
+        "description": "submit (BR-016) returns the submission: every line must be a draft of the caller\u0027s; all go to one change request and one approval of the table\u0027s tier, bound to the hash of the complete import, so any change to a line needs a new approval. The import is approved or rejected as a whole, never partly; a rejection returns every line to draft. activate returns {imported, batchId}: once approved, every line is put in force together. Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear; after the approval, every line reads APPROVED.",
+        "operationId": "ChangeGeneralRenewalReviewRulesImport",
+        "parameters": [
+          {
+            "name": "batchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "action",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^(submit|activate)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaticDataImportSubmissionResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_POLICY_ADMINISTRATION_MAINTAIN"
+        ],
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear; after the approval, every line reads APPROVED."
+      }
+    },
     "/api/v1/general/static/renewal-rules": {
       "get": {
         "tags": [
@@ -100904,6 +102302,705 @@
         "x-permission": "static_data.update",
         "x-function": [
           "SD_GENERAL_POLICY_ADMINISTRATION_MAINTAIN"
+        ],
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear; after the approval, every line reads APPROVED."
+      }
+    },
+    "/api/v1/general/static/renewal-settings": {
+      "get": {
+        "tags": [
+          "General static data"
+        ],
+        "summary": "List Renewal settings in force",
+        "description": "Renewal settings records in force on asAt (default today), tenant rows over global baselines (SDM-008, SDM-015).",
+        "operationId": "ListGeneralRenewalSettings",
+        "parameters": [
+          {
+            "name": "asAt",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfGeneralRenewalSettings"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_POLICY_ADMINISTRATION_VIEW"
+        ]
+      },
+      "post": {
+        "tags": [
+          "General static data"
+        ],
+        "summary": "Create a tenant Renewal settings draft",
+        "description": "Creates version 1 of a new code, or the next version of an existing one. The caller is the maker.",
+        "operationId": "CreateGeneralRenewalSettingsDraft",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GeneralRenewalSettingsInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneralRenewalSettings"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_POLICY_ADMINISTRATION_MAINTAIN"
+        ]
+      }
+    },
+    "/api/v1/general/static/renewal-settings/{code}": {
+      "get": {
+        "tags": [
+          "General static data"
+        ],
+        "summary": "Get the Renewal settings version in force",
+        "operationId": "GetGeneralRenewalSettings",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "asAt",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneralRenewalSettings"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_POLICY_ADMINISTRATION_VIEW"
+        ]
+      }
+    },
+    "/api/v1/general/static/renewal-settings/{code}/versions": {
+      "get": {
+        "tags": [
+          "General static data"
+        ],
+        "summary": "List every tenant version of a Renewal settings code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
+        "operationId": "ListGeneralRenewalSettingsVersions",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GeneralRenewalSettings"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_POLICY_ADMINISTRATION_VIEW"
+        ]
+      }
+    },
+    "/api/v1/general/static/renewal-settings/{code}/versions/{versionNumber}": {
+      "put": {
+        "tags": [
+          "General static data"
+        ],
+        "summary": "Edit a tenant Renewal settings draft",
+        "description": "Only the maker edits a draft; approved versions are immutable (SDM-002).",
+        "operationId": "EditGeneralRenewalSettingsDraft",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GeneralRenewalSettingsInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneralRenewalSettings"
+                }
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_POLICY_ADMINISTRATION_MAINTAIN"
+        ]
+      }
+    },
+    "/api/v1/general/static/renewal-settings/{code}/versions/{versionNumber}/{action}": {
+      "post": {
+        "tags": [
+          "General static data"
+        ],
+        "summary": "Submit, activate, deprecate or retire a tenant Renewal settings version",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
+        "operationId": "ChangeGeneralRenewalSettingsLifecycle",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "action",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^(submit|activate|deprecate|retire)$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneralRenewalSettings"
+                }
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_POLICY_ADMINISTRATION_MAINTAIN"
+        ],
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
+      }
+    },
+    "/api/v1/general/static/renewal-settings/imports": {
+      "post": {
+        "tags": [
+          "General static data"
+        ],
+        "summary": "Import tenant Renewal settings drafts, all or nothing",
+        "description": "Every line is validated; if any line fails, nothing is saved and each rejected line is reported (SDM-012). The drafts are the import\u0027s lines (BR-016): submit them as one change at /imports/{batchId}/submit, not one by one.",
+        "operationId": "ImportGeneralRenewalSettings",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaticDataImportOfGeneralRenewalSettingsInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaticDataImportResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_POLICY_ADMINISTRATION_MAINTAIN"
+        ]
+      }
+    },
+    "/api/v1/general/static/renewal-settings/imports/{batchId}": {
+      "get": {
+        "tags": [
+          "General static data"
+        ],
+        "summary": "Every line of a tenant Renewal settings import, in code order",
+        "description": "What the checker approves as one change (BR-016): each line\u0027s proposed record, its status, and its change request once submitted.",
+        "operationId": "GetGeneralRenewalSettingsImport",
+        "parameters": [
+          {
+            "name": "batchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GeneralRenewalSettings"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_POLICY_ADMINISTRATION_VIEW"
+        ]
+      }
+    },
+    "/api/v1/general/static/renewal-settings/imports/{batchId}/{action}": {
+      "post": {
+        "tags": [
+          "General static data"
+        ],
+        "summary": "Submit a tenant Renewal settings import as one change, or put an approved one in force",
+        "description": "submit (BR-016) returns the submission: every line must be a draft of the caller\u0027s; all go to one change request and one approval of the table\u0027s tier, bound to the hash of the complete import, so any change to a line needs a new approval. The import is approved or rejected as a whole, never partly; a rejection returns every line to draft. activate returns {imported, batchId}: once approved, every line is put in force together. Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear; after the approval, every line reads APPROVED.",
+        "operationId": "ChangeGeneralRenewalSettingsImport",
+        "parameters": [
+          {
+            "name": "batchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "action",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^(submit|activate)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaticDataImportSubmissionResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_POLICY_ADMINISTRATION_MAINTAIN"
         ],
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear; after the approval, every line reads APPROVED."
       }
@@ -184967,6 +187064,27 @@
           }
         }
       },
+      "CursorPageOfGeneralClaimsExperienceFactors": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GeneralClaimsExperienceFactors"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "CursorPageOfGeneralConstructionTypes": {
         "required": [
           "items",
@@ -185429,6 +187547,27 @@
           }
         }
       },
+      "CursorPageOfGeneralRenewalReviewRules": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GeneralRenewalReviewRules"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "CursorPageOfGeneralRenewalRules": {
         "required": [
           "items",
@@ -185440,6 +187579,27 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/GeneralRenewalRules"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CursorPageOfGeneralRenewalSettings": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GeneralRenewalSettings"
             }
           },
           "nextCursor": {
@@ -198537,6 +200697,376 @@
           }
         }
       },
+      "GeneralClaimsExperienceFactors": {
+        "type": "object",
+        "properties": {
+          "productCode": {
+            "type": "string"
+          },
+          "claimsCountFrom": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "claimsCountTo": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "lossRatioFrom": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "lossRatioTo": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "factor": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenantId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "version": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "effectiveFrom": {
+            "type": "string",
+            "format": "date"
+          },
+          "effectiveTo": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "recordStatus": {
+            "enum": [
+              "DRAFT",
+              "VALIDATED",
+              "SUBMITTED",
+              "APPROVED",
+              "PUBLISHED",
+              "EFFECTIVE",
+              "WITHDRAWN",
+              "RETIRED"
+            ],
+            "type": "string"
+          },
+          "supersedesId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "labels": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSource": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSourceVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "externalMappings": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "recordClass": {
+            "type": "string"
+          },
+          "sortOrder": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "displayFlags": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "changeRequestId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "importBatchId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "approvedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "approvedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "changeReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "displayLabel": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "displayLabelLanguage": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "GeneralClaimsExperienceFactorsInput": {
+        "required": [
+          "productCode",
+          "claimsCountFrom",
+          "factor",
+          "code",
+          "changeReason"
+        ],
+        "type": "object",
+        "properties": {
+          "productCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "claimsCountFrom": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "claimsCountTo": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "lossRatioFrom": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "lossRatioTo": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "factor": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "code": {
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "effectiveTo": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "labels": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSource": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSourceVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "externalMappings": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "recordClass": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sortOrder": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "displayFlags": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "changeReason": {
+            "type": "string"
+          }
+        }
+      },
       "GeneralConstructionTypes": {
         "type": "object",
         "properties": {
@@ -204974,6 +207504,346 @@
           }
         }
       },
+      "GeneralRenewalReviewRules": {
+        "type": "object",
+        "properties": {
+          "productCode": {
+            "type": "string"
+          },
+          "eligibilityRuleset": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "underwritingRules": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "claimsLookbackYears": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "reviewDaysBeforeInvitation": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenantId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "version": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "effectiveFrom": {
+            "type": "string",
+            "format": "date"
+          },
+          "effectiveTo": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "recordStatus": {
+            "enum": [
+              "DRAFT",
+              "VALIDATED",
+              "SUBMITTED",
+              "APPROVED",
+              "PUBLISHED",
+              "EFFECTIVE",
+              "WITHDRAWN",
+              "RETIRED"
+            ],
+            "type": "string"
+          },
+          "supersedesId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "labels": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSource": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSourceVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "externalMappings": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "recordClass": {
+            "type": "string"
+          },
+          "sortOrder": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "displayFlags": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "changeRequestId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "importBatchId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "approvedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "approvedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "changeReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "displayLabel": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "displayLabelLanguage": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "GeneralRenewalReviewRulesInput": {
+        "required": [
+          "productCode",
+          "claimsLookbackYears",
+          "reviewDaysBeforeInvitation",
+          "code",
+          "changeReason"
+        ],
+        "type": "object",
+        "properties": {
+          "productCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "eligibilityRuleset": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "underwritingRules": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "claimsLookbackYears": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "reviewDaysBeforeInvitation": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "code": {
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "effectiveTo": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "labels": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSource": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSourceVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "externalMappings": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "recordClass": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sortOrder": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "displayFlags": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "changeReason": {
+            "type": "string"
+          }
+        }
+      },
       "GeneralRenewalRules": {
         "type": "object",
         "properties": {
@@ -205010,6 +207880,12 @@
               ],
               "format": "int32"
             }
+          },
+          "review": {
+            "type": [
+              "null",
+              "boolean"
+            ]
           },
           "id": {
             "type": "string",
@@ -205244,6 +208120,318 @@
               ],
               "format": "int32"
             }
+          },
+          "review": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "code": {
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "effectiveTo": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "labels": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSource": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSourceVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "externalMappings": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "recordClass": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sortOrder": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "displayFlags": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "changeReason": {
+            "type": "string"
+          }
+        }
+      },
+      "GeneralRenewalSettings": {
+        "type": "object",
+        "properties": {
+          "worseTermsPct": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "changedTermsNoticeDays": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenantId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "version": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "effectiveFrom": {
+            "type": "string",
+            "format": "date"
+          },
+          "effectiveTo": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "recordStatus": {
+            "enum": [
+              "DRAFT",
+              "VALIDATED",
+              "SUBMITTED",
+              "APPROVED",
+              "PUBLISHED",
+              "EFFECTIVE",
+              "WITHDRAWN",
+              "RETIRED"
+            ],
+            "type": "string"
+          },
+          "supersedesId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "labels": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSource": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSourceVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "externalMappings": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "recordClass": {
+            "type": "string"
+          },
+          "sortOrder": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "displayFlags": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "changeRequestId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "importBatchId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "approvedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "approvedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "changeReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "displayLabel": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "displayLabelLanguage": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "GeneralRenewalSettingsInput": {
+        "required": [
+          "worseTermsPct",
+          "changedTermsNoticeDays",
+          "code",
+          "changeReason"
+        ],
+        "type": "object",
+        "properties": {
+          "worseTermsPct": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "changedTermsNoticeDays": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           },
           "code": {
             "type": "string"
@@ -262132,6 +265320,24 @@
           }
         }
       },
+      "StaticDataImportOfGeneralClaimsExperienceFactorsInput": {
+        "required": [
+          "fileRef",
+          "lines"
+        ],
+        "type": "object",
+        "properties": {
+          "fileRef": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GeneralClaimsExperienceFactorsInput"
+            }
+          }
+        }
+      },
       "StaticDataImportOfGeneralConstructionTypesInput": {
         "required": [
           "fileRef",
@@ -262474,6 +265680,24 @@
           }
         }
       },
+      "StaticDataImportOfGeneralRenewalReviewRulesInput": {
+        "required": [
+          "fileRef",
+          "lines"
+        ],
+        "type": "object",
+        "properties": {
+          "fileRef": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GeneralRenewalReviewRulesInput"
+            }
+          }
+        }
+      },
       "StaticDataImportOfGeneralRenewalRulesInput": {
         "required": [
           "fileRef",
@@ -262488,6 +265712,24 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/GeneralRenewalRulesInput"
+            }
+          }
+        }
+      },
+      "StaticDataImportOfGeneralRenewalSettingsInput": {
+        "required": [
+          "fileRef",
+          "lines"
+        ],
+        "type": "object",
+        "properties": {
+          "fileRef": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GeneralRenewalSettingsInput"
             }
           }
         }

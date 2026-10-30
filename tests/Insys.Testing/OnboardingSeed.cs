@@ -209,9 +209,9 @@ public static class OnboardingSeed
                 ("step", step), ("duration", duration), ("basis", "CALENDAR"), ("extension_allowed", false));
         }
 
-        // APPROVAL_AUTHORITY: the clerk decides every approval type a tenant can raise (the static data types by its static_data.approve),
+        // APPROVAL_AUTHORITY: the clerk decides every approval type a tenant can raise (with static_data.approve for the static data types),
         // with the due diligence types' own permissions, and its back-office channel rows (CHANNELS).
-        foreach (var type in BuildingBlocks.Contracts.Approvals.ApprovalKinds.ApprovalTypes.Where(t => !t.StartsWith("STATIC_DATA_T", StringComparison.Ordinal)))
+        foreach (var type in BuildingBlocks.Contracts.Approvals.ApprovalKinds.ApprovalTypes)
         {
             await database.SeedStaticFilled(tenantId, "workflow.cfg_delegation_and_approval_authority", "EFFECTIVE", $"AUTH-{type}", from, ("role_code", "CLERK"),
                 ("transaction_type", type), ("limit_value", 1_000m), ("delegation_allowed", false));
