@@ -194440,6 +194440,13 @@
             ],
             "format": "uuid"
           },
+          "contactPartyId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
           "id": {
             "type": "string",
             "format": "uuid"
@@ -194681,6 +194688,13 @@
             ]
           },
           "partyId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "contactPartyId": {
             "type": [
               "null",
               "string"

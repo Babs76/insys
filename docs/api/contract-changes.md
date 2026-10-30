@@ -8,6 +8,7 @@ What changed in the API contract, newest first, so the front end can sync. The O
 - **`commission.mst_intermediary_register`:** optional **`contactPartyId`**: who is told of a broker of record change. With none, the notice goes to the intermediary's `partyId`; with neither, it is logged and no notice goes.
 - **Notification type `BROKER_CHANGE_NOTICE`** (merge fields `policy_number`, `product_code`, `effective_date`, `incoming_intermediary`, `outgoing_intermediary`, `broker_role`: `INCOMING` or `OUTGOING`). A tenant configures the type and a template; until then the delivery parks, as for any notice.
 - **Event `general.GeneralBrokerChangeApproved`.**
+- **Readiness warning `INTERMEDIARY_NO_CONTACT`** (`PAYMENTS_AND_DISTRIBUTION`, advisory): active intermediaries with neither a contact party nor a party.
 
 ### Changed behaviour
 - **Told at approval, not when the change applies.** A change approved for a later date tells both brokers at once.

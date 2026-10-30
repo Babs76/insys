@@ -210,6 +210,31 @@ public sealed class OnboardingReadinessTests(DatabaseFixture fixture) : IClassFi
         Check(await Readiness(url), "PRODUCT_FACTORY", "GENERAL_REFERRAL_AUTHORITY").GetProperty("ready").GetBoolean().ShouldBeTrue();
     }
 
+    /// <summary>B-010: an active broker with neither a contact party nor a party is listed as a warning, which does not stop the step.</summary>
+    [Fact]
+    public async Task ABrokerWithNoContactPartyOrParty_IsListedAsAWarning_B010()
+    {
+        var (tenantId, url) = await Register("NOCONTACT");
+        await fixture.Database.SeedReadyTenant(tenantId, From);
+        foreach (var (code, field, party) in new[] { ("BRK-NONE", (string?)null, Guid.Empty), ("BRK-CONTACT", "contact_party_id", Guid.CreateVersion7()), ("BRK-PARTY", "party_id", Guid.CreateVersion7()) })
+        {
+            (string, object)[] fields = [("intermediary_code", code), ("type", "BROKER"), ("legal_name", code),
+                ("licence_numbers", JsonSerializer.SerializeToElement(new[] { "FSP-1" })), ("status", "ACTIVE"), ("hierarchy_node", "NODE-1")];
+            await fixture.Database.SeedStatic(tenantId, "commission.mst_intermediary_register", "ACTIVE", code, From, field is null ? fields : [.. fields, (field, party)]);
+        }
+
+        var readiness = await Readiness(url);
+        var check = Check(readiness, "PAYMENTS_AND_DISTRIBUTION", "INTERMEDIARY_NO_CONTACT");
+        (check.GetProperty("ready").GetBoolean(), check.GetProperty("advisory").GetBoolean()).ShouldBe((false, true));
+        var listed = check.GetProperty("missing").EnumerateArray().Select(m => m.GetString()).ToList();
+        listed.ShouldContain("BRK-NONE");
+        listed.ShouldNotContain("BRK-CONTACT");
+        listed.ShouldNotContain("BRK-PARTY");
+        var codes = readiness.GetProperty("steps").EnumerateArray().Single(s => s.GetProperty("step").GetString() == "PAYMENTS_AND_DISTRIBUTION")
+            .GetProperty("checks").EnumerateArray().Where(c => !c.GetProperty("ready").GetBoolean() && !c.GetProperty("advisory").GetBoolean()).Select(c => c.GetProperty("code").GetString());
+        codes.ShouldNotContain("INTERMEDIARY_NO_CONTACT");
+    }
+
     /// <summary>
     /// BR-113 (decided 30 October 2026): an acceptance or referral rule in force with no product and no domain applies to
     /// every product. It is listed as a warning, which does not stop the step; it clears once the rule has a scope.
