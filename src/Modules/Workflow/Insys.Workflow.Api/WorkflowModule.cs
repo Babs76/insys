@@ -182,6 +182,7 @@ public sealed class WorkflowModule : IModule
             .AlsoChecks(PartyPermissions.DueDiligenceApproveEnhanced, "the approval clears enhanced due diligence (businessRefType DUE_DILIGENCE; requiredPermission names it)")
             .AlsoChecks(PartyPermissions.DueDiligenceOverrideRisk, "the approval overrides a risk class (businessRefType DUE_DILIGENCE_RISK_OVERRIDE; requiredPermission names it)")
             .AlsoChecks(PartyPermissions.DueDiligenceUnblock, "the approval unblocks a party's due diligence (businessRefType DUE_DILIGENCE_UNBLOCK; requiredPermission names it)")
+            .AlsoChecks(Insys.General.Contracts.GeneralPermissions.PolicyNonRenew, "the approval is an insurer's non-renewal (businessRefType GENERAL_RENEWAL, type GENERAL_NON_RENEWAL; requiredPermission names it)")
             .WithSummary("Approve (not by the maker, within the checker's authority)")
             .WithDescription("The checker needs a role with authority for the approval type and, where there is an amount, a limit at least that amount (WFL-004). "
                 + "The body is optional: a reason (BR-001) is kept as the approval's decisionReason, as a rejection's is.")
@@ -200,6 +201,7 @@ public sealed class WorkflowModule : IModule
             .AlsoChecks(PartyPermissions.DueDiligenceApproveEnhanced, "the approval clears enhanced due diligence (businessRefType DUE_DILIGENCE; requiredPermission names it)")
             .AlsoChecks(PartyPermissions.DueDiligenceOverrideRisk, "the approval overrides a risk class (businessRefType DUE_DILIGENCE_RISK_OVERRIDE; requiredPermission names it)")
             .AlsoChecks(PartyPermissions.DueDiligenceUnblock, "the approval unblocks a party's due diligence (businessRefType DUE_DILIGENCE_UNBLOCK; requiredPermission names it)")
+            .AlsoChecks(Insys.General.Contracts.GeneralPermissions.PolicyNonRenew, "the approval is an insurer's non-renewal (businessRefType GENERAL_RENEWAL, type GENERAL_NON_RENEWAL; requiredPermission names it)")
             .WithSummary("Reject, with a reason")
             .WithEventualEffects("the rejection reaches the record that asked for it, which is put back in a defined state (an expiry or withdrawal does the same); read that record again.")
             .RequirePermission(WorkflowPermissions.ApprovalApprove);
