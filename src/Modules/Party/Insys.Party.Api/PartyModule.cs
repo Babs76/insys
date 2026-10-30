@@ -498,7 +498,7 @@ public sealed class PartyModule : IModule
             .WithDescription("If-Match is the due diligence's ETag. For a party whose risk class reviews by a person (review mode PERSON, the default), "
                 + "only this ends the review: a fresh screening runs as part of it, and the party clears when nothing else is outstanding (at ENHANCED, "
                 + "after the enhanced approval, which the reviewer cannot give). Identity and address checks are not redone. 409 "
-                + "DUE_DILIGENCE_NOT_UNDER_REVIEW when no review is due; 422 DUE_DILIGENCE_IDENTITY_DOCUMENT_EXPIRED while the identity check's document "
+                + "DUE_DILIGENCE_NOT_UNDER_REVIEW when no review is due; 422 DD_IDENTITY_DOCUMENT_EXPIRED while the identity check's document "
                 + "has expired and no newer one of its kind is on file. The DUE_DILIGENCE_REVIEW task closes when the party clears.")
             .RequirePermission(PartyPermissions.DueDiligenceReview);
 

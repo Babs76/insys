@@ -440,7 +440,7 @@ public sealed class DueDiligenceTests(DatabaseFixture fixture) : IClassFixture<D
         var refused = await w.Reviewer.Send(HttpMethod.Post, $"/api/v1/party/parties/{party}/due-diligence/review", new { detailsCurrent = true },
             ifMatch: await ETag(w.Reviewer, party));
         var problem = await refused.Json();
-        (problem.GetProperty("code").GetString(), problem.GetProperty("status").GetInt32()).ShouldBe(("DUE_DILIGENCE_IDENTITY_DOCUMENT_EXPIRED", 422));
+        (problem.GetProperty("code").GetString(), problem.GetProperty("status").GetInt32()).ShouldBe(("DD_IDENTITY_DOCUMENT_EXPIRED", 422));
         problem.GetRawText().ShouldContain("PASSPORT");
         problem.GetRawText().ShouldNotContain("12345671", Case.Sensitive, "never the number");
 

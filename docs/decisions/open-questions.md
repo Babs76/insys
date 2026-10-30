@@ -1242,7 +1242,7 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
 - **Decided (Ade, 30 October 2026):**
   - each customer risk class has a review mode, `PERSON` (default) or `AUTOMATIC`. `PERSON`: only a person with the review function ends the review, through Party, with a fresh screening as part of it; `AUTOMATIC`: a fresh screening ends it, with the system requester recorded as the reviewer;
   - the Workflow review task cannot be completed directly; it closes when the party clears;
-  - the review does not redo identity or address checks; an identifier may record its document's expiry date, and a review cannot complete while the identity check's document has expired with no newer one of its kind on file (`DUE_DILIGENCE_IDENTITY_DOCUMENT_EXPIRED`);
+  - the review does not redo identity or address checks; an identifier may record its document's expiry date, and a review cannot complete while the identity check's document has expired with no newer one of its kind on file (`DD_IDENTITY_DOCUMENT_EXPIRED`);
   - the reviewer counts as a contributor (cannot give that party's enhanced approval);
   - `next_review_on` counts from the day the review completes;
   - readiness: with the gates on, a role holds the review function.
