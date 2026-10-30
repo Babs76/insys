@@ -256,6 +256,15 @@ internal sealed class HealthRepository(HealthDbContext db, IExecutionContext exe
         return rows.Select(c => (c.ClaimNumber, c.TotalPaid ?? 0, c.ServiceDate >= from && c.ServiceDate <= to)).ToList();
     }
 
+    public async Task<IReadOnlyList<(string ClaimNumber, decimal Paid, DateTimeOffset ReversedAt)>> ProviderReversedClaims(string providerId, IReadOnlyCollection<string> references,
+        CancellationToken cancellationToken)
+    {
+        var numbers = references.ToList();
+        var rows = await db.Claims.AsNoTracking().Where(c => c.ProviderId == providerId && c.Status == MedicalClaimStatus.Reversed && numbers.Contains(c.ClaimNumber))
+            .Select(c => new { c.ClaimNumber, c.TotalPaid, c.ReversedAt }).ToListAsync(cancellationToken);
+        return rows.Select(c => (c.ClaimNumber, c.TotalPaid ?? 0, c.ReversedAt!.Value)).ToList();
+    }
+
     public Task<Domain.Providers.ProviderStatement?> ProviderStatement(Guid id, CancellationToken cancellationToken) =>
         db.ProviderStatements.Include(s => s.Lines).SingleOrDefaultAsync(s => s.Id == id, cancellationToken);
 

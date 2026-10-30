@@ -138,6 +138,10 @@ public interface IHealthRepository
     Task<IReadOnlyList<(string ClaimNumber, decimal Paid, bool InPeriod)>> ProviderPaidClaims(string providerId, DateOnly from, DateOnly to, IReadOnlyCollection<string> references,
         CancellationToken cancellationToken);
 
+    /// <summary>Those of the provider's claims the references name that were paid and then reversed.</summary>
+    Task<IReadOnlyList<(string ClaimNumber, decimal Paid, DateTimeOffset ReversedAt)>> ProviderReversedClaims(string providerId, IReadOnlyCollection<string> references,
+        CancellationToken cancellationToken);
+
     Task<Domain.Providers.ProviderStatement?> ProviderStatement(Guid id, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<ProviderStatementSummary>> ProviderStatements(string? providerId, string? status, Guid? afterId, int limit, CancellationToken cancellationToken);

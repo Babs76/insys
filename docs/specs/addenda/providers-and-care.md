@@ -5,6 +5,10 @@
 - **Addition 2 (OQ-143):** reassigning a complex case ends the previous case manager's access to its clinical detail. Tested.
 - **Addition 3 (OQ-145):** a member overpayment a person decides is never dropped: a write-off needs a second person and a reason, as for providers.
 
+**Changes at build (Ade, 30 October 2026):**
+- **Task routing (5a.1, §3, §6):** a breached measure's task routes by its task type, as every other task does, not by a queue on the measure. `cfg_provider_measures` has no queue column, and readiness has no warning for one.
+- **A reversed claim on a statement (5a.1, §4.2):** it is on our records, so it has its own result, `REVERSED_BY_US`, showing the reversal date and the recovery status (`OWED`, `OFFSET`, `INVOICED`, `RECOVERED`). It remains an exception for a person to resolve.
+
 **Build order:** gap 1 (§0, the ledger) first, on its own, as a defect on main; then 5a.1, 5a.2 and 5a.3 (§9).
 
 ## 0. Why an addendum
@@ -72,7 +76,7 @@ Names are proposals. `CFG` is tenant configuration; the others are records.
 
 ### 4.2 Provider statement reconciliation (F030)
 - **In.** A person enters or uploads a provider's statement (OQ-142).
-- **Match.** Each line is compared with the provider's claims and remittances: `MATCHED`, `AMOUNT_DIFFERS`, `NOT_ON_OUR_RECORDS` or `NOT_ON_STATEMENT`.
+- **Match.** Each line is compared with the provider's claims and remittances: `MATCHED`, `AMOUNT_DIFFERS`, `NOT_ON_OUR_RECORDS`, `NOT_ON_STATEMENT` or `REVERSED_BY_US`.
 - **Resolve.** A person resolves each exception with a reason, and may open a dispute (F050), a recovery (F049) or a credit note (F048) from it.
 - **Effect.** Reconciling changes no payment by itself. The statement ends `RECONCILED` when no exception is open.
 

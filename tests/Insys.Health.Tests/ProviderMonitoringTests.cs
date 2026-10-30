@@ -78,6 +78,23 @@ public sealed class ProviderMonitoringTests
         statement.Status.ShouldBe(StatementStatus.Reconciled);
     }
 
+    /// <summary>A claim INSYS paid and reversed is on our records: its own exception, with the date, not "not on our records". One the provider leaves out needs no line.</summary>
+    [Fact]
+    public void AClaimWeReversed_IsItsOwnException_NotMissing_F030()
+    {
+        var reversedOn = new DateOnly(2026, 10, 20);
+        var statement = ProviderStatement.Match(Guid.CreateVersion7(), "PR-1", "S-1", new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 31), "ZAR", [new("R", 500m), new("X", 1m)],
+            new Dictionary<string, decimal>(), new HashSet<string>(),
+            new Dictionary<string, ReversedClaim> { ["R"] = new(500m, reversedOn), ["LEFT-OUT"] = new(90m, reversedOn) }).Value;
+
+        statement.Lines.Select(l => l.Reference).ShouldBe(["R", "X"], ignoreOrder: true);
+        var line = statement.Lines.Single(l => l.Reference == "R");
+        (line.MatchResult, line.OurAmount, line.ReversedOn, line.Open).ShouldBe((StatementMatch.ReversedByUs, (decimal?)500m, (DateOnly?)reversedOn, true));
+        statement.Lines.Single(l => l.Reference == "X").MatchResult.ShouldBe(StatementMatch.NotOnOurRecords);
+        var view = ProviderStatementView.From(statement).Lines.Single(l => l.Reference == "R");
+        (view.ReversedOn, view.RecoveryStatus).ShouldBe(((DateOnly?)reversedOn, ReversalRecovery.Owed));
+    }
+
     [Fact]
     public void AStatementNamingAReferenceTwice_IsRefused_F030() =>
         ProviderStatement.Match(Guid.CreateVersion7(), "PR-1", "S-1", new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 31), "ZAR", [new("A", 1m), new("A", 2m)],

@@ -132,7 +132,22 @@ public static class StatementMatch
     public const string AmountDiffers = "AMOUNT_DIFFERS";
     public const string NotOnOurRecords = "NOT_ON_OUR_RECORDS";
     public const string NotOnStatement = "NOT_ON_STATEMENT";
+
+    /// <summary>The provider lists a claim INSYS paid and then reversed: on our records, but no longer owed to it (Ade, 30 October 2026).</summary>
+    public const string ReversedByUs = "REVERSED_BY_US";
 }
+
+/// <summary>Where the money of a reversed claim stands, as a statement line shows it (Ade, 30 October 2026).</summary>
+public static class ReversalRecovery
+{
+    public const string Owed = "OWED";
+    public const string Offset = "OFFSET";
+    public const string Invoiced = "INVOICED";
+    public const string Recovered = "RECOVERED";
+}
+
+/// <summary>A claim INSYS paid and reversed: what it paid, and the business date of the reversal.</summary>
+public sealed record ReversedClaim(decimal Paid, DateOnly ReversedOn);
 
 public static class StatementStatus
 {
@@ -156,6 +171,8 @@ public sealed class ProviderStatementLine : Entity<Guid>, ITenantScoped
 
     public decimal? OurAmount { get; private set; }
 
+    public DateOnly? ReversedOn { get; private set; }
+
     public string MatchResult { get; private set; } = "";
 
     public string? Resolution { get; private set; }
@@ -166,10 +183,10 @@ public sealed class ProviderStatementLine : Entity<Guid>, ITenantScoped
 
     public bool Open => MatchResult != StatementMatch.Matched && ResolvedAt is null;
 
-    internal static ProviderStatementLine Create(Guid statementId, string reference, decimal? statementAmount, decimal? ourAmount, string matchResult) => new()
+    internal static ProviderStatementLine Create(Guid statementId, string reference, decimal? statementAmount, decimal? ourAmount, string matchResult, DateOnly? reversedOn = null) => new()
     {
         Id = Guid.CreateVersion7(), StatementId = statementId, Reference = Guard.MaxLength(reference, 25), StatementAmount = statementAmount, OurAmount = ourAmount,
-        MatchResult = matchResult,
+        MatchResult = matchResult, ReversedOn = reversedOn,
     };
 
     internal void Resolve(string reason, Guid by, DateTimeOffset now)
@@ -210,8 +227,10 @@ public sealed class ProviderStatement : AggregateRoot<Guid>
     public IReadOnlyList<ProviderStatementLine> Lines => _lines;
 
     /// <param name="paid">The provider's paid claims of the period, and any others the lines name: claim number and amount paid.</param>
+    /// <param name="reversed">The claims the lines name that INSYS paid and reversed. One the provider leaves out needs no line: both sides agree nothing is owed.</param>
     public static Result<ProviderStatement> Match(Guid id, string providerId, string statementRef, DateOnly from, DateOnly to, string currency,
-        IReadOnlyList<StatementLineInput> lines, IReadOnlyDictionary<string, decimal> paid, IReadOnlySet<string> inPeriod)
+        IReadOnlyList<StatementLineInput> lines, IReadOnlyDictionary<string, decimal> paid, IReadOnlySet<string> inPeriod,
+        IReadOnlyDictionary<string, ReversedClaim>? reversed = null)
     {
         if (to < from)
         {
@@ -230,6 +249,12 @@ public sealed class ProviderStatement : AggregateRoot<Guid>
         };
         foreach (var line in lines)
         {
+            if (reversed is not null && reversed.TryGetValue(line.Reference, out var claim))
+            {
+                statement._lines.Add(ProviderStatementLine.Create(id, line.Reference, line.Amount, claim.Paid, StatementMatch.ReversedByUs, claim.ReversedOn));
+                continue;
+            }
+
             var ours = paid.TryGetValue(line.Reference, out var amount) ? amount : (decimal?)null;
             var result = ours is null ? StatementMatch.NotOnOurRecords : ours == line.Amount ? StatementMatch.Matched : StatementMatch.AmountDiffers;
             statement._lines.Add(ProviderStatementLine.Create(id, line.Reference, line.Amount, ours, result));

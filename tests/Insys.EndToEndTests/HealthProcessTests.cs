@@ -703,7 +703,11 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         // The statement: one claim agrees, one INSYS has no record of, and the other paid claim is left out.
         var paidNumber = (await Get($"/api/v1/health/claims/{paid}")).GetProperty("claimNumber").GetString();
         var otherNumber = (await Get($"/api/v1/health/claims/{other}")).GetProperty("claimNumber").GetString();
-        var csv = $"claim_number,amount\n{paidNumber},500.00\nMC-UNKNOWN,120.00\n";
+        // A third claim, paid and then reversed, is listed by the provider too: on our records, with its own reason.
+        var reversedClaim = await Visit(4);
+        await _db.ExecuteAsOwner("UPDATE health.medical_claim SET status = 'REVERSED', total_paid = 500, reversed_at = @at WHERE id = @c", ("at", _factory.Clock.GetUtcNow()), ("c", reversedClaim));
+        var reversedNumber = (await Get($"/api/v1/health/claims/{reversedClaim}")).GetProperty("claimNumber").GetString();
+        var csv = $"claim_number,amount\n{paidNumber},500.00\nMC-UNKNOWN,120.00\n{reversedNumber},500.00\n";
         var body = new { providerId = "PR-1", statementRef = "ST-1", periodFrom = Today.AddDays(-10), periodTo = Today, currency = "ZAR", csv };
         var imported = await _maker.Send(HttpMethod.Post, "/api/v1/health/provider-statements/import", body, idempotent: true);
         imported.StatusCode.ShouldBe(HttpStatusCode.Created, await imported.Content.ReadAsStringAsync());
@@ -713,9 +717,12 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         lines[paidNumber!].GetProperty("matchResult").GetString().ShouldBe("MATCHED");
         lines["MC-UNKNOWN"].GetProperty("matchResult").GetString().ShouldBe("NOT_ON_OUR_RECORDS");
         lines[otherNumber!].GetProperty("matchResult").GetString().ShouldBe("NOT_ON_STATEMENT");
+        var onOurs = lines[reversedNumber!];
+        (onOurs.GetProperty("matchResult").GetString(), onOurs.GetProperty("recoveryStatus").GetString(), onOurs.GetProperty("reversedOn").GetString(), onOurs.GetProperty("ourAmount").GetDecimal())
+            .ShouldBe(("REVERSED_BY_US", "OWED", Today.ToString("yyyy-MM-dd"), 500m));
         (await (await _maker.Send(HttpMethod.Post, "/api/v1/health/provider-statements/import", body, idempotent: true)).Code()).ShouldBe("PROVIDER_STATEMENT_DUPLICATE");
         var id = statement.GetProperty("id").GetGuid();
-        foreach (var reference in new[] { "MC-UNKNOWN", otherNumber! })
+        foreach (var reference in new[] { "MC-UNKNOWN", otherNumber!, reversedNumber! })
         {
             var current = await _maker.GetAsync($"/api/v1/health/provider-statements/{id}");
             var resolved = await _maker.Send(HttpMethod.Post, $"/api/v1/health/provider-statements/{id}/lines/{lines[reference].GetProperty("id").GetGuid()}/resolve",

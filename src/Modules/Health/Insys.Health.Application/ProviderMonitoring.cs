@@ -86,15 +86,19 @@ public sealed record ProviderStatementSummary(Guid Id, string ProviderId, string
     [property: OneOf(StatementStatus.Exceptions, StatementStatus.Reconciled)] string Status);
 
 public sealed record ProviderStatementLineView(Guid Id, string Reference, decimal? StatementAmount, decimal? OurAmount,
-    [property: OneOf(StatementMatch.Matched, StatementMatch.AmountDiffers, StatementMatch.NotOnOurRecords, StatementMatch.NotOnStatement)] string MatchResult,
-    string? Resolution, Guid? ResolvedBy, DateTimeOffset? ResolvedAt);
+    [property: OneOf(StatementMatch.Matched, StatementMatch.AmountDiffers, StatementMatch.NotOnOurRecords, StatementMatch.NotOnStatement, StatementMatch.ReversedByUs)] string MatchResult,
+    string? Resolution, Guid? ResolvedBy, DateTimeOffset? ResolvedAt,
+    [property: BuildingBlocks.Contracts.AlwaysPresent] DateOnly? ReversedOn = null,
+    [property: OneOf(ReversalRecovery.Owed, ReversalRecovery.Offset, ReversalRecovery.Invoiced, ReversalRecovery.Recovered), BuildingBlocks.Contracts.AlwaysPresent] string? RecoveryStatus = null);
 
 public sealed record ProviderStatementView(Guid Id, string ProviderId, string StatementRef, DateOnly PeriodFrom, DateOnly PeriodTo, string Currency,
     [property: OneOf(StatementStatus.Exceptions, StatementStatus.Reconciled)] string Status, IReadOnlyList<ProviderStatementLineView> Lines, long RowVersion)
 {
     public static ProviderStatementView From(ProviderStatement s) => new(s.Id, s.ProviderId, s.StatementRef, s.PeriodFrom, s.PeriodTo, s.Currency, s.Status,
         s.Lines.OrderBy(l => l.Reference, StringComparer.Ordinal).Select(l => new ProviderStatementLineView(l.Id, l.Reference, l.StatementAmount, l.OurAmount, l.MatchResult,
-            l.Resolution, l.ResolvedBy, l.ResolvedAt)).ToList(), s.RowVersion);
+            l.Resolution, l.ResolvedBy, l.ResolvedAt, l.ReversedOn,
+            // TODO(spec): every reversal is owed until 5a.3 builds recoveries, which then says whether it is offset, invoiced or recovered.
+            l.MatchResult == StatementMatch.ReversedByUs ? ReversalRecovery.Owed : null)).ToList(), s.RowVersion);
 }
 
 public sealed class SubmitProviderStatementValidator : AbstractValidator<SubmitProviderStatement>
@@ -267,7 +271,9 @@ internal sealed class ProviderMonitoringHandlers(IHealthRepository health, IHeal
         var paid = await health.ProviderPaidClaims(providerId, from, to, lines.Select(l => l.Reference).ToList(), cancellationToken);
         var statement = ProviderStatement.Match(Guid.CreateVersion7(), providerId, statementRef, from, to, currency, lines,
             paid.ToDictionary(c => c.ClaimNumber, c => c.Paid, StringComparer.Ordinal),
-            paid.Where(c => c.InPeriod).Select(c => c.ClaimNumber).ToHashSet(StringComparer.Ordinal));
+            paid.Where(c => c.InPeriod).Select(c => c.ClaimNumber).ToHashSet(StringComparer.Ordinal),
+            (await health.ProviderReversedClaims(providerId, lines.Select(l => l.Reference).ToList(), cancellationToken))
+                .ToDictionary(c => c.ClaimNumber, c => new ReversedClaim(c.Paid, businessDate.DateOf(c.ReversedAt)), StringComparer.Ordinal));
         if (statement.IsFailure)
         {
             return statement.Error;

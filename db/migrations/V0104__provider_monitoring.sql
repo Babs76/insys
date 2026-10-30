@@ -153,13 +153,14 @@ CREATE TABLE health.provider_statement_line (
   reference                  varchar(25) NOT NULL,
   statement_amount           numeric(18,2),
   our_amount                 numeric(18,2),
+  reversed_on                date,
   match_result               varchar(20) NOT NULL,
   resolution                 varchar(500),
   resolved_by                uuid,
   resolved_at                timestamptz,
   CONSTRAINT pk_provider_statement_line PRIMARY KEY (tenant_id, id),
   CONSTRAINT fk_provider_statement_line FOREIGN KEY (tenant_id, statement_id) REFERENCES health.provider_statement (tenant_id, id),
-  CONSTRAINT ck_provider_statement_line_match CHECK (match_result IN ('MATCHED', 'AMOUNT_DIFFERS', 'NOT_ON_OUR_RECORDS', 'NOT_ON_STATEMENT'))
+  CONSTRAINT ck_provider_statement_line_match CHECK (match_result IN ('MATCHED', 'AMOUNT_DIFFERS', 'NOT_ON_OUR_RECORDS', 'NOT_ON_STATEMENT', 'REVERSED_BY_US'))
 );
 CREATE INDEX ix_provider_statement_line_1 ON health.provider_statement_line (tenant_id, statement_id);
 
