@@ -426,7 +426,7 @@ public sealed class GeneralModule : IModule
             .Produces<RetentionCaseView>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status409Conflict)
-            .WithName("GeneralMakeRetentionOffer")
+            .TakesIfMatch().WithName("GeneralMakeRetentionOffer")
             .WithSummary("Make an offer from the tenant's list (general.cfg_retention_offers), within your authority (F026)")
             .WithDescription("403 GENERAL_RETENTION_OFFER_AUTHORITY when the offer names a role you do not hold; 409 GENERAL_RETENTION_OFFER_USED_UP when it has "
                 + "been made on the policy as often as it may be.")
@@ -436,12 +436,12 @@ public sealed class GeneralModule : IModule
             .Produces<RetentionCaseView>(StatusCodes.Status200OK)
             .WithEventualEffects("an accepted DISCOUNT_PERCENT on a case with a renewal lowers the renewal's offered premium by the per cent and records it as "
                 + "accepted (channel STAFF); any other accepted offer is made by staff (an endorsement mid-term, or the renewal's terms).")
-            .WithName("GeneralAnswerRetentionOffer").WithSummary("Record the customer's answer to an offer (F026)")
+            .TakesIfMatch().WithName("GeneralAnswerRetentionOffer").WithSummary("Record the customer's answer to an offer (F026)")
             .RequirePermission(GeneralPermissions.RetentionUpdate);
         general.MapPost("/retention-cases/{id:guid}/outcome", async (Guid id, RetentionOutcomeRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new CloseRetentionCase(id, r.Outcome, r.Note), ct)).ToHttp(Results.Ok))
             .Produces<RetentionCaseView>(StatusCodes.Status200OK)
-            .WithName("GeneralCloseRetentionCase").WithSummary("Close a retention case: RETAINED, LOST or WITHDRAWN (F026); its Workflow task closes")
+            .TakesIfMatch().WithName("GeneralCloseRetentionCase").WithSummary("Close a retention case: RETAINED, LOST or WITHDRAWN (F026); its Workflow task closes")
             .RequirePermission(GeneralPermissions.RetentionUpdate);
         general.MapPost("/policies/{id:guid}/non-renewal", async (Guid id, NonRenewalRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new ProposeNonRenewal(id, r.ReasonCode), ct)).ToHttp(Results.Ok))
