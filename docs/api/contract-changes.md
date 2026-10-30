@@ -2,6 +2,11 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
+## BR-116 (branch `br-116`): a portal user can answer a renewal
+
+- **`GET /portal/general/renewals/{id}`** now returns an `ETag`, and `PortalRenewalView` has `rowVersion` (also in the list). Accept and decline return the new `ETag`. Send it as `If-Match` on accept and decline: a stale one gets 412. Before this, a portal user had no way to get the version these operations require.
+- **Preferences:** `CommunicationsSetPreference` and `PortalCommunicationsSetPreference` are unchanged. `If-Match` stays optional, and each item of the list read has its `rowVersion`.
+
 ## Wave 5a batch 5a.1 (branch `wave5a-1`): provider measures, quality reviews and statements (addendum §4.1, §4.2; F028 to F030)
 
 ### New

@@ -60572,7 +60572,7 @@
           }
         }
       },
-      "JsonElement": {},
+      "JsonElement": { },
       "LifeBeneficiaryRelationshipTypes": {
         "type": "object",
         "properties": {

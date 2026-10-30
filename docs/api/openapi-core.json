@@ -24448,6 +24448,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -24515,6 +24523,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -24594,6 +24610,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -46717,7 +46741,8 @@
           "currentPremium",
           "offeredPremium",
           "needsAcceptance",
-          "coverEndsOn"
+          "coverEndsOn",
+          "rowVersion"
         ],
         "type": "object",
         "properties": {
@@ -46776,6 +46801,14 @@
               "string"
             ],
             "format": "date"
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
           }
         }
       },
@@ -53917,7 +53950,7 @@
           }
         }
       },
-      "JsonElement": {},
+      "JsonElement": { },
       "LedgerStatus": {
         "enum": [
           "Parked",

@@ -547,15 +547,15 @@ public sealed class GeneralModule : IModule
         portal.MapGet("/renewals/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetPortalRenewal(id), ct)).ToHttp(Results.Ok))
             .Produces<PortalRenewalView>(StatusCodes.Status200OK)
             .WithName("PortalGeneralGetRenewal").WithSummary("A renewal of the member's or broker's policy: the offered terms and the answer").RequirePermission(GeneralPermissions.PolicyRead)
-            .ForPortal(party, broker);
+            .ForPortal(party, broker).ETagsFromRowVersion();
         portal.MapPost("/renewals/{id:guid}/accept", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Send(new PortalAcceptRenewal(id), ct)).ToHttp(Results.Ok))
             .Produces<PortalRenewalView>(StatusCodes.Status200OK)
             .TakesIfMatch().WithName("PortalGeneralAcceptRenewal").WithSummary("Accept the renewal invitation (channel PORTAL for the member, BROKER for the broker)")
-            .RequirePermission(GeneralPermissions.RenewalRespond).ForPortal(party, broker);
+            .RequirePermission(GeneralPermissions.RenewalRespond).ForPortal(party, broker).ETagsFromRowVersion();
         portal.MapPost("/renewals/{id:guid}/decline", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Send(new PortalDeclineRenewal(id), ct)).ToHttp(Results.Ok))
             .Produces<PortalRenewalView>(StatusCodes.Status200OK)
             .TakesIfMatch().WithName("PortalGeneralDeclineRenewal").WithSummary("Decline the renewal: the policy is not renewed")
-            .RequirePermission(GeneralPermissions.RenewalRespond).ForPortal(party, broker);
+            .RequirePermission(GeneralPermissions.RenewalRespond).ForPortal(party, broker).ETagsFromRowVersion();
         portal.MapGet("/quotes", async (string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
                 await Page(cursor, limit, (after, size) => d.Query(new ListPortalQuotes(after, size), ct), q => q.Id))
             .Produces<CursorPage<PortalQuoteView>>(StatusCodes.Status200OK)

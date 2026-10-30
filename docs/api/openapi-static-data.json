@@ -236590,7 +236590,7 @@
           }
         }
       },
-      "JsonElement": {},
+      "JsonElement": { },
       "LifeAllocationRules": {
         "type": "object",
         "properties": {
