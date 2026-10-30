@@ -1,6 +1,11 @@
 # Addendum: providers and care management (Wave 5a: F028–F030, F034–F038, F048–F050)
 
-**Draft for sign-off (Ade). Nothing is built until it is signed off.** The decisions are in §8, each with a recommendation. The rules in §1 are for compliance to confirm.
+**Signed off (Ade, 30 October 2026), every recommendation accepted (OQ-139 to OQ-146), with three additions.** The decisions are in §8. The rules in §1 are for compliance to confirm.
+- **Addition 1 (OQ-139): deduction needs a basis.** An offset flag on the provider agreement says whether a recovery may be deducted from later runs. It defaults to true when the tenant is a medical scheme (Medical Schemes Act s 59(3)) and to false otherwise, since a health insurer needs it in its provider contract. Without it, the recovery is invoiced. Compliance still to confirm applicability and any time limit.
+- **Addition 2 (OQ-143):** reassigning a complex case ends the previous case manager's access to its clinical detail. Tested.
+- **Addition 3 (OQ-145):** a member overpayment a person decides is never dropped: a write-off needs a second person and a reason, as for providers.
+
+**Build order:** gap 1 (§0, the ledger) first, on its own, as a defect on main; then 5a.1, 5a.2 and 5a.3 (§9).
 
 ## 0. Why an addendum
 What is built today, checked against the code and `docs/traceability/functional-coverage.md`:
@@ -73,7 +78,7 @@ Names are proposals. `CFG` is tenant configuration; the others are records.
 
 ### 4.3 Complex medical cases and case managers (F034, F035)
 - **Opened** by a person, from a utilisation case or a high-cost threshold, or from a membership directly. Medical data stays in Health (OQ-140).
-- **Case manager.** Assigned from the users holding the case manager function, and reassigned with a reason. Both are audited. Assignment gives access to that case's clinical detail (OQ-143).
+- **Case manager.** Assigned from the users holding the case manager function, and reassigned with a reason. Both are audited. Assignment gives access to that case's clinical detail (OQ-143), and reassigning ends the previous case manager's access (addition 2).
 - **States.** `OPEN`, `ACTIVE`, `ON_HOLD`, `CLOSED`, with a reason to close. Never closed automatically.
 
 ### 4.4 Care plans and coordination (F036, F037)
@@ -93,12 +98,13 @@ Names are proposals. `CFG` is tenant configuration; the others are records.
 
 ### 4.7 Overpayment recovery (F049; OQ-061)
 - **Raised** by a reversal of a paid provider claim, an approved credit note, or a person's finding (with a second person, over the approval limit).
-- **Collected** per OQ-139. Recommended: deducted from the provider's next payment runs, oldest first. A run shows gross, offsets and net per remittance, and its approval covers the net with the offsets visible. Offsets never take a remittance below zero. A provider whose net is zero gets a remittance advice and no payment; the balance carries forward.
+- **Basis (addition 1).** The provider agreement's offset flag decides. Set, the recovery is deducted as below. Not set, it is invoiced through Billing.
+- **Collected** per OQ-139: deducted from the provider's next payment runs, oldest first. A run shows gross, offsets and net per remittance, and its approval covers the net with the offsets visible. Offsets never take a remittance below zero. A provider whose net is zero gets a remittance advice and no payment; the balance carries forward.
 - **Not collected.** With no payment for the configured period, the recovery goes to a person, who may invoice the provider (through Billing, OQ-139) or write it off with a second person's approval and a reason. Never dropped.
 - **Reversal.** A recovery raised in error is reversed, not edited. An offset already taken is repaid in the next run.
 - **Ledger.** Finance posts the claim's reversal (closing gap 1), each offset, each write-off and each credit note.
 - **Notice.** The provider gets a notice when a recovery is raised and sees offsets on its remittance. Business references only.
-- **Member reimbursements.** A member has no future provider run to deduct from: OQ-145.
+- **Member reimbursements.** A member has no future provider run to deduct from. A person decides each (OQ-145). It is never dropped: a write-off needs a second person and a reason (addition 3).
 
 ### 4.8 Payment disputes (F050)
 - **Raised** as a Workflow case of the dispute family, by staff or by the provider through its portal, linking the remittance or run (closing gap 3: a provider may link only its own).
