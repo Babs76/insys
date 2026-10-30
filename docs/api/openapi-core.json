@@ -59985,7 +59985,8 @@
           "ready",
           "what",
           "missing",
-          "attestation"
+          "attestation",
+          "advisory"
         ],
         "type": "object",
         "properties": {
@@ -60013,6 +60014,10 @@
                 "$ref": "#/components/schemas/TenancyOnboardingAttestationView"
               }
             ]
+          },
+          "advisory": {
+            "type": "boolean",
+            "default": false
           }
         }
       },

@@ -232,7 +232,11 @@ public sealed class OnboardingReadinessTests(DatabaseFixture fixture) : IClassFi
         readiness.GetProperty("steps").EnumerateArray().Single(s => s.GetProperty("step").GetString() == "PRODUCT_FACTORY").GetProperty("ready").GetBoolean()
             .ShouldBeTrue("a warning does not stop the step");
 
-        await fixture.Database.ExecuteAsOwner("UPDATE rules.cfg_acceptance_and_referral_rules SET domain = 'LIFE' WHERE tenant_id = @t AND code = 'UW-SA'", ("t", tenantId));
+        // An approved version is immutable (SDM-002): the unscoped one is retired and a version scoped to LIFE takes its place.
+        await fixture.Database.ExecuteAsOwner("UPDATE rules.cfg_acceptance_and_referral_rules SET record_status = 'RETIRED' WHERE tenant_id = @t AND code = 'UW-SA'",
+            ("t", tenantId));
+        await fixture.Database.SeedStatic(tenantId, "rules.cfg_acceptance_and_referral_rules", "EFFECTIVE", "UW-SA", 2, From, null, ("rule_code", "UW-SA"),
+            ("condition", "sum_assured > threshold"), ("threshold", 5_000_000m), ("outcome", "REFER"), ("domain", "LIFE"));
         Check(await Readiness(url), "PRODUCT_FACTORY", "UNSCOPED_UNDERWRITING_RULES").GetProperty("ready").GetBoolean().ShouldBeTrue();
     }
 
