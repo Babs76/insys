@@ -30,8 +30,11 @@ After a paid claim is reversed: `2100` nets to zero, `1300` shows what is owed, 
 - **`recover_from`:** the posting carries `PROVIDER` or `MEMBER`, so a tenant can route a member's overpayment to another account with a rule condition.
 - **No rule, or no open period:** the posting waits as a posting exception, as any posting does. It is never dropped.
 - **Readiness:** `POSTING_RULES` lists `CLAIM_PAID_REVERSED` for a tenant entitled to HEALTH, and blocks `FINANCIAL_FOUNDATIONS` until it has the rule. **This is new setup for Health tenants, the front end's included.**
-- **A limit:** nothing checks that this rule credits the same account `CLAIM_PAID` debits. A tenant that configures another account will not net to zero there. Finance owns that configuration.
+- **Readiness warning `CLAIM_REVERSAL_ACCOUNTS`** (advisory, Ade, 30 October 2026): lists a credit account on `CLAIM_PAID_REVERSED` that no `CLAIM_PAID` rule debits, because that reversal will not net to zero. It does not stop the step.
+
+## Partial reversal
+**The posting handles it; the product has no partial reversal.** Finance posts the amount the event names: paid 1 000 and reversed 400 leaves `2100` at 600, `1300` at 400 and `1200` at the original 1 000 credit, tested at the posting level. But `POST /health/claims/{id}/reverse` takes only a reason, the claim moves whole from Paid to Reversed, and the event always carries the full paid amount. No user can reverse part of a claim today. Building that (which lines, the benefit use given back, the claim's state) is a separate decision.
 
 **Claims reversed before this fix** have no posting. No tenant is live, so none is back-filled.
 
-**Tests.** The end-to-end Health flow, on every dated clock: after a paid claim is reversed, `2100` nets to zero, `1300` holds the amount, and `1200` still shows the original credit. An integration test covers the posting exception with no rule. Results are in the next report, so this branch's head does not move after CI.
+**Tests.** The end-to-end Health flow, on every dated clock: after a paid claim is reversed, `2100` nets to zero, `1300` holds the amount, and `1200` still shows the original credit. An integration test covers the posting exception with no rule, and another the readiness warning. Results are in the next report, so this branch's head does not move after CI.
