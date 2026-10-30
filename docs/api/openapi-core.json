@@ -22522,6 +22522,794 @@
         ]
       }
     },
+    "/api/v1/general/renewals/{id}/accept": {
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Record the customer\u0027s acceptance of an offered renewal (Wave 4 \u00A74.4, channel STAFF)",
+        "description": "Only an OFFERED renewal is accepted (409 GENERAL_RENEWAL_NOT_OFFERED otherwise). An ON_ACCEPTANCE renewal, or one on worse terms than the tenant\u0027s threshold, renews at the period end only once accepted.",
+        "operationId": "GeneralAcceptRenewal",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneralRenewalView"
+                }
+              }
+            }
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "general_renewal.respond",
+        "x-function": [
+          "GENERAL_RECORD_RENEWAL_ANSWER"
+        ]
+      }
+    },
+    "/api/v1/general/renewals/{id}/decline": {
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Record the customer\u0027s decline of a renewal (Wave 4 \u00A74.4): the policy expires at its period end",
+        "operationId": "GeneralDeclineRenewal",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneralRenewalView"
+                }
+              }
+            }
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "general_renewal.respond",
+        "x-function": [
+          "GENERAL_RECORD_RENEWAL_ANSWER"
+        ]
+      }
+    },
+    "/api/v1/general/retention-cases": {
+      "get": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Retention cases, newest first, by status (OPEN, CLOSED) and policy, within your scope (F026)",
+        "operationId": "GeneralListRetentionCases",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "policyId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfGeneralRetentionCaseView"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "general_retention.read",
+        "x-function": [
+          "GENERAL_RETENTION_CASES"
+        ]
+      },
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Open a retention case for a policy (F026): when the policyholder asks to cancel, or another reason to try to keep it",
+        "description": "A cancellation is processed as asked (CancelPolicy); the case only records whether the customer changed their mind. A declined renewal, and a renewal still awaiting acceptance the tenant\u0027s lapse_risk_days before its end, open a case themselves. One case is open per policy.",
+        "operationId": "GeneralOpenRetentionCase",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GeneralRetentionCaseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneralRetentionCaseView"
+                }
+              }
+            }
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "general_retention.update",
+        "x-function": [
+          "GENERAL_WORK_RETENTION_CASE"
+        ]
+      }
+    },
+    "/api/v1/general/retention-cases/{id}": {
+      "get": {
+        "tags": [
+          "General"
+        ],
+        "summary": "A retention case: what opened it, its offers and answers, and its outcome (F026)",
+        "operationId": "GeneralGetRetentionCase",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneralRetentionCaseView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "general_retention.read",
+        "x-function": [
+          "GENERAL_RETENTION_CASES"
+        ]
+      }
+    },
+    "/api/v1/general/retention-cases/{id}/offers": {
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Make an offer from the tenant\u0027s list (general.cfg_retention_offers), within your authority (F026)",
+        "description": "403 RETENTION_OFFER_NOT_PERMITTED when the offer names a role you do not hold; 409 RETENTION_OFFER_USED_UP when it has been made on the policy as often as it may be.",
+        "operationId": "GeneralMakeRetentionOffer",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GeneralRetentionOfferRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneralRetentionCaseView"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "general_retention.update",
+        "x-function": [
+          "GENERAL_WORK_RETENTION_CASE"
+        ]
+      }
+    },
+    "/api/v1/general/retention-cases/{id}/offers/{offerId}/answer": {
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Record the customer\u0027s answer to an offer (F026)",
+        "description": "Completes asynchronously (GAP-027): an accepted DISCOUNT_PERCENT on a case with a renewal lowers the renewal\u0027s offered premium by the per cent and records it as accepted (channel STAFF); any other accepted offer is made by staff (an endorsement mid-term, or the renewal\u0027s terms).",
+        "operationId": "GeneralAnswerRetentionOffer",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "offerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GeneralRetentionAnswerRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneralRetentionCaseView"
+                }
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "general_retention.update",
+        "x-function": [
+          "GENERAL_WORK_RETENTION_CASE"
+        ],
+        "x-eventual-effects": "an accepted DISCOUNT_PERCENT on a case with a renewal lowers the renewal\u0027s offered premium by the per cent and records it as accepted (channel STAFF); any other accepted offer is made by staff (an endorsement mid-term, or the renewal\u0027s terms)."
+      }
+    },
+    "/api/v1/general/retention-cases/{id}/outcome": {
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Close a retention case: RETAINED, LOST or WITHDRAWN (F026); its Workflow task closes",
+        "operationId": "GeneralCloseRetentionCase",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GeneralRetentionOutcomeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneralRetentionCaseView"
+                }
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "general_retention.update",
+        "x-function": [
+          "GENERAL_WORK_RETENTION_CASE"
+        ]
+      }
+    },
+    "/api/v1/general/policies/{id}/non-renewal": {
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Propose not renewing a policy, with a reason (Wave 4 \u00A74.3, F025)",
+        "description": "The reason (general.cfg_non_renewal_reasons) gives the notice days, the customer\u0027s wording, and whether a second person approves. Once decided, the policyholder gets NON_RENEWAL_NOTICE with the wording, and the renewal is NOT_RENEWED_BY_INSURER: the policy expires at its period end. A decision less than the notice before the period end extends cover, pro rata, until the notice runs out (OQ-132 (b)); the extra days are billed. Completes asynchronously (GAP-027): with a reason that requires approval, a second person approves it in Workflow (GENERAL_NON_RENEWAL); granted, the notice is sent and nonRenewal.status becomes DECIDED; rejected, REJECTED and the renewal goes on as before.",
+        "operationId": "GeneralProposeNonRenewal",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GeneralNonRenewalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneralRenewalView"
+                }
+              }
+            }
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "general_policy.non_renew",
+        "x-function": [
+          "GENERAL_PROPOSE_NON_RENEWAL"
+        ],
+        "x-eventual-effects": "with a reason that requires approval, a second person approves it in Workflow (GENERAL_NON_RENEWAL); granted, the notice is sent and nonRenewal.status becomes DECIDED; rejected, REJECTED and the renewal goes on as before."
+      }
+    },
     "/api/v1/general/aggregation-alerts": {
       "get": {
         "tags": [
@@ -23472,6 +24260,284 @@
         "x-permission": "general_claim.read",
         "x-function": [
           "CUSTOMER_PORTAL_GENERAL_CLAIMS"
+        ]
+      }
+    },
+    "/api/v1/portal/general/renewals": {
+      "get": {
+        "tags": [
+          "General"
+        ],
+        "summary": "The renewals of the member\u0027s or broker\u0027s policies, once invited (Wave 4 \u00A74.6)",
+        "operationId": "PortalGeneralListRenewals",
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfGeneralPortalRenewalView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "general_policy.read",
+        "x-function": [
+          "CUSTOMER_PORTAL_GENERAL_RENEWALS",
+          "BROKER_PORTAL_GENERAL_RENEWALS"
+        ]
+      }
+    },
+    "/api/v1/portal/general/renewals/{id}": {
+      "get": {
+        "tags": [
+          "General"
+        ],
+        "summary": "A renewal of the member\u0027s or broker\u0027s policy: the offered terms and the answer",
+        "operationId": "PortalGeneralGetRenewal",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneralPortalRenewalView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "general_policy.read",
+        "x-function": [
+          "CUSTOMER_PORTAL_GENERAL_RENEWALS",
+          "BROKER_PORTAL_GENERAL_RENEWALS"
+        ]
+      }
+    },
+    "/api/v1/portal/general/renewals/{id}/accept": {
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Accept the renewal invitation (channel PORTAL for the member, BROKER for the broker)",
+        "operationId": "PortalGeneralAcceptRenewal",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneralPortalRenewalView"
+                }
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "general_renewal.respond",
+        "x-function": [
+          "CUSTOMER_PORTAL_GENERAL_ANSWER_RENEWAL",
+          "BROKER_PORTAL_GENERAL_ANSWER_RENEWAL"
+        ]
+      }
+    },
+    "/api/v1/portal/general/renewals/{id}/decline": {
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Decline the renewal: the policy is not renewed",
+        "operationId": "PortalGeneralDeclineRenewal",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneralPortalRenewalView"
+                }
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "general_renewal.respond",
+        "x-function": [
+          "CUSTOMER_PORTAL_GENERAL_ANSWER_RENEWAL",
+          "BROKER_PORTAL_GENERAL_ANSWER_RENEWAL"
         ]
       }
     },
@@ -35068,6 +36134,7 @@
                 "ReinsuranceRecovery",
                 "Renewal",
                 "ReportRun",
+                "RetentionCase",
                 "RiskObject",
                 "RuleDecision",
                 "SearchLogHold",
@@ -35182,6 +36249,7 @@
                 "cfg_network_definitions",
                 "cfg_network_restriction_rules",
                 "cfg_nomination_rules",
+                "cfg_non_renewal_reasons",
                 "cfg_notification_lead_times",
                 "cfg_notification_templates",
                 "cfg_notification_types",
@@ -35220,6 +36288,7 @@
                 "cfg_renewal_settings",
                 "cfg_repeat_service_intervals",
                 "cfg_report_catalogue_and_acces",
+                "cfg_retention_offers",
                 "cfg_retention_schedules",
                 "cfg_retry_and_dead_letter_poli",
                 "cfg_risk_object_types_and_attr",
@@ -35516,6 +36585,7 @@
                 "ReinsuranceRecovery",
                 "Renewal",
                 "ReportRun",
+                "RetentionCase",
                 "RiskObject",
                 "RuleDecision",
                 "SearchLogHold",
@@ -35630,6 +36700,7 @@
                 "cfg_network_definitions",
                 "cfg_network_restriction_rules",
                 "cfg_nomination_rules",
+                "cfg_non_renewal_reasons",
                 "cfg_notification_lead_times",
                 "cfg_notification_templates",
                 "cfg_notification_types",
@@ -35668,6 +36739,7 @@
                 "cfg_renewal_settings",
                 "cfg_repeat_service_intervals",
                 "cfg_report_catalogue_and_acces",
+                "cfg_retention_offers",
                 "cfg_retention_schedules",
                 "cfg_retry_and_dead_letter_poli",
                 "cfg_risk_object_types_and_attr",
@@ -40049,6 +41121,27 @@
           }
         }
       },
+      "CursorPageOfGeneralPortalRenewalView": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GeneralPortalRenewalView"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "CursorPageOfGeneralPortalRiskObjectView": {
         "required": [
           "items",
@@ -40144,6 +41237,27 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/GeneralRenewalView"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CursorPageOfGeneralRetentionCaseView": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GeneralRetentionCaseView"
             }
           },
           "nextCursor": {
@@ -41044,6 +42158,7 @@
         "properties": {
           "code": {
             "enum": [
+              "AVERAGE_RENEWAL_PREMIUM_CHANGE",
               "CASES_OPEN",
               "CASES_OVERDUE",
               "CLAIMS_INCURRED",
@@ -41061,6 +42176,17 @@
               "PAYMENTS_UNKNOWN",
               "POLICIES_WRITTEN",
               "REDRESS_PAID",
+              "RENEWALS_ACCEPTED",
+              "RENEWALS_DECLINED_BY_CUSTOMER",
+              "RENEWALS_DUE",
+              "RENEWALS_INVITED",
+              "RENEWALS_LAPSED",
+              "RENEWALS_NOT_RENEWED_BY_INSURER",
+              "RENEWALS_RENEWED",
+              "RENEWAL_RATE",
+              "RETENTION_OFFERS_ACCEPTED",
+              "RETENTION_OFFERS_MADE",
+              "RETENTION_RATE",
               "RETURNS_AWAITING_ACTION",
               "RETURNS_BY_STATUS",
               "RETURNS_OVERDUE",
@@ -41102,6 +42228,15 @@
               "string"
             ],
             "format": "date-time"
+          },
+          "rate": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
           }
         }
       },
@@ -43811,6 +44946,89 @@
           }
         }
       },
+      "GeneralNonRenewalRequest": {
+        "required": [
+          "reasonCode"
+        ],
+        "type": "object",
+        "properties": {
+          "reasonCode": {
+            "type": "string",
+            "x-code-list": "general.cfg_non_renewal_reasons",
+            "x-code-list-column": "reason_code"
+          }
+        }
+      },
+      "GeneralNonRenewalView": {
+        "required": [
+          "reasonCode",
+          "status",
+          "requestedBy",
+          "requestedAt",
+          "decidedBy",
+          "decidedAt",
+          "noticeOn",
+          "coverExtendedTo"
+        ],
+        "type": "object",
+        "properties": {
+          "reasonCode": {
+            "type": "string",
+            "x-code-list": "general.cfg_non_renewal_reasons",
+            "x-code-list-column": "reason_code"
+          },
+          "status": {
+            "enum": [
+              "REQUESTED",
+              "DECIDED",
+              "REJECTED"
+            ],
+            "type": "string"
+          },
+          "requestedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "requestedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "decidedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "decidedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "noticeOn": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "coverExtendedTo": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          }
+        }
+      },
       "GeneralNotifyLoss": {
         "required": [
           "policyId",
@@ -44626,6 +45844,79 @@
           "pricedOnCreation": {
             "type": "boolean",
             "default": false
+          }
+        }
+      },
+      "GeneralPortalRenewalView": {
+        "required": [
+          "id",
+          "policyId",
+          "policyNumber",
+          "periodEnd",
+          "status",
+          "currency",
+          "currentPremium",
+          "offeredPremium",
+          "needsAcceptance",
+          "coverEndsOn"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "policyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "policyNumber": {
+            "type": "string"
+          },
+          "periodEnd": {
+            "type": "string",
+            "format": "date"
+          },
+          "status": {
+            "enum": [
+              "OFFERED",
+              "ACCEPTED",
+              "RENEWED",
+              "DECLINED_BY_CUSTOMER",
+              "NOT_RENEWED_BY_INSURER",
+              "LAPSED"
+            ],
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "currentPremium": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "offeredPremium": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "needsAcceptance": {
+            "type": "boolean"
+          },
+          "coverEndsOn": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
           }
         }
       },
@@ -45450,6 +46741,93 @@
           }
         }
       },
+      "GeneralRenewalAnswerView": {
+        "required": [
+          "acceptance",
+          "needsAcceptance",
+          "acceptedAt",
+          "acceptedBy",
+          "acceptedChannel",
+          "declinedAt",
+          "declinedBy",
+          "declinedChannel",
+          "renewalPolicyId"
+        ],
+        "type": "object",
+        "properties": {
+          "acceptance": {
+            "enum": [
+              "AUTOMATIC",
+              "ON_ACCEPTANCE",
+              "ON_PAYMENT"
+            ],
+            "type": "string"
+          },
+          "needsAcceptance": {
+            "type": "boolean"
+          },
+          "acceptedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "acceptedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "acceptedChannel": {
+            "enum": [
+              "STAFF",
+              "PORTAL",
+              "BROKER",
+              "PAYMENT",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "declinedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "declinedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "declinedChannel": {
+            "enum": [
+              "STAFF",
+              "PORTAL",
+              "BROKER",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "renewalPolicyId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
       "GeneralRenewalCheckView": {
         "required": [
           "checkCode",
@@ -45495,7 +46873,11 @@
           "NotEligible",
           "Offered",
           "Renewed",
-          "NotRenewed"
+          "NotRenewed",
+          "Accepted",
+          "DeclinedByCustomer",
+          "NotRenewedByInsurer",
+          "Lapsed"
         ]
       },
       "GeneralRenewalView": {
@@ -45528,7 +46910,9 @@
           "decidedBy",
           "decidedAt",
           "checks",
-          "rowVersion"
+          "rowVersion",
+          "answer",
+          "nonRenewal"
         ],
         "type": "object",
         "properties": {
@@ -45714,6 +47098,26 @@
               "string"
             ],
             "format": "int64"
+          },
+          "answer": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/GeneralRenewalAnswerView"
+              }
+            ]
+          },
+          "nonRenewal": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/GeneralNonRenewalView"
+              }
+            ]
           }
         }
       },
@@ -45738,6 +47142,269 @@
               "string"
             ],
             "format": "uuid"
+          }
+        }
+      },
+      "GeneralRetentionAnswerRequest": {
+        "required": [
+          "accepted"
+        ],
+        "type": "object",
+        "properties": {
+          "accepted": {
+            "type": "boolean"
+          }
+        }
+      },
+      "GeneralRetentionCaseRequest": {
+        "required": [
+          "policyId",
+          "trigger",
+          "note"
+        ],
+        "type": "object",
+        "properties": {
+          "policyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "trigger": {
+            "enum": [
+              "CANCELLATION_REQUESTED",
+              "NOT_RENEWING",
+              "LAPSE_RISK"
+            ],
+            "type": "string"
+          },
+          "note": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "GeneralRetentionCaseView": {
+        "required": [
+          "id",
+          "policyId",
+          "policyNumber",
+          "productCode",
+          "renewalId",
+          "trigger",
+          "status",
+          "outcome",
+          "openedOn",
+          "openedBy",
+          "ownerId",
+          "closedAt",
+          "closedBy",
+          "note",
+          "offers",
+          "rowVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "policyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "policyNumber": {
+            "type": "string"
+          },
+          "productCode": {
+            "type": "string"
+          },
+          "renewalId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "trigger": {
+            "enum": [
+              "CANCELLATION_REQUESTED",
+              "NOT_RENEWING",
+              "LAPSE_RISK"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "OPEN",
+              "CLOSED"
+            ],
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "RETAINED",
+              "LOST",
+              "WITHDRAWN",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "openedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "openedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "ownerId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "closedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "closedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "note": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "offers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GeneralRetentionOfferView"
+            }
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "GeneralRetentionOfferRequest": {
+        "required": [
+          "offerCode"
+        ],
+        "type": "object",
+        "properties": {
+          "offerCode": {
+            "type": "string",
+            "x-code-list": "general.cfg_retention_offers",
+            "x-code-list-column": "offer_code"
+          }
+        }
+      },
+      "GeneralRetentionOfferView": {
+        "required": [
+          "id",
+          "offerCode",
+          "kind",
+          "value",
+          "madeBy",
+          "madeAt",
+          "outcome",
+          "decidedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "offerCode": {
+            "type": "string",
+            "x-code-list": "general.cfg_retention_offers",
+            "x-code-list-column": "offer_code"
+          },
+          "kind": {
+            "enum": [
+              "DISCOUNT_PERCENT",
+              "EXCESS_CHANGE",
+              "COVER_CHANGE",
+              "PAYMENT_TERMS"
+            ],
+            "type": "string"
+          },
+          "value": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "madeBy": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "madeAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "outcome": {
+            "enum": [
+              "PENDING",
+              "ACCEPTED",
+              "DECLINED"
+            ],
+            "type": "string"
+          },
+          "decidedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "GeneralRetentionOutcomeRequest": {
+        "required": [
+          "outcome",
+          "note"
+        ],
+        "type": "object",
+        "properties": {
+          "outcome": {
+            "enum": [
+              "RETAINED",
+              "LOST",
+              "WITHDRAWN"
+            ],
+            "type": "string"
+          },
+          "note": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -58320,6 +59987,7 @@
               "DUE_DILIGENCE_UNBLOCK",
               "GENERAL_CLAIM",
               "GENERAL_ENDORSEMENT",
+              "GENERAL_RENEWAL",
               "GOVERNANCE_SETTING",
               "HEALTH_PAYMENT_RUN",
               "LIFE_CLAIM",
@@ -58354,6 +60022,7 @@
               "DUE_DILIGENCE_UNBLOCK",
               "ENDORSEMENT",
               "EXTERNAL_SUBJECT_LINK",
+              "GENERAL_NON_RENEWAL",
               "LEGAL_HOLD_RELEASE",
               "LIFE_CLAIM",
               "LIFE_UNDERWRITING",
@@ -58527,6 +60196,7 @@
               "DUE_DILIGENCE_UNBLOCK",
               "ENDORSEMENT",
               "EXTERNAL_SUBJECT_LINK",
+              "GENERAL_NON_RENEWAL",
               "LEGAL_HOLD_RELEASE",
               "LIFE_CLAIM",
               "LIFE_UNDERWRITING",
@@ -59718,6 +61388,7 @@
               "DUE_DILIGENCE_UNBLOCK",
               "ENDORSEMENT",
               "EXTERNAL_SUBJECT_LINK",
+              "GENERAL_NON_RENEWAL",
               "LEGAL_HOLD_RELEASE",
               "LIFE_CLAIM",
               "LIFE_UNDERWRITING",
