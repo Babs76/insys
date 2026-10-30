@@ -51,7 +51,9 @@ public sealed record GetRenewal(Guid RenewalId) : IQuery<RenewalView>;
 
 public sealed record ListRenewals(RenewalStatus? Status, Guid? PolicyId, Guid? BeforeId, int Limit) : IQuery<IReadOnlyList<RenewalView>>;
 
-public sealed record RenewalCheckView(string CheckCode, [property: OneOf("PASS", "REFER", "FAIL", "PENDING")] string Outcome, string? Detail);
+public sealed record RenewalCheckView(
+    [property: OneOf("PRODUCT_ON_SALE", "DUE_DILIGENCE", "FRAUD_REFERRALS", "CLAIMS_HISTORY", "RISK_CHANGES", "ELIGIBILITY_RULES", "UNDERWRITING_RULES", "RE_RATING")]
+    string CheckCode, [property: OneOf("PASS", "REFER", "FAIL", "PENDING")] string Outcome, string? Detail);
 
 /// <summary>
 /// A renewal and its review (Wave 4 §4.2): the claims history and risk changes it read, the checks and their results, the
