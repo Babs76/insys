@@ -60,8 +60,10 @@ public sealed class HealthTests
     {
         Model(HealthScheme.Lifecycle).ShouldBe(Spec("HealthScheme", ("Start date reached", "StartDateReached")));
         Model(HealthMembership.Lifecycle).ShouldBe(Spec("HealthMembership", ("Start date reached", "StartDateReached")));
-        Model(Preauthorisation.Lifecycle).ShouldBe(Spec("Preauthorisation", ("Matched to a claim", "MatchedToClaim"), ("Validity ends", "ValidityEnds"),
-            ("Conditions met", "ConditionsMet")));
+        // Wave 5a §4.7 adds "Utilised-ClaimReversed->Approved": a reversed claim restores its authorisation; not yet in domain-model.json.
+        Model(Preauthorisation.Lifecycle).ShouldBe(string.Join("|", Spec("Preauthorisation", ("Matched to a claim", "MatchedToClaim"), ("Validity ends", "ValidityEnds"),
+            ("Conditions met", "ConditionsMet"))
+            .Split('|').Append("Utilised-ClaimReversed->Approved").OrderBy(t => t, StringComparer.Ordinal)));
         // OQ-103 (Wave 2 cases) adds "Rejected-ReopenClaim->Validated" for an upheld dispute or appeal, and F006 (Wave 4.1)
         // "Pended-RejectClaim->Rejected" for a claim held for unpaid contributions, neither yet in domain-model.json.
         Model(MedicalClaim.Lifecycle).ShouldBe(string.Join("|", Spec("MedicalClaim", ("Information received", "InformationReceived"), ("Payment run released", "PaymentRunReleased"))

@@ -63,6 +63,24 @@ public static class TransactionTypes
 
     /// <summary>A paid Health claim reversed: debit an overpayment receivable, credit the account CLAIM_PAID debits. Not the bank: no cash moved.</summary>
     public const string ClaimPaidReversed = "CLAIM_PAID_REVERSED";
+
+    /// <summary>A credit note or finding raised an overpayment (Wave 5a §4.7): debit the receivable, credit claims.</summary>
+    public const string ProviderRecoveryRaised = "RECOVERY_RAISED";
+
+    /// <summary>An offset took part of a recovery from a remittance: the bank paid that much less than CLAIM_PAID credited. Debit the bank, credit the receivable.</summary>
+    public const string ProviderRecoveryOffset = "RECOVERY_OFFSET";
+
+    /// <summary>An offset taken in error is repaid in a run. Debit the receivable, credit the bank.</summary>
+    public const string ProviderRecoveryRepaid = "RECOVERY_REPAID";
+
+    /// <summary>A second person approved a write-off. Debit the write-off expense, credit the receivable.</summary>
+    public const string ProviderRecoveryWrittenOff = "RECOVERY_WRITTEN_OFF";
+
+    /// <summary>A recovery raised in error. Debit claims, credit the receivable.</summary>
+    public const string ProviderRecoveryReversed = "RECOVERY_REVERSED";
+
+    /// <summary>A recovery's invoice was paid: the receipt credited receivables, so debit those and credit the overpayment receivable.</summary>
+    public const string ProviderRecoverySettled = "RECOVERY_SETTLED";
     public const string ClaimRecovery = "CLAIM_RECOVERY";
     public const string CommissionAccrued = "COMMISSION_ACCRUED";
     public const string CommissionClawedBack = "COMMISSION_CLAWBACK";

@@ -73,6 +73,10 @@ public sealed class HealthDbContext(DbContextOptions<HealthDbContext> options, M
 
     public DbSet<Domain.Providers.ProviderStatement> ProviderStatements => Set<Domain.Providers.ProviderStatement>();
 
+    public DbSet<ProviderRecovery> ProviderRecoveries => Set<ProviderRecovery>();
+
+    public DbSet<ProviderCreditNote> ProviderCreditNotes => Set<ProviderCreditNote>();
+
     public DbSet<HealthFraudCase> FraudCases => Set<HealthFraudCase>();
 
     public DbSet<ProviderPaymentRun> Runs => Set<ProviderPaymentRun>();
@@ -305,6 +309,52 @@ public sealed class HealthDbContext(DbContextOptions<HealthDbContext> options, M
             referral.Property(r => r.ConsentReference).HasMaxLength(120);
             referral.Property(r => r.Status).HasMaxLength(10);
             referral.Property(r => r.DeclineReason).HasMaxLength(500);
+        });
+
+        modelBuilder.Entity<ProviderRecovery>(recovery =>
+        {
+            recovery.ToTable("provider_recovery"); // Wave 5a §4.7, F049
+            Root(recovery);
+            recovery.Property(r => r.RecoveryNumber).HasMaxLength(25);
+            recovery.Property(r => r.DebtorKind).HasMaxLength(10);
+            recovery.Property(r => r.ProviderId).HasMaxLength(15);
+            recovery.Property(r => r.Source).HasMaxLength(12);
+            recovery.Property(r => r.ClaimNumber).HasMaxLength(25);
+            recovery.Property(r => r.OriginalAmount).HasPrecision(18, 2);
+            recovery.Property(r => r.Balance).HasPrecision(18, 2);
+            recovery.Property(r => r.RepayAmount).HasPrecision(18, 2);
+            recovery.Property(r => r.Currency).HasMaxLength(3).IsFixedLength();
+            recovery.Property(r => r.Basis).HasMaxLength(10);
+            recovery.Property(r => r.Status).HasMaxLength(12);
+            recovery.Property(r => r.Reason).HasMaxLength(500);
+            recovery.Property(r => r.WriteOffReason).HasMaxLength(500);
+            recovery.Ignore(r => r.Taken);
+            recovery.Ignore(r => r.Offsettable);
+            recovery.Ignore(r => r.WriteOffHash);
+            recovery.Ignore(r => r.FindingHash);
+            Children(recovery, r => r.Offsets, "RecoveryId");
+        });
+
+        modelBuilder.Entity<ProviderRecoveryOffset>(offset =>
+        {
+            offset.ToTable("provider_recovery_offset");
+            Child(offset);
+            offset.Property(o => o.Amount).HasPrecision(18, 2);
+            offset.Property(o => o.Status).HasMaxLength(10);
+        });
+
+        modelBuilder.Entity<ProviderCreditNote>(note =>
+        {
+            note.ToTable("provider_credit_note"); // Wave 5a §4.6, F048
+            Root(note);
+            note.Property(n => n.CreditNoteNumber).HasMaxLength(25);
+            note.Property(n => n.ProviderId).HasMaxLength(15);
+            note.Property(n => n.ProviderReference).HasMaxLength(40);
+            note.Property(n => n.Amount).HasPrecision(18, 2);
+            note.Property(n => n.Currency).HasMaxLength(3).IsFixedLength();
+            note.Property(n => n.Status).HasMaxLength(10);
+            note.Property(n => n.Reason).HasMaxLength(500);
+            note.Ignore(n => n.SubjectHash);
         });
 
         modelBuilder.Entity<Domain.Providers.ProviderMeasureResult>(result =>

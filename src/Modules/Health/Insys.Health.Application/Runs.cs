@@ -118,6 +118,7 @@ internal sealed class PaymentRunHandlers(IHealthRepository health, IHealthCodes 
             {
                 return Error.Forbidden(ErrorCodes.OutOfScope, "Some claims ready for payment are outside your scope, so you cannot calculate the run.");
             }
+            var repayments = (await health.RecoveriesToRepay(run.Currency, cancellationToken)).Where(r => r.ProviderId is not null).ToList();
             var remittances = new List<RemittanceRequest>();
             foreach (var group in claims.Where(c => c.Source == ClaimSources.Member).GroupBy(c => c.MembershipId))
             {
@@ -138,7 +139,19 @@ internal sealed class PaymentRunHandlers(IHealthRepository health, IHealthCodes 
                     return Error.Validation(HealthErrorCodes.ProviderNotPayable, $"Provider {group.Key} has no party with a verified bank account in {run.Currency}.");
                 }
 
-                remittances.Add(new RemittanceRequest(group.Key, partyId, account.Id, group.Sum(c => c.TotalPaid!.Value), group.Count()));
+                remittances.Add(await Net(run, group.Key, partyId, account.Id, group.Sum(c => c.TotalPaid!.Value), group.Count(), repayments, cancellationToken));
+            }
+
+            // Gap 2: a provider with only an offset to repay still gets its remittance (§4.7).
+            foreach (var provider in repayments.Select(r => r.ProviderId!).Distinct().Where(p => remittances.All(r => r.ProviderId != p)).ToList())
+            {
+                if (await codes.Provider(provider, businessDate.Today, cancellationToken) is not { PartyId: { } partyId }
+                    || await bankAccounts.Current(tenant.RequireTenantId(), partyId, run.Currency, cancellationToken) is not { IsPayable: true } account)
+                {
+                    return Error.Validation(HealthErrorCodes.ProviderNotPayable, $"Provider {provider} has no party with a verified bank account in {run.Currency}.");
+                }
+
+                remittances.Add(await Net(run, provider, partyId, account.Id, 0, 0, repayments, cancellationToken));
             }
 
             var calculated = run.CalculateRun(remittances, user.Value, clock.UtcNow);
@@ -158,6 +171,29 @@ internal sealed class PaymentRunHandlers(IHealthRepository health, IHealthCodes 
 
             return Result.Success();
         }, cancellationToken);
+
+    /// <summary>
+    /// A provider's remittance: its open recoveries deducted oldest first, never below nil, and any offset to repay added (gap 2, OQ-139).
+    /// The deductions are reserved with the run: its release takes them; its approval ending releases them.
+    /// </summary>
+    private async Task<RemittanceRequest> Net(ProviderPaymentRun run, string providerId, Guid partyId, Guid accountId, decimal gross, int claims, IReadOnlyList<ProviderRecovery> repayments, CancellationToken cancellationToken)
+    {
+        var id = Guid.CreateVersion7();
+        var repaid = repayments.Where(r => r.ProviderId == providerId).Sum(r => r.ClaimRepayment(run.Id));
+        var available = gross + repaid;
+        var offset = 0m;
+        foreach (var recovery in await health.OffsettableRecoveries(providerId, run.Currency, cancellationToken))
+        {
+            var taken = recovery.ReserveOffset(run.Id, id, available - offset);
+            offset += taken;
+            if (available == offset)
+            {
+                break;
+            }
+        }
+
+        return new RemittanceRequest(providerId, partyId, accountId, available - offset, claims, gross, offset, repaid, id);
+    }
 
     /// <summary>Releasing needs a remittance advice format in force, whose template Documents generates each advice from.</summary>
     public Task<Result<PaymentRunView>> Handle(ReleasePaymentRun command, CancellationToken cancellationToken) =>

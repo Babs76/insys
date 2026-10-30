@@ -995,6 +995,30 @@ public sealed class ProviderMeasureReviewTasks(IProcessRepository processes, IPr
     }
 }
 
+/// <summary>Wave 5a §4.7: a recovery that needs a person's decision gets a task (HEALTH_RECOVERY_REVIEW). Once per recovery; never money.</summary>
+public sealed class RecoveryReviewTasks(IProcessRepository processes, IProcessQueries queries, IWorkflowConfiguration configuration, IBusinessDate businessDate,
+    IClock clock, IAuditTrail audit) : IIntegrationEventHandler<Health.Contracts.ProviderRecoveryReviewDue>
+{
+    public const string BusinessRefType = "HEALTH_RECOVERY_REVIEW";
+
+    public async Task Handle(Health.Contracts.ProviderRecoveryReviewDue due, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if ((await queries.List(BusinessRefType, due.RecoveryId, null, 1, cancellationToken)).Count > 0)
+        {
+            return;
+        }
+
+        var now = clock.UtcNow;
+        var routing = await configuration.Routing(businessDate.Today, now, cancellationToken);
+        var process = ProcessInstance.StartProcess(Guid.CreateVersion7(), BuiltInProcesses.RecoveryReview, BusinessRefType, due.RecoveryId, routing, now);
+        processes.Add(process.Value);
+        audit.Record(new AuditEntry("WORKFLOW", "StartProcess", nameof(ProcessInstance), process.Value.Id.ToString(), new Dictionary<string, string?>
+        {
+            ["process"] = $"{BuiltInProcesses.RecoveryReview.ProcessCode}@{BuiltInProcesses.RecoveryReview.Version}", ["recovery"] = due.RecoveryNumber, ["debtor"] = due.DebtorKind,
+        }));
+    }
+}
+
 /// <summary>Closes a General quote's referral task once the referral is decided: the task moves to DECIDED, and the audit records the decision.</summary>
 public sealed class CloseGeneralReferralTask(IProcessRepository processes, IProcessQueries queries, IClock clock, IAuditTrail audit)
     : IIntegrationEventHandler<General.Contracts.GeneralQuoteReferralDecided>

@@ -96,6 +96,7 @@ public static class WorkflowInfrastructure
         services.AddIntegrationEventHandler<Health.Contracts.MembershipArrearsCleared, HealthArrearsTerminationTasks, WorkflowDbContext>(schema, "Cleared");
         services.AddIntegrationEventHandler<Health.Contracts.ProviderMeasureBreached, ProviderMeasureReviewTasks, WorkflowDbContext>(schema); // F028
         services.AddIntegrationEventHandler<Health.Contracts.CareActivityOverdue, CareActivityFollowUpTasks, WorkflowDbContext>(schema); // F037
+        services.AddIntegrationEventHandler<Health.Contracts.ProviderRecoveryReviewDue, RecoveryReviewTasks, WorkflowDbContext>(schema); // F049
         services.AddSingleton<Contracts.IProviderCaseCounts, Persistence.ProviderCaseCounts>(); // F029
 
         services.AddSingleton<WorkflowJobs>();

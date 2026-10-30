@@ -56,7 +56,7 @@ public sealed class HealthDocumentPolicies(DocumentGenerator generator, Document
                            ?? throw new PrerequisiteMissingException(PrerequisiteCodes.DocumentTemplateNotInForce, code);
             var data = JsonSerializer.SerializeToElement(new Dictionary<string, object?>
             {
-                ["run_code"] = released.RunCode, ["provider_id"] = remittance.ProviderId, ["amount"] = remittance.Amount, ["currency"] = released.Currency,
+                ["run_code"] = released.RunCode, ["provider_id"] = remittance.ProviderId, ["amount"] = remittance.Amount, ["gross_amount"] = remittance.Gross, ["offset_amount"] = remittance.Offset, ["repaid_amount"] = remittance.Repaid, ["currency"] = released.Currency,
                 ["released_on"] = released.ReleasedOn.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
             }, JsonSerializerOptions.Web);
             var document = await generator.Generate(new GenerateDocument(template.TemplateCode, template.Language, template.DocumentType, HealthReferences.RemittanceRefType,

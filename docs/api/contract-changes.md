@@ -2,6 +2,22 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
+## Wave 5a batch 5a.3 (branch `wave5a-3`): recoveries, credit notes and disputes (addendum §4.6 to §4.8; F048 to F050)
+
+### New
+- **`health.cfg_provider_recovery_settings`** (static data, tenant, Tier 2): `settingCode`, `medicalScheme` (the default of the offset flag), `reviewAfterDays`, `invoiceCollectionMethod`. **`health.cfg_provider_contracts.offsetAllowed`** (nullable): null takes the tenant's default.
+- **`GET`, `POST /health/provider-recoveries`, `GET /health/provider-recoveries/{id}`**, and on a recovery **`/invoice`**, **`/write-off`**, **`/reverse`**, **`/hold`**. A `POST` is a person's finding: a second person approves it before anything is owed.
+- **`GET`, `POST /health/provider-credit-notes`, `GET /health/provider-credit-notes/{id}`.**
+- **`GET /health/remittances/{id}`, `GET /portal/health/remittances/{id}`:** gross, offsets (original claim, reversal date, new claim), repayments and net. `paymentDue` is false for a net of nil.
+- **Portal:** `GET /portal/health/recoveries`, `GET`, `POST /portal/health/credit-notes`. `POST /portal/cases` may link a provider's own remittance (`REMITTANCE`), and a dispute linking a remittance, run or claim holds its recoveries from offsets until the case closes.
+- **Approval types** `PROVIDER_RECOVERY_WRITE_OFF`, `PROVIDER_RECOVERY_FINDING`, `PROVIDER_CREDIT_NOTE`; **business references** `HEALTH_RECOVERY`, `HEALTH_CREDIT_NOTE`. **Screens** `HEALTH_RECOVERIES`, `HEALTH_CREDIT_NOTES`, `HEALTH_REMITTANCES` and the provider portal's. **Notice** `PROVIDER_RECOVERY_NOTICE`. **Posting rules** `RECOVERY_RAISED`, `RECOVERY_OFFSET`, `RECOVERY_REPAID`, `RECOVERY_WRITTEN_OFF`, `RECOVERY_REVERSED`, `RECOVERY_SETTLED` (readiness `POSTING_RULES` asks for them).
+
+### Changed
+- **Remittances** (`RemittanceView`, `PortalRemittanceView`) gain `grossAmount`, `offsetAmount`, `repaidAmount`; `amount` stays what is paid and may be 0. A run's `totalAmount` is the sum of the nets.
+- **Claims:** `POST /health/claims` and `/portal/health/claims` take `replacesClaimId`; `MedicalClaimView` and `PortalMedicalClaimView` show `replacesClaimId` and `replacedByClaimId`.
+- **Statements:** `recoveryStatus` is now filled: `OWED`, `OFFSET`, `INVOICED` or `RECOVERED`.
+- **Preauthorisations:** a reversed claim can return an authorisation from `Utilised` to `Approved`.
+
 ## Wave 5a batch 5a.2 (branch `wave5a-2`): complex cases, care plans and referrals (addendum §4.3 to §4.5; F034 to F038)
 
 ### New

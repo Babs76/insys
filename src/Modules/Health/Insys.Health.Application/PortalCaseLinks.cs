@@ -25,15 +25,22 @@
  * ============================================================================
  */
 using Insys.BuildingBlocks.Application.Messaging;
+using Insys.BuildingBlocks.Application.Context;
 using Insys.Workflow.Contracts;
 
 namespace Insys.Health.Application;
 
-/// <summary>BR-101: a portal user may link one of its Health (medical) claims to their case exactly when their portal read of it shows it.</summary>
-public sealed class PortalHealthClaimCaseLinks(IDispatcher dispatcher) : IPortalCaseLinks
+/// <summary>BR-101: a portal user may link one of its Health (medical) claims, or a provider its remittance, to their case exactly when their portal read of it shows it.</summary>
+public sealed class PortalHealthClaimCaseLinks(IDispatcher dispatcher, IExecutionContext execution) : IPortalCaseLinks
 {
-    public bool Covers(string linkType) => linkType == CaseLinkTypes.Claim;
+    public bool Covers(string linkType) => linkType is CaseLinkTypes.Claim or CaseLinkTypes.Remittance;
 
     public async Task<bool> Visible(string linkType, Guid recordId, CancellationToken cancellationToken) =>
-        Covers(linkType) && (await dispatcher.Query(new GetPortalMedicalClaim(recordId), cancellationToken)).IsSuccess;
+        linkType switch
+        {
+            CaseLinkTypes.Claim => (await dispatcher.Query(new GetPortalMedicalClaim(recordId), cancellationToken)).IsSuccess,
+            // Gap 3: a provider links only its own remittance; no other portal user has one.
+            CaseLinkTypes.Remittance => execution.External?.Kind == ExternalSubject.Provider && (await dispatcher.Query(new GetPortalRemittance(recordId), cancellationToken)).IsSuccess,
+            _ => false,
+        };
 }

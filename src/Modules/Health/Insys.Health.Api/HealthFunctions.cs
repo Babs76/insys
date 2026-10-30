@@ -65,6 +65,15 @@ internal static class HealthFunctions
         .Action("HEALTH_CUT_OFF_RUN", "HEALTH_PAYMENT_RUNS", "HealthCutOffRun")
         .Action("HEALTH_CALCULATE_RUN", "HEALTH_PAYMENT_RUNS", "HealthCalculateRun")
         .Action("HEALTH_RELEASE_RUN", "HEALTH_PAYMENT_RUNS", "HealthReleaseRun")
+        .Screen("HEALTH_REMITTANCES", "HEALTH_PROVIDER_PAYMENTS", "Remittance detail", "health/remittances", "HealthGetRemittance")
+        .Screen("HEALTH_RECOVERIES", "HEALTH_PROVIDER_PAYMENTS", "Overpayment recoveries", "health/provider-recoveries", "HealthListRecoveries", "HealthGetRecovery")
+        .Action("HEALTH_PROPOSE_RECOVERY_FINDING", "HEALTH_RECOVERIES", "HealthProposeRecoveryFinding")
+        .Action("HEALTH_INVOICE_RECOVERY", "HEALTH_RECOVERIES", "HealthInvoiceRecovery")
+        .Action("HEALTH_WRITE_OFF_RECOVERY", "HEALTH_RECOVERIES", "HealthWriteOffRecovery", privileged: true)
+        .Action("HEALTH_REVERSE_RECOVERY", "HEALTH_RECOVERIES", "HealthReverseRecovery", privileged: true)
+        .Action("HEALTH_HOLD_RECOVERY", "HEALTH_RECOVERIES", "HealthHoldRecovery")
+        .Screen("HEALTH_CREDIT_NOTES", "HEALTH_PROVIDER_PAYMENTS", "Provider credit notes", "health/provider-credit-notes", "HealthListCreditNotes", "HealthGetCreditNote")
+        .Action("HEALTH_SUBMIT_CREDIT_NOTE", "HEALTH_CREDIT_NOTES", "HealthSubmitCreditNote")
         .Screen("HEALTH_PREAUTHORISATIONS", "HEALTH_ACCESS_TO_CARE", "Preauthorisations", "health/preauthorisations", "HealthListAuthorisations", "HealthGetAuthorisation")
         .Action("HEALTH_REQUEST_AUTHORISATION", "HEALTH_PREAUTHORISATIONS", "HealthRequestAuthorisation")
         .Action("HEALTH_REVIEW_AUTHORISATION", "HEALTH_PREAUTHORISATIONS", "HealthReviewAuthorisation")
@@ -124,7 +133,10 @@ internal static class HealthFunctions
         .Screen("PROVIDER_PORTAL_HEALTH_REFERRALS", "PROVIDER_PORTAL", "Referrals", "portal/health/referrals", "PortalHealthListReferrals")
         .Action("PROVIDER_PORTAL_HEALTH_REQUEST_REFERRAL", "PROVIDER_PORTAL_HEALTH_REFERRALS", "PortalHealthRequestReferral")
         .Action("PROVIDER_PORTAL_HEALTH_READ_REFERRAL_CLINICAL", "PROVIDER_PORTAL_HEALTH_REFERRALS", "PortalHealthReadReferralClinical")
-        .Screen("PROVIDER_PORTAL_HEALTH_REMITTANCES", "PROVIDER_PORTAL", "Remittances", "portal/health/remittances", "PortalHealthListRemittances")
+        .Screen("PROVIDER_PORTAL_HEALTH_REMITTANCES", "PROVIDER_PORTAL", "Remittances", "portal/health/remittances", "PortalHealthListRemittances", "PortalHealthGetRemittance")
+        .Screen("PROVIDER_PORTAL_HEALTH_RECOVERIES", "PROVIDER_PORTAL", "Recoveries", "portal/health/recoveries", "PortalHealthListRecoveries")
+        .Screen("PROVIDER_PORTAL_HEALTH_CREDIT_NOTES", "PROVIDER_PORTAL", "Credit notes", "portal/health/credit-notes", "PortalHealthListCreditNotes")
+        .Action("PROVIDER_PORTAL_HEALTH_SUBMIT_CREDIT_NOTE", "PROVIDER_PORTAL_HEALTH_CREDIT_NOTES", "PortalHealthSubmitCreditNote")
             .Functions,
     ];
 }

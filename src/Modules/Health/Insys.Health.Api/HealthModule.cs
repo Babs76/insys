@@ -118,6 +118,7 @@ public sealed class HealthModule : IModule
         MapProviders(health);
         MapComplexCases(health);
 
+        MapRecoveries(health);
         MapPortal(api.MapGroup("/portal/health").WithTags(Name));
     }
 
@@ -524,6 +525,48 @@ public sealed class HealthModule : IModule
     /// The member and provider portals (external-user access): a member's memberships; a provider's own claims,
     /// preauthorisations and remittances. A provider submits only as itself.
     /// </summary>
+    /// <summary>Wave 5a §4.6, §4.7: credit notes and overpayment recoveries.</summary>
+    private static void MapRecoveries(RouteGroupBuilder health)
+    {
+        health.MapGet("/provider-recoveries", async (string? providerId, string? status, string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListProviderRecoveries(providerId, status, after, size), ct), r => r.Id))
+            .Produces<CursorPage<ProviderRecoveryView>>(StatusCodes.Status200OK)
+            .WithName("HealthListRecoveries").WithSummary("Overpayments owed by providers and members (F049)").RequirePermission(HealthPermissions.RecoveryRead);
+        health.MapGet("/provider-recoveries/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetProviderRecovery(id), ct)).ToHttp(Results.Ok))
+            .Produces<ProviderRecoveryView>(StatusCodes.Status200OK)
+            .WithName("HealthGetRecovery").WithSummary("A recovery, with its offsets").RequirePermission(HealthPermissions.RecoveryRead);
+        health.MapPost("/provider-recoveries", async (ProposeRecoveryFinding r, IDispatcher d, CancellationToken ct) =>
+                (await d.Send(r, ct)).ToHttp(v => Results.Created($"/api/v1/health/provider-recoveries/{v.Id}", v)))
+            .Produces<ProviderRecoveryView>(StatusCodes.Status201Created)
+            .WithName("HealthProposeRecoveryFinding").WithSummary("A person's overpayment finding; a second person approves it before anything is owed").RequirePermission(HealthPermissions.RecoveryManage).RequireIdempotencyKey();
+        health.MapPost("/provider-recoveries/{id:guid}/invoice", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Send(new InvoiceProviderRecovery(id), ct)).ToHttp(Results.Ok))
+            .Produces<ProviderRecoveryView>(StatusCodes.Status200OK).TakesIfMatch()
+            .WithName("HealthInvoiceRecovery").WithSummary("A person's decision: the balance is invoiced through Billing").RequirePermission(HealthPermissions.RecoveryManage);
+        health.MapPost("/provider-recoveries/{id:guid}/write-off", async (Guid id, ReasonRequest r, IDispatcher d, CancellationToken ct) => (await d.Send(new RequestRecoveryWriteOff(id, r.Reason), ct)).ToHttp(Results.Ok))
+            .Produces<ProviderRecoveryView>(StatusCodes.Status200OK).TakesIfMatch()
+            .WithName("HealthWriteOffRecovery").WithSummary("Ask to write off the balance, with a reason; a second person approves").RequirePermission(HealthPermissions.RecoveryManage);
+        health.MapPost("/provider-recoveries/{id:guid}/reverse", async (Guid id, ReasonRequest r, IDispatcher d, CancellationToken ct) => (await d.Send(new ReverseProviderRecovery(id, r.Reason), ct)).ToHttp(Results.Ok))
+            .Produces<ProviderRecoveryView>(StatusCodes.Status200OK).TakesIfMatch()
+            .WithName("HealthReverseRecovery").WithSummary("A recovery raised in error is reversed; an offset already taken is repaid in the next run").RequirePermission(HealthPermissions.RecoveryManage);
+        health.MapPost("/provider-recoveries/{id:guid}/hold", async (Guid id, RecoveryHoldRequest r, IDispatcher d, CancellationToken ct) => (await d.Send(new HoldRecoveryForDispute(id, r.CaseId), ct)).ToHttp(Results.Ok))
+            .Produces<ProviderRecoveryView>(StatusCodes.Status200OK).TakesIfMatch()
+            .WithName("HealthHoldRecovery").WithSummary("Hold a recovery from offsets for a dispute case; the case closing releases it (OQ-146)").RequirePermission(HealthPermissions.RecoveryManage);
+        health.MapGet("/provider-credit-notes", async (string? providerId, string? status, string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListCreditNotes(providerId, status, after, size), ct), n => n.Id))
+            .Produces<CursorPage<ProviderCreditNoteView>>(StatusCodes.Status200OK)
+            .WithName("HealthListCreditNotes").WithSummary("Providers' credit notes (F048)").RequirePermission(HealthPermissions.CreditNoteRead);
+        health.MapGet("/provider-credit-notes/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetCreditNote(id), ct)).ToHttp(Results.Ok))
+            .Produces<ProviderCreditNoteView>(StatusCodes.Status200OK)
+            .WithName("HealthGetCreditNote").WithSummary("A provider's credit note").RequirePermission(HealthPermissions.CreditNoteRead);
+        health.MapPost("/provider-credit-notes", async (SubmitCreditNote r, IDispatcher d, CancellationToken ct) =>
+                (await d.Send(r, ct)).ToHttp(v => Results.Created($"/api/v1/health/provider-credit-notes/{v.Id}", v)))
+            .Produces<ProviderCreditNoteView>(StatusCodes.Status201Created)
+            .WithName("HealthSubmitCreditNote").WithSummary("Record a provider's credit note; a second person approves it, and it then raises a recovery").RequirePermission(HealthPermissions.CreditNoteCreate).RequireIdempotencyKey();
+        health.MapGet("/remittances/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetRemittanceDetail(id), ct)).ToHttp(Results.Ok))
+            .Produces<RemittanceDetailView>(StatusCodes.Status200OK)
+            .WithName("HealthGetRemittance").WithSummary("A remittance: gross, offsets with the original claim, its reversal and its replacement, and the net").RequirePermission(HealthPermissions.RunRead);
+    }
+
     private static void MapPortal(RouteGroupBuilder portal)
     {
         const string member = BuildingBlocks.Application.Context.ExternalSubject.Party, provider = BuildingBlocks.Application.Context.ExternalSubject.Provider;
@@ -555,7 +598,7 @@ public sealed class HealthModule : IModule
                     }
 
                     var submitted = await d.Send(new SubmitMedicalClaim(Domain.Care.ClaimSources.Provider, execution.External!.ProviderId, patient.Value.MembershipId,
-                        patient.Value.PatientPartyId, r.ServiceDate, "PORTAL", r.Currency, r.PreauthorisationId, r.Lines), ct);
+                        patient.Value.PatientPartyId, r.ServiceDate, "PORTAL", r.Currency, r.PreauthorisationId, r.Lines, r.ReplacesClaimId), ct);
                     return submitted.IsFailure
                         ? submitted.ToHttp(_ => Results.Ok())
                         : (await d.Query(new GetPortalMedicalClaim(submitted.Value.Id), ct)).ToHttp(v => Results.Created($"/api/v1/portal/health/claims/{v.Id}", v));
@@ -605,6 +648,22 @@ public sealed class HealthModule : IModule
             .Produces<PortalPreauthorisationView>(StatusCodes.Status201Created)
             .WithName("PortalHealthRequestAuthorisation").WithSummary("A provider requests a preauthorisation, as itself").RequirePermission(HealthPermissions.PreauthCreate)
             .RequireIdempotencyKey().ForPortal(provider);
+        portal.MapGet("/remittances/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetPortalRemittance(id), ct)).ToHttp(Results.Ok))
+            .Produces<RemittanceDetailView>(StatusCodes.Status200OK)
+            .WithName("PortalHealthGetRemittance").WithSummary("The provider's remittance: gross, offsets with the original claim, its reversal and its replacement, and the net").RequirePermission(HealthPermissions.RunRead).ForPortal(provider);
+        portal.MapGet("/recoveries", async (string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListPortalRecoveries(after, size), ct), r => r.Id))
+            .Produces<CursorPage<PortalRecoveryView>>(StatusCodes.Status200OK)
+            .WithName("PortalHealthListRecoveries").WithSummary("What the provider owes, and what has been deducted").RequirePermission(HealthPermissions.RecoveryRead).ForPortal(provider);
+        portal.MapGet("/credit-notes", async (string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListPortalCreditNotes(after, size), ct), n => n.Id))
+            .Produces<CursorPage<ProviderCreditNoteView>>(StatusCodes.Status200OK)
+            .WithName("PortalHealthListCreditNotes").WithSummary("The provider's credit notes").RequirePermission(HealthPermissions.CreditNoteRead).ForPortal(provider);
+        portal.MapPost("/credit-notes", async (SubmitPortalCreditNote r, IDispatcher d, CancellationToken ct) =>
+                (await d.Send(r, ct)).ToHttp(v => Results.Created($"/api/v1/portal/health/credit-notes/{v.Id}", v)))
+            .Produces<ProviderCreditNoteView>(StatusCodes.Status201Created)
+            .WithName("PortalHealthSubmitCreditNote").WithSummary("A provider submits a credit note on its own claim or remittance, as itself").RequirePermission(HealthPermissions.CreditNoteCreate)
+            .RequireIdempotencyKey().ForPortal(provider);
         portal.MapGet("/remittances", async (string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
                 await Page(cursor, limit, (after, size) => d.Query(new ListPortalRemittances(after, size), ct), r => r.Id))
             .Produces<CursorPage<PortalRemittanceView>>(StatusCodes.Status200OK)
@@ -612,8 +671,10 @@ public sealed class HealthModule : IModule
     }
 }
 
+public sealed record RecoveryHoldRequest(Guid CaseId);
+
 public sealed record PortalMedicalClaimRequest(string MemberNumber, string? DependantSuffix, DateOnly ServiceDate, string Currency, Guid? PreauthorisationId,
-    IReadOnlyList<Domain.Care.ClaimLineRequest> Lines);
+    IReadOnlyList<Domain.Care.ClaimLineRequest> Lines, Guid? ReplacesClaimId = null);
 
 public sealed record PortalPreauthorisationRequest(string MemberNumber, string? DependantSuffix, [property: BuildingBlocks.Domain.CodeList(HealthCodeLists.Diagnoses, "code")] IReadOnlyList<string> DiagnosisCodes,
     [property: BuildingBlocks.Domain.CodeList(HealthCodeLists.AuthorisationServiceTypes, "service_type")] string ServiceType,

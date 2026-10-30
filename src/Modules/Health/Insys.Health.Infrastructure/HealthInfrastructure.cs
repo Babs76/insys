@@ -48,7 +48,10 @@ public static class HealthInfrastructure
     {
         // Its approval kinds and the screens that open their records (BR-005).
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Health.Contracts.HealthApprovals.RunBusinessRefType, "HEALTH_PAYMENT_RUNS", Insys.Health.Contracts.HealthApprovals.RunApprovalType);
-        BuildingBlocks.Contracts.Approvals.ApprovalKinds.RaisedWith("HEALTH", Insys.Health.Contracts.HealthApprovals.RunApprovalType);
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Health.Contracts.HealthApprovals.RecoveryBusinessRefType, "HEALTH_RECOVERIES", Insys.Health.Contracts.HealthApprovals.RecoveryWriteOffApprovalType, Insys.Health.Contracts.HealthApprovals.RecoveryFindingApprovalType);
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Health.Contracts.HealthApprovals.CreditNoteBusinessRefType, "HEALTH_CREDIT_NOTES", Insys.Health.Contracts.HealthApprovals.CreditNoteApprovalType);
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.RaisedWith("HEALTH", Insys.Health.Contracts.HealthApprovals.RunApprovalType, Insys.Health.Contracts.HealthApprovals.RecoveryWriteOffApprovalType,
+            Insys.Health.Contracts.HealthApprovals.RecoveryFindingApprovalType, Insys.Health.Contracts.HealthApprovals.CreditNoteApprovalType);
         // ADR-026 §2: this module's event consumers run under its JOB function.
         BuildingBlocks.Application.Context.JobFunctions.ForConsumers(Persistence.HealthDbContext.SchemaName, "HEALTH_EVENT_PROCESSING");
         const string schema = HealthDbContext.SchemaName;
@@ -107,6 +110,15 @@ public static class HealthInfrastructure
         services.AddIntegrationEventHandler<ProviderPaymentRunReleased, HealthEventPolicies, HealthDbContext>(schema, "ProviderPaymentRunReleased");
         services.AddIntegrationEventHandler<PaymentSucceeded, HealthEventPolicies, HealthDbContext>(schema, "PaymentSucceeded");
         services.AddIntegrationEventHandler<Documents.Contracts.DocumentGenerated, HealthEventPolicies, HealthDbContext>(schema, "DocumentGenerated");
+        // Wave 5a §4.6 to §4.8: recoveries, credit notes and disputes.
+        services.AddScoped<RecoveryRaiser>();
+        services.AddIntegrationEventHandler<MedicalClaimReversed, RecoveryPolicies, HealthDbContext>(schema, "Recovery.Reversed");
+        services.AddIntegrationEventHandler<ApprovalGranted, RecoveryPolicies, HealthDbContext>(schema, "Recovery.Granted");
+        services.AddIntegrationEventHandler<ApprovalRejected, RecoveryPolicies, HealthDbContext>(schema, "Recovery.Rejected");
+        services.AddIntegrationEventHandler<Workflow.Contracts.CaseOpened, RecoveryPolicies, HealthDbContext>(schema, "Recovery.CaseOpened");
+        services.AddIntegrationEventHandler<Workflow.Contracts.CaseClosed, RecoveryPolicies, HealthDbContext>(schema, "Recovery.CaseClosed");
+        services.AddIntegrationEventHandler<Billing.Contracts.InvoiceIssued, RecoveryPolicies, HealthDbContext>(schema, "Recovery.InvoiceIssued");
+        services.AddIntegrationEventHandler<Billing.Contracts.InvoiceSettled, RecoveryPolicies, HealthDbContext>(schema, "Recovery.InvoiceSettled");
         services.AddOptions<HealthJobOptions>().BindConfiguration("Health:Jobs");
         services.AddSingleton<HealthJobs>();
         if (!InfrastructureRegistration.IsBuildTimeDocumentGeneration)
@@ -229,12 +241,38 @@ public sealed class HealthJobs(IServiceScopeFactory scopes, ITenantDirectory ten
             done += await DeclineHeldClaims(tenantId, day, cancellationToken);
             done += await MeasureProviders(tenantId, day, cancellationToken);
             done += await CareDue(tenantId, day, cancellationToken);
+            done += await RecoveriesDue(tenantId, day, cancellationToken);
         }
 
         return done;
     }
 
     /// <summary>F037, F038: overdue care activities each raise one task; referrals past their date expire.</summary>
+    /// <summary>OQ-139: a recovery uncollected for the tenant's period goes to a person.</summary>
+    private async Task<int> RecoveriesDue(Guid tenantId, DateOnly day, CancellationToken cancellationToken)
+    {
+        IReadOnlyList<Guid> due;
+        await using (var scope = Scope(tenantId))
+        {
+            var found = await scope.ServiceProvider.GetRequiredService<IDispatcher>().Query(new FindRecoveriesDue(day, 500), cancellationToken);
+            if (found.IsFailure)
+            {
+                return 0;
+            }
+
+            due = found.Value;
+        }
+
+        var done = 0;
+        foreach (var id in due)
+        {
+            await using var scope = Scope(tenantId);
+            done += (await scope.ServiceProvider.GetRequiredService<IDispatcher>().Send(new SendRecoveryToReview(id), cancellationToken)).IsSuccess ? 1 : 0;
+        }
+
+        return done;
+    }
+
     private async Task<int> CareDue(Guid tenantId, DateOnly day, CancellationToken cancellationToken)
     {
         (IReadOnlyList<Guid> Cases, IReadOnlyList<Guid> Referrals) work;

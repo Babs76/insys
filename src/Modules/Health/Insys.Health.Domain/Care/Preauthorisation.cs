@@ -43,6 +43,7 @@ public enum PreauthStatus
 
 public enum PreauthTrigger
 {
+    ClaimReversed,
     ReviewClinically,
     ApproveAuthorisation,
     ApproveWithConditions,
@@ -118,6 +119,8 @@ public sealed class PreauthLine : Entity<Guid>, ITenantScoped
         return held;
     }
 
+    internal void GiveBack(decimal amount) => ConsumedAmount -= Math.Min(amount, ConsumedAmount);
+
     internal void Use(decimal released, decimal consumed)
     {
         ReservedAmount -= Math.Min(released, ReservedAmount);
@@ -145,7 +148,8 @@ public sealed class Preauthorisation : AggregateRoot<Guid>
         .Allow(PreauthStatus.ConditionallyApproved, PreauthTrigger.ConditionsMet, PreauthStatus.Approved)
         .Allow(PreauthStatus.ConditionallyApproved, PreauthTrigger.MatchedToClaim, PreauthStatus.Utilised)
         .Allow(PreauthStatus.ConditionallyApproved, PreauthTrigger.ValidityEnds, PreauthStatus.Expired)
-        .Allow(PreauthStatus.ConditionallyApproved, PreauthTrigger.CancelAuthorisation, PreauthStatus.Cancelled);
+        .Allow(PreauthStatus.ConditionallyApproved, PreauthTrigger.CancelAuthorisation, PreauthStatus.Cancelled)
+        .Allow(PreauthStatus.Utilised, PreauthTrigger.ClaimReversed, PreauthStatus.Approved);
 
     private readonly List<PreauthLine> _lines = [];
 
@@ -321,6 +325,34 @@ public sealed class Preauthorisation : AggregateRoot<Guid>
 
         line.Use(released, consumed);
         return End(PreauthTrigger.MatchedToClaim, "UTILISED", now);
+    }
+
+    /// <summary>
+    /// A claim that used this authorisation was reversed: within validity, and with no other claim having used it, the amount is given
+    /// back and the authorisation holds its benefit again. Otherwise it stays as it is. Returns whether it was restored.
+    /// </summary>
+    public bool RestoreAfterReversal(IReadOnlyDictionary<Guid, decimal> usedByClaim, DateOnly today, DateTimeOffset now)
+    {
+        if (Status != PreauthStatus.Utilised || ValidTo is not { } validTo || today > validTo
+            || _lines.Any(l => l.ConsumedAmount != usedByClaim.GetValueOrDefault(l.Id)))
+        {
+            return false;
+        }
+
+        foreach (var line in _lines)
+        {
+            line.GiveBack(line.ConsumedAmount);
+            line.Reserve(line.AuthorisedAmount);
+        }
+
+        if (Fire(PreauthTrigger.ClaimReversed).IsFailure)
+        {
+            return false;
+        }
+
+        Raise(new PreauthorisationReservationsChanged(Id, AuthNumber, MembershipId, PatientPartyId, ValidFrom!.Value,
+            _lines.Select(l => new ReservationChange(l.Id, l.BenefitCategory!, l.ReservedAmount)).ToList(), "RESTORED", now));
+        return true;
     }
 
     private Result End(PreauthTrigger trigger, string why, DateTimeOffset now)

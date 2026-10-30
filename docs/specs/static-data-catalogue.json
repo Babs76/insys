@@ -7698,6 +7698,13 @@
      "mandatory": false,
      "sample": "NET-2027",
      "note": "Added by V0019 (ADR-012): the tariff schedule claims are priced at."
+    },
+    {
+     "name": "offset_allowed",
+     "logicalType": "Boolean",
+     "mandatory": false,
+     "sample": "true",
+     "note": "Added by V0106 (OQ-139): whether this provider's overpayments are deducted from its payments; null takes the tenant's default."
     }
    ]
   },

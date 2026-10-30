@@ -150,9 +150,13 @@ public static class BuiltInProcesses
     public static readonly ProcessDefinition CareActivityFollowUp = new("HEALTH_CARE_ACTIVITY_FOLLOW_UP", 1, ["FOLLOW_UP_CARE", "DONE"],
         [new TransitionDefinition("FOLLOW_UP_CARE", "DONE", null)], null);
 
+    /// <summary>Wave 5a §4.7: a recovery uncollected for the tenant's period, or a member's overpayment: a person decides. It moves no money.</summary>
+    public static readonly ProcessDefinition RecoveryReview = new("HEALTH_RECOVERY_REVIEW", 1, ["DECIDE_RECOVERY", "DECIDED"],
+        [new TransitionDefinition("DECIDE_RECOVERY", "DECIDED", null)], null);
+
     public static ProcessDefinition? Find(string processCode, int? version) =>
         new[] { ParkedDelivery, ConfigurationReview, HeldClaimPayment, PartyMatchReview, AggregationReview, ApprovalFollowUp, GeneralReferral, DueDiligenceHitReview,
-            DueDiligenceSanctionsMatch, DueDiligenceReview, HealthArrearsTermination, GeneralRenewalReview, GeneralRetention, ProviderMeasureReview, CareActivityFollowUp }.FirstOrDefault(d => d.ProcessCode == processCode && (version is null || version == d.Version));
+            DueDiligenceSanctionsMatch, DueDiligenceReview, HealthArrearsTermination, GeneralRenewalReview, GeneralRetention, ProviderMeasureReview, CareActivityFollowUp, RecoveryReview }.FirstOrDefault(d => d.ProcessCode == processCode && (version is null || version == d.Version));
 }
 
 /// <summary>Where a new task goes and when it is due: from the task type, queue and SLA definitions in force.</summary>

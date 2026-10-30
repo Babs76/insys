@@ -327,6 +327,70 @@ internal sealed class HealthRepository(HealthDbContext db, IExecutionContext exe
 
     public void Add(ClinicalReferral referral) => db.ClinicalReferrals.Add(referral);
 
+    public Task<ProviderRecovery?> Recovery(Guid id, CancellationToken cancellationToken) =>
+        db.ProviderRecoveries.Include(r => r.Offsets).SingleOrDefaultAsync(r => r.Id == id, cancellationToken);
+
+    public Task<ProviderRecovery?> RecoveryForSource(string source, Guid sourceId, CancellationToken cancellationToken) =>
+        db.ProviderRecoveries.Include(r => r.Offsets).SingleOrDefaultAsync(r => r.Source == source && r.SourceId == sourceId, cancellationToken);
+
+    public async Task<IReadOnlyList<ProviderRecovery>> Recoveries(string? providerId, string? status, Guid? afterId, int limit, CancellationToken cancellationToken) =>
+        await db.ProviderRecoveries.AsNoTracking().Include(r => r.Offsets)
+            .Where(r => (providerId == null || r.ProviderId == providerId) && (status == null || r.Status == status) && (afterId == null || r.Id.CompareTo(afterId.Value) > 0))
+            .OrderBy(r => r.Id).Take(limit).ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<ProviderRecovery>> OffsettableRecoveries(string providerId, string currency, CancellationToken cancellationToken) =>
+        await db.ProviderRecoveries.Include(r => r.Offsets)
+            .Where(r => r.ProviderId == providerId && r.Currency == currency && r.Status == RecoveryStatuses.Open && r.Basis == RecoveryBases.Offset && r.HeldByCaseId == null
+                && r.WriteOffRequestedBy == null && r.Balance > 0)
+            .OrderBy(r => r.RaisedOn).ThenBy(r => r.Id).ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<ProviderRecovery>> RecoveriesToRepay(string currency, CancellationToken cancellationToken) =>
+        await db.ProviderRecoveries.Include(r => r.Offsets).Where(r => r.Currency == currency && r.RepayAmount > 0 && r.RepaidInRunId == null).ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<ProviderRecovery>> RecoveriesInRun(Guid runId, CancellationToken cancellationToken) =>
+        await db.ProviderRecoveries.Include(r => r.Offsets).Where(r => r.RepaidInRunId == runId || r.Offsets.Any(o => o.RunId == runId)).ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<ProviderRecovery>> RecoveriesOnRemittance(Guid remittanceId, CancellationToken cancellationToken) =>
+        await db.ProviderRecoveries.Include(r => r.Offsets).Where(r => r.Offsets.Any(o => o.RemittanceId == remittanceId)).ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<ProviderRecovery>> RecoveriesOfClaim(Guid claimId, CancellationToken cancellationToken) =>
+        await db.ProviderRecoveries.Include(r => r.Offsets).Where(r => r.ClaimId == claimId).ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<ProviderRecovery>> RecoveriesHeldBy(Guid caseId, CancellationToken cancellationToken) =>
+        await db.ProviderRecoveries.Include(r => r.Offsets).Where(r => r.HeldByCaseId == caseId).ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<Guid>> RecoveriesDueForReview(DateOnly day, int limit, CancellationToken cancellationToken) =>
+        await db.ProviderRecoveries.AsNoTracking().Where(r => r.Status == RecoveryStatuses.Open && !r.InReview && r.HeldByCaseId == null && r.ReviewDueOn != null && r.ReviewDueOn <= day)
+            .OrderBy(r => r.ReviewDueOn).Select(r => r.Id).Take(limit).ToListAsync(cancellationToken);
+
+    public Task<ProviderCreditNote?> CreditNote(Guid id, CancellationToken cancellationToken) => db.ProviderCreditNotes.SingleOrDefaultAsync(n => n.Id == id, cancellationToken);
+
+    public Task<bool> CreditNoteExists(string providerId, string reference, CancellationToken cancellationToken) =>
+        db.ProviderCreditNotes.AnyAsync(n => n.ProviderId == providerId && n.ProviderReference == reference, cancellationToken);
+
+    public async Task<IReadOnlyList<ProviderCreditNote>> CreditNotes(string? providerId, string? status, Guid? afterId, int limit, CancellationToken cancellationToken) =>
+        await db.ProviderCreditNotes.AsNoTracking().Where(n => (providerId == null || n.ProviderId == providerId) && (status == null || n.Status == status) && (afterId == null || n.Id.CompareTo(afterId.Value) > 0))
+            .OrderBy(n => n.Id).Take(limit).ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyDictionary<string, string>> RecoveryStatusesByClaim(string providerId, CancellationToken cancellationToken)
+    {
+        var recoveries = await db.ProviderRecoveries.AsNoTracking().Include(r => r.Offsets).Where(r => r.ProviderId == providerId && r.ClaimNumber != null && r.Source == RecoverySources.Reversal).ToListAsync(cancellationToken);
+        return recoveries.ToDictionary(r => r.ClaimNumber!, r => r.Status switch
+        {
+            RecoveryStatuses.Invoiced => Domain.Providers.ReversalRecovery.Invoiced,
+            RecoveryStatuses.Recovered => Domain.Providers.ReversalRecovery.Recovered,
+            RecoveryStatuses.Open when r.Offsets.Any(o => o.Status != OffsetStatuses.Released) => Domain.Providers.ReversalRecovery.Offset,
+            _ => Domain.Providers.ReversalRecovery.Owed,
+        }, StringComparer.Ordinal);
+    }
+
+    public Task<Preauthorisation?> PreauthorisationWithLine(Guid lineId, CancellationToken cancellationToken) =>
+        db.Preauthorisations.Include(p => p.Lines).SingleOrDefaultAsync(p => p.Lines.Any(l => l.Id == lineId), cancellationToken);
+
+    public void Add(ProviderRecovery recovery) => db.ProviderRecoveries.Add(recovery);
+
+    public void Add(ProviderCreditNote note) => db.ProviderCreditNotes.Add(note);
+
     public void Add(Domain.Providers.ProviderMeasureResult result) => db.ProviderMeasureResults.Add(result);
 
     public void Add(Domain.Providers.ProviderQualityReview review) => db.ProviderQualityReviews.Add(review);
@@ -358,6 +422,12 @@ internal sealed class HealthRepository(HealthDbContext db, IExecutionContext exe
 
 internal sealed class HealthCodes(HealthDbContext db) : IHealthCodes
 {
+    public async Task<RecoverySettings?> RecoverySettings(DateOnly day, CancellationToken cancellationToken) =>
+        await InForce<StaticData.ProviderRecoverySettings>(day).OrderBy(s => s.Code).Select(s => new RecoverySettings(s.MedicalScheme, s.ReviewAfterDays, s.InvoiceCollectionMethod)).FirstOrDefaultAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<bool?>> ProviderOffsetFlags(string providerId, DateOnly day, CancellationToken cancellationToken) =>
+        await InForce<ProviderContracts>(day).Where(c => c.Provider == providerId).Select(c => c.OffsetAllowed).ToListAsync(cancellationToken);
+
     public async Task<IReadOnlyList<Domain.Providers.ProviderMeasure>> ProviderMeasures(DateOnly day, CancellationToken cancellationToken) =>
         await InForce<StaticData.ProviderMeasures>(day).Select(m => new Domain.Providers.ProviderMeasure(m.MeasureCode, m.ProviderType, m.Threshold, m.Direction, m.MinClaims))
             .ToListAsync(cancellationToken);
@@ -493,7 +563,7 @@ internal sealed class HealthEventMapper : IDomainEventMapper
     {
         var merge = new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            ["claim_number"] = e.ClaimNumber,
+            ["claim_number"] = e.ClaimNumber ?? "",
             ["decision_date"] = e.DecidedOn.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
             ["amount"] = e.TotalPaid.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture),
             ["currency"] = e.Currency,
@@ -556,10 +626,26 @@ internal sealed class HealthEventMapper : IDomainEventMapper
         Domain.Care.MedicalClaimReversed e => new Contracts.MedicalClaimReversed(e.ClaimId, e.ClaimNumber, e.ProviderId, e.Amount, e.Currency, e.Reason),
         Domain.Care.UtilisationCaseConcluded e => new Contracts.UtilisationCaseConcluded(e.CaseId, e.MembershipId, e.RuleCode, e.Outcome),
         Domain.Care.FraudCaseConcluded e => new Contracts.FraudCaseConcluded(e.CaseId, e.SubjectType, e.SubjectRef, e.OutcomeCode),
+        Domain.Payments.ProviderRecoveryRaised e => new Contracts.ProviderRecoveryRaised(e.RecoveryId, e.RecoveryNumber, e.DebtorKind, e.ProviderId, e.Source, e.Amount, e.Currency, e.RaisedOn),
+        ProviderRecoveryNoticeDue e => new Communications.Contracts.NotificationRequested(Communications.Contracts.NotificationTypes.ProviderRecoveryNotice, e.PartyId, "HEALTH_RECOVERY", e.RecoveryId,
+            new Dictionary<string, string> { ["recovery_number"] = e.RecoveryNumber, ["claim_number"] = e.ClaimNumber ?? "", ["amount"] = e.Amount.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture), ["currency"] = e.Currency }, null, null),
+        Domain.Payments.ProviderRecoveryInvoiceRequested e => new Contracts.ProviderRecoveryInvoiceRequested(e.RecoveryId, e.RecoveryNumber, e.PayerPartyId, e.Amount, e.Currency, e.DueOn, e.CollectionMethod),
+        Domain.Payments.ProviderRecoveryOffsetTaken e => new Contracts.ProviderRecoveryOffsetTaken(e.OffsetId, e.RecoveryId, e.RunId, e.RemittanceId, e.Amount, e.Currency, e.TakenOn),
+        Domain.Payments.ProviderRecoveryRepaid e => new Contracts.ProviderRecoveryRepaid(e.RecoveryId, e.RunId, e.Amount, e.Currency, e.RepaidOn),
+        Domain.Payments.ProviderRecoveryWrittenOff e => new Contracts.ProviderRecoveryWrittenOff(e.RecoveryId, e.RecoveryNumber, e.ProviderId, e.Amount, e.Currency, e.WrittenOffOn),
+        Domain.Payments.ProviderRecoveryReversed e => new Contracts.ProviderRecoveryReversed(e.RecoveryId, e.RecoveryNumber, e.ProviderId, e.Source, e.Amount, e.Currency, e.ReversedOn),
+        Domain.Payments.ProviderRecoverySettled e => new Contracts.ProviderRecoverySettled(e.RecoveryId, e.Amount, e.Currency, e.SettledOn),
+        Domain.Payments.ProviderRecoveryReviewDue e => new Contracts.ProviderRecoveryReviewDue(e.RecoveryId, e.RecoveryNumber, e.DebtorKind, e.ProviderId),
+        ProviderRecoveryWriteOffRequested e => new ApprovalRequested(HealthApprovals.RecoveryBusinessRefType, e.RecoveryId, HealthApprovals.RecoveryWriteOffApprovalType, e.RequestedBy, e.Amount, e.Currency,
+            $"Write off recovery {e.RecoveryNumber}", e.SubjectHash),
+        ProviderRecoveryFindingProposed e => new ApprovalRequested(HealthApprovals.RecoveryBusinessRefType, e.RecoveryId, HealthApprovals.RecoveryFindingApprovalType, e.RequestedBy, e.Amount, e.Currency,
+            $"Overpayment finding {e.RecoveryNumber}", e.SubjectHash),
+        ProviderCreditNoteSubmitted e => new ApprovalRequested(HealthApprovals.CreditNoteBusinessRefType, e.CreditNoteId, HealthApprovals.CreditNoteApprovalType, e.RequestedBy, e.Amount, e.Currency,
+            $"Provider credit note {e.CreditNoteNumber}", e.SubjectHash),
         PaymentRunCalculated e => new ApprovalRequested(HealthApprovals.RunBusinessRefType, e.RunId, HealthApprovals.RunApprovalType, e.RequestedBy, e.Total, e.Currency,
             $"Provider payment run {e.RunCode}", e.SubjectHash),
         Domain.Payments.ProviderPaymentRunReleased e => new Contracts.ProviderPaymentRunReleased(e.RunId, e.RunCode, e.Total, e.Currency,
-            e.Remittances.Select(r => new Contracts.RemittanceReleased(r.RemittanceId, r.ProviderId, r.ProviderPartyId, r.BankAccountId, r.Amount)).ToList(), e.ReleasedOn,
+            e.Remittances.Select(r => new Contracts.RemittanceReleased(r.RemittanceId, r.ProviderId, r.ProviderPartyId, r.BankAccountId, r.Amount, r.Gross, r.Offset, r.Repaid)).ToList(), e.ReleasedOn,
             e.RemittanceTemplate),
         _ => null,
     };

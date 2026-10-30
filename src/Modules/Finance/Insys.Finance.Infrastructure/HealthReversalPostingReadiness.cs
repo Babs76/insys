@@ -42,6 +42,12 @@ namespace Insys.Finance.Infrastructure;
 /// </summary>
 internal sealed class HealthReversalPostingReadiness([FromKeyedServices(FinanceDbContext.SchemaName)] NpgsqlDataSource dataSource, ITenantFunctionSettings settings) : IReadinessCheck
 {
+    private static readonly string[] RecoveryTypes =
+    [
+        TransactionTypes.ProviderRecoveryRaised, TransactionTypes.ProviderRecoveryOffset, TransactionTypes.ProviderRecoveryRepaid, TransactionTypes.ProviderRecoveryWrittenOff,
+        TransactionTypes.ProviderRecoveryReversed, TransactionTypes.ProviderRecoverySettled,
+    ];
+
     public IReadOnlyCollection<string> Steps { get; } = ["FINANCIAL_FOUNDATIONS"];
 
     public async Task<IReadOnlyList<ReadinessResult>> Check(ReadinessContext context, CancellationToken cancellationToken)
@@ -51,19 +57,22 @@ internal sealed class HealthReversalPostingReadiness([FromKeyedServices(FinanceD
             return [];
         }
 
-        var (rules, paidDebits, reversalCredits) = await ReadinessSql.InTenant(dataSource, context.TenantId, async (connection, transaction) =>
+        var (rules, paidDebits, reversalCredits, recoveryRules) = await ReadinessSql.InTenant(dataSource, context.TenantId, async (connection, transaction) =>
         {
             Task<IReadOnlyList<string>> Accounts(string column, string type) => ReadinessSql.Strings(connection, transaction,
                 $"SELECT DISTINCT {column} FROM finance.cfg_posting_rules WHERE tenant_id = @t AND transaction_type = @type AND {ReadinessSql.InForce} ORDER BY 1", cancellationToken,
                 ("t", context.TenantId), ("type", type), ("inForce", StaticLifecycle.Configuration.InForce), ("day", context.Day));
             var credits = await Accounts("credit_account", TransactionTypes.ClaimPaidReversed);
-            return (credits.Count, await Accounts("debit_account", TransactionTypes.ClaimPaid), credits);
+            var recoveryRules = await ReadinessSql.Strings(connection, transaction,
+                $"SELECT DISTINCT transaction_type FROM finance.cfg_posting_rules WHERE tenant_id = @t AND transaction_type = ANY(@types) AND {ReadinessSql.InForce}", cancellationToken,
+                ("t", context.TenantId), ("types", RecoveryTypes), ("inForce", StaticLifecycle.Configuration.InForce), ("day", context.Day));
+            return (credits.Count, await Accounts("debit_account", TransactionTypes.ClaimPaid), credits, recoveryRules);
         }, cancellationToken);
         var astray = paidDebits.Count == 0 ? [] : reversalCredits.Except(paidDebits).ToList();
         return
         [
             ReadinessResult.Of("FINANCIAL_FOUNDATIONS", "POSTING_RULES", "A posting rule for premium due, payment received, refund paid, claim reserve up and down, and claim paid",
-                rules > 0 ? [] : [TransactionTypes.ClaimPaidReversed]),
+                [.. rules > 0 ? [] : new[] { TransactionTypes.ClaimPaidReversed }, .. RecoveryTypes.Except(recoveryRules)]),
             ReadinessResult.Warning("FINANCIAL_FOUNDATIONS", "CLAIM_REVERSAL_ACCOUNTS",
                 $"{TransactionTypes.ClaimPaidReversed} should credit the account {TransactionTypes.ClaimPaid} debits, or a reversed claim will not net to zero (account listed); a warning, not a blocker",
                 astray),

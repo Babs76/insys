@@ -172,6 +172,9 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
                  {
                      ("PR-PREM", TransactionTypes.PremiumDue, "1100", "4000"), ("PR-RECEIPT", TransactionTypes.PaymentReceived, "1200", "1100"),
                      ("PR-CLM-PAID", TransactionTypes.ClaimPaid, "2100", "1200"), ("PR-CLM-REV", TransactionTypes.ClaimPaidReversed, "1300", "2100"),
+                     ("PR-REC-RAISED", TransactionTypes.ProviderRecoveryRaised, "1300", "2100"), ("PR-REC-OFFSET", TransactionTypes.ProviderRecoveryOffset, "1200", "1300"),
+                     ("PR-REC-REPAID", TransactionTypes.ProviderRecoveryRepaid, "1300", "1200"), ("PR-REC-WOFF", TransactionTypes.ProviderRecoveryWrittenOff, "4000", "1300"),
+                     ("PR-REC-REV", TransactionTypes.ProviderRecoveryReversed, "2100", "1300"), ("PR-REC-SETTLED", TransactionTypes.ProviderRecoverySettled, "1100", "1300"),
                  })
         {
             await Seed("finance.cfg_posting_rules", "EFFECTIVE", rule, ("rule_code", rule), ("transaction_type", type), ("debit_account", debit), ("credit_account", credit));
@@ -424,8 +427,9 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         (await (await north.GetAsync(byRemittance)).Json()).GetProperty("items").GetArrayLength().ShouldBe(1);
 
         // Compensation: a reversed claim gives its benefit use back.
+        await Seed("health.cfg_provider_recovery_settings", "EFFECTIVE", "DEFAULT", ("setting_code", "DEFAULT"), ("medical_scheme", true), ("review_after_days", 90), ("invoice_collection_method", "EFT"));
         (await _maker.PostAsJsonAsync($"/api/v1/health/claims/{claim}/reverse", new { reason = "BILLED_IN_ERROR" })).StatusCode.ShouldBe(HttpStatusCode.OK);
-        (await Accumulator(membership, "MEMBER")).ShouldBe((0m, 0m));
+        (await Accumulator(membership, "MEMBER")).Used.ShouldBe(0m, "the claim's use is given back");
 
         // The ledger follows, on every dated clock: claims paid (2100) nets to zero and the provider owes it (1300). The bank (1200) keeps its credit: no cash came back.
         await _factory.DrainOutbox();
@@ -434,6 +438,99 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         var paidAmount = await _db.ScalarAsOwner<decimal>("SELECT total_paid FROM health.medical_claim WHERE id = @c", ("c", claim));
         paidAmount.ShouldBeGreaterThan(0m);
         ((await Net("2100"), await Net("1300"), await Net("1200"))).ShouldBe((0m, paidAmount, -paidAmount));
+
+        // 5a.3: within validity and used by nothing else, the authorisation is restored with what the claim consumed.
+        var restored = await Get($"/api/v1/health/preauthorisations/{preauth}");
+        (restored.GetProperty("status").GetString(), restored.GetProperty("lines")[0].GetProperty("consumedAmount").GetDecimal(), restored.GetProperty("lines")[0].GetProperty("reservedAmount").GetDecimal())
+            .ShouldBe(("Approved", 0m, restored.GetProperty("lines")[0].GetProperty("authorisedAmount").GetDecimal()));
+
+        // The reversal raises a recovery: a medical scheme's provider is offset by default (OQ-139, addition 1).
+        var recovery = (await Get("/api/v1/health/provider-recoveries?providerId=PR-1")).GetProperty("items").EnumerateArray().Single();
+        var recoveryId = recovery.GetProperty("id").GetGuid();
+        (recovery.GetProperty("basis").GetString(), recovery.GetProperty("status").GetString(), recovery.GetProperty("balance").GetDecimal()).ShouldBe(("OFFSET", "OPEN", paidAmount));
+        DocumentedSchema.ResponseProblems(recovery, "core", "HealthGetRecovery").ShouldBeEmpty();
+
+        // The provider reprocesses: the new claim names the reversed one, shown both ways.
+        var replacement = await Created("/api/v1/health/claims", new
+        {
+            source = "PROVIDER", providerId = "PR-1", membershipId = membership, patientPartyId = principal, serviceDate = Today, formatCode = "API", currency = "ZAR", replacesClaimId = claim,
+            lines = new[] { new { tariffCode = "0300", diagnosisCode = "K35", quantity = 1, claimedAmount = 1_200m } },
+        });
+        (await Get($"/api/v1/health/claims/{replacement}")).GetProperty("replacesClaimId").GetGuid().ShouldBe(claim);
+        (await Get($"/api/v1/health/claims/{claim}")).GetProperty("replacedByClaimId").GetGuid().ShouldBe(replacement);
+        (await _maker.PostAsync($"/api/v1/health/claims/{replacement}/validate", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await _maker.PostAsync($"/api/v1/health/claims/{replacement}/adjudicate", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        var pendedReplacement = await Get($"/api/v1/health/claims/{replacement}");
+        pendedReplacement.GetProperty("status").GetString().ShouldBe("Adjudicated", pendedReplacement.GetRawText());
+        (await _maker.PostAsync($"/api/v1/health/claims/{replacement}/approve", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        await _factory.DrainOutbox();
+
+        // Gap 2: the next run deducts the recovery. Its total is the sum of the nets, and a net of nil is an advice with no payment.
+        var nextRun = await Created("/api/v1/health/payment-runs", new { runCode = "PRV-WEEKLY", currency = "ZAR" });
+        (await _maker.PostAsync($"/api/v1/health/payment-runs/{nextRun}/cut-off", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        var nextCalculated = await (await _maker.PostAsync($"/api/v1/health/payment-runs/{nextRun}/calculate", null)).Json();
+        var nextRemittance = nextCalculated.GetProperty("remittances").EnumerateArray().Single();
+        (nextRemittance.GetProperty("grossAmount").GetDecimal(), nextRemittance.GetProperty("offsetAmount").GetDecimal(), nextRemittance.GetProperty("amount").GetDecimal(), nextCalculated.GetProperty("totalAmount").GetDecimal())
+            .ShouldBe((paidAmount, paidAmount, 0m, 0m));
+        await _factory.DrainOutbox();
+        await Decide(HealthApprovals.RunBusinessRefType, nextRun);
+        (await _maker.PostAsync($"/api/v1/health/payment-runs/{nextRun}/release", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        await _factory.DrainOutbox();
+        await _factory.DrainOutbox();
+        (await Get($"/api/v1/health/payment-runs/{nextRun}")).GetProperty("status").GetString().ShouldBe("Reconciled", "nothing was to pay");
+        var nextRemittanceId = nextRemittance.GetProperty("id").GetGuid();
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM payment.payment WHERE business_ref_id = @r", ("r", nextRemittanceId))).ShouldBe(0L);
+        (await _db.ScalarAsOwner<Guid?>("SELECT document_id FROM health.remittance_advice WHERE id = @r", ("r", nextRemittanceId))).ShouldNotBeNull("the provider still gets its advice");
+
+        // The remittance shows the original, the reversal, the new claim and the net.
+        var detail = await Get($"/api/v1/health/remittances/{nextRemittanceId}");
+        DocumentedSchema.ResponseProblems(detail, "core", "HealthGetRemittance").ShouldBeEmpty();
+        var originalNumber = (await Get($"/api/v1/health/claims/{claim}")).GetProperty("claimNumber").GetString();
+        var replacementNumber = pendedReplacement.GetProperty("claimNumber").GetString();
+        (detail.GetProperty("netAmount").GetDecimal(), detail.GetProperty("paymentDue").GetBoolean()).ShouldBe((0m, false));
+        (detail.GetProperty("claims")[0].GetProperty("claimNumber").GetString(), detail.GetProperty("claims")[0].GetProperty("replacesClaimNumber").GetString()).ShouldBe((replacementNumber, originalNumber));
+        var offsetLine = detail.GetProperty("offsets")[0];
+        (offsetLine.GetProperty("originalClaimNumber").GetString(), offsetLine.GetProperty("newClaimNumber").GetString(), offsetLine.GetProperty("amount").GetDecimal()).ShouldBe((originalNumber, replacementNumber, paidAmount));
+        offsetLine.GetProperty("reversedOn").ValueKind.ShouldBe(JsonValueKind.String);
+
+        // Recovered; the ledger balances: the receivable is nil and the bank paid only what really left it.
+        (await Get($"/api/v1/health/provider-recoveries/{recoveryId}")).GetProperty("status").GetString().ShouldBe("RECOVERED");
+        async Task<decimal> RecoveryNet(string account) => await _db.ScalarAsOwner<decimal>(
+            "SELECT coalesce(sum(debit - credit), 0) FROM finance.subledger_entry WHERE business_ref_type = 'HEALTH_RECOVERY' AND business_ref_id = @c AND account_code = @a", ("c", recoveryId), ("a", account));
+        ((await RecoveryNet("1300"), await RecoveryNet("1200"))).ShouldBe((-paidAmount, paidAmount));
+
+        // A provider's credit note needs a second person, and then raises a recovery.
+        var note = await Created("/api/v1/health/provider-credit-notes", new { providerId = "PR-1", providerReference = "CN-1", claimId = replacement, amount = 100m, currency = "ZAR", reason = "Billed one visit too many" });
+        await _factory.DrainOutbox();
+        (await Get("/api/v1/health/provider-recoveries?providerId=PR-1")).GetProperty("items").GetArrayLength().ShouldBe(1, "nothing is owed until it is approved");
+        await Decide(HealthApprovals.CreditNoteBusinessRefType, note);
+        await _factory.DrainOutbox();
+        var noteRecovery = (await Get($"/api/v1/health/provider-credit-notes/{note}")).GetProperty("recoveryId").GetGuid();
+        (await Get($"/api/v1/health/provider-recoveries/{noteRecovery}")).GetProperty("balance").GetDecimal().ShouldBe(100m);
+        await _factory.DrainOutbox();
+        (await RecoveryNetOf(noteRecovery, "1300")).ShouldBe(100m);
+
+        // OQ-146: held for a dispute, it is not deducted; the case closing releases it.
+        var holdCase = Guid.CreateVersion7();
+        var noteUrl = $"/api/v1/health/provider-recoveries/{noteRecovery}";
+        (await _maker.Send(HttpMethod.Post, $"{noteUrl}/hold", new { caseId = holdCase }, ifMatch: (await _maker.GetAsync(noteUrl)).ETag())).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await _maker.Send(HttpMethod.Post, $"{noteUrl}/invoice", ifMatch: (await _maker.GetAsync(noteUrl)).ETag())).StatusCode.ShouldBe(HttpStatusCode.Conflict, "not while it is disputed");
+
+        // A write-off needs a reason and a second person; it is never simply dropped (addition 3).
+        var writeOff = await _maker.Send(HttpMethod.Post, $"{noteUrl}/write-off", new { reason = "" }, ifMatch: (await _maker.GetAsync(noteUrl)).ETag());
+        writeOff.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+        (await _maker.Send(HttpMethod.Post, $"{noteUrl}/write-off", new { reason = "Provider liquidated" }, ifMatch: (await _maker.GetAsync(noteUrl)).ETag())).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await Get(noteUrl)).GetProperty("balance").GetDecimal().ShouldBe(100m, "still owed until a second person approves");
+        await _factory.DrainOutbox();
+        await Decide(HealthApprovals.RecoveryBusinessRefType, noteRecovery);
+        await _factory.DrainOutbox();
+        var writtenOff = await Get(noteUrl);
+        (writtenOff.GetProperty("status").GetString(), writtenOff.GetProperty("balance").GetDecimal()).ShouldBe(("WRITTEN_OFF", 0m));
+        await _factory.DrainOutbox();
+        (await RecoveryNetOf(noteRecovery, "1300")).ShouldBe(0m);
+
+        async Task<decimal> RecoveryNetOf(Guid id, string account) => await _db.ScalarAsOwner<decimal>(
+            "SELECT coalesce(sum(debit - credit), 0) FROM finance.subledger_entry WHERE business_ref_type = 'HEALTH_RECOVERY' AND business_ref_id = @c AND account_code = @a", ("c", id), ("a", account));
 
         // Compensation: an authorisation that expires releases its reservation.
         var expiring = await Authorisation(membership, principal);
@@ -911,6 +1008,7 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
     [Fact]
     public async Task AProvidersMonth_IsMeasuredAndABreachAsksAPerson_AndItsStatementIsMatchedAndReconciled_F028_F029_F030()
     {
+        await Seed("health.cfg_provider_recovery_settings", "EFFECTIVE", "DEFAULT", ("setting_code", "DEFAULT"), ("medical_scheme", true), ("review_after_days", 90), ("invoice_collection_method", "EFT"));
         await Seed("health.cfg_provider_measures", "EFFECTIVE", "PM-REJECT", ("measure_code", "REJECTION_RATE"), ("threshold", 0.25m), ("direction", "ABOVE"), ("min_claims", 2));
         await Seed("health.cfg_provider_measures", "EFFECTIVE", "PM-DISPUTES", ("measure_code", "DISPUTES_PER_100"), ("threshold", 1m), ("direction", "ABOVE"), ("min_claims", 100));
         await Provider();

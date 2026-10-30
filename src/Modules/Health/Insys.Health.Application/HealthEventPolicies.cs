@@ -130,6 +130,12 @@ public sealed class HealthEventPolicies(IHealthRepository health, BenefitContext
         {
             claim.LeaveRun(run.Id);
         }
+
+        foreach (var recovery in await health.RecoveriesInRun(run.Id, cancellationToken))
+        {
+            recovery.ReleaseOffsets(run.Id);
+            recovery.RepaymentNotReleased(run.Id);
+        }
     }
 
     /// <summary>The run was released: its claims are paid ("Payment run released") and settled.</summary>
@@ -145,6 +151,13 @@ public sealed class HealthEventPolicies(IHealthRepository health, BenefitContext
                     throw new InvalidOperationException($"Claim {claim.ClaimNumber} could not be paid by run {released.RunCode}: {paid.Error.Message}");
                 }
             }
+        }
+
+        // Gap 2: the run's offsets are taken, and what it repays is repaid.
+        foreach (var recovery in await health.RecoveriesInRun(released.RunId, cancellationToken))
+        {
+            recovery.TakeOffsets(released.RunId, released.ReleasedOn, clock.UtcNow);
+            recovery.RepaymentReleased(released.RunId, released.ReleasedOn, clock.UtcNow);
         }
     }
 

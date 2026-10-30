@@ -147,6 +147,12 @@ Names are proposals. `CFG` is tenant configuration; the others are records.
 
 Also for compliance: §1's s 59(3) point, any time limit on recoveries, and consent for sharing in §4.4.
 
+### Changes at build (5a.3, 30 October 2026)
+- **Settings.** The offset flag's default, the review period and the invoice's collection method are in `health.cfg_provider_recovery_settings`. With none, a provider is invoiced and the period is 90 days.
+- **A finding** always needs a second person, not only over a limit: the stricter reading of §4.7.
+- **Credit notes post** debit `1300`, credit claims, because they raise what is owed. Offsets and write-offs credit `1300`. See the 5a.3 report's decisions.
+- **A recovery on a member** uses the same record, with `debtorKind` `MEMBER` and basis `PERSON`.
+
 ## 9. How it is built
 - **5a.1 (F028–F030):** measures and their job, quality reviews, statements and matching. Readiness warnings.
 - **5a.2 (F034–F038):** complex case, case manager function, care plan with progress, coordination notes, referrals.

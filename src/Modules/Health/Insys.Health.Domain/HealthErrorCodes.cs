@@ -61,6 +61,12 @@ public static class HealthErrorCodes
     [ErrorCode(422, "error.health.authorisation_above_benefit")]
     public const string AuthorisationAboveBenefit = "AUTHORISATION_ABOVE_BENEFIT";
 
+    [ErrorCode(422, "error.health.reason_required")]
+    public const string ReasonRequired = "HEALTH_REASON_REQUIRED";
+
+    [ErrorCode(422, "error.health.credit_note_invalid")]
+    public const string CreditNoteInvalid = "CREDIT_NOTE_INVALID";
+
     [ErrorCode(422, "error.health.claim_invalid")]
     public const string ClaimInvalid = "MEDICAL_CLAIM_INVALID";
 
