@@ -59,6 +59,8 @@ public static class RulesStaticData
             entity.Property(x => x.Threshold).HasColumnName("threshold").HasPrecision(18, 2);
             entity.Property(x => x.Outcome).HasColumnName("outcome").HasMaxLength(40);
             entity.Property(x => x.ReferralQueue).HasColumnName("referral_queue").HasMaxLength(80);
+            entity.Property(x => x.ProductCode).HasColumnName("product_code").HasMaxLength(15);
+            entity.Property(x => x.Domain).HasColumnName("domain").HasMaxLength(10);
         });
         modelBuilder.Entity<AuthorityMatrices>(entity =>
         {

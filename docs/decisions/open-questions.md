@@ -353,7 +353,8 @@ Also pending business sign-off, though built as accepted: ADR-012 (Health adjudi
 - **Proposal:**
   - The most severe outcome among the rules that fire is the decision: INELIGIBLE > REFER > ELIGIBLE, and DECLINE > REFER > ACCEPT.
   - Eligibility is not assumed: when no eligibility rule fires, the outcome is INELIGIBLE. Underwriting defaults to ACCEPT.
-  - Acceptance and referral rules have no product column, so all of the tenant's rules apply to every product. Their `threshold` is available to the condition as `threshold`.
+  - Acceptance and referral rules apply to their product, else to every product of their domain, else (with neither) to every product: `product_code` and `domain`, added by V0102 (BR-113, GAP-117, 30 October 2026). Until then they had no scope, and a Life rule failed every General renewal review. Their `threshold` is available to the condition as `threshold`.
+  - A rule whose input is missing refers the decision to a person, listed among the fired rules as `RULE (no input name)` (BR-113). An input of the wrong kind still fails the evaluation.
   - Decline conditions apply when their product is empty or matches.
   - The decision log's `ruleset_code` is the eligibility rule set code, or `UW:{product}` for underwriting.
 

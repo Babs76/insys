@@ -51,6 +51,9 @@ public sealed record RuleSetDefinition(string Code, RuleSetKind Kind, IReadOnlyL
 {
     public const int MaxCodeLength = 20;
 
+    /// <summary>The outcome a rule with a missing input gives (BR-113): a person decides. Both kinds of rule set have it.</summary>
+    public const string Refer = "REFER";
+
     /// <summary>A rule set's version is the highest version among its rules: any rule change gives a new version.</summary>
     public int Version => Rules.Count == 0 ? 0 : Rules.Max(r => r.Version);
 
@@ -92,7 +95,10 @@ public sealed class RuleDecision : AggregateRoot<Guid>
 
     public DateTimeOffset EvaluatedAt { get; private set; }
 
-    /// <summary>Command EvaluateRuleSet. A rule that cannot be evaluated (a missing input, say) fails the evaluation, and nothing is recorded.</summary>
+    /// <summary>
+    /// Command EvaluateRuleSet. A rule whose input is missing refers the decision to a person (BR-113), recorded among the
+    /// fired rules as "RULE (no input name)". Any other rule that cannot be evaluated fails the evaluation, and nothing is recorded.
+    /// </summary>
     public static Result<RuleDecision> EvaluateRuleSet(Guid id, RuleSetDefinition ruleSet, string subjectType, Guid subjectId, string inputsJson,
         IReadOnlyDictionary<string, object?> inputs, DateTimeOffset now)
     {
@@ -102,9 +108,16 @@ public sealed class RuleDecision : AggregateRoot<Guid>
         }
 
         var fired = new List<RuleDefinition>();
+        var referred = new List<string>();
         foreach (var rule in ruleSet.Rules.OrderBy(r => r.RuleCode, StringComparer.Ordinal))
         {
             var variables = rule.Constants.Count == 0 ? inputs : Merge(inputs, rule.Constants);
+            if (rule.Condition.Variables.Where(v => !variables.ContainsKey(v)).ToList() is { Count: > 0 } missing)
+            {
+                referred.Add($"{rule.RuleCode} (no input {string.Join(", ", missing)})");
+                continue;
+            }
+
             var holds = rule.Condition.Evaluate(variables);
             if (holds.IsFailure)
             {
@@ -117,9 +130,8 @@ public sealed class RuleDecision : AggregateRoot<Guid>
             }
         }
 
-        var outcome = fired.Count == 0
-            ? ruleSet.DefaultOutcome
-            : fired.Select(r => r.Outcome).OrderBy(o => IndexOf(ruleSet.Severity, o)).First();
+        var outcomes = fired.Select(r => r.Outcome).Concat(referred.Count > 0 ? [RuleSetDefinition.Refer] : []).ToList();
+        var outcome = outcomes.Count == 0 ? ruleSet.DefaultOutcome : outcomes.OrderBy(o => IndexOf(ruleSet.Severity, o)).First();
         var decision = new RuleDecision
         {
             Id = Guard.NotEmpty(id),
@@ -129,7 +141,7 @@ public sealed class RuleDecision : AggregateRoot<Guid>
             SubjectId = Guard.NotEmpty(subjectId),
             Inputs = inputsJson,
             Outcome = outcome,
-            FiredRules = fired.Select(r => r.RuleCode).ToArray(),
+            FiredRules = [.. fired.Select(r => r.RuleCode), .. referred],
             EvaluatedAt = now,
         };
         decision.Raise(new RuleDecisionRecorded(id, decision.RulesetCode, decision.RulesetVersion, decision.SubjectType, subjectId, outcome, decision.FiredRules, now));

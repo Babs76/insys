@@ -24,6 +24,7 @@
  * UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
  * ============================================================================
  */
+using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Messaging;
 using Insys.BuildingBlocks.Contracts;
 using Insys.BuildingBlocks.Domain;
@@ -54,7 +55,7 @@ internal sealed class RuleDecisionQueries(RulesDbContext db) : IRuleDecisionQuer
 }
 
 /// <summary>Builds rule sets from the rules in force: eligibility rule sets, and acceptance, referral and decline rules.</summary>
-internal sealed class RuleSetReader(RulesDbContext db) : IRuleSetReader
+internal sealed class RuleSetReader(RulesDbContext db, ProductFactory.Contracts.IProductDomains products, ITenantContext tenant) : IRuleSetReader
 {
     private static readonly IReadOnlyDictionary<string, object?> None = new Dictionary<string, object?>();
 
@@ -79,8 +80,11 @@ internal sealed class RuleSetReader(RulesDbContext db) : IRuleSetReader
             return RuleSetDefinition.Eligibility(code, rules);
         }
 
-        // TODO(spec): acceptance and referral rules carry no product; all of the tenant's rules apply to every product (OQ-051).
-        foreach (var row in await db.Set<AcceptanceAndReferralRules>().AsNoTracking().InForce(Lifecycle<AcceptanceAndReferralRules>(), day).ToListAsync(cancellationToken))
+        // BR-113 (GAP-117): an acceptance or referral rule applies to its product, else to its domain's products, else (with
+        // neither) to every product, as before V0102. A Life rule is never evaluated for a General product.
+        var domain = (await products.DomainsOf(tenant.RequireTenantId(), [code], cancellationToken)).GetValueOrDefault(code);
+        foreach (var row in await db.Set<AcceptanceAndReferralRules>().AsNoTracking().InForce(Lifecycle<AcceptanceAndReferralRules>(), day)
+                     .Where(r => r.ProductCode == code || (r.ProductCode == null && (r.Domain == null || r.Domain == domain))).ToListAsync(cancellationToken))
         {
             var condition = Parse(row.Code, row.Condition);
             if (condition.IsFailure)

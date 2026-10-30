@@ -50,6 +50,11 @@ public sealed class AcceptanceAndReferralRules : StaticRecord<AcceptanceAndRefer
 
     public string? ReferralQueue { get; set; }
 
+    public string? ProductCode { get; set; }
+
+    [Insys.BuildingBlocks.Domain.OneOf("LIFE", "GENERAL", "HEALTH")]
+    public string? Domain { get; set; }
+
     public override void ApplyFields(AcceptanceAndReferralRulesInput input, IFieldProtector protector)
     {
         RuleCode = input.RuleCode!;
@@ -57,6 +62,8 @@ public sealed class AcceptanceAndReferralRules : StaticRecord<AcceptanceAndRefer
         Threshold = input.Threshold.GetValueOrDefault();
         Outcome = input.Outcome!;
         ReferralQueue = input.ReferralQueue;
+        ProductCode = input.ProductCode;
+        Domain = input.Domain;
     }
 }
 
@@ -78,6 +85,11 @@ public sealed record AcceptanceAndReferralRulesInput : StaticRecordInput
 
     public string? ReferralQueue { get; init; }
 
+    public string? ProductCode { get; init; }
+
+    [Insys.BuildingBlocks.Domain.OneOf("LIFE", "GENERAL", "HEALTH")]
+    public string? Domain { get; init; }
+
     protected override void ValidateFields(StaticFieldErrors errors)
     {
         errors.Required("ruleCode", RuleCode);
@@ -88,5 +100,8 @@ public sealed record AcceptanceAndReferralRulesInput : StaticRecordInput
         errors.MaxLength("outcome", Outcome, 40);
         errors.OneOf("outcome", Outcome, ["ACCEPT", "REFER", "DECLINE"]);
         errors.MaxLength("referralQueue", ReferralQueue, 80);
+        errors.MaxLength("productCode", ProductCode, 15);
+        errors.MaxLength("domain", Domain, 10);
+        errors.OneOf("domain", Domain, ["LIFE", "GENERAL", "HEALTH"]);
     }
 }

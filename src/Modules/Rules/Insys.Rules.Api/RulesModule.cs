@@ -72,8 +72,10 @@ public sealed class RulesModule : IModule
             .WithSummary("Evaluate a rule set and record the decision")
             .WithEventualEffects("for a LIFE_PROPOSAL, its eligibilityOutcome appears; for a LIFE_UNDERWRITING_CASE, its ruleOutcome appears, once Life handles "
                 + "rules.RuleDecisionRecorded (BR-077).")
-            .WithDescription("The most severe outcome among the rules that fire is the decision. A rule that cannot be evaluated, for example "
-                + "because an input it reads is missing, fails the evaluation and nothing is recorded.")
+            .WithDescription("The most severe outcome among the rules that fire is the decision. A rule whose input is missing refers the decision "
+                + "to a person (BR-113), listed in firedRules as \"RULE (no input name)\". A rule that cannot otherwise be evaluated, for example an input "
+                + "of the wrong kind, fails the evaluation and nothing is recorded. An underwriting rule set (code: a product) has the decline conditions "
+                + "of the product or of all products, and the acceptance and referral rules of the product, of its domain, or with no scope.")
             .RequirePermission(RulesPermissions.DecisionCreate)
             .RequireIdempotencyKey();
 

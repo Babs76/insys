@@ -738,6 +738,51 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
     }
 
     /// <summary>
+    /// BR-113 (GAP-117): a tenant selling Life and General, with underwriting rules for both in force. A General renewal's
+    /// review evaluates the rules of its product and of the General domain, never the Life rule (whose sum_assured a General
+    /// renewal does not have). One with a claim is referred by the General rule; one without is accepted and offered.
+    /// </summary>
+    [Fact]
+    public async Task AGeneralRenewalReview_EvaluatesOnlyItsProductsAndDomainsRules_NeverALifeRule_BR113()
+    {
+        await Seed("general.cfg_renewal_rules", "EFFECTIVE", "RR-GMOT", ("product_code", Product), ("notice_days", 31), ("auto_renew", true), ("re_rating", false),
+            ("invitation_template", "TPL-RENEWAL_NOTICE"), ("review", true));
+        await Seed("general.cfg_renewal_review_rules", "EFFECTIVE", "RV-GMOT", ("product_code", Product), ("underwriting_rules", true), ("claims_lookback_years", 3),
+            ("review_days_before_invitation", 14));
+        await Seed("rules.cfg_acceptance_and_referral_rules", "EFFECTIVE", "UW-LIFE-SA", ("rule_code", "UW-LIFE-SA"), ("condition", "sum_assured > threshold"),
+            ("threshold", 5_000_000m), ("outcome", "REFER"), ("domain", "LIFE"));
+        await Seed("rules.cfg_acceptance_and_referral_rules", "EFFECTIVE", "UW-GEN-CLAIMS", ("rule_code", "UW-GEN-CLAIMS"), ("condition", "claims_count >= 1"),
+            ("threshold", 0m), ("outcome", "REFER"), ("domain", "GENERAL"));
+        await Seed("rules.cfg_acceptance_and_referral_rules", "EFFECTIVE", "UW-GMOT-SI", ("rule_code", "UW-GMOT-SI"), ("condition", "sum_insured > threshold"),
+            ("threshold", 1_000_000m), ("outcome", "REFER"), ("product_code", Product));
+        var (claimed, vehicle) = await IssuedPolicy();
+        var (clean, _) = await IssuedPolicy();
+        await _db.ExecuteAsOwner("UPDATE general.policy SET period_start = @s, period_end = @e WHERE id IN (@a, @b)", ("s", Today.AddYears(-1).AddDays(21)),
+            ("e", Today.AddDays(20)), ("a", claimed), ("b", clean));
+        var claim = await Created("/api/v1/general/claims", new
+        {
+            policyId = claimed, riskObjectId = vehicle, coverageCode = "OWN_DAMAGE", lossDate = Today, causeCode = "COLLISION", perilCode = "ACC", description = "One claim",
+        });
+        (await _maker.PostAsync($"/api/v1/general/claims/{claim}/register", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        await _factory.DrainOutbox();
+
+        await _factory.Services.GetRequiredService<Insys.General.Infrastructure.GeneralJobs>().Run(CancellationToken.None);
+        await _factory.DrainOutbox();
+        async Task<JsonElement> RenewalOf(Guid policy) =>
+            (await (await _maker.GetAsync($"/api/v1/general/renewals?policyId={policy}")).Json()).GetProperty("items").EnumerateArray().Single();
+        static string Underwriting(JsonElement renewal) => renewal.GetProperty("checks").EnumerateArray()
+            .Where(c => c.GetProperty("checkCode").GetString() == "UNDERWRITING_RULES").Select(c => $"{c.GetProperty("outcome").GetString()} {c.GetProperty("detail").GetString()}").Single();
+
+        var referred = await RenewalOf(claimed);
+        (referred.GetProperty("status").GetString(), Underwriting(referred)).ShouldBe(("Referred", "REFER Outcome REFER: UW-GEN-CLAIMS."), referred.ToString());
+        var offered = await RenewalOf(clean);
+        (offered.GetProperty("status").GetString(), Underwriting(offered)).ShouldBe(("Offered", "PASS Outcome ACCEPT."), offered.ToString());
+        (await _db.ScalarAsOwner<string>("SELECT string_agg(ruleset_code || ':' || outcome, ',' ORDER BY outcome) FROM rules.decision_log WHERE subject_id IN (@a, @b)",
+            ("a", referred.GetProperty("id").GetGuid()), ("b", offered.GetProperty("id").GetGuid()))).ShouldBe($"UW:{Product}:ACCEPT,UW:{Product}:REFER");
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM integration.dead_letter_message")).ShouldBe(0, "no evaluation failed");
+    }
+
+    /// <summary>
     /// Wave 4 §4.4, §4.6 (F022, OQ-130): a product renewing ON_ACCEPTANCE is invited with an offer that waits for the customer.
     /// The member accepts through the portal and the policy renews at its period end; another member's renewal, not accepted,
     /// lapses and the policy expires (LAPSED). A member sees only their own renewal.

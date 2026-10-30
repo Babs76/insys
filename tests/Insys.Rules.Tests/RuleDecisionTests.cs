@@ -61,9 +61,19 @@ public sealed class RuleDecisionTests
     public void Eligibility_IsNotAssumed_WhenNoRuleFires() =>
         Evaluate(Term, new() { ["age_next"] = 30, ["resident_country"] = "NA" }).Value.Outcome.ShouldBe("INELIGIBLE");
 
+    /// <summary>BR-113 (GAP-117): a rule whose input is missing refers the decision to a person, naming the input; it does not fail it.</summary>
     [Fact]
-    public void MissingInput_FailsTheEvaluation_AndNothingIsRecorded() =>
-        Evaluate(Term, new() { ["age_next"] = 30 }).Error!.Code.ShouldBe(ExpressionErrors.EvaluationCode);
+    public void MissingInput_RefersTheDecision_NamingTheRuleAndInput_BR113()
+    {
+        var decision = Evaluate(Term, new() { ["age_next"] = 30 }).Value;
+        decision.Outcome.ShouldBe("REFER");
+        decision.FiredRules.ShouldBe(["ADULT (no input resident_country)"]);
+        Evaluate(Term, new() { ["age_next"] = 10 }).Value.Outcome.ShouldBe("INELIGIBLE", "a rule that fires and is more severe still wins");
+    }
+
+    [Fact]
+    public void AnInputOfTheWrongKind_FailsTheEvaluation_AndNothingIsRecorded() =>
+        Evaluate(Term, new() { ["age_next"] = "thirty", ["resident_country"] = "ZA" }).Error!.Code.ShouldBe(ExpressionErrors.EvaluationCode);
 
     [Fact]
     public void Underwriting_ReadsTheRulesThreshold_AndDeclineWins()

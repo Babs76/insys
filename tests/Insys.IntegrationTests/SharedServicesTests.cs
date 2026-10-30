@@ -97,10 +97,15 @@ public sealed class SharedServicesTests(DatabaseFixture fixture) : IClassFixture
         decision.GetProperty("rulesetVersion").GetInt32().ShouldBe(1);
         decision.GetProperty("firedRules").EnumerateArray().Select(r => r.GetString()).ShouldBe(["ADULT", "OLDER"]);
 
+        // BR-113: a missing input refers the decision to a person; an input of the wrong kind still fails, and records nothing.
+        var referred = await (await client.Send(HttpMethod.Post, "/api/v1/rules/decisions",
+            new { kind = "Eligibility", code = "ELIG-TERM", subjectType = "APPLICATION", subjectId = subject, inputs = new { age = 62 } }, idempotent: true)).Json();
+        referred.GetProperty("outcome").GetString().ShouldBe("REFER");
         var failed = await client.Send(HttpMethod.Post, "/api/v1/rules/decisions",
-            new { kind = "Eligibility", code = "ELIG-TERM", subjectType = "APPLICATION", subjectId = subject, inputs = new { age = 62 } }, idempotent: true);
+            new { kind = "Eligibility", code = "ELIG-TERM", subjectType = "APPLICATION", subjectId = subject, inputs = new { age_next = "sixty", resident_country = "ZA" } },
+            idempotent: true);
         (await failed.Code()).ShouldBe("EXPRESSION_EVALUATION_FAILED");
-        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM rules.decision_log WHERE subject_id = @s", ("s", subject))).ShouldBe(1);
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM rules.decision_log WHERE subject_id = @s", ("s", subject))).ShouldBe(2);
         (await fixture.Database.ScalarAsOwner<string>("SELECT inputs->>'age_next' FROM rules.decision_log WHERE subject_id = @s", ("s", subject))).ShouldBe("62");
     }
 

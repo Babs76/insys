@@ -28,5 +28,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\..\BuildingBlocks\Insys.BuildingBlocks.Infrastructure\Insys.BuildingBlocks.Infrastructure.csproj" />
     <ProjectReference Include="..\Insys.Rules.Application\Insys.Rules.Application.csproj" />
+    <ProjectReference Include="..\..\ProductFactory\Insys.ProductFactory.Contracts\Insys.ProductFactory.Contracts.csproj" />
   </ItemGroup>
 </Project>

@@ -2394,6 +2394,20 @@
      "logicalType": "Ref WorkQueue",
      "mandatory": false,
      "sample": "UW-SENIOR"
+    },
+    {
+     "name": "product_code",
+     "logicalType": "Ref Product",
+     "mandatory": false,
+     "sample": "LIF-TERM",
+     "note": "Added by V0102 (BR-113): the product the rule applies to; empty for every product of its domain."
+    },
+    {
+     "name": "domain",
+     "logicalType": "Enum{Life,General,Health}",
+     "mandatory": false,
+     "sample": "LIFE",
+     "note": "Added by V0102 (BR-113): with no product, the domain whose products the rule applies to; with neither, every product."
     }
    ]
   },
