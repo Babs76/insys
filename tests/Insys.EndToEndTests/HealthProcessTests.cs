@@ -451,6 +451,26 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
     }
 
     /// <summary>
+    /// A reversal posts only the amount the event names: paid 1 000, reversed 400, claims paid (2100) nets to 600 and 1300 shows
+    /// 400; the bank (1200) keeps its credit. Finance's posting only: the API reverses a whole claim today.
+    /// </summary>
+    [Fact]
+    public async Task AReversalOfPartOfAPaidClaim_PostsOnlyTheReversedAmount()
+    {
+        var claim = Guid.CreateVersion7();
+        var bus = _factory.Services.GetRequiredService<Insys.BuildingBlocks.Application.Messaging.IEventBus>();
+        var now = _factory.Clock.GetUtcNow();
+        Insys.BuildingBlocks.Contracts.EventEnvelope Envelope<T>(T e, string type) => new(Guid.CreateVersion7(), Tenant, type, 1, now, "MedicalClaim", claim, Guid.CreateVersion7(), null,
+            JsonSerializer.SerializeToElement(e, JsonSerializerOptions.Web));
+        await bus.Deliver(Envelope(new MedicalClaimSettled(claim, "MC-PART", "PR-1", Guid.CreateVersion7(), 1_000m, "ZAR", Today), "health.MedicalClaimSettled"), CancellationToken.None);
+        await bus.Deliver(Envelope(new MedicalClaimReversed(claim, "MC-PART", "PR-1", 400m, "ZAR", "BILLED_IN_ERROR"), "health.MedicalClaimReversed"), CancellationToken.None);
+
+        async Task<decimal> Net(string account) => await _db.ScalarAsOwner<decimal>(
+            "SELECT coalesce(sum(debit - credit), 0) FROM finance.subledger_entry WHERE business_ref_type = 'MEDICAL_CLAIM' AND business_ref_id = @c AND account_code = @a", ("c", claim), ("a", account));
+        ((await Net("2100"), await Net("1300"), await Net("1200"))).ShouldBe((600m, 400m, -1_000m));
+    }
+
+    /// <summary>
     /// Performance smoke test of a hot path (Phase 7): adjudication against the benefit accumulators, which it locks and
     /// consumes. p95 within the standard operation target (NFR-002: 2 s): one membership's claims in turn, and claims of
     /// eight memberships eight at a time.
