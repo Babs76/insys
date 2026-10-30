@@ -381,6 +381,7 @@ public sealed class GeneralModule : IModule
             .Produces<RenewalView>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status409Conflict)
+            .TakesIfMatch()
             .WithName("GeneralDecideRenewal")
             .WithSummary("Decide a referred or ineligible renewal (F019): offer it, with any loading in per cent, or not, within your underwriting authority")
             .RequirePermission(GeneralPermissions.QuoteUnderwrite);
