@@ -233,6 +233,8 @@ public sealed class OnboardingReadinessTests(DatabaseFixture fixture) : IClassFi
         var codes = readiness.GetProperty("steps").EnumerateArray().Single(s => s.GetProperty("step").GetString() == "PAYMENTS_AND_DISTRIBUTION")
             .GetProperty("checks").EnumerateArray().Where(c => !c.GetProperty("ready").GetBoolean() && !c.GetProperty("advisory").GetBoolean()).Select(c => c.GetProperty("code").GetString());
         codes.ShouldNotContain("INTERMEDIARY_NO_CONTACT");
+    }
+
     /// <summary>A HEALTH tenant whose reversal rule credits an account CLAIM_PAID does not debit gets a warning, not a blocker: the reversal will not net to zero.</summary>
     [Fact]
     public async Task AReversalRuleCreditingAnotherAccount_IsListedAsAWarning_ThatDoesNotStopTheStep()
