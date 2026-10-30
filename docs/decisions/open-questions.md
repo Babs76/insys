@@ -1248,3 +1248,14 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
   - `next_review_on` counts from the day the review completes;
   - readiness: with the gates on, a role holds the review function.
 - Recorded in the due diligence addendum. **Closed; built in its own batch after Wave 4 batch 4.2.**
+
+### OQ-139 to OQ-146 Providers and care management (Wave 5a addendum, 30 October 2026)
+**Open, for sign-off in `docs/specs/addenda/providers-and-care.md` §8.**
+- **OQ-139:** how a provider overpayment is recovered (settles OQ-061's open point).
+- **OQ-140:** where a complex case lives (a change from the plan is recommended).
+- **OQ-141:** the performance measures, and whether providers see theirs.
+- **OQ-142:** how a provider's statement arrives.
+- **OQ-143:** who reads clinical detail on a complex case.
+- **OQ-144:** whether a referral affects claims.
+- **OQ-145:** an overpayment to a member.
+- **OQ-146:** a disputed recovery.
