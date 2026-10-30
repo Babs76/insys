@@ -691,19 +691,24 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
             .ShouldContain("UNDERWRITING_RULES:REFER");
         renewal.GetProperty("quoteId").GetGuid().ShouldNotBe(Guid.Empty);
         (await _db.ScalarAsOwner<string>("""
-            SELECT p.status || ':' || t.queue_code FROM workflow.process_instance p JOIN workflow.task t ON t.tenant_id = p.tenant_id AND t.process_instance_id = p.id
+            SELECT CASE WHEN p.ended_at IS NULL THEN 'OPEN' ELSE 'ENDED' END || ':' || t.queue_code
+            FROM workflow.process_instance p JOIN workflow.task t ON t.tenant_id = p.tenant_id AND t.process_instance_id = p.id
             WHERE p.process_code = 'GENERAL_RENEWAL_REVIEW' AND p.business_ref_id = @r
-            """, ("r", id))).ShouldStartWith("RUNNING:", customMessage: "an underwriter's task, routed by authority");
+            """, ("r", id))).ShouldStartWith("OPEN:", customMessage: "an underwriter's task, routed by authority");
 
         // F019: the underwriter's authority (50 000) does not cover the 100 000 sum insured; the senior underwriter's does.
-        (await (await _maker.PostAsJsonAsync($"/api/v1/general/renewals/{id}/decision", new { offer = true, decisionCode = "ACCEPT_LOADED", loadingPct = 10m })).Code())
-            .ShouldBe("UNDERWRITING_AUTHORITY_EXCEEDED");
-        var offered = await (await _checker.PostAsJsonAsync($"/api/v1/general/renewals/{id}/decision", new { offer = true, decisionCode = "ACCEPT_LOADED", loadingPct = 10m })).Json();
+        var version = $"\"{renewal.GetProperty("rowVersion").GetInt64()}\"";
+        (await (await _maker.Send(HttpMethod.Post, $"/api/v1/general/renewals/{id}/decision", new { offer = true, decisionCode = "ACCEPT_LOADED", loadingPct = 10m },
+            ifMatch: version)).Code()).ShouldBe("UNDERWRITING_AUTHORITY_EXCEEDED");
+        var decided = await _checker.Send(HttpMethod.Post, $"/api/v1/general/renewals/{id}/decision", new { offer = true, decisionCode = "ACCEPT_LOADED", loadingPct = 10m },
+            ifMatch: version);
+        decided.StatusCode.ShouldBe(HttpStatusCode.OK, await decided.Content.ReadAsStringAsync());
+        var offered = await decided.Json();
         (offered.GetProperty("status").GetString(), offered.GetProperty("offeredPremium").GetDecimal(), offered.GetProperty("changedTerms").GetBoolean())
             .ShouldBe(("Offered", 4_026m, true), "3 050 re-rated, times 1.2 for the claim, plus a 10 % loading");
         await _factory.DrainOutbox();
-        (await _db.ScalarAsOwner<string>("SELECT status FROM workflow.process_instance WHERE process_code = 'GENERAL_RENEWAL_REVIEW' AND business_ref_id = @r", ("r", id)))
-            .ShouldBe("COMPLETED");
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM workflow.process_instance WHERE process_code = 'GENERAL_RENEWAL_REVIEW' AND business_ref_id = @r AND ended_at IS NULL",
+            ("r", id))).ShouldBe(0, "the task closed with the decision");
 
         // The invitation states the offered premium; changed terms are invited at least the tenant's 31 days before (here at once).
         await jobs.Run(CancellationToken.None);
@@ -891,12 +896,12 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         async Task<string> CaseVersion(Guid id) =>
             $"\"{(await (await _maker.GetAsync($"/api/v1/general/retention-cases/{id}")).Json()).GetProperty("rowVersion").GetInt64()}\"";
         (await (await _maker.Send(HttpMethod.Post, $"/api/v1/general/retention-cases/{caseId}/offers", new { offerCode = "LEAD-25" }, ifMatch: await CaseVersion(caseId)))
-            .Code()).ShouldBe("GENERAL_RETENTION_OFFER_AUTHORITY");
+            .Code()).ShouldBe("RETENTION_OFFER_NOT_PERMITTED");
         var offered = await (await _maker.Send(HttpMethod.Post, $"/api/v1/general/retention-cases/{caseId}/offers", new { offerCode = "LOYAL-10" },
             ifMatch: await CaseVersion(caseId))).Json();
         var offerId = offered.GetProperty("offers").EnumerateArray().Single().GetProperty("id").GetGuid();
         (await (await _maker.Send(HttpMethod.Post, $"/api/v1/general/retention-cases/{caseId}/offers", new { offerCode = "LOYAL-10" }, ifMatch: await CaseVersion(caseId)))
-            .Code()).ShouldBe("GENERAL_RETENTION_OFFER_USED_UP");
+            .Code()).ShouldBe("RETENTION_OFFER_USED_UP");
         (await _maker.Send(HttpMethod.Post, $"/api/v1/general/retention-cases/{caseId}/offers/{offerId}/answer", new { accepted = true },
             ifMatch: await CaseVersion(caseId))).StatusCode.ShouldBe(HttpStatusCode.OK);
         await _factory.DrainOutbox();

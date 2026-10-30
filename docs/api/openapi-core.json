@@ -22185,6 +22185,231 @@
         ]
       }
     },
+    "/api/v1/general/renewals": {
+      "get": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Renewal reviews, newest first: by status (REFERRED for the underwriting work list) and policy (Wave 4 \u00A74.2)",
+        "operationId": "GeneralListRenewals",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/GeneralRenewalStatus"
+            }
+          },
+          {
+            "name": "policyId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfGeneralRenewalView"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "general_policy.read",
+        "x-function": [
+          "GENERAL_RENEWALS"
+        ]
+      }
+    },
+    "/api/v1/general/renewals/{id}": {
+      "get": {
+        "tags": [
+          "General"
+        ],
+        "summary": "A renewal review: the claims history and risk changes it read, each check\u0027s result, the re-rating and the offered premium (Wave 4 \u00A74.2)",
+        "operationId": "GeneralGetRenewal",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneralRenewalView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "general_policy.read",
+        "x-function": [
+          "GENERAL_RENEWALS"
+        ]
+      }
+    },
+    "/api/v1/general/renewals/{id}/decision": {
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Decide a referred or ineligible renewal (F019): offer it, with any loading in per cent, or not, within your underwriting authority",
+        "operationId": "GeneralDecideRenewal",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GeneralDecideRenewalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneralRenewalView"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "general_quote.underwrite",
+        "x-function": [
+          "GENERAL_DECIDE_RENEWAL"
+        ]
+      }
+    },
     "/api/v1/general/aggregation-alerts": {
       "get": {
         "tags": [
@@ -34729,6 +34954,7 @@
                 "RefundRequest",
                 "RegulatoryReturn",
                 "ReinsuranceRecovery",
+                "Renewal",
                 "ReportRun",
                 "RiskObject",
                 "RuleDecision",
@@ -34779,6 +35005,7 @@
                 "cfg_claim_party_roles",
                 "cfg_claim_requirement_checklis",
                 "cfg_claims_authority_limits",
+                "cfg_claims_experience_factors",
                 "cfg_clinical_review_criteria_r",
                 "cfg_co_payment_and_deductible_",
                 "cfg_commission_plans",
@@ -34876,7 +35103,9 @@
                 "cfg_record_retention_policies",
                 "cfg_regulatory_return_definiti",
                 "cfg_remittance_advice_formats",
+                "cfg_renewal_review_rules",
                 "cfg_renewal_rules",
+                "cfg_renewal_settings",
                 "cfg_repeat_service_intervals",
                 "cfg_report_catalogue_and_acces",
                 "cfg_retention_schedules",
@@ -35173,6 +35402,7 @@
                 "RefundRequest",
                 "RegulatoryReturn",
                 "ReinsuranceRecovery",
+                "Renewal",
                 "ReportRun",
                 "RiskObject",
                 "RuleDecision",
@@ -35223,6 +35453,7 @@
                 "cfg_claim_party_roles",
                 "cfg_claim_requirement_checklis",
                 "cfg_claims_authority_limits",
+                "cfg_claims_experience_factors",
                 "cfg_clinical_review_criteria_r",
                 "cfg_co_payment_and_deductible_",
                 "cfg_commission_plans",
@@ -35320,7 +35551,9 @@
                 "cfg_record_retention_policies",
                 "cfg_regulatory_return_definiti",
                 "cfg_remittance_advice_formats",
+                "cfg_renewal_review_rules",
                 "cfg_renewal_rules",
+                "cfg_renewal_settings",
                 "cfg_repeat_service_intervals",
                 "cfg_report_catalogue_and_acces",
                 "cfg_retention_schedules",
@@ -39788,6 +40021,27 @@
           }
         }
       },
+      "CursorPageOfGeneralRenewalView": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GeneralRenewalView"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "CursorPageOfGeneralRiskObjectView": {
         "required": [
           "items",
@@ -43095,6 +43349,32 @@
           }
         }
       },
+      "GeneralDecideRenewalRequest": {
+        "required": [
+          "offer",
+          "decisionCode"
+        ],
+        "type": "object",
+        "properties": {
+          "offer": {
+            "type": "boolean"
+          },
+          "decisionCode": {
+            "type": "string",
+            "x-code-list": "general.ref_underwriting_decision_codes",
+            "x-code-list-column": "code"
+          },
+          "loadingPct": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          }
+        }
+      },
       "GeneralDeclineRequest": {
         "required": [
           "decisionCode",
@@ -45055,6 +45335,263 @@
               "string"
             ],
             "format": "uuid"
+          }
+        }
+      },
+      "GeneralRenewalCheckView": {
+        "required": [
+          "checkCode",
+          "outcome",
+          "detail"
+        ],
+        "type": "object",
+        "properties": {
+          "checkCode": {
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "PASS",
+              "REFER",
+              "FAIL",
+              "PENDING"
+            ],
+            "type": "string"
+          },
+          "detail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "GeneralRenewalStatus": {
+        "enum": [
+          "Reviewing",
+          "Referred",
+          "NotEligible",
+          "Offered",
+          "Renewed",
+          "NotRenewed"
+        ]
+      },
+      "GeneralRenewalView": {
+        "required": [
+          "id",
+          "policyId",
+          "policyNumber",
+          "productCode",
+          "periodEnd",
+          "status",
+          "openedOn",
+          "currency",
+          "currentPremium",
+          "sumInsured",
+          "claimsCount",
+          "claimsPaid",
+          "earnedPremium",
+          "lossRatio",
+          "endorsements",
+          "fraudReferredClaims",
+          "factor",
+          "reRated",
+          "quoteId",
+          "ratedPremium",
+          "referralReason",
+          "loadingPct",
+          "offeredPremium",
+          "changedTerms",
+          "decisionCode",
+          "decidedBy",
+          "decidedAt",
+          "checks",
+          "rowVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "policyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "policyNumber": {
+            "type": "string"
+          },
+          "productCode": {
+            "type": "string"
+          },
+          "periodEnd": {
+            "type": "string",
+            "format": "date"
+          },
+          "status": {
+            "$ref": "#/components/schemas/GeneralRenewalStatus"
+          },
+          "openedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "currentPremium": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "sumInsured": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "claimsCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "claimsPaid": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "earnedPremium": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "lossRatio": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "endorsements": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "fraudReferredClaims": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "factor": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "reRated": {
+            "type": "boolean"
+          },
+          "quoteId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "ratedPremium": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "referralReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "loadingPct": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "offeredPremium": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "changedTerms": {
+            "type": "boolean"
+          },
+          "decisionCode": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "x-code-list": "general.ref_underwriting_decision_codes",
+            "x-code-list-column": "code"
+          },
+          "decidedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "decidedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GeneralRenewalCheckView"
+            }
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
           }
         }
       },
@@ -57753,6 +58290,9 @@
               "string"
             ],
             "description": "The SCREEN function (its code) that opens the record the approval is about, for example PAYMENT_PAYOUT_BATCHES (BR-005); the console maps it to its route."
+          },
+          "raisedBySystem": {
+            "type": "boolean"
           }
         }
       },

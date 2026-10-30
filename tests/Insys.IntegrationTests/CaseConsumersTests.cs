@@ -211,7 +211,8 @@ public sealed class CaseConsumersTests(DatabaseFixture fixture) : IClassFixture<
         var rights = (await Notifications(claim)).Single(r => r.Type == NotificationTypes.ClaimDecisionRights);
         (rights.SourceType, rights.Reference).ShouldBe(("HEALTH_CLAIM", $"HC-{claim:N}"[..25]));
         rights.Merge.GetProperty("amount").GetString().ShouldBe("600.00");
-        rights.Merge.TryGetProperty("decision_reasons", out _).ShouldBeFalse("a Health notice never carries a reason (HLT-008)");
+        // OQ-102 (Ade, 29 October 2026): the reason's configured customer wording only, never the claim's own reason text (HLT-008).
+        rights.Merge.GetProperty("decision_reasons").GetString().ShouldBe("Part of the claim is above your benefit limit.");
     }
 
     [Fact]

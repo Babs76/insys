@@ -395,3 +395,4 @@ platform-operator	WorkflowCaseCategories.categoryCode	to declare
 platform-operator	WorkflowCaseCategoriesInput.categoryCode	to declare
 platform-operator	WorkflowOmbudSchemes.schemeCode	to declare
 platform-operator	WorkflowOmbudSchemesInput.schemeCode	to declare
+core	GeneralRenewalView.productCode	to declare
