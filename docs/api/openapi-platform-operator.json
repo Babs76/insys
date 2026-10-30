@@ -76615,6 +76615,7 @@
               "DUE_DILIGENCE_UNBLOCK",
               "ENDORSEMENT",
               "EXTERNAL_SUBJECT_LINK",
+              "GENERAL_NON_RENEWAL",
               "LEGAL_HOLD_RELEASE",
               "LIFE_CLAIM",
               "LIFE_UNDERWRITING",

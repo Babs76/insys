@@ -818,6 +818,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         await _db.AddContact(Tenant, holder, "EMAIL", "notice@example.com");
         await _db.ExecuteAsOwner("UPDATE general.policy SET policyholder_party_id = @h, period_end = @e WHERE id = @p", ("h", holder), ("e", Today.AddDays(60)), ("p", approved));
         await _db.ExecuteAsOwner("UPDATE general.policy SET period_end = @e WHERE id = @p", ("e", Today.AddDays(10)), ("p", late));
+        await _db.ExecuteAsOwner("UPDATE billing.premium_schedule SET end_date = @e WHERE policy_ref = @p", ("e", Today.AddDays(10)), ("p", late));
 
         // Needing approval: proposed by one person, approved by another; then the notice goes.
         var proposed = await (await _maker.Send(HttpMethod.Post, $"/api/v1/general/policies/{approved}/non-renewal", new { reasonCode = "CLAIMS" }, idempotent: true)).Json();
