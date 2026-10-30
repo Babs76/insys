@@ -66,7 +66,8 @@ public static class FinanceInfrastructure
         services.AddIntegrationEventHandler<ClaimReserveChanged, PostingPolicies, FinanceDbContext>(schema, "ClaimReserveChanged");
         services.AddIntegrationEventHandler<ClaimPaymentCompleted, PostingPolicies, FinanceDbContext>(schema, "ClaimPaymentCompleted");
         services.AddIntegrationEventHandler<Health.Contracts.MedicalClaimSettled, PostingPolicies, FinanceDbContext>(schema, "MedicalClaimSettled");
-        services.AddIntegrationEventHandler<Health.Contracts.MedicalClaimReversed, MedicalClaimReversalPolicy, FinanceDbContext>(schema);
+        services.AddIntegrationEventHandler<Health.Contracts.MedicalClaimReversed, PostingPolicies, FinanceDbContext>(schema, "MedicalClaimReversed");
+        services.AddSingleton<BuildingBlocks.Application.IReadinessCheck, HealthReversalPostingReadiness>();
         services.AddIntegrationEventHandler<ClaimRecoveryRecorded, PostingPolicies, FinanceDbContext>(schema, "ClaimRecoveryRecorded");
         services.AddIntegrationEventHandler<Distribution.Contracts.CommissionAccrued, PostingPolicies, FinanceDbContext>(schema, "CommissionAccrued");
         services.AddIntegrationEventHandler<Distribution.Contracts.CommissionClawedBack, PostingPolicies, FinanceDbContext>(schema, "CommissionClawedBack");

@@ -174,17 +174,18 @@ public sealed class FunctionAccessTests(DatabaseFixture fixture) : IClassFixture
         (await refused.Code()).ShouldBe("MFA_REQUIRED");
     }
 
-    /// <summary>A Health claim's reversal with no claim-paid journal to reverse is parked for a person, never dropped (FIN-003).</summary>
+    /// <summary>A Health claim's reversal with no posting rule waits as a posting exception, never dropped, as any posting does.</summary>
     [Fact]
-    public async Task AHealthClaimReversal_WithNoJournalToReverse_ParksItsDelivery_FIN003()
+    public async Task AHealthClaimReversal_WithNoPostingRule_WaitsAsAPostingException()
     {
         var (tenant, _) = await NewTenant();
         var claim = Guid.CreateVersion7();
-        var reversed = new Insys.Health.Contracts.MedicalClaimReversed(claim, "MC-PARKED", "PR-1", 100m, "ZAR", "BILLED_IN_ERROR");
+        var reversed = new Insys.Health.Contracts.MedicalClaimReversed(claim, "MC-NORULE", "PR-1", 100m, "ZAR", "BILLED_IN_ERROR");
         var envelope = Envelope(tenant, reversed, "health.MedicalClaimReversed", "MedicalClaim", claim);
         await _factory.Services.GetRequiredService<IEventBus>().Deliver(envelope, CancellationToken.None);
 
-        (await Parked(envelope.EventId, "finance.MedicalClaimReversalPolicy")).ShouldBe($"{PrerequisiteCodes.ClaimReversalNotPostable} MC-PARKED");
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM finance.posting_exception WHERE tenant_id = @t AND source_event_id = @e", ("t", tenant), ("e", envelope.EventId))).ShouldBe(1L);
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM finance.journal WHERE tenant_id = @t AND source_event_id = @e", ("t", tenant), ("e", envelope.EventId))).ShouldBe(0L);
     }
 
     [Fact]

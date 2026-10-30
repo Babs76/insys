@@ -60,6 +60,9 @@ public static class TransactionTypes
     public const string ClaimReserveIncrease = "CLAIM_RESERVE_UP";
     public const string ClaimReserveDecrease = "CLAIM_RESERVE_DOWN";
     public const string ClaimPaid = "CLAIM_PAID";
+
+    /// <summary>A paid Health claim reversed: debit an overpayment receivable, credit the account CLAIM_PAID debits. Not the bank: no cash moved.</summary>
+    public const string ClaimPaidReversed = "CLAIM_PAID_REVERSED";
     public const string ClaimRecovery = "CLAIM_RECOVERY";
     public const string CommissionAccrued = "COMMISSION_ACCRUED";
     public const string CommissionClawedBack = "COMMISSION_CLAWBACK";
