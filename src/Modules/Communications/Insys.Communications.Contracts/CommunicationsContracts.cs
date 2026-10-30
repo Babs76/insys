@@ -36,6 +36,13 @@ public static class CommunicationPermissions
     public const string DeviceUpdate = "notification_device.update";
     public const string CallbackEndpointRead = "communication_callback_endpoint.read";
     public const string CallbackEndpointUpdate = "communication_callback_endpoint.update";
+    public const string CallbackCreate = "communication_callback.create";
+}
+
+/// <summary>The function a messaging provider's client-credentials service identity holds (ADR-023 decision 4).</summary>
+public static class CommunicationFunctionCodes
+{
+    public const string CallbackClient = "COMMUNICATIONS_CALLBACK_CLIENT";
 }
 
 /// <summary>The channel codes (communication.ref_channels, OQ-090).</summary>

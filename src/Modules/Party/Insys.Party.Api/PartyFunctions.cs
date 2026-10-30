@@ -60,7 +60,7 @@ internal static class PartyFunctions
         .Action("PARTY_MERGE_PARTIES", "PARTIES", "PartyMergeParties", privileged: true)
         .Screen("PARTY_BANK_ACCOUNTS", "PARTIES", "Bank accounts", "party/bank-accounts", "PartyListBankAccounts")
         .Action("PARTY_ADD_BANK_ACCOUNT", "PARTY_BANK_ACCOUNTS", "PartyAddBankAccount")
-        .Permission("PARTY_BANK_ACCOUNT_VERIFY", "PARTY_BANK_ACCOUNTS", "bank_account.verify")
+        .Permission("PARTY_BANK_ACCOUNT_VERIFY", "PARTY_BANK_ACCOUNTS", PartyPermissions.BankAccountVerify)
         .Screen("PARTY_CONSENTS", "CONSENT_PREFERENCES", "Consent", "party/consents", "PartyGetConsents")
         .Action("PARTY_GRANT_CONSENT", "PARTY_CONSENTS", "PartyGrantConsent")
         .Action("PARTY_WITHDRAW_CONSENT", "PARTY_CONSENTS", "PartyWithdrawConsent")

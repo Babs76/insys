@@ -26,6 +26,7 @@
  */
 using System.Net;
 using System.Text.Json;
+using Insys.Communications.Contracts;
 using Insys.Payments.Contracts;
 using Insys.Tenancy.Contracts;
 using Insys.Testing;
@@ -266,6 +267,38 @@ public sealed class OnboardingReadinessTests(DatabaseFixture fixture) : IClassFi
 
         await fixture.Database.ExecuteAsOwner("UPDATE iam.user_account SET status = 'DISABLED' WHERE id = @u", ("u", holder));
         Check(await Readiness(url), "PAYMENTS_AND_DISTRIBUTION", "PAYMENT_CALLBACK_CLIENT").GetProperty("ready").GetBoolean().ShouldBeFalse("the holder is no longer active");
+    }
+
+    /// <summary>ADR-023: an endpoint requiring a client token blocks the step until an active user holds the function; a revoked endpoint, a suspended holder and a role without it do not count.</summary>
+    [Fact]
+    public async Task AMessagingEndpointRequiringAClientToken_BlocksTheStep_UntilAnActiveServiceIdentityHoldsTheFunction_ADR023()
+    {
+        var (tenantId, url) = await Register("CBCOMMS");
+        await fixture.Database.SeedReadyTenant(tenantId, From);
+        Check(await Readiness(url), "SHARED_OPERATIONAL_SETUP", "COMMUNICATION_CALLBACK_CLIENT").GetProperty("ready").GetBoolean().ShouldBeTrue("no endpoint requires one");
+
+        Task Endpoint(string provider, string status, bool requires) => fixture.Database.ExecuteAsOwner("""
+            INSERT INTO communication.callback_endpoint (tenant_id, id, row_version, created_at, created_by, updated_at, updated_by, provider_code, key_hash, secret_enc, status,
+                                                   require_client_token, issued_at, issued_by, revoked_at)
+            VALUES (@t, gen_random_uuid(), 1, now(), 'seed', now(), 'seed', @p, rpad(@p, 64, 'x'), decode('00', 'hex'), @s, @r, now(), 'seed', CASE WHEN @s = 'REVOKED' THEN now() END)
+            """, ("t", tenantId), ("p", provider), ("s", status), ("r", requires));
+        await Endpoint("OLD", "REVOKED", true);
+        await Endpoint("OPEN", "ACTIVE", false);
+        Check(await Readiness(url), "SHARED_OPERATIONAL_SETUP", "COMMUNICATION_CALLBACK_CLIENT").GetProperty("ready").GetBoolean().ShouldBeTrue("revoked, or needing no token");
+
+        await Endpoint("TOKENED", "ACTIVE", true);
+        var check = Check(await Readiness(url), "SHARED_OPERATIONAL_SETUP", "COMMUNICATION_CALLBACK_CLIENT");
+        (check.GetProperty("ready").GetBoolean(), check.GetProperty("advisory").GetBoolean()).ShouldBe((false, false));
+        check.GetProperty("missing").EnumerateArray().Select(m => m.GetString()).ShouldBe(["TOKENED"]);
+
+        await fixture.Database.UserWithPermissions(tenantId, "callback-other", CommunicationPermissions.CallbackEndpointRead);
+        Check(await Readiness(url), "SHARED_OPERATIONAL_SETUP", "COMMUNICATION_CALLBACK_CLIENT").GetProperty("ready").GetBoolean().ShouldBeFalse("a role without the function");
+
+        var holder = await fixture.Database.UserWithFunctions(tenantId, "callback-client", CommunicationFunctionCodes.CallbackClient);
+        Check(await Readiness(url), "SHARED_OPERATIONAL_SETUP", "COMMUNICATION_CALLBACK_CLIENT").GetProperty("ready").GetBoolean().ShouldBeTrue();
+
+        await fixture.Database.ExecuteAsOwner("UPDATE iam.user_account SET status = 'DISABLED' WHERE id = @u", ("u", holder));
+        Check(await Readiness(url), "SHARED_OPERATIONAL_SETUP", "COMMUNICATION_CALLBACK_CLIENT").GetProperty("ready").GetBoolean().ShouldBeFalse("the holder is no longer active");
     }
 
     /// <summary>A HEALTH tenant whose reversal rule credits an account CLAIM_PAID does not debit gets a warning, not a blocker: the reversal will not net to zero.</summary>

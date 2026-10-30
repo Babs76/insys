@@ -2,6 +2,11 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
+## Communications callbacks (branch `comms-callback`): a client token must hold the function
+
+- **`POST /communications/callbacks/{endpointKey}`:** at an endpoint with `requireClientToken`, a token must now hold `communication_callback.create`. Before, any authenticated token of the tenant passed. A signature is still required.
+- **Function** `COMMUNICATIONS_CALLBACK_CLIENT`, privileged and in no role template. **Readiness** `COMMUNICATION_CALLBACK_CLIENT` on `SHARED_OPERATIONAL_SETUP`, blocking.
+
 ## Wave 5a batch 5a.1 (branch `wave5a-1`): provider measures, quality reviews and statements (addendum §4.1, §4.2; F028 to F030)
 
 ### New

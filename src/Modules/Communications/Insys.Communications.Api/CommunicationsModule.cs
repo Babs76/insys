@@ -180,7 +180,10 @@ public sealed class CommunicationsModule : IModule
                     return refused;
                 }
 
-                var clientToken = http.User.Identity?.IsAuthenticated == true && http.User.FindFirst("tenant_id")?.Value == found.TenantId.ToString();
+                // Optional extra (ADR-023 decision 4): a client-credentials token for this tenant holding communication_callback.create.
+                var clientToken = http.User.Identity?.IsAuthenticated == true
+                                  && http.User.FindFirst("tenant_id")?.Value == found.TenantId.ToString()
+                                  && (await authorization.AuthorizeAsync(http.User, PermissionPolicyProvider.Prefix + CommunicationPermissions.CallbackCreate)).Succeeded;
 
                 // The tenant comes only from the key, and nothing is applied without the signature keyed to that tenant and provider.
                 await using var scope = scopes.CreateAsyncScope();
