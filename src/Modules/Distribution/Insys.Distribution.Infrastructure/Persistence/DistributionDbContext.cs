@@ -73,6 +73,22 @@ public sealed class DistributionDbContext(DbContextOptions<DistributionDbContext
             entitlement.Navigation(e => e.Clawbacks).UsePropertyAccessMode(PropertyAccessMode.Field);
         });
 
+        modelBuilder.Entity<CommissionRecovery>(recovery =>
+        {
+            recovery.ToTable("commission_recovery"); // B-009
+            recovery.HasKey(r => new { r.TenantId, r.Id });
+            recovery.HasAuditColumns();
+            recovery.Ignore(r => r.DomainEvents);
+            recovery.Ignore(r => r.HasChanges);
+            recovery.Ignore(r => r.Owed);
+            recovery.Property(r => r.IntermediaryCode).HasMaxLength(15);
+            recovery.Property(r => r.Currency).HasColumnType("char(3)");
+            recovery.Property(r => r.Reason).HasMaxLength(20);
+            recovery.Property(r => r.Amount).HasPrecision(18, 2);
+            recovery.Property(r => r.RecoveredAmount).HasPrecision(18, 2);
+            recovery.Property(r => r.OnStatementAmount).HasPrecision(18, 2);
+        });
+
         modelBuilder.Entity<Clawback>(clawback =>
         {
             clawback.ToTable("clawback");

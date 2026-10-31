@@ -39390,6 +39390,84 @@
         ]
       }
     },
+    "/api/v1/distribution/commission-recoveries": {
+      "get": {
+        "tags": [
+          "Distribution"
+        ],
+        "summary": "What brokers owe of commission already paid, after a broker of record change, newest first (B-009)",
+        "operationId": "DistributionListCommissionRecoveries",
+        "parameters": [
+          {
+            "name": "intermediaryCode",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "owedOnly",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfDistributionCommissionRecoveryView"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "commission.read",
+        "x-function": [
+          "COMMISSION_ENTITLEMENTS"
+        ]
+      }
+    },
     "/api/v1/distribution/entitlements/{id}": {
       "get": {
         "tags": [
@@ -44233,6 +44311,7 @@
                 "ClaimRegistration",
                 "ClinicalReferral",
                 "CommissionEntitlement",
+                "CommissionRecovery",
                 "CommissionStatement",
                 "ComplexCase",
                 "ConsentRecord",
@@ -44334,6 +44413,7 @@
                 "cfg_benefit_dependency_rules",
                 "cfg_benefit_schedules",
                 "cfg_bordereaux_layouts",
+                "cfg_broker_change_settings",
                 "cfg_cancellation_reasons_and_r",
                 "cfg_case_reportability",
                 "cfg_case_retention",
@@ -44706,6 +44786,7 @@
                 "ClaimRegistration",
                 "ClinicalReferral",
                 "CommissionEntitlement",
+                "CommissionRecovery",
                 "CommissionStatement",
                 "ComplexCase",
                 "ConsentRecord",
@@ -44807,6 +44888,7 @@
                 "cfg_benefit_dependency_rules",
                 "cfg_benefit_schedules",
                 "cfg_bordereaux_layouts",
+                "cfg_broker_change_settings",
                 "cfg_cancellation_reasons_and_r",
                 "cfg_case_reportability",
                 "cfg_case_retention",
@@ -49344,6 +49426,27 @@
           }
         }
       },
+      "CursorPageOfDistributionCommissionRecoveryView": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DistributionCommissionRecoveryView"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "CursorPageOfDistributionStatementView": {
         "required": [
           "items",
@@ -51072,6 +51175,80 @@
             "type": "string"
           },
           "amount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "statementId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
+      "DistributionCommissionRecoveryView": {
+        "required": [
+          "id",
+          "entitlementId",
+          "intermediaryCode",
+          "policyRef",
+          "currency",
+          "amount",
+          "recoveredAmount",
+          "onStatementAmount",
+          "owed",
+          "statementId"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "entitlementId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "intermediaryCode": {
+            "type": "string"
+          },
+          "policyRef": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "amount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "recoveredAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "onStatementAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "owed": {
             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
             "type": [
               "number",

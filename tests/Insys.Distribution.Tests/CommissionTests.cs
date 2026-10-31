@@ -222,6 +222,30 @@ public sealed class CommissionTests
 
     /// <summary>B-001 (OQ-135): the outgoing broker's commission not yet on a statement is cut to its share before the change; nothing else is.</summary>
     [Fact]
+    public void WhatABrokerOwes_ComesOffAStatement_AsFarAsItHasCommission_AndTheRestStaysOwed_B009()
+    {
+        var paid = Accrued();
+        var recovery = CommissionRecovery.Raised(Guid.CreateVersion7(), paid, 500m, "BROKER_CHANGED", new DateOnly(2026, 10, 16), Now);
+        recovery.DomainEvents.OfType<CommissionClawedBack>().Single().Amount.ShouldBe(500m);
+        var payable = Accrued();
+        payable.MarkPayable().IsSuccess.ShouldBeTrue();
+        var statement = CommissionStatement.Open(Guid.CreateVersion7(), "BRK-1", "2026-10", "ZAR");
+        statement.PrepareStatement([payable], [], [], Payee, Guid.CreateVersion7(), Now, [recovery]).IsSuccess.ShouldBeTrue();
+        statement.NetAmount.ShouldBe(0m, "it takes all there is, and goes no lower");
+        (recovery.OnStatementAmount, recovery.Owed).ShouldBe((payable.Amount, 500m - payable.Amount));
+
+        recovery.Release();
+        (recovery.OnStatementAmount, recovery.Owed, recovery.StatementId).ShouldBe((0m, 500m, (Guid?)null), "a rejected statement gives it back");
+
+        var again = CommissionStatement.Open(Guid.CreateVersion7(), "BRK-1", "2026-11", "ZAR");
+        var next = Accrued();
+        next.MarkPayable().IsSuccess.ShouldBeTrue();
+        again.PrepareStatement([next], [], [], Payee, Guid.CreateVersion7(), Now, [recovery]).IsSuccess.ShouldBeTrue();
+        recovery.Settle();
+        (recovery.RecoveredAmount, recovery.Owed).ShouldBe((next.Amount, 500m - next.Amount));
+    }
+
+    [Fact]
     public void ABrokerOfRecordChange_CutsTheOutgoingCommissionToItsShare_OnlyBeforeAStatement_B001()
     {
         var entitlement = CommissionEntitlement.AccrueCommission(Guid.CreateVersion7(), "BRK-1", Invoice(1_000m, new DateOnly(2026, 10, 1)), Premium, false, Now).Value;

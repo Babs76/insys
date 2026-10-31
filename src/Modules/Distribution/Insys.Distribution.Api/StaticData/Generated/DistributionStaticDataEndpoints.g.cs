@@ -42,11 +42,12 @@ public static class DistributionStaticDataEndpoints
 
     public static void MapStaticData(IEndpointRouteBuilder api)
     {
-        api.MapStaticEntity<DistributionDbContext, CommissionPlans, CommissionPlansInput>(DistributionStaticData.Descriptors[0], Tag);
-        api.MapStaticEntity<DistributionDbContext, DistributionHierarchy, DistributionHierarchyInput>(DistributionStaticData.Descriptors[1], Tag);
-        api.MapStaticEntity<DistributionDbContext, IntermediaryProductPermissions, IntermediaryProductPermissionsInput>(DistributionStaticData.Descriptors[2], Tag);
-        api.MapStaticEntity<DistributionDbContext, StatementTemplates, StatementTemplatesInput>(DistributionStaticData.Descriptors[3], Tag);
-        api.MapStaticEntity<DistributionDbContext, IntermediaryRegister, IntermediaryRegisterInput>(DistributionStaticData.Descriptors[4], Tag);
-        api.MapStaticEntity<DistributionDbContext, LicenceAndAppointmentTypes, LicenceAndAppointmentTypesInput>(DistributionStaticData.Descriptors[5], Tag);
+        api.MapStaticEntity<DistributionDbContext, BrokerChangeSettings, BrokerChangeSettingsInput>(DistributionStaticData.Descriptors[0], Tag);
+        api.MapStaticEntity<DistributionDbContext, CommissionPlans, CommissionPlansInput>(DistributionStaticData.Descriptors[1], Tag);
+        api.MapStaticEntity<DistributionDbContext, DistributionHierarchy, DistributionHierarchyInput>(DistributionStaticData.Descriptors[2], Tag);
+        api.MapStaticEntity<DistributionDbContext, IntermediaryProductPermissions, IntermediaryProductPermissionsInput>(DistributionStaticData.Descriptors[3], Tag);
+        api.MapStaticEntity<DistributionDbContext, StatementTemplates, StatementTemplatesInput>(DistributionStaticData.Descriptors[4], Tag);
+        api.MapStaticEntity<DistributionDbContext, IntermediaryRegister, IntermediaryRegisterInput>(DistributionStaticData.Descriptors[5], Tag);
+        api.MapStaticEntity<DistributionDbContext, LicenceAndAppointmentTypes, LicenceAndAppointmentTypesInput>(DistributionStaticData.Descriptors[6], Tag);
     }
 }

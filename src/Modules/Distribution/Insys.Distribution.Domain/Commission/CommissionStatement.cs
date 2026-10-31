@@ -122,7 +122,7 @@ public sealed class CommissionStatement : AggregateRoot<Guid>
     /// lines; a draft prepared again (after a rejection) is recalculated. Then a second person's approval is requested.
     /// </summary>
     public Result PrepareStatement(IReadOnlyList<CommissionEntitlement> payable, IReadOnlyList<CommissionEntitlement> toRecover, IReadOnlyList<CommissionEntitlement> current,
-        StatementPayee payee, Guid preparedBy, DateTimeOffset now)
+        StatementPayee payee, Guid preparedBy, DateTimeOffset now, IReadOnlyList<CommissionRecovery>? owed = null)
     {
         if (Status != StatementStatus.Draft || ApprovalPending)
         {
@@ -155,6 +155,12 @@ public sealed class CommissionStatement : AggregateRoot<Guid>
         }
 
         GrossAmount = payable.Sum(e => e.Amount) - toRecover.Sum(e => e.Clawback!.Amount);
+        // B-009: what a broker owes from a broker of record change comes off what this statement has; the rest stays owed.
+        foreach (var recovery in owed ?? [])
+        {
+            GrossAmount -= recovery.TakeOn(Id, Math.Max(GrossAmount, 0m));
+        }
+
         TaxAmount = 0m;
         NetAmount = GrossAmount - TaxAmount;
         PayeePartyId = payee.PartyId;

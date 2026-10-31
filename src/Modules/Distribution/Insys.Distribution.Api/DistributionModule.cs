@@ -78,6 +78,21 @@ public sealed class DistributionModule : IModule
             .WithDescription("statementId lists a statement's entitlements: those on it, and those whose clawback it recovers.")
             .RequirePermission(DistributionPermissions.CommissionRead);
 
+        distribution.MapGet("/commission-recoveries", async (string? intermediaryCode, bool? owedOnly, string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
+                {
+                    if (!Cursor.TryDecode(cursor, out var before))
+                    {
+                        return Problems.For(BuildingBlocks.Domain.ErrorCodes.ValidationFailed, "The cursor is not valid.", StatusCodes.Status422UnprocessableEntity);
+                    }
+
+                    var size = Cursor.ClampLimit(limit);
+                    return (await d.Query(new ListCommissionRecoveries(intermediaryCode, owedOnly ?? true, before, size), ct)).ToHttp(rows =>
+                        Results.Ok(new CursorPage<CommissionRecoveryView>(rows, rows.Count == size ? Cursor.Encode(rows[^1].Id) : null)));
+                })
+            .Produces<CursorPage<CommissionRecoveryView>>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("DistributionListCommissionRecoveries").WithSummary("What brokers owe of commission already paid, after a broker of record change, newest first (B-009)")
+            .RequirePermission(DistributionPermissions.CommissionRead);
+
         distribution.MapGet("/entitlements/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) =>
                 (await d.Query(new GetEntitlement(id), ct)).ToHttp(Results.Ok))
             .Produces<EntitlementView>(StatusCodes.Status200OK)

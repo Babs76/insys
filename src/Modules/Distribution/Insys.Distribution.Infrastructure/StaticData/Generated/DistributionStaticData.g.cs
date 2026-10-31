@@ -34,11 +34,12 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Insys.Distribution.Infrastructure.StaticData;
 
-/// <summary>The 6 static data tables owned by the Distribution module.</summary>
+/// <summary>The 7 static data tables owned by the Distribution module.</summary>
 public static class DistributionStaticData
 {
     public static readonly IReadOnlyList<StaticDataDescriptor> Descriptors =
     [
+        new("commission", "cfg_broker_change_settings", "cfg_broker_change_settings", "Broker change settings", "distribution", "broker-change-settings", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(BrokerChangeSettings), typeof(BrokerChangeSettingsInput), "Distribution"),
         new("commission", "cfg_commission_plans", "cfg_commission_plans", "Commission plans", "distribution", "commission-plans", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(CommissionPlans), typeof(CommissionPlansInput), "Commission and Distribution"),
         new("commission", "cfg_distribution_hierarchy", "cfg_distribution_hierarchy", "Distribution hierarchy", "distribution", "distribution-hierarchy", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(DistributionHierarchy), typeof(DistributionHierarchyInput), "Commission and Distribution"),
         new("commission", "cfg_intermediary_product_permissions", "cfg_intermediary_product_permissions", "Intermediary product permissions", "distribution", "intermediary-product-permissions", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(IntermediaryProductPermissions), typeof(IntermediaryProductPermissionsInput), "Commission and Distribution"),
@@ -49,6 +50,12 @@ public static class DistributionStaticData
 
     public static void Configure(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<BrokerChangeSettings>(entity =>
+        {
+            entity.ToTable("cfg_broker_change_settings", "commission");
+            StaticModel.ConfigureCommon(entity);
+            entity.Property(x => x.PaidCommission).HasColumnName("paid_commission").HasMaxLength(10);
+        });
         modelBuilder.Entity<CommissionPlans>(entity =>
         {
             entity.ToTable("cfg_commission_plans", "commission");

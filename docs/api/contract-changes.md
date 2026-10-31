@@ -19,6 +19,12 @@ What changed in the API contract, newest first, so the front end can sync. The O
 - **`EndorsementView`** gains `adjustmentPct`, `newBillingFrequency`.
 - **An accepted mid-term discount offer** drafts a `PREMIUM_ADJUST` endorsement for the case's owner to submit.
 
+## Commission recovery (branch `commission-recovery`, B-009)
+
+- **New `GET /distribution/commission-recoveries`:** `intermediaryCode`, `owedOnly` (default true), `cursor`, `limit`. What brokers owe of commission already paid. Permission `commission.read`.
+- **New static data `commission.cfg_broker_change_settings`:** `paidCommission` `RECOVER` (the default, with no row) or `KEEP`.
+- **A statement's net** can be lowered by what the broker owes, as far as it has commission.
+
 ## Service accounts (branch `service-callback-tokens`, B-011)
 
 - **New `POST /identity/users/service-accounts`:** registers a client-credentials identity. Permission as for provisioning a user.

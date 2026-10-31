@@ -75,6 +75,20 @@ internal sealed class DistributionRepository(DistributionDbContext db) : IDistri
         return (payable, toRecover);
     }
 
+    public async Task<IReadOnlyList<CommissionRecovery>> RecoveriesOwed(string intermediaryCode, string currency, CancellationToken cancellationToken) =>
+        await db.Set<CommissionRecovery>().Where(r => r.IntermediaryCode == intermediaryCode && r.Currency == currency && r.RecoveredAmount + r.OnStatementAmount < r.Amount).OrderBy(r => r.Id).ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<CommissionRecovery>> RecoveriesOn(Guid statementId, CancellationToken cancellationToken) =>
+        await db.Set<CommissionRecovery>().Where(r => r.StatementId == statementId).ToListAsync(cancellationToken);
+
+    public Task<bool> HasRecovery(Guid entitlementId, CancellationToken cancellationToken) => db.Set<CommissionRecovery>().AnyAsync(r => r.EntitlementId == entitlementId, cancellationToken);
+
+    public async Task<IReadOnlyList<CommissionRecovery>> Recoveries(string? intermediaryCode, bool owedOnly, Guid? beforeId, int limit, CancellationToken cancellationToken) =>
+        await db.Set<CommissionRecovery>().AsNoTracking().Where(r => (intermediaryCode == null || r.IntermediaryCode == intermediaryCode) && (!owedOnly || r.RecoveredAmount < r.Amount) && (beforeId == null || r.Id.CompareTo(beforeId.Value) < 0))
+            .OrderByDescending(r => r.Id).Take(limit).ToListAsync(cancellationToken);
+
+    public void Add(CommissionRecovery recovery) => db.Set<CommissionRecovery>().Add(recovery);
+
     public async Task<IReadOnlyList<CommissionEntitlement>> OnStatement(Guid statementId, CancellationToken cancellationToken) =>
         await Entitlements().Where(e => e.StatementId == statementId || e.Clawbacks.Any(c => c.StatementId == statementId)).OrderBy(e => e.Id).ToListAsync(cancellationToken);
 
@@ -154,6 +168,9 @@ internal sealed class DistributionCodes(DistributionDbContext db) : IDistributio
     public async Task<IntermediaryInfo?> Intermediary(string intermediaryCode, DateOnly day, CancellationToken cancellationToken) =>
         await InForce<IntermediaryRegister>(day).Where(i => i.IntermediaryCode == intermediaryCode).OrderByDescending(i => i.Version)
             .Select(i => new IntermediaryInfo(i.IntermediaryCode, i.Status, i.PartyId, i.ContactPartyId)).FirstOrDefaultAsync(cancellationToken);
+
+    public async Task<string> PaidCommissionOnBrokerChange(DateOnly day, CancellationToken cancellationToken) =>
+        await InForce<StaticData.BrokerChangeSettings>(day).OrderBy(s => s.Code).Select(s => s.PaidCommission).FirstOrDefaultAsync(cancellationToken) ?? BrokerChangePaidCommission.Recover;
 
     public async Task<string?> PlanCodeFor(string intermediaryCode, string productCode, DateOnly day, CancellationToken cancellationToken) =>
         await InForce<IntermediaryProductPermissions>(day).Where(p => p.Intermediary == intermediaryCode && p.Product == productCode && p.PlanCode != null)

@@ -45,6 +45,18 @@ namespace Insys.Distribution.Application;
 
 public interface IDistributionRepository
 {
+    /// <summary>B-009: what the intermediary still owes in the currency, oldest first.</summary>
+    Task<IReadOnlyList<CommissionRecovery>> RecoveriesOwed(string intermediaryCode, string currency, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<CommissionRecovery>> RecoveriesOn(Guid statementId, CancellationToken cancellationToken);
+
+    Task<bool> HasRecovery(Guid entitlementId, CancellationToken cancellationToken);
+
+    /// <summary>B-009: every recovery, newest first; with owedOnly, only what's still owed.</summary>
+    Task<IReadOnlyList<CommissionRecovery>> Recoveries(string? intermediaryCode, bool owedOnly, Guid? beforeId, int limit, CancellationToken cancellationToken);
+
+    void Add(CommissionRecovery recovery);
+
     Task<CommissionEntitlement?> Entitlement(Guid id, CancellationToken cancellationToken);
 
     Task<CommissionEntitlement?> EntitlementFor(string sourceType, Guid sourceId, string intermediaryCode, CancellationToken cancellationToken);
@@ -88,6 +100,9 @@ public sealed record IntermediaryInfo(string IntermediaryCode, string Status, Gu
 /// <summary>The Distribution module's static data in force.</summary>
 public interface IDistributionCodes
 {
+    /// <summary>B-009: RECOVER, unless the tenant's setting in force says KEEP.</summary>
+    Task<string> PaidCommissionOnBrokerChange(DateOnly day, CancellationToken cancellationToken);
+
     Task<IntermediaryInfo?> Intermediary(string intermediaryCode, DateOnly day, CancellationToken cancellationToken);
 
     /// <summary>The plan the intermediary earns on the product (cfg_intermediary_product_permissions.plan_code, OQ-062).</summary>
@@ -207,6 +222,11 @@ internal sealed class PrepareStatementHandler(IDistributionRepository repository
             repository.Add(statement);
         }
 
+        foreach (var recovery in await repository.RecoveriesOn(statement.Id, cancellationToken))
+        {
+            recovery.Release();
+        }
+
         var current = await repository.OnStatement(statement.Id, cancellationToken);
         var (payable, toRecover) = await repository.Due(command.IntermediaryCode, command.Currency, cancellationToken);
         audit.Record(new AuditEntry("COMMISSION", "PrepareStatement", nameof(CommissionStatement), statement.Id.ToString(),
@@ -216,9 +236,29 @@ internal sealed class PrepareStatementHandler(IDistributionRepository repository
         var again = current.Where(e => e.Status == EntitlementStatus.Payable && e.StatementId == statement.Id).ToList();
         var recoverAgain = current.Where(e => e.Clawback?.StatementId == statement.Id).ToList();
         var prepared = statement.PrepareStatement(payable.Concat(again).DistinctBy(e => e.Id).ToList(), toRecover.Concat(recoverAgain).DistinctBy(e => e.Id).ToList(),
-            current, new StatementPayee(partyId, account.Id, account.AccountNumberHash), user.Value, clock.UtcNow);
+            current, new StatementPayee(partyId, account.Id, account.AccountNumberHash), user.Value, clock.UtcNow, await repository.RecoveriesOwed(command.IntermediaryCode, command.Currency, cancellationToken));
         return prepared.IsFailure ? prepared.Error : StatementView.From(statement);
     }
+}
+
+public static class BrokerChangePaidCommission
+{
+    public const string Recover = "RECOVER";
+    public const string Keep = "KEEP";
+}
+
+/// <summary>B-009: a broker's debt from a broker of record change, for finance.</summary>
+public sealed record CommissionRecoveryView(Guid Id, Guid EntitlementId, string IntermediaryCode, Guid PolicyRef, string Currency, decimal Amount, decimal RecoveredAmount, decimal OnStatementAmount, decimal Owed, Guid? StatementId)
+{
+    public static CommissionRecoveryView From(CommissionRecovery r) => new(r.Id, r.EntitlementId, r.IntermediaryCode, r.PolicyRef, r.Currency, r.Amount, r.RecoveredAmount, r.OnStatementAmount, r.Owed, r.StatementId);
+}
+
+public sealed record ListCommissionRecoveries(string? IntermediaryCode, bool OwedOnly, Guid? BeforeId, int Limit) : IQuery<IReadOnlyList<CommissionRecoveryView>>;
+
+internal sealed class ListCommissionRecoveriesHandler(IDistributionRepository repository) : IQueryHandler<ListCommissionRecoveries, IReadOnlyList<CommissionRecoveryView>>
+{
+    public async Task<Result<IReadOnlyList<CommissionRecoveryView>>> Handle(ListCommissionRecoveries query, CancellationToken cancellationToken) =>
+        Result.Success<IReadOnlyList<CommissionRecoveryView>>((await repository.Recoveries(query.IntermediaryCode, query.OwedOnly, query.BeforeId, query.Limit, cancellationToken)).Select(CommissionRecoveryView.From).ToList());
 }
 
 internal sealed class ClawBackCommissionHandler(IDistributionRepository repository, IBusinessDate businessDate, IClock clock, IAuditTrail audit) : ICommandHandler<ClawBackCommission, EntitlementView>
@@ -353,6 +393,15 @@ public sealed class CommissionPolicies(IDistributionRepository repository, IDist
         {
             throw new PrerequisiteMissingException(PrerequisiteCodes.ApprovalNotApplied, $"{granted.ApprovalType}:{granted.ApprovalId}");
         }
+
+        // B-009: with nothing to pay, no payout will settle it, so what it recovered is recovered now.
+        if (statement.NetAmount <= 0)
+        {
+            foreach (var recovery in await repository.RecoveriesOn(statement.Id, cancellationToken))
+            {
+                recovery.Settle();
+            }
+        }
     }
 
     /// <summary>
@@ -374,6 +423,11 @@ public sealed class CommissionPolicies(IDistributionRepository repository, IDist
         {
             throw new PrerequisiteMissingException(PrerequisiteCodes.ApprovalEndingNotApplied, $"{rejected.ApprovalType}:{rejected.ApprovalId}");
         }
+
+        foreach (var recovery in await repository.RecoveriesOn(statement.Id, cancellationToken))
+        {
+            recovery.Release();
+        }
     }
 
     /// <summary>"Payout settled": the statement and its payable entitlements are paid.</summary>
@@ -383,6 +437,10 @@ public sealed class CommissionPolicies(IDistributionRepository repository, IDist
             && await repository.Statement(id, cancellationToken) is { Status: StatementStatus.Approved } statement)
         {
             statement.PayoutSettled(succeeded.PaymentId, succeeded.ValueDate, await repository.OnStatement(statement.Id, cancellationToken));
+            foreach (var recovery in await repository.RecoveriesOn(statement.Id, cancellationToken))
+            {
+                recovery.Settle();
+            }
         }
     }
 
@@ -419,7 +477,7 @@ public sealed class CommissionPolicies(IDistributionRepository repository, IDist
 public sealed class BrokerOfRecordCommission(IDistributionRepository repository, IDistributionCodes codes, IPolicyArrears billing, ITenantContext tenant, IClock clock,
     ILogger<BrokerOfRecordCommission> logger) : IIntegrationEventHandler<GeneralPolicyIntermediaryChanged>
 {
-    public const string Reason = "BROKER_OF_RECORD_CHANGED";
+    public const string Reason = "BROKER_CHANGED";
 
     public async Task Handle(GeneralPolicyIntermediaryChanged changed, EventEnvelope envelope, CancellationToken cancellationToken)
     {
@@ -461,10 +519,21 @@ public sealed class BrokerOfRecordCommission(IDistributionRepository repository,
             var kept = 1m - share;
             var settled = entitlement.Status is EntitlementStatus.Payable or EntitlementStatus.Paid;
             var basis = entitlement.BasisAmount; // the invoice's net premium, before the outgoing broker's share is cut
+            var recovering = false;
             if (entitlement.Status == EntitlementStatus.Paid)
             {
-                logger.LogWarning("Commission {Entitlement} of {Intermediary} on policy {Policy} is paid: its share after the broker change ({Share:P2}) is not recovered",
-                    entitlement.Id, outgoing, changed.PolicyNumber, share);
+                // B-009: by the tenant's setting, the unearned days are recovered from the outgoing broker and go to the incoming one, or stay where they are.
+                recovering = await codes.PaidCommissionOnBrokerChange(changed.EffectiveDate, cancellationToken) == BrokerChangePaidCommission.Recover;
+                var owed = Math.Round(entitlement.Amount * share, 2, MidpointRounding.AwayFromZero);
+                if (recovering && owed > 0 && !await repository.HasRecovery(entitlement.Id, cancellationToken))
+                {
+                    repository.Add(CommissionRecovery.Raised(Guid.CreateVersion7(), entitlement, owed, Reason, changed.EffectiveDate, clock.UtcNow));
+                }
+                else if (!recovering)
+                {
+                    logger.LogWarning("Commission {Entitlement} of {Intermediary} on policy {Policy} is paid: its share after the broker change ({Share:P2}) stays with it, by the tenant's setting",
+                        entitlement.Id, outgoing, changed.PolicyNumber, share);
+                }
             }
             else if (kept <= 0)
             {
@@ -485,7 +554,7 @@ public sealed class BrokerOfRecordCommission(IDistributionRepository repository,
                 }
             }
 
-            if (plan is not null && entitlement.Status != EntitlementStatus.Paid
+            if (plan is not null && (entitlement.Status != EntitlementStatus.Paid || recovering)
                 && await repository.EntitlementFor(CommissionEntitlement.InvoiceSource, entitlement.SourceId, changed.IntermediaryCode, cancellationToken) is null)
             {
                 Accrue(changed.IntermediaryCode, plan, entitlement, basis * share, first, settled, CommissionEntitlement.InvoiceSource);
