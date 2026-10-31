@@ -2,6 +2,12 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
+## Dormant parties (branch `dormant-parties`, OQ-054)
+
+- **`party.status` can now become `DORMANT` by itself** (daily), and return to `ACTIVE`. Its `rowVersion` moves when it does.
+- **`blocks` on `PARTY_ANONYMISATION_BLOCKED`** can name `recordType` `CASE`, with `retention` `CASE`; and `PARTY` with `reason` `IN_RETENTION`.
+- **`party.cfg_record_retention_policies.recordKind`** gains `CASE`.
+
 ## Wave 6 batch 6.3 (branch `wave6-3`): fraud cases and bulk jobs (addendum §4.8, §4.9; F058, F076)
 
 ### New

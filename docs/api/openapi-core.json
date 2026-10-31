@@ -69497,6 +69497,7 @@
                     "POLICY",
                     "CLAIM",
                     "PAYMENT",
+                    "CASE",
                     "AUDIT"
                   ],
                   "type": [

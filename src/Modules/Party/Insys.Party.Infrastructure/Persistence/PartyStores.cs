@@ -27,6 +27,7 @@
 using Insys.BuildingBlocks.Application.Messaging;
 using Insys.BuildingBlocks.Contracts;
 using Insys.BuildingBlocks.Domain;
+using Insys.BuildingBlocks.Infrastructure.Persistence;
 using Insys.BuildingBlocks.Infrastructure.StaticData;
 using Insys.Party.Application;
 using Insys.Party.Domain.Parties;

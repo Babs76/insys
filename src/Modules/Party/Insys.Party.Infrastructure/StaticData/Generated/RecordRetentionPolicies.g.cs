@@ -39,7 +39,7 @@ namespace Insys.Party.Infrastructure.StaticData;
 /// <summary>Record retention policies: party.cfg_record_retention_policies. Scope GT, Tier 1, configuration lifecycle.</summary>
 public sealed class RecordRetentionPolicies : StaticRecord<RecordRetentionPoliciesInput>
 {
-    [Insys.BuildingBlocks.Domain.OneOf("POLICY", "CLAIM", "PAYMENT")]
+    [Insys.BuildingBlocks.Domain.OneOf("POLICY", "CLAIM", "PAYMENT", "CASE")]
     public string RecordKind { get; set; } = "";
 
     public string Jurisdiction { get; set; } = "";
@@ -61,7 +61,7 @@ public sealed class RecordRetentionPolicies : StaticRecord<RecordRetentionPolici
 /// <summary>The fields a client sends for Record retention policies.</summary>
 public sealed record RecordRetentionPoliciesInput : StaticRecordInput
 {
-    [Insys.BuildingBlocks.Domain.OneOf("POLICY", "CLAIM", "PAYMENT")]
+    [Insys.BuildingBlocks.Domain.OneOf("POLICY", "CLAIM", "PAYMENT", "CASE")]
     [Insys.BuildingBlocks.Domain.RequiredField]
     public string? RecordKind { get; init; }
 
@@ -78,7 +78,7 @@ public sealed record RecordRetentionPoliciesInput : StaticRecordInput
     {
         errors.Required("recordKind", RecordKind);
         errors.MaxLength("recordKind", RecordKind, 20);
-        errors.OneOf("recordKind", RecordKind, ["POLICY", "CLAIM", "PAYMENT"]);
+        errors.OneOf("recordKind", RecordKind, ["POLICY", "CLAIM", "PAYMENT", "CASE"]);
         errors.Required("jurisdiction", Jurisdiction);
         errors.MaxLength("jurisdiction", Jurisdiction, 80);
         errors.Required("period", Period);

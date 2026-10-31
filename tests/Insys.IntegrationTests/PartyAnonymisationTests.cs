@@ -27,6 +27,7 @@
 using System.Net;
 using System.Text.Json;
 using Insys.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Time.Testing;
 using Npgsql;
 
