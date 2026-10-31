@@ -1426,6 +1426,14 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
             VALUES (@t, gen_random_uuid(), 1, now(), 'seed', now(), 'seed', @u, 'PROVIDER', 'PR-1', 'ACTIVE', gen_random_uuid(), gen_random_uuid(), now())
             """, ("t", Tenant), ("u", user));
         await _db.UserWithPermissions(Tenant, "chronic-staff", HealthPermissions.ChronicRead);
+        await Seed("channel.cfg_channel_definitions", "EFFECTIVE", "CH-PRV", ("channel_code", "PRV"), ("audience", "PROVIDER"), ("name", "Provider portal"), ("client_ids", new[] { "provider-portal" }));
+        await Seed("channel.cfg_channel_definitions", "EFFECTIVE", "CH-STF", ("channel_code", "STF"), ("audience", "STAFF"), ("name", "Back office"), ("client_ids", new[] { "insys-web" }));
+        foreach (var (subject, code, channel) in new[] { ("chronic-PR-1", "CP-PRV-C", "PRV"), ("chronic-staff", "CP-STF-C", "STF") })
+        {
+            var role = (await _db.ScalarAsOwner<string>("SELECT a.role_code FROM iam.user_role_assignment a JOIN iam.user_account u ON u.tenant_id = a.tenant_id AND u.id = a.user_id WHERE u.external_subject = @s", ("s", subject)))!;
+            await Seed("channel.cfg_channel_transaction_permissions", "EFFECTIVE", code, ("channel_code", channel), ("role_code", role), ("transaction_type", channel == "PRV" ? HealthPermissions.ChronicCreate : HealthPermissions.ChronicRead), ("allowed", true));
+        }
+
         await _db.AdoptFunctionCatalogue();
         var portal = _factory.ClientFor(Tenant, "chronic-PR-1", "provider-portal", multiFactor: true);
 
@@ -1439,7 +1447,7 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         var id = view.GetProperty("id").GetGuid();
         (await _db.ScalarAsOwner<string>("SELECT requesting_provider_id FROM health.chronic_registration WHERE id = @i", ("i", id))).ShouldBe("PR-1");
 
-        var staff = await (await _factory.ClientFor(Tenant, "chronic-staff").GetAsync($"/api/v1/health/chronic-registrations?membershipId={membership}")).Json();
+        var staff = await (await _factory.ClientFor(Tenant, "chronic-staff", "insys-web").GetAsync($"/api/v1/health/chronic-registrations?membershipId={membership}")).Json();
         staff.GetProperty("items").EnumerateArray().Select(r => r.GetProperty("id").GetGuid()).ShouldBe([id]);
     }
 
