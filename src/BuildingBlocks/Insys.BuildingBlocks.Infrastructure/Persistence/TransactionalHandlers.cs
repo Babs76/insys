@@ -233,7 +233,7 @@ internal static class SavedVersions
     {
         var tracked = db.ChangeTracker.Entries().Where(e => e.Metadata.FindProperty("RowVersion") is not null && e.State != EntityState.Deleted).ToList();
         var changed = tracked.Where(e => e.State is EntityState.Modified or EntityState.Added).ToList();
-        return new SavedRecords(tracked, changed, changed.ToDictionary(e => e, e => (long)e.Property("RowVersion").OriginalValue!));
+        return new SavedRecords(tracked, changed, changed.ToDictionary(e => e, e => (long)(e.State == EntityState.Added ? e.Property("RowVersion").CurrentValue : e.Property("RowVersion").OriginalValue)!));
     }
 
     public static async Task<Result<TResult>> Apply<TCommand, TResult>(TCommand command, Result<TResult> result,
@@ -270,23 +270,32 @@ internal static class SavedVersions
     }
 
     /// <summary>
-    /// The record a returned version is of. The handler returned that record's version as loaded, which with what the command changed, and the id it carries, tells it: the changed aggregate
-    /// (or with none, changed record) that fits; with no change at all, the aggregate the command names or the only one it loaded.
+    /// The record a returned version is of. The handler returned that record's version as loaded, which with what the command changed, and the id it carries, tells it.
     /// </summary>
     private static Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry? TheRecord<TCommand>(TCommand command, long returned, SavedRecords saved)
         where TCommand : notnull
     {
         var ids = typeof(TCommand).GetProperties().Where(p => p.PropertyType == typeof(Guid)).Select(p => p.GetValue(command)).ToHashSet();
         bool Named(Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry e) => e.Metadata.FindProperty("Id") is not null && ids.Contains(e.Property("Id").CurrentValue);
-        var pool = saved.ChangedRoots.Count > 0 ? saved.ChangedRoots : saved.Changed;
-        if (pool.Count > 0)
+        if (saved.ChangedRoots.Count > 0)
         {
-            var fits = pool.Count == 1 ? pool : pool.Where(e => saved.Loaded[e] == returned).ToList();
+            var fits = saved.ChangedRoots.Count == 1 ? saved.ChangedRoots : saved.ChangedRoots.Where(e => saved.Loaded[e] == returned).ToList();
             return fits.Count == 1 ? fits[0] : fits.Where(Named).ToList() is { Count: 1 } named ? named[0] : null;
         }
 
+        // No aggregate changed (a new child, or a record that isn't an aggregate): the aggregate the command names or the only one it loaded, else what changed.
         var roots = saved.Tracked.Where(e => e.Entity is IAggregateRoot).ToList();
-        return roots.Where(Named).ToList() is { Count: 1 } one ? one[0] : roots.Count == 1 ? roots[0] : saved.Tracked.Where(Named).FirstOrDefault();
+        if (roots.Where(Named).ToList() is { Count: 1 } one)
+        {
+            return one[0];
+        }
+
+        if (roots.Count == 1)
+        {
+            return roots[0];
+        }
+
+        return saved.Changed.Count == 1 ? saved.Changed[0] : saved.Tracked.Where(Named).FirstOrDefault();
     }
 
     private static async Task<long> Read(Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry entry, CancellationToken cancellationToken) =>
