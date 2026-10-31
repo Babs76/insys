@@ -305,6 +305,46 @@ public sealed class PharmacyWorkedExamples
         One(context, new ClaimLineInput(1, "0190", null, 1, 80m, [])).Category.ShouldBe("GP");
     }
 
+    private static AdjudicationContext Preventive(DateOnly? born, string? sex = "F", params PriorService[] history) => Context() with
+    {
+        PreventiveRules = [new PreventiveRule(null, "FLU", "PREVENTIVE", 65, null, "F", "P1Y", true)], PreventiveHistory = history, PatientBirthDate = born, PatientSex = sex,
+        Tariffs = new Dictionary<(string, string), TariffPrice> { [("REF", "FLU")] = new(100m, null) }, CodeSystems = new Dictionary<string, string> { ["FLU"] = "NRPL" },
+        Mappings = [new(null, null, null, "GP", "DAY_TO_DAY")], Provider = new ProviderTerms("PH-1", "GP", true, null, null),
+        CostShares = [new CostShareRule("CO_PAYMENT", "PREVENTIVE", "PERCENT", 20m, "IN_NETWORK", null, "PER_LINE", null), new CostShareRule("CO_PAYMENT", "DAY_TO_DAY", "PERCENT", 20m, "IN_NETWORK", null, "PER_LINE", null)],
+    };
+
+    private static readonly ClaimLineInput Flu = new(1, "FLU", null, 1, 100m, []);
+
+    [Theory]
+    [InlineData(1961, 6, 15, "F", "PREVENTIVE", 0)] // 65 today: within schedule, no co-payment
+    [InlineData(1961, 6, 16, "F", "DAY_TO_DAY", 20)] // 65 tomorrow: outside the age band
+    [InlineData(1950, 1, 1, "M", "DAY_TO_DAY", 20)] // the wrong sex
+    public void AScheduledItem_IsCheckedAgainstAgeAndSex_F087_F088(int year, int month, int day, string sex, string category, int copay)
+    {
+        var line = One(Preventive(new DateOnly(year, month, day), sex), Flu);
+        (line.Category, line.CoPayment).ShouldBe((category, (decimal)copay));
+    }
+
+    [Fact]
+    public void AScheduledItem_UsedWithinItsInterval_IsDayToDay_AndAfterItIsPreventive_F087()
+    {
+        var born = new DateOnly(1950, 1, 1);
+        PriorService Used(DateOnly on) => new(Guid.CreateVersion7(), "FLU", "PREVENTIVE", on, "PH-1");
+        One(Preventive(born, "F", Used(new DateOnly(2025, 6, 16))), Flu).Category.ShouldBe("DAY_TO_DAY");
+        One(Preventive(born, "F", Used(new DateOnly(2025, 6, 15))), Flu).Category.ShouldBe("PREVENTIVE");
+    }
+
+    [Fact]
+    public void AnUnknownBirthDate_IsNotWithinAnAgeBand() => One(Preventive(null), Flu).Category.ShouldBe("DAY_TO_DAY");
+
+    [Fact]
+    public void AnEnrolledProgramme_GivesItsConditionsClaims_ItsCategory_F086()
+    {
+        var context = Preventive(null) with { ProgrammeBenefits = [new ProgrammeBenefit("PROGRAMME", ["E11"])] };
+        One(context, Flu with { DiagnosisCode = "E11" }).Category.ShouldBe("PROGRAMME");
+        One(context, Flu with { DiagnosisCode = "K35" }).Category.ShouldBe("DAY_TO_DAY");
+    }
+
     [Fact]
     public void AMedicalLine_IsUnchangedByAFormulary()
     {

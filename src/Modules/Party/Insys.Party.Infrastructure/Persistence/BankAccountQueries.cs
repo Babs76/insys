@@ -57,6 +57,10 @@ internal sealed class BankAccountQueries([FromKeyedServices(PartyDbContext.Schem
         (await Query(tenantId, "SELECT birth_date FROM party.individual WHERE tenant_id = @t AND party_id = @id", partyId,
             r => (object)r.GetFieldValue<DateOnly>(0), cancellationToken)) as DateOnly?;
 
+    public async Task<string?> GenderCode(Guid tenantId, Guid partyId, CancellationToken cancellationToken) =>
+        await Query(tenantId, "SELECT gender_code FROM party.individual WHERE tenant_id = @t AND party_id = @id AND gender_code IS NOT NULL", partyId,
+            r => (object)r.GetString(0), cancellationToken) as string;
+
     public async Task<bool> Exists(Guid tenantId, Guid partyId, CancellationToken cancellationToken) =>
         await Query(tenantId, "SELECT id FROM party.party WHERE tenant_id = @t AND id = @id AND merged_into_id IS NULL", partyId, r => (object)r.GetGuid(0),
             cancellationToken) is not null;

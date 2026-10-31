@@ -32113,6 +32113,476 @@
         ]
       }
     },
+    "/api/v1/health/programme-enrolments": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Enrol a member with a registered condition in a disease programme (F086)",
+        "operationId": "HealthEnrolInProgramme",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealthEnrolInProgrammeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthProgrammeEnrolmentView"
+                }
+              }
+            }
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          }
+        },
+        "x-permission": "health_programme.create",
+        "x-function": [
+          "HEALTH_ENROL_IN_PROGRAMME"
+        ]
+      },
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Programme enrolments, by membership or status; no programme named",
+        "operationId": "HealthListProgrammeEnrolments",
+        "parameters": [
+          {
+            "name": "membershipId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfHealthProgrammeEnrolmentView"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "health_programme.read",
+        "x-function": [
+          "HEALTH_PROGRAMME_ENROLMENTS"
+        ]
+      }
+    },
+    "/api/v1/health/programme-enrolments/{id}": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "A programme enrolment; no programme named",
+        "operationId": "HealthGetProgrammeEnrolment",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthProgrammeEnrolmentView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "health_programme.read",
+        "x-function": [
+          "HEALTH_PROGRAMME_ENROLMENTS"
+        ]
+      }
+    },
+    "/api/v1/health/programme-enrolments/{id}/clinical": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "An enrolment\u0027s programme, for the clinical function, with a purpose; every read is audited",
+        "operationId": "HealthReadProgrammeEnrolmentClinical",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthProgrammeEnrolmentClinicalView"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "health_case.read_clinical",
+        "x-function": [
+          "HEALTH_READ_PROGRAMME_CLINICAL"
+        ]
+      }
+    },
+    "/api/v1/health/programme-enrolments/{id}/review": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Record a review: the next falls due after the programme\u0027s interval",
+        "operationId": "HealthRecordProgrammeReview",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthProgrammeEnrolmentView"
+                }
+              }
+            }
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "health_programme.update",
+        "x-function": [
+          "HEALTH_RECORD_PROGRAMME_REVIEW"
+        ]
+      }
+    },
+    "/api/v1/health/programme-enrolments/{id}/end": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "End an enrolment from a day",
+        "operationId": "HealthEndProgrammeEnrolment",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealthEndProgrammeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthProgrammeEnrolmentView"
+                }
+              }
+            }
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "health_programme.update",
+        "x-function": [
+          "HEALTH_END_PROGRAMME_ENROLMENT"
+        ]
+      }
+    },
     "/api/v1/health/referrals/{id}/decide": {
       "post": {
         "tags": [
@@ -40621,6 +41091,7 @@
                 "PrivilegedAccessGrant",
                 "ProcessInstance",
                 "ProductVersion",
+                "ProgrammeEnrolment",
                 "ProviderCreditNote",
                 "ProviderMeasureResult",
                 "ProviderPaymentRun",
@@ -40707,6 +41178,7 @@
                 "cfg_disclosure_and_notice_text",
                 "cfg_disclosure_questionnaire_s",
                 "cfg_discount_and_loading_sched",
+                "cfg_disease_programmes",
                 "cfg_distribution_hierarchy",
                 "cfg_document_numbering_schemes",
                 "cfg_document_templates",
@@ -40768,6 +41240,7 @@
                 "cfg_premium_parameters",
                 "cfg_premium_tax_and_levy_rates",
                 "cfg_prescription_benefits",
+                "cfg_preventive_schedules",
                 "cfg_product_approval_workflow_",
                 "cfg_product_availability_rules",
                 "cfg_product_billing_frequencie",
@@ -41084,6 +41557,7 @@
                 "PrivilegedAccessGrant",
                 "ProcessInstance",
                 "ProductVersion",
+                "ProgrammeEnrolment",
                 "ProviderCreditNote",
                 "ProviderMeasureResult",
                 "ProviderPaymentRun",
@@ -41170,6 +41644,7 @@
                 "cfg_disclosure_and_notice_text",
                 "cfg_disclosure_questionnaire_s",
                 "cfg_discount_and_loading_sched",
+                "cfg_disease_programmes",
                 "cfg_distribution_hierarchy",
                 "cfg_document_numbering_schemes",
                 "cfg_document_templates",
@@ -41231,6 +41706,7 @@
                 "cfg_premium_parameters",
                 "cfg_premium_tax_and_levy_rates",
                 "cfg_prescription_benefits",
+                "cfg_preventive_schedules",
                 "cfg_product_approval_workflow_",
                 "cfg_product_availability_rules",
                 "cfg_product_billing_frequencie",
@@ -46069,6 +46545,27 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/HealthPreauthorisationSummary"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CursorPageOfHealthProgrammeEnrolmentView": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthProgrammeEnrolmentView"
             }
           },
           "nextCursor": {
@@ -54040,6 +54537,18 @@
           }
         }
       },
+      "HealthEndProgrammeRequest": {
+        "required": [
+          "lastDay"
+        ],
+        "type": "object",
+        "properties": {
+          "lastDay": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      },
       "HealthEnrolHealthMember": {
         "required": [
           "principalPartyId",
@@ -54126,6 +54635,35 @@
               "null",
               "string"
             ]
+          }
+        }
+      },
+      "HealthEnrolInProgrammeRequest": {
+        "required": [
+          "membershipId",
+          "patientPartyId",
+          "programmeCode",
+          "complexCaseId"
+        ],
+        "type": "object",
+        "properties": {
+          "membershipId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "patientPartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "programmeCode": {
+            "type": "string"
+          },
+          "complexCaseId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
@@ -56343,6 +56881,91 @@
               "string"
             ],
             "format": "uuid"
+          }
+        }
+      },
+      "HealthProgrammeEnrolmentClinicalView": {
+        "required": [
+          "id",
+          "programmeCode"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "programmeCode": {
+            "type": "string"
+          }
+        }
+      },
+      "HealthProgrammeEnrolmentView": {
+        "required": [
+          "id",
+          "enrolmentNumber",
+          "membershipId",
+          "patientPartyId",
+          "complexCaseId",
+          "status",
+          "enrolledOn",
+          "endedOn",
+          "nextReviewOn",
+          "rowVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "enrolmentNumber": {
+            "type": "string"
+          },
+          "membershipId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "patientPartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "complexCaseId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "status": {
+            "enum": [
+              "ACTIVE",
+              "ENDED"
+            ],
+            "type": "string"
+          },
+          "enrolledOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "endedOn": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "nextReviewOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
           }
         }
       },

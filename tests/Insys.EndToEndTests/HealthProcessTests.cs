@@ -1375,6 +1375,18 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         var line = (await (await _maker.PostAsync($"/api/v1/health/claims/{claim}/adjudicate", null)).Json()).GetProperty("lines")[0];
         (line.GetProperty("benefitCategory").GetString(), line.GetProperty("paidQuantity").GetInt32(), line.GetProperty("paidAmount").GetDecimal()).ShouldBe(("CHRONIC", 40, 80m));
 
+        // F086: a member with the registered condition is enrolled; the programme's benefit applies to the condition's claims; the view names no programme.
+        await Seed("health.cfg_disease_programmes", "EFFECTIVE", "DM-CARE", ("programme_code", "DM-CARE"), ("condition_codes", new[] { "OTHER" }), ("benefit_category", "PROGRAMME"), ("review_interval", "P6M"));
+        await _db.UserWithPermissions(Tenant, "programme-clerk", HealthPermissions.ProgrammeCreate, HealthPermissions.ProgrammeRead, HealthPermissions.ProgrammeUpdate);
+        await _db.AdoptFunctionCatalogue();
+        var programmeClerk = _factory.ClientFor(Tenant, "programme-clerk");
+        (await (await programmeClerk.Send(HttpMethod.Post, "/api/v1/health/programme-enrolments", new { membershipId = membership, patientPartyId = spouse, programmeCode = "DM-CARE" }, idempotent: true)).Code())
+            .ShouldBe("MEMBER_NOT_COVERED");
+        await Seed("health.cfg_disease_programmes", "EFFECTIVE", "DM-CARE2", ("programme_code", "DM-CARE2"), ("condition_codes", new[] { "DM2" }), ("benefit_category", "PROGRAMME"), ("review_interval", "P6M"));
+        var enrolled = await programmeClerk.Send(HttpMethod.Post, "/api/v1/health/programme-enrolments", new { membershipId = membership, patientPartyId = spouse, programmeCode = "DM-CARE2" }, idempotent: true);
+        enrolled.StatusCode.ShouldBe(HttpStatusCode.Created, await enrolled.Content.ReadAsStringAsync());
+        (await enrolled.Json()).TryGetProperty("programmeCode", out _).ShouldBeFalse();
+
         // OQ-161: the adult sees their own and what remains; the principal doesn't see theirs.
         foreach (var (subject, party) in new[] { ("chronic-principal", principal), ("chronic-spouse", spouse) })
         {

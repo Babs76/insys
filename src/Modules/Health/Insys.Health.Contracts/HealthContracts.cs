@@ -68,6 +68,9 @@ public static class HealthPermissions
     /// <summary>Decides a chronic registration; the decider also needs the clinical function (OQ-150).</summary>
     public const string ChronicDecide = "health_chronic.decide";
     public const string ChronicUpdate = "health_chronic.update";
+    public const string ProgrammeRead = "health_programme.read";
+    public const string ProgrammeCreate = "health_programme.create";
+    public const string ProgrammeUpdate = "health_programme.update";
     public const string ReferralRead = "health_referral.read";
     public const string ReferralCreate = "health_referral.create";
     public const string ReferralDecide = "health_referral.decide";
@@ -204,6 +207,10 @@ public sealed record MedicalClaimSettled(Guid ClaimId, string ClaimNumber, strin
 /// <summary>F037: a care plan's activity is past its date; Workflow opens a task for the case manager. References only (HLT-008).</summary>
 [IntegrationEvent("health.CareActivityOverdue")]
 public sealed record CareActivityOverdue(Guid CaseId, string CaseNumber, Guid ActivityId, Guid? CaseManagerId) : IIntegrationEvent;
+
+/// <summary>F086: an enrolment's review is due; Workflow asks a person to do it. Names no programme or condition.</summary>
+[IntegrationEvent("health.ProgrammeReviewDue")]
+public sealed record ProgrammeReviewDue(Guid ReviewId, Guid EnrolmentId, string EnrolmentNumber) : IIntegrationEvent;
 
 /// <summary>F028: a provider's month is past a measure's threshold; Workflow asks a person to look. Counts and amounts only.</summary>
 [IntegrationEvent("health.ProviderMeasureBreached")]

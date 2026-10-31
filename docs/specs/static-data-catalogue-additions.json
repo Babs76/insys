@@ -1629,6 +1629,120 @@
      "sample": "P1M"
     }
    ]
+  },
+  {
+   "layer": "Domain",
+   "module": "Health claims",
+   "subModule": "Benefit programmes",
+   "entity": "Disease programmes",
+   "table": "health.cfg_disease_programmes",
+   "class": "CFG",
+   "scope": "T",
+   "tier": 2,
+   "proposedOwner": "Benefit Manager",
+   "provenance": "Wave 5b addendum (addenda/benefit-programmes.md), signed off by Ade, 31 October 2026",
+   "basis": "F086",
+   "fields": [
+    {
+     "name": "programme_code",
+     "logicalType": "String(15)",
+     "mandatory": true,
+     "sample": "DM-CARE"
+    },
+    {
+     "name": "condition_codes",
+     "logicalType": "List<String>",
+     "mandatory": true,
+     "sample": "DM2"
+    },
+    {
+     "name": "benefit_category",
+     "logicalType": "String(15)",
+     "mandatory": true,
+     "sample": "PROGRAMME"
+    },
+    {
+     "name": "review_interval",
+     "logicalType": "String(10)",
+     "mandatory": true,
+     "sample": "P6M"
+    }
+   ]
+  },
+  {
+   "layer": "Domain",
+   "module": "Health claims",
+   "subModule": "Benefit programmes",
+   "entity": "Preventive schedules",
+   "table": "health.cfg_preventive_schedules",
+   "class": "CFG",
+   "scope": "T",
+   "tier": 2,
+   "proposedOwner": "Benefit Manager",
+   "provenance": "Wave 5b addendum (addenda/benefit-programmes.md), signed off by Ade, 31 October 2026",
+   "basis": "F087, F088",
+   "fields": [
+    {
+     "name": "schedule_code",
+     "logicalType": "String(15)",
+     "mandatory": true,
+     "sample": "FLU-65"
+    },
+    {
+     "name": "plan_code",
+     "logicalType": "String(15)",
+     "mandatory": false,
+     "sample": "HLT-CORE"
+    },
+    {
+     "name": "item_kind",
+     "logicalType": "String(10)",
+     "mandatory": true,
+     "sample": "VACCINE"
+    },
+    {
+     "name": "service_code",
+     "logicalType": "String(20)",
+     "mandatory": true,
+     "sample": "0001"
+    },
+    {
+     "name": "benefit_category",
+     "logicalType": "String(15)",
+     "mandatory": true,
+     "sample": "PREVENTIVE"
+    },
+    {
+     "name": "min_age",
+     "logicalType": "Integer",
+     "mandatory": false,
+     "sample": "65"
+    },
+    {
+     "name": "max_age",
+     "logicalType": "Integer",
+     "mandatory": false,
+     "sample": "120"
+    },
+    {
+     "name": "sex",
+     "logicalType": "String(10)",
+     "mandatory": false,
+     "sample": "F"
+    },
+    {
+     "name": "service_interval",
+     "logicalType": "String(10)",
+     "mandatory": true,
+     "sample": "P1Y"
+    },
+    {
+     "name": "no_copay",
+     "logicalType": "Boolean",
+     "mandatory": true,
+     "sample": "true"
+    }
+   ]
   }
  ]
 }

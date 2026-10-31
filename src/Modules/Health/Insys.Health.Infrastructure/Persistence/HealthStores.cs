@@ -345,6 +345,33 @@ internal sealed class HealthRepository(HealthDbContext db, IExecutionContext exe
 
     public void Add(ChronicRegistration registration) => db.ChronicRegistrations.Add(registration);
 
+    public async Task<ProgrammeEnrolment?> ProgrammeEnrolment(Guid id, CancellationToken cancellationToken)
+    {
+        var enrolment = await db.ProgrammeEnrolments.SingleOrDefaultAsync(e => e.Id == id, cancellationToken);
+        return await OfMembership(enrolment, enrolment?.MembershipId, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<ProgrammeEnrolment>> ProgrammeEnrolmentsInForce(Guid patientPartyId, DateOnly day, CancellationToken cancellationToken) =>
+        await db.ProgrammeEnrolments.AsNoTracking().Where(e => e.PatientPartyId == patientPartyId && e.EnrolledOn <= day && (e.EndedOn == null || day <= e.EndedOn)).OrderBy(e => e.Id).ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<ProgrammeEnrolment>> ProgrammeEnrolments(Guid? membershipId, string? status, Guid? afterId, int limit, CancellationToken cancellationToken)
+    {
+        var rows = db.ProgrammeEnrolments.AsNoTracking();
+        if (!execution.CurrentScope.IsUnrestricted)
+        {
+            rows = rows.Where(e => MembershipsInScope.Contains(e.MembershipId));
+        }
+
+        return await rows.Where(e => (membershipId == null || e.MembershipId == membershipId) && (status == null || e.Status == status) && (afterId == null || e.Id.CompareTo(afterId.Value) > 0))
+            .OrderBy(e => e.Id).Take(limit).ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Guid>> ProgrammeReviewsDue(DateOnly day, int limit, CancellationToken cancellationToken) =>
+        await db.ProgrammeEnrolments.AsNoTracking().Where(e => e.Status == ProgrammeStatus.Active && e.NextReviewOn <= day && (e.ReviewRaisedFor == null || e.ReviewRaisedFor != e.NextReviewOn))
+            .OrderBy(e => e.Id).Select(e => e.Id).Take(limit).ToListAsync(cancellationToken);
+
+    public void Add(ProgrammeEnrolment enrolment) => db.ProgrammeEnrolments.Add(enrolment);
+
     public async Task<IReadOnlyList<ClinicalReferral>> ClinicalReferrals(Guid? membershipId, string? providerId, string? status, Guid? afterId, int limit, CancellationToken cancellationToken)
     {
         var rows = db.ClinicalReferrals.AsNoTracking();
@@ -598,6 +625,14 @@ internal sealed class HealthCodes(HealthDbContext db) : IHealthCodes
         (await InForce<ChronicConditionList>(day).Where(c => conditionCodes.Contains(c.ConditionCode)).ToListAsync(cancellationToken))
         .GroupBy(c => c.ConditionCode).ToDictionary(g => g.Key, g => new ChronicConditionTerms(g.First().BenefitCategory, g.First().DiagnosisCodes));
 
+    public async Task<IReadOnlyDictionary<string, DiseaseProgrammeTerms>> DiseaseProgrammes(IReadOnlyCollection<string> programmeCodes, DateOnly day, CancellationToken cancellationToken) =>
+        (await InForce<DiseaseProgrammes>(day).Where(p => programmeCodes.Contains(p.ProgrammeCode)).ToListAsync(cancellationToken))
+        .GroupBy(p => p.ProgrammeCode).ToDictionary(g => g.Key, g => new DiseaseProgrammeTerms(g.First().BenefitCategory, g.First().ConditionCodes, g.First().ReviewInterval));
+
+    public async Task<IReadOnlyList<PreventiveRule>> PreventiveRules(string planCode, DateOnly day, CancellationToken cancellationToken) =>
+        await InForce<PreventiveSchedules>(day).Where(s => s.PlanCode == null || s.PlanCode == planCode)
+            .Select(s => new PreventiveRule(s.PlanCode, s.ServiceCode, s.BenefitCategory, s.MinAge, s.MaxAge, s.Sex, s.ServiceInterval, s.NoCopay)).ToListAsync(cancellationToken);
+
     public async Task<IReadOnlyList<MedicationLimit>> MedicationLimits(string planCode, DateOnly day, CancellationToken cancellationToken) =>
         await InForce<StaticData.MedicationLimits>(day).Where(l => l.PlanCode == null || l.PlanCode == planCode)
             .Select(l => new MedicationLimit(l.PlanCode, l.ProductCode, l.ActiveIngredient, l.MaxQuantity, l.MaxAmount, l.Period)).ToListAsync(cancellationToken);
@@ -685,6 +720,7 @@ internal sealed class HealthEventMapper : IDomainEventMapper
             {
                 ["claim_number"] = e.RegistrationNumber, ["decision_date"] = e.DecidedOn.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture), ["amount"] = "0.00", ["currency"] = e.Currency,
             }, e.ProductCode, e.OrgNodeCode),
+        Domain.Care.ProgrammeReviewDue e => new Contracts.ProgrammeReviewDue(e.ReviewId, e.EnrolmentId, e.EnrolmentNumber),
         Domain.Care.CareActivityOverdue e => new Contracts.CareActivityOverdue(e.CaseId, e.CaseNumber, e.ActivityId, e.CaseManagerId),
         Domain.Providers.ProviderMeasureBreached e => new Contracts.ProviderMeasureBreached(e.ResultId, e.ProviderId, e.MonthKey, e.MeasureCode, e.Value, e.Threshold),
         Domain.Care.MedicalClaimReversed e => new Contracts.MedicalClaimReversed(e.ClaimId, e.ClaimNumber, e.ProviderId, e.Amount, e.Currency, e.Reason),

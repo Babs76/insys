@@ -129381,6 +129381,705 @@
         "x-eventual-effects": "after submit, the change request and its Workflow approval appear; after the approval, every line reads APPROVED."
       }
     },
+    "/api/v1/health/static/disease-programmes": {
+      "get": {
+        "tags": [
+          "Health static data"
+        ],
+        "summary": "List Disease programmes in force",
+        "description": "Disease programmes records in force on asAt (default today), tenant rows over global baselines (SDM-008, SDM-015).",
+        "operationId": "ListHealthDiseaseProgrammes",
+        "parameters": [
+          {
+            "name": "asAt",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfHealthDiseaseProgrammes"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_HEALTH_CLAIMS_VIEW"
+        ]
+      },
+      "post": {
+        "tags": [
+          "Health static data"
+        ],
+        "summary": "Create a tenant Disease programmes draft",
+        "description": "Creates version 1 of a new code, or the next version of an existing one. The caller is the maker.",
+        "operationId": "CreateHealthDiseaseProgrammesDraft",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealthDiseaseProgrammesInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthDiseaseProgrammes"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_HEALTH_CLAIMS_MAINTAIN"
+        ]
+      }
+    },
+    "/api/v1/health/static/disease-programmes/{code}": {
+      "get": {
+        "tags": [
+          "Health static data"
+        ],
+        "summary": "Get the Disease programmes version in force",
+        "operationId": "GetHealthDiseaseProgrammes",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "asAt",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthDiseaseProgrammes"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_HEALTH_CLAIMS_VIEW"
+        ]
+      }
+    },
+    "/api/v1/health/static/disease-programmes/{code}/versions": {
+      "get": {
+        "tags": [
+          "Health static data"
+        ],
+        "summary": "List every tenant version of a Disease programmes code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
+        "operationId": "ListHealthDiseaseProgrammesVersions",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HealthDiseaseProgrammes"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_HEALTH_CLAIMS_VIEW"
+        ]
+      }
+    },
+    "/api/v1/health/static/disease-programmes/{code}/versions/{versionNumber}": {
+      "put": {
+        "tags": [
+          "Health static data"
+        ],
+        "summary": "Edit a tenant Disease programmes draft",
+        "description": "Only the maker edits a draft; approved versions are immutable (SDM-002).",
+        "operationId": "EditHealthDiseaseProgrammesDraft",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealthDiseaseProgrammesInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthDiseaseProgrammes"
+                }
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_HEALTH_CLAIMS_MAINTAIN"
+        ]
+      }
+    },
+    "/api/v1/health/static/disease-programmes/{code}/versions/{versionNumber}/{action}": {
+      "post": {
+        "tags": [
+          "Health static data"
+        ],
+        "summary": "Submit, activate, deprecate or retire a tenant Disease programmes version",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
+        "operationId": "ChangeHealthDiseaseProgrammesLifecycle",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "action",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^(submit|activate|deprecate|retire)$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthDiseaseProgrammes"
+                }
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_HEALTH_CLAIMS_MAINTAIN"
+        ],
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
+      }
+    },
+    "/api/v1/health/static/disease-programmes/imports": {
+      "post": {
+        "tags": [
+          "Health static data"
+        ],
+        "summary": "Import tenant Disease programmes drafts, all or nothing",
+        "description": "Every line is validated; if any line fails, nothing is saved and each rejected line is reported (SDM-012). The drafts are the import\u0027s lines (BR-016): submit them as one change at /imports/{batchId}/submit, not one by one.",
+        "operationId": "ImportHealthDiseaseProgrammes",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaticDataImportOfHealthDiseaseProgrammesInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaticDataImportResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_HEALTH_CLAIMS_MAINTAIN"
+        ]
+      }
+    },
+    "/api/v1/health/static/disease-programmes/imports/{batchId}": {
+      "get": {
+        "tags": [
+          "Health static data"
+        ],
+        "summary": "Every line of a tenant Disease programmes import, in code order",
+        "description": "What the checker approves as one change (BR-016): each line\u0027s proposed record, its status, and its change request once submitted.",
+        "operationId": "GetHealthDiseaseProgrammesImport",
+        "parameters": [
+          {
+            "name": "batchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HealthDiseaseProgrammes"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_HEALTH_CLAIMS_VIEW"
+        ]
+      }
+    },
+    "/api/v1/health/static/disease-programmes/imports/{batchId}/{action}": {
+      "post": {
+        "tags": [
+          "Health static data"
+        ],
+        "summary": "Submit a tenant Disease programmes import as one change, or put an approved one in force",
+        "description": "submit (BR-016) returns the submission: every line must be a draft of the caller\u0027s; all go to one change request and one approval of the table\u0027s tier, bound to the hash of the complete import, so any change to a line needs a new approval. The import is approved or rejected as a whole, never partly; a rejection returns every line to draft. activate returns {imported, batchId}: once approved, every line is put in force together. Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear; after the approval, every line reads APPROVED.",
+        "operationId": "ChangeHealthDiseaseProgrammesImport",
+        "parameters": [
+          {
+            "name": "batchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "action",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^(submit|activate)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaticDataImportSubmissionResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_HEALTH_CLAIMS_MAINTAIN"
+        ],
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear; after the approval, every line reads APPROVED."
+      }
+    },
     "/api/v1/health/static/health-fraud-indicator-definitions": {
       "get": {
         "tags": [
@@ -138402,6 +139101,705 @@
         "summary": "Submit a tenant Prescription benefits import as one change, or put an approved one in force",
         "description": "submit (BR-016) returns the submission: every line must be a draft of the caller\u0027s; all go to one change request and one approval of the table\u0027s tier, bound to the hash of the complete import, so any change to a line needs a new approval. The import is approved or rejected as a whole, never partly; a rejection returns every line to draft. activate returns {imported, batchId}: once approved, every line is put in force together. Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear; after the approval, every line reads APPROVED.",
         "operationId": "ChangeHealthPrescriptionBenefitsImport",
+        "parameters": [
+          {
+            "name": "batchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "action",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^(submit|activate)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaticDataImportSubmissionResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_HEALTH_CLAIMS_MAINTAIN"
+        ],
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear; after the approval, every line reads APPROVED."
+      }
+    },
+    "/api/v1/health/static/preventive-schedules": {
+      "get": {
+        "tags": [
+          "Health static data"
+        ],
+        "summary": "List Preventive schedules in force",
+        "description": "Preventive schedules records in force on asAt (default today), tenant rows over global baselines (SDM-008, SDM-015).",
+        "operationId": "ListHealthPreventiveSchedules",
+        "parameters": [
+          {
+            "name": "asAt",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfHealthPreventiveSchedules"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_HEALTH_CLAIMS_VIEW"
+        ]
+      },
+      "post": {
+        "tags": [
+          "Health static data"
+        ],
+        "summary": "Create a tenant Preventive schedules draft",
+        "description": "Creates version 1 of a new code, or the next version of an existing one. The caller is the maker.",
+        "operationId": "CreateHealthPreventiveSchedulesDraft",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealthPreventiveSchedulesInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthPreventiveSchedules"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_HEALTH_CLAIMS_MAINTAIN"
+        ]
+      }
+    },
+    "/api/v1/health/static/preventive-schedules/{code}": {
+      "get": {
+        "tags": [
+          "Health static data"
+        ],
+        "summary": "Get the Preventive schedules version in force",
+        "operationId": "GetHealthPreventiveSchedules",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "asAt",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthPreventiveSchedules"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_HEALTH_CLAIMS_VIEW"
+        ]
+      }
+    },
+    "/api/v1/health/static/preventive-schedules/{code}/versions": {
+      "get": {
+        "tags": [
+          "Health static data"
+        ],
+        "summary": "List every tenant version of a Preventive schedules code",
+        "description": "Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, retire), send If-Match with its rowVersion in double quotes, for example If-Match: \u00223\u0022 for rowVersion 3: the same entity tag every INSYS ETag header uses (BR-014).",
+        "operationId": "ListHealthPreventiveSchedulesVersions",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HealthPreventiveSchedules"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_HEALTH_CLAIMS_VIEW"
+        ]
+      }
+    },
+    "/api/v1/health/static/preventive-schedules/{code}/versions/{versionNumber}": {
+      "put": {
+        "tags": [
+          "Health static data"
+        ],
+        "summary": "Edit a tenant Preventive schedules draft",
+        "description": "Only the maker edits a draft; approved versions are immutable (SDM-002).",
+        "operationId": "EditHealthPreventiveSchedulesDraft",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealthPreventiveSchedulesInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthPreventiveSchedules"
+                }
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_HEALTH_CLAIMS_MAINTAIN"
+        ]
+      }
+    },
+    "/api/v1/health/static/preventive-schedules/{code}/versions/{versionNumber}/{action}": {
+      "post": {
+        "tags": [
+          "Health static data"
+        ],
+        "summary": "Submit, activate, deprecate or retire a tenant Preventive schedules version",
+        "description": "submit sends the draft for approval (approve and reject are on the same path, decided in Workflow); activate puts an approved version in force; deprecate stops new use; retire hides it (SDM-007). Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too.",
+        "operationId": "ChangeHealthPreventiveSchedulesLifecycle",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "action",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^(submit|activate|deprecate|retire)$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthPreventiveSchedules"
+                }
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.update",
+        "x-function": [
+          "SD_HEALTH_CLAIMS_MAINTAIN"
+        ],
+        "x-eventual-effects": "after submit, the change request and its Workflow approval appear (GET /api/v1/static-data/change-requests, GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation\u0027s cache refreshes follow too."
+      }
+    },
+    "/api/v1/health/static/preventive-schedules/imports": {
+      "post": {
+        "tags": [
+          "Health static data"
+        ],
+        "summary": "Import tenant Preventive schedules drafts, all or nothing",
+        "description": "Every line is validated; if any line fails, nothing is saved and each rejected line is reported (SDM-012). The drafts are the import\u0027s lines (BR-016): submit them as one change at /imports/{batchId}/submit, not one by one.",
+        "operationId": "ImportHealthPreventiveSchedules",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaticDataImportOfHealthPreventiveSchedulesInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaticDataImportResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "static_data.create",
+        "x-function": [
+          "SD_HEALTH_CLAIMS_MAINTAIN"
+        ]
+      }
+    },
+    "/api/v1/health/static/preventive-schedules/imports/{batchId}": {
+      "get": {
+        "tags": [
+          "Health static data"
+        ],
+        "summary": "Every line of a tenant Preventive schedules import, in code order",
+        "description": "What the checker approves as one change (BR-016): each line\u0027s proposed record, its status, and its change request once submitted.",
+        "operationId": "GetHealthPreventiveSchedulesImport",
+        "parameters": [
+          {
+            "name": "batchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HealthPreventiveSchedules"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "static_data.read",
+        "x-function": [
+          "SD_HEALTH_CLAIMS_VIEW"
+        ]
+      }
+    },
+    "/api/v1/health/static/preventive-schedules/imports/{batchId}/{action}": {
+      "post": {
+        "tags": [
+          "Health static data"
+        ],
+        "summary": "Submit a tenant Preventive schedules import as one change, or put an approved one in force",
+        "description": "submit (BR-016) returns the submission: every line must be a draft of the caller\u0027s; all go to one change request and one approval of the table\u0027s tier, bound to the hash of the complete import, so any change to a line needs a new approval. The import is approved or rejected as a whole, never partly; a rejection returns every line to draft. activate returns {imported, batchId}: once approved, every line is put in force together. Completes asynchronously (GAP-027): after submit, the change request and its Workflow approval appear; after the approval, every line reads APPROVED.",
+        "operationId": "ChangeHealthPreventiveSchedulesImport",
         "parameters": [
           {
             "name": "batchId",
@@ -192413,6 +193811,27 @@
           }
         }
       },
+      "CursorPageOfHealthDiseaseProgrammes": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthDiseaseProgrammes"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "CursorPageOfHealthEligibilityResponseCodes": {
         "required": [
           "items",
@@ -192739,6 +194158,27 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/HealthPrescriptionBenefits"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CursorPageOfHealthPreventiveSchedules": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthPreventiveSchedules"
             }
           },
           "nextCursor": {
@@ -221720,6 +223160,322 @@
           }
         }
       },
+      "HealthDiseaseProgrammes": {
+        "type": "object",
+        "properties": {
+          "programmeCode": {
+            "type": "string"
+          },
+          "conditionCodes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "benefitCategory": {
+            "type": "string"
+          },
+          "reviewInterval": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenantId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "version": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "effectiveFrom": {
+            "type": "string",
+            "format": "date"
+          },
+          "effectiveTo": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "recordStatus": {
+            "enum": [
+              "DRAFT",
+              "VALIDATED",
+              "SUBMITTED",
+              "APPROVED",
+              "PUBLISHED",
+              "EFFECTIVE",
+              "WITHDRAWN",
+              "RETIRED"
+            ],
+            "type": "string"
+          },
+          "supersedesId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "labels": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSource": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSourceVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "externalMappings": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "recordClass": {
+            "type": "string"
+          },
+          "sortOrder": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "displayFlags": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "changeRequestId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "importBatchId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "approvedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "approvedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "changeReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "displayLabel": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "displayLabelLanguage": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "HealthDiseaseProgrammesInput": {
+        "required": [
+          "programmeCode",
+          "conditionCodes",
+          "benefitCategory",
+          "reviewInterval",
+          "code",
+          "changeReason"
+        ],
+        "type": "object",
+        "properties": {
+          "programmeCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "conditionCodes": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "benefitCategory": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reviewInterval": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "code": {
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "effectiveTo": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "labels": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSource": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSourceVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "externalMappings": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "recordClass": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sortOrder": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "displayFlags": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "changeReason": {
+            "type": "string"
+          }
+        }
+      },
       "HealthEligibilityResponseCodes": {
         "type": "object",
         "properties": {
@@ -226990,6 +228746,405 @@
               "string"
             ],
             "format": "double"
+          },
+          "code": {
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "effectiveTo": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "labels": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSource": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSourceVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "externalMappings": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "recordClass": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sortOrder": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "displayFlags": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "changeReason": {
+            "type": "string"
+          }
+        }
+      },
+      "HealthPreventiveSchedules": {
+        "type": "object",
+        "properties": {
+          "scheduleCode": {
+            "type": "string"
+          },
+          "planCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "itemKind": {
+            "enum": [
+              "SCREENING",
+              "VACCINE"
+            ],
+            "type": "string"
+          },
+          "serviceCode": {
+            "type": "string"
+          },
+          "benefitCategory": {
+            "type": "string"
+          },
+          "minAge": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maxAge": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "sex": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "serviceInterval": {
+            "type": "string"
+          },
+          "noCopay": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenantId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "version": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "effectiveFrom": {
+            "type": "string",
+            "format": "date"
+          },
+          "effectiveTo": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "recordStatus": {
+            "enum": [
+              "DRAFT",
+              "VALIDATED",
+              "SUBMITTED",
+              "APPROVED",
+              "PUBLISHED",
+              "EFFECTIVE",
+              "WITHDRAWN",
+              "RETIRED"
+            ],
+            "type": "string"
+          },
+          "supersedesId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "labels": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSource": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordSourceVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "externalMappings": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "recordClass": {
+            "type": "string"
+          },
+          "sortOrder": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "displayFlags": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "changeRequestId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "importBatchId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "approvedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "approvedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "changeReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "displayLabel": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "displayLabelLanguage": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "HealthPreventiveSchedulesInput": {
+        "required": [
+          "scheduleCode",
+          "itemKind",
+          "serviceCode",
+          "benefitCategory",
+          "serviceInterval",
+          "noCopay",
+          "code",
+          "changeReason"
+        ],
+        "type": "object",
+        "properties": {
+          "scheduleCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "planCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "itemKind": {
+            "enum": [
+              "SCREENING",
+              "VACCINE",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "serviceCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "benefitCategory": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "minAge": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "maxAge": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "sex": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "serviceInterval": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "noCopay": {
+            "type": [
+              "null",
+              "boolean"
+            ]
           },
           "code": {
             "type": "string"
@@ -272897,6 +275052,24 @@
           }
         }
       },
+      "StaticDataImportOfHealthDiseaseProgrammesInput": {
+        "required": [
+          "fileRef",
+          "lines"
+        ],
+        "type": "object",
+        "properties": {
+          "fileRef": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthDiseaseProgrammesInput"
+            }
+          }
+        }
+      },
       "StaticDataImportOfHealthEligibilityResponseCodesInput": {
         "required": [
           "fileRef",
@@ -273181,6 +275354,24 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/HealthPrescriptionBenefitsInput"
+            }
+          }
+        }
+      },
+      "StaticDataImportOfHealthPreventiveSchedulesInput": {
+        "required": [
+          "fileRef",
+          "lines"
+        ],
+        "type": "object",
+        "properties": {
+          "fileRef": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthPreventiveSchedulesInput"
             }
           }
         }

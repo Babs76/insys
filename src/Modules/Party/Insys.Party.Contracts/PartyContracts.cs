@@ -202,6 +202,9 @@ public interface IPartyDirectory
 public interface IPersonFacts
 {
     Task<DateOnly?> BirthDate(Guid tenantId, Guid partyId, CancellationToken cancellationToken);
+
+    /// <summary>The individual's recorded gender code, for a preventive schedule's rule; null when none is recorded.</summary>
+    Task<string?> GenderCode(Guid tenantId, Guid partyId, CancellationToken cancellationToken);
 }
 
 /// <summary>

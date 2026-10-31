@@ -99,6 +99,20 @@ public static class HealthInfrastructure
         services.AddScoped<IHealthLists, HealthLists>();
         services.AddScoped<BenefitContexts>();
         services.AddScoped<DependantPrivacy>(); // OQ-161
+        services.AddSingleton<BuildingBlocks.Application.IReadinessCheck, ChronicReviewerReadiness>();
+        // Wave 5b §6: a plan with no preventive schedule is a warning, not a blocker.
+        BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddSqlReadiness(services, Persistence.HealthDbContext.SchemaName, ["DOMAIN_REFERENCE_DATA"], async (context, connection, transaction, ct) =>
+        {
+            var inForce = BuildingBlocks.Infrastructure.Readiness.ReadinessSql.InForce;
+            var unscheduled = await BuildingBlocks.Infrastructure.Readiness.ReadinessSql.Count(connection, transaction,
+                $"""
+                SELECT count(*) FROM (SELECT DISTINCT plan_code FROM health.cfg_plans_and_options WHERE tenant_id = @t AND {inForce}) p
+                WHERE NOT EXISTS (SELECT 1 FROM health.cfg_preventive_schedules s WHERE s.tenant_id = @t AND (s.plan_code IS NULL OR s.plan_code = p.plan_code)
+                  AND s.record_status = ANY(@inForce) AND s.effective_from <= @day AND (s.effective_to IS NULL OR s.effective_to > @day))
+                """, ct, ("t", context.TenantId), ("inForce", BuildingBlocks.Infrastructure.StaticData.StaticLifecycle.Configuration.InForce), ("day", context.Day));
+            return [BuildingBlocks.Application.ReadinessResult.Warning("DOMAIN_REFERENCE_DATA", "PREVENTIVE_SCHEDULES", "A plan with no preventive schedule pays preventive care from day-to-day benefits",
+                unscheduled > 0 ? ["health.cfg_preventive_schedules"] : [])];
+        });
         // Wave 5b §6: a pharmacy format in force needs a formulary and prescription benefits for each plan.
         BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddSqlReadiness(services, Persistence.HealthDbContext.SchemaName, ["DOMAIN_REFERENCE_DATA"], async (context, connection, transaction, ct) =>
         {
@@ -324,6 +338,20 @@ public sealed class HealthJobs(IServiceScopeFactory scopes, ITenantDirectory ten
         {
             await using var scope = Scope(tenantId);
             var raised = await scope.ServiceProvider.GetRequiredService<IDispatcher>().Send(new RaiseOverdueCareActivities(id, day), cancellationToken);
+            done += raised.IsSuccess ? 1 : 0;
+        }
+
+        IReadOnlyList<Guid> reviews = [];
+        await using (var scope = Scope(tenantId))
+        {
+            var due = await scope.ServiceProvider.GetRequiredService<IDispatcher>().Query(new FindProgrammeReviewsDue(day, 500), cancellationToken);
+            reviews = due.IsSuccess ? due.Value : [];
+        }
+
+        foreach (var id in reviews)
+        {
+            await using var scope = Scope(tenantId);
+            var raised = await scope.ServiceProvider.GetRequiredService<IDispatcher>().Send(new RaiseProgrammeReview(id, day), cancellationToken);
             done += raised.IsSuccess ? 1 : 0;
         }
 

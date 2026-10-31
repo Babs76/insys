@@ -970,6 +970,30 @@ public sealed class CareActivityFollowUpTasks(IProcessRepository processes, IPro
     }
 }
 
+/// <summary>F086: a programme enrolment's review gets a person's task, in the queue its task type routes to. Names no programme.</summary>
+public sealed class ProgrammeReviewTasks(IProcessRepository processes, IProcessQueries queries, IWorkflowConfiguration configuration, IBusinessDate businessDate,
+    IClock clock, IAuditTrail audit) : IIntegrationEventHandler<Health.Contracts.ProgrammeReviewDue>
+{
+    public const string BusinessRefType = "HEALTH_PROGRAMME_REVIEW";
+
+    public async Task Handle(Health.Contracts.ProgrammeReviewDue due, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if ((await queries.List(BusinessRefType, due.ReviewId, null, 1, cancellationToken)).Count > 0)
+        {
+            return;
+        }
+
+        var now = clock.UtcNow;
+        var routing = await configuration.Routing(businessDate.Today, now, cancellationToken);
+        var process = ProcessInstance.StartProcess(Guid.CreateVersion7(), BuiltInProcesses.ProgrammeReview, BusinessRefType, due.ReviewId, routing, now);
+        processes.Add(process.Value);
+        audit.Record(new AuditEntry("WORKFLOW", "StartProcess", nameof(ProcessInstance), process.Value.Id.ToString(), new Dictionary<string, string?>
+        {
+            ["process"] = $"{BuiltInProcesses.ProgrammeReview.ProcessCode}@{BuiltInProcesses.ProgrammeReview.Version}", ["enrolment"] = due.EnrolmentNumber,
+        }));
+    }
+}
+
 /// <summary>F028: a breached provider measure gets a person's task (HEALTH_PROVIDER_MEASURE_REVIEW), in the queue its task type routes to; a person closes it.</summary>
 public sealed class ProviderMeasureReviewTasks(IProcessRepository processes, IProcessQueries queries, IWorkflowConfiguration configuration, IBusinessDate businessDate,
     IClock clock, IAuditTrail audit) : IIntegrationEventHandler<Health.Contracts.ProviderMeasureBreached>

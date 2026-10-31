@@ -182,6 +182,12 @@ public sealed record ChronicEntitlement(string? ProductCode, string? ActiveIngre
 /// <summary>An approved registration in force for the patient on the service date, with its condition's benefit category and diagnosis codes (F084).</summary>
 public sealed record ChronicBenefit(string Category, IReadOnlyList<string> DiagnosisCodes, IReadOnlyList<ChronicEntitlement> Entitlements);
 
+/// <summary>An enrolment in force, with its programme's benefit category and the diagnosis codes of the conditions it covers (F086).</summary>
+public sealed record ProgrammeBenefit(string Category, IReadOnlyList<string> DiagnosisCodes);
+
+/// <summary>A scheduled screening or vaccine (health.cfg_preventive_schedules). Within the schedule a line draws on its category; outside it, on day-to-day benefits (F087, F088).</summary>
+public sealed record PreventiveRule(string? PlanCode, string ServiceCode, string Category, int? MinAge, int? MaxAge, string? Sex, string Interval, bool NoCopay);
+
 /// <summary>A limit on a product or an active ingredient (health.cfg_medication_limits), on top of category limits; the most restrictive wins (F046).</summary>
 public sealed record MedicationLimit(string? PlanCode, string? ProductCode, string? ActiveIngredient, int? MaxQuantity, decimal? MaxAmount, string Period)
 {
@@ -301,6 +307,17 @@ public sealed record AdjudicationContext
     public IReadOnlyList<MedicationLimit> MedicationLimits { get; init; } = [];
 
     public IReadOnlyList<ChronicBenefit> ChronicBenefits { get; init; } = [];
+
+    public IReadOnlyList<ProgrammeBenefit> ProgrammeBenefits { get; init; } = [];
+
+    public IReadOnlyList<PreventiveRule> PreventiveRules { get; init; } = [];
+
+    /// <summary>The patient's services on other claims, read only when a schedule applies: a member's own claim has no other history loaded.</summary>
+    public IReadOnlyList<PriorService> PreventiveHistory { get; init; } = [];
+
+    public DateOnly? PatientBirthDate { get; init; }
+
+    public string? PatientSex { get; init; }
 }
 
 public sealed record LineResult(int LineNo, LineOutcome Outcome, string? Reason, string? Category, NetworkStatus? NetworkStatus, decimal? Tariff, decimal Allowed,
@@ -442,11 +459,36 @@ public static class AdjudicationEngine
         context.ChronicBenefits.FirstOrDefault(c => (line.DiagnosisCode is not null && CodeRanges.Contains(c.DiagnosisCodes, line.DiagnosisCode))
             || (line.Pharmacy is not null && c.Entitlements.Any(e => e.Covers(line.TariffCode, item?.ActiveIngredient))));
 
-    /// <summary>The benefit category a line draws on, whichever accumulators it needs (ADR-012, a; a registered condition first).</summary>
+    /// <summary>The schedule a line is within: its code, the patient's age and sex on the service date, and no use of it within the interval. An unknown birth date is not within an age band.</summary>
+    public static PreventiveRule? PreventiveFor(ClaimLineInput line, AdjudicationContext context) =>
+        context.PreventiveRules.Where(r => r.ServiceCode == line.TariffCode && (r.PlanCode is null || r.PlanCode == context.Plan.PlanCode)).OrderBy(r => r.PlanCode is null)
+            .FirstOrDefault(r => InBand(r, context) && (r.Sex is null || r.Sex == context.PatientSex)
+                && !context.PreventiveHistory.Any(p => p.ClaimId != context.ClaimId && p.TariffCode == r.ServiceCode && p.ServiceDate <= context.ServiceDate
+                    && IsoDuration.Add(p.ServiceDate, r.Interval) is { } next && context.ServiceDate < next));
+
+    private static bool InBand(PreventiveRule rule, AdjudicationContext context)
+    {
+        if (rule.MinAge is null && rule.MaxAge is null)
+        {
+            return true;
+        }
+
+        if (context.PatientBirthDate is not { } born)
+        {
+            return false;
+        }
+
+        var age = context.ServiceDate.Year - born.Year - (born.AddYears(context.ServiceDate.Year - born.Year) > context.ServiceDate ? 1 : 0);
+        return (rule.MinAge is null || age >= rule.MinAge) && (rule.MaxAge is null || age <= rule.MaxAge);
+    }
+
+    /// <summary>The benefit category a line draws on, whichever accumulators it needs (ADR-012, a): a registered condition, then a programme, then a schedule, then the usual mapping.</summary>
     public static string? CategoryOf(ClaimLineInput line, AdjudicationContext context)
     {
         var rx = line.Pharmacy is null ? null : PharmacyTerms.Of(line.TariffCode, context);
-        return ChronicFor(line, rx?.Item, context)?.Category ?? (rx is not null ? rx.Category
+        return ChronicFor(line, rx?.Item, context)?.Category
+            ?? (line.DiagnosisCode is null ? null : context.ProgrammeBenefits.FirstOrDefault(p => CodeRanges.Contains(p.DiagnosisCodes, line.DiagnosisCode))?.Category)
+            ?? PreventiveFor(line, context)?.Category ?? (rx is not null ? rx.Category
             : BenefitCategories.Of(line.TariffCode, context.CodeSystems.GetValueOrDefault(line.TariffCode), context.Provider.ProviderType, context.Mappings));
     }
 
@@ -684,7 +726,8 @@ public static class AdjudicationEngine
         var year = Current(state, memberYear, keys[memberYear]);
         var deductibleRule = Rule(context, "DEDUCTIBLE", category, networkCode);
         var deductible = deductibleRule is null ? 0 : Math.Min(allowed, Math.Max(0, deductibleRule.Value - year.DeductibleMet));
-        var copayRule = rx?.Benefit is { CopayType: { } copayType, CopayValue: { } copayValue }
+        var copayRule = PreventiveFor(line, context) is { NoCopay: true } && category == PreventiveFor(line, context)!.Category ? null
+            : rx?.Benefit is { CopayType: { } copayType, CopayValue: { } copayValue }
             ? new CostShareRule("CO_PAYMENT", category, copayType, copayValue, networkCode, null, "NONE", context.Plan.PlanCode) // the tier's co-payment (F043)
             : Rule(context, "CO_PAYMENT", category, memberPriced || context.OutOfNetworkTreatment == "COVERED_AT_TARIFF" ? "IN_NETWORK" : networkCode);
         var copayBase = allowed - deductible;

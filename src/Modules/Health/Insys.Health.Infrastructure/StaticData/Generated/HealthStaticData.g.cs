@@ -34,7 +34,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Insys.Health.Infrastructure.StaticData;
 
-/// <summary>The 47 static data tables owned by the Health module.</summary>
+/// <summary>The 49 static data tables owned by the Health module.</summary>
 public static class HealthStaticData
 {
     public static readonly IReadOnlyList<StaticDataDescriptor> Descriptors =
@@ -50,6 +50,7 @@ public static class HealthStaticData
         new("health", "cfg_contribution_grace_rules", "cfg_contribution_grace_rules", "Contribution grace rules", "health", "contribution-grace-rules", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(ContributionGraceRules), typeof(ContributionGraceRulesInput), "Membership and eligibility"),
         new("health", "cfg_contribution_rules", "cfg_contribution_rules", "Contribution rules", "health", "contribution-rules", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(ContributionRules), typeof(ContributionRulesInput), "B · Scheme and Group Administration"),
         new("health", "cfg_dependant_types_and_age_limits", "cfg_dependant_types_and_age_limits", "Dependant types and age limits", "health", "dependant-types-and-age-limits", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(DependantTypesAndAgeLimits), typeof(DependantTypesAndAgeLimitsInput), "C · Member Administration"),
+        new("health", "cfg_disease_programmes", "cfg_disease_programmes", "Disease programmes", "health", "disease-programmes", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(DiseaseProgrammes), typeof(DiseaseProgrammesInput), "Health claims"),
         new("health", "cfg_health_fraud_indicator_definitions", "cfg_health_fraud_indicator_definitions", "Health fraud indicator definitions", "health", "health-fraud-indicator-definitions", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(HealthFraudIndicatorDefinitions), typeof(HealthFraudIndicatorDefinitionsInput), "K · Health Fraud and Abuse Controls"),
         new("health", "cfg_health_waiting_period_rules", "cfg_health_waiting_period_rules", "Health waiting period rules", "health", "health-waiting-period-rules", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(HealthWaitingPeriodRules), typeof(HealthWaitingPeriodRulesInput), "A · Health Product and Plan"),
         new("health", "cfg_high_cost_thresholds", "cfg_high_cost_thresholds", "High-cost thresholds", "health", "high-cost-thresholds", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(HighCostThresholds), typeof(HighCostThresholdsInput), "I · Utilisation Management"),
@@ -63,6 +64,7 @@ public static class HealthStaticData
         new("health", "cfg_plans_and_options", "cfg_plans_and_options", "Plans and options", "health", "plans-and-options", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(PlansAndOptions), typeof(PlansAndOptionsInput), "A · Health Product and Plan"),
         new("health", "cfg_preauthorisation_required_lists", "cfg_preauthorisation_required_lists", "Preauthorisation-required lists", "health", "preauthorisation-required-lists", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(PreauthorisationRequiredLists), typeof(PreauthorisationRequiredListsInput), "G · Preauthorisation Management"),
         new("health", "cfg_prescription_benefits", "cfg_prescription_benefits", "Prescription benefits", "health", "prescription-benefits", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(PrescriptionBenefits), typeof(PrescriptionBenefitsInput), "Health claims"),
+        new("health", "cfg_preventive_schedules", "cfg_preventive_schedules", "Preventive schedules", "health", "preventive-schedules", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(PreventiveSchedules), typeof(PreventiveSchedulesInput), "Health claims"),
         new("health", "cfg_provider_contracts", "cfg_provider_contracts", "Provider contracts", "health", "provider-contracts", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(ProviderContracts), typeof(ProviderContractsInput), "F · Provider Network Management"),
         new("health", "cfg_provider_measures", "cfg_provider_measures", "Provider measures", "health", "provider-measures", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(ProviderMeasures), typeof(ProviderMeasuresInput), "Health claims"),
         new("health", "cfg_provider_recovery_settings", "cfg_provider_recovery_settings", "Provider recovery settings", "health", "provider-recovery-settings", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(ProviderRecoverySettings), typeof(ProviderRecoverySettingsInput), "Health claims"),
@@ -196,6 +198,15 @@ public static class HealthStaticData
             entity.Property(x => x.StudentExtensionAge).HasColumnName("student_extension_age");
             entity.Property(x => x.Evidence).HasColumnName("evidence").HasMaxLength(80);
         });
+        modelBuilder.Entity<DiseaseProgrammes>(entity =>
+        {
+            entity.ToTable("cfg_disease_programmes", "health");
+            StaticModel.ConfigureCommon(entity);
+            entity.Property(x => x.ProgrammeCode).HasColumnName("programme_code").HasMaxLength(15);
+            entity.Property(x => x.ConditionCodes).HasColumnName("condition_codes");
+            entity.Property(x => x.BenefitCategory).HasColumnName("benefit_category").HasMaxLength(15);
+            entity.Property(x => x.ReviewInterval).HasColumnName("review_interval").HasMaxLength(10);
+        });
         modelBuilder.Entity<HealthFraudIndicatorDefinitions>(entity =>
         {
             entity.ToTable("cfg_health_fraud_indicator_definitions", "health");
@@ -324,6 +335,21 @@ public static class HealthStaticData
             entity.Property(x => x.LimitAmount).HasColumnName("limit_amount").HasPrecision(18, 2);
             entity.Property(x => x.PrescriptionValidityDays).HasColumnName("prescription_validity_days");
             entity.Property(x => x.RefillTolerancePercent).HasColumnName("refill_tolerance_percent").HasPrecision(5, 2);
+        });
+        modelBuilder.Entity<PreventiveSchedules>(entity =>
+        {
+            entity.ToTable("cfg_preventive_schedules", "health");
+            StaticModel.ConfigureCommon(entity);
+            entity.Property(x => x.ScheduleCode).HasColumnName("schedule_code").HasMaxLength(15);
+            entity.Property(x => x.PlanCode).HasColumnName("plan_code").HasMaxLength(15);
+            entity.Property(x => x.ItemKind).HasColumnName("item_kind").HasMaxLength(10);
+            entity.Property(x => x.ServiceCode).HasColumnName("service_code").HasMaxLength(20);
+            entity.Property(x => x.BenefitCategory).HasColumnName("benefit_category").HasMaxLength(15);
+            entity.Property(x => x.MinAge).HasColumnName("min_age");
+            entity.Property(x => x.MaxAge).HasColumnName("max_age");
+            entity.Property(x => x.Sex).HasColumnName("sex").HasMaxLength(10);
+            entity.Property(x => x.ServiceInterval).HasColumnName("service_interval").HasMaxLength(10);
+            entity.Property(x => x.NoCopay).HasColumnName("no_copay");
         });
         modelBuilder.Entity<ProviderContracts>(entity =>
         {

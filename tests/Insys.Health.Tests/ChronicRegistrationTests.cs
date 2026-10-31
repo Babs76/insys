@@ -81,4 +81,21 @@ public sealed class ChronicRegistrationTests
         raised.ToString().ShouldNotContain("E11");
         raised.ToString().ShouldNotContain("Criteria");
     }
+
+    [Fact]
+    public void AnEnrolmentsReview_IsRaisedOnceForItsDate_AndAReviewMovesIt_F086()
+    {
+        var enrolment = ProgrammeEnrolment.Enrol(Guid.CreateVersion7(), "PE-1", Guid.CreateVersion7(), Guid.CreateVersion7(), "DM-CARE", null, Day, Day.AddMonths(6), Maker);
+        enrolment.RaiseReviewDue(Day.AddMonths(6).AddDays(-1), Now).ShouldBeFalse();
+        enrolment.RaiseReviewDue(Day.AddMonths(6), Now).ShouldBeTrue();
+        enrolment.RaiseReviewDue(Day.AddMonths(6).AddDays(1), Now).ShouldBeFalse();
+        var raised = enrolment.DomainEvents.OfType<ProgrammeReviewDue>().Single();
+        raised.ToString().ShouldNotContain("DM-CARE");
+
+        enrolment.RecordReview(Day.AddMonths(12), Day.AddMonths(6)).IsSuccess.ShouldBeTrue();
+        enrolment.RaiseReviewDue(Day.AddMonths(12), Now).ShouldBeTrue();
+
+        enrolment.End(Day.AddMonths(13)).IsSuccess.ShouldBeTrue();
+        enrolment.RaiseReviewDue(Day.AddMonths(30), Now).ShouldBeFalse();
+    }
 }

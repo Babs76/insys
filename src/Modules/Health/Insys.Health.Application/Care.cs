@@ -134,7 +134,7 @@ public sealed class SubmitMedicalClaimValidator : AbstractValidator<SubmitMedica
 }
 
 /// <summary>Builds the adjudication context from the membership, the plan's static data and the accumulators (ADR-012).</summary>
-public sealed class BenefitContexts(IHealthRepository health, IHealthCodes codes, IExclusionCodes exclusions, ITenantContext tenant)
+public sealed class BenefitContexts(IHealthRepository health, IHealthCodes codes, IExclusionCodes exclusions, ITenantContext tenant, Party.Contracts.IPersonFacts persons)
 {
     /// <summary>Claim history is read two years back (repeat services), or further when an edit rule's window needs it.</summary>
     private static DateOnly PriorFrom(DateOnly serviceDate, IReadOnlyList<EditRule> edits)
@@ -173,7 +173,23 @@ public sealed class BenefitContexts(IHealthRepository health, IHealthCodes codes
             Reviews = reviews ?? new Dictionary<int, ReviewDecision>(),
         };
 
-        context = context with { ChronicBenefits = await ChronicBenefitsFor(patientPartyId, serviceDate, cancellationToken) };
+        context = context with
+        {
+            ChronicBenefits = await ChronicBenefitsFor(patientPartyId, serviceDate, cancellationToken),
+            ProgrammeBenefits = await ProgrammeBenefitsFor(patientPartyId, serviceDate, cancellationToken),
+        };
+
+        // A schedule for one of these codes: only then are the patient's age, sex and history read.
+        var preventive = (await codes.PreventiveRules(plan.Terms.PlanCode, serviceDate, cancellationToken)).Where(r => lines.Any(l => l.TariffCode == r.ServiceCode)).ToList();
+        if (preventive.Count > 0)
+        {
+            context = context with
+            {
+                PreventiveRules = preventive, PreventiveHistory = await health.PriorServices(patientPartyId, serviceDate.AddYears(-10), claimId, cancellationToken),
+                PatientBirthDate = await persons.BirthDate(tenant.RequireTenantId(), patientPartyId, cancellationToken),
+                PatientSex = await persons.GenderCode(tenant.RequireTenantId(), patientPartyId, cancellationToken),
+            };
+        }
 
         // Pharmacy lines only: a claim with none reads nothing more, and adjudicates exactly as before.
         if (lines.Any(l => l.Pharmacy is not null))
@@ -205,6 +221,19 @@ public sealed class BenefitContexts(IHealthRepository health, IHealthCodes codes
         var keys = wanted.SelectMany(c => Limits.For(c, context, serviceDate).Accumulators.Keys).Distinct().ToList();
         var accumulators = await health.Accumulators(membership.Id, keys, cancellationToken);
         return context with { Accumulators = accumulators.ToDictionary(a => a.Key, a => a.State) };
+    }
+
+    private async Task<IReadOnlyList<ProgrammeBenefit>> ProgrammeBenefitsFor(Guid patientPartyId, DateOnly day, CancellationToken cancellationToken)
+    {
+        var enrolments = await health.ProgrammeEnrolmentsInForce(patientPartyId, day, cancellationToken);
+        if (enrolments.Count == 0)
+        {
+            return [];
+        }
+
+        var programmes = await codes.DiseaseProgrammes(enrolments.Select(e => e.ProgrammeCode).Distinct().ToList(), day, cancellationToken);
+        var conditions = await codes.ChronicConditions(programmes.Values.SelectMany(p => p.ConditionCodes).Distinct().ToList(), day, cancellationToken);
+        return programmes.Values.Select(p => new ProgrammeBenefit(p.Category, p.ConditionCodes.SelectMany(c => conditions.TryGetValue(c, out var terms) ? terms.DiagnosisCodes : []).ToList())).ToList();
     }
 
     /// <summary>The patient's registrations in force, each with its condition as configured on the day. A condition with no benefit category draws on nothing special.</summary>

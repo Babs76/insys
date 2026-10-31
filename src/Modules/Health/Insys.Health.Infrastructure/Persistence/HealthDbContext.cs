@@ -69,6 +69,8 @@ public sealed class HealthDbContext(DbContextOptions<HealthDbContext> options, M
 
     public DbSet<ChronicRegistration> ChronicRegistrations => Set<ChronicRegistration>();
 
+    public DbSet<ProgrammeEnrolment> ProgrammeEnrolments => Set<ProgrammeEnrolment>();
+
     public DbSet<Domain.Providers.ProviderMeasureResult> ProviderMeasureResults => Set<Domain.Providers.ProviderMeasureResult>();
 
     public DbSet<Domain.Providers.ProviderQualityReview> ProviderQualityReviews => Set<Domain.Providers.ProviderQualityReview>();
@@ -320,6 +322,15 @@ public sealed class HealthDbContext(DbContextOptions<HealthDbContext> options, M
             registration.Property(r => r.DeclineReason).HasMaxLength(500);
             registration.HasMany(r => r.Entitlements).WithOne().HasForeignKey(e => new { e.TenantId, e.RegistrationId });
             registration.Navigation(r => r.Entitlements).UsePropertyAccessMode(PropertyAccessMode.Field);
+        });
+
+        modelBuilder.Entity<ProgrammeEnrolment>(enrolment =>
+        {
+            enrolment.ToTable("programme_enrolment"); // Wave 5b §4.4, F086
+            Root(enrolment);
+            enrolment.Property(e => e.EnrolmentNumber).HasMaxLength(25);
+            enrolment.Property(e => e.ProgrammeCode).HasMaxLength(15);
+            enrolment.Property(e => e.Status).HasMaxLength(10);
         });
 
         modelBuilder.Entity<ChronicEntitlementItem>(entitlement =>

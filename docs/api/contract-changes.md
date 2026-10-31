@@ -2,6 +2,13 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
+## Wave 5b batch 5b.4 (branch `wave5b4`): disease programmes and preventive schedules (addendum §4.4, §4.5; F086 to F088)
+
+### New
+- **`health.cfg_disease_programmes`, `health.cfg_preventive_schedules`** (static data, tenant, Tier 2).
+- **`POST`, `GET /health/programme-enrolments`, `GET /{id}`, `GET /{id}/clinical?purpose=`, `POST /{id}/review`, `/end`.** The ordinary views name no programme. Permissions `health_programme.read`, `.create`, `.update`. Business reference `HEALTH_PROGRAMME_REVIEW`.
+- **Readiness warnings** `PREVENTIVE_SCHEDULES`, `CHRONIC_REVIEWER`.
+
 ## Wave 5b batch 5b.3 (branch `wave5b3`): chronic registration (addendum §4.3; F083 to F085)
 
 ### New

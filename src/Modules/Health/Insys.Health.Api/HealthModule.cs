@@ -94,6 +94,10 @@ public sealed record ApproveChronicRequest(DateOnly ValidFrom, DateOnly? ValidTo
 
 public sealed record DeclineChronicRequest(string Reason);
 
+public sealed record EnrolInProgrammeRequest(Guid MembershipId, Guid PatientPartyId, string ProgrammeCode, Guid? ComplexCaseId);
+
+public sealed record EndProgrammeRequest(DateOnly LastDay);
+
 public sealed record EndChronicRequest(DateOnly LastDay);
 
 public sealed record CaseOutcomeRequest(string Outcome);
@@ -215,6 +219,25 @@ public sealed class HealthModule : IModule
                 (await d.Send(new EndChronicRegistration(id, r.LastDay), ct)).ToHttp(Results.Ok))
             .Produces<ChronicRegistrationView>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status409Conflict).TakesIfMatch()
             .WithName("HealthEndChronicRegistration").WithSummary("End an approved registration from a day").RequirePermission(HealthPermissions.ChronicUpdate);
+        health.MapPost("/programme-enrolments", async (EnrolInProgrammeRequest r, IDispatcher d, CancellationToken ct) =>
+                (await d.Send(new EnrolInProgramme(r.MembershipId, r.PatientPartyId, r.ProgrammeCode, r.ComplexCaseId), ct)).ToHttp(v => Results.Created($"/api/v1/health/programme-enrolments/{v.Id}", v)))
+            .Produces<ProgrammeEnrolmentView>(StatusCodes.Status201Created).ProducesProblem(StatusCodes.Status409Conflict).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("HealthEnrolInProgramme").WithSummary("Enrol a member with a registered condition in a disease programme (F086)").RequirePermission(HealthPermissions.ProgrammeCreate).RequireIdempotencyKey();
+        health.MapGet("/programme-enrolments", async (Guid? membershipId, string? status, string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListProgrammeEnrolments(membershipId, status, after, size), ct), e => e.Id))
+            .Produces<CursorPage<ProgrammeEnrolmentView>>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("HealthListProgrammeEnrolments").WithSummary("Programme enrolments, by membership or status; no programme named").RequirePermission(HealthPermissions.ProgrammeRead);
+        health.MapGet("/programme-enrolments/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetProgrammeEnrolment(id), ct)).ToHttp(Results.Ok))
+            .Produces<ProgrammeEnrolmentView>(StatusCodes.Status200OK).WithName("HealthGetProgrammeEnrolment").WithSummary("A programme enrolment; no programme named").RequirePermission(HealthPermissions.ProgrammeRead);
+        health.MapGet("/programme-enrolments/{id:guid}/clinical", async (Guid id, string? purpose, IDispatcher d, CancellationToken ct) => (await d.Send(new ReadProgrammeEnrolmentClinical(id, purpose), ct)).ToHttp(Results.Ok))
+            .Produces<ProgrammeEnrolmentClinicalView>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("HealthReadProgrammeEnrolmentClinical").WithSummary("An enrolment's programme, for the clinical function, with a purpose; every read is audited").RequirePermission(HealthPermissions.ClinicalRead);
+        health.MapPost("/programme-enrolments/{id:guid}/review", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Send(new RecordProgrammeReview(id), ct)).ToHttp(Results.Ok))
+            .Produces<ProgrammeEnrolmentView>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status409Conflict).TakesIfMatch()
+            .WithName("HealthRecordProgrammeReview").WithSummary("Record a review: the next falls due after the programme's interval").RequirePermission(HealthPermissions.ProgrammeUpdate);
+        health.MapPost("/programme-enrolments/{id:guid}/end", async (Guid id, EndProgrammeRequest r, IDispatcher d, CancellationToken ct) => (await d.Send(new EndProgrammeEnrolment(id, r.LastDay), ct)).ToHttp(Results.Ok))
+            .Produces<ProgrammeEnrolmentView>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status409Conflict).TakesIfMatch()
+            .WithName("HealthEndProgrammeEnrolment").WithSummary("End an enrolment from a day").RequirePermission(HealthPermissions.ProgrammeUpdate);
         health.MapPost("/referrals/{id:guid}/decide", async (Guid id, DecideReferralRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new DecideClinicalReferral(id, r.Approved, r.Reason), ct)).ToHttp(Results.Ok))
             .Produces<ClinicalReferralView>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity).TakesIfMatch()
