@@ -434,8 +434,6 @@ core	LifeMigratedBenefit.benefitCode	a benefit key of the product
 core	BillingMigrateOutstandingPremiums.batchCode	the batch name the file gives; no list
 core	FinanceMigrateOpeningBalances.batchCode	the batch name the file gives; no list
 core	FinanceOpeningBalanceLine.accountCode	an account key, checked against the chart
-core	IntegrationReconciliationLine.kind	a total kind, some naming an account
-core	IntegrationSourceTotal.kind	a total kind, some naming an account
 core	IntegrationMigrationReconciliationReport.batchCode	the batch name the file gives; no list
 core	GeneralMigrateGeneralClaims.batchCode	the batch name the file gives; no list
 core	GeneralMigratedClaim.coverageCode	a coverage key of the policy
