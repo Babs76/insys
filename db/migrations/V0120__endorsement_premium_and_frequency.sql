@@ -29,4 +29,5 @@
 -- fraud function; bulk jobs for parties, all or nothing.
 -- =====================================================================
 -- B-007, B-008: an endorsement that adjusts the premium by a per cent, or changes the billing frequency.
+ALTER TABLE general.endorsement ALTER COLUMN endorsement_type TYPE varchar(20);
 ALTER TABLE general.endorsement ADD COLUMN adjustment_pct numeric(7,4), ADD COLUMN new_billing_frequency varchar(15), ADD COLUMN new_loading_pct numeric(7,4);
