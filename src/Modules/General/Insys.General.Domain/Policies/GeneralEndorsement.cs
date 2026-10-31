@@ -191,9 +191,9 @@ public sealed class GeneralEndorsement : AggregateRoot<Guid>
     /// <summary>B-008: that frequency's instalment loading, from the product on the draft's day.</summary>
     public decimal? NewLoadingPct { get; private set; }
 
-    public const string PremiumAdjustmentType = "PREMIUM_ADJUSTMENT";
+    public const string PremiumAdjustmentType = "PREMIUM_ADJUST";
 
-    public const string BillingFrequencyType = "BILLING_FREQUENCY";
+    public const string BillingFrequencyType = "BILLING_FREQ";
 
     /// <summary>
     /// B-007: the annual premium moved by a per cent from the effective date, without re-rating the risk, so it is rated at once. What it charges or gives back

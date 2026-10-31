@@ -15,9 +15,9 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 ## Endorsement actions (branch `endorsement-actions`, B-007, B-008)
 
-- **`POST /general/policies/{id}/endorsements`** takes `adjustmentPct` for a `PREMIUM_ADJUSTMENT` type (negative for a discount) and `billingFrequency` for a `BILLING_FREQUENCY` type. Each has no `changes`, and is `Rated` at once, ready to submit. A tenant adds the two types in `general.cfg_endorsement_types` to use them.
+- **`POST /general/policies/{id}/endorsements`** takes `adjustmentPct` for a `PREMIUM_ADJUST` type (negative for a discount) and `billingFrequency` for a `BILLING_FREQ` type. Each has no `changes`, and is `Rated` at once, ready to submit. A tenant adds the two types in `general.cfg_endorsement_types` to use them.
 - **`EndorsementView`** gains `adjustmentPct`, `newBillingFrequency`.
-- **An accepted mid-term discount offer** drafts a `PREMIUM_ADJUSTMENT` endorsement for the case's owner to submit.
+- **An accepted mid-term discount offer** drafts a `PREMIUM_ADJUST` endorsement for the case's owner to submit.
 
 ## Migration batch (branch `migration-batch`, OQ-158, B-013)
 

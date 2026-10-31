@@ -2498,13 +2498,13 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
     [Fact]
     public async Task APremiumAdjustmentAndAFrequencyChange_AreApproved_AndBillingFollows_B007_B008()
     {
-        await Seed("general.cfg_endorsement_types", "EFFECTIVE", "PREMIUM_ADJUSTMENT", ("premium_method", "PRO_RATA"), ("documents", Array.Empty<string>()), ("requires_underwriting", false));
-        await Seed("general.cfg_endorsement_types", "EFFECTIVE", "BILLING_FREQUENCY", ("premium_method", "PRO_RATA"), ("documents", Array.Empty<string>()), ("requires_underwriting", false));
+        await Seed("general.cfg_endorsement_types", "EFFECTIVE", "PREMIUM_ADJUST", ("premium_method", "PRO_RATA"), ("documents", Array.Empty<string>()), ("requires_underwriting", false));
+        await Seed("general.cfg_endorsement_types", "EFFECTIVE", "BILLING_FREQ", ("premium_method", "PRO_RATA"), ("documents", Array.Empty<string>()), ("requires_underwriting", false));
         var (policy, _) = await IssuedPolicy();
         await _factory.DrainOutbox();
         var premium = (await Policy(policy)).GetProperty("annualPremium").GetDecimal();
 
-        var adjustment = await Created($"/api/v1/general/policies/{policy}/endorsements", new { endorsementType = "PREMIUM_ADJUSTMENT", effectiveDate = Today, changes = Array.Empty<object>(), adjustmentPct = -10m });
+        var adjustment = await Created($"/api/v1/general/policies/{policy}/endorsements", new { endorsementType = "PREMIUM_ADJUST", effectiveDate = Today, changes = Array.Empty<object>(), adjustmentPct = -10m });
         (await _maker.PostAsync($"/api/v1/general/endorsements/{adjustment}/submit", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
         await _factory.DrainOutbox();
         (await Policy(policy)).GetProperty("annualPremium").GetDecimal().ShouldBe(premium, "not until it's approved");
@@ -2513,11 +2513,11 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         (await Policy(policy)).GetProperty("annualPremium").GetDecimal().ShouldBe(adjusted);
         (await _db.ScalarAsOwner<decimal>("SELECT annual_premium FROM billing.premium_schedule WHERE policy_ref = @p", ("p", policy))).ShouldBe(adjusted);
 
-        var unknown = await _maker.Send(HttpMethod.Post, $"/api/v1/general/policies/{policy}/endorsements", new { endorsementType = "BILLING_FREQUENCY", effectiveDate = Today, changes = Array.Empty<object>(), billingFrequency = "WEEKLY" }, idempotent: true);
+        var unknown = await _maker.Send(HttpMethod.Post, $"/api/v1/general/policies/{policy}/endorsements", new { endorsementType = "BILLING_FREQ", effectiveDate = Today, changes = Array.Empty<object>(), billingFrequency = "WEEKLY" }, idempotent: true);
         unknown.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity, "the product doesn't allow it");
         await Seed("billing.ref_billing_frequencies", "ACTIVE", "ANNUAL", ("label", "Annual"), ("periods_per_year", 1));
         await Seed("general.cfg_product_billing_frequencies", "EFFECTIVE", "PBF-ANNUAL", ("product_code", Product), ("frequency", "ANNUAL"), ("instalment_loading_pct", 0m));
-        var change = await Created($"/api/v1/general/policies/{policy}/endorsements", new { endorsementType = "BILLING_FREQUENCY", effectiveDate = Today, changes = Array.Empty<object>(), billingFrequency = "ANNUAL" });
+        var change = await Created($"/api/v1/general/policies/{policy}/endorsements", new { endorsementType = "BILLING_FREQ", effectiveDate = Today, changes = Array.Empty<object>(), billingFrequency = "ANNUAL" });
         (await _maker.PostAsync($"/api/v1/general/endorsements/{change}/submit", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
         await _factory.DrainOutbox();
         await Decide(GeneralApprovals.EndorsementBusinessRefType, change, approve: true);
