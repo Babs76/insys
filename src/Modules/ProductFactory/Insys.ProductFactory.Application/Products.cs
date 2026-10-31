@@ -116,26 +116,26 @@ public sealed record CreateDraftVersion(string ProductCode, DateOnly EffectiveFr
 /// <param name="CoverStartsOn">When cover starts on the version's policies; unchanged when omitted.</param>
 /// <param name="EligibilityRulesetCode">The eligibility rule set proposals must pass; unchanged when omitted, cleared when empty.</param>
 /// <param name="ReinstatementArrears">Whether arrears must be paid before reinstatement; unchanged when omitted.</param>
-[VersionOf(typeof(ProductVersion))]
+[VersionOf(ProductVersionTable.Name)]
 public sealed record EditConfiguration(string ProductCode, int Version, string Name, IReadOnlyList<string> Coverages, DateOnly EffectiveFrom, long ExpectedVersion,
     CoverStart? CoverStartsOn = null, string? EligibilityRulesetCode = null, ReinstatementArrears? ReinstatementArrears = null) : ICommand<long>, IVersionedCommand;
 
-[VersionOf(typeof(ProductVersion))]
+[VersionOf(ProductVersionTable.Name)]
 public sealed record ValidateVersion(string ProductCode, int Version, long ExpectedVersion) : ICommand<long>, IVersionedCommand;
 
 public sealed record RunSimulation(string ProductCode, int Version) : ICommand<SimulationRunView>;
 
-[VersionOf(typeof(ProductVersion))]
+[VersionOf(ProductVersionTable.Name)]
 public sealed record SubmitForApproval(string ProductCode, int Version, string? Reason, long ExpectedVersion) : ICommand<long>, IVersionedCommand;
 
-[VersionOf(typeof(ProductVersion))]
+[VersionOf(ProductVersionTable.Name)]
 public sealed record WithdrawVersion(string ProductCode, int Version, DateOnly EffectiveTo, long ExpectedVersion) : ICommand<long>, IVersionedCommand;
 
-[VersionOf(typeof(ProductVersion))]
+[VersionOf(ProductVersionTable.Name)]
 public sealed record RetireVersion(string ProductCode, int Version, long ExpectedVersion) : ICommand<long>, IVersionedCommand;
 
 /// <summary>Transition "Effective date reached", run by the product job as a service identity.</summary>
-[VersionOf(typeof(ProductVersion))]
+[VersionOf(ProductVersionTable.Name)]
 public sealed record MakeVersionEffective(Guid VersionId) : ICommand<long>, IReturnsSavedVersion;
 
 public sealed record GetProductVersion(string ProductCode, int Version) : IQuery<ProductVersionView>;
@@ -189,6 +189,12 @@ internal static class Users
         execution.ActorType == ActorType.User && Guid.TryParse(execution.ActorId, out var id)
             ? id
             : Error.Forbidden(ErrorCodes.Forbidden, "Product versions are changed by identified users.");
+}
+
+/// <summary>The table a product version is stored in: its version is that row's (the domain object is mapped by hand, so it isn't itself tracked).</summary>
+public static class ProductVersionTable
+{
+    public const string Name = "cfg_product_definitions_and_versions";
 }
 
 internal static class Versions
