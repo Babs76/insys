@@ -335,7 +335,7 @@ public sealed class PartyAnonymisationTests(DatabaseFixture fixture) : IClassFix
     }
 
     private async Task<string> StatusOf(Guid tenant, Guid party) =>
-        (await (await _today.ClientFor(tenant, Officer).GetAsync($"/api/v1/party/parties/{party}")).Json()).GetProperty("status").GetString()!;
+        (await (await _today.ClientFor(tenant, Officer).GetAsync($"/api/v1/party/parties/{party}")).Json()).GetProperty("status").GetString()!.ToUpperInvariant();
 
     [Fact]
     public async Task APartyGoesDormantWhenNothingIsOpen_AndBackWhenSomethingIs_CountingACase_OQ054()
