@@ -56,6 +56,7 @@ public static class HealthInfrastructure
         BuildingBlocks.Application.Context.JobFunctions.ForConsumers(Persistence.HealthDbContext.SchemaName, "HEALTH_EVENT_PROCESSING");
         const string schema = HealthDbContext.SchemaName;
         services.AddSingleton<BuildingBlocks.Application.Context.IMigrationTotals, Persistence.HealthMigrationTotals>();
+        services.AddSingleton<BuildingBlocks.Application.Context.IPolicyExportRows, Persistence.HealthPolicyExport>();
         services.AddModuleDbContext<HealthDbContext>(schema, "Health");
         // D-34: a legal hold on a Health membership or claim itself, placed only within the caller's scope (F103).
         services.AddLegalHoldTargets(schema, new Dictionary<string, string>

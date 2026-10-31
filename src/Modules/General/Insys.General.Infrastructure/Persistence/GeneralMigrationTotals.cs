@@ -39,3 +39,12 @@ internal sealed class GeneralMigrationTotals([FromKeyedServices(GeneralDbContext
         SELECT 'GENERAL_POLICY', count(*), sum(annual_premium) FROM general.policy WHERE migration_batch = @batch HAVING count(*) > 0
         """, cancellationToken);
 }
+
+/// <summary>This module's policies, for an approved export (OQ-158).</summary>
+internal sealed class GeneralPolicyExport([FromKeyedServices(GeneralDbContext.SchemaName)] NpgsqlDataSource dataSource) : IPolicyExportRows
+{
+    public string Domain => "GENERAL";
+
+    public Task<IReadOnlyList<PolicyExportRow>> All(Guid tenantId, CancellationToken cancellationToken) =>
+        PolicyExportReader.Read(dataSource, tenantId, Domain, "SELECT policy_number, product_code, policyholder_party_id, status, period_start, period_end, currency FROM general.policy ORDER BY id", cancellationToken);
+}

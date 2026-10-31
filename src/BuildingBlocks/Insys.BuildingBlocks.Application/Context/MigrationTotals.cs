@@ -34,3 +34,14 @@ public interface IMigrationTotals
 {
     Task<IReadOnlyList<MigrationTotal>> For(Guid tenantId, string batchCode, CancellationToken cancellationToken);
 }
+
+/// <summary>A policy or membership in an export (OQ-158): numbers, status and dates, with no identifier numbers or medical data.</summary>
+public sealed record PolicyExportRow(string Domain, string PolicyNumber, string ProductCode, Guid PolicyholderPartyId, string Status, DateOnly StartDate, DateOnly? EndDate, string Currency);
+
+/// <summary>Public query interface, implemented by each module that keeps policies. With a domain named, only that module answers.</summary>
+public interface IPolicyExportRows
+{
+    string Domain { get; }
+
+    Task<IReadOnlyList<PolicyExportRow>> All(Guid tenantId, CancellationToken cancellationToken);
+}

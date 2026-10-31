@@ -52,3 +52,27 @@ public static class MigrationTotalsReader
         return totals;
     }
 }
+
+/// <summary>Runs a module's policy export query in the tenant. It returns number, product, holder, status, start, end and currency.</summary>
+public static class PolicyExportReader
+{
+    public static async Task<IReadOnlyList<PolicyExportRow>> Read(NpgsqlDataSource dataSource, Guid tenantId, string domain, string sql, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await TenantSession.SetTenant(connection, transaction, tenantId, cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection, transaction);
+        var rows = new List<PolicyExportRow>();
+        await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                rows.Add(new PolicyExportRow(domain, reader.GetString(0), reader.IsDBNull(1) ? "" : reader.GetString(1), reader.GetGuid(2), reader.GetString(3), reader.GetFieldValue<DateOnly>(4), reader.IsDBNull(5) ? null : reader.GetFieldValue<DateOnly>(5),
+                    reader.IsDBNull(6) ? "" : reader.GetString(6)));
+            }
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+        return rows;
+    }
+}

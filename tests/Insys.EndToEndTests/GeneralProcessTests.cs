@@ -2244,10 +2244,19 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         approved.StatusCode.ShouldBe(HttpStatusCode.OK, await approved.Content.ReadAsStringAsync());
         (await (await first.GetAsync($"{job}/content")).Content.ReadAsStringAsync()).ShouldContain("BulkTwo");
 
+        // OQ-158: policies leave the same way, after a second person.
+        var (issued, _) = await IssuedPolicy();
+        var policyExport = await first.Send(HttpMethod.Post, "/api/v1/party/bulk-jobs/policy-exports", new { domain = "GENERAL" }, idempotent: true);
+        policyExport.StatusCode.ShouldBe(HttpStatusCode.Created, await policyExport.Content.ReadAsStringAsync());
+        var policyJob = $"/api/v1/party/bulk-jobs/{(await policyExport.Json()).GetProperty("id").GetGuid()}";
+        (await first.GetAsync($"{policyJob}/content")).StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        (await second.Send(HttpMethod.Post, $"{policyJob}/approve", ifMatch: policyExport.ETag())).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await (await first.GetAsync($"{policyJob}/content")).Content.ReadAsStringAsync()).ShouldContain(await _db.ScalarAsOwner<string>("SELECT policy_number FROM general.policy WHERE id = @p", ("p", issued)) ?? "missing");
+
         // BR-122: newest first, filtered, summary fields only, read permission needed.
         const string Jobs = "/api/v1/integration/bulk-jobs";
         var listed = (await (await first.GetAsync(Jobs)).Json()).GetProperty("items");
-        listed.EnumerateArray().Select(j => j.GetProperty("direction").GetString()).ShouldBe(["EXPORT", "IMPORT", "IMPORT", "IMPORT", "IMPORT", "IMPORT"]);
+        listed.EnumerateArray().Select(j => j.GetProperty("direction").GetString()).ShouldBe(["EXPORT", "EXPORT", "IMPORT", "IMPORT", "IMPORT", "IMPORT", "IMPORT"]);
         listed[0].TryGetProperty("rejectedLines", out _).ShouldBeFalse();
         (await (await first.GetAsync($"{Jobs}?direction=IMPORT&status=REJECTED")).Json()).GetProperty("items").GetArrayLength().ShouldBe(3);
         (await (await first.GetAsync($"{Jobs}?type=PARTY_EXPORT&status=APPROVED")).Json()).GetProperty("items").GetArrayLength().ShouldBe(1);

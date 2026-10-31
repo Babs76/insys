@@ -58,6 +58,7 @@ public static class LifeInfrastructure
         BuildingBlocks.Application.Context.JobFunctions.ForConsumers(Persistence.LifeDbContext.SchemaName, "LIFE_EVENT_PROCESSING");
         const string schema = LifeDbContext.SchemaName;
         services.AddSingleton<BuildingBlocks.Application.Context.IMigrationTotals, Persistence.LifeMigrationTotals>();
+        services.AddSingleton<BuildingBlocks.Application.Context.IPolicyExportRows, Persistence.LifePolicyExport>();
         services.AddModuleDbContext<LifeDbContext>(schema, "Life");
         // D-34: a legal hold on a Life policy or claim itself, placed only within the caller's scope (F103).
         services.AddLegalHoldTargets(schema, new Dictionary<string, string>

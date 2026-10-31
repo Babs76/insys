@@ -39,3 +39,12 @@ internal sealed class LifeMigrationTotals([FromKeyedServices(LifeDbContext.Schem
         SELECT 'LIFE_POLICY', count(DISTINCT p.id), sum(b.premium) FROM life.policy p JOIN life.benefit b ON b.tenant_id = p.tenant_id AND b.policy_id = p.id WHERE p.migration_batch = @batch HAVING count(*) > 0
         """, cancellationToken);
 }
+
+/// <summary>This module's policies, for an approved export (OQ-158).</summary>
+internal sealed class LifePolicyExport([FromKeyedServices(LifeDbContext.SchemaName)] NpgsqlDataSource dataSource) : IPolicyExportRows
+{
+    public string Domain => "LIFE";
+
+    public Task<IReadOnlyList<PolicyExportRow>> All(Guid tenantId, CancellationToken cancellationToken) =>
+        PolicyExportReader.Read(dataSource, tenantId, Domain, "SELECT policy_number, product_code, policyholder_party_id, status, inception_date, term_end_date, currency FROM life.policy ORDER BY id", cancellationToken);
+}

@@ -60,6 +60,7 @@ public static class GeneralInfrastructure
         BuildingBlocks.Application.Context.JobFunctions.ForConsumers(Persistence.GeneralDbContext.SchemaName, "GENERAL_EVENT_PROCESSING");
         const string schema = GeneralDbContext.SchemaName;
         services.AddSingleton<BuildingBlocks.Application.Context.IMigrationTotals, Persistence.GeneralMigrationTotals>();
+        services.AddSingleton<BuildingBlocks.Application.Context.IPolicyExportRows, Persistence.GeneralPolicyExport>();
         services.AddModuleDbContext<GeneralDbContext>(schema, "General");
         // D-34: a legal hold on a General policy or claim itself, placed only within the caller's scope (F103).
         services.AddLegalHoldTargets(schema, new Dictionary<string, string>

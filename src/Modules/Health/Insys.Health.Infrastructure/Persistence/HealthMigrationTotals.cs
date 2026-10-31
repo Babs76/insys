@@ -39,3 +39,12 @@ internal sealed class HealthMigrationTotals([FromKeyedServices(HealthDbContext.S
         SELECT 'HEALTH_MEMBERSHIP', count(*), NULL::numeric FROM health.membership WHERE migration_batch = @batch HAVING count(*) > 0
         """, cancellationToken);
 }
+
+/// <summary>This module's policies, for an approved export (OQ-158).</summary>
+internal sealed class HealthPolicyExport([FromKeyedServices(HealthDbContext.SchemaName)] NpgsqlDataSource dataSource) : IPolicyExportRows
+{
+    public string Domain => "HEALTH";
+
+    public Task<IReadOnlyList<PolicyExportRow>> All(Guid tenantId, CancellationToken cancellationToken) =>
+        PolicyExportReader.Read(dataSource, tenantId, Domain, "SELECT member_number, product_code, principal_party_id, status, start_date, end_date, currency FROM health.membership ORDER BY id", cancellationToken);
+}
