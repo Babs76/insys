@@ -1259,3 +1259,29 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
 - **OQ-144:** recorded only in this wave.
 - **OQ-145:** a person decides each. **Addition:** never dropped; a write-off needs a second person and a reason.
 - **OQ-146:** held from offsets until the dispute ends.
+
+### OQ-147 to OQ-153, OQ-161 Benefit programmes (Wave 5b addendum, 31 October 2026)
+**Decided (Ade, 31 October 2026), in `docs/specs/addenda/benefit-programmes.md` §8. Every recommendation accepted.**
+- **OQ-147:** INSYS fields on the existing claim API. **Addition:** a switch adapter before go-live (B-012).
+- **OQ-148:** record only, checked against the provider register for a pharmacist already in it. Compliance to confirm.
+- **OQ-149:** paid at the plan's non-formulary co-payment, per plan, defaulting to rejected.
+- **OQ-150:** a person with the clinical function decides each chronic registration.
+- **OQ-151:** a per-plan percentage of days' supply, default 10%.
+- **OQ-152:** the member pays above the reference price; generics are not required.
+- **OQ-153:** a tenant-loaded list, with an import.
+- **OQ-161:** the principal member does not see an adult dependant's medicines, chronic conditions or diagnoses; a minor's records stay visible to the principal member. **Compliance to confirm.**
+
+### OQ-054, OQ-058, OQ-154 to OQ-160 Finance and compliance (Wave 6 addendum, 31 October 2026)
+**Decided (Ade, 31 October 2026), in `docs/specs/addenda/finance-and-compliance.md` §8. Every recommendation accepted.**
+- **OQ-054:** a tenant-set period per record type, from the relationship's end; compliance to give the defaults; anonymising stays a person's act.
+- **OQ-058 (tax):** from the existing rates, by product and date.
+- **OQ-154:** an exposure limit alerts only.
+- **OQ-155:** payables stop at payouts and a report of what is due. F054 stays partial on purpose.
+- **OQ-156:** VAT per product through the tax rate records; finance to confirm each.
+- **OQ-157:** quote, inception, renewal and claim decision; compliance to confirm wording and points.
+- **OQ-158:** parties and policies. **Addition:** open claims and outstanding premiums later (B-013).
+- **OQ-159:** 30 days by default; compliance to confirm.
+- **OQ-160:** investigators and holders of a fraud function only, every read audited.
+
+### 5a.3 decisions (Ade, 31 October 2026)
+All eight in `docs/reports/2026-10-30-wave5a-batch3.md` accepted as recommended, including the credit note posting (debit `1300`).

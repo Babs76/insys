@@ -1,6 +1,6 @@
 # Addendum: benefit programmes (Wave 5b: F039–F047, F083–F088, F092, F093)
 
-**DRAFT for Ade's sign-off, 30 October 2026. Nothing here is built, and nothing will be until it is signed.** The decisions are in §8, each with a recommendation. The rules in §1 are as I understand them, for compliance to confirm.
+**Signed by Ade, 31 October 2026.** OQ-147 to OQ-153 as recommended in §8, with two additions: a pharmacy claims switch adapter in the backlog (B-012), and what a principal member may see (OQ-161, §8). The rules in §1 are as I understand them, for compliance to confirm.
 
 ## 0. Why an addendum
 The SRS has no pharmacy claim format, prescription data, chronic registration or programme rules. Of these 17 functions, F040, F042, F085 and F086 are "Not specified", and the rest are partly built: generic adjudication and payment already work, while `health.ref_medicine_formulary` and `health.cfg_chronic_condition_list` are static data that no code reads. CLAUDE.md forbids inventing requirements, so this sets out what each would do.
@@ -80,6 +80,7 @@ A claim line for a scheduled item is checked against age, sex and interval: with
 | **OQ-151** | Early refill tolerance | (a) none; (b) a per-plan percentage of days' supply; (c) a fixed number of days | **(b)**, default 10%. To be confirmed by whoever will run the benefit. |
 | **OQ-152** | Generic substitution and reference pricing | (a) the member pays above the reference price; (b) also require a generic where one exists | **(a)**. (b) changes clinical choice, and needs a rule per product. |
 | **OQ-153** | Medicine codes | (a) a tenant-loaded list (`ref_medicine_formulary`); (b) a licensed national list by feed | **(a)** now, with an import. A feed needs a licence decision. |
+| **OQ-161** | What a principal member sees of a dependant | Decided by Ade | The principal member does not see an adult dependant's medicines, chronic conditions or diagnoses. A minor's records stay visible to the principal member. Compliance to confirm. |
 
 ## 9. How it is built
 - **5b.1 (F039–F045):** the line fields, format, formulary and tier steps in the engine, quantity checks. Worked examples first, as for ADR-012.

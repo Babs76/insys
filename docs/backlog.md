@@ -85,3 +85,15 @@ Estimates are working days for one developer, including unit, integration and en
 - **What:** callback tokens (Payments and Communications) are accepted only from service accounts, that is Keycloak client-credentials tokens: never a person's token, even if it holds the function. IAM marks service accounts, and the readiness checks `PAYMENT_CALLBACK_CLIENT` and `COMMUNICATION_CALLBACK_CLIENT` require a service account holder.
 - **Estimate:** 3 to 4 days (a migration and a kind on the user account, provisioning a service account per tenant and provider, the token check, both readiness checks, tests).
 - **Until then:** the functions `PAYMENTS_CALLBACK_CLIENT` and `COMMUNICATIONS_CALLBACK_CLIENT` are privileged and in no role template, so only a role made for the purpose grants them, and a person given such a role could pass the check.
+
+### B-012: a pharmacy claims switch adapter
+- **Decided:** 31 October 2026, by Ade, on OQ-147. Needed before go-live.
+- **What:** an adapter that takes real-time claims at the point of dispensing from a pharmacy switch, answers within the switch's time limit, and maps them onto the Wave 5b claim fields. It needs a chosen switch and its specification.
+- **Estimate:** 15 to 25 days once the switch and its specification are known; the real-time answer, reversals and certification with the switch are most of it. To be firmed up against the specification.
+- **Until then:** pharmacy claims come through the claim API and the provider portal, adjudicated after the event.
+
+### B-013: import of open claims and outstanding premiums for migration
+- **Decided:** 31 October 2026, by Ade, on OQ-158. Needed before the first customer migration.
+- **What:** import of open claims and outstanding premiums, added to the Wave 6 bulk import of parties and policies, with reconciliation rules: control totals per file, agreement with the source system's trial balance, opening balances posted through Finance, and a report of every difference.
+- **Estimate:** 10 to 15 days, of which the reconciliation rules are about half.
+- **Until then:** bulk import covers parties and policies only.

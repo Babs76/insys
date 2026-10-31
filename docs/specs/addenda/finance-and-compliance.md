@@ -1,6 +1,6 @@
 # Addendum: finance and compliance (Wave 6: F052, F054, F057–F060, F064, F076, F094)
 
-**DRAFT for Ade's sign-off, 30 October 2026. Nothing here is built, and nothing will be until it is signed.** The decisions are in §8, each with a recommendation. The rules in §1 are as I understand them, for compliance to confirm.
+**Signed by Ade, 31 October 2026.** OQ-054, OQ-058 and OQ-154 to OQ-160 as recommended in §8, with one addition: the import of open claims and outstanding premiums for migration is in the backlog (B-013). The rules in §1 are as I understand them, for compliance to confirm.
 
 ## 0. Why an addendum
 These nine functions are all partly built. Exposure snapshots, payout batches, Health fraud cases, consent, anonymisation and static data import work. Three static tables are stored but no code reads them: the compliance register, disclosure texts, and (for invoices) tax rates. Two open questions hold functions back: OQ-054 (party retention) and OQ-058 (invoice tax).
