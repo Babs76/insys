@@ -163,10 +163,19 @@ public sealed class GeneralPolicies(IGeneralRepository general, IGeneralCodes co
         }
     }
 
-    /// <summary>The endorsement's document, once generated (GEN-003).</summary>
+    /// <summary>
+    /// The endorsement's document, once generated (GEN-003): from a template, of a type its endorsement type produces. A document filed against the endorsement, such as a
+    /// broker's appointment letter, has no template, and attaching it would move the version under whoever filed it (BR-121).
+    /// </summary>
     public async Task Handle(DocumentGenerated generated, EventEnvelope envelope, CancellationToken cancellationToken)
     {
-        if (generated.BusinessRefType == GeneralDocuments.EndorsementRefType && await general.Endorsement(generated.BusinessRefId, cancellationToken) is { DocumentId: null } endorsement)
+        if (generated.BusinessRefType != GeneralDocuments.EndorsementRefType || generated.TemplateCode is null
+            || await general.Endorsement(generated.BusinessRefId, cancellationToken) is not { DocumentId: null } endorsement)
+        {
+            return;
+        }
+
+        if ((await codes.EndorsementType(endorsement.EndorsementType, businessDate.Today, cancellationToken))?.Documents.Contains(generated.CategoryCode) == true)
         {
             endorsement.AttachDocument(generated.DocumentId);
         }

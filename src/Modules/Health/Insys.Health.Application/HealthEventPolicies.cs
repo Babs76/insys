@@ -52,10 +52,10 @@ public sealed class HealthEventPolicies(IHealthRepository health, BenefitContext
     IIntegrationEventHandler<PaymentSucceeded>,
     IIntegrationEventHandler<DocumentGenerated>
 {
-    /// <summary>A remittance advice was generated: it is attached to its remittance.</summary>
+    /// <summary>A remittance advice was generated from its template: it is attached to its remittance. A document merely filed against the remittance isn't (BR-121).</summary>
     public async Task Handle(DocumentGenerated generated, EventEnvelope envelope, CancellationToken cancellationToken)
     {
-        if (generated.BusinessRefType == HealthReferences.RemittanceRefType && await health.RunForRemittance(generated.BusinessRefId, cancellationToken) is { } run)
+        if (generated.BusinessRefType == HealthReferences.RemittanceRefType && generated.TemplateCode is not null && await health.RunForRemittance(generated.BusinessRefId, cancellationToken) is { } run)
         {
             run.AttachRemittanceDocument(generated.BusinessRefId, generated.DocumentId);
         }
