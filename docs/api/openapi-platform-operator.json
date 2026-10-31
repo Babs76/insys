@@ -65724,7 +65724,8 @@
             "enum": [
               "POLICY",
               "CLAIM",
-              "PAYMENT"
+              "PAYMENT",
+              "CASE"
             ],
             "type": "string"
           },
@@ -65931,6 +65932,7 @@
               "POLICY",
               "CLAIM",
               "PAYMENT",
+              "CASE",
               null
             ],
             "type": [
@@ -67823,6 +67825,7 @@
                     "POLICY",
                     "CLAIM",
                     "PAYMENT",
+                    "CASE",
                     "AUDIT"
                   ],
                   "type": [

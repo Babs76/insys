@@ -96,6 +96,7 @@ public static class WorkflowInfrastructure
         services.AddIntegrationEventHandler<Health.Contracts.MembershipArrearsCleared, HealthArrearsTerminationTasks, WorkflowDbContext>(schema, "Cleared");
         services.AddIntegrationEventHandler<Health.Contracts.ProviderMeasureBreached, ProviderMeasureReviewTasks, WorkflowDbContext>(schema); // F028
         services.AddIntegrationEventHandler<Party.Contracts.DataSubjectRequestReceived, PartyComplianceTasks, WorkflowDbContext>(schema, "DataSubjectRequestReceived"); // F059
+        services.AddSingleton<BuildingBlocks.Application.Context.IPartyLinkedRecords, Persistence.WorkflowPartyRecords>(); // OQ-054
         services.AddIntegrationEventHandler<Party.Contracts.PartyRetentionEnded, PartyComplianceTasks, WorkflowDbContext>(schema, "PartyRetentionEnded"); // F064
         services.AddIntegrationEventHandler<Health.Contracts.ProgrammeReviewDue, ProgrammeReviewTasks, WorkflowDbContext>(schema); // F028
         services.AddIntegrationEventHandler<Health.Contracts.CareActivityOverdue, CareActivityFollowUpTasks, WorkflowDbContext>(schema); // F037

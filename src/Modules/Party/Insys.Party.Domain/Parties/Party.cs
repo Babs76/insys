@@ -572,6 +572,21 @@ public sealed class Party : AggregateRoot<Guid>
         Raise(new PartyRetentionEnded(Id, now));
     }
 
+    /// <summary>OQ-054: nothing of the party's is in force or open. Reversed by <see cref="ResumeActivity"/>.</summary>
+    public Result BecomeDormant() => Fire(PartyTrigger.NoActivity);
+
+    /// <summary>OQ-054: something of the party's is in force or open again, so any later end of its records may be reviewed afresh.</summary>
+    public Result ResumeActivity()
+    {
+        var result = Fire(PartyTrigger.NewActivity);
+        if (result.IsSuccess)
+        {
+            RetentionReviewRaisedOn = null;
+        }
+
+        return result;
+    }
+
     public Guid? MergedIntoId { get; private set; }
 
     /// <summary>PENDING_REVIEW for a portal registration that matched an existing party, until staff resolve it (external-user access §6).</summary>
@@ -970,6 +985,12 @@ public sealed class Party : AggregateRoot<Guid>
         if (Kind != PartyKind.Individual || deceasedDate > today)
         {
             return Error.Validation(ErrorCodes.ValidationFailed, "A death is recorded for an individual, on a date not in the future.");
+        }
+
+        // A dormant party's death is news of it: the lifecycle goes through Active, with no other effect.
+        if (Status == PartyStatus.Dormant)
+        {
+            ResumeActivity();
         }
 
         var result = Fire(PartyTrigger.DeathRecorded);

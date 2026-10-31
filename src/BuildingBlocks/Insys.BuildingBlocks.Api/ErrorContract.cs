@@ -197,7 +197,7 @@ public static class ErrorContract
                     ["recordId"] = new OpenApiSchema { Type = JsonSchemaType.String, Format = "uuid", Description = "The record; for AUDIT_EVIDENCE and PARTY, the party." },
                     ["retention"] = Enum("The retention period that applies: POLICY, CLAIM or PAYMENT (the tenant's record retention policies, "
                         + "/party/static/record-retention-policies; working default 7 years), or AUDIT (the longest audit retention class). Null for LEGAL_HOLD.",
-                        nullable: true, "POLICY", "CLAIM", "PAYMENT", "AUDIT"),
+                        nullable: true, "POLICY", "CLAIM", "PAYMENT", "CASE", "AUDIT"),
                     ["until"] = new OpenApiSchema
                     {
                         Type = JsonSchemaType.String | JsonSchemaType.Null,

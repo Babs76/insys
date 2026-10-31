@@ -28,6 +28,8 @@ using Insys.Audit.Contracts;
 using Insys.BuildingBlocks.Application.Context;
 using Insys.Documents.Contracts;
 
+using Insys.Party.Domain.Parties;
+
 namespace Insys.Party.Application;
 
 /// <summary>
@@ -85,21 +87,13 @@ public sealed class AnonymisationCheck(IEnumerable<IPartyLinkedRecords> sources,
 
     public async Task<IReadOnlyList<AnonymisationBlock>> Blocks(Guid partyId, CancellationToken cancellationToken)
     {
-        var tenantId = tenant.TenantId ?? throw new InvalidOperationException("A party is anonymised in a tenant.");
         var today = businessDate.Today;
-        var zone = businessDate.Zone.Id;
         var partyIds = new[] { partyId }.Concat(await parties.MergedInto(partyId, cancellationToken)).ToList();
+        var records = await Records(partyIds, cancellationToken);
 
-        var records = new List<PartyLinkedRecord>();
-        foreach (var source in sources)
-        {
-            foreach (var id in partyIds)
-            {
-                records.AddRange(await source.For(tenantId, id, zone, cancellationToken));
-            }
-        }
-
-        records = records.DistinctBy(r => (r.RecordType, r.RecordId)).OrderBy(r => r.RecordType, StringComparer.Ordinal).ThenBy(r => r.RecordId).ToList();
+        // OQ-054: a dormant party's periods all count from the last of its policies, memberships, claims and cases ending. With none ever, from its registration.
+        var dormant = (await parties.Get(partyId, cancellationToken))?.Status == PartyStatus.Dormant;
+        var lastEnd = dormant ? records.Where(Counts).Max(r => r.ClosedOn) : null;
         var periods = new Dictionary<string, RetentionLength?>(StringComparer.Ordinal);
         var blocks = new List<AnonymisationBlock>();
         foreach (var record in records)
@@ -110,6 +104,7 @@ public sealed class AnonymisationCheck(IEnumerable<IPartyLinkedRecords> sources,
                 continue;
             }
 
+            closed = Counts(record) && lastEnd is { } last ? last : closed;
             if (!periods.TryGetValue(record.Retention, out var period))
             {
                 period = periods[record.Retention] = await policies.Period(record.Retention, today, cancellationToken);
@@ -122,6 +117,19 @@ public sealed class AnonymisationCheck(IEnumerable<IPartyLinkedRecords> sources,
             else if (period.After(closed) is var until && until > today)
             {
                 blocks.Add(new AnonymisationBlock(AnonymisationBlockReasons.InRetention, record.RecordType, record.RecordId, record.Retention, until));
+            }
+        }
+
+        if (dormant && !records.Any(Counts))
+        {
+            var period = await policies.Period(PartyRecordRetention.Policy, today, cancellationToken);
+            if (period is null)
+            {
+                blocks.Add(new AnonymisationBlock(AnonymisationBlockReasons.NoRetentionPolicy, PartyRecord, partyId, PartyRecordRetention.Policy));
+            }
+            else if (await parties.RegisteredOn(partyId, businessDate.Zone, cancellationToken) is { } registered && period.After(registered) is var until && until > today)
+            {
+                blocks.Add(new AnonymisationBlock(AnonymisationBlockReasons.InRetention, PartyRecord, partyId, PartyRecordRetention.Policy, until));
             }
         }
 
@@ -153,6 +161,27 @@ public sealed class AnonymisationCheck(IEnumerable<IPartyLinkedRecords> sources,
         }
 
         return blocks;
+    }
+
+    /// <summary>OQ-054: whether a policy, membership, claim or case of the party, or of one merged into it, is in force or open. A payment doesn't count.</summary>
+    public async Task<bool> HasActivity(Guid partyId, CancellationToken cancellationToken) =>
+        (await Records([partyId, .. await parties.MergedInto(partyId, cancellationToken)], cancellationToken)).Any(r => Counts(r) && r.ClosedOn is null);
+
+    private static bool Counts(PartyLinkedRecord record) => record.Retention != PartyRecordRetention.Payment;
+
+    private async Task<List<PartyLinkedRecord>> Records(IReadOnlyList<Guid> partyIds, CancellationToken cancellationToken)
+    {
+        var tenantId = tenant.TenantId ?? throw new InvalidOperationException("A party's records are read in a tenant.");
+        var records = new List<PartyLinkedRecord>();
+        foreach (var source in sources)
+        {
+            foreach (var id in partyIds)
+            {
+                records.AddRange(await source.For(tenantId, id, businessDate.Zone.Id, cancellationToken));
+            }
+        }
+
+        return records.DistinctBy(r => (r.RecordType, r.RecordId)).OrderBy(r => r.RecordType, StringComparer.Ordinal).ThenBy(r => r.RecordId).ToList();
     }
 
     private async Task<RetentionLength?> LongestAuditClass(DateOnly today, CancellationToken cancellationToken)

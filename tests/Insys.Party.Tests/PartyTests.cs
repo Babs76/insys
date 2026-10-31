@@ -125,6 +125,19 @@ public sealed class PartyTests
     }
 
     [Fact]
+    public void ADormantPartysDeath_CanBeRecorded_AndActivityResuming_AllowsANewReview_OQ054()
+    {
+        var party = Individual();
+        party.BecomeDormant().IsSuccess.ShouldBeTrue();
+        party.RaiseRetentionReview(Today, Now);
+        party.ResumeActivity().IsSuccess.ShouldBeTrue();
+        party.RetentionReviewRaisedOn.ShouldBeNull();
+        party.BecomeDormant();
+        party.RecordDeath(Today.AddDays(-3), Today, Now).IsSuccess.ShouldBeTrue();
+        party.Status.ShouldBe(PartyStatus.Deceased);
+    }
+
+    [Fact]
     public void DeceasedParty_IsAnonymised_AndKeepsNoPersonalData()
     {
         var party = Individual();
