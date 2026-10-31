@@ -460,7 +460,7 @@ internal sealed class DisposeDocumentHandler(IDocumentRepository documents, IRec
 
         // TODO(spec): disposal methods ANONYMISE and ARCHIVE are not specified beyond their names; every disposal deletes the content (OQ-056).
         await storage.Delete(tenant.RequireTenantId(), document.Value.StorageUri, cancellationToken);
-        return document.Value.RowVersion + 1;
+        return document.Value.RowVersion;
     }
 }
 

@@ -129,7 +129,7 @@ public sealed record Reject(Guid ApprovalId, string Reason, long ExpectedVersion
 /// <summary>Approve or reject the approval of a business reference, without its version (for the static data routes).</summary>
 public sealed record DecideByReference(string BusinessRefType, Guid BusinessRefId, bool Approve, string? Reason) : ICommand<Guid>;
 
-public sealed record ExpireApproval(Guid ApprovalId) : ICommand<long>;
+public sealed record ExpireApproval(Guid ApprovalId) : ICommand<long>, IReturnsSavedVersion;
 
 /// <summary>Command WithdrawApproval: the requester no longer wants it; the owning module is told, as for a rejection.</summary>
 public sealed record WithdrawApproval(Guid ApprovalId, string Reason, long ExpectedVersion) : ICommand<long>, IVersionedCommand;
@@ -363,7 +363,7 @@ internal sealed class ApproveHandler(IApprovalRepository approvals, ApprovalDeci
         }
 
         var result = await decision.Decide(approval, checker.Value, approve: true, command.Reason, cancellationToken);
-        return result.IsFailure ? result.Error : approval.RowVersion + 1;
+        return result.IsFailure ? result.Error : approval.RowVersion;
     }
 }
 
@@ -384,7 +384,7 @@ internal sealed class RejectHandler(IApprovalRepository approvals, ApprovalDecis
         }
 
         var result = await decision.Decide(approval, checker.Value, approve: false, command.Reason, cancellationToken);
-        return result.IsFailure ? result.Error : approval.RowVersion + 1;
+        return result.IsFailure ? result.Error : approval.RowVersion;
     }
 }
 
@@ -429,7 +429,7 @@ internal sealed class WithdrawApprovalHandler(IApprovalRepository approvals, IEx
 
         audit.Record(new AuditEntry("APPROVAL", "Withdraw", nameof(Approval), approval.Id.ToString(), new Dictionary<string, string?> { ["reason"] = command.Reason }));
         var result = approval.WithdrawByRequester(requester.Value, command.Reason, clock.UtcNow);
-        return result.IsFailure ? result.Error : approval.RowVersion + 1;
+        return result.IsFailure ? result.Error : approval.RowVersion;
     }
 }
 
@@ -451,7 +451,7 @@ internal sealed class ExpireApprovalHandler(IApprovalRepository approvals, Reque
         }
 
         await followUp.Open(approval, Contracts.ApprovalEndings.Expired, cancellationToken);
-        return approval.RowVersion + 1;
+        return approval.RowVersion;
     }
 }
 

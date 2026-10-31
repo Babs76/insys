@@ -65,5 +65,27 @@ public static class Http
     public static async Task<string?> Code(this HttpResponseMessage response) =>
         (await response.Json()).TryGetProperty("code", out var code) ? code.GetString() : null;
 
+    /// <summary>
+    /// The guard on a change's returned ETag: it moved, the version from before it is refused with 412, and the returned one takes the next change.
+    /// </summary>
+    public static async Task ShouldChain(this HttpResponseMessage change, string before, Func<string, Task<HttpResponseMessage>> next)
+    {
+        Require(change.IsSuccessStatusCode, $"The change failed: {await change.Content.ReadAsStringAsync()}");
+        var returned = change.ETag();
+        Require(returned != before, $"The change returned {returned}, the version from before it: built before the save.");
+        var stale = await next(before);
+        Require(stale.StatusCode == System.Net.HttpStatusCode.PreconditionFailed, $"The version from before the change got {(int)stale.StatusCode}, not 412.");
+        var accepted = await next(returned);
+        Require(accepted.IsSuccessStatusCode, $"The returned {returned} got {(int)accepted.StatusCode}: {await accepted.Content.ReadAsStringAsync()}");
+    }
+
+    private static void Require(bool condition, string message)
+    {
+        if (!condition)
+        {
+            throw new InvalidOperationException(message);
+        }
+    }
+
     public static string ETag(this HttpResponseMessage response) => response.Headers.ETag?.Tag ?? throw new InvalidOperationException("No ETag.");
 }

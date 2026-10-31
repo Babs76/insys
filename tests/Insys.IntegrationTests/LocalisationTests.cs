@@ -261,6 +261,11 @@ public sealed class LocalisationTests(DatabaseFixture fixture) : IClassFixture<D
 
         // Not in the register, or not a code at all.
         (await (await SetLanguage(client, party, "qq")).Code()).ShouldBe("VALIDATION_FAILED");
+
+        // The ETag a change returns takes the next change (a version returned as a number).
+        var before = (await client.GetAsync($"/api/v1/party/parties/{party}")).ETag();
+        await (await client.Send(HttpMethod.Put, $"/api/v1/party/parties/{party}/preferred-language", new { language = "zu" }, ifMatch: before))
+            .ShouldChain(before, etag => client.Send(HttpMethod.Put, $"/api/v1/party/parties/{party}/preferred-language", new { language = "xh" }, ifMatch: etag));
         (await (await SetLanguage(client, party, "ZU")).Code()).ShouldBe("VALIDATION_FAILED");
         (await SetLanguage(client, party, null)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
         (await fixture.Database.ScalarAsOwner<string>("SELECT preferred_language FROM party.individual WHERE party_id = @p", ("p", party))).ShouldBeNull();

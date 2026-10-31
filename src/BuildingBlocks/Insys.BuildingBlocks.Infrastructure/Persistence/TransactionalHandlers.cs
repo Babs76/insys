@@ -103,7 +103,9 @@ public sealed class TransactionalCommandHandler<TCommand, TResult, TDbContext>(
                 {
                     var entries = auditTrail.TakeAll();
                     db.PublishAudit([.. entries, .. db.RecordChanges(typeof(TCommand).Name, entries)], AuditOutcome.Success);
+                    var candidates = SavedVersions.Candidates(db);
                     await db.SaveChangesAsync(cancellationToken);
+                    result = await SavedVersions.Apply(command, result, candidates, retry.Value.RequireSavedVersion, cancellationToken);
                     await transaction.CommitAsync(cancellationToken);
                 }
             }
@@ -217,8 +219,88 @@ public sealed class TransactionalQueryHandler<TQuery, TResult, TDbContext>(
     }
 }
 
+/// <summary>
+/// A command's response carries the version of the record as saved, read back from the row in the same transaction after the save, however many times it was written and whatever else
+/// touched it. Every response with a rowVersion or an ETag gets it here, so no handler computes one: the view a handler builds is from before the save. Which record: the tracked one
+/// whose id the view carries; for a version returned as a number, the one aggregate the command changed.
+/// </summary>
+internal static class SavedVersions
+{
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, (System.Reflection.PropertyInfo Version, System.Reflection.PropertyInfo? Id)?> Views = new();
+
+    /// <summary>What the command tracked, taken before the save, which marks everything unchanged: the records with a version, and the aggregates it changed.</summary>
+    public static (List<Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry> Tracked, List<Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry> Changed) Candidates(DbContext db)
+    {
+        var tracked = db.ChangeTracker.Entries().Where(e => e.Metadata.FindProperty("RowVersion") is not null && e.State != EntityState.Deleted).ToList();
+        return (tracked, tracked.Where(e => e.Entity is IAggregateRoot && e.State is EntityState.Modified or EntityState.Added).ToList());
+    }
+
+    public static async Task<Result<TResult>> Apply<TCommand, TResult>(TCommand command, Result<TResult> result,
+        (List<Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry> Tracked, List<Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry> Changed) saved, bool require, CancellationToken cancellationToken)
+        where TCommand : notnull
+    {
+        if (result.Value is long && command is IVersionedCommand or IReturnsSavedVersion)
+        {
+            var target = TheAggregate(command, saved.Tracked, saved.Changed);
+            if (target is null)
+            {
+                return require ? throw new InvalidOperationException($"{typeof(TCommand).Name} returned a version, but {saved.Changed.Count} aggregates were saved and none is its target.") : result;
+            }
+
+            return (TResult)(object)await Read(target, cancellationToken);
+        }
+
+        if (result.Value is not { } view || Views.GetOrAdd(view.GetType(), Shape) is not { } shape)
+        {
+            return result;
+        }
+
+        var id = shape.Id?.GetValue(view);
+        var record = id is null ? null : saved.Tracked.FirstOrDefault(e => e.Metadata.FindProperty("Id") is not null && Equals(e.Property("Id").CurrentValue, id));
+        record ??= saved.Changed.Count == 1 ? saved.Changed[0] : null;
+        if (record is null)
+        {
+            // Nothing this command saved is the view's: it was read, so its version is current.
+            return result;
+        }
+
+        shape.Version.SetValue(view, await Read(record, cancellationToken));
+        return result;
+    }
+
+    /// <summary>The aggregate the command changed: the only one, or the one whose id the command carries, or with no change, the only one it loaded.</summary>
+    private static Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry? TheAggregate<TCommand>(TCommand command, List<Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry> tracked,
+        List<Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry> changed)
+        where TCommand : notnull
+    {
+        if (changed.Count == 1)
+        {
+            return changed[0];
+        }
+
+        var ids = typeof(TCommand).GetProperties().Where(p => p.PropertyType == typeof(Guid)).Select(p => p.GetValue(command)).ToHashSet();
+        var named = (changed.Count > 1 ? changed : tracked.Where(e => e.Entity is IAggregateRoot).ToList()).Where(e => ids.Contains(e.Property("Id").CurrentValue)).ToList();
+        if (named.Count == 1)
+        {
+            return named[0];
+        }
+
+        var roots = tracked.Where(e => e.Entity is IAggregateRoot).ToList();
+        return changed.Count == 0 && roots.Count == 1 ? roots[0] : null;
+    }
+
+    private static async Task<long> Read(Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry entry, CancellationToken cancellationToken) =>
+        (await entry.GetDatabaseValuesAsync(cancellationToken))?.GetValue<long>("RowVersion") ?? (long)entry.Property("RowVersion").CurrentValue!;
+
+    private static (System.Reflection.PropertyInfo, System.Reflection.PropertyInfo?)? Shape(Type type) =>
+        type.GetProperty("RowVersion") is { CanWrite: true, PropertyType: var t } version && t == typeof(long) ? (version, type.GetProperty("Id")) : null;
+}
+
 /// <summary>How often a command marked <see cref="IRetryOnConflict"/> is attempted (configuration Commands:ConflictRetry).</summary>
 public sealed class ConflictRetryOptions
 {
     public int MaxAttempts { get; set; } = 3;
+
+    /// <summary>Tests only: a command returning a version whose aggregate can't be told is an error, so every flow the suites run proves it.</summary>
+    public bool RequireSavedVersion { get; set; }
 }

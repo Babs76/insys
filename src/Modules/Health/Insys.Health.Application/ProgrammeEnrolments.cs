@@ -135,7 +135,7 @@ internal sealed class ProgrammeEnrolmentHandlers(IHealthRepository health, IHeal
         }
 
         audit.Record(new AuditEntry("HEALTH", "RecordProgrammeReview", nameof(ProgrammeEnrolment), enrolment.Id.ToString()));
-        return ProgrammeEnrolmentView.From(enrolment) with { RowVersion = enrolment.RowVersion + 1 };
+        return ProgrammeEnrolmentView.From(enrolment);
     }
 
     public async Task<Result<ProgrammeEnrolmentView>> Handle(EndProgrammeEnrolment command, CancellationToken cancellationToken)
@@ -152,7 +152,7 @@ internal sealed class ProgrammeEnrolmentHandlers(IHealthRepository health, IHeal
         }
 
         audit.Record(new AuditEntry("HEALTH", "EndProgrammeEnrolment", nameof(ProgrammeEnrolment), enrolment.Id.ToString()));
-        return ProgrammeEnrolmentView.From(enrolment) with { RowVersion = enrolment.RowVersion + 1 };
+        return ProgrammeEnrolmentView.From(enrolment);
     }
 
     public async Task<Result<ProgrammeEnrolmentClinicalView>> Handle(ReadProgrammeEnrolmentClinical command, CancellationToken cancellationToken)

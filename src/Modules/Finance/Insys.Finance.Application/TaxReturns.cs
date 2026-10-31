@@ -155,7 +155,7 @@ internal sealed class TaxReturnHandlers(ITaxReturns returns, IExecutionContext e
         }
 
         audit.Record(new AuditEntry("FINANCE", operation, nameof(TaxReturn), id.ToString()));
-        return TaxReturnView.From(taxReturn) with { RowVersion = taxReturn.RowVersion + 1 };
+        return TaxReturnView.From(taxReturn);
     }
 
     public async Task<Result<string>> Handle(ExportTaxReturn command, CancellationToken cancellationToken)

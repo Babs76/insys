@@ -185,7 +185,7 @@ internal sealed class GlExportHandlers(IGlExports exports, IGeneralLedgerAdapter
 
         audit.Record(new AuditEntry("FINANCE", command.Accepted ? "AcknowledgeGlExport" : "RejectGlExport", nameof(GlExportBatch), batch.Id.ToString()));
         var result = batch.Acknowledge(command.Accepted, command.Reason);
-        return result.IsFailure ? result.Error : batch.RowVersion + 1;
+        return result.IsFailure ? result.Error : batch.RowVersion;
     }
 
     public async Task<Result<GlExportView>> Handle(GetGlExport query, CancellationToken cancellationToken) =>

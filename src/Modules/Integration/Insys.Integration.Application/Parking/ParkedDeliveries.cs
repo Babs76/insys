@@ -246,7 +246,7 @@ internal sealed class ParkedDeliveryHandlers(IParkedDeliveryStore store, IExecut
                 ["code"] = delivery.PrerequisiteCode,
                 ["reason"] = command.Reason,
             }));
-        return delivery.RowVersion + 1;
+        return delivery.RowVersion;
     }
 
     public async Task<Result<long>> Handle(ChangeParkingSetting command, CancellationToken cancellationToken)

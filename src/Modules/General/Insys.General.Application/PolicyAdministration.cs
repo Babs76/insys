@@ -315,8 +315,7 @@ internal sealed class DraftEndorsementHandler(IGeneralRepository general, IGener
         var recorded = endorsement.RecordAppointmentLetter(command.DocumentId);
         audit.Record(new AuditEntry("GENERAL", "RecordAppointmentLetter", nameof(GeneralEndorsement), endorsement.Id.ToString(),
             new Dictionary<string, string?> { ["document"] = command.DocumentId.ToString() }));
-        // The view is built before the save moves the version: the client's next If-Match is the version after it (BR-121).
-        return recorded.IsFailure ? recorded.Error : EndorsementView.From(endorsement) with { RowVersion = endorsement.RowVersion + 1 };
+        return recorded.IsFailure ? recorded.Error : EndorsementView.From(endorsement);
     }
 
     public async Task<Result<EndorsementView>> Handle(DraftEndorsement command, CancellationToken cancellationToken)

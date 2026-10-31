@@ -43,6 +43,9 @@ public interface IVersionedCommand
     long ExpectedVersion { get; }
 }
 
+/// <summary>A command whose long result is the version of the one aggregate it changes; the pipeline fills it from the saved row.</summary>
+public interface IReturnsSavedVersion;
+
 /// <summary>
 /// The If-Match a request carries for the aggregate its command changes (DBA-011; BR-031, BR-057, BR-064, BR-071), when its
 /// endpoint takes it through <c>TakesIfMatch</c> rather than in the command. The unit of work compares it with the version

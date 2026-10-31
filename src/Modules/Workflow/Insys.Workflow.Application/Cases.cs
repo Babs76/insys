@@ -799,7 +799,7 @@ internal sealed class CaseCommandHandlers(ICaseRepository cases, ICaseConfigurat
 
         audit.Record(new AuditEntry("CASE", operation, nameof(ServiceCase), caseId.ToString(), details));
         var result = await change(loaded.Value);
-        return result.IsFailure ? result.Error : loaded.Value.RowVersion + 1;
+        return result.IsFailure ? result.Error : loaded.Value.RowVersion;
     }
 }
 

@@ -103,7 +103,7 @@ internal sealed class SmokeRunHandlers(ITenantRepository tenants, IExecutionCont
         }
 
         audit.Record(new BuildingBlocks.Application.Auditing.AuditEntry("TENANT", action, nameof(Tenant), tenantId.ToString()));
-        return tenant.Value.RowVersion + 1;
+        return tenant.Value.RowVersion;
     }
 }
 

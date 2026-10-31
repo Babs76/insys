@@ -40,9 +40,9 @@ namespace Insys.Identity.Application.Users;
 /// Command LinkSubject (external-user-access.md §1): the external user is the party, intermediary or provider named,
 /// once a second person approves it. Give the key that matches the kind.
 /// </summary>
-public sealed record LinkSubject(Guid UserId, SubjectKind Kind, Guid? PartyId, string? IntermediaryCode, string? ProviderId, long ExpectedVersion) : ICommand<long>;
+public sealed record LinkSubject(Guid UserId, SubjectKind Kind, Guid? PartyId, string? IntermediaryCode, string? ProviderId, long ExpectedVersion) : ICommand<long>, IReturnsSavedVersion;
 
-public sealed record EndSubjectLink(Guid UserId, long ExpectedVersion) : ICommand<long>;
+public sealed record EndSubjectLink(Guid UserId, long ExpectedVersion) : ICommand<long>, IReturnsSavedVersion;
 
 public sealed record GetSubjectLink(Guid UserId) : IQuery<SubjectLinkView>;
 
@@ -97,7 +97,7 @@ internal sealed class LinkSubjectHandler(IUserRepository users, IExecutionContex
         audit.Record(new AuditEntry("IDENTITY", "LinkSubject", nameof(UserAccount), command.UserId.ToString(),
             new Dictionary<string, string?> { ["kind"] = command.Kind.ToString() }));
         var result = user.Value.LinkSubject(command.Kind, command.PartyId, command.IntermediaryCode, command.ProviderId, administrator.Value, clock.UtcNow);
-        return result.IsFailure ? result.Error : user.Value.RowVersion + 1;
+        return result.IsFailure ? result.Error : user.Value.RowVersion;
     }
 }
 
@@ -119,7 +119,7 @@ internal sealed class EndSubjectLinkHandler(IUserRepository users, IExecutionCon
 
         audit.Record(new AuditEntry("IDENTITY", "EndSubjectLink", nameof(UserAccount), command.UserId.ToString()));
         var result = user.Value.EndSubjectLink(administrator.Value, clock.UtcNow);
-        return result.IsFailure ? result.Error : user.Value.RowVersion + 1;
+        return result.IsFailure ? result.Error : user.Value.RowVersion;
     }
 }
 

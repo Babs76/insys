@@ -468,7 +468,7 @@ internal static class Parties
         }
 
         var result = change(party.Value);
-        return result.IsFailure ? result.Error : party.Value.RowVersion + 1;
+        return result.IsFailure ? result.Error : party.Value.RowVersion;
     }
 
     public static Result<Guid> User(IExecutionContext execution) =>
@@ -694,7 +694,7 @@ internal sealed class AssignPartyRoleHandler(IPartyRepository parties, IPartyCod
         }
 
         var result = party.Value.AssignRole(command.RoleCode, command.Domain, command.ContextType, command.ContextId, command.ValidFrom, clock.UtcNow);
-        return result.IsFailure ? result.Error : party.Value.RowVersion + 1;
+        return result.IsFailure ? result.Error : party.Value.RowVersion;
     }
 }
 
@@ -768,7 +768,7 @@ internal sealed class AnonymisePartyHandler(IPartyRepository parties, Anonymisat
 
         audit.Record(new AuditEntry("PARTY", "AnonymiseParty", nameof(Domain.Parties.Party), command.PartyId.ToString()));
         var result = party.Value.AnonymiseParty(clock.UtcNow);
-        return result.IsFailure ? result.Error : party.Value.RowVersion + 1;
+        return result.IsFailure ? result.Error : party.Value.RowVersion;
     }
 }
 

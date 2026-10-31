@@ -84,6 +84,11 @@ public sealed class IdentityTests(DatabaseFixture fixture) : IClassFixture<Datab
         (await admin.Send(HttpMethod.Post, $"/api/v1/identity/users/{userId}/assign-role", new { roleCode = role }, ifMatch: user.ETag()))
             .StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
+        // The ETag a change returns takes the next change (an endpoint that sets it from the returned version, with no body).
+        var version = (await admin.GetAsync($"/api/v1/identity/users/{userId}")).ETag();
+        await (await admin.Send(HttpMethod.Post, $"/api/v1/identity/users/{userId}/revoke-role", new { roleCode = role }, ifMatch: version))
+            .ShouldChain(version, etag => admin.Send(HttpMethod.Post, $"/api/v1/identity/users/{userId}/assign-role", new { roleCode = role }, ifMatch: etag));
+
         (await clerk.GetAsync("/api/v1/integration/dead-letters")).StatusCode.ShouldBe(HttpStatusCode.OK);
         await _factory.DrainOutbox();
         (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM iam.outbox_event WHERE event_type = 'iam.RoleAssigned' AND payload->>'userId' = @u",
