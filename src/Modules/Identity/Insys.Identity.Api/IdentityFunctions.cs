@@ -54,7 +54,7 @@ internal static class IdentityFunctions
         .Action("REQUEST_ADDITIONAL_ADMINISTRATOR", "IDENTITY_TENANT_ADMINISTRATORS", "RequestAdditionalAdministrator")
         .Action("RETRY_ADMINISTRATOR_IDENTITY", "IDENTITY_TENANT_ADMINISTRATORS", "RetryAdministratorIdentity")
         .Screen("IDENTITY_USERS", "IDENTITY_ACCESS", "Users", "identity/users", "ListUsers", "GetUser", "IdentityGetSubjectLink")
-        .Action("PROVISION_USER", "IDENTITY_USERS", "ProvisionUser")
+        .Action("PROVISION_USER", "IDENTITY_USERS", ["ProvisionUser", "ProvisionServiceAccount"])
         .Action("RESEND_INVITATION", "IDENTITY_USERS", "ResendInvitation")
         .Action("IDENTITY_LINK_SUBJECT", "IDENTITY_USERS", "IdentityLinkSubject")
         .Action("IDENTITY_END_SUBJECT_LINK", "IDENTITY_USERS", "IdentityEndSubjectLink")

@@ -49,7 +49,7 @@ internal sealed class CommunicationCallbackClientReadiness([FromKeyedServices(Co
         var requiring = await ReadinessSql.InTenant(dataSource, context.TenantId, (connection, transaction) => ReadinessSql.Strings(connection, transaction,
             "SELECT DISTINCT provider_code FROM communication.callback_endpoint WHERE tenant_id = @t AND require_client_token AND status <> 'REVOKED' ORDER BY 1", cancellationToken,
             ("t", context.TenantId)), cancellationToken);
-        var held = requiring.Count == 0 || await roles.AnyActiveHolder(context.TenantId, CommunicationFunctionCodes.CallbackClient, context.Day, cancellationToken);
+        var held = requiring.Count == 0 || await roles.AnyActiveHolder(context.TenantId, CommunicationFunctionCodes.CallbackClient, context.Day, cancellationToken, serviceAccountsOnly: true);
         return
         [
             ReadinessResult.Of("SHARED_OPERATIONAL_SETUP", "COMMUNICATION_CALLBACK_CLIENT",

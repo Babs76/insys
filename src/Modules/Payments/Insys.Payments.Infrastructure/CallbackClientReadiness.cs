@@ -37,8 +37,7 @@ namespace Insys.Payments.Infrastructure;
 /// <summary>
 /// Onboarding readiness PAYMENT_CALLBACK_CLIENT (PAYMENTS_AND_DISTRIBUTION), a blocker: an endpoint that requires a client token
 /// refuses every callback until a service identity holds the function that lets its token through (ADR-023 decision 4).
-/// IAM records no kind for a service identity, so this asks for an active user holding the function; it is privileged and in no
-/// role template, so only a role made for the purpose grants it.
+/// B-011: an active service account holding the function; a person holding it doesn't answer.
 /// </summary>
 internal sealed class CallbackClientReadiness([FromKeyedServices(PaymentsDbContext.SchemaName)] NpgsqlDataSource dataSource, IUserRoleQuery roles) : IReadinessCheck
 {
@@ -49,7 +48,7 @@ internal sealed class CallbackClientReadiness([FromKeyedServices(PaymentsDbConte
         var requiring = await ReadinessSql.InTenant(dataSource, context.TenantId, (connection, transaction) => ReadinessSql.Strings(connection, transaction,
             "SELECT DISTINCT provider_code FROM payment.callback_endpoint WHERE tenant_id = @t AND require_client_token AND status <> 'REVOKED' ORDER BY 1", cancellationToken,
             ("t", context.TenantId)), cancellationToken);
-        var held = requiring.Count == 0 || await roles.AnyActiveHolder(context.TenantId, PaymentFunctionCodes.CallbackClient, context.Day, cancellationToken);
+        var held = requiring.Count == 0 || await roles.AnyActiveHolder(context.TenantId, PaymentFunctionCodes.CallbackClient, context.Day, cancellationToken, serviceAccountsOnly: true);
         return
         [
             ReadinessResult.Of("PAYMENTS_AND_DISTRIBUTION", "PAYMENT_CALLBACK_CLIENT",

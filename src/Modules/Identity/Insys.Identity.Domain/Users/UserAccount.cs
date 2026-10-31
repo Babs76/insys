@@ -413,6 +413,22 @@ public sealed class UserAccount : AggregateRoot<Guid>
 
     public IReadOnlyList<Session> Sessions => _sessions;
 
+    public const string PersonKind = "PERSON";
+
+    public const string ServiceKind = "SERVICE";
+
+    /// <summary>B-011: PERSON, or SERVICE for a client-credentials identity, which alone may present a callback token.</summary>
+    public string AccountKind { get; private set; } = PersonKind;
+
+    /// <summary>B-011: a client's identity, active at once: it never signs in, and its subject is the service account's in the identity provider.</summary>
+    public static UserAccount ProvisionServiceAccount(Guid id, string username, string displayName, string idpCode, string externalSubject) =>
+        new()
+        {
+            Id = Guard.NotEmpty(id), Username = Guard.MaxLength(Guard.NotNullOrWhiteSpace(username), 120), DisplayName = Guard.MaxLength(Guard.NotNullOrWhiteSpace(displayName), 120),
+            IdpCode = Guard.MaxLength(Guard.NotNullOrWhiteSpace(idpCode), 15), ExternalSubject = Guard.MaxLength(Guard.NotNullOrWhiteSpace(externalSubject), 120), MfaEnrolled = false,
+            Status = UserStatus.Active, AccountKind = ServiceKind,
+        };
+
     /// <summary>Command ProvisionUser: the user is Invited until first sign-in.</summary>
     public static UserAccount ProvisionUser(Guid id, string username, string displayName, string idpCode, string externalSubject, bool mfaEnrolled) =>
         new()

@@ -215,6 +215,11 @@ public sealed class IdentityModule : IModule
 
         var users = api.MapGroup("/identity/users").WithTags(Name);
 
+        users.MapPost("/service-accounts", async (ProvisionServiceAccount request, IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Send(request, ct)).ToHttp(id => Results.Created($"/api/v1/identity/users/{id}", new CreatedId(id))))
+            .Produces<CreatedId>(StatusCodes.Status201Created).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("ProvisionServiceAccount").WithSummary("Register a client-credentials identity already made in the identity provider; only these may present a callback token (B-011)")
+            .RequirePermission(IdentityPermissions.UserCreate).RequireIdempotencyKey();
         users.MapPost("/", async (ProvisionUserRequest request, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
                 (await dispatcher.Send(new ProvisionUser(request.Username, request.DisplayName, request.IdpCode, request.ExternalSubject, request.MfaEnrolled, request.Email), ct))
                 .ToHttp(id =>

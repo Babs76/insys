@@ -13,6 +13,11 @@ What changed in the API contract, newest first, so the front end can sync. The O
 - **New `GET /integration/bulk-jobs` (BR-122, GAP-126):** `type` (`PARTY_IMPORT`, `PARTY_EXPORT`), `direction` (`IMPORT`, `EXPORT`), `status`, `from`, `to` (UTC dates, inclusive), `cursor`, `limit`. Newest first, as `{items, nextCursor}`. Each row: `id`, `jobType`, `direction`, `status`, `totalCount`, `acceptedCount`, `runBy`, `createdAt`. Rejected lines and the filter stay on `GET /party/bulk-jobs/{id}`. Permission `party_bulk_job.read`. Added to the `PARTY_BULK_JOBS` screen's functions.
 - **Readiness blocker `DISCLOSURE_MANDATORY_TEXTS`** in `INTEGRATION_AND_REPORTING`. `DISCLOSURE_TEXTS` now warns of `PROPOSAL` only.
 
+## Service accounts (branch `service-callback-tokens`, B-011)
+
+- **New `POST /identity/users/service-accounts`:** registers a client-credentials identity. Permission as for provisioning a user.
+- **A callback endpoint requiring a client token** now takes it only from a service account. **Readiness** `PAYMENT_CALLBACK_CLIENT` and `COMMUNICATION_CALLBACK_CLIENT` need a service account holding the function.
+
 ## Wave 6 batch 6.3 (branch `wave6-3`): fraud cases and bulk jobs (addendum §4.8, §4.9; F058, F076)
 
 ### New

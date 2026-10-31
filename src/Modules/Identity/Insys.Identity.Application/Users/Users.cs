@@ -174,6 +174,38 @@ public sealed record ListUsers(Guid? AfterId, int Limit) : IQuery<IReadOnlyList<
 
 public sealed record GetUser(Guid UserId) : IQuery<UserView>;
 
+/// <summary>B-011: registers a client-credentials identity already made in the identity provider, for one tenant and provider. Roles are assigned as for anyone.</summary>
+/// <param name="ExternalSubject">The service account's subject, the sub of its tokens.</param>
+public sealed record ProvisionServiceAccount(string Username, string DisplayName, string IdpCode, string ExternalSubject) : ICommand<Guid>;
+
+public sealed class ProvisionServiceAccountValidator : AbstractValidator<ProvisionServiceAccount>
+{
+    public ProvisionServiceAccountValidator()
+    {
+        RuleFor(c => c.Username).NotEmpty().MaximumLength(120);
+        RuleFor(c => c.DisplayName).NotEmpty().MaximumLength(120);
+        RuleFor(c => c.IdpCode).NotEmpty().MaximumLength(15);
+        RuleFor(c => c.ExternalSubject).NotEmpty().MaximumLength(120);
+    }
+}
+
+internal sealed class ProvisionServiceAccountHandler(IUserRepository users, IExecutionContext execution, IAuditTrail audit) : ICommandHandler<ProvisionServiceAccount, Guid>
+{
+    public Task<Result<Guid>> Handle(ProvisionServiceAccount command, CancellationToken cancellationToken)
+    {
+        var administrator = Administrator.Require(execution);
+        if (administrator.IsFailure)
+        {
+            return Task.FromResult<Result<Guid>>(administrator.Error);
+        }
+
+        var account = UserAccount.ProvisionServiceAccount(Guid.CreateVersion7(), command.Username, command.DisplayName, command.IdpCode, command.ExternalSubject);
+        users.Add(account);
+        audit.Record(new AuditEntry("IDENTITY", "ProvisionServiceAccount", nameof(UserAccount), account.Id.ToString()));
+        return Task.FromResult(Result.Success(account.Id));
+    }
+}
+
 public sealed class ProvisionUserValidator : AbstractValidator<ProvisionUser>
 {
     public ProvisionUserValidator()

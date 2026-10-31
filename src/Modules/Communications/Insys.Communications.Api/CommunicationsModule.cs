@@ -183,7 +183,9 @@ public sealed class CommunicationsModule : IModule
                 // Optional extra (ADR-023 decision 4): a client-credentials token for this tenant holding communication_callback.create.
                 var clientToken = http.User.Identity?.IsAuthenticated == true
                                   && http.User.FindFirst("tenant_id")?.Value == found.TenantId.ToString()
-                                  && (await authorization.AuthorizeAsync(http.User, PermissionPolicyProvider.Prefix + CommunicationPermissions.CallbackCreate)).Succeeded;
+                                  && (await authorization.AuthorizeAsync(http.User, PermissionPolicyProvider.Prefix + CommunicationPermissions.CallbackCreate)).Succeeded
+                                  && http.User.FindFirst("sub")?.Value is { } subject // B-011: a service account's, never a person's, even holding the function
+                                  && await http.RequestServices.GetRequiredService<BuildingBlocks.Application.Context.IServiceAccounts>().IsServiceAccount(found.TenantId, subject, ct);
 
                 // The tenant comes only from the key, and nothing is applied without the signature keyed to that tenant and provider.
                 await using var scope = scopes.CreateAsyncScope();
