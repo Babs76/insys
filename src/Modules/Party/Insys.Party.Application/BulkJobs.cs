@@ -58,7 +58,7 @@ public sealed record GetBulkJob(Guid Id) : IQuery<BulkJobView>;
 public sealed record ListBulkJobs(string? JobType, string? Direction, string? Status, DateOnly? From, DateOnly? To, Guid? BeforeId, int Limit) : IQuery<IReadOnlyList<BulkJobSummary>>;
 
 /// <summary>BR-122: what a list row shows; the rejected lines and the export's filter stay on the job itself.</summary>
-public sealed record BulkJobSummary(Guid Id, string JobType, [property: OneOf("IMPORT", "EXPORT")] string Direction, [property: OneOf(BulkJobStatus.Done, BulkJobStatus.Rejected, BulkJobStatus.ToApprove, BulkJobStatus.Approved)] string Status,
+public sealed record BulkJobSummary(Guid Id, [property: OneOf(BulkJob.Import, BulkJob.Export)] string JobType, [property: OneOf("IMPORT", "EXPORT")] string Direction, [property: OneOf(BulkJobStatus.Done, BulkJobStatus.Rejected, BulkJobStatus.ToApprove, BulkJobStatus.Approved)] string Status,
     int TotalCount, int AcceptedCount, Guid RunBy, DateTimeOffset CreatedAt);
 
 public sealed record RejectedLine(int Line, string Reason);
