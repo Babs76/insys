@@ -2454,6 +2454,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         var differs = await (await migrator.Send(HttpMethod.Post, "/api/v1/integration/migration-batches/RB1/reconciliation", Source(1300m))).Json();
         differs.GetProperty("reconciled").GetBoolean().ShouldBeFalse();
         differs.GetProperty("lines").EnumerateArray().Where(l => !l.GetProperty("agrees").GetBoolean()).Select(l => l.GetProperty("kind").GetString()).ShouldBe(["GENERAL_POLICY"]);
+    }
 
     /// <summary>Owed from Wave 6: a credit note takes back its share of the invoice's tax, posted through its own rule, and the return nets it off (F094, 5a.3).</summary>
     [Fact]

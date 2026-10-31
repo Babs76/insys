@@ -1435,6 +1435,7 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         await _factory.DrainOutbox();
         (await _db.ScalarAsOwner<long>("SELECT count(*) FROM billing.premium_schedule WHERE policy_ref = @m", ("m", membership))).ShouldBe(1);
         (await _db.ScalarAsOwner<long>("SELECT count(*) FROM billing.invoice WHERE policy_ref = @m", ("m", membership))).ShouldBe(0);
+    }
 
     /// <summary>Owed from Wave 5b: a provider asks through its portal, as itself; the member's unknown number is refused; the request reaches staff with the provider named from its link, not the body.</summary>
     [Fact]
