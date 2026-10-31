@@ -141,6 +141,15 @@ internal sealed class HealthRepository(HealthDbContext db, IExecutionContext exe
         .SelectMany(c => c.Lines.Where(l => l.Outcome != "REJECT").Select(l => new PriorService(c.Id, l.TariffCode, l.BenefitCategory, c.ServiceDate, c.ProviderId)))
         .ToList();
 
+    public async Task<IReadOnlyList<PriorMedicine>> PriorMedicines(Guid patientPartyId, DateOnly from, Guid exceptClaimId, CancellationToken cancellationToken) =>
+        (await db.Claims.AsNoTracking().Include(c => c.Lines)
+            .Where(c => c.PatientPartyId == patientPartyId && c.ServiceDate >= from && c.Id != exceptClaimId
+                        && (c.Status == MedicalClaimStatus.Adjudicated || c.Status == MedicalClaimStatus.ApprovedForPayment || c.Status == MedicalClaimStatus.Paid))
+            .ToListAsync(cancellationToken))
+        .SelectMany(c => c.Lines.Where(l => l.IsPharmacy && l.Outcome == "PAY")
+            .Select(l => new PriorMedicine(c.Id, l.TariffCode, l.ActiveIngredient, l.FormularyTier, c.ServiceDate, l.PaidQuantity ?? l.Quantity, l.DaysSupply, l.PaidAmount)))
+        .ToList();
+
     public async Task<IReadOnlyList<MedicalClaim>> ClaimsForRun(DateTimeOffset cutOff, string currency, CancellationToken cancellationToken) =>
         await db.Claims.Where(c => c.Status == MedicalClaimStatus.ApprovedForPayment && c.PaymentRunId == null && c.ApprovedAt <= cutOff && c.Currency == currency)
             .OrderBy(c => c.Id).ToListAsync(cancellationToken);
@@ -547,6 +556,19 @@ internal sealed class HealthCodes(HealthDbContext db) : IHealthCodes
 
     public Task<bool> RunCalendarExists(string runCode, DateOnly day, CancellationToken cancellationToken) =>
         InForce<PaymentRunCalendars>(day).AnyAsync(c => c.RunCode == runCode, cancellationToken);
+
+    public async Task<ClaimFormatTerms?> ClaimFormat(string formatCode, DateOnly day, CancellationToken cancellationToken) =>
+        await InForce<ClaimFormatDefinitions>(day).Where(f => f.FormatCode == formatCode).Select(f => new ClaimFormatTerms(f.LineKind, f.RequiredLineFields)).FirstOrDefaultAsync(cancellationToken);
+
+    public async Task<IReadOnlyDictionary<string, FormularyItem>> Formulary(IReadOnlyCollection<string> productCodes, DateOnly day, CancellationToken cancellationToken) =>
+        (await InForce<MedicineFormulary>(day).Where(f => productCodes.Contains(f.ProductCode)).OrderBy(f => f.TenantId == null).ToListAsync(cancellationToken))
+        .GroupBy(f => f.ProductCode).ToDictionary(g => g.Key, g => g.Select(f => new FormularyItem(f.ProductCode, f.ActiveIngredient, f.Tier, f.ReferencePrice, f.BenefitCategory,
+            f.PriorAuthRequired ?? false, f.MaxQuantity, f.MaxDaysSupply)).First());
+
+    public async Task<IReadOnlyList<PrescriptionBenefit>> PrescriptionBenefits(string planCode, DateOnly day, CancellationToken cancellationToken) =>
+        await InForce<PrescriptionBenefits>(day).Where(b => b.PlanCode == null || b.PlanCode == planCode)
+            .Select(b => new PrescriptionBenefit(b.PlanCode, b.Tier, b.Covered, b.BenefitCategory, b.CopayType, b.CopayValue, b.LimitAmount, b.PrescriptionValidityDays, b.RefillTolerancePercent))
+            .ToListAsync(cancellationToken);
 
     public async Task<IReadOnlyList<FraudIndicator>> FraudIndicators(DateOnly day, CancellationToken cancellationToken) =>
         (await InForce<HealthFraudIndicatorDefinitions>(day).ToListAsync(cancellationToken)).Select(f => new FraudIndicator(f.IndicatorCode, f.Logic, f.Score, f.Threshold))

@@ -92,6 +92,7 @@ internal static class HealthFunctions
         .Action("HEALTH_CONCLUDE_UTILISATION_CASE", "HEALTH_UTILISATION_CASES", "HealthConcludeUtilisationCase")
         .Action("HEALTH_CHECK_ELIGIBILITY", "HEALTH_PREAUTHORISATIONS", "HealthCheckEligibility")
         .Action("HEALTH_READ_AUTHORISATION_CLINICAL", "HEALTH_PREAUTHORISATIONS", "HealthGetAuthorisationClinical")
+        .Action("HEALTH_READ_CLAIM_CLINICAL", "HEALTH_CLAIMS", "HealthReadClaimClinical")
         .Screen("HEALTH_COMPLEX_CASES", "HEALTH_FRAUD_UTILISATION", "Complex case management", "health/complex-cases", "HealthListComplexCases", "HealthGetComplexCase")
         .Action("HEALTH_OPEN_COMPLEX_CASE", "HEALTH_COMPLEX_CASES", "HealthOpenComplexCase")
         .Action("HEALTH_ASSIGN_CASE_MANAGER", "HEALTH_COMPLEX_CASES", "HealthAssignCaseManager")

@@ -98,6 +98,38 @@ public static class HealthInfrastructure
         services.AddScoped<HealthDeclineRights>(); // OQ-102
         services.AddScoped<IHealthLists, HealthLists>();
         services.AddScoped<BenefitContexts>();
+        services.AddScoped<DependantPrivacy>(); // OQ-161
+        // Wave 5b §6: a pharmacy format in force needs a formulary and prescription benefits for each plan.
+        BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddSqlReadiness(services, Persistence.HealthDbContext.SchemaName, ["DOMAIN_REFERENCE_DATA"], async (context, connection, transaction, ct) =>
+        {
+            var inForce = BuildingBlocks.Infrastructure.Readiness.ReadinessSql.InForce;
+            var parameters = new (string, object)[] { ("t", context.TenantId), ("inForce", BuildingBlocks.Infrastructure.StaticData.StaticLifecycle.Configuration.InForce), ("day", context.Day) };
+            if (await BuildingBlocks.Infrastructure.Readiness.ReadinessSql.Count(connection, transaction,
+                    $"SELECT count(*) FROM health.cfg_claim_format_definitions WHERE tenant_id = @t AND line_kind = 'PHARMACY' AND {inForce}", ct, parameters) == 0)
+            {
+                return [];
+            }
+
+            var missing = new List<string>();
+            if (await BuildingBlocks.Infrastructure.Readiness.ReadinessSql.Count(connection, transaction,
+                    "SELECT count(*) FROM health.ref_medicine_formulary WHERE (tenant_id = @t OR tenant_id IS NULL) AND record_status IN ('APPROVED', 'ACTIVE') AND effective_from <= @day AND (effective_to IS NULL OR effective_to > @day)", ct, parameters) == 0)
+            {
+                missing.Add("health.ref_medicine_formulary");
+            }
+
+            if (await BuildingBlocks.Infrastructure.Readiness.ReadinessSql.Count(connection, transaction,
+                    $"""
+                    SELECT count(*) FROM (SELECT DISTINCT plan_code FROM health.cfg_plans_and_options WHERE tenant_id = @t AND {inForce}) p
+                    WHERE NOT EXISTS (SELECT 1 FROM health.cfg_prescription_benefits b WHERE b.tenant_id = @t AND (b.plan_code IS NULL OR b.plan_code = p.plan_code)
+                      AND b.record_status = ANY(@inForce) AND b.effective_from <= @day AND (b.effective_to IS NULL OR b.effective_to > @day))
+                    """, ct, parameters) > 0)
+            {
+                missing.Add("health.cfg_prescription_benefits");
+            }
+
+            return missing.Count == 0 ? [] : [BuildingBlocks.Application.ReadinessResult.Of("DOMAIN_REFERENCE_DATA", "PHARMACY_BENEFITS",
+                "A pharmacy claim format needs a formulary and prescription benefits for each plan", missing)];
+        });
         services.AddIntegrationEventHandler<PreauthorisationApproved, HealthEventPolicies, HealthDbContext>(schema, "PreauthorisationApproved");
         services.AddIntegrationEventHandler<Workflow.Contracts.CaseDecided, ReopenMedicalClaimsOnUpheldCase, HealthDbContext>(schema, "CaseDecided");
         services.AddIntegrationEventHandler<PreauthorisationReservationsChanged, HealthEventPolicies, HealthDbContext>(schema, "ReservationsChanged");

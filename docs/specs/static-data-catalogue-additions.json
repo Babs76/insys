@@ -1497,6 +1497,81 @@
      "sample": "EFT"
     }
    ]
+  },
+  {
+   "layer": "Domain",
+   "module": "Health claims",
+   "subModule": "Pharmacy benefits",
+   "entity": "Prescription benefits",
+   "table": "health.cfg_prescription_benefits",
+   "class": "CFG",
+   "scope": "T",
+   "tier": 2,
+   "proposedOwner": "Benefit Manager",
+   "provenance": "Wave 5b addendum (addenda/benefit-programmes.md), signed off by Ade, 31 October 2026",
+   "basis": "F041, F043; OQ-149, OQ-151",
+   "fields": [
+    {
+     "name": "benefit_code",
+     "logicalType": "String(15)",
+     "mandatory": true,
+     "sample": "RX-T1"
+    },
+    {
+     "name": "plan_code",
+     "logicalType": "String(15)",
+     "mandatory": false,
+     "sample": "HLT-CORE"
+    },
+    {
+     "name": "tier",
+     "logicalType": "String(40)",
+     "mandatory": true,
+     "sample": "1"
+    },
+    {
+     "name": "covered",
+     "logicalType": "Boolean",
+     "mandatory": true,
+     "sample": "true"
+    },
+    {
+     "name": "benefit_category",
+     "logicalType": "String(15)",
+     "mandatory": false,
+     "sample": "MEDICINES"
+    },
+    {
+     "name": "copay_type",
+     "logicalType": "String(10)",
+     "mandatory": false,
+     "sample": "PERCENT"
+    },
+    {
+     "name": "copay_value",
+     "logicalType": "Decimal(18,4)",
+     "mandatory": false,
+     "sample": "20"
+    },
+    {
+     "name": "limit_amount",
+     "logicalType": "Decimal(18,2)",
+     "mandatory": false,
+     "sample": "5000"
+    },
+    {
+     "name": "prescription_validity_days",
+     "logicalType": "Integer",
+     "mandatory": false,
+     "sample": "180"
+    },
+    {
+     "name": "refill_tolerance_percent",
+     "logicalType": "Decimal(5,2)",
+     "mandatory": false,
+     "sample": "10"
+    }
+   ]
   }
  ]
 }

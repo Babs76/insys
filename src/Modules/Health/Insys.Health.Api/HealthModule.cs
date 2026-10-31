@@ -370,6 +370,12 @@ public sealed class HealthModule : IModule
         health.MapGet("/claims/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetMedicalClaim(id), ct)).ToHttp(Results.Ok))
             .Produces<MedicalClaimView>(StatusCodes.Status200OK)
             .WithName("HealthGetClaim").WithSummary("Get a claim").RequirePermission(HealthPermissions.ClaimRead);
+        health.MapGet("/claims/{id:guid}/clinical", async (Guid id,
+                [System.ComponentModel.Description("Why the claim's codes, diagnoses and prescriptions are read (up to 200 characters), recorded with the read (HLT-008). Required.")] string? purpose,
+                IDispatcher d, CancellationToken ct) => (await d.Send(new ReadMedicalClaimClinical(id, purpose), ct)).ToHttp(Results.Ok))
+            .Produces<MedicalClaimClinicalView>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("HealthReadClaimClinical").WithSummary("A claim's codes, diagnoses and prescriptions, for the clinical function, with a purpose; every read is audited")
+            .RequirePermission(HealthPermissions.ClinicalRead);
         health.MapPost("/claims/{id:guid}/validate", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Send(new ValidateMedicalClaim(id), ct)).ToHttp(Results.Ok))
             .Produces<MedicalClaimView>(StatusCodes.Status200OK)
             .TakesIfMatch()

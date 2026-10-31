@@ -76,6 +76,9 @@ public interface IHealthRepository
     /// <summary>The patient's services on other claims from a date, not rejected or reversed, for duplicates and repeat services.</summary>
     Task<IReadOnlyList<PriorService>> PriorServices(Guid patientPartyId, DateOnly from, Guid exceptClaimId, CancellationToken cancellationToken);
 
+    /// <summary>The patient's paid medicines on other adjudicated claims from a date; a pended, rejected or reversed claim doesn't count.</summary>
+    Task<IReadOnlyList<PriorMedicine>> PriorMedicines(Guid patientPartyId, DateOnly from, Guid exceptClaimId, CancellationToken cancellationToken);
+
     Task<IReadOnlyList<MedicalClaim>> ClaimsForRun(DateTimeOffset cutOff, string currency, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<MedicalClaim>> ClaimsInRun(Guid runId, CancellationToken cancellationToken);
@@ -239,6 +242,23 @@ public sealed record ContributionRule(decimal Rate, decimal EmployerSharePct);
 /// <summary>health.cfg_provider_recovery_settings: the default of the offset flag, the review period and the invoice's collection method.</summary>
 public sealed record RecoverySettings(bool MedicalScheme, int ReviewAfterDays, string InvoiceCollectionMethod);
 
+/// <summary>A claim format's line rules (OQ-147). Only a pharmacy format takes pharmacy lines, and all its lines are pharmacy lines.</summary>
+public sealed record ClaimFormatTerms(string? LineKind, IReadOnlyList<string>? RequiredLineFields)
+{
+    public const string Pharmacy = "PHARMACY";
+
+    /// <summary>Why the lines don't fit the format; null when they do. Each item is a line's pharmacy fields, null for a medical line.</summary>
+    public string? Problem(IReadOnlyList<IReadOnlyCollection<string>?> lines)
+    {
+        if (LineKind != Pharmacy)
+        {
+            return lines.Any(l => l is not null) ? "PHARMACY_LINE_NOT_IN_FORMAT" : null;
+        }
+
+        return lines.Any(l => l is null || (RequiredLineFields ?? []).Except(l).Any()) ? "PHARMACY_FIELDS_MISSING" : null;
+    }
+}
+
 public interface IHealthCodes
 {
     Task<RecoverySettings?> RecoverySettings(DateOnly day, CancellationToken cancellationToken);
@@ -302,6 +322,13 @@ public interface IHealthCodes
     Task<IReadOnlyCollection<string>> KnownDiagnoses(IReadOnlyCollection<string> codes, DateOnly day, CancellationToken cancellationToken);
 
     Task<bool> ClaimFormatExists(string formatCode, DateOnly day, CancellationToken cancellationToken);
+
+    Task<ClaimFormatTerms?> ClaimFormat(string formatCode, DateOnly day, CancellationToken cancellationToken);
+
+    Task<IReadOnlyDictionary<string, FormularyItem>> Formulary(IReadOnlyCollection<string> productCodes, DateOnly day, CancellationToken cancellationToken);
+
+    /// <summary>The prescription benefits for the plan and for every plan.</summary>
+    Task<IReadOnlyList<PrescriptionBenefit>> PrescriptionBenefits(string planCode, DateOnly day, CancellationToken cancellationToken);
 
     Task<bool> RunCalendarExists(string runCode, DateOnly day, CancellationToken cancellationToken);
 
@@ -382,9 +409,20 @@ public sealed record PreauthorisationView(Guid Id, string AuthNumber, Guid Membe
 public sealed record PreauthorisationClinicalView(Guid Id, string AuthNumber, [property: BuildingBlocks.Domain.CodeList(HealthCodeLists.Diagnoses, "code")] IReadOnlyList<string> DiagnosisCodes,
     Guid? ClinicalReviewer);
 
+/// <param name="TariffCode">The code; for a pharmacy line, the word PHARMACY: which medicine is clinical (HLT-008).</param>
 public sealed record ClaimLineView(int LineNo, string TariffCode, int Quantity, decimal ClaimedAmount, [property: BuildingBlocks.Domain.OneOf("PAY", "PEND", "REJECT")] string? Outcome, string? AdjustmentReason, string? BenefitCategory,
     string? NetworkStatus, decimal? TariffAmount, decimal AllowedAmount, decimal DeductibleAmount, decimal CopayAmount, decimal PaidAmount, decimal MemberLiability,
-    Guid? PreauthLineId);
+    Guid? PreauthLineId, [property: BuildingBlocks.Contracts.AlwaysPresent] int? PaidQuantity = null);
+
+/// <summary>A line as the audited clinical read shows it (HLT-008).</summary>
+public sealed record ClaimLineClinicalView(int LineNo, string Code, string? DiagnosisCode, bool Pharmacy, string? ActiveIngredient, string? FormularyTier, int? DaysSupply, string? PrescriptionNumber,
+    string? Prescriber, DateOnly? PrescribedOn, int? RepeatNumber, int? RepeatsAuthorised);
+
+public sealed record MedicalClaimClinicalView(Guid ClaimId, string ClaimNumber, IReadOnlyList<ClaimLineClinicalView> Lines)
+{
+    public static MedicalClaimClinicalView From(MedicalClaim c) => new(c.Id, c.ClaimNumber, c.Lines.OrderBy(l => l.LineNo).Select(l => new ClaimLineClinicalView(l.LineNo, l.TariffCode,
+        l.DiagnosisCode, l.IsPharmacy, l.ActiveIngredient, l.FormularyTier, l.DaysSupply, l.PrescriptionNumber, l.PrescriberRef, l.PrescribedOn, l.RepeatNumber, l.RepeatsAuthorised)).ToList());
+}
 
 /// <summary>The claim without diagnosis codes: medical information is shown only to roles with a clinical purpose (HLT-008).</summary>
 public sealed record MedicalClaimView(Guid Id, string ClaimNumber, string Source, string? ProviderId, Guid MembershipId, Guid PatientPartyId, DateOnly ServiceDate,
@@ -396,8 +434,8 @@ public sealed record MedicalClaimView(Guid Id, string ClaimNumber, string Source
     /// <summary>BR-079: who approved the claim, and when.</summary>
     public static MedicalClaimView From(MedicalClaim c) => new(c.Id, c.ClaimNumber, c.Source, c.ProviderId, c.MembershipId, c.PatientPartyId, c.ServiceDate,
         c.Status, c.Currency, c.TotalClaimed, c.TotalPaid, c.PendReason, c.PaymentRunId,
-        c.Lines.OrderBy(l => l.LineNo).Select(l => new ClaimLineView(l.LineNo, l.TariffCode, l.Quantity, l.ClaimedAmount, l.Outcome, l.AdjustmentReason, l.BenefitCategory,
-            l.NetworkStatus, l.TariffAmount, l.AllowedAmount, l.DeductibleAmount, l.CopayAmount, l.PaidAmount, l.MemberLiability, l.PreauthLineId)).ToList(), c.RowVersion,
+        c.Lines.OrderBy(l => l.LineNo).Select(l => new ClaimLineView(l.LineNo, l.IsPharmacy ? ClaimFormatTerms.Pharmacy : l.TariffCode, l.Quantity, l.ClaimedAmount, l.Outcome, l.AdjustmentReason, l.BenefitCategory,
+            l.NetworkStatus, l.TariffAmount, l.AllowedAmount, l.DeductibleAmount, l.CopayAmount, l.PaidAmount, l.MemberLiability, l.PreauthLineId, l.PaidQuantity)).ToList(), c.RowVersion,
         c.DecisionOutcome, c.DecisionReasonCode, c.ApprovedBy, c.ApprovedAt, c.ReplacesClaimId, c.ReplacedByClaimId);
 }
 

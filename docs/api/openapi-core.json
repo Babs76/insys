@@ -28178,6 +28178,74 @@
         ]
       }
     },
+    "/api/v1/health/claims/{id}/clinical": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "A claim\u0027s codes, diagnoses and prescriptions, for the clinical function, with a purpose; every read is audited",
+        "operationId": "HealthReadClaimClinical",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "description": "Why the claim\u0027s codes, diagnoses and prescriptions are read (up to 200 characters), recorded with the read (HLT-008). Required.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthMedicalClaimClinicalView"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "health_case.read_clinical",
+        "x-function": [
+          "HEALTH_READ_CLAIM_CLINICAL"
+        ]
+      }
+    },
     "/api/v1/health/claims/{id}/validate": {
       "post": {
         "tags": [
@@ -40009,6 +40077,7 @@
                 "cfg_premium_bounds",
                 "cfg_premium_parameters",
                 "cfg_premium_tax_and_levy_rates",
+                "cfg_prescription_benefits",
                 "cfg_product_approval_workflow_",
                 "cfg_product_availability_rules",
                 "cfg_product_billing_frequencie",
@@ -40469,6 +40538,7 @@
                 "cfg_premium_bounds",
                 "cfg_premium_parameters",
                 "cfg_premium_tax_and_levy_rates",
+                "cfg_prescription_benefits",
                 "cfg_product_approval_workflow_",
                 "cfg_product_availability_rules",
                 "cfg_product_billing_frequencie",
@@ -52256,6 +52326,103 @@
           }
         }
       },
+      "HealthClaimLineClinicalView": {
+        "required": [
+          "lineNo",
+          "code",
+          "diagnosisCode",
+          "pharmacy",
+          "activeIngredient",
+          "formularyTier",
+          "daysSupply",
+          "prescriptionNumber",
+          "prescriber",
+          "prescribedOn",
+          "repeatNumber",
+          "repeatsAuthorised"
+        ],
+        "type": "object",
+        "properties": {
+          "lineNo": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "code": {
+            "type": "string"
+          },
+          "diagnosisCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "pharmacy": {
+            "type": "boolean"
+          },
+          "activeIngredient": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "formularyTier": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "daysSupply": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "prescriptionNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "prescriber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "prescribedOn": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "repeatNumber": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "repeatsAuthorised": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
       "HealthClaimLineRequest": {
         "required": [
           "tariffCode",
@@ -52299,6 +52466,16 @@
             "items": {
               "type": "string"
             }
+          },
+          "pharmacy": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/HealthPharmacyLineRequest"
+              }
+            ]
           }
         }
       },
@@ -52318,7 +52495,8 @@
           "copayAmount",
           "paidAmount",
           "memberLiability",
-          "preauthLineId"
+          "preauthLineId",
+          "paidQuantity"
         ],
         "type": "object",
         "properties": {
@@ -52434,6 +52612,15 @@
               "string"
             ],
             "format": "uuid"
+          },
+          "paidQuantity": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         }
       },
@@ -53233,6 +53420,29 @@
           }
         }
       },
+      "HealthMedicalClaimClinicalView": {
+        "required": [
+          "claimId",
+          "claimNumber",
+          "lines"
+        ],
+        "type": "object",
+        "properties": {
+          "claimId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "claimNumber": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthClaimLineClinicalView"
+            }
+          }
+        }
+      },
       "HealthMedicalClaimStatus": {
         "enum": [
           "Received",
@@ -54004,6 +54214,65 @@
           }
         }
       },
+      "HealthPharmacyLineRequest": {
+        "required": [
+          "daysSupply",
+          "prescriptionNumber",
+          "prescriber",
+          "prescribedOn",
+          "repeatNumber",
+          "repeatsAuthorised"
+        ],
+        "type": "object",
+        "properties": {
+          "daysSupply": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "prescriptionNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "prescriber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "prescribedOn": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "repeatNumber": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "repeatsAuthorised": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
       "HealthPlanChangeRequest": {
         "required": [
           "planCode",
@@ -54052,7 +54321,10 @@
             "format": "int32"
           },
           "tariffCode": {
-            "type": "string"
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "quantity": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",

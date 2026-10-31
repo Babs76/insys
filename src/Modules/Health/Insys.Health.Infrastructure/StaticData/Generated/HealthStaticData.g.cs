@@ -34,7 +34,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Insys.Health.Infrastructure.StaticData;
 
-/// <summary>The 45 static data tables owned by the Health module.</summary>
+/// <summary>The 46 static data tables owned by the Health module.</summary>
 public static class HealthStaticData
 {
     public static readonly IReadOnlyList<StaticDataDescriptor> Descriptors =
@@ -61,6 +61,7 @@ public static class HealthStaticData
         new("health", "cfg_payment_run_calendars", "cfg_payment_run_calendars", "Payment run calendars", "health", "payment-run-calendars", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(PaymentRunCalendars), typeof(PaymentRunCalendarsInput), "J · Health Payments"),
         new("health", "cfg_plans_and_options", "cfg_plans_and_options", "Plans and options", "health", "plans-and-options", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(PlansAndOptions), typeof(PlansAndOptionsInput), "A · Health Product and Plan"),
         new("health", "cfg_preauthorisation_required_lists", "cfg_preauthorisation_required_lists", "Preauthorisation-required lists", "health", "preauthorisation-required-lists", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(PreauthorisationRequiredLists), typeof(PreauthorisationRequiredListsInput), "G · Preauthorisation Management"),
+        new("health", "cfg_prescription_benefits", "cfg_prescription_benefits", "Prescription benefits", "health", "prescription-benefits", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(PrescriptionBenefits), typeof(PrescriptionBenefitsInput), "Health claims"),
         new("health", "cfg_provider_contracts", "cfg_provider_contracts", "Provider contracts", "health", "provider-contracts", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(ProviderContracts), typeof(ProviderContractsInput), "F · Provider Network Management"),
         new("health", "cfg_provider_measures", "cfg_provider_measures", "Provider measures", "health", "provider-measures", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(ProviderMeasures), typeof(ProviderMeasuresInput), "Health claims"),
         new("health", "cfg_provider_recovery_settings", "cfg_provider_recovery_settings", "Provider recovery settings", "health", "provider-recovery-settings", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(ProviderRecoverySettings), typeof(ProviderRecoverySettingsInput), "Health claims"),
@@ -141,6 +142,8 @@ public static class HealthStaticData
             entity.Property(x => x.FormatCode).HasColumnName("format_code").HasMaxLength(15);
             entity.Property(x => x.FieldMapping).HasColumnName("field_mapping").HasColumnType("jsonb");
             entity.Property(x => x.Transport).HasColumnName("transport").HasMaxLength(40);
+            entity.Property(x => x.LineKind).HasColumnName("line_kind").HasMaxLength(10);
+            entity.Property(x => x.RequiredLineFields).HasColumnName("required_line_fields");
         });
         modelBuilder.Entity<ClinicalReviewCriteriaReferences>(entity =>
         {
@@ -292,6 +295,21 @@ public static class HealthStaticData
             entity.Property(x => x.Plan).HasColumnName("plan").HasMaxLength(80);
             entity.Property(x => x.Service).HasColumnName("service").HasMaxLength(80);
             entity.Property(x => x.Threshold).HasColumnName("threshold").HasPrecision(18, 2);
+        });
+        modelBuilder.Entity<PrescriptionBenefits>(entity =>
+        {
+            entity.ToTable("cfg_prescription_benefits", "health");
+            StaticModel.ConfigureCommon(entity);
+            entity.Property(x => x.BenefitCode).HasColumnName("benefit_code").HasMaxLength(15);
+            entity.Property(x => x.PlanCode).HasColumnName("plan_code").HasMaxLength(15);
+            entity.Property(x => x.Tier).HasColumnName("tier").HasMaxLength(40);
+            entity.Property(x => x.Covered).HasColumnName("covered");
+            entity.Property(x => x.BenefitCategory).HasColumnName("benefit_category").HasMaxLength(15);
+            entity.Property(x => x.CopayType).HasColumnName("copay_type").HasMaxLength(10);
+            entity.Property(x => x.CopayValue).HasColumnName("copay_value").HasPrecision(18, 4);
+            entity.Property(x => x.LimitAmount).HasColumnName("limit_amount").HasPrecision(18, 2);
+            entity.Property(x => x.PrescriptionValidityDays).HasColumnName("prescription_validity_days");
+            entity.Property(x => x.RefillTolerancePercent).HasColumnName("refill_tolerance_percent").HasPrecision(5, 2);
         });
         modelBuilder.Entity<ProviderContracts>(entity =>
         {
@@ -465,6 +483,11 @@ public static class HealthStaticData
             entity.Property(x => x.ActiveIngredient).HasColumnName("active_ingredient").HasMaxLength(100);
             entity.Property(x => x.Tier).HasColumnName("tier").HasMaxLength(40);
             entity.Property(x => x.ReferencePrice).HasColumnName("reference_price").HasPrecision(18, 2);
+            entity.Property(x => x.BenefitCategory).HasColumnName("benefit_category").HasMaxLength(15);
+            entity.Property(x => x.PriorAuthRequired).HasColumnName("prior_auth_required");
+            entity.Property(x => x.MaxQuantity).HasColumnName("max_quantity");
+            entity.Property(x => x.MaxDaysSupply).HasColumnName("max_days_supply");
+            entity.Property(x => x.ReferenceGroup).HasColumnName("reference_group").HasMaxLength(20);
         });
         modelBuilder.Entity<MembershipStatusCodes>(entity =>
         {

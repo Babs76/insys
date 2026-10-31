@@ -46,11 +46,17 @@ public sealed class ClaimFormatDefinitions : StaticRecord<ClaimFormatDefinitions
     [Insys.BuildingBlocks.Domain.OneOf("API", "FILE", "CLEARING_HOUSE")]
     public string? Transport { get; set; }
 
+    public string? LineKind { get; set; }
+
+    public string[]? RequiredLineFields { get; set; }
+
     public override void ApplyFields(ClaimFormatDefinitionsInput input, IFieldProtector protector)
     {
         FormatCode = input.FormatCode!;
         FieldMapping = input.FieldMapping.GetValueOrDefault();
         Transport = input.Transport;
+        LineKind = input.LineKind;
+        RequiredLineFields = input.RequiredLineFields;
     }
 }
 
@@ -66,6 +72,10 @@ public sealed record ClaimFormatDefinitionsInput : StaticRecordInput
     [Insys.BuildingBlocks.Domain.OneOf("API", "FILE", "CLEARING_HOUSE")]
     public string? Transport { get; init; }
 
+    public string? LineKind { get; init; }
+
+    public string[]? RequiredLineFields { get; init; }
+
     protected override void ValidateFields(StaticFieldErrors errors)
     {
         errors.Required("formatCode", FormatCode);
@@ -73,5 +83,6 @@ public sealed record ClaimFormatDefinitionsInput : StaticRecordInput
         errors.Required("fieldMapping", FieldMapping);
         errors.MaxLength("transport", Transport, 40);
         errors.OneOf("transport", Transport, ["API", "FILE", "CLEARING_HOUSE"]);
+        errors.MaxLength("lineKind", LineKind, 10);
     }
 }

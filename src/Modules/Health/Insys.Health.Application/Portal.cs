@@ -66,15 +66,17 @@ public sealed record PortalMembershipView(Guid Id, string MemberNumber, string? 
     }
 }
 
-public sealed record PortalClaimLineView(int LineNo, string TariffCode, int Quantity, decimal ClaimedAmount, decimal PaidAmount,
+/// <param name="TariffCode">Null when the viewer may not see what was treated: OQ-161, a principal member looking at an adult dependant's claim.</param>
+public sealed record PortalClaimLineView(int LineNo, [property: BuildingBlocks.Contracts.AlwaysPresent] string? TariffCode, int Quantity, decimal ClaimedAmount, decimal PaidAmount,
     [property: BuildingBlocks.Domain.OneOf("PAY", "PEND", "REJECT")] string? Outcome);
 
 public sealed record PortalMedicalClaimView(Guid Id, string ClaimNumber, string? ProviderId, DateOnly ServiceDate, MedicalClaimStatus Status, decimal TotalClaimed,
     decimal? TotalPaid, string Currency, IReadOnlyList<PortalClaimLineView> Lines,
     [property: BuildingBlocks.Contracts.AlwaysPresent] Guid? ReplacesClaimId = null, [property: BuildingBlocks.Contracts.AlwaysPresent] Guid? ReplacedByClaimId = null)
 {
-    public static PortalMedicalClaimView From(MedicalClaim c) => new(c.Id, c.ClaimNumber, c.ProviderId, c.ServiceDate, c.Status, c.TotalClaimed, c.TotalPaid, c.Currency,
-        c.Lines.OrderBy(l => l.LineNo).Select(l => new PortalClaimLineView(l.LineNo, l.TariffCode, l.Quantity, l.ClaimedAmount, l.PaidAmount, l.Outcome)).ToList(), c.ReplacesClaimId, c.ReplacedByClaimId);
+    /// <param name="showCodes">False hides what was treated (OQ-161).</param>
+    public static PortalMedicalClaimView From(MedicalClaim c, bool showCodes = true) => new(c.Id, c.ClaimNumber, c.ProviderId, c.ServiceDate, c.Status, c.TotalClaimed, c.TotalPaid, c.Currency,
+        c.Lines.OrderBy(l => l.LineNo).Select(l => new PortalClaimLineView(l.LineNo, showCodes ? l.TariffCode : null, l.Quantity, l.ClaimedAmount, l.PaidAmount, l.Outcome)).ToList(), c.ReplacesClaimId, c.ReplacedByClaimId);
 }
 
 public sealed record PortalPreauthLineView(string ProcedureCode, int Quantity, decimal AuthorisedAmount);
@@ -119,7 +121,28 @@ public sealed record ListPortalRemittances(Guid? AfterId, int Limit) : IQuery<IR
 /// <summary>Before a provider's claim or preauthorisation request: the member being treated, by member number (and dependant suffix).</summary>
 public sealed record PortalPatientOf(string MemberNumber, string? DependantSuffix) : IQuery<PortalPatient>;
 
-internal sealed class HealthPortalHandlers(IHealthRepository health, IHealthPortalQueries queries, IExecutionContext execution) :
+/// <summary>
+/// OQ-161: a principal member does not see an adult dependant's medicines, chronic conditions or diagnoses; a minor's stay visible. Anyone sees their own.
+/// A dependant whose birth date can't be read counts as an adult: the record stays hidden.
+/// </summary>
+public sealed class DependantPrivacy(Party.Contracts.IPersonFacts persons, ITenantContext tenant, IBusinessDate businessDate)
+{
+    public const int AgeOfMajority = 18;
+
+    public async Task<bool> MaySeeClinical(Guid viewerPartyId, Guid patientPartyId, CancellationToken cancellationToken)
+    {
+        if (viewerPartyId == patientPartyId)
+        {
+            return true;
+        }
+
+        return await persons.BirthDate(tenant.RequireTenantId(), patientPartyId, cancellationToken) is { } born && IsMinor(born, businessDate.Today);
+    }
+
+    public static bool IsMinor(DateOnly born, DateOnly day) => born.AddYears(AgeOfMajority) > day;
+}
+
+internal sealed class HealthPortalHandlers(IHealthRepository health, IHealthPortalQueries queries, IExecutionContext execution, DependantPrivacy privacy) :
     IQueryHandler<GetPortalMembership, PortalMembershipView>,
     IQueryHandler<ListPortalMemberships, IReadOnlyList<PortalMembershipView>>,
     IQueryHandler<GetPortalMedicalClaim, PortalMedicalClaimView>,
@@ -159,7 +182,7 @@ internal sealed class HealthPortalHandlers(IHealthRepository health, IHealthPort
             };
             if (related)
             {
-                return PortalMedicalClaimView.From(claim);
+                return PortalMedicalClaimView.From(claim, who.Kind != ExternalSubject.Party || await privacy.MaySeeClinical(who.PartyId!.Value, claim.PatientPartyId, cancellationToken));
             }
         }
 
@@ -172,7 +195,19 @@ internal sealed class HealthPortalHandlers(IHealthRepository health, IHealthPort
         var claims = who.Kind == ExternalSubject.Provider
             ? await queries.ProviderClaims(who.ProviderId!, query.AfterId, query.Limit, cancellationToken)
             : await queries.MemberClaims(who.PartyId!.Value, query.AfterId, query.Limit, cancellationToken);
-        return Result.Success<IReadOnlyList<PortalMedicalClaimView>>(claims.Select(PortalMedicalClaimView.From).ToList());
+        var shown = new Dictionary<Guid, bool>();
+        var views = new List<PortalMedicalClaimView>();
+        foreach (var claim in claims)
+        {
+            if (who.Kind == ExternalSubject.Party && !shown.ContainsKey(claim.PatientPartyId))
+            {
+                shown[claim.PatientPartyId] = await privacy.MaySeeClinical(who.PartyId!.Value, claim.PatientPartyId, cancellationToken);
+            }
+
+            views.Add(PortalMedicalClaimView.From(claim, who.Kind != ExternalSubject.Party || shown[claim.PatientPartyId]));
+        }
+
+        return Result.Success<IReadOnlyList<PortalMedicalClaimView>>(views);
     }
 
     public async Task<Result<PortalPreauthorisationView>> Handle(GetPortalPreauthorisation query, CancellationToken cancellationToken) =>

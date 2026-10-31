@@ -70,6 +70,12 @@ public static class AdjudicationReasons
     public const string MemberClaim = "MEMBER_CLAIM";
     public const string Limit = "LIMIT";
     public const string Reviewer = "REVIEWER";
+    public const string NotOnFormulary = "NOT_ON_FORMULARY";
+    public const string TierNotCovered = "TIER_NOT_COVERED";
+    public const string NoPrescriptionBenefit = "NO_PRESCRIPTION_BENEFIT";
+    public const string PrescriptionNotValid = "PRESCRIPTION_NOT_VALID";
+    public const string RepeatExceeded = "REPEAT_EXCEEDED";
+    public const string QuantityCut = "QUANTITY_CUT";
 }
 
 public static class AccumulatorScope
@@ -146,7 +152,52 @@ public sealed record AccumulatorState(decimal? Limit, decimal Used, decimal Rese
     public decimal? Remaining => Limit is { } limit ? limit - Used - Reserved : null;
 }
 
-public sealed record ClaimLineInput(int LineNo, string TariffCode, string? DiagnosisCode, int Quantity, decimal Claimed, IReadOnlyList<string> Modifiers);
+public sealed record ClaimLineInput(int LineNo, string TariffCode, string? DiagnosisCode, int Quantity, decimal Claimed, IReadOnlyList<string> Modifiers, PharmacyFacts? Pharmacy = null);
+
+/// <summary>What makes a claim line a pharmacy line (addenda/benefit-programmes.md §4.1): its TariffCode is then the product code. Clinical.</summary>
+public sealed record PharmacyFacts(int? DaysSupply, DateOnly? PrescribedOn, int? RepeatNumber, int? RepeatsAuthorised);
+
+/// <summary>A medicine in force on the service date (health.ref_medicine_formulary).</summary>
+public sealed record FormularyItem(string ProductCode, string ActiveIngredient, string Tier, decimal? ReferencePrice, string? Category, bool PriorAuthRequired, int? MaxQuantity, int? MaxDaysSupply);
+
+/// <summary>What a plan gives a formulary tier (health.cfg_prescription_benefits); a null plan is every plan. <see cref="FormularyTiers.NonFormulary"/> also covers a product not on the list (OQ-149).</summary>
+public sealed record PrescriptionBenefit(string? PlanCode, string Tier, bool Covered, string? Category, string? CopayType, decimal? CopayValue, decimal? LimitAmount, int? ValidityDays,
+    decimal? RefillTolerancePercent);
+
+public static class FormularyTiers
+{
+    public const string NonFormulary = "NON_FORMULARY";
+}
+
+/// <summary>A medicine paid on another adjudicated claim for the patient, not rejected or reversed. What a limit has used is counted from these, so a reversal gives it back.</summary>
+public sealed record PriorMedicine(Guid ClaimId, string ProductCode, string? ActiveIngredient, string? Tier, DateOnly ServiceDate, int Quantity, int? DaysSupply, decimal Paid);
+
+/// <summary>A pharmacy line's formulary entry (null when it isn't listed), the benefit for its tier and the benefit category it draws on.</summary>
+public sealed record PharmacyTerms(FormularyItem? Item, PrescriptionBenefit? Benefit, string? Category)
+{
+    public string Tier => Item?.Tier ?? FormularyTiers.NonFormulary;
+
+    public static PharmacyTerms Of(string productCode, AdjudicationContext context)
+    {
+        var item = context.Formulary.GetValueOrDefault(productCode);
+        var tier = item?.Tier ?? FormularyTiers.NonFormulary;
+        var benefit = context.PrescriptionBenefits.Where(b => b.Tier == tier && (b.PlanCode is null || b.PlanCode == context.Plan.PlanCode))
+            .OrderBy(b => b.PlanCode is null).FirstOrDefault();
+        return new PharmacyTerms(item, benefit, item?.Category ?? benefit?.Category);
+    }
+
+    /// <summary>What is paid for: at most the maximum quantity and, pro rata, the maximum days' supply. The excess is not paid (F042).</summary>
+    public int PayableQuantity(int quantity, int? daysSupply)
+    {
+        var payable = Item?.MaxQuantity is { } most ? Math.Min(quantity, most) : quantity;
+        if (Item?.MaxDaysSupply is { } days && daysSupply is { } supplied && supplied > days)
+        {
+            payable = Math.Min(payable, quantity * days / supplied);
+        }
+
+        return payable;
+    }
+}
 
 public sealed record AdjudicationContext
 {
@@ -206,10 +257,17 @@ public sealed record AdjudicationContext
     public IReadOnlyDictionary<AccumulatorKey, AccumulatorState> Accumulators { get; init; } = new Dictionary<AccumulatorKey, AccumulatorState>();
 
     public IReadOnlyDictionary<int, ReviewDecision> Reviews { get; init; } = new Dictionary<int, ReviewDecision>();
+
+    public IReadOnlyDictionary<string, FormularyItem> Formulary { get; init; } = new Dictionary<string, FormularyItem>();
+
+    public IReadOnlyList<PrescriptionBenefit> PrescriptionBenefits { get; init; } = [];
+
+    public IReadOnlyList<PriorMedicine> PriorMedicines { get; init; } = [];
 }
 
 public sealed record LineResult(int LineNo, LineOutcome Outcome, string? Reason, string? Category, NetworkStatus? NetworkStatus, decimal? Tariff, decimal Allowed,
-    decimal Deductible, decimal CoPayment, decimal Paid, decimal MemberLiability, Guid? PreauthLineId, string? HighCostRule);
+    decimal Deductible, decimal CoPayment, decimal Paid, decimal MemberLiability, Guid? PreauthLineId, string? HighCostRule, int? PaidQuantity = null, string? ActiveIngredient = null,
+    string? FormularyTier = null);
 
 /// <summary>What the claim does to an accumulator: its limit (when created), and what is consumed, released from reservation, and met.</summary>
 public sealed record AccumulatorChange(AccumulatorKey Key, decimal? Limit, decimal Consume, decimal Release, decimal Deductible, decimal CoPayment);
@@ -359,10 +417,11 @@ public static class AdjudicationEngine
         var authorised = context.Authorised.ToDictionary(a => a.LineId, a => a);
         var perEventUsed = new Dictionary<string, decimal>(StringComparer.Ordinal);
         var copayInClaim = new Dictionary<string, decimal>(StringComparer.Ordinal);
+        var medicines = context.PriorMedicines.Where(m => m.ClaimId != context.ClaimId).ToList();
         var results = new List<LineResult>();
         foreach (var line in lines.OrderBy(l => l.LineNo))
         {
-            var result = Line(context, line, state, changes, uses, authorised, perEventUsed, copayInClaim);
+            var result = Line(context, line, state, changes, uses, authorised, perEventUsed, copayInClaim, medicines);
             results.Add(result);
         }
 
@@ -371,7 +430,7 @@ public static class AdjudicationEngine
 
     private static LineResult Line(AdjudicationContext context, ClaimLineInput line, Dictionary<AccumulatorKey, AccumulatorState> state,
         Dictionary<AccumulatorKey, AccumulatorChange> changes, List<AuthorisationUse> uses, Dictionary<Guid, AuthorisedLine> authorised,
-        Dictionary<string, decimal> perEventUsed, Dictionary<string, decimal> copayInClaim)
+        Dictionary<string, decimal> perEventUsed, Dictionary<string, decimal> copayInClaim, List<PriorMedicine> medicines)
     {
         context.Reviews.TryGetValue(line.LineNo, out var review);
         var accepted = context.Reviews.ContainsKey(line.LineNo) && review == ReviewDecision.Accept;
@@ -391,9 +450,21 @@ public static class AdjudicationEngine
             return Stop(LineOutcome.Pend, AdjudicationReasons.MemberClaim);
         }
 
+        // A pharmacy line: coverage from the formulary and the plan's benefit for its tier (F041, OQ-149: not listed and no rule for it is rejected).
+        var rx = line.Pharmacy is null ? null : PharmacyTerms.Of(line.TariffCode, context);
+        if (rx is { Benefit: null or { Covered: false } } && (rx.Tier == FormularyTiers.NonFormulary || rx.Benefit is not null))
+        {
+            return Stop(LineOutcome.Reject, rx.Tier == FormularyTiers.NonFormulary ? AdjudicationReasons.NotOnFormulary : AdjudicationReasons.TierNotCovered);
+        }
+
+        if (rx is { Benefit: null })
+        {
+            return Stop(LineOutcome.Pend, AdjudicationReasons.NoPrescriptionBenefit);
+        }
+
         // (a) Benefit category.
         context.CodeSystems.TryGetValue(line.TariffCode, out var codeSystem);
-        var category = BenefitCategories.Of(line.TariffCode, codeSystem, context.Provider.ProviderType, context.Mappings);
+        var category = rx is not null ? rx.Category : BenefitCategories.Of(line.TariffCode, codeSystem, context.Provider.ProviderType, context.Mappings);
         if (category is null)
         {
             return Stop(LineOutcome.Pend, AdjudicationReasons.NoBenefitCategory);
@@ -412,23 +483,24 @@ public static class AdjudicationEngine
             }
         }
 
+        var payableQuantity = rx?.PayableQuantity(line.Quantity, line.Pharmacy!.DaysSupply);
         var schedules = network == NetworkStatus.InNetwork
             ? new[] { context.Provider.ContractTariffSchedule, context.Provider.NetworkTariffSchedule, context.Plan.ReferenceTariffSchedule }
             : [context.Plan.ReferenceTariffSchedule];
-        var price = schedules.Where(s => s is not null).Select(s => context.Tariffs.TryGetValue((s!, line.TariffCode), out var p) ? p : null).FirstOrDefault(p => p is not null);
-        if (price is null)
+        var price = rx is not null ? null : schedules.Where(s => s is not null).Select(s => context.Tariffs.TryGetValue((s!, line.TariffCode), out var p) ? p : null).FirstOrDefault(p => p is not null);
+        if (price is null && rx is null)
         {
             return Stop(LineOutcome.Pend, AdjudicationReasons.NoTariff, category, network);
         }
 
         // (c) Modifiers.
-        var unit = price.Price;
+        var unit = price?.Price ?? 0;
         var applied = new List<ModifierRule>();
         foreach (var code in line.Modifiers.Distinct(StringComparer.Ordinal))
         {
             var rule = context.Modifiers.FirstOrDefault(m => m.Code == code);
             if (rule is null || (rule.AppliesTo is { Count: > 0 } && !CodeRanges.Contains(rule.AppliesTo, line.TariffCode))
-                || (price.AllowedModifiers is not null && !price.AllowedModifiers.Contains(code)))
+                || (price?.AllowedModifiers is not null && !price.AllowedModifiers.Contains(code)))
             {
                 return Stop(LineOutcome.Pend, AdjudicationReasons.ModifierNotAllowed, category, network);
             }
@@ -448,8 +520,15 @@ public static class AdjudicationEngine
 
         var tariff = Round(unit * line.Quantity);
 
-        // (d) Allowed amount: the lesser of claimed and tariff; out of network at the reference tariff.
+        // (d) Allowed amount: the lesser of claimed and tariff; out of network at the reference tariff. A medicine is priced at the
+        // claim for what is payable, capped at the reference price if it has one: paying above it falls to the member (OQ-152).
         var allowed = Math.Min(line.Claimed, tariff);
+        if (rx is not null)
+        {
+            var claimedForPayable = Round(line.Claimed * payableQuantity!.Value / line.Quantity);
+            tariff = rx.Item?.ReferencePrice is { } reference ? Round(reference * payableQuantity.Value) : claimedForPayable;
+            allowed = Math.Min(claimedForPayable, tariff);
+        }
 
         // (g) Waiting periods fixed at enrolment, and exclusions with codes.
         var waiting = context.WaitingPeriods.FirstOrDefault(w => context.ServiceDate < w.EndsOn && !w.Exceptions.Contains(category)
@@ -462,6 +541,21 @@ public static class AdjudicationEngine
         if (context.Exclusions.Any(e => CodeRanges.Contains(e.DiagnosisCodes, line.DiagnosisCode) || CodeRanges.Contains(e.ProcedureCodes, line.TariffCode)))
         {
             return Stop(LineOutcome.Reject, AdjudicationReasons.Excluded, category, network, tariff, allowed);
+        }
+
+        // The prescription (F040): past its validity, or a repeat beyond what was prescribed, pends for a person.
+        if (line.Pharmacy is { } script && !accepted)
+        {
+            if (script.PrescribedOn is { } prescribed
+                && (context.ServiceDate < prescribed || (rx!.Benefit!.ValidityDays is { } validity && context.ServiceDate > prescribed.AddDays(validity))))
+            {
+                return Stop(LineOutcome.Pend, AdjudicationReasons.PrescriptionNotValid, category, network, tariff, allowed);
+            }
+
+            if (script.RepeatNumber is { } repeat && repeat > (script.RepeatsAuthorised ?? 0))
+            {
+                return Stop(LineOutcome.Pend, AdjudicationReasons.RepeatExceeded, category, network, tariff, allowed);
+            }
         }
 
         // Duplicates (§11.1 H) and repeat services pend for a person.
@@ -521,7 +615,9 @@ public static class AdjudicationEngine
         var year = Current(state, memberYear, keys[memberYear]);
         var deductibleRule = Rule(context, "DEDUCTIBLE", category, networkCode);
         var deductible = deductibleRule is null ? 0 : Math.Min(allowed, Math.Max(0, deductibleRule.Value - year.DeductibleMet));
-        var copayRule = Rule(context, "CO_PAYMENT", category, memberPriced || context.OutOfNetworkTreatment == "COVERED_AT_TARIFF" ? "IN_NETWORK" : networkCode);
+        var copayRule = rx?.Benefit is { CopayType: { } copayType, CopayValue: { } copayValue }
+            ? new CostShareRule("CO_PAYMENT", category, copayType, copayValue, networkCode, null, "NONE", context.Plan.PlanCode) // the tier's co-payment (F043)
+            : Rule(context, "CO_PAYMENT", category, memberPriced || context.OutOfNetworkTreatment == "COVERED_AT_TARIFF" ? "IN_NETWORK" : networkCode);
         var copayBase = allowed - deductible;
         var copay = 0m;
         if (copayRule is not null)
@@ -558,6 +654,14 @@ public static class AdjudicationEngine
             paid = Math.Min(paid, Math.Max(0, eventCap - perEventUsed.GetValueOrDefault(category)));
         }
 
+        // The tier's limit for the benefit year, counted from what its medicines were paid.
+        if (rx?.Benefit?.LimitAmount is { } tierLimit)
+        {
+            var benefitYear = BenefitPeriods.Year(context.Plan.BenefitYear, context.MembershipStart, context.ServiceDate);
+            var tierUsed = medicines.Where(m => m.Tier == rx.Tier && m.ServiceDate >= benefitYear.Start && m.ServiceDate <= benefitYear.End).Sum(m => m.Paid);
+            paid = Math.Min(paid, Math.Max(0, tierLimit - tierUsed));
+        }
+
         paid = Math.Max(0, paid);
         foreach (var (key, limit) in keys)
         {
@@ -585,9 +689,15 @@ public static class AdjudicationEngine
             uses.Add(new AuthorisationUse(match.PreauthorisationId, match.LineId, release, paid));
         }
 
+        if (rx is not null)
+        {
+            medicines.Add(new PriorMedicine(context.ClaimId, line.TariffCode, rx.Item?.ActiveIngredient, rx.Tier, context.ServiceDate, payableQuantity!.Value, line.Pharmacy!.DaysSupply, paid));
+        }
+
         var highCost = context.HighCost.FirstOrDefault(h => (h.Service == line.TariffCode || h.Service == category) && allowed > h.Amount)?.Code;
-        return new LineResult(line.LineNo, LineOutcome.Pay, paid < due ? AdjudicationReasons.Limit : null, category, network, tariff, allowed, deductible, copay, paid,
-            line.Claimed - paid, match?.LineId, highCost);
+        var why = paid < due ? AdjudicationReasons.Limit : payableQuantity < line.Quantity ? AdjudicationReasons.QuantityCut : null;
+        return new LineResult(line.LineNo, LineOutcome.Pay, why, category, network, tariff, allowed, deductible, copay, paid,
+            line.Claimed - paid, match?.LineId, highCost, payableQuantity, rx?.Item?.ActiveIngredient, rx?.Tier);
     }
 
     private static CostShareRule? Rule(AdjudicationContext context, string kind, string category, string networkStatus) =>

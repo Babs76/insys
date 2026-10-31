@@ -48,12 +48,27 @@ public sealed class MedicineFormulary : StaticRecord<MedicineFormularyInput>
 
     public decimal? ReferencePrice { get; set; }
 
+    public string? BenefitCategory { get; set; }
+
+    public bool? PriorAuthRequired { get; set; }
+
+    public int? MaxQuantity { get; set; }
+
+    public int? MaxDaysSupply { get; set; }
+
+    public string? ReferenceGroup { get; set; }
+
     public override void ApplyFields(MedicineFormularyInput input, IFieldProtector protector)
     {
         ProductCode = input.ProductCode!;
         ActiveIngredient = input.ActiveIngredient!;
         Tier = input.Tier!;
         ReferencePrice = input.ReferencePrice;
+        BenefitCategory = input.BenefitCategory;
+        PriorAuthRequired = input.PriorAuthRequired;
+        MaxQuantity = input.MaxQuantity;
+        MaxDaysSupply = input.MaxDaysSupply;
+        ReferenceGroup = input.ReferenceGroup;
     }
 }
 
@@ -72,6 +87,16 @@ public sealed record MedicineFormularyInput : StaticRecordInput
 
     public decimal? ReferencePrice { get; init; }
 
+    public string? BenefitCategory { get; init; }
+
+    public bool? PriorAuthRequired { get; init; }
+
+    public int? MaxQuantity { get; init; }
+
+    public int? MaxDaysSupply { get; init; }
+
+    public string? ReferenceGroup { get; init; }
+
     protected override void ValidateFields(StaticFieldErrors errors)
     {
         errors.Required("productCode", ProductCode);
@@ -81,5 +106,7 @@ public sealed record MedicineFormularyInput : StaticRecordInput
         errors.Required("tier", Tier);
         errors.MaxLength("tier", Tier, 40);
         errors.OneOf("tier", Tier, ["1", "2", "3", "NON_FORMULARY"]);
+        errors.MaxLength("benefitCategory", BenefitCategory, 15);
+        errors.MaxLength("referenceGroup", ReferenceGroup, 20);
     }
 }

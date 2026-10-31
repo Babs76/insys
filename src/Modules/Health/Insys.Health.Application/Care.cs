@@ -90,6 +90,9 @@ public sealed record ReverseMedicalClaim(Guid ClaimId, string Reason) : ICommand
 
 public sealed record GetMedicalClaim(Guid ClaimId) : IQuery<MedicalClaimView>;
 
+/// <summary>Command ReadMedicalClaimClinical: a claim's codes, diagnoses and prescriptions, for a stated clinical purpose only (HLT-008). A command, so its audit entry is written.</summary>
+public sealed record ReadMedicalClaimClinical(Guid ClaimId, string? Purpose) : ICommand<MedicalClaimClinicalView>;
+
 public sealed class RequestAuthorisationValidator : AbstractValidator<RequestAuthorisation>
 {
     public RequestAuthorisationValidator()
@@ -117,10 +120,15 @@ public sealed class SubmitMedicalClaimValidator : AbstractValidator<SubmitMedica
         RuleFor(c => c.Lines).NotEmpty();
         RuleForEach(c => c.Lines).ChildRules(l =>
         {
-            l.RuleFor(x => x.TariffCode).NotEmpty().MaximumLength(15);
+            l.RuleFor(x => x.TariffCode).NotEmpty().MaximumLength(20);
             l.RuleFor(x => x.DiagnosisCode).MaximumLength(10);
             l.RuleFor(x => x.Quantity).InclusiveBetween(1, 999);
             l.RuleFor(x => x.ClaimedAmount).GreaterThan(0).PrecisionScale(18, 2, true);
+            l.RuleFor(x => x.Pharmacy!.DaysSupply).InclusiveBetween(1, 999).When(x => x.Pharmacy is not null);
+            l.RuleFor(x => x.Pharmacy!.PrescriptionNumber).MaximumLength(30).When(x => x.Pharmacy is not null);
+            l.RuleFor(x => x.Pharmacy!.Prescriber).MaximumLength(30).When(x => x.Pharmacy is not null);
+            l.RuleFor(x => x.Pharmacy!.RepeatNumber).InclusiveBetween(0, 99).When(x => x.Pharmacy is not null);
+            l.RuleFor(x => x.Pharmacy!.RepeatsAuthorised).InclusiveBetween(0, 99).When(x => x.Pharmacy is not null);
         });
     }
 }
@@ -148,7 +156,7 @@ public sealed class BenefitContexts(IHealthRepository health, IHealthCodes codes
         var rules = await codes.Rules(plan.Terms, serviceDate, cancellationToken);
         var provider = providerId is null ? null : await codes.Provider(providerId, serviceDate, cancellationToken);
         var network = await codes.Network(plan.Terms, provider, serviceDate, cancellationToken);
-        var tariffCodes = lines.Select(l => l.TariffCode).Distinct().ToList();
+        var tariffCodes = lines.Where(l => l.Pharmacy is null).Select(l => l.TariffCode).Distinct().ToList();
         var schedules = new[] { network.ContractTariffSchedule, network.NetworkTariffSchedule, plan.Terms.ReferenceTariffSchedule }.OfType<string>().Distinct().ToList();
         var codeSystems = await codes.CodeSystems(tariffCodes, serviceDate, cancellationToken);
         var context = new AdjudicationContext
@@ -165,6 +173,17 @@ public sealed class BenefitContexts(IHealthRepository health, IHealthCodes codes
             Reviews = reviews ?? new Dictionary<int, ReviewDecision>(),
         };
 
+        // Pharmacy lines only: a claim with none reads nothing more, and adjudicates exactly as before.
+        if (lines.Any(l => l.Pharmacy is not null))
+        {
+            context = context with
+            {
+                Formulary = await codes.Formulary(lines.Where(l => l.Pharmacy is not null).Select(l => l.TariffCode).Distinct().ToList(), serviceDate, cancellationToken),
+                PrescriptionBenefits = await codes.PrescriptionBenefits(plan.Terms.PlanCode, serviceDate, cancellationToken),
+                PriorMedicines = await health.PriorMedicines(patientPartyId, serviceDate.AddYears(-2), claimId, cancellationToken),
+            };
+        }
+
         if (providerId is not null && lines.Count > 0)
         {
             var authorised = new List<AuthorisedLine>();
@@ -178,7 +197,9 @@ public sealed class BenefitContexts(IHealthRepository health, IHealthCodes codes
         }
 
         // The accumulators of every category the lines (or the authorisation) fall in.
-        var wanted = (categories ?? lines.Select(l => BenefitCategories.Of(l.TariffCode, codeSystems.GetValueOrDefault(l.TariffCode), network.ProviderType, rules.Mappings))
+        var priced = context;
+        var wanted = (categories ?? lines.Select(l => l.Pharmacy is not null ? PharmacyTerms.Of(l.TariffCode, priced).Category
+                    : BenefitCategories.Of(l.TariffCode, codeSystems.GetValueOrDefault(l.TariffCode), network.ProviderType, rules.Mappings))
                 .OfType<string>().ToList()).Distinct().ToList();
         var keys = wanted.SelectMany(c => Limits.For(c, context, serviceDate).Accumulators.Keys).Distinct().ToList();
         var accumulators = await health.Accumulators(membership.Id, keys, cancellationToken);
@@ -208,6 +229,36 @@ public sealed class BenefitContexts(IHealthRepository health, IHealthCodes codes
 
         return Result.Success();
     }
+}
+
+internal sealed class ReadMedicalClaimClinicalHandler(IHealthRepository health, IAuditTrail audit) : ICommandHandler<ReadMedicalClaimClinical, MedicalClaimClinicalView>
+{
+    public const int PurposeMaxLength = 200;
+
+    public async Task<Result<MedicalClaimClinicalView>> Handle(ReadMedicalClaimClinical command, CancellationToken cancellationToken)
+    {
+        var target = command.ClaimId.ToString();
+        if (string.IsNullOrWhiteSpace(command.Purpose) || command.Purpose.Length > PurposeMaxLength)
+        {
+            audit.Record(Denied(target, "PURPOSE_REQUIRED", null));
+            return Error.Validation(HealthErrorCodes.PurposeRequired, $"Reading clinical information needs a purpose of up to {PurposeMaxLength} characters, which is recorded (HLT-008).");
+        }
+
+        if (await health.Claim(command.ClaimId, cancellationToken) is not { } claim)
+        {
+            audit.Record(Denied(target, "NOT_FOUND", command.Purpose));
+            return Error.NotFound(ErrorCodes.NotFound, "The claim was not found.");
+        }
+
+        audit.Record(new AuditEntry("HEALTH", "ReadClinical", nameof(MedicalClaim), target, new Dictionary<string, string?> { ["purpose"] = command.Purpose }));
+        return MedicalClaimClinicalView.From(claim);
+    }
+
+    private static AuditEntry Denied(string target, string reason, string? purpose) =>
+        new("HEALTH", "ReadClinical", nameof(MedicalClaim), target, new Dictionary<string, string?> { ["refused"] = reason, ["purpose"] = purpose })
+        {
+            Outcome = AuditOutcome.Denied,
+        };
 }
 
 internal sealed class RequestAuthorisationHandler(IHealthRepository health, IHealthCodes codes, IBusinessDate businessDate, IAuditTrail audit)
@@ -472,16 +523,20 @@ internal sealed class ValidateMedicalClaimHandler(IHealthRepository health, IHea
 
         var day = claim.ServiceDate;
         var membership = await health.Membership(claim.MembershipId, cancellationToken);
-        var codesUsed = claim.Lines.Select(l => l.TariffCode).Distinct().ToList();
+        var codesUsed = claim.Lines.Where(l => !l.IsPharmacy).Select(l => l.TariffCode).Distinct().ToList();
         var diagnoses = claim.Lines.Select(l => l.DiagnosisCode).OfType<string>().Distinct().ToList();
         string? problem = null;
         if (membership is null || !membership.Covers(claim.PatientPartyId, day))
         {
             problem = "NOT_COVERED";
         }
-        else if (!await codes.ClaimFormatExists(claim.FormatCode, businessDate.Today, cancellationToken))
+        else if (await codes.ClaimFormat(claim.FormatCode, businessDate.Today, cancellationToken) is not { } format)
         {
             problem = "UNKNOWN_FORMAT";
+        }
+        else if (format.Problem(claim.Lines.Select(l => l.PharmacyFields()).ToList()) is { } formatProblem)
+        {
+            problem = formatProblem;
         }
         else if (claim.ProviderId is { } providerId && await codes.Provider(providerId, day, cancellationToken) is not { Status: "ACTIVE" })
         {

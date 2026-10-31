@@ -7543,6 +7543,36 @@
      "logicalType": "Money",
      "mandatory": false,
      "sample": "95.00"
+    },
+    {
+     "name": "benefit_category",
+     "logicalType": "String(15)",
+     "mandatory": false,
+     "sample": "MEDICINES"
+    },
+    {
+     "name": "prior_auth_required",
+     "logicalType": "Boolean",
+     "mandatory": false,
+     "sample": "false"
+    },
+    {
+     "name": "max_quantity",
+     "logicalType": "Integer",
+     "mandatory": false,
+     "sample": "90"
+    },
+    {
+     "name": "max_days_supply",
+     "logicalType": "Integer",
+     "mandatory": false,
+     "sample": "30"
+    },
+    {
+     "name": "reference_group",
+     "logicalType": "String(20)",
+     "mandatory": false,
+     "sample": "RG-1"
     }
    ]
   },
@@ -8052,6 +8082,18 @@
      "logicalType": "Enum{API,File,Clearing house}",
      "mandatory": false,
      "sample": "API"
+    },
+    {
+     "name": "line_kind",
+     "logicalType": "String(10)",
+     "mandatory": false,
+     "sample": "PHARMACY"
+    },
+    {
+     "name": "required_line_fields",
+     "logicalType": "List<String>",
+     "mandatory": false,
+     "sample": "daysSupply,prescriptionNumber"
     }
    ]
   },

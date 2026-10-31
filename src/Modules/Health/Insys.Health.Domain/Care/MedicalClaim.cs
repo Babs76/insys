@@ -73,7 +73,10 @@ public static class ClaimSources
     public const string Member = "MEMBER";
 }
 
-public sealed record ClaimLineRequest(string TariffCode, string? DiagnosisCode, int Quantity, decimal ClaimedAmount, IReadOnlyList<string>? Modifiers);
+public sealed record ClaimLineRequest(string TariffCode, string? DiagnosisCode, int Quantity, decimal ClaimedAmount, IReadOnlyList<string>? Modifiers, PharmacyLineRequest? Pharmacy = null);
+
+/// <summary>What a pharmacy format adds to a line (OQ-147); the line's tariffCode is then the product code. Prescriber is recorded, not checked (OQ-148).</summary>
+public sealed record PharmacyLineRequest(int? DaysSupply, string? PrescriptionNumber, string? Prescriber, DateOnly? PrescribedOn, int? RepeatNumber, int? RepeatsAuthorised);
 
 public sealed record MedicalClaimSubmitted(Guid ClaimId, string ClaimNumber, string Source, string? ProviderId, Guid MembershipId, DateOnly ServiceDate, decimal TotalClaimed,
     string Currency, DateTimeOffset OccurredAt) : IDomainEvent;
@@ -150,13 +153,62 @@ public sealed class MedicalClaimLine : Entity<Guid>, ITenantScoped
 
     public long RowVersion { get; private set; }
 
-    public ClaimLineInput ToInput() => new(LineNo, TariffCode, DiagnosisCode, Quantity, ClaimedAmount, Modifiers ?? []);
+    /// <summary>A pharmacy line (OQ-147). These fields, and TariffCode with them, are clinical: only the audited clinical read shows them (HLT-008).</summary>
+    public bool IsPharmacy { get; private set; }
+
+    public int? DaysSupply { get; private set; }
+
+    public string? PrescriptionNumber { get; private set; }
+
+    public string? PrescriberRef { get; private set; }
+
+    public DateOnly? PrescribedOn { get; private set; }
+
+    public int? RepeatNumber { get; private set; }
+
+    public int? RepeatsAuthorised { get; private set; }
+
+    public int? PaidQuantity { get; private set; }
+
+    public string? ActiveIngredient { get; private set; }
+
+    public string? FormularyTier { get; private set; }
+
+    public ClaimLineInput ToInput() => new(LineNo, TariffCode, DiagnosisCode, Quantity, ClaimedAmount, Modifiers ?? [],
+        IsPharmacy ? new PharmacyFacts(DaysSupply, PrescribedOn, RepeatNumber, RepeatsAuthorised) : null);
+
+    /// <summary>The pharmacy fields this line has, by their API names; null when it isn't a pharmacy line.</summary>
+    public IReadOnlyCollection<string>? PharmacyFields()
+    {
+        if (!IsPharmacy)
+        {
+            return null;
+        }
+
+        var fields = new List<string>();
+        void Has(bool present, string field)
+        {
+            if (present)
+            {
+                fields.Add(field);
+            }
+        }
+
+        Has(DaysSupply is not null, "daysSupply");
+        Has(PrescriptionNumber is not null, "prescriptionNumber");
+        Has(PrescriberRef is not null, "prescriber");
+        Has(PrescribedOn is not null, "prescribedOn");
+        Has(RepeatNumber is not null, "repeatNumber");
+        return fields;
+    }
 
     internal static MedicalClaimLine Create(Guid claimId, int lineNo, ClaimLineRequest request) => new()
     {
-        Id = Guid.CreateVersion7(), ClaimId = claimId, LineNo = lineNo, TariffCode = Guard.MaxLength(request.TariffCode, 15), DiagnosisCode = request.DiagnosisCode,
+        Id = Guid.CreateVersion7(), ClaimId = claimId, LineNo = lineNo, TariffCode = Guard.MaxLength(request.TariffCode, 20), DiagnosisCode = request.DiagnosisCode,
         Quantity = request.Quantity, ClaimedAmount = request.ClaimedAmount, Modifiers = request.Modifiers is { Count: > 0 } m ? [.. m] : null,
-        MemberLiability = request.ClaimedAmount,
+        MemberLiability = request.ClaimedAmount, IsPharmacy = request.Pharmacy is not null, DaysSupply = request.Pharmacy?.DaysSupply,
+        PrescriptionNumber = request.Pharmacy?.PrescriptionNumber, PrescriberRef = request.Pharmacy?.Prescriber, PrescribedOn = request.Pharmacy?.PrescribedOn,
+        RepeatNumber = request.Pharmacy?.RepeatNumber, RepeatsAuthorised = request.Pharmacy?.RepeatsAuthorised,
     };
 
     internal void Apply(LineResult result)
@@ -172,6 +224,9 @@ public sealed class MedicalClaimLine : Entity<Guid>, ITenantScoped
         PaidAmount = result.Paid;
         MemberLiability = result.MemberLiability;
         PreauthLineId = result.PreauthLineId;
+        PaidQuantity = result.PaidQuantity;
+        ActiveIngredient = result.ActiveIngredient;
+        FormularyTier = result.FormularyTier;
     }
 }
 

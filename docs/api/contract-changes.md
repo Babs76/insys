@@ -2,6 +2,18 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
+## Wave 5b batch 5b.1 (branch `wave5b1`): pharmacy claims (addendum §4.1; F039 to F045) and OQ-161
+
+### New
+- **`health.cfg_prescription_benefits`** (static data, tenant, Tier 2): per plan and tier, `covered`, `benefitCategory`, `copayType`, `copayValue`, `limitAmount`, `prescriptionValidityDays`, `refillTolerancePercent`.
+- **`GET /health/claims/{id}/clinical?purpose=`** [`health_case.read_clinical`]: a claim's codes, diagnoses and prescriptions; every read is audited. Function `HEALTH_READ_CLAIM_CLINICAL`.
+
+### Changed
+- **`health.ref_medicine_formulary`** gains `benefitCategory`, `priorAuthRequired`, `maxQuantity`, `maxDaysSupply`, `referenceGroup`. **`health.cfg_claim_format_definitions`** gains `lineKind` (`PHARMACY`) and `requiredLineFields`.
+- **Claims:** a line in `POST /health/claims` and `/portal/health/claims` takes `pharmacy`: `daysSupply`, `prescriptionNumber`, `prescriber`, `prescribedOn`, `repeatNumber`, `repeatsAuthorised`; `tariffCode` is then the product code, up to 20 characters. A format that isn't `PHARMACY` rejects such a line.
+- **`ClaimLineView`:** a pharmacy line's `tariffCode` is the word `PHARMACY`. New `paidQuantity`; new reasons `QUANTITY_CUT`, `NOT_ON_FORMULARY`, `TIER_NOT_COVERED`, `NO_PRESCRIPTION_BENEFIT`, `PRESCRIPTION_NOT_VALID`, `REPEAT_EXCEEDED`.
+- **`PortalClaimLineView.tariffCode` can be null** (OQ-161): a principal member looking at an adult dependant's claim. **The front end must handle this.**
+
 ## Wave 5a batch 5a.3 (branch `wave5a-3`): recoveries, credit notes and disputes (addendum §4.6 to §4.8; F048 to F050)
 
 ### New

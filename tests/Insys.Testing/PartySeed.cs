@@ -32,11 +32,11 @@ namespace Insys.Testing;
 public static class PartySeed
 {
     /// <summary>Registers an individual; the client's user needs party.create.</summary>
-    public static async Task<Guid> RegisterPerson(this HttpClient client, string surname)
+    public static async Task<Guid> RegisterPerson(this HttpClient client, string surname, DateOnly? birthDate = null)
     {
         var response = await client.Send(HttpMethod.Post, "/api/v1/party/parties", new
         {
-            individual = new { firstNames = "Test", surname, birthDate = "1985-06-15", nationality = "ZA" },
+            individual = new { firstNames = "Test", surname, birthDate = birthDate?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) ?? "1985-06-15", nationality = "ZA" },
             // Test people share names and a birth date, so a second one confirms it is new (OQ-127).
             confirmNew = true, reason = "A separate test person",
         }, idempotent: true);

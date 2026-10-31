@@ -1321,6 +1321,62 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
     }
 
     /// <summary>Phase 5 review, item 5: member reimbursement on the plan's REFERENCE_TARIFF basis, paid to the principal's verified account through a run.</summary>
+    /// <summary>Wave 5b §10: a pharmacy claim from receipt through a payment run; what it dispensed is clinical; a reversal gives its limit back.</summary>
+    [Fact]
+    public async Task APharmacyClaim_RunsFromReceiptThroughAPaymentRun_AndWhatItDispensedIsClinical_F039_F045_HLT008()
+    {
+        await _db.ExecuteAsOwner("""
+            INSERT INTO health.cfg_claim_format_definitions (tenant_id, code, version, effective_from, record_status, created_by, change_reason, format_code, field_mapping, transport, line_kind, required_line_fields)
+            VALUES (@t, 'RX', 1, @from, 'EFFECTIVE', 'seed', 'seed', 'RX', '{}', 'API', 'PHARMACY', '{daysSupply,prescriptionNumber}')
+            """, ("t", Tenant), ("from", Today.AddYears(-2)));
+        await Seed("health.ref_medicine_formulary", "ACTIVE", "NAPPI-1", ("product_code", "NAPPI-1"), ("active_ingredient", "METFORMIN"), ("tier", "1"), ("reference_price", 2m),
+            ("benefit_category", "MEDICINES"), ("max_quantity", 30));
+        await Seed("health.cfg_prescription_benefits", "EFFECTIVE", "RX-T1", ("benefit_code", "RX-T1"), ("tier", "1"), ("covered", true), ("copay_type", "FIXED"), ("copay_value", 10m));
+        await Provider();
+        var scheme = await Created("/api/v1/health/schemes", new { sponsorCode = "S-ACME", startDate = Today.AddYears(-1), renewalDate = Today.AddMonths(6), currency = "ZAR" });
+        var principal = await _maker.RegisterPerson("Pharmacy");
+        var membership = await Created("/api/v1/health/memberships", new
+        {
+            principalPartyId = principal, schemeId = scheme, memberCategory = "ALL_STAFF", planCode = "HLT-CORE", optionCode = "A", startDate = Today.AddMonths(-6),
+            currency = "ZAR", collectionMethod = "DEBIT_ORDER", facts = new { employment_type = "PERMANENT" },
+        });
+        Task<Guid> Dispensed(int quantity, decimal claimed, object pharmacy, string format = "RX") => Created("/api/v1/health/claims", new
+        {
+            source = "PROVIDER", providerId = "PR-1", membershipId = membership, patientPartyId = principal, serviceDate = Today, formatCode = format, currency = "ZAR",
+            lines = new[] { new { tariffCode = "NAPPI-1", quantity, claimedAmount = claimed, pharmacy } },
+        });
+
+        // A pharmacy line in a medical format, or one missing a field its format requires, is rejected at validation.
+        var wrongFormat = await Dispensed(30, 50m, new { daysSupply = 30, prescriptionNumber = "S1" }, "API");
+        (await (await _maker.PostAsync($"/api/v1/health/claims/{wrongFormat}/validate", null)).Json()).GetProperty("status").GetString().ShouldBe("Rejected");
+        var missing = await Dispensed(30, 50m, new { daysSupply = 30 });
+        (await (await _maker.PostAsync($"/api/v1/health/claims/{missing}/validate", null)).Json()).GetProperty("status").GetString().ShouldBe("Rejected");
+
+        var claim = await Dispensed(40, 100m, new { daysSupply = 30, prescriptionNumber = "S1", prescriber = "DOC-1" });
+        (await _maker.PostAsync($"/api/v1/health/claims/{claim}/validate", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        var adjudicated = await (await _maker.PostAsync($"/api/v1/health/claims/{claim}/adjudicate", null)).Json();
+        var line = adjudicated.GetProperty("lines")[0];
+        line.GetProperty("outcome").GetString().ShouldBe("PAY");
+        (line.GetProperty("paidQuantity").GetInt32(), line.GetProperty("adjustmentReason").GetString()).ShouldBe((30, "QUANTITY_CUT"));
+        (line.GetProperty("allowedAmount").GetDecimal(), line.GetProperty("paidAmount").GetDecimal()).ShouldBe((60m, 50m));
+
+        // Without the clinical function the medicine is not shown; with it, a purpose is required and the read is audited.
+        line.GetProperty("tariffCode").GetString().ShouldBe("PHARMACY");
+        (await _maker.GetAsync($"/api/v1/health/claims/{claim}/clinical?purpose=review")).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        await _db.UserWithPermissions(Tenant, "rx-clinical", HealthPermissions.ClinicalRead);
+        await _db.AdoptFunctionCatalogue();
+        var clinical = _factory.ClientFor(Tenant, "rx-clinical");
+        (await (await clinical.GetAsync($"/api/v1/health/claims/{claim}/clinical")).Code()).ShouldBe("HEALTH_PURPOSE_REQUIRED");
+        var read = await (await clinical.GetAsync($"/api/v1/health/claims/{claim}/clinical?purpose=review")).Json();
+        (read.GetProperty("lines")[0].GetProperty("code").GetString(), read.GetProperty("lines")[0].GetProperty("activeIngredient").GetString()).ShouldBe(("NAPPI-1", "METFORMIN"));
+
+        await _factory.DrainOutbox();
+        (await _maker.PostAsync($"/api/v1/health/claims/{claim}/approve", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        var run = await Created("/api/v1/health/payment-runs", new { runCode = "PRV-WEEKLY", currency = "ZAR" });
+        (await _maker.PostAsync($"/api/v1/health/payment-runs/{run}/cut-off", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await (await _maker.PostAsync($"/api/v1/health/payment-runs/{run}/calculate", null)).Json()).GetProperty("totalAmount").GetDecimal().ShouldBe(50m);
+    }
+
     [Fact]
     public async Task MemberClaim_IsPricedAtTheReferenceTariff_AndPaidToThePrincipalsVerifiedAccountInARun()
     {
@@ -1581,6 +1637,26 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         var other = _factory.ClientFor(Tenant, "member-2", "member-portal");
         (await other.GetAsync($"/api/v1/portal/health/claims/{claimId}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
         (await (await other.GetAsync("/api/v1/portal/health/claims")).Json()).GetProperty("items").GetArrayLength().ShouldBe(0);
+
+        // OQ-161: the principal sees what was treated for themselves and a minor, not for an adult dependant; the adult sees their own.
+        var adult = await _maker.RegisterPerson("PortalSpouse");
+        var minor = await _maker.RegisterPerson("PortalChild", Today.AddYears(-10));
+        await PortalUser("member-adult", "PARTY", adult, null, HealthPermissions.MembershipRead, HealthPermissions.ClaimRead);
+        (await _maker.Send(HttpMethod.Post, $"/api/v1/health/memberships/{mine}/dependants", new { partyId = adult, dependantType = "SPOUSE", student = false, startDate = Today }, idempotent: true))
+            .StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await _maker.Send(HttpMethod.Post, $"/api/v1/health/memberships/{mine}/dependants", new { partyId = minor, dependantType = "CHILD", student = false, startDate = Today }, idempotent: true))
+            .StatusCode.ShouldBe(HttpStatusCode.OK);
+        var adultClaim = await Claim(mine, adult, 100m);
+        var minorClaim = await Claim(mine, minor, 100m);
+        await _db.AdoptFunctionCatalogue();
+        var hidden = await (await member.GetAsync($"/api/v1/portal/health/claims/{adultClaim}")).Json();
+        hidden.GetProperty("lines")[0].GetProperty("tariffCode").ValueKind.ShouldBe(JsonValueKind.Null);
+        hidden.GetProperty("totalClaimed").GetDecimal().ShouldBe(100m);
+        (await (await member.GetAsync("/api/v1/portal/health/claims")).Json()).GetProperty("items").EnumerateArray().Single(c => c.GetProperty("id").GetGuid() == adultClaim)
+            .GetProperty("lines")[0].GetProperty("tariffCode").ValueKind.ShouldBe(JsonValueKind.Null);
+        (await (await member.GetAsync($"/api/v1/portal/health/claims/{minorClaim}")).Json()).GetProperty("lines")[0].GetProperty("tariffCode").GetString().ShouldBe("0300");
+        var theAdult = _factory.ClientFor(Tenant, "member-adult", "member-portal");
+        (await (await theAdult.GetAsync($"/api/v1/portal/health/claims/{adultClaim}")).Json()).GetProperty("lines")[0].GetProperty("tariffCode").GetString().ShouldBe("0300");
 
         // Member MFA is the tenant's choice: once the member portal's policy requires it, a token without it is refused.
         await Seed("iam.cfg_authentication_and_session_policies", "EFFECTIVE", "AUTH-MEM", ("policy_code", "AUTH-MEM"), ("mfa_required_roles", Array.Empty<string>()),

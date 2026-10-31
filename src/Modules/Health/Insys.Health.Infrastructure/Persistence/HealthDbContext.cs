@@ -225,7 +225,7 @@ public sealed class HealthDbContext(DbContextOptions<HealthDbContext> options, M
             line.ToTable("medical_claim_line");
             Child(line);
             line.Property(l => l.LineNo).HasColumnType("smallint");
-            line.Property(l => l.TariffCode).HasMaxLength(15);
+            line.Property(l => l.TariffCode).HasMaxLength(20);
             line.Property(l => l.DiagnosisCode).HasMaxLength(10);
             line.Property(l => l.Quantity).HasColumnType("smallint");
             line.Property(l => l.ClaimedAmount).HasPrecision(18, 2);
@@ -239,6 +239,14 @@ public sealed class HealthDbContext(DbContextOptions<HealthDbContext> options, M
             line.Property(l => l.DeductibleAmount).HasPrecision(18, 2);
             line.Property(l => l.MemberLiability).HasPrecision(18, 2);
             line.Property(l => l.Outcome).HasMaxLength(10);
+            line.Property(l => l.DaysSupply).HasColumnType("smallint");
+            line.Property(l => l.PrescriptionNumber).HasMaxLength(30);
+            line.Property(l => l.PrescriberRef).HasMaxLength(30);
+            line.Property(l => l.RepeatNumber).HasColumnType("smallint");
+            line.Property(l => l.RepeatsAuthorised).HasColumnType("smallint");
+            line.Property(l => l.PaidQuantity).HasColumnType("smallint");
+            line.Property(l => l.ActiveIngredient).HasMaxLength(100);
+            line.Property(l => l.FormularyTier).HasMaxLength(40);
         });
 
         modelBuilder.Entity<ComplexCase>(complex =>
