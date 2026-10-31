@@ -552,6 +552,7 @@ public sealed class CommunicationsTests(DatabaseFixture fixture) : IClassFixture
         var secret = issued.GetProperty("signingSecret").GetString()!;
         await fixture.Database.UserWithPermissions(Tenant, "delivery-staff", CommunicationPermissions.NotificationRead);
         await fixture.Database.UserWithFunctions(Tenant, "delivery-client", CommunicationFunctionCodes.CallbackClient);
+        await fixture.Database.MarkServiceAccount(Tenant, "delivery-client");
 
         var party = await Party("TokenDelivered", email: "t@example.com", mobile: null, language: null);
         await Publish(Request(NotificationTypes.ClaimStatus, party, new() { ["claim_number"] = "GC-0006", ["status"] = "APPROVED" }));

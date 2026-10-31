@@ -35,7 +35,7 @@ using Npgsql;
 namespace Insys.Identity.Infrastructure;
 
 /// <summary>The roles an active user holds today, read on Identity's own connection and role (ADR-001).</summary>
-internal sealed class UserRoleQuery([FromKeyedServices(IdentityDbContext.SchemaName)] NpgsqlDataSource dataSource, TenantBusinessDates dates) : IUserRoleQuery
+internal sealed class UserRoleQuery([FromKeyedServices(IdentityDbContext.SchemaName)] NpgsqlDataSource dataSource, TenantBusinessDates dates) : IUserRoleQuery, BuildingBlocks.Application.Context.IServiceAccounts
 {
     public async Task<IReadOnlyList<string>> EffectiveRoles(Guid tenantId, Guid userId, CancellationToken cancellationToken)
     {
@@ -66,7 +66,21 @@ internal sealed class UserRoleQuery([FromKeyedServices(IdentityDbContext.SchemaN
         return roles;
     }
 
-    public async Task<bool> AnyActiveHolder(Guid tenantId, string functionCode, DateOnly day, CancellationToken cancellationToken)
+    public async Task<bool> IsServiceAccount(Guid tenantId, string subject, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await TenantSession.SetTenant(connection, transaction, tenantId, cancellationToken);
+        await using var command = new NpgsqlCommand("SELECT EXISTS (SELECT 1 FROM iam.user_account WHERE tenant_id = @t AND external_subject = @s AND account_kind = 'SERVICE' AND status = @active)", connection, transaction);
+        command.Parameters.AddWithValue("t", tenantId);
+        command.Parameters.AddWithValue("s", subject);
+        command.Parameters.AddWithValue("active", UpperCaseEnumConverter<UserStatus>.ToCode(UserStatus.Active));
+        var found = (bool)(await command.ExecuteScalarAsync(cancellationToken))!;
+        await transaction.CommitAsync(cancellationToken);
+        return found;
+    }
+
+    public async Task<bool> AnyActiveHolder(Guid tenantId, string functionCode, DateOnly day, CancellationToken cancellationToken, bool serviceAccountsOnly = false)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
@@ -74,7 +88,7 @@ internal sealed class UserRoleQuery([FromKeyedServices(IdentityDbContext.SchemaN
         await using var command = new NpgsqlCommand("""
             SELECT EXISTS (
                 SELECT 1 FROM iam.user_role_assignment a
-                JOIN iam.user_account u ON u.tenant_id = a.tenant_id AND u.id = a.user_id AND u.status = @active
+                JOIN iam.user_account u ON u.tenant_id = a.tenant_id AND u.id = a.user_id AND u.status = @active AND (NOT @service OR u.account_kind = 'SERVICE')
                 JOIN iam.cfg_role_function_assignments g ON g.tenant_id = a.tenant_id AND g.role_code = a.role_code AND g.function_code = @function
                  AND g.record_status = ANY(@inForce) AND g.effective_from <= @day AND (g.effective_to IS NULL OR g.effective_to > @day)
                 JOIN iam.cfg_roles_and_permission_sets r ON r.tenant_id = a.tenant_id AND r.role_code = a.role_code
@@ -83,6 +97,7 @@ internal sealed class UserRoleQuery([FromKeyedServices(IdentityDbContext.SchemaN
             """, connection, transaction);
         command.Parameters.AddWithValue("active", UpperCaseEnumConverter<UserStatus>.ToCode(UserStatus.Active));
         command.Parameters.AddWithValue("function", functionCode);
+        command.Parameters.AddWithValue("service", serviceAccountsOnly);
         command.Parameters.AddWithValue("inForce", BuildingBlocks.Infrastructure.StaticData.StaticLifecycle.Configuration.InForce);
         command.Parameters.AddWithValue("day", day);
         command.Parameters.AddWithValue("t", tenantId);

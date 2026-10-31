@@ -19,6 +19,11 @@ What changed in the API contract, newest first, so the front end can sync. The O
 - **`EndorsementView`** gains `adjustmentPct`, `newBillingFrequency`.
 - **An accepted mid-term discount offer** drafts a `PREMIUM_ADJUST` endorsement for the case's owner to submit.
 
+## Service accounts (branch `service-callback-tokens`, B-011)
+
+- **New `POST /identity/users/service-accounts`:** registers a client-credentials identity. Permission as for provisioning a user.
+- **A callback endpoint requiring a client token** now takes it only from a service account. **Readiness** `PAYMENT_CALLBACK_CLIENT` and `COMMUNICATION_CALLBACK_CLIENT` need a service account holding the function.
+
 ## Migration batch (branch `migration-batch`, OQ-158, B-013)
 
 - **New, each idempotent and all or nothing against the file's control totals:** `POST /general/migration/policies`, `/life/migration/policies`, `/health/migration/memberships`, `/billing/migration/outstanding-premiums`, `/finance/migration/opening-balances`. Permissions `general_policy.migrate`, `life_policy.migrate`, `health_membership.migrate`, `invoice.migrate`, `journal.migrate`.

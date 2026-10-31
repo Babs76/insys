@@ -69,6 +69,7 @@ public static class IdentityInfrastructure
         services.AddHealthChecks().AddCheck<JobFunctionsHealthCheck>("job-functions");
         services.AddSingleton<IPrincipalResolver, PrincipalResolver>();
         services.AddSingleton<Contracts.IUserRoleQuery, UserRoleQuery>();
+        services.AddSingleton<BuildingBlocks.Application.Context.IServiceAccounts, UserRoleQuery>();
         services.AddSingleton<Application.Users.IDisplayNames, DisplayNames>(); // BR-021
         if (!InfrastructureRegistration.IsBuildTimeDocumentGeneration)
         {

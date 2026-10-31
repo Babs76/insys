@@ -42512,6 +42512,77 @@
         ]
       }
     },
+    "/api/v1/identity/users/service-accounts": {
+      "post": {
+        "tags": [
+          "Identity"
+        ],
+        "summary": "Register a client-credentials identity already made in the identity provider; only these may present a callback token (B-011)",
+        "operationId": "ProvisionServiceAccount",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdentityProvisionServiceAccount"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedId"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          }
+        },
+        "x-permission": "user.create",
+        "x-function": [
+          "PROVISION_USER"
+        ]
+      }
+    },
     "/api/v1/identity/users": {
       "post": {
         "tags": [
@@ -63637,6 +63708,29 @@
               "null",
               "string"
             ]
+          }
+        }
+      },
+      "IdentityProvisionServiceAccount": {
+        "required": [
+          "username",
+          "displayName",
+          "idpCode",
+          "externalSubject"
+        ],
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "idpCode": {
+            "type": "string"
+          },
+          "externalSubject": {
+            "type": "string"
           }
         }
       },
