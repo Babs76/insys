@@ -2335,6 +2335,46 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         (await (await preparer.GetAsync($"/api/v1/finance/tax-returns/{id}/content")).Content.ReadAsStringAsync()).ShouldContain("VAT,ZAR");
     }
 
+    /// <summary>OQ-158: a file loads whole against its control totals or not at all; the policy is in force with no first invoice, and what's still to fall due is scheduled.</summary>
+    [Fact]
+    public async Task AMigratedPolicy_IsInForce_WithItsRemainingInstalmentsScheduled_AndNoInvoice_OQ158()
+    {
+        await _db.UserWithPermissions(Tenant, "migrator", GeneralPermissions.PolicyMigrate, GeneralPermissions.PolicyRead);
+        await _db.AdoptFunctionCatalogue();
+        var migrator = _factory.ClientFor(Tenant, "migrator");
+        var holder = await _maker.RegisterPerson("Migrated");
+        object Row(string reference) => new
+        {
+            sourceReference = reference, productCode = Product, productVersion = 1, policyholderPartyId = holder, periodStart = Today.AddMonths(-3), periodEnd = Today.AddMonths(9).AddDays(-1), currency = "ZAR", annualPremium = 1200m,
+            billingFrequency = "MONTHLY", collectionMethod = "DEBIT_ORDER",
+            risks = new[]
+            {
+                new
+                {
+                    objectType = "VEHICLE", attributes = new { registration = "MG123456", vehicle_group = "G3", year = Today.Year - 2 }, valuation = 180_000m, valuationBasis = "RETAIL", sumInsured = 180_000m,
+                    coverages = new[] { new { coverageCode = "OWN_DAMAGE", sumInsured = 180_000m } },
+                },
+            },
+        };
+
+        var wrong = await migrator.Send(HttpMethod.Post, "/api/v1/general/migration/policies", new { batchCode = "B1", controlCount = 1, controlPremium = 999m, rows = new[] { Row("SRC-1") } }, idempotent: true);
+        wrong.StatusCode.ShouldBe(HttpStatusCode.OK, await wrong.Content.ReadAsStringAsync());
+        (await wrong.Json()).GetProperty("loaded").GetInt32().ShouldBe(0);
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM general.policy WHERE source_reference = 'SRC-1'")).ShouldBe(0);
+
+        var loaded = await (await migrator.Send(HttpMethod.Post, "/api/v1/general/migration/policies", new { batchCode = "B1", controlCount = 1, controlPremium = 1200m, rows = new[] { Row("SRC-1") } }, idempotent: true)).Json();
+        (loaded.GetProperty("loaded").GetInt32(), loaded.GetProperty("rejectedLines").GetArrayLength()).ShouldBe((1, 0), loaded.ToString());
+        var policy = await _db.ScalarAsOwner<Guid>("SELECT id FROM general.policy WHERE source_reference = 'SRC-1'");
+        (await _db.ScalarAsOwner<string>("SELECT status FROM general.policy WHERE id = @p", ("p", policy))).ShouldBe("IN_FORCE");
+        await _factory.DrainOutbox();
+
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM billing.invoice WHERE policy_ref = @p", ("p", policy))).ShouldBe(0);
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM billing.instalment i JOIN billing.premium_schedule s ON s.tenant_id = i.tenant_id AND s.id = i.schedule_id WHERE s.policy_ref = @p AND i.status = 'SCHEDULED'", ("p", policy))).ShouldBeGreaterThan(0);
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM document.document WHERE business_ref_id = @p", ("p", policy))).ShouldBe(0, "nothing is issued afresh");
+        (await (await migrator.Send(HttpMethod.Post, "/api/v1/general/migration/policies", new { batchCode = "B1", controlCount = 1, controlPremium = 1200m, rows = new[] { Row("SRC-1") } }, idempotent: true)).Json())
+            .GetProperty("loaded").GetInt32().ShouldBe(0, "a source reference loads once");
+    }
+
     private async Task<(Guid Policy, Guid Vehicle)> IssuedPolicy(string product = Product, DateOnly? start = null, string? riskZone = null, string? orgNodeCode = null,
         Guid? proposer = null, string? intermediaryCode = null, Func<Guid, object, Task>? beforeIssue = null)
     {

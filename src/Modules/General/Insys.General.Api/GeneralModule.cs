@@ -219,6 +219,11 @@ public sealed class GeneralModule : IModule
 
     private static void MapPolicies(RouteGroupBuilder general)
     {
+        general.MapPost("/migration/policies", async (MigrateGeneralPolicies r, IDispatcher d, CancellationToken ct) => (await d.Send(r, ct)).ToHttp(Results.Ok))
+            .Produces<PolicyMigrationResult>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("GeneralMigratePolicies").WithSummary("Bring in-force policies from a source system, all or nothing, against the file's control totals; every bad line is named (OQ-158)")
+            .WithEventualEffects("Billing (account and schedule, with instalments due by today treated as already invoiced)")
+            .RequirePermission(GeneralPermissions.PolicyMigrate).RequireIdempotencyKey();
         general.MapPost("/policies", async (IssuePolicy r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(r, ct)).ToHttp(v => Results.Created($"/api/v1/general/policies/{v.Id}", v)))
             .Produces<PolicyView>(StatusCodes.Status201Created)

@@ -69,6 +69,9 @@ public interface IGeneralRepository
 
     Task<GeneralPolicy?> Policy(Guid id, CancellationToken cancellationToken);
 
+    /// <summary>Which of these source references a migrated policy already has.</summary>
+    Task<IReadOnlyList<string>> SourceReferencesKnown(IReadOnlyCollection<string> references, CancellationToken cancellationToken);
+
     Task<GeneralPolicy?> PolicyFromQuote(Guid quoteId, CancellationToken cancellationToken);
 
     Task<GeneralPolicy?> RenewalOf(Guid policyId, CancellationToken cancellationToken);

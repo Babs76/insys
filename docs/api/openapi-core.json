@@ -4788,7 +4788,7 @@
         "tags": [
           "Party"
         ],
-        "summary": "Import individuals, all or nothing: one bad line rejects the import, and every bad line is named (F076)",
+        "summary": "Import individuals and organisations, all or nothing: one bad line rejects the import, and every bad line is named (F076)",
         "operationId": "PartyImportParties",
         "parameters": [
           {
@@ -21796,6 +21796,79 @@
         "x-function": [
           "GENERAL_ACCEPT_PROPOSAL"
         ]
+      }
+    },
+    "/api/v1/general/migration/policies": {
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Bring in-force policies from a source system, all or nothing, against the file\u0027s control totals; every bad line is named (OQ-158)",
+        "description": "Completes asynchronously (GAP-027): Billing (account and schedule, with instalments due by today treated as already invoiced)",
+        "operationId": "GeneralMigratePolicies",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GeneralMigrateGeneralPolicies"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneralPolicyMigrationResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          }
+        },
+        "x-permission": "general_policy.migrate",
+        "x-function": [
+          "GENERAL_MIGRATE_POLICIES"
+        ],
+        "x-eventual-effects": "Billing (account and schedule, with instalments due by today treated as already invoiced)"
       }
     },
     "/api/v1/general/policies": {
@@ -53033,6 +53106,192 @@
           }
         }
       },
+      "GeneralMigrateGeneralPolicies": {
+        "required": [
+          "batchCode",
+          "controlCount",
+          "controlPremium",
+          "rows"
+        ],
+        "type": "object",
+        "properties": {
+          "batchCode": {
+            "type": "string"
+          },
+          "controlCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "controlPremium": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GeneralMigratedPolicy"
+            }
+          }
+        }
+      },
+      "GeneralMigratedPolicy": {
+        "required": [
+          "sourceReference",
+          "productCode",
+          "productVersion",
+          "policyholderPartyId",
+          "payerPartyId",
+          "periodStart",
+          "periodEnd",
+          "currency",
+          "annualPremium",
+          "billingFrequency",
+          "collectionMethod",
+          "intermediaryCode",
+          "risks"
+        ],
+        "type": "object",
+        "properties": {
+          "sourceReference": {
+            "type": "string"
+          },
+          "productCode": {
+            "type": "string"
+          },
+          "productVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "policyholderPartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "payerPartyId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "periodStart": {
+            "type": "string",
+            "format": "date"
+          },
+          "periodEnd": {
+            "type": "string",
+            "format": "date"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "annualPremium": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "billingFrequency": {
+            "type": "string"
+          },
+          "collectionMethod": {
+            "type": "string"
+          },
+          "intermediaryCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "risks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GeneralMigratedRisk"
+            }
+          }
+        }
+      },
+      "GeneralMigratedRisk": {
+        "required": [
+          "objectType",
+          "attributes",
+          "valuation",
+          "valuationBasis",
+          "sumInsured",
+          "coverages"
+        ],
+        "type": "object",
+        "properties": {
+          "objectType": {
+            "type": "string"
+          },
+          "attributes": {
+            "$ref": "#/components/schemas/JsonElement"
+          },
+          "valuation": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "valuationBasis": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sumInsured": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "coverages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GeneralCoverageRequest"
+            }
+          }
+        }
+      },
+      "GeneralMigrationRejectedLine": {
+        "required": [
+          "line",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "line": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
       "GeneralNonRenewalRequest": {
         "required": [
           "reasonCode"
@@ -53261,6 +53520,38 @@
           },
           "coverDuringGrace": {
             "type": "boolean"
+          }
+        }
+      },
+      "GeneralPolicyMigrationResult": {
+        "required": [
+          "loaded",
+          "loadedPremium",
+          "rejectedLines"
+        ],
+        "type": "object",
+        "properties": {
+          "loaded": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "loadedPremium": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "rejectedLines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GeneralMigrationRejectedLine"
+            }
           }
         }
       },
@@ -67523,10 +67814,31 @@
         "type": "object",
         "properties": {
           "rows": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "$ref": "#/components/schemas/PartyIndividualData"
             }
+          },
+          "organisations": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/PartyOrganisationData"
+            }
+          },
+          "controlCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         }
       },

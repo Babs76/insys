@@ -65,6 +65,7 @@ public static class BillingInfrastructure
         services.AddIntegrationEventHandler<PaymentInitiated, BillingPolicies, BillingDbContext>(schema, "PaymentInitiated");
         services.AddIntegrationEventHandler<ApprovalGranted, BillingPolicies, BillingDbContext>(schema, "ApprovalGranted");
         services.AddIntegrationEventHandler<ApprovalRejected, BillingPolicies, BillingDbContext>(schema, "ApprovalRejected");
+        services.AddIntegrationEventHandler<GeneralPolicyMigrated, GeneralPolicyBilling, BillingDbContext>(schema, "GeneralPolicyMigrated");
         services.AddIntegrationEventHandler<GeneralPolicyIssued, GeneralPolicyBilling, BillingDbContext>(schema, "GeneralPolicyIssued");
         services.AddIntegrationEventHandler<GeneralPolicyEndorsed, GeneralPolicyBilling, BillingDbContext>(schema, "GeneralPolicyEndorsed");
         services.AddIntegrationEventHandler<GeneralCoverExtended, GeneralPolicyBilling, BillingDbContext>(schema, "GeneralCoverExtended"); // OQ-132 (b)

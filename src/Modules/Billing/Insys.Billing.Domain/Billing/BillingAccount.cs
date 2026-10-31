@@ -97,6 +97,9 @@ public sealed class Instalment : Entity<Guid>, ITenantScoped
         InvoiceId = invoiceId;
     }
 
+    /// <summary>Invoiced in the source system (OQ-158): no invoice here.</summary>
+    internal void InvoicedBeforeMigration() => Status = InstalmentStatus.Invoiced;
+
     internal void Cancel() => Status = InstalmentStatus.Cancelled;
 }
 
@@ -156,6 +159,15 @@ public sealed class PremiumSchedule : Entity<Guid>, ITenantScoped
 
     /// <summary>The product the schedule's membership is now on (addenda/health-plan-products.md); its invoices from now on carry it.</summary>
     public void UseProduct(string productCode) => ProductCode = Guard.MaxLength(productCode, 15);
+
+    /// <summary>OQ-158: what fell due by the day was invoiced in the source system.</summary>
+    public void TakenOverOn(DateOnly day)
+    {
+        foreach (var instalment in _instalments.Where(i => i.Status == InstalmentStatus.Scheduled && i.DueDate <= day))
+        {
+            instalment.InvoicedBeforeMigration();
+        }
+    }
 
     public void ScopeTo(string? productCode, string? orgNodeCode)
     {

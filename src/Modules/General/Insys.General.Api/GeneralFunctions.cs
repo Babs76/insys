@@ -66,6 +66,7 @@ internal static class GeneralFunctions
         .Action("GENERAL_WORK_RETENTION_CASE", "GENERAL_RETENTION_CASES",
             ["GeneralOpenRetentionCase", "GeneralMakeRetentionOffer", "GeneralAnswerRetentionOffer", "GeneralCloseRetentionCase"])
         .Action("GENERAL_ISSUE_POLICY", "GENERAL_POLICIES", "GeneralIssuePolicy")
+        .Action("GENERAL_MIGRATE_POLICIES", "GENERAL_POLICIES", "GeneralMigratePolicies")
         .Action("GENERAL_RENEW_POLICY", "GENERAL_POLICIES", "GeneralRenewPolicy")
         .Action("GENERAL_CANCEL_POLICY", "GENERAL_POLICIES", "GeneralCancelPolicy")
         .Action("GENERAL_REINSTATE_POLICY", "GENERAL_POLICIES", "GeneralReinstatePolicy")
