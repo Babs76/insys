@@ -1438,7 +1438,7 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         var portal = _factory.ClientFor(Tenant, "chronic-PR-1", "provider-portal", multiFactor: true);
 
         var unknown = await portal.Send(HttpMethod.Post, "/api/v1/portal/health/chronic-registrations", new { memberNumber = "NOPE", conditionCode = "DM2", diagnosisCode = "E11", supportingNote = "HbA1c" }, idempotent: true);
-        unknown.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        unknown.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
 
         var requested = await portal.Send(HttpMethod.Post, "/api/v1/portal/health/chronic-registrations", new { memberNumber, conditionCode = "DM2", diagnosisCode = "E11", supportingNote = "HbA1c", requestingProviderId = "PR-9" }, idempotent: true);
         requested.StatusCode.ShouldBe(HttpStatusCode.Created, await requested.Content.ReadAsStringAsync());
