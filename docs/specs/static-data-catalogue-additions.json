@@ -1770,6 +1770,27 @@
      "sample": "30"
     }
    ]
+  },
+  {
+   "layer": "Shared Insurance Services",
+   "module": "Distribution",
+   "subModule": "Commission",
+   "entity": "Broker change settings",
+   "table": "commission.cfg_broker_change_settings",
+   "class": "CFG",
+   "scope": "T",
+   "tier": 1,
+   "proposedOwner": "Finance Officer",
+   "provenance": "B-009 (Ade, 30 October 2026)",
+   "basis": "DST-004",
+   "fields": [
+    {
+     "name": "paid_commission",
+     "logicalType": "Enum{Recover,Keep}",
+     "mandatory": true,
+     "sample": "Recover"
+    }
+   ]
   }
  ]
 }

@@ -13,6 +13,12 @@ What changed in the API contract, newest first, so the front end can sync. The O
 - **New `GET /integration/bulk-jobs` (BR-122, GAP-126):** `type` (`PARTY_IMPORT`, `PARTY_EXPORT`), `direction` (`IMPORT`, `EXPORT`), `status`, `from`, `to` (UTC dates, inclusive), `cursor`, `limit`. Newest first, as `{items, nextCursor}`. Each row: `id`, `jobType`, `direction`, `status`, `totalCount`, `acceptedCount`, `runBy`, `createdAt`. Rejected lines and the filter stay on `GET /party/bulk-jobs/{id}`. Permission `party_bulk_job.read`. Added to the `PARTY_BULK_JOBS` screen's functions.
 - **Readiness blocker `DISCLOSURE_MANDATORY_TEXTS`** in `INTEGRATION_AND_REPORTING`. `DISCLOSURE_TEXTS` now warns of `PROPOSAL` only.
 
+## Commission recovery (branch `commission-recovery`, B-009)
+
+- **New `GET /distribution/commission-recoveries`:** `intermediaryCode`, `owedOnly` (default true), `cursor`, `limit`. What brokers owe of commission already paid. Permission `commission.read`.
+- **New static data `commission.cfg_broker_change_settings`:** `paidCommission` `RECOVER` (the default, with no row) or `KEEP`.
+- **A statement's net** can be lowered by what the broker owes, as far as it has commission.
+
 ## Wave 6 batch 6.3 (branch `wave6-3`): fraud cases and bulk jobs (addendum §4.8, §4.9; F058, F076)
 
 ### New

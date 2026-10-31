@@ -945,6 +945,50 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
             .ShouldBe((invoice, Math.Round(Math.Round(basis * share, 2, MidpointRounding.AwayFromZero) * 0.10m, 2, MidpointRounding.AwayFromZero)));
     }
 
+    /// <summary>B-009: paid commission is recovered from the outgoing broker for the unearned days by default, the incoming broker earns them, and finance sees the debt; a tenant's KEEP leaves it.</summary>
+    [Fact]
+    public async Task PaidCommission_IsRecoveredOnABrokerChange_UnlessTheTenantKeepsIt_B009()
+    {
+        await Seed("general.cfg_endorsement_types", "EFFECTIVE", "INTERMEDIARY", ("premium_method", "NONE"), ("documents", new[] { "ENDORSEMENT" }), ("requires_underwriting", false));
+        await Seed("document.ref_document_categories", "ACTIVE", "APPOINTMENT", ("category_code", "APPOINTMENT"), ("label", "Broker appointment"), ("classification", "PERSONAL"), ("domain", "ALL"), ("allowed_roles", Array.Empty<string>()));
+        await Seed("commission.mst_intermediary_register", "ACTIVE", "BRK-9", ("intermediary_code", "BRK-9"), ("type", "BROKER"), ("legal_name", "BRK-9"),
+            ("licence_numbers", JsonSerializer.SerializeToElement(new[] { "FSP-9" })), ("status", "ACTIVE"), ("hierarchy_node", "NODE-BRK-9"));
+        await Seed("commission.cfg_intermediary_product_permissions", "EFFECTIVE", "PERM-BRK9", ("intermediary", "BRK-9"), ("product", Product), ("transactions_allowed", Array.Empty<string>()), ("plan_code", "PLAN-10"));
+
+        async Task<Guid> Changed()
+        {
+            var policy = await IssuedPolicy(await Vehicle());
+            var outgoing = (await Entitlements(policy)).Single();
+            await _db.ExecuteAsOwner("UPDATE commission.commission_entitlement SET due_date = @d, status = 'PAID' WHERE id = @e", ("d", Today.AddDays(-15)), ("e", outgoing.GetProperty("id").GetGuid()));
+            var drafted = await (await _maker.Send(HttpMethod.Post, $"/api/v1/general/policies/{policy}/endorsements",
+                new { endorsementType = "INTERMEDIARY", effectiveDate = Today, changes = Array.Empty<object>(), intermediaryCode = "BRK-9" }, idempotent: true)).Json();
+            var endorsement = drafted.GetProperty("id").GetGuid();
+            var letter = await (await _maker.Send(HttpMethod.Post, "/api/v1/documents/documents", new
+            {
+                categoryCode = "APPOINTMENT", businessRefType = GeneralDocuments.EndorsementRefType, businessRefId = endorsement, mimeType = "text/plain", contentBase64 = Convert.ToBase64String("I appoint BRK-9"u8.ToArray()),
+            }, idempotent: true)).Json();
+            var recorded = await _maker.Send(HttpMethod.Post, $"/api/v1/general/endorsements/{endorsement}/appointment-letter", new { documentId = letter.GetProperty("id").GetGuid() },
+                ifMatch: (await _maker.GetAsync($"/api/v1/general/endorsements/{endorsement}")).ETag());
+            (await _maker.Send(HttpMethod.Post, $"/api/v1/general/endorsements/{endorsement}/submit", ifMatch: recorded.ETag())).StatusCode.ShouldBe(HttpStatusCode.OK);
+            await _factory.DrainOutbox();
+            await Decide(GeneralApprovals.EndorsementBusinessRefType, endorsement);
+            await _factory.DrainOutbox();
+            return policy;
+        }
+
+        var recovered = await Changed();
+        var owed = await _db.ScalarAsOwner<decimal>("SELECT amount FROM commission.commission_recovery WHERE policy_ref = @p", ("p", recovered));
+        owed.ShouldBeGreaterThan(0m);
+        (await Entitlements(recovered)).ShouldContain(e => e.GetProperty("intermediaryCode").GetString() == "BRK-9", "the incoming broker earns the days");
+        var seen = await (await _maker.GetAsync($"/api/v1/distribution/commission-recoveries?intermediaryCode={Broker}")).Json();
+        seen.GetProperty("items").EnumerateArray().ShouldContain(r => r.GetProperty("policyRef").GetGuid() == recovered && r.GetProperty("owed").GetDecimal() == owed);
+
+        await Seed("commission.cfg_broker_change_settings", "EFFECTIVE", "KEEP", ("paid_commission", "KEEP"));
+        var kept = await Changed();
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM commission.commission_recovery WHERE policy_ref = @p", ("p", kept))).ShouldBe(0);
+        (await Entitlements(kept)).ShouldNotContain(e => e.GetProperty("intermediaryCode").GetString() == "BRK-9");
+    }
+
     private async Task<Guid> IssuedPolicy(Guid vehicle)
     {
         var quote = await Created("/api/v1/general/quotes", QuoteBody(vehicle, Broker));

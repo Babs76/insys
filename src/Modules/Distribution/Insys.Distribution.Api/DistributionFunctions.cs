@@ -38,7 +38,7 @@ internal static class DistributionFunctions
     public static readonly IReadOnlyList<FunctionDeclaration> All =
     [
         .. new FunctionMap([Audiences.Staff], null)
-        .Screen("COMMISSION_ENTITLEMENTS", "COMMISSION", "Entitlements", "distribution/entitlements", "DistributionListEntitlements", "DistributionGetEntitlement")
+        .Screen("COMMISSION_ENTITLEMENTS", "COMMISSION", "Entitlements", "distribution/entitlements", "DistributionListEntitlements", "DistributionGetEntitlement", "DistributionListCommissionRecoveries")
         .Action("DISTRIBUTION_CLAW_BACK", "COMMISSION_ENTITLEMENTS", "DistributionClawBack")
         .Screen("INTERMEDIARIES", "INTERMEDIARIES", "Brokers", "distribution/intermediaries", "DistributionCheckIntermediary")
         .Screen("COMMISSION_STATEMENTS", "COMMISSION", "Statements (second person)", "distribution/statements", "DistributionListStatements", "DistributionGetStatement")

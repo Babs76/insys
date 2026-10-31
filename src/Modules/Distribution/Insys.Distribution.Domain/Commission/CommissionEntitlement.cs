@@ -107,6 +107,75 @@ public sealed class Clawback : Entity<Guid>, ITenantScoped
 }
 
 /// <summary>
+/// B-009: what an outgoing broker owes of commission already paid, after a broker of record change: the unearned days. The entitlement stays paid; this is the broker's debt.
+/// It comes off later statements as far as they have commission, and what they can't cover stays owed, for finance to see. It is never dropped.
+/// </summary>
+public sealed class CommissionRecovery : AggregateRoot<Guid>
+{
+    private CommissionRecovery()
+    {
+    }
+
+    public Guid EntitlementId { get; private set; }
+
+    public string IntermediaryCode { get; private set; } = "";
+
+    public Guid PolicyRef { get; private set; }
+
+    public string Currency { get; private set; } = "";
+
+    public string Reason { get; private set; } = "";
+
+    public decimal Amount { get; private set; }
+
+    public decimal RecoveredAmount { get; private set; }
+
+    public Guid? StatementId { get; private set; }
+
+    /// <summary>What a statement waiting for its payment takes.</summary>
+    public decimal OnStatementAmount { get; private set; }
+
+    public decimal Owed => Amount - RecoveredAmount - OnStatementAmount;
+
+    public static CommissionRecovery Raised(Guid id, CommissionEntitlement paid, decimal amount, string reason, DateOnly day, DateTimeOffset now)
+    {
+        var recovery = new CommissionRecovery
+        {
+            Id = Guard.NotEmpty(id), EntitlementId = paid.Id, IntermediaryCode = paid.IntermediaryCode, PolicyRef = paid.PolicyRef, Currency = paid.Currency, Reason = Guard.MaxLength(reason, 20), Amount = amount,
+        };
+        recovery.Raise(new CommissionClawedBack(id, paid.Id, paid.IntermediaryCode, paid.SourceDomain, paid.PolicyRef, amount, paid.Currency, recovery.Reason, day, now));
+        recovery.MarkChanged();
+        return recovery;
+    }
+
+    internal decimal TakeOn(Guid statementId, decimal available)
+    {
+        var taken = Math.Min(Owed, available);
+        if (taken > 0)
+        {
+            StatementId = statementId;
+            OnStatementAmount = taken;
+            MarkChanged();
+        }
+
+        return Math.Max(taken, 0);
+    }
+
+    public void Release()
+    {
+        (StatementId, OnStatementAmount) = (null, 0m);
+        MarkChanged();
+    }
+
+    public void Settle()
+    {
+        RecoveredAmount += OnStatementAmount;
+        (StatementId, OnStatementAmount) = (null, 0m);
+        MarkChanged();
+    }
+}
+
+/// <summary>
 /// The CommissionEntitlement aggregate (commission.commission_entitlement, clawback): commission earned by an
 /// intermediary on one invoice. It records the plan version and source transaction (DST-003), at the plan version in
 /// force on the transaction date (DST-002); a clawback always references it.
