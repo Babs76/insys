@@ -85,6 +85,16 @@ internal sealed class ClaimRegisterSearch(ClaimsFrameworkDbContext db, IExecutio
     }
 }
 
+internal sealed class FraudCases(ClaimsFrameworkDbContext db) : IFraudCases
+{
+    public Task<FraudCase?> Get(Guid id, CancellationToken cancellationToken) => db.Set<FraudCase>().SingleOrDefaultAsync(c => c.Id == id, cancellationToken);
+
+    public async Task<IReadOnlyList<FraudCase>> List(Guid? afterId, int limit, CancellationToken cancellationToken) =>
+        await db.Set<FraudCase>().AsNoTracking().Where(c => afterId == null || c.Id.CompareTo(afterId.Value) > 0).OrderBy(c => c.Id).Take(limit).ToListAsync(cancellationToken);
+
+    public void Add(FraudCase fraudCase) => db.Set<FraudCase>().Add(fraudCase);
+}
+
 internal sealed class ClaimsRepository(ClaimsFrameworkDbContext db, IExecutionContext execution) : IClaimsRepository
 {
     public async Task<ClaimRegistration?> ByNumber(string claimNumber, CancellationToken cancellationToken)

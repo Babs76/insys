@@ -423,6 +423,22 @@ public sealed class PartyModule : IModule
             .Produces<DataSubjectRequestView>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status409Conflict).TakesIfMatch()
             .WithName("PartyExecuteDataSubjectDeletion").WithSummary("Run the anonymise check on an approved deletion: within retention or under hold it is refused, with the reason").RequirePermission(PartyPermissions.DataSubjectApprove);
 
+        var bulk = api.MapGroup("/party/bulk-jobs").WithTags(Name);
+        bulk.MapPost("/imports", async (ImportParties r, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Send(r, ct)).ToHttp(v => Results.Created($"/api/v1/party/bulk-jobs/{v.Id}", v)))
+            .Produces<BulkJobView>(StatusCodes.Status201Created).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("PartyImportParties").WithSummary("Import individuals, all or nothing: one bad line rejects the import, and every bad line is named (F076)").RequirePermission(PartyPermissions.BulkJobCreate).RequireIdempotencyKey();
+        bulk.MapPost("/exports", async (RequestPartyExport r, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Send(r, ct)).ToHttp(v => Results.Created($"/api/v1/party/bulk-jobs/{v.Id}", v)))
+            .Produces<BulkJobView>(StatusCodes.Status201Created).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("PartyRequestExport").WithSummary("Ask for an export of parties; a second person approves it before it leaves").RequirePermission(PartyPermissions.BulkJobCreate).RequireIdempotencyKey();
+        bulk.MapGet("/{id:guid}", async (Guid id, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Query(new GetBulkJob(id), ct)).ToHttp(Results.Ok))
+            .Produces<BulkJobView>(StatusCodes.Status200OK).WithName("PartyGetBulkJob").WithSummary("A bulk job, its counts and rejected lines").RequirePermission(PartyPermissions.BulkJobRead);
+        bulk.MapPost("/{id:guid}/approve", async (Guid id, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Send(new ApprovePartyExport(id), ct)).ToHttp(Results.Ok))
+            .Produces<BulkJobView>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status409Conflict).TakesIfMatch()
+            .WithName("PartyApproveExport").WithSummary("Approve an export; not for who asked").RequirePermission(PartyPermissions.BulkJobApprove);
+        bulk.MapGet("/{id:guid}/content", async (Guid id, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Send(new DownloadPartyExport(id), ct)).ToHttp(csv => Results.Text(csv, "text/csv")))
+            .Produces<string>(StatusCodes.Status200OK, "text/csv").ProducesProblem(StatusCodes.Status409Conflict)
+            .WithName("PartyDownloadExport").WithSummary("The approved export as CSV; audited with its filter and row count").RequirePermission(PartyPermissions.BulkJobRead);
+
         var portal = api.MapGroup("/portal/party").WithTags(Name);
         portal.MapPost("/data-subject-requests", async (ReceivePortalDataSubjectRequest r, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Send(r, ct)).ToHttp(v => Results.Created($"/api/v1/portal/party/data-subject-requests/{v.Id}", v)))

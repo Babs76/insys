@@ -50,6 +50,20 @@ public sealed class ClaimsFrameworkDbContext(DbContextOptions<ClaimsFrameworkDbC
         ClaimsFrameworkStaticData.Configure(modelBuilder);
 
         // Children reference the claim by its number (V0001's foreign keys), the register's alternate key.
+        modelBuilder.Entity<FraudCase>(fraud =>
+        {
+            fraud.ToTable("fraud_case"); // Wave 6 §4.8, F058
+            fraud.HasKey(c => new { c.TenantId, c.Id });
+            fraud.HasAuditColumns();
+            fraud.Property(c => c.CaseNumber).HasMaxLength(25);
+            fraud.Property(c => c.Domain).HasMaxLength(10);
+            fraud.Property(c => c.ClaimNumber).HasMaxLength(25);
+            fraud.Property(c => c.Status).HasMaxLength(15);
+            fraud.Property(c => c.Outcome).HasMaxLength(15);
+            fraud.Property(c => c.OutcomeReason).HasMaxLength(1000);
+            fraud.Property(c => c.RowVersion).IsConcurrencyToken();
+        });
+
         modelBuilder.Entity<ClaimRegistration>(claim =>
         {
             claim.ToTable("claim_register");

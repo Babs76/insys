@@ -35,6 +35,21 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Insys.Party.Infrastructure.Persistence;
 
+internal sealed class BulkJobs(PartyDbContext db) : IBulkJobs
+{
+    public Task<BulkJob?> Get(Guid id, CancellationToken cancellationToken) => db.Set<BulkJob>().SingleOrDefaultAsync(j => j.Id == id, cancellationToken);
+
+    public async Task<IReadOnlyList<PartyExportRow>> ExportRows(string? status, CancellationToken cancellationToken)
+    {
+        var wanted = status is null ? (PartyStatus?)null : Enum.Parse<PartyStatus>(status, ignoreCase: true);
+        return await db.Parties.AsNoTracking().Where(p => p.Status != PartyStatus.Merged && p.Status != PartyStatus.Anonymised && (wanted == null || p.Status == wanted)).OrderBy(p => p.Id)
+            .Select(p => new { p.Id, p.PartyNumber, p.DisplayName, p.Status }).ToListAsync(cancellationToken)
+            .ContinueWith(t => (IReadOnlyList<PartyExportRow>)t.Result.Select(p => new PartyExportRow(p.Id, p.PartyNumber, p.DisplayName, p.Status.ToString().ToUpperInvariant())).ToList(), TaskScheduler.Default);
+    }
+
+    public void Add(BulkJob job) => db.Set<BulkJob>().Add(job);
+}
+
 internal sealed class DataSubjectRequests(PartyDbContext db) : IDataSubjectRequests
 {
     public Task<DataSubjectRequest?> Get(Guid id, CancellationToken cancellationToken) => db.DataSubjectRequests.SingleOrDefaultAsync(r => r.Id == id, cancellationToken);

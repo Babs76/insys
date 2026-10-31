@@ -75,6 +75,11 @@ public sealed record PartyRetentionEnded(Guid PartyId) : IIntegrationEvent;
 
 public static class PartyPermissions
 {
+    public const string BulkJobRead = "party_bulk_job.read";
+    public const string BulkJobCreate = "party_bulk_job.create";
+
+    /// <summary>A second person, before an export of personal data leaves.</summary>
+    public const string BulkJobApprove = "party_bulk_job.approve";
     public const string DataSubjectRead = "data_subject_request.read";
     public const string DataSubjectCreate = "data_subject_request.create";
     public const string DataSubjectUpdate = "data_subject_request.update";

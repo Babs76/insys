@@ -57,6 +57,18 @@ public sealed class PartyDbContext(DbContextOptions<PartyDbContext> options, Mod
     {
         PartyStaticData.Configure(modelBuilder);
 
+        modelBuilder.Entity<BulkJob>(job =>
+        {
+            job.ToTable("bulk_job"); // Wave 6 §4.9, F076
+            job.HasKey(j => new { j.TenantId, j.Id });
+            job.HasAuditColumns();
+            job.Property(j => j.JobType).HasMaxLength(15);
+            job.Property(j => j.Status).HasMaxLength(15);
+            job.Property(j => j.Filter).HasMaxLength(200);
+            job.Property(j => j.RejectedLines).HasColumnType("jsonb");
+            job.Property(j => j.RowVersion).IsConcurrencyToken();
+        });
+
         modelBuilder.Entity<DataSubjectRequest>(request =>
         {
             request.ToTable("data_subject_request"); // Wave 6 §4.5, F059

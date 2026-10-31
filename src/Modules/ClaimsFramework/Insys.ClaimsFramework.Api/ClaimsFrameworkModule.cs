@@ -81,6 +81,29 @@ public sealed class ClaimsFrameworkModule : IModule
         ClaimsFrameworkStaticDataEndpoints.MapStaticData(api);
         var claims = api.MapGroup("/claims").WithTags(Name).ETagsFromRowVersion();
 
+        claims.MapPost("/fraud-cases", async (OpenFraudCase r, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Send(r, ct)).ToHttp(v => Results.Created($"/api/v1/claims/fraud-cases/{v.Id}", v)))
+            .Produces<FraudCaseView>(StatusCodes.Status201Created).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("ClaimsOpenFraudCase").WithSummary("Open a fraud case on a Life or General claim or policy (F058); hidden from portals and its subject").RequirePermission(ClaimsPermissions.FraudCaseCreate).RequireIdempotencyKey();
+        claims.MapGet("/fraud-cases", async (string? cursor, int? limit, IDispatcher dispatcher, CancellationToken ct) =>
+            {
+                if (!Cursor.TryDecode(cursor, out var after))
+                {
+                    return Problems.For(BuildingBlocks.Domain.ErrorCodes.ValidationFailed, "The cursor is not valid.", StatusCodes.Status422UnprocessableEntity);
+                }
+
+                var size = Cursor.ClampLimit(limit);
+                return (await dispatcher.Send(new ReadFraudCases(after, size), ct)).ToHttp(items => Results.Ok(new CursorPage<FraudCaseView>(items, items.Count == size ? Cursor.Encode(items[^1].Id) : null)));
+            })
+            .Produces<CursorPage<FraudCaseView>>(StatusCodes.Status200OK).WithName("ClaimsListFraudCases").WithSummary("Fraud cases, for the fraud function; every read is audited").RequirePermission(ClaimsPermissions.FraudCaseRead);
+        claims.MapGet("/fraud-cases/{id:guid}", async (Guid id, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Send(new ReadFraudCase(id), ct)).ToHttp(Results.Ok))
+            .Produces<FraudCaseView>(StatusCodes.Status200OK).WithName("ClaimsGetFraudCase").WithSummary("A fraud case, for the fraud function; every read is audited").RequirePermission(ClaimsPermissions.FraudCaseRead);
+        claims.MapPost("/fraud-cases/{id:guid}/assign", async (Guid id, AssignFraudRequest r, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Send(new AssignFraudInvestigator(id, r.InvestigatorId), ct)).ToHttp(Results.Ok))
+            .Produces<FraudCaseView>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status409Conflict).TakesIfMatch()
+            .WithName("ClaimsAssignFraudInvestigator").WithSummary("Name the investigator").RequirePermission(ClaimsPermissions.FraudCaseUpdate);
+        claims.MapPost("/fraud-cases/{id:guid}/conclude", async (Guid id, ConcludeFraudRequest r, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Send(new ConcludeFraudCase(id, r.Outcome, r.Reason), ct)).ToHttp(Results.Ok))
+            .Produces<FraudCaseView>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status403Forbidden).ProducesProblem(StatusCodes.Status409Conflict).ProducesProblem(StatusCodes.Status422UnprocessableEntity).TakesIfMatch()
+            .WithName("ClaimsConcludeFraudCase").WithSummary("The investigator concludes; holding or releasing a claim stays a person's separate act").RequirePermission(ClaimsPermissions.FraudCaseUpdate);
+
         claims.MapPost("/claims", async (AllocateClaimNumber r, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Send(r, ct)).ToHttp(view => Results.Created($"/api/v1/claims/claims/{view.ClaimNumber}", view)))
             .Produces<ClaimView>(StatusCodes.Status201Created)
@@ -238,3 +261,7 @@ public sealed class ClaimsFrameworkModule : IModule
             .RequirePermission(ClaimsPermissions.InstructionRelease);
     }
 }
+
+public sealed record AssignFraudRequest(Guid InvestigatorId);
+
+public sealed record ConcludeFraudRequest([property: BuildingBlocks.Domain.OneOf(Domain.Claims.FraudOutcomes.Confirmed, Domain.Claims.FraudOutcomes.NotConfirmed)] string Outcome, string Reason);

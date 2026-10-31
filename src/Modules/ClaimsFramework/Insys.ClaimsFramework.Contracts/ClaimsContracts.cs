@@ -30,6 +30,9 @@ namespace Insys.ClaimsFramework.Contracts;
 
 public static class ClaimsPermissions
 {
+    public const string FraudCaseRead = "fraud_case.read";
+    public const string FraudCaseCreate = "fraud_case.create";
+    public const string FraudCaseUpdate = "fraud_case.update";
     public const string ClaimRead = "claim_register.read";
     public const string ClaimCreate = "claim_register.create";
     public const string ClaimUpdate = "claim_register.update";

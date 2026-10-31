@@ -2,6 +2,12 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
+## Wave 6 batch 6.3 (branch `wave6-3`): fraud cases and bulk jobs (addendum §4.8, §4.9; F058, F076)
+
+### New
+- **`/claims/fraud-cases`:** `POST`, `GET`, `GET /{id}`, `POST /{id}/assign`, `/conclude`. Permissions `fraud_case.read`, `.create`, `.update`. No portal route.
+- **`/party/bulk-jobs`:** `POST /imports` (individuals, all or nothing), `POST /exports`, `GET /{id}`, `POST /{id}/approve`, `GET /{id}/content`. Permissions `party_bulk_job.read`, `.create`, `.approve`.
+
 ## Wave 6 batch 6.2 (branch `wave6-2`): register, data-subject requests, disclosures, retention (addendum §4.4 to §4.7; F057, F059, F060, F064)
 
 ### New

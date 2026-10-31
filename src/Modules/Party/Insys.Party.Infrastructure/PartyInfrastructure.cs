@@ -61,6 +61,7 @@ public static class PartyInfrastructure
         services.AddDomainEventMapper<PartyEventMapper>(PartyDbContext.SchemaName);
         services.AddScoped<IPartyRepository, PartyRepository>();
         services.AddScoped<IDataSubjectRequests, DataSubjectRequests>();
+        services.AddScoped<IBulkJobs, BulkJobs>();
         services.AddScoped<AnonymisationCheck>(); // D-34
         services.AddScoped<IRecordRetentionPolicies, RecordRetentionPolicyReader>(); // OQ-120
         services.AddScoped<IPartySearch, PartySearchStore>();

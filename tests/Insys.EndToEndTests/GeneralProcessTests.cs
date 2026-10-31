@@ -2197,6 +2197,44 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
     }
 
     /// <summary>A vehicle, a quote rated through Rating, issued and accepted (GeneralQuoteAccepted), a proposal, and the policy issued from it.</summary>
+    /// <summary>Wave 6 §10: a fraud case is for the fraud function only and a portal can't see it; a bulk import is all or nothing; an export waits for a second person (F058, F076).</summary>
+    [Fact]
+    public async Task AFraudCaseIsHidden_AnImportIsAllOrNothing_AndAnExportWaitsForASecondPerson_F058_F076_OQ160()
+    {
+        var investigator = await _db.UserWithPermissions(Tenant, "fraud-investigator", ClaimsPermissions.FraudCaseRead, ClaimsPermissions.FraudCaseCreate, ClaimsPermissions.FraudCaseUpdate);
+        await _db.UserWithPermissions(Tenant, "bulk-first", PartyPermissions.BulkJobCreate, PartyPermissions.BulkJobRead);
+        await _db.UserWithPermissions(Tenant, "bulk-second", PartyPermissions.BulkJobApprove, PartyPermissions.BulkJobRead);
+        await _db.AdoptFunctionCatalogue();
+        var fraud = _factory.ClientFor(Tenant, "fraud-investigator");
+        var opened = await fraud.Send(HttpMethod.Post, "/api/v1/claims/fraud-cases", new { domain = "GENERAL", claimNumber = "CL-1", indicatorCodes = new[] { "LATE" } }, idempotent: true);
+        opened.StatusCode.ShouldBe(HttpStatusCode.Created, await opened.Content.ReadAsStringAsync());
+        var id = (await opened.Json()).GetProperty("id").GetGuid();
+        (await _maker.GetAsync($"/api/v1/claims/fraud-cases/{id}")).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await fraud.GetAsync($"/api/v1/claims/fraud-cases/{id}")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM audit.audit_event WHERE target_id = @t AND operation = 'ReadFraudCase'", ("t", id.ToString()))).ShouldBe(1);
+        var assigned = await fraud.Send(HttpMethod.Post, $"/api/v1/claims/fraud-cases/{id}/assign", new { investigatorId = investigator }, ifMatch: opened.ETag());
+        assigned.StatusCode.ShouldBe(HttpStatusCode.OK, await assigned.Content.ReadAsStringAsync());
+        var concluded = await fraud.Send(HttpMethod.Post, $"/api/v1/claims/fraud-cases/{id}/conclude", new { outcome = "NOT_CONFIRMED", reason = "No evidence" }, ifMatch: assigned.ETag());
+        concluded.StatusCode.ShouldBe(HttpStatusCode.OK, await concluded.Content.ReadAsStringAsync());
+
+        var first = _factory.ClientFor(Tenant, "bulk-first");
+        var second = _factory.ClientFor(Tenant, "bulk-second");
+        object Person(string surname) => new { firstNames = "Bulk", surname, birthDate = "1980-01-01", nationality = "ZA" };
+        var bad = await (await first.Send(HttpMethod.Post, "/api/v1/party/bulk-jobs/imports", new { rows = new[] { Person("BulkOne"), Person("BulkOne") } }, idempotent: true)).Json();
+        (bad.GetProperty("status").GetString(), bad.GetProperty("acceptedCount").GetInt32(), bad.GetProperty("rejectedLines")[0].GetProperty("line").GetInt32()).ShouldBe(("REJECTED", 0, 2));
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM party.individual WHERE surname = 'BulkOne'")).ShouldBe(0);
+        var good = await (await first.Send(HttpMethod.Post, "/api/v1/party/bulk-jobs/imports", new { rows = new[] { Person("BulkOne"), Person("BulkTwo") } }, idempotent: true)).Json();
+        (good.GetProperty("status").GetString(), good.GetProperty("acceptedCount").GetInt32()).ShouldBe(("DONE", 2));
+
+        var requested = await first.Send(HttpMethod.Post, "/api/v1/party/bulk-jobs/exports", new { status = "ACTIVE" }, idempotent: true);
+        requested.StatusCode.ShouldBe(HttpStatusCode.Created, await requested.Content.ReadAsStringAsync());
+        var job = $"/api/v1/party/bulk-jobs/{(await requested.Json()).GetProperty("id").GetGuid()}";
+        (await first.GetAsync($"{job}/content")).StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        var approved = await second.Send(HttpMethod.Post, $"{job}/approve", ifMatch: requested.ETag());
+        approved.StatusCode.ShouldBe(HttpStatusCode.OK, await approved.Content.ReadAsStringAsync());
+        (await (await first.GetAsync($"{job}/content")).Content.ReadAsStringAsync()).ShouldContain("BulkTwo");
+    }
+
     /// <summary>Wave 6 §10: a disclosure point refuses its step until acknowledged; a data-subject deletion is refused within retention (F059, F060, OQ-157).</summary>
     [Fact]
     public async Task ADisclosurePoint_RefusesTheStepUntilAcknowledged_AndADeletionIsRefusedWhileRecordsAreKept_F059_F060()

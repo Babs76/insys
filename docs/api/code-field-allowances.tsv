@@ -419,3 +419,6 @@ core	IntegrationAcknowledgeDisclosure.noticeType	to declare
 core	IntegrationAcknowledgeDisclosure.businessRefType	to declare
 core	IntegrationDisclosureAcknowledgementView.noticeType	to declare
 core	IntegrationDisclosureTextView.noticeType	to declare
+core	ClaimsFrameworkFraudCaseView.indicatorCodes	to declare
+core	ClaimsFrameworkOpenFraudCase.indicatorCodes	to declare
+core	PartyBulkJobView.jobType	to declare

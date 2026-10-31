@@ -4620,6 +4620,343 @@
         ]
       }
     },
+    "/api/v1/party/bulk-jobs/imports": {
+      "post": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "Import individuals, all or nothing: one bad line rejects the import, and every bad line is named (F076)",
+        "operationId": "PartyImportParties",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartyImportParties"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyBulkJobView"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          }
+        },
+        "x-permission": "party_bulk_job.create",
+        "x-function": [
+          "PARTY_IMPORT_PARTIES"
+        ]
+      }
+    },
+    "/api/v1/party/bulk-jobs/exports": {
+      "post": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "Ask for an export of parties; a second person approves it before it leaves",
+        "operationId": "PartyRequestExport",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartyRequestPartyExport"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyBulkJobView"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          }
+        },
+        "x-permission": "party_bulk_job.create",
+        "x-function": [
+          "PARTY_REQUEST_EXPORT"
+        ]
+      }
+    },
+    "/api/v1/party/bulk-jobs/{id}": {
+      "get": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "A bulk job, its counts and rejected lines",
+        "operationId": "PartyGetBulkJob",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyBulkJobView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "party_bulk_job.read",
+        "x-function": [
+          "PARTY_BULK_JOBS"
+        ]
+      }
+    },
+    "/api/v1/party/bulk-jobs/{id}/approve": {
+      "post": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "Approve an export; not for who asked",
+        "operationId": "PartyApproveExport",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyBulkJobView"
+                }
+              }
+            }
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "party_bulk_job.approve",
+        "x-function": [
+          "PARTY_APPROVE_EXPORT"
+        ]
+      }
+    },
+    "/api/v1/party/bulk-jobs/{id}/content": {
+      "get": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "The approved export as CSV; audited with its filter and row count",
+        "operationId": "PartyDownloadExport",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "party_bulk_job.read",
+        "x-function": [
+          "PARTY_BULK_JOBS"
+        ]
+      }
+    },
     "/api/v1/portal/party/data-subject-requests": {
       "post": {
         "tags": [
@@ -13770,6 +14107,401 @@
         "x-permission": "payment_callback_endpoint.update",
         "x-function": [
           "PAYMENTS_REVOKE_CALLBACK_ENDPOINT"
+        ]
+      }
+    },
+    "/api/v1/claims/fraud-cases": {
+      "post": {
+        "tags": [
+          "ClaimsFramework"
+        ],
+        "summary": "Open a fraud case on a Life or General claim or policy (F058); hidden from portals and its subject",
+        "operationId": "ClaimsOpenFraudCase",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClaimsFrameworkOpenFraudCase"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaimsFrameworkFraudCaseView"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          }
+        },
+        "x-permission": "fraud_case.create",
+        "x-function": [
+          "CLAIM_OPEN_FRAUD_CASE"
+        ]
+      },
+      "get": {
+        "tags": [
+          "ClaimsFramework"
+        ],
+        "summary": "Fraud cases, for the fraud function; every read is audited",
+        "operationId": "ClaimsListFraudCases",
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfClaimsFrameworkFraudCaseView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "fraud_case.read",
+        "x-function": [
+          "CLAIM_FRAUD_CASES"
+        ]
+      }
+    },
+    "/api/v1/claims/fraud-cases/{id}": {
+      "get": {
+        "tags": [
+          "ClaimsFramework"
+        ],
+        "summary": "A fraud case, for the fraud function; every read is audited",
+        "operationId": "ClaimsGetFraudCase",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaimsFrameworkFraudCaseView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "fraud_case.read",
+        "x-function": [
+          "CLAIM_FRAUD_CASES"
+        ]
+      }
+    },
+    "/api/v1/claims/fraud-cases/{id}/assign": {
+      "post": {
+        "tags": [
+          "ClaimsFramework"
+        ],
+        "summary": "Name the investigator",
+        "operationId": "ClaimsAssignFraudInvestigator",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClaimsFrameworkAssignFraudRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaimsFrameworkFraudCaseView"
+                }
+              }
+            }
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "fraud_case.update",
+        "x-function": [
+          "CLAIM_ASSIGN_FRAUD_INVESTIGATOR"
+        ]
+      }
+    },
+    "/api/v1/claims/fraud-cases/{id}/conclude": {
+      "post": {
+        "tags": [
+          "ClaimsFramework"
+        ],
+        "summary": "The investigator concludes; holding or releasing a claim stays a person\u0027s separate act",
+        "operationId": "ClaimsConcludeFraudCase",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClaimsFrameworkConcludeFraudRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaimsFrameworkFraudCaseView"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "fraud_case.update",
+        "x-function": [
+          "CLAIM_CONCLUDE_FRAUD_CASE"
         ]
       }
     },
@@ -42528,6 +43260,7 @@
                 "BenefitAccumulator",
                 "BillingAccount",
                 "Bordereau",
+                "BulkJob",
                 "CallbackEndpoint",
                 "CaseRedress",
                 "Cession",
@@ -42550,6 +43283,7 @@
                 "EligibilityDecision",
                 "Endpoint",
                 "FinancialMovement",
+                "FraudCase",
                 "GeneralClaim",
                 "GeneralEndorsement",
                 "GeneralPolicy",
@@ -42997,6 +43731,7 @@
                 "BenefitAccumulator",
                 "BillingAccount",
                 "Bordereau",
+                "BulkJob",
                 "CallbackEndpoint",
                 "CaseRedress",
                 "Cession",
@@ -43019,6 +43754,7 @@
                 "EligibilityDecision",
                 "Endpoint",
                 "FinancialMovement",
+                "FraudCase",
                 "GeneralClaim",
                 "GeneralEndorsement",
                 "GeneralPolicy",
@@ -45494,6 +46230,18 @@
           }
         }
       },
+      "ClaimsFrameworkAssignFraudRequest": {
+        "required": [
+          "investigatorId"
+        ],
+        "type": "object",
+        "properties": {
+          "investigatorId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
       "ClaimsFrameworkClaimCommunicationView": {
         "required": [
           "id",
@@ -45654,6 +46402,25 @@
           }
         }
       },
+      "ClaimsFrameworkConcludeFraudRequest": {
+        "required": [
+          "outcome",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "outcome": {
+            "enum": [
+              "CONFIRMED",
+              "NOT_CONFIRMED"
+            ],
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
       "ClaimsFrameworkDraftInstructionRequest": {
         "required": [
           "instructionRef",
@@ -45795,6 +46562,88 @@
               "null",
               "string"
             ]
+          }
+        }
+      },
+      "ClaimsFrameworkFraudCaseView": {
+        "required": [
+          "id",
+          "caseNumber",
+          "domain",
+          "claimNumber",
+          "policyRef",
+          "indicatorCodes",
+          "status",
+          "investigatorId",
+          "outcome",
+          "outcomeReason",
+          "rowVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "caseNumber": {
+            "type": "string"
+          },
+          "domain": {
+            "type": "string"
+          },
+          "claimNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "policyRef": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "indicatorCodes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "enum": [
+              "OPENED",
+              "INVESTIGATING",
+              "CONCLUDED"
+            ],
+            "type": "string"
+          },
+          "investigatorId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "outcome": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "outcomeReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
           }
         }
       },
@@ -46142,6 +46991,43 @@
               "string"
             ],
             "format": "double"
+          }
+        }
+      },
+      "ClaimsFrameworkOpenFraudCase": {
+        "required": [
+          "domain",
+          "claimNumber",
+          "policyRef",
+          "indicatorCodes"
+        ],
+        "type": "object",
+        "properties": {
+          "domain": {
+            "enum": [
+              "LIFE",
+              "GENERAL"
+            ],
+            "type": "string"
+          },
+          "claimNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "policyRef": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "indicatorCodes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -47287,6 +48173,27 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ClaimsFrameworkClaimRegisterSummary"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CursorPageOfClaimsFrameworkFraudCaseView": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClaimsFrameworkFraudCaseView"
             }
           },
           "nextCursor": {
@@ -65451,6 +66358,73 @@
           }
         }
       },
+      "PartyBulkJobView": {
+        "required": [
+          "id",
+          "jobType",
+          "status",
+          "filter",
+          "totalCount",
+          "acceptedCount",
+          "rejectedLines",
+          "rowVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "jobType": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "DONE",
+              "REJECTED",
+              "TO_APPROVE",
+              "APPROVED"
+            ],
+            "type": "string"
+          },
+          "filter": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "totalCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "acceptedCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "rejectedLines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PartyRejectedLine"
+            }
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          }
+        }
+      },
       "PartyCompleteCorrectionBody": {
         "required": [
           "reference"
@@ -66214,6 +67188,20 @@
           }
         }
       },
+      "PartyImportParties": {
+        "required": [
+          "rows"
+        ],
+        "type": "object",
+        "properties": {
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PartyIndividualData"
+            }
+          }
+        }
+      },
       "PartyIndividualData": {
         "required": [
           "titleCode",
@@ -66569,6 +67557,26 @@
           }
         }
       },
+      "PartyRejectedLine": {
+        "required": [
+          "line",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "line": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
       "PartyRelationshipRequest": {
         "required": [
           "toPartyId",
@@ -66625,6 +67633,26 @@
               "string"
             ],
             "format": "date"
+          }
+        }
+      },
+      "PartyRequestPartyExport": {
+        "required": [
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "enum": [
+              "ACTIVE",
+              "DORMANT",
+              "DECEASED",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },

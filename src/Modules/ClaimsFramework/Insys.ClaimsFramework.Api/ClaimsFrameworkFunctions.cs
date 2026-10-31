@@ -38,6 +38,10 @@ internal static class ClaimsFrameworkFunctions
     public static readonly IReadOnlyList<FunctionDeclaration> All =
     [
         .. new FunctionMap([Audiences.Staff], null)
+        .Screen("CLAIM_FRAUD_CASES", "CLAIM_REGISTER", "Fraud cases", "claims/fraud-cases", "ClaimsListFraudCases", "ClaimsGetFraudCase")
+        .Action("CLAIM_OPEN_FRAUD_CASE", "CLAIM_FRAUD_CASES", "ClaimsOpenFraudCase")
+        .Action("CLAIM_ASSIGN_FRAUD_INVESTIGATOR", "CLAIM_FRAUD_CASES", "ClaimsAssignFraudInvestigator")
+        .Action("CLAIM_CONCLUDE_FRAUD_CASE", "CLAIM_FRAUD_CASES", "ClaimsConcludeFraudCase")
         .Screen("CLAIM_REGISTER", "CLAIM_REGISTER", "Registration from all domains", "claims/claims", "ClaimsSearchRegister", "ClaimsGet", "ClaimsListCommunications")
         .Action("CLAIMS_ALLOCATE_NUMBER", "CLAIM_REGISTER", "ClaimsAllocateNumber")
         .Action("CLAIMS_REQUEST_EVIDENCE", "CLAIM_REGISTER", "ClaimsRequestEvidence")

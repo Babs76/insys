@@ -39,6 +39,10 @@ internal static class PartyFunctions
     public static readonly IReadOnlyList<FunctionDeclaration> All =
     [
         .. new FunctionMap([Audiences.Staff], null)
+        .Screen("PARTY_BULK_JOBS", "PARTIES", "Bulk jobs", "party/bulk-jobs", "PartyGetBulkJob", "PartyDownloadExport")
+        .Action("PARTY_IMPORT_PARTIES", "PARTY_BULK_JOBS", "PartyImportParties")
+        .Action("PARTY_REQUEST_EXPORT", "PARTY_BULK_JOBS", "PartyRequestExport")
+        .Action("PARTY_APPROVE_EXPORT", "PARTY_BULK_JOBS", "PartyApproveExport")
         .Screen("PARTY_DATA_SUBJECT_REQUESTS", "PARTIES", "Data-subject requests", "party/data-subject-requests", "PartyListDataSubjectRequests", "PartyGetDataSubjectRequest")
         .Action("PARTY_RECEIVE_DATA_SUBJECT_REQUEST", "PARTY_DATA_SUBJECT_REQUESTS", "PartyReceiveDataSubjectRequest")
         .Action("PARTY_CONFIRM_DATA_SUBJECT_IDENTITY", "PARTY_DATA_SUBJECT_REQUESTS", "PartyConfirmDataSubjectIdentity")
