@@ -24,7 +24,6 @@
  * UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
  * ============================================================================
  */
-using System.Text.RegularExpressions;
 using Insys.BuildingBlocks.Application.Auditing;
 using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Messaging;
@@ -58,7 +57,7 @@ internal sealed class RegisterPartyThroughPortalHandler(IPartyRepository parties
         {
             var (exists, pattern) = await codes.IdentityDocumentType(identifier.Country, identifier.DocType, businessDate.Today, cancellationToken);
             var value = identifier.Number.Trim();
-            if (!exists || (!string.IsNullOrEmpty(pattern) && !Regex.IsMatch(value, $"^(?:{pattern})$", RegexOptions.None, TimeSpan.FromMilliseconds(100))))
+            if (!exists || (!string.IsNullOrEmpty(pattern) && !IdentifierFormat.Matches(value, pattern)))
             {
                 return Error.Validation(PartyErrorCodes.IdentifierInvalid, $"The {identifier.DocType} number is not valid for {identifier.Country}.");
             }

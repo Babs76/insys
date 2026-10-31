@@ -25,7 +25,6 @@
  * ============================================================================
  */
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using FluentValidation;
 using Insys.BuildingBlocks.Application.Auditing;
 using Insys.BuildingBlocks.Application.Context;
@@ -594,7 +593,7 @@ internal sealed class AddIdentifierHandler(IPartyRepository parties, IPartyCodes
             return Error.Validation(PartyErrorCodes.CodeNotInForce, $"{command.DocType} is not an identity document type in force for {command.Country}.");
         }
 
-        if (!string.IsNullOrEmpty(pattern) && !Regex.IsMatch(number, $"^(?:{pattern})$", RegexOptions.None, TimeSpan.FromMilliseconds(100)))
+        if (!string.IsNullOrEmpty(pattern) && !IdentifierFormat.Matches(number, pattern))
         {
             return Error.Validation(PartyErrorCodes.IdentifierInvalid, $"The number does not have the {command.DocType} format.");
         }
