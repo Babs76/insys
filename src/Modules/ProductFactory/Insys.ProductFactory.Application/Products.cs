@@ -116,6 +116,7 @@ public sealed record CreateDraftVersion(string ProductCode, DateOnly EffectiveFr
 /// <param name="CoverStartsOn">When cover starts on the version's policies; unchanged when omitted.</param>
 /// <param name="EligibilityRulesetCode">The eligibility rule set proposals must pass; unchanged when omitted, cleared when empty.</param>
 /// <param name="ReinstatementArrears">Whether arrears must be paid before reinstatement; unchanged when omitted.</param>
+[VersionOf(typeof(ProductVersion))]
 public sealed record EditConfiguration(string ProductCode, int Version, string Name, IReadOnlyList<string> Coverages, DateOnly EffectiveFrom, long ExpectedVersion,
     CoverStart? CoverStartsOn = null, string? EligibilityRulesetCode = null, ReinstatementArrears? ReinstatementArrears = null) : ICommand<long>, IVersionedCommand;
 
