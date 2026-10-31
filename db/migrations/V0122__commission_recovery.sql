@@ -53,6 +53,7 @@ CREATE TABLE commission.cfg_broker_change_settings (
   approved_by                    varchar(80),
   change_reason                  text,
   row_version                    bigint NOT NULL DEFAULT 1,
+  import_batch_id                uuid,
   paid_commission                varchar(10) NOT NULL,
   CONSTRAINT cfg_broker_change_settings_pk PRIMARY KEY (id),
   CONSTRAINT cfg_broker_change_settings_bkey UNIQUE NULLS NOT DISTINCT (tenant_id, code, version),

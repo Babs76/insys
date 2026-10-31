@@ -441,3 +441,4 @@ core	LifeMigrateLifeClaims.batchCode	the batch name the file gives; no list
 core	LifeMigratedLifeClaim.causeCode	a cause key, as a source system has it
 core	LifeMigratedLifeClaim.reserveType	a reserve type key, checked by the Claims Framework
 core	LifeMigratedLifeClaim.claimType	a claim type key, as a source system has it
+core	DistributionCommissionRecoveryView.intermediaryCode	an intermediary key, as on an entitlement
