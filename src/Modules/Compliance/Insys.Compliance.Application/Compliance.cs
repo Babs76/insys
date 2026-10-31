@@ -309,7 +309,7 @@ internal sealed class ChangeReturnHandler(IComplianceRepository repository, ICom
             ReturnAction.Correct => await Correct(regulatoryReturn, user.Value, cancellationToken),
             _ => Result.Failure(Error.Validation(ErrorCodes.ValidationFailed, "Unknown action.")),
         };
-        return result.IsFailure ? result.Error : ReturnView.From(regulatoryReturn) with { RowVersion = regulatoryReturn.RowVersion + 1 };
+        return result.IsFailure ? result.Error : ReturnView.From(regulatoryReturn) with { RowVersion = regulatoryReturn.RowVersion };
     }
 
     private async Task<Result> Submit(RegulatoryReturn regulatoryReturn, CancellationToken cancellationToken)

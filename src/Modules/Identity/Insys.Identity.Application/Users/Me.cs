@@ -157,6 +157,6 @@ internal sealed class ChangeMyPreferredLanguageHandler(IUserRepository users, IL
 
         audit.Record(new AuditEntry("IDENTITY", "ChangeMyPreferredLanguage", nameof(UserAccount), userId.ToString()));
         var changed = user.Value.ChangePreferredLanguage(command.Language);
-        return changed.IsFailure ? changed.Error : user.Value.RowVersion + 1;
+        return changed.IsFailure ? changed.Error : user.Value.RowVersion;
     }
 }

@@ -101,7 +101,7 @@ internal sealed class ReplayMessageHandler(IDeadLetterRepository repository, IEv
         var envelope = JsonSerializer.Deserialize<EventEnvelope>(deadLetter.Payload, JsonSerializerOptions.Web)
             ?? throw new InvalidOperationException("The dead letter's payload is not an event envelope.");
         await bus.Publish(envelope, cancellationToken);
-        return deadLetter.RowVersion + 1;
+        return deadLetter.RowVersion;
     }
 }
 
@@ -119,7 +119,7 @@ internal sealed class DiscardMessageHandler(IDeadLetterRepository repository, IE
         var deadLetter = loaded.Value.DeadLetter;
         audit.Record(new AuditEntry("DEAD_LETTER", "DiscardMessage", nameof(DeadLetter), deadLetter.Id.ToString()));
         var resolved = deadLetter.DiscardMessage(loaded.Value.OperatorId);
-        return resolved.IsFailure ? resolved.Error : deadLetter.RowVersion + 1;
+        return resolved.IsFailure ? resolved.Error : deadLetter.RowVersion;
     }
 }
 

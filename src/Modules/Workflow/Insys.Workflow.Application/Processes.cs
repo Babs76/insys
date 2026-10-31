@@ -137,7 +137,7 @@ public sealed record AddCaseNote(Guid ProcessId, string Note, long ExpectedVersi
 public sealed record FireTimers(Guid ProcessId) : ICommand<int>;
 
 /// <summary>EscalateTask, from SlaBreached or by hand.</summary>
-public sealed record EscalateTask(Guid ProcessId, Guid TaskId) : ICommand<long>;
+public sealed record EscalateTask(Guid ProcessId, Guid TaskId) : ICommand<long>, IReturnsSavedVersion;
 
 public sealed record ListProcesses(string? BusinessRefType, Guid? BusinessRefId, Guid? AfterId, int Limit) : IQuery<IReadOnlyList<ProcessView>>;
 
@@ -225,7 +225,7 @@ internal sealed class AssignTaskHandler(IProcessRepository processes, IExecution
         audit.Record(new AuditEntry("WORKFLOW", task?.AssigneeId is null ? "AssignTask" : "ReassignTask", nameof(ProcessInstance), command.ProcessId.ToString(),
             new Dictionary<string, string?> { ["task"] = command.TaskId.ToString(), ["assignee"] = assignee.ToString() }));
         var result = process.Value.AssignTask(command.TaskId, assignee);
-        return result.IsFailure ? result.Error : process.Value.RowVersion + 1;
+        return result.IsFailure ? result.Error : process.Value.RowVersion;
     }
 }
 
@@ -276,7 +276,7 @@ internal sealed class CompleteTaskHandler(IProcessRepository processes, IWorkflo
             new Dictionary<string, string?> { ["from"] = process.Value.DefinitionState, ["to"] = command.ToState }));
         var route = await configuration.Routing(businessDate.Today, clock.UtcNow, cancellationToken);
         var result = process.Value.CompleteTask(command.TaskId, command.ToState, definition.Value, variables, route, clock.UtcNow);
-        return result.IsFailure ? result.Error : process.Value.RowVersion + 1;
+        return result.IsFailure ? result.Error : process.Value.RowVersion;
     }
 
     private static Dictionary<string, object?> Variables(JsonElement? json) =>
@@ -302,7 +302,7 @@ internal sealed class ChangeProcessHandler(IProcessRepository processes, IClock 
             ProcessAction.Resume => process.Value.ResumeProcess(),
             _ => process.Value.CancelProcess(clock.UtcNow),
         };
-        return result.IsFailure ? result.Error : process.Value.RowVersion + 1;
+        return result.IsFailure ? result.Error : process.Value.RowVersion;
     }
 }
 
@@ -317,7 +317,7 @@ internal sealed class AddCaseNoteHandler(IProcessRepository processes, IExecutio
         }
 
         process.Value.AddNote(ProcessAccess.Actor(execution), command.Note);
-        return process.Value.RowVersion + 1;
+        return process.Value.RowVersion;
     }
 }
 
@@ -368,7 +368,7 @@ internal sealed class EscalateTaskHandler(IProcessRepository processes, TaskEsca
         }
 
         var result = await escalation.Escalate(process.Value, command.TaskId, cancellationToken);
-        return result.IsFailure ? result.Error : process.Value.RowVersion + 1;
+        return result.IsFailure ? result.Error : process.Value.RowVersion;
     }
 }
 

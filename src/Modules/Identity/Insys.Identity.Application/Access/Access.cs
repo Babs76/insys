@@ -88,7 +88,7 @@ public sealed record ApproveAccess(Guid GrantId, long ExpectedVersion) : IComman
 public sealed record RejectAccess(Guid GrantId, string Reason, long ExpectedVersion) : ICommand<long>, IVersionedCommand;
 
 /// <summary>Command ExpireAccess, run by the expiry job when a grant's window has ended.</summary>
-public sealed record ExpireAccess(Guid GrantId) : ICommand<long>;
+public sealed record ExpireAccess(Guid GrantId) : ICommand<long>, IReturnsSavedVersion;
 
 public sealed record StartReview(ReviewScope Scope, Guid ReviewerId, DateOnly DueDate) : ICommand<Guid>;
 
@@ -188,7 +188,7 @@ internal sealed class ApproveAccessHandler(IAccessRepository access, IExecutionC
         audit.Record(new AuditEntry("PRIVILEGED_ACCESS", "ApproveAccess", nameof(PrivilegedAccessGrant), command.GrantId.ToString(),
             new Dictionary<string, string?> { ["requestedBy"] = grant.Value.RequestedBy.ToString() }));
         var result = grant.Value.ApproveAccess(approver.Value, clock.UtcNow);
-        return result.IsFailure ? result.Error : grant.Value.RowVersion + 1;
+        return result.IsFailure ? result.Error : grant.Value.RowVersion;
     }
 }
 
@@ -206,7 +206,7 @@ internal sealed class RejectAccessHandler(IAccessRepository access, IExecutionCo
 
         audit.Record(new AuditEntry("PRIVILEGED_ACCESS", "RejectAccess", nameof(PrivilegedAccessGrant), command.GrantId.ToString()));
         var result = grant.Value.RejectAccess(decider.Value, command.Reason, clock.UtcNow);
-        return result.IsFailure ? result.Error : grant.Value.RowVersion + 1;
+        return result.IsFailure ? result.Error : grant.Value.RowVersion;
     }
 }
 
@@ -222,7 +222,7 @@ internal sealed class ExpireAccessHandler(IAccessRepository access, IClock clock
 
         audit.Record(new AuditEntry("PRIVILEGED_ACCESS", "ExpireAccess", nameof(PrivilegedAccessGrant), command.GrantId.ToString()));
         var result = grant.ExpireAccess(clock.UtcNow);
-        return result.IsFailure ? result.Error : grant.RowVersion + 1;
+        return result.IsFailure ? result.Error : grant.RowVersion;
     }
 }
 
@@ -286,7 +286,7 @@ internal sealed class DecideReviewItemHandler(IAccessRepository access, IExecuti
         var result = command.Confirm
             ? review.Value.ConfirmAccess(command.ItemId, reviewer.Value, clock.UtcNow)
             : review.Value.RevokeAccess(command.ItemId, reviewer.Value, clock.UtcNow);
-        return result.IsFailure ? result.Error : review.Value.RowVersion + 1;
+        return result.IsFailure ? result.Error : review.Value.RowVersion;
     }
 }
 
@@ -305,7 +305,7 @@ internal sealed class CompleteReviewHandler(IAccessRepository access, IExecution
         audit.Record(new AuditEntry("ACCESS_REVIEW", "CompleteReview", nameof(AccessReview), command.ReviewId.ToString(),
             new Dictionary<string, string?> { ["revoked"] = review.Value.ItemsRevoked.ToString(System.Globalization.CultureInfo.InvariantCulture) }));
         var result = review.Value.CompleteReview(reviewer.Value, clock.UtcNow);
-        return result.IsFailure ? result.Error : review.Value.RowVersion + 1;
+        return result.IsFailure ? result.Error : review.Value.RowVersion;
     }
 }
 

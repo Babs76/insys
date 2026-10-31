@@ -165,6 +165,19 @@ public sealed class OutboxAndInboxTests(DatabaseFixture fixture) : IClassFixture
         (await fixture.Database.ScalarAsOwner<long>("SELECT row_version FROM test_mod.widget WHERE id = @id", ("id", id))).ShouldBe(2);
     }
 
+    /// <summary>A response carries the version as saved, read from the row, however many times the transaction wrote it: a save, a raw write, and the pipeline's own save.</summary>
+    [Fact]
+    public async Task AChangesResponse_CarriesTheVersionAsSaved_HoweverOftenTheRowWasWritten()
+    {
+        var first = (await _services.Send(DatabaseFixture.TenantA, new CreateWidget("written-twice"))).Value;
+        (await _services.Send(DatabaseFixture.TenantA, new RenameWidgetTwice(first, 1))).Value
+            .ShouldBe(await fixture.Database.ScalarAsOwner<long>("SELECT row_version FROM test_mod.widget WHERE id = @id", ("id", first)));
+        (await fixture.Database.ScalarAsOwner<long>("SELECT row_version FROM test_mod.widget WHERE id = @id", ("id", first))).ShouldBe(4);
+
+        var second = (await _services.Send(DatabaseFixture.TenantA, new CreateWidget("view-twice"))).Value;
+        (await _services.Send(DatabaseFixture.TenantA, new RenameWidgetTwiceView(second))).Value.RowVersion.ShouldBe(4);
+    }
+
     /// <summary>
     /// Record history (Wave 0): every command that changes a record leaves an audit entry for it. A handler's own entry
     /// stands for its record; a command with none gets a RECORD_CHANGED entry naming the command.

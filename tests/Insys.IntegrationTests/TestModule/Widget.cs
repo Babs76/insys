@@ -127,6 +127,37 @@ public sealed record CreateWidget(string Name, bool FailAfterChange = false) : I
 
 public sealed record RenameWidget(Guid WidgetId, long ExpectedVersion, string Name) : ICommand<long>, IVersionedCommand;
 
+/// <summary>Writes its row more than once in the transaction: a second save, then a raw write. What it returns is deliberately wrong; the pipeline answers with what was saved.</summary>
+public sealed record RenameWidgetTwice(Guid WidgetId, long ExpectedVersion) : ICommand<long>, IVersionedCommand;
+
+public sealed record WidgetVersionView(Guid Id, long RowVersion);
+
+/// <summary>The same, returning a view built before the saves.</summary>
+public sealed record RenameWidgetTwiceView(Guid WidgetId) : ICommand<WidgetVersionView>;
+
+public sealed class RenameWidgetTwiceHandler(TestDbContext db, IClock clock) : ICommandHandler<RenameWidgetTwice, long>, ICommandHandler<RenameWidgetTwiceView, WidgetVersionView>
+{
+    public async Task<Result<long>> Handle(RenameWidgetTwice command, CancellationToken cancellationToken) =>
+        (await Twice(command.WidgetId, cancellationToken)).RowVersion;
+
+    public async Task<Result<WidgetVersionView>> Handle(RenameWidgetTwiceView command, CancellationToken cancellationToken)
+    {
+        var widget = await Twice(command.WidgetId, cancellationToken);
+        return new WidgetVersionView(widget.Id, widget.RowVersion);
+    }
+
+    private async Task<Widget> Twice(Guid id, CancellationToken cancellationToken)
+    {
+        var widget = await db.Widgets.SingleAsync(w => w.Id == id, cancellationToken);
+        widget.Rename("first", clock.UtcNow);
+        await db.SaveChangesAsync(cancellationToken);
+        await db.Database.ExecuteSqlRawAsync("UPDATE test_mod.widget SET row_version = row_version + 1 WHERE id = {0}", [id], cancellationToken);
+        await db.Entry(widget).ReloadAsync(cancellationToken);
+        widget.Rename("second", clock.UtcNow);
+        return widget;
+    }
+}
+
 public sealed class CreateWidgetValidator : AbstractValidator<CreateWidget>
 {
     public CreateWidgetValidator() => RuleFor(c => c.Name).NotEmpty().MaximumLength(40);
@@ -162,7 +193,7 @@ public sealed class RenameWidgetHandler(TestDbContext db, IClock clock) : IComma
         }
 
         widget.Rename(command.Name, clock.UtcNow);
-        return widget.RowVersion + 1;
+        return widget.RowVersion;
     }
 }
 

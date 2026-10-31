@@ -2,6 +2,11 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
+## A change's response carries the version as saved (branch `etag-after-save`)
+
+### Changed
+- **Every write's `rowVersion` and ETag are now the record's version after the save.** Before, many were one behind, so a client needed a fresh GET. A client may now use the returned ETag for its next change.
+
 ## Wave 5a batch 5a.3 (branch `wave5a-3`): recoveries, credit notes and disputes (addendum §4.6 to §4.8; F048 to F050)
 
 ### New

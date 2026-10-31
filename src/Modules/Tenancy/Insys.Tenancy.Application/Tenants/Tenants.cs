@@ -237,7 +237,7 @@ internal sealed class CompleteOnboardingStepHandler(ITenantRepository tenants, O
         audit.Record(new AuditEntry("TENANT", "CompleteOnboardingStep", nameof(Tenant), command.TenantId.ToString(),
             new Dictionary<string, string?> { ["step"] = command.Step }));
         var result = tenant.Value.CompleteOnboardingStep(command.Step, clock.UtcNow);
-        return result.IsFailure ? result.Error : tenant.Value.RowVersion + 1;
+        return result.IsFailure ? result.Error : tenant.Value.RowVersion;
     }
 }
 
@@ -269,7 +269,7 @@ internal sealed class ChangeTenantStatusHandler(ITenantRepository tenants, IExec
             TenantStatusAction.Reactivate => tenant.Value.ReactivateTenant(operatorId.Value, command.Reason, now),
             _ => tenant.Value.TerminateTenant(operatorId.Value, command.Reason, now),
         };
-        return result.IsFailure ? result.Error : tenant.Value.RowVersion + 1;
+        return result.IsFailure ? result.Error : tenant.Value.RowVersion;
     }
 }
 
@@ -293,7 +293,7 @@ internal sealed class ChangeIsolationProfileHandler(ITenantRepository tenants, I
         audit.Record(new AuditEntry("TENANT", "ChangeIsolationProfile", nameof(Tenant), command.TenantId.ToString(),
             new Dictionary<string, string?> { ["to"] = command.IsolationProfile.ToString(), ["migration"] = command.ApprovedMigrationRef }));
         var result = tenant.Value.ChangeIsolationProfile(command.IsolationProfile, command.ApprovedMigrationRef, operatorId.Value, clock.UtcNow);
-        return result.IsFailure ? result.Error : tenant.Value.RowVersion + 1;
+        return result.IsFailure ? result.Error : tenant.Value.RowVersion;
     }
 }
 

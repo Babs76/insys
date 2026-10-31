@@ -124,7 +124,7 @@ internal sealed class ChangeTier2MakerCheckerHandler(IChangeRequestRepository re
         audit.Record(new AuditEntry("STATIC_DATA_GOVERNANCE", command.Enabled ? "ChangeTier2MakerChecker" : "RequestTier2MakerCheckerOff",
             nameof(TenantGovernanceSettings), settings.Id.ToString(),
             new Dictionary<string, string?> { ["before"] = before.ToString(), ["after"] = command.Enabled.ToString(), ["pending"] = (!command.Enabled).ToString() }));
-        return settings.RowVersion + 1;
+        return settings.RowVersion;
     }
 }
 

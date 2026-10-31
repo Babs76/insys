@@ -287,7 +287,7 @@ internal sealed class AssignRoleHandler(IUserRepository users, IRolePolicyReader
 
         var tenantId = tenant.RequireTenantId();
         afterCommit.Enqueue(() => cache.EvictTenant(tenantId));
-        return user.Value.RowVersion + 1;
+        return user.Value.RowVersion;
     }
 }
 
@@ -319,7 +319,7 @@ internal sealed class RevokeRoleHandler(IUserRepository users, IExecutionContext
         // IAM-005: evict as soon as the revocation commits, so the very next request is resolved without the role.
         var tenantId = tenant.RequireTenantId();
         afterCommit.Enqueue(() => cache.EvictTenant(tenantId));
-        return user.Value.RowVersion + 1;
+        return user.Value.RowVersion;
     }
 }
 
@@ -354,7 +354,7 @@ internal sealed class ChangeUserStatusHandler(IUserRepository users, IExecutionC
 
         var tenantId = tenant.RequireTenantId();
         afterCommit.Enqueue(() => cache.EvictTenant(tenantId));
-        return user.Value.RowVersion + 1;
+        return user.Value.RowVersion;
     }
 }
 
@@ -472,6 +472,6 @@ internal sealed class ResendInvitationHandler(IUserRepository users, IExecutionC
         }
 
         audit.Record(new AuditEntry("IDENTITY", "ResendInvitation", nameof(UserAccount), command.UserId.ToString()));
-        return user.Value.RowVersion + 1;
+        return user.Value.RowVersion;
     }
 }

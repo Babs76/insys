@@ -86,6 +86,7 @@ public static class TestTokens
     public static Dictionary<string, string?> HostSettings(TestDatabase database) => new()
     {
         ["ConnectionStrings:Template"] = database.RoleConnectionTemplate,
+        ["Commands:ConflictRetry:RequireSavedVersion"] = "true",
         ["Platform:OperatorTenantId"] = TestTenants.Operator.ToString(),
         ["Audit:Partitions:Enabled"] = "false",
         ["Authentication:Authority"] = "",

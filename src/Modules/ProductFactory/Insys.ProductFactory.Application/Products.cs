@@ -130,7 +130,7 @@ public sealed record WithdrawVersion(string ProductCode, int Version, DateOnly E
 public sealed record RetireVersion(string ProductCode, int Version, long ExpectedVersion) : ICommand<long>, IVersionedCommand;
 
 /// <summary>Transition "Effective date reached", run by the product job as a service identity.</summary>
-public sealed record MakeVersionEffective(Guid VersionId) : ICommand<long>;
+public sealed record MakeVersionEffective(Guid VersionId) : ICommand<long>, IReturnsSavedVersion;
 
 public sealed record GetProductVersion(string ProductCode, int Version) : IQuery<ProductVersionView>;
 
@@ -267,7 +267,7 @@ internal sealed class EditConfigurationHandler(IProductVersionRepository version
         }
 
         await SimulationRuns.MarkStale(runs, version.Value, cancellationToken);
-        return version.Value.RowVersion + 1;
+        return version.Value.RowVersion;
     }
 }
 
@@ -283,7 +283,7 @@ internal sealed class ValidateVersionHandler(IProductVersionRepository versions,
 
         var context = await catalogue.ValidationContext(version.Value, businessDate.Today, cancellationToken);
         var result = version.Value.ValidateVersion(context, clock.UtcNow);
-        return result.IsFailure ? result.Error : version.Value.RowVersion + 1;
+        return result.IsFailure ? result.Error : version.Value.RowVersion;
     }
 }
 
@@ -332,7 +332,7 @@ internal sealed class SubmitForApprovalHandler(IProductVersionRepository version
         audit.Record(new AuditEntry("PRODUCT", "SubmitForApproval", nameof(ProductVersion), version.Value.Id.ToString(),
             new Dictionary<string, string?> { ["product"] = command.ProductCode, ["version"] = command.Version.ToString(CultureInfo.InvariantCulture) }));
         var result = version.Value.SubmitForApproval(user.Value, passed, command.Reason ?? "", clock.UtcNow);
-        return result.IsFailure ? result.Error : version.Value.RowVersion + 1;
+        return result.IsFailure ? result.Error : version.Value.RowVersion;
     }
 }
 
@@ -366,7 +366,7 @@ internal sealed class WithdrawVersionHandler(IProductVersionRepository versions,
 
         audit.Record(new AuditEntry("PRODUCT", "WithdrawVersion", nameof(ProductVersion), version.Value.Id.ToString()));
         var result = version.Value.WithdrawVersion(command.EffectiveTo, businessDate.Today, clock.UtcNow);
-        return result.IsFailure ? result.Error : version.Value.RowVersion + 1;
+        return result.IsFailure ? result.Error : version.Value.RowVersion;
     }
 }
 
@@ -382,7 +382,7 @@ internal sealed class RetireVersionHandler(IProductVersionRepository versions, I
 
         audit.Record(new AuditEntry("PRODUCT", "RetireVersion", nameof(ProductVersion), version.Value.Id.ToString()));
         var result = version.Value.RetireVersion();
-        return result.IsFailure ? result.Error : version.Value.RowVersion + 1;
+        return result.IsFailure ? result.Error : version.Value.RowVersion;
     }
 }
 
@@ -397,7 +397,7 @@ internal sealed class MakeVersionEffectiveHandler(IProductVersionRepository vers
         }
 
         var result = version.BecomeEffective(businessDate.Today);
-        return result.IsFailure ? result.Error : version.RowVersion + 1;
+        return result.IsFailure ? result.Error : version.RowVersion;
     }
 }
 

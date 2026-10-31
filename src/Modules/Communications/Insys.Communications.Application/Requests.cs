@@ -348,7 +348,7 @@ internal sealed class PreferenceHandlers(INotificationRepository notifications, 
         audit.Record(new AuditEntry("COMMUNICATION", "SetPreference", nameof(NotificationPreference), set.Value.Id.ToString(),
             new Dictionary<string, string?> { ["type"] = typeCode, ["optedOut"] = optedOut ? "true" : "false", ["by"] = captureChannel }));
         // The version once this change is saved: 1 for a new preference, one more for a changed one.
-        return await View(type, set.Value, partyId, cancellationToken) with { RowVersion = current is null ? 1 : current.RowVersion + 1 };
+        return await View(type, set.Value, partyId, cancellationToken) with { RowVersion = current is null ? 1 : current.RowVersion };
     }
 }
 
