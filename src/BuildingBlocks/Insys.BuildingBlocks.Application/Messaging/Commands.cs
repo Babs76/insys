@@ -43,6 +43,13 @@ public interface IVersionedCommand
     long ExpectedVersion { get; }
 }
 
+/// <summary>Names the record a command's returned version is of, when it changes more than one of the same version with no id to tell them (a product version and its simulation runs).</summary>
+[AttributeUsage(AttributeTargets.Class)]
+public sealed class VersionOfAttribute(Type record) : Attribute
+{
+    public Type Record { get; } = record;
+}
+
 /// <summary>A command whose long result is the version of the one aggregate it changes; the pipeline fills it from the saved row.</summary>
 public interface IReturnsSavedVersion;
 
