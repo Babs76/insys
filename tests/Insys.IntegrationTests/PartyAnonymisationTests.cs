@@ -350,7 +350,7 @@ public sealed class PartyAnonymisationTests(DatabaseFixture fixture) : IClassFix
         await ReviewDormancy(tenant);
         (await StatusOf(tenant, party)).ShouldBe("DORMANT");
 
-        var aCase = await Insert(tenant, "workflow.service_case", ("status", "RECEIVED"), ("family", "ENQUIRY"), ("complainant_party_id", party));
+        var aCase = await Insert(tenant, "workflow.service_case", ("status", "RECEIVED"), ("family", "ENQUIRY"), ("raised_by_audience", "STAFF"), ("raised_by_user_id", Guid.CreateVersion7()), ("complainant_party_id", party));
         await ReviewDormancy(tenant);
         (await StatusOf(tenant, party)).ShouldBe("ACTIVE", "a case is open");
 
