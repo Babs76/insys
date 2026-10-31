@@ -135,10 +135,23 @@ public sealed record WidgetVersionView(Guid Id, long RowVersion);
 /// <summary>The same, returning a view built before the saves.</summary>
 public sealed record RenameWidgetTwiceView(Guid WidgetId) : ICommand<WidgetVersionView>;
 
-public sealed class RenameWidgetTwiceHandler(TestDbContext db, IClock clock) : ICommandHandler<RenameWidgetTwice, long>, ICommandHandler<RenameWidgetTwiceView, WidgetVersionView>
+/// <summary>Changes two aggregates and answers with a view of neither: the shape the pipeline can't tell a version for.</summary>
+public sealed record RenameTwoWidgets(Guid First, Guid Second) : ICommand<WidgetVersionView>;
+
+public sealed class RenameWidgetTwiceHandler(TestDbContext db, IClock clock) : ICommandHandler<RenameWidgetTwice, long>, ICommandHandler<RenameWidgetTwiceView, WidgetVersionView>, ICommandHandler<RenameTwoWidgets, WidgetVersionView>
 {
     public async Task<Result<long>> Handle(RenameWidgetTwice command, CancellationToken cancellationToken) =>
         (await Twice(command.WidgetId, cancellationToken)).RowVersion;
+
+    public async Task<Result<WidgetVersionView>> Handle(RenameTwoWidgets command, CancellationToken cancellationToken)
+    {
+        foreach (var widget in await db.Widgets.Where(w => w.Id == command.First || w.Id == command.Second).ToListAsync(cancellationToken))
+        {
+            widget.Rename("changed", clock.UtcNow);
+        }
+
+        return new WidgetVersionView(Guid.CreateVersion7(), 1);
+    }
 
     public async Task<Result<WidgetVersionView>> Handle(RenameWidgetTwiceView command, CancellationToken cancellationToken)
     {
