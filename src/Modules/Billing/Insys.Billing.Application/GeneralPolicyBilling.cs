@@ -122,7 +122,13 @@ public sealed class GeneralPolicyBilling(IBillingRepository billing, IBillingCod
             throw new InvalidOperationException($"Policy {endorsed.PolicyNumber} has no premium schedule yet.");
         }
 
-        var frequency = await Frequency(schedule.Frequency, endorsed.PolicyNumber, cancellationToken);
+        // B-008: a new frequency brings its own loading; invoices already issued stand.
+        var frequency = await Frequency(endorsed.NewBillingFrequency ?? schedule.Frequency, endorsed.PolicyNumber, cancellationToken);
+        if (endorsed.NewBillingFrequency is not null)
+        {
+            schedule.UseLoading(endorsed.NewLoadingPct);
+        }
+
         var amended = account.AmendSchedule(schedule.Id, frequency, Instalment(endorsed.NewAnnualPremium, frequency, schedule.LoadingPct), endorsed.EffectiveDate,
             Loaded(endorsed.NewAnnualPremium, schedule.LoadingPct));
         if (amended.IsFailure)

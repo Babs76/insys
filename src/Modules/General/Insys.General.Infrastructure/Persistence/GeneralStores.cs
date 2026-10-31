@@ -531,7 +531,7 @@ internal sealed class GeneralEventMapper : IDomainEventMapper
             e.Billing.BillingAccountRef, e.Billing.Frequency, e.Billing.CollectionMethod, e.Currency, e.AnnualPremium, e.PeriodStart, e.PeriodEnd, e.RenewalOfId,
             e.SumInsured, e.OrgNodeCode, e.InstalmentLoadingPct),
         GeneralPolicyEndorsed e => new Contracts.GeneralPolicyEndorsed(e.PolicyId, e.PolicyNumber, e.EndorsementId, e.EndorsementNumber, e.EffectiveDate, e.NewAnnualPremium,
-            e.PremiumDelta, e.Currency, e.ProductCode, e.ProductVersion, e.DocumentTypes, e.NewSumInsured, e.PolicyholderPartyId),
+            e.PremiumDelta, e.Currency, e.ProductCode, e.ProductVersion, e.DocumentTypes, e.NewSumInsured, e.PolicyholderPartyId, e.NewBillingFrequency, e.NewLoadingPct),
         GeneralPolicyRenewed e => new Contracts.GeneralPolicyRenewed(e.PolicyId, e.PolicyNumber, e.RenewalPolicyId),
         GeneralRenewalReminderDue e => new Contracts.GeneralRenewalReminderDue(e.PolicyId, e.PolicyNumber, e.ProductCode, e.PeriodEnd, e.DaysBefore, e.PolicyholderPartyId,
             e.OrgNodeCode),

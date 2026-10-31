@@ -52922,6 +52922,23 @@
               "string"
             ],
             "format": "uuid"
+          },
+          "adjustmentPct": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "newBillingFrequency": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "x-code-list": "billing.ref_billing_frequencies",
+            "x-code-list-column": "code"
           }
         }
       },

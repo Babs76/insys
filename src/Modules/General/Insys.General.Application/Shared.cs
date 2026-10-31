@@ -442,10 +442,10 @@ public sealed record EndorsementView(Guid Id, string EndorsementNumber, Guid Pol
     DateOnly EffectiveDate, EndorsementStatus Status,
     decimal PremiumDelta, decimal? NewAnnualPremium, string Currency, Guid? RatingRequestId, Guid? DocumentId, IReadOnlyList<EndorsementChange> Changes, long RowVersion,
     Workflow.Contracts.LatestRejection? LatestRejection = null, [property: BuildingBlocks.Contracts.AlwaysPresent] string? NewIntermediaryCode = null,
-    [property: BuildingBlocks.Contracts.AlwaysPresent] Guid? AppointmentLetterId = null)
+    [property: BuildingBlocks.Contracts.AlwaysPresent] Guid? AppointmentLetterId = null, decimal? AdjustmentPct = null, [property: CodeList(CodeLists.BillingFrequencies, "code")] string? NewBillingFrequency = null)
 {
     public static EndorsementView From(GeneralEndorsement e) => new(e.Id, e.EndorsementNumber, e.PolicyId, e.EndorsementType, e.EffectiveDate, e.Status,
-        e.PremiumDelta, e.NewAnnualPremium, e.Currency, e.RatingRequestId, e.DocumentId, e.Changes, e.RowVersion, null, e.NewIntermediaryCode, e.AppointmentLetterId);
+        e.PremiumDelta, e.NewAnnualPremium, e.Currency, e.RatingRequestId, e.DocumentId, e.Changes, e.RowVersion, null, e.NewIntermediaryCode, e.AppointmentLetterId, e.AdjustmentPct, e.NewBillingFrequency);
 }
 
 public sealed record ClaimPartyView(Guid PartyId, [property: CodeList(CodeLists.ClaimPartyRoles, "code")] string Role, string? InsurerRef);

@@ -89,7 +89,7 @@ public sealed record GeneralPolicyIssued(Guid PolicyId, string PolicyNumber, str
 
 public sealed record GeneralPolicyEndorsed(Guid PolicyId, string PolicyNumber, Guid EndorsementId, string EndorsementNumber, DateOnly EffectiveDate,
     decimal NewAnnualPremium, decimal PremiumDelta, string Currency, string ProductCode, int ProductVersion, IReadOnlyList<string> DocumentTypes, decimal NewSumInsured,
-    DateTimeOffset OccurredAt, Guid? PolicyholderPartyId = null) : IDomainEvent;
+    DateTimeOffset OccurredAt, Guid? PolicyholderPartyId = null, string? NewBillingFrequency = null, decimal? NewLoadingPct = null) : IDomainEvent;
 
 public sealed record GeneralRenewalReminderDue(Guid PolicyId, string PolicyNumber, string ProductCode, DateOnly PeriodEnd, int DaysBefore, Guid PolicyholderPartyId,
     string? OrgNodeCode, DateTimeOffset OccurredAt) : IDomainEvent;
@@ -830,9 +830,15 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
             return limits.IsFailure ? limits : Error.Validation(ErrorCodes.ValidationFailed, "A policy keeps at least one risk object.");
         }
 
+        if (endorsement.NewBillingFrequency is { } frequency)
+        {
+            BillingFrequency = frequency;
+            InstalmentLoadingPct = endorsement.NewLoadingPct is > 0 ? endorsement.NewLoadingPct : null;
+        }
+
         SetPremium(endorsement.NewAnnualPremium!.Value);
         Raise(new GeneralPolicyEndorsed(Id, PolicyNumber, endorsement.Id, endorsement.EndorsementNumber, endorsement.EffectiveDate, AnnualPremium,
-            endorsement.PremiumDelta, Currency, ProductCode, ProductVersion, documentTypes, SumInsuredOn(endorsement.EffectiveDate), now, PolicyholderPartyId));
+            endorsement.PremiumDelta, Currency, ProductCode, ProductVersion, documentTypes, SumInsuredOn(endorsement.EffectiveDate), now, PolicyholderPartyId, endorsement.NewBillingFrequency, endorsement.NewLoadingPct));
         MarkChanged();
         return Result.Success();
     }

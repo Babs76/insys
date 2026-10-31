@@ -257,6 +257,7 @@ public sealed class PremiumSchedule : Entity<Guid>, ITenantScoped
             instalment.Cancel();
         }
 
+        Frequency = frequency.Code;
         InstalmentAmount = amount;
         AnnualPremium = annualPremium ?? AnnualPremium;
         Generate(frequency, effectiveFrom);

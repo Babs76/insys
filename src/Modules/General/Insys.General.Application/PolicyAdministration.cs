@@ -56,7 +56,7 @@ public sealed record GetPolicy(Guid PolicyId) : IQuery<PolicyView>;
 /// <summary>Command DraftEndorsement: changes effective from a date within the policy period (GEN-003).</summary>
 /// <param name="IntermediaryCode">B-001: for an INTERMEDIARY endorsement (a broker of record change), the intermediary the policy moves to; it has no changes.</param>
 public sealed record DraftEndorsement(Guid PolicyId, [property: CodeList(CodeLists.EndorsementTypes, "code")] string EndorsementType, DateOnly EffectiveDate,
-    IReadOnlyList<EndorsementChange> Changes, string? IntermediaryCode = null) : ICommand<EndorsementView>;
+    IReadOnlyList<EndorsementChange> Changes, string? IntermediaryCode = null, decimal? AdjustmentPct = null, [property: CodeList(CodeLists.BillingFrequencies, "code")] string? BillingFrequency = null) : ICommand<EndorsementView>;
 
 /// <summary>B-001, Wave 4 addition 3: the policyholder's broker appointment letter, a document filed against the endorsement, before it is submitted.</summary>
 public sealed record RecordAppointmentLetter(Guid EndorsementId, Guid DocumentId) : ICommand<EndorsementView>;
@@ -362,6 +362,50 @@ internal sealed class DraftEndorsementHandler(IGeneralRepository general, IGener
             audit.Record(new AuditEntry("GENERAL", "DraftEndorsement", nameof(GeneralEndorsement), change.Value.Id.ToString(),
                 new Dictionary<string, string?> { ["intermediary"] = intermediary }));
             return EndorsementView.From(change.Value);
+        }
+
+        // B-007, B-008: neither touches the cover, so neither has changes, and both are rated at once.
+        if (type.Code is GeneralEndorsement.PremiumAdjustmentType or GeneralEndorsement.BillingFrequencyType)
+        {
+            if (command.Changes.Count > 0 || command.IntermediaryCode is not null)
+            {
+                return Error.Validation(ErrorCodes.ValidationFailed, $"A {type.Code} endorsement has no changes.");
+            }
+
+            var number = $"{policy.PolicyNumber}-E{await general.EndorsementCount(policy.Id, cancellationToken) + 1:D3}";
+            Result<GeneralEndorsement> drafted;
+            if (type.Code == GeneralEndorsement.PremiumAdjustmentType)
+            {
+                if (command.AdjustmentPct is not { } percent)
+                {
+                    return Error.Validation(ErrorCodes.ValidationFailed, "A premium adjustment names adjustmentPct.");
+                }
+
+                drafted = GeneralEndorsement.DraftPremiumAdjustment(Guid.CreateVersion7(), number, policy, type, command.EffectiveDate, percent, user.Value);
+            }
+            else
+            {
+                if (command.BillingFrequency is not { Length: > 0 } frequency || await codes.FrequencyLoading(policy.ProductCode, frequency, businessDate.Today, cancellationToken) is not { } loading)
+                {
+                    return Error.Validation(GeneralErrorCodes.CodeNotInForce, $"The product doesn't allow billing {command.BillingFrequency}.");
+                }
+
+                drafted = GeneralEndorsement.DraftFrequencyChange(Guid.CreateVersion7(), number, policy, type, command.EffectiveDate, frequency, loading, user.Value);
+            }
+
+            if (drafted.IsFailure)
+            {
+                return drafted.Error;
+            }
+
+            general.Add(drafted.Value);
+            audit.Record(new AuditEntry("GENERAL", "DraftEndorsement", nameof(GeneralEndorsement), drafted.Value.Id.ToString()));
+            return EndorsementView.From(drafted.Value);
+        }
+
+        if (command.AdjustmentPct is not null || command.BillingFrequency is not null)
+        {
+            return Error.Validation(ErrorCodes.ValidationFailed, "adjustmentPct and billingFrequency are for their own endorsement types.");
         }
 
         if (command.IntermediaryCode is not null)

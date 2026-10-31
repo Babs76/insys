@@ -182,6 +182,91 @@ public sealed class GeneralEndorsement : AggregateRoot<Guid>
         return endorsement;
     }
 
+    /// <summary>B-007: the per cent a PREMIUM_ADJUSTMENT endorsement moves the annual premium by; negative for a discount.</summary>
+    public decimal? AdjustmentPct { get; private set; }
+
+    /// <summary>B-008: the frequency a BILLING_FREQUENCY endorsement moves the policy to.</summary>
+    public string? NewBillingFrequency { get; private set; }
+
+    /// <summary>B-008: that frequency's instalment loading, from the product on the draft's day.</summary>
+    public decimal? NewLoadingPct { get; private set; }
+
+    public const string PremiumAdjustmentType = "PREMIUM_ADJUSTMENT";
+
+    public const string BillingFrequencyType = "BILLING_FREQUENCY";
+
+    /// <summary>
+    /// B-007: the annual premium moved by a per cent from the effective date, without re-rating the risk, so it is rated at once. What it charges or gives back
+    /// is the change for the days left in the period. Instalments already invoiced aren't changed.
+    /// </summary>
+    public static Result<GeneralEndorsement> DraftPremiumAdjustment(Guid id, string number, GeneralPolicy policy, EndorsementType type, DateOnly effectiveDate, decimal percent, Guid requestedBy)
+    {
+        if (type.Code != PremiumAdjustmentType || percent == 0 || percent <= -100)
+        {
+            return Error.Validation(ErrorCodes.ValidationFailed, $"A premium adjustment is a {PremiumAdjustmentType} endorsement, with a per cent above -100 that isn't 0.");
+        }
+
+        var open = Rated(id, number, policy, type, effectiveDate, requestedBy);
+        if (open.IsFailure)
+        {
+            return open;
+        }
+
+        var endorsement = open.Value;
+        endorsement.AdjustmentPct = percent;
+        endorsement.NewAnnualPremium = Math.Round(policy.AnnualPremium * (1 + percent / 100m), 2, MidpointRounding.AwayFromZero);
+        var left = policy.PeriodEnd.DayNumber - effectiveDate.DayNumber + 1;
+        var whole = policy.PeriodEnd.DayNumber - policy.PeriodStart.DayNumber + 1;
+        endorsement.PremiumDelta = Math.Round((endorsement.NewAnnualPremium.Value - policy.AnnualPremium) * left / whole, 2, MidpointRounding.AwayFromZero);
+        return endorsement;
+    }
+
+    /// <summary>B-008: the policy billed at another frequency the product allows, with that frequency's loading. The cover and annual premium don't change.</summary>
+    public static Result<GeneralEndorsement> DraftFrequencyChange(Guid id, string number, GeneralPolicy policy, EndorsementType type, DateOnly effectiveDate, string frequency, decimal loadingPct, Guid requestedBy)
+    {
+        if (type.Code != BillingFrequencyType || frequency == policy.BillingFrequency)
+        {
+            return Error.Validation(ErrorCodes.ValidationFailed, $"A frequency change is a {BillingFrequencyType} endorsement, to a frequency the policy isn't on.");
+        }
+
+        var open = Rated(id, number, policy, type, effectiveDate, requestedBy);
+        if (open.IsFailure)
+        {
+            return open;
+        }
+
+        open.Value.NewBillingFrequency = Guard.MaxLength(frequency, 15);
+        open.Value.NewLoadingPct = loadingPct;
+        return open;
+    }
+
+    private static Result<GeneralEndorsement> Rated(Guid id, string number, GeneralPolicy policy, EndorsementType type, DateOnly effectiveDate, Guid requestedBy)
+    {
+        if (policy.Status is not (PolicyStatus.Issued or PolicyStatus.InForce))
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, $"Policy {policy.PolicyNumber} is {policy.Status}.");
+        }
+
+        if (effectiveDate < policy.PeriodStart || effectiveDate > policy.PeriodEnd)
+        {
+            return Error.Validation(GeneralErrorCodes.OutsidePolicyPeriod, $"{effectiveDate:yyyy-MM-dd} is outside the policy period {policy.PeriodStart:yyyy-MM-dd} to {policy.PeriodEnd:yyyy-MM-dd} (GEN-003).");
+        }
+
+        var endorsement = new GeneralEndorsement
+        {
+            Id = Guard.NotEmpty(id), EndorsementNumber = Guard.MaxLength(number, 20), PolicyId = policy.Id, EndorsementType = type.Code, EffectiveDate = effectiveDate, RequestedBy = requestedBy,
+            Status = EndorsementStatus.Draft, Currency = policy.Currency, NewAnnualPremium = policy.AnnualPremium, PremiumDelta = 0m,
+        };
+        var rated = endorsement.Fire(EndorsementTrigger.RateEndorsement);
+        if (rated.IsFailure)
+        {
+            return rated.Error;
+        }
+
+        endorsement.MarkChanged();
+        return endorsement;
+    }
+
     /// <summary>B-001, addition 3: the appointment letter, before the change is submitted.</summary>
     public Result RecordAppointmentLetter(Guid documentId)
     {

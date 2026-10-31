@@ -13,6 +13,12 @@ What changed in the API contract, newest first, so the front end can sync. The O
 - **New `GET /integration/bulk-jobs` (BR-122, GAP-126):** `type` (`PARTY_IMPORT`, `PARTY_EXPORT`), `direction` (`IMPORT`, `EXPORT`), `status`, `from`, `to` (UTC dates, inclusive), `cursor`, `limit`. Newest first, as `{items, nextCursor}`. Each row: `id`, `jobType`, `direction`, `status`, `totalCount`, `acceptedCount`, `runBy`, `createdAt`. Rejected lines and the filter stay on `GET /party/bulk-jobs/{id}`. Permission `party_bulk_job.read`. Added to the `PARTY_BULK_JOBS` screen's functions.
 - **Readiness blocker `DISCLOSURE_MANDATORY_TEXTS`** in `INTEGRATION_AND_REPORTING`. `DISCLOSURE_TEXTS` now warns of `PROPOSAL` only.
 
+## Endorsement actions (branch `endorsement-actions`, B-007, B-008)
+
+- **`POST /general/policies/{id}/endorsements`** takes `adjustmentPct` for a `PREMIUM_ADJUSTMENT` type (negative for a discount) and `billingFrequency` for a `BILLING_FREQUENCY` type. Each has no `changes`, and is `Rated` at once, ready to submit. A tenant adds the two types in `general.cfg_endorsement_types` to use them.
+- **`EndorsementView`** gains `adjustmentPct`, `newBillingFrequency`.
+- **An accepted mid-term discount offer** drafts a `PREMIUM_ADJUSTMENT` endorsement for the case's owner to submit.
+
 ## Wave 6 batch 6.3 (branch `wave6-3`): fraud cases and bulk jobs (addendum §4.8, §4.9; F058, F076)
 
 ### New

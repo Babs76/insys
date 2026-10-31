@@ -34,6 +34,8 @@ using Insys.General.Contracts;
 using Insys.General.Domain;
 using Insys.General.Domain.Retention;
 
+using Insys.General.Domain.Policies;
+
 namespace Insys.General.Application;
 
 /// <summary>F026: staff open a retention case for a policy (a cancellation asked for, or another trigger they see).</summary>
@@ -205,7 +207,7 @@ internal sealed class RetentionHandlers(IGeneralRepository general, IGeneralCode
 /// lowers the renewal's offered premium and accepts it. Any other accepted offer is made by staff (an endorsement mid-term,
 /// or the renewal's terms), who close the case.
 /// </summary>
-public sealed class RetentionPolicies(IGeneralRepository general, IBusinessDate businessDate, IClock clock) :
+public sealed class RetentionPolicies(IGeneralRepository general, IGeneralCodes codes, IBusinessDate businessDate, IClock clock) :
     IIntegrationEventHandler<GeneralRenewalDeclined>,
     IIntegrationEventHandler<GeneralRetentionOfferAccepted>
 {
@@ -223,8 +225,29 @@ public sealed class RetentionPolicies(IGeneralRepository general, IBusinessDate 
 
     public async Task Handle(GeneralRetentionOfferAccepted accepted, EventEnvelope envelope, CancellationToken cancellationToken)
     {
-        if (accepted.Kind != RetentionOfferKinds.DiscountPercent || accepted.RenewalId is not { } renewalId || accepted.Value is not { } percent
-            || await general.Renewal(renewalId, cancellationToken) is not { } renewal)
+        if (accepted.Kind != RetentionOfferKinds.DiscountPercent || accepted.Value is not { } percent)
+        {
+            return;
+        }
+
+        if (accepted.RenewalId is not { } renewalId)
+        {
+            // B-007: mid-term, a premium adjustment is drafted for the case's owner to submit. With no such type in force, or a policy that moved on, they settle it by hand.
+            if (await general.Policy(accepted.PolicyId, cancellationToken) is { } policy && await codes.EndorsementType(GeneralEndorsement.PremiumAdjustmentType, businessDate.Today, cancellationToken) is { } type)
+            {
+                var number = $"{policy.PolicyNumber}-E{await general.EndorsementCount(policy.Id, cancellationToken) + 1:D3}";
+                var from = businessDate.Today < policy.PeriodStart ? policy.PeriodStart : businessDate.Today;
+                var drafted = GeneralEndorsement.DraftPremiumAdjustment(Guid.CreateVersion7(), number, policy, type, from, -percent, accepted.DecidedBy);
+                if (drafted.IsSuccess)
+                {
+                    general.Add(drafted.Value);
+                }
+            }
+
+            return;
+        }
+
+        if (await general.Renewal(renewalId, cancellationToken) is not { } renewal)
         {
             return;
         }
