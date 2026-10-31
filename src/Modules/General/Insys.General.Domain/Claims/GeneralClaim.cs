@@ -58,6 +58,8 @@ public enum ClaimTrigger
     AssessmentResumes,
 }
 
+public sealed record GeneralClaimMigrated(string ClaimNumber, Guid ClaimId, Guid PolicyId, string? ProductCode, string? OrgNodeCode, string BatchCode, string ReserveType, decimal Reserve, string Currency, DateTimeOffset OccurredAt) : IDomainEvent;
+
 public sealed record GeneralClaimRegistered(Guid ClaimId, string ClaimNumber, Guid PolicyId, DateOnly LossDate, string PerilCode, DateTimeOffset OccurredAt) : IDomainEvent;
 
 /// <summary>An assessor was appointed: the LossAssessment is assigned (a separate aggregate, made consistent by this event).</summary>
@@ -310,6 +312,25 @@ public sealed class GeneralClaim : AggregateRoot<Guid>
     public bool SettlementPending => SettlementRequestedBy is not null && Status == ClaimStatus.UnderAssessment;
 
     /// <summary>Command NotifyLoss: the first notification, before cover is validated.</summary>
+    public string? MigrationBatch { get; private set; }
+
+    public string? SourceReference { get; private set; }
+
+    /// <summary>B-013: a claim open in a source system, registered as it stands. Its number starts MIG- and the Claims Framework registers it from the event.</summary>
+    public static GeneralClaim Migrate(Guid id, string batch, string sourceReference, Guid policyId, Guid? riskObjectId, string coverageCode, DateOnly lossDate, string causeCode, string perilCode, string? description, string reserveType, decimal reserve,
+        string currency, string productCode, string? orgNodeCode, DateTimeOffset now)
+    {
+        var claim = new GeneralClaim
+        {
+            Id = Guard.NotEmpty(id), PolicyId = Guard.NotEmpty(policyId), RiskObjectId = riskObjectId, CoverageCode = Guard.MaxLength(coverageCode, 20), LossDate = lossDate, NotifiedAt = now, CauseCode = Guard.MaxLength(causeCode, 15),
+            PerilCode = Guard.MaxLength(perilCode, 10), Description = description, Status = ClaimStatus.Registered, ClaimNumber = References.Of("MIG-", id, 25), MigrationBatch = Guard.MaxLength(batch, 30), SourceReference = Guard.MaxLength(sourceReference, 40),
+        };
+        claim.PlaceAt(productCode, orgNodeCode);
+        claim.Raise(new GeneralClaimMigrated(claim.ClaimNumber, id, policyId, productCode, orgNodeCode, batch, reserveType, reserve, currency, now));
+        claim.MarkChanged();
+        return claim;
+    }
+
     public static Result<GeneralClaim> NotifyLoss(Guid id, Guid policyId, Guid? riskObjectId, string coverageCode, DateOnly lossDate, string causeCode, string perilCode,
         string? catEventCode, string? description, DateOnly today, DateTimeOffset now)
     {

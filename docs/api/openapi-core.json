@@ -6,6 +6,81 @@
     "version": "v1"
   },
   "paths": {
+    "/api/v1/integration/migration-batches/{code}/reconciliation": {
+      "post": {
+        "tags": [
+          "Integration"
+        ],
+        "summary": "Report what a migration batch loaded against the source system\u0027s totals, with every difference (B-013)",
+        "operationId": "IntegrationReconcileMigrationBatch",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/IntegrationSourceTotal"
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationMigrationReconciliationReport"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          }
+        },
+        "x-permission": "migration_batch.reconcile",
+        "x-function": [
+          "INTEGRATION_MIGRATION"
+        ]
+      }
+    },
     "/api/v1/integration/disclosures": {
       "get": {
         "tags": [
@@ -4788,7 +4863,7 @@
         "tags": [
           "Party"
         ],
-        "summary": "Import individuals, all or nothing: one bad line rejects the import, and every bad line is named (F076)",
+        "summary": "Import individuals and organisations, all or nothing: one bad line rejects the import, and every bad line is named (F076)",
         "operationId": "PartyImportParties",
         "parameters": [
           {
@@ -4938,6 +5013,85 @@
         "x-permission": "party_bulk_job.create",
         "x-function": [
           "PARTY_REQUEST_EXPORT"
+        ]
+      }
+    },
+    "/api/v1/party/bulk-jobs/policy-exports": {
+      "post": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "Ask for an export of policies and memberships; a second person approves it before it leaves (OQ-158)",
+        "operationId": "PartyRequestPolicyExport",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartyRequestPolicyExport"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyBulkJobView"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          }
+        },
+        "x-permission": "party_bulk_job.create",
+        "x-function": [
+          "PARTY_REQUEST_POLICY_EXPORT"
         ]
       }
     },
@@ -12233,6 +12387,77 @@
         ]
       }
     },
+    "/api/v1/billing/migration/outstanding-premiums": {
+      "post": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Bring premiums outstanding in a source system, all or nothing, against the file\u0027s control totals (B-013)",
+        "operationId": "BillingMigrateOutstandingPremiums",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BillingMigrateOutstandingPremiums"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillingPremiumMigrationResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          }
+        },
+        "x-permission": "invoice.migrate",
+        "x-function": [
+          "BILLING_MIGRATE_OUTSTANDING_PREMIUMS"
+        ]
+      }
+    },
     "/api/v1/billing/invoices/{id}/credit-notes": {
       "post": {
         "tags": [
@@ -17949,6 +18174,148 @@
         "x-eventual-effects": "the Workflow approval appears (approvalId on the case); once it is granted the case is decided and the proposal reads Accepted, Declined or Postponed."
       }
     },
+    "/api/v1/life/migration/claims": {
+      "post": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "Bring claims open in a source system, all or nothing, against the file\u0027s control totals; reserves are carried without posting (B-013)",
+        "operationId": "LifeMigrateClaims",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LifeMigrateLifeClaims"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LifeMigrationResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          }
+        },
+        "x-permission": "life_policy.migrate",
+        "x-function": [
+          "LIFE_MIGRATE_POLICIES"
+        ]
+      }
+    },
+    "/api/v1/life/migration/policies": {
+      "post": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "Bring in-force policies from a source system, all or nothing, against the file\u0027s control totals; every bad line is named (OQ-158)",
+        "operationId": "LifeMigratePolicies",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LifeMigrateLifePolicies"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LifeMigrationResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          }
+        },
+        "x-permission": "life_policy.migrate",
+        "x-function": [
+          "LIFE_MIGRATE_POLICIES"
+        ]
+      }
+    },
     "/api/v1/life/policies/{id}": {
       "get": {
         "tags": [
@@ -21796,6 +22163,150 @@
         "x-function": [
           "GENERAL_ACCEPT_PROPOSAL"
         ]
+      }
+    },
+    "/api/v1/general/migration/claims": {
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Bring claims open in a source system, all or nothing, against the file\u0027s control totals; reserves are carried without posting (B-013)",
+        "operationId": "GeneralMigrateClaims",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GeneralMigrateGeneralClaims"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneralPolicyMigrationResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          }
+        },
+        "x-permission": "general_policy.migrate",
+        "x-function": [
+          "GENERAL_MIGRATE_POLICIES"
+        ]
+      }
+    },
+    "/api/v1/general/migration/policies": {
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Bring in-force policies from a source system, all or nothing, against the file\u0027s control totals; every bad line is named (OQ-158)",
+        "description": "Completes asynchronously (GAP-027): Billing (account and schedule, with instalments due by today treated as already invoiced)",
+        "operationId": "GeneralMigratePolicies",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GeneralMigrateGeneralPolicies"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneralPolicyMigrationResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          }
+        },
+        "x-permission": "general_policy.migrate",
+        "x-function": [
+          "GENERAL_MIGRATE_POLICIES"
+        ],
+        "x-eventual-effects": "Billing (account and schedule, with instalments due by today treated as already invoiced)"
       }
     },
     "/api/v1/general/policies": {
@@ -28616,6 +29127,77 @@
         "x-permission": "health_scheme.update",
         "x-function": [
           "HEALTH_SCHEME_TERMINATE"
+        ]
+      }
+    },
+    "/api/v1/health/migration/memberships": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Bring in-force memberships from a source system, all or nothing, against the file\u0027s control totals; every bad line is named (OQ-158)",
+        "operationId": "HealthMigrateMemberships",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealthMigrateHealthMemberships"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthMigrationResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          }
+        },
+        "x-permission": "health_membership.migrate",
+        "x-function": [
+          "HEALTH_MIGRATE_MEMBERSHIPS"
         ]
       }
     },
@@ -37429,6 +38011,77 @@
         ]
       }
     },
+    "/api/v1/finance/migration/opening-balances": {
+      "post": {
+        "tags": [
+          "Finance"
+        ],
+        "summary": "Post a source system\u0027s trial balance on cut-over as one balanced journal (B-013)",
+        "operationId": "FinanceMigrateOpeningBalances",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FinanceMigrateOpeningBalances"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FinanceOpeningBalancesResult"
+                }
+              }
+            }
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          }
+        },
+        "x-permission": "journal.migrate",
+        "x-function": [
+          "FINANCE_MIGRATE_OPENING_BALANCES"
+        ]
+      }
+    },
     "/api/v1/finance/journals/{id}/reverse": {
       "post": {
         "tags": [
@@ -43623,6 +44276,7 @@
                 "LifeUnderwritingCase",
                 "LossAssessment",
                 "MedicalClaim",
+                "MigrationBatch",
                 "Notification",
                 "NotificationPreference",
                 "ParkedDelivery",
@@ -44097,6 +44751,7 @@
                 "LifeUnderwritingCase",
                 "LossAssessment",
                 "MedicalClaim",
+                "MigrationBatch",
                 "Notification",
                 "NotificationPreference",
                 "ParkedDelivery",
@@ -46210,6 +46865,42 @@
           }
         }
       },
+      "BillingMigrateOutstandingPremiums": {
+        "required": [
+          "batchCode",
+          "controlCount",
+          "controlAmount",
+          "rows"
+        ],
+        "type": "object",
+        "properties": {
+          "batchCode": {
+            "type": "string"
+          },
+          "controlCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "controlAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BillingOutstandingPremium"
+            }
+          }
+        }
+      },
       "BillingOpenAccountRequest": {
         "required": [
           "payerPartyId",
@@ -46236,6 +46927,45 @@
               "null",
               "string"
             ]
+          }
+        }
+      },
+      "BillingOutstandingPremium": {
+        "required": [
+          "sourceReference",
+          "sourceDomain",
+          "policyRef",
+          "amount",
+          "dueDate"
+        ],
+        "type": "object",
+        "properties": {
+          "sourceReference": {
+            "type": "string"
+          },
+          "sourceDomain": {
+            "enum": [
+              "GENERAL",
+              "LIFE",
+              "HEALTH"
+            ],
+            "type": "string"
+          },
+          "policyRef": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "dueDate": {
+            "type": "string",
+            "format": "date"
           }
         }
       },
@@ -46302,6 +47032,58 @@
           },
           "status": {
             "$ref": "#/components/schemas/BillingInvoiceStatus"
+          }
+        }
+      },
+      "BillingPremiumMigrationRejectedLine": {
+        "required": [
+          "line",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "line": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "BillingPremiumMigrationResult": {
+        "required": [
+          "loaded",
+          "loadedAmount",
+          "rejectedLines"
+        ],
+        "type": "object",
+        "properties": {
+          "loaded": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "loadedAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "rejectedLines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BillingPremiumMigrationRejectedLine"
+            }
           }
         }
       },
@@ -51711,6 +52493,118 @@
           }
         }
       },
+      "FinanceMigrateOpeningBalances": {
+        "required": [
+          "batchCode",
+          "accountingDate",
+          "controlDebit",
+          "controlCredit",
+          "lines"
+        ],
+        "type": "object",
+        "properties": {
+          "batchCode": {
+            "type": "string"
+          },
+          "accountingDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "controlDebit": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "controlCredit": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FinanceOpeningBalanceLine"
+            }
+          }
+        }
+      },
+      "FinanceOpeningBalanceLine": {
+        "required": [
+          "accountCode",
+          "debit",
+          "credit"
+        ],
+        "type": "object",
+        "properties": {
+          "accountCode": {
+            "type": "string"
+          },
+          "debit": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "credit": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          }
+        }
+      },
+      "FinanceOpeningBalanceRejectedLine": {
+        "required": [
+          "line",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "line": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "FinanceOpeningBalancesResult": {
+        "required": [
+          "journalId",
+          "rejectedLines"
+        ],
+        "type": "object",
+        "properties": {
+          "journalId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "rejectedLines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FinanceOpeningBalanceRejectedLine"
+            }
+          }
+        }
+      },
       "FinancePeriodStatus": {
         "enum": [
           "Future",
@@ -53210,6 +54104,303 @@
           }
         }
       },
+      "GeneralMigrateGeneralClaims": {
+        "required": [
+          "batchCode",
+          "controlCount",
+          "controlReserve",
+          "rows"
+        ],
+        "type": "object",
+        "properties": {
+          "batchCode": {
+            "type": "string"
+          },
+          "controlCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "controlReserve": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GeneralMigratedClaim"
+            }
+          }
+        }
+      },
+      "GeneralMigrateGeneralPolicies": {
+        "required": [
+          "batchCode",
+          "controlCount",
+          "controlPremium",
+          "rows"
+        ],
+        "type": "object",
+        "properties": {
+          "batchCode": {
+            "type": "string"
+          },
+          "controlCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "controlPremium": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GeneralMigratedPolicy"
+            }
+          }
+        }
+      },
+      "GeneralMigratedClaim": {
+        "required": [
+          "sourceReference",
+          "policyId",
+          "riskObjectId",
+          "coverageCode",
+          "lossDate",
+          "causeCode",
+          "perilCode",
+          "description",
+          "reserveType",
+          "reserve"
+        ],
+        "type": "object",
+        "properties": {
+          "sourceReference": {
+            "type": "string"
+          },
+          "policyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "riskObjectId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "coverageCode": {
+            "type": "string"
+          },
+          "lossDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "causeCode": {
+            "type": "string",
+            "x-code-list": "general.ref_loss_cause_codes",
+            "x-code-list-column": "cause_code"
+          },
+          "perilCode": {
+            "type": "string",
+            "x-code-list": "general.ref_peril_codes",
+            "x-code-list-column": "peril_code"
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reserveType": {
+            "type": "string",
+            "x-code-list": "claims.ref_reserve_types",
+            "x-code-list-column": "code"
+          },
+          "reserve": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          }
+        }
+      },
+      "GeneralMigratedPolicy": {
+        "required": [
+          "sourceReference",
+          "productCode",
+          "productVersion",
+          "policyholderPartyId",
+          "payerPartyId",
+          "periodStart",
+          "periodEnd",
+          "currency",
+          "annualPremium",
+          "billingFrequency",
+          "collectionMethod",
+          "intermediaryCode",
+          "risks"
+        ],
+        "type": "object",
+        "properties": {
+          "sourceReference": {
+            "type": "string"
+          },
+          "productCode": {
+            "type": "string"
+          },
+          "productVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "policyholderPartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "payerPartyId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "periodStart": {
+            "type": "string",
+            "format": "date"
+          },
+          "periodEnd": {
+            "type": "string",
+            "format": "date"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "annualPremium": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "billingFrequency": {
+            "type": "string",
+            "x-code-list": "billing.ref_billing_frequencies",
+            "x-code-list-column": "code"
+          },
+          "collectionMethod": {
+            "type": "string",
+            "x-code-list": "billing.ref_collection_methods",
+            "x-code-list-column": "method_code"
+          },
+          "intermediaryCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "risks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GeneralMigratedRisk"
+            }
+          }
+        }
+      },
+      "GeneralMigratedRisk": {
+        "required": [
+          "objectType",
+          "attributes",
+          "valuation",
+          "valuationBasis",
+          "sumInsured",
+          "coverages"
+        ],
+        "type": "object",
+        "properties": {
+          "objectType": {
+            "type": "string",
+            "x-code-list": "general.cfg_risk_object_types_and_attribute_schemas",
+            "x-code-list-column": "object_type"
+          },
+          "attributes": {
+            "$ref": "#/components/schemas/JsonElement"
+          },
+          "valuation": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "valuationBasis": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "x-code-list": "general.ref_valuation_bases",
+            "x-code-list-column": "code"
+          },
+          "sumInsured": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "coverages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GeneralCoverageRequest"
+            }
+          }
+        }
+      },
+      "GeneralMigrationRejectedLine": {
+        "required": [
+          "line",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "line": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
       "GeneralNonRenewalRequest": {
         "required": [
           "reasonCode"
@@ -53438,6 +54629,48 @@
           },
           "coverDuringGrace": {
             "type": "boolean"
+          }
+        }
+      },
+      "GeneralPolicyMigrationResult": {
+        "required": [
+          "loaded",
+          "loadedPremium",
+          "rejectedLines"
+        ],
+        "type": "object",
+        "properties": {
+          "loaded": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "loadedPremium": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "rejectedLines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GeneralMigrationRejectedLine"
+            }
+          },
+          "policies": {
+            "type": [
+              "null",
+              "object"
+            ],
+            "additionalProperties": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
         }
       },
@@ -58463,6 +59696,222 @@
           }
         }
       },
+      "HealthMigrateHealthMemberships": {
+        "required": [
+          "batchCode",
+          "controlCount",
+          "controlContribution",
+          "rows"
+        ],
+        "type": "object",
+        "properties": {
+          "batchCode": {
+            "type": "string"
+          },
+          "controlCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "controlContribution": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthMigratedMembership"
+            }
+          }
+        }
+      },
+      "HealthMigratedDependant": {
+        "required": [
+          "partyId",
+          "dependantType"
+        ],
+        "type": "object",
+        "properties": {
+          "partyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "dependantType": {
+            "type": "string"
+          }
+        }
+      },
+      "HealthMigratedMembership": {
+        "required": [
+          "sourceReference",
+          "principalPartyId",
+          "payerPartyId",
+          "schemeId",
+          "memberCategory",
+          "planCode",
+          "optionCode",
+          "startDate",
+          "currency",
+          "collectionMethod",
+          "monthlyContribution",
+          "employerContribution",
+          "sponsorPartyId",
+          "dependants"
+        ],
+        "type": "object",
+        "properties": {
+          "sourceReference": {
+            "type": "string"
+          },
+          "principalPartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "payerPartyId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "schemeId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "memberCategory": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "planCode": {
+            "type": "string",
+            "x-code-list": "health.cfg_plans_and_options",
+            "x-code-list-column": "plan_code"
+          },
+          "optionCode": {
+            "type": "string",
+            "x-code-list": "health.cfg_plans_and_options",
+            "x-code-list-column": "option_code"
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "collectionMethod": {
+            "type": "string",
+            "x-code-list": "billing.ref_collection_methods",
+            "x-code-list-column": "method_code"
+          },
+          "monthlyContribution": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "employerContribution": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "sponsorPartyId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "dependants": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/HealthMigratedDependant"
+            }
+          }
+        }
+      },
+      "HealthMigrationRejectedLine": {
+        "required": [
+          "line",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "line": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "HealthMigrationResult": {
+        "required": [
+          "loaded",
+          "loadedContribution",
+          "rejectedLines"
+        ],
+        "type": "object",
+        "properties": {
+          "loaded": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "loadedContribution": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "rejectedLines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthMigrationRejectedLine"
+            }
+          },
+          "memberships": {
+            "type": [
+              "null",
+              "object"
+            ],
+            "additionalProperties": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      },
       "HealthOpenComplexCase": {
         "required": [
           "membershipId",
@@ -63422,6 +64871,28 @@
           }
         }
       },
+      "IntegrationMigrationReconciliationReport": {
+        "required": [
+          "batchCode",
+          "reconciled",
+          "lines"
+        ],
+        "type": "object",
+        "properties": {
+          "batchCode": {
+            "type": "string"
+          },
+          "reconciled": {
+            "type": "boolean"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IntegrationReconciliationLine"
+            }
+          }
+        }
+      },
       "IntegrationParkedDeliveryView": {
         "required": [
           "id",
@@ -63676,6 +65147,91 @@
               "string"
             ],
             "format": "int64"
+          }
+        }
+      },
+      "IntegrationReconciliationLine": {
+        "required": [
+          "kind",
+          "sourceCount",
+          "loadedCount",
+          "sourceAmount",
+          "loadedAmount",
+          "agrees"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "sourceCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "loadedCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "sourceAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "loadedAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "agrees": {
+            "type": "boolean"
+          }
+        }
+      },
+      "IntegrationSourceTotal": {
+        "required": [
+          "kind",
+          "count",
+          "amount"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "count": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "amount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
           }
         }
       },
@@ -65369,6 +66925,346 @@
           }
         }
       },
+      "LifeMigrateLifeClaims": {
+        "required": [
+          "batchCode",
+          "controlCount",
+          "controlReserve",
+          "rows"
+        ],
+        "type": "object",
+        "properties": {
+          "batchCode": {
+            "type": "string"
+          },
+          "controlCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "controlReserve": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LifeMigratedLifeClaim"
+            }
+          }
+        }
+      },
+      "LifeMigrateLifePolicies": {
+        "required": [
+          "batchCode",
+          "controlCount",
+          "controlPremium",
+          "rows"
+        ],
+        "type": "object",
+        "properties": {
+          "batchCode": {
+            "type": "string"
+          },
+          "controlCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "controlPremium": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LifeMigratedLifePolicy"
+            }
+          }
+        }
+      },
+      "LifeMigratedBenefit": {
+        "required": [
+          "benefitCode",
+          "sumAssured",
+          "premium"
+        ],
+        "type": "object",
+        "properties": {
+          "benefitCode": {
+            "type": "string"
+          },
+          "sumAssured": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "premium": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          }
+        }
+      },
+      "LifeMigratedLife": {
+        "required": [
+          "partyId",
+          "lifeRole",
+          "entryAge",
+          "benefits"
+        ],
+        "type": "object",
+        "properties": {
+          "partyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "lifeRole": {
+            "type": "string"
+          },
+          "entryAge": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "benefits": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LifeMigratedBenefit"
+            }
+          }
+        }
+      },
+      "LifeMigratedLifeClaim": {
+        "required": [
+          "sourceReference",
+          "policyId",
+          "insuredPartyId",
+          "claimantPartyId",
+          "claimType",
+          "eventDate",
+          "causeCode",
+          "reserveType",
+          "reserve"
+        ],
+        "type": "object",
+        "properties": {
+          "sourceReference": {
+            "type": "string"
+          },
+          "policyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "insuredPartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "claimantPartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "claimType": {
+            "type": "string"
+          },
+          "eventDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "causeCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reserveType": {
+            "type": "string"
+          },
+          "reserve": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          }
+        }
+      },
+      "LifeMigratedLifePolicy": {
+        "required": [
+          "sourceReference",
+          "productCode",
+          "productVersion",
+          "policyholderPartyId",
+          "payerPartyId",
+          "inceptionDate",
+          "termEndDate",
+          "currency",
+          "billingFrequency",
+          "collectionMethod",
+          "intermediaryCode",
+          "lives",
+          "beneficiaries"
+        ],
+        "type": "object",
+        "properties": {
+          "sourceReference": {
+            "type": "string"
+          },
+          "productCode": {
+            "type": "string"
+          },
+          "productVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "policyholderPartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "payerPartyId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "inceptionDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "termEndDate": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "billingFrequency": {
+            "type": "string",
+            "x-code-list": "billing.ref_billing_frequencies",
+            "x-code-list-column": "code"
+          },
+          "collectionMethod": {
+            "type": "string",
+            "x-code-list": "billing.ref_collection_methods",
+            "x-code-list-column": "method_code"
+          },
+          "intermediaryCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "lives": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LifeMigratedLife"
+            }
+          },
+          "beneficiaries": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/LifeBeneficiaryNomination"
+            }
+          }
+        }
+      },
+      "LifeMigrationRejectedLine": {
+        "required": [
+          "line",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "line": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "LifeMigrationResult": {
+        "required": [
+          "loaded",
+          "loadedPremium",
+          "rejectedLines"
+        ],
+        "type": "object",
+        "properties": {
+          "loaded": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "loadedPremium": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "rejectedLines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LifeMigrationRejectedLine"
+            }
+          },
+          "policies": {
+            "type": [
+              "null",
+              "object"
+            ],
+            "additionalProperties": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      },
       "LifeNotifyLifeClaim": {
         "required": [
           "policyId",
@@ -65495,7 +67391,10 @@
             "type": "string"
           },
           "proposalId": {
-            "type": "string",
+            "type": [
+              "null",
+              "string"
+            ],
             "format": "uuid"
           }
         }
@@ -65535,7 +67434,10 @@
             "type": "string"
           },
           "proposalId": {
-            "type": "string",
+            "type": [
+              "null",
+              "string"
+            ],
             "format": "uuid"
           },
           "productCode": {
@@ -66821,7 +68723,8 @@
           "jobType": {
             "enum": [
               "PARTY_IMPORT",
-              "PARTY_EXPORT"
+              "PARTY_EXPORT",
+              "POLICY_EXPORT"
             ],
             "type": "string"
           },
@@ -67704,10 +69607,31 @@
         "type": "object",
         "properties": {
           "rows": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "$ref": "#/components/schemas/PartyIndividualData"
             }
+          },
+          "organisations": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/PartyOrganisationData"
+            }
+          },
+          "controlCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         }
       },
@@ -68156,6 +70080,26 @@
               "ACTIVE",
               "DORMANT",
               "DECEASED",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "PartyRequestPolicyExport": {
+        "required": [
+          "domain"
+        ],
+        "type": "object",
+        "properties": {
+          "domain": {
+            "enum": [
+              "GENERAL",
+              "LIFE",
+              "HEALTH",
               null
             ],
             "type": [
@@ -73575,8 +75519,8 @@
       }
     },
     "responses": {
-      "Problem404": {
-        "description": "Not Found",
+      "Problem422": {
+        "description": "Unprocessable Entity. Codes any operation may return: VALIDATION_FAILED, IDEMPOTENCY_KEY_REQUIRED, IDEMPOTENCY_KEY_REUSED.",
         "headers": {
           "X-Correlation-Id": {
             "$ref": "#/components/headers/X-Correlation-Id"
@@ -73692,8 +75636,8 @@
           }
         }
       },
-      "Problem422": {
-        "description": "Unprocessable Entity. Codes any operation may return: VALIDATION_FAILED, IDEMPOTENCY_KEY_REQUIRED, IDEMPOTENCY_KEY_REUSED.",
+      "Problem400": {
+        "description": "Bad Request",
         "headers": {
           "X-Correlation-Id": {
             "$ref": "#/components/headers/X-Correlation-Id"
@@ -73710,8 +75654,8 @@
           }
         }
       },
-      "Problem400": {
-        "description": "Bad Request",
+      "Problem404": {
+        "description": "Not Found",
         "headers": {
           "X-Correlation-Id": {
             "$ref": "#/components/headers/X-Correlation-Id"

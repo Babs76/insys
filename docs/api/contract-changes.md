@@ -19,6 +19,15 @@ What changed in the API contract, newest first, so the front end can sync. The O
 - **New static data `commission.cfg_broker_change_settings`:** `paidCommission` `RECOVER` (the default, with no row) or `KEEP`.
 - **A statement's net** can be lowered by what the broker owes, as far as it has commission.
 
+## Migration batch (branch `migration-batch`, OQ-158, B-013)
+
+- **New, each idempotent and all or nothing against the file's control totals:** `POST /general/migration/policies`, `/life/migration/policies`, `/health/migration/memberships`, `/billing/migration/outstanding-premiums`, `/finance/migration/opening-balances`. Permissions `general_policy.migrate`, `life_policy.migrate`, `health_membership.migrate`, `invoice.migrate`, `journal.migrate`.
+- **`POST /general/migration/claims`, `/life/migration/claims`:** claims open in a source system. Their numbers start `MIG-`. Permissions as for each domain's policies.
+- **`POST /integration/migration-batches/{code}/reconciliation`:** the source's totals in, every difference out. Permission `migration_batch.reconcile`.
+- **`POST /party/bulk-jobs/policy-exports`:** a second person approves, as for parties. `jobType` gains `POLICY_EXPORT`.
+- **`POST /party/bulk-jobs/imports`** also takes `organisations` and `controlCount`; `rows` is optional. A rejected line 0 means the whole file.
+- **Life `proposalId` can now be null,** on a migrated policy.
+
 ## Wave 6 batch 6.3 (branch `wave6-3`): fraud cases and bulk jobs (addendum §4.8, §4.9; F058, F076)
 
 ### New

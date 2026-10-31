@@ -161,6 +161,28 @@ public sealed class Journal : AggregateRoot<Guid>
 
     public IReadOnlyList<SubledgerEntry> Lines => _lines;
 
+    public string? MigrationBatch { get; private set; }
+
+    /// <summary>B-013: the source system's balances on cut-over. The lines come from its trial balance, so no posting rule applies; the rule code says where they came from.</summary>
+    public static Result<Journal> OpeningBalances(Guid id, Guid sourceEventId, string batch, DateOnly accountingDate, AccountingPeriod period, string currency, IReadOnlyList<(string Account, decimal Debit, decimal Credit)> lines, DateTimeOffset now)
+    {
+        if (!period.AcceptsPostingOn(accountingDate))
+        {
+            return Error.Conflict(FinanceErrorCodes.PeriodNotOpen, $"Accounting period {period.PeriodCode} is {period.Status}; it does not accept postings on {accountingDate:yyyy-MM-dd}.");
+        }
+
+        var journal = New(id, sourceEventId, "MIGRATION", accountingDate, period.PeriodCode, null, now);
+        journal.MigrationBatch = Guard.MaxLength(batch, 30);
+        var rate = new ExchangeRate(currency, 1m);
+        foreach (var (account, debit, credit) in lines)
+        {
+            journal._lines.Add(SubledgerEntry.Create(id, (short)(journal._lines.Count + 1), account, debit, credit, currency, rate, accountingDate, accountingDate, "MIGRATION_BATCH", sourceEventId, "MIGRATION", 1));
+        }
+
+        var balanced = journal.CheckBalanced();
+        return balanced.IsFailure ? balanced.Error : journal;
+    }
+
     /// <summary>Command PostBusinessEvent: the posting rule's debit and credit for the event's amount.</summary>
     public static Result<Journal> PostBusinessEvent(Guid id, BusinessEvent businessEvent, PostingRule rule, AccountingPeriod period, ExchangeRate rate,
         DateTimeOffset now)

@@ -91,6 +91,10 @@ public sealed class FinancialMovement : AggregateRoot<Guid>
     }
 
     internal void Announce(IDomainEvent domainEvent) => Raise(domainEvent);
+
+    /// <summary>B-013: a reserve brought from a source system. It announces nothing, so nothing is posted: the opening balances hold it.</summary>
+    public static FinancialMovement OpeningReserve(string claimNumber, string reserveType, decimal amount, string currency, DateTimeOffset now) =>
+        Create(Guid.CreateVersion7(), claimNumber, MovementType.Reserve, reserveType, amount, currency, now);
 }
 
 /// <summary>

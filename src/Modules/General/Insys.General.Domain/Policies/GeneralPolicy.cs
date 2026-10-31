@@ -83,6 +83,10 @@ public sealed record GeneralPolicyEnteredGrace(Guid PolicyId, string PolicyNumbe
 public sealed record GeneralPolicyCancelledForNonPayment(Guid PolicyId, string PolicyNumber, string ProductCode, Guid PolicyholderPartyId, DateOnly EffectiveDate,
     decimal RefundAmount, string Currency, string? OrgNodeCode, DateTimeOffset OccurredAt) : IDomainEvent;
 
+/// <summary>A policy brought from a source system (OQ-158): Billing schedules what remains; nothing is issued, rated, ceded or commissioned afresh.</summary>
+public sealed record GeneralPolicyMigrated(Guid PolicyId, string PolicyNumber, string ProductCode, int ProductVersion, BillingArrangement Billing, string Currency, decimal AnnualPremium,
+    DateOnly PeriodStart, DateOnly PeriodEnd, DateTimeOffset OccurredAt) : IDomainEvent;
+
 public sealed record GeneralPolicyIssued(Guid PolicyId, string PolicyNumber, string ProductCode, int ProductVersion, Guid PolicyholderPartyId, BillingArrangement Billing,
     string Currency, decimal AnnualPremium, DateOnly PeriodStart, DateOnly PeriodEnd, Guid? RenewalOfId, decimal SumInsured, DateTimeOffset OccurredAt, string? OrgNodeCode = null,
     decimal? InstalmentLoadingPct = null) : IDomainEvent;
@@ -419,6 +423,30 @@ public sealed class GeneralPolicy : AggregateRoot<Guid>
 
     /// <summary>Command RenewPolicy without re-rating: the next period, with the same risks, coverages and premium. The renewed policy becomes Renewed.</summary>
     /// <param name="premium">The renewal review's offered premium (Wave 4 §4.2), when it was reviewed; otherwise the expiring premium.</param>
+    /// <summary>OQ-158: a policy already in force in the source system. It has no quote, and rating version 0 says it was never rated here. In force if its period has begun, otherwise issued.</summary>
+    public static GeneralPolicy Migrate(Guid id, string policyNumber, string batch, string sourceReference, string productCode, int productVersion, Guid holder, string currency, DateOnly start, DateOnly end,
+        string? intermediary, BillingArrangement billing, IReadOnlyList<RiskRequest> risks, decimal annualPremium, DateOnly today, DateTimeOffset now)
+    {
+        var policy = New(id, policyNumber, productCode, productVersion, 0, holder, currency, start, end, intermediary, billing, null, null);
+        policy.MigrationBatch = Guard.MaxLength(batch, 30);
+        policy.SourceReference = Guard.MaxLength(sourceReference, 40);
+        policy.CoverStartsOn = "ISSUE";
+        policy._risks.AddRange(risks.Select(r => PolicyRisk.Create(id, r, start)));
+        policy.SetPremium(annualPremium);
+        policy.Raise(new GeneralPolicyMigrated(id, policy.PolicyNumber, productCode, productVersion, billing, currency, annualPremium, start, end, now));
+        if (start <= today)
+        {
+            policy.Fire(PolicyTrigger.PeriodStarts);
+        }
+
+        policy.MarkChanged();
+        return policy;
+    }
+
+    public string? MigrationBatch { get; private set; }
+
+    public string? SourceReference { get; private set; }
+
     public static Result<GeneralPolicy> RenewPolicy(Guid id, string policyNumber, GeneralPolicy expiring, DateOnly today, DateTimeOffset now, decimal? premium = null)
     {
         if (expiring.Status != PolicyStatus.InForce)

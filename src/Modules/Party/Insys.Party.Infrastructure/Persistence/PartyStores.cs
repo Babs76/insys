@@ -111,6 +111,10 @@ internal sealed class PartyRepository(PartyDbContext db) : IPartyRepository
         return found;
     }
 
+    public Task<bool> OrganisationExists(string legalName, string? registrationNumber, CancellationToken cancellationToken) =>
+        db.Parties.AsNoTracking().AnyAsync(p => p.Status != PartyStatus.Merged && p.Status != PartyStatus.Anonymised && p.Organisation != null
+            && (registrationNumber != null ? p.Organisation.RegistrationNumber == registrationNumber : p.Organisation.LegalName == legalName), cancellationToken);
+
     public async Task<DateOnly?> RegisteredOn(Guid id, TimeZoneInfo zone, CancellationToken cancellationToken)
     {
         var at = await db.Parties.AsNoTracking().Where(p => p.Id == id).Select(p => (DateTimeOffset?)EF.Property<DateTimeOffset>(p, ModuleDbContext.CreatedAt)).FirstOrDefaultAsync(cancellationToken);

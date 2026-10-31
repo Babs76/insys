@@ -37,6 +37,7 @@ public static class FinancePermissions
     /// <summary>A second person approves or rejects a tax return (SRS-002).</summary>
     public const string TaxReturnApprove = "tax_return.approve";
     public const string JournalReverse = "journal.reverse";
+    public const string JournalMigrate = "journal.migrate";
     public const string PeriodRead = "accounting_period.read";
     public const string PeriodUpdate = "accounting_period.update";
     public const string PostingExceptionRead = "posting_exception.read";

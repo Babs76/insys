@@ -73,6 +73,8 @@ public sealed record PayeeRequest(Guid PartyId, Guid BankAccountId, string BankA
 
 public sealed record LifeClaimPayeeAmount(Guid PartyId, Guid BankAccountId, string BankAccountHash, decimal Amount);
 
+public sealed record LifeClaimMigrated(string ClaimNumber, Guid ClaimId, Guid PolicyId, string? ProductCode, string? OrgNodeCode, string BatchCode, string ReserveType, decimal Reserve, string Currency, DateTimeOffset OccurredAt) : IDomainEvent;
+
 public sealed record LifeClaimRegistered(Guid ClaimId, string ClaimNumber, Guid PolicyId, string ClaimType, DateOnly EventDate, DateTimeOffset OccurredAt) : IDomainEvent;
 
 /// <summary>Asks Workflow for a second person's approval of the claim within authority (SRS-002).</summary>
@@ -255,6 +257,22 @@ public sealed class LifeClaim : AggregateRoot<Guid>
         ]);
 
     /// <summary>Command NotifyClaim: the event, on an insured life of the policy, by a claimant. Checked in full at registration.</summary>
+    public string? MigrationBatch { get; private set; }
+
+    public string? SourceReference { get; private set; }
+
+    /// <summary>B-013: a claim open in a source system, registered as it stands. Its number starts MIG- and the Claims Framework registers it from the event.</summary>
+    public static LifeClaim Migrate(Guid id, string batch, string sourceReference, LifePolicy policy, string claimType, DateOnly eventDate, string? causeCode, Guid claimantPartyId, Guid insuredLifeId, string reserveType, decimal reserve, DateTimeOffset now)
+    {
+        var claim = new LifeClaim
+        {
+            Id = id, PolicyId = policy.Id, ProductCode = policy.ProductCode, OrgNodeCode = policy.OrgNodeCode, ClaimType = Guard.MaxLength(claimType, 15), EventDate = eventDate, CauseCode = causeCode, ClaimantPartyId = claimantPartyId, InsuredLifeId = insuredLifeId,
+            Status = LifeClaimStatus.Registered, Currency = policy.Currency, NotifiedAt = now, ClaimNumber = References.Of("MIG-", id, 25), MigrationBatch = Guard.MaxLength(batch, 30), SourceReference = Guard.MaxLength(sourceReference, 40),
+        };
+        claim.Raise(new LifeClaimMigrated(claim.ClaimNumber, id, policy.Id, policy.ProductCode, policy.OrgNodeCode, batch, reserveType, reserve, policy.Currency, now));
+        return claim;
+    }
+
     public static Result<LifeClaim> NotifyClaim(Guid id, LifePolicy policy, string claimType, DateOnly eventDate, string? causeCode, Guid claimantPartyId, Guid insuredLifeId,
         DateOnly today, DateTimeOffset now)
     {

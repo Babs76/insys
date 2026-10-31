@@ -67,6 +67,11 @@ public sealed class IntegrationModule : IModule
 
         const string member = BuildingBlocks.Application.Context.ExternalSubject.Party;
         AuditTargetTypes.Register("DisclosureAcknowledgement");
+        AuditTargetTypes.Register("MigrationBatch");
+        api.MapPost("/integration/migration-batches/{code}/reconciliation", async (string code, IReadOnlyList<Application.SourceTotal> sourceTotals, IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Send(new Application.ReconcileMigrationBatch(code, sourceTotals), ct)).ToHttp(Results.Ok))
+            .Produces<Application.MigrationReconciliationReport>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity).WithTags(Name)
+            .WithName("IntegrationReconcileMigrationBatch").WithSummary("Report what a migration batch loaded against the source system's totals, with every difference (B-013)").RequirePermission(IntegrationPermissions.MigrationReconcile);
         api.MapGet("/integration/disclosures", async (string displayPoint, string noticeType, string jurisdiction, string language, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Query(new Application.GetDisclosureText(displayPoint, noticeType, jurisdiction, language), ct)).ToHttp(Results.Ok))
             .Produces<Application.DisclosureTextView>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status404NotFound).WithTags(Name)

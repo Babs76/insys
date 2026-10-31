@@ -64,6 +64,9 @@ public interface IClaimsRepository
 
     void Add(ClaimRegistration registration);
 
+    /// <summary>Adds it and saves now, so a movement added next finds its register row.</summary>
+    Task AddNow(ClaimRegistration registration, CancellationToken cancellationToken);
+
     void Add(FinancialMovement movement);
 
     void Add(ClaimPaymentInstruction instruction);
@@ -733,6 +736,7 @@ public sealed class ClaimsPolicies(IClaimsRepository claims, IBankAccounts bankA
     IIntegrationEventHandler<PaymentFailed>,
     IIntegrationEventHandler<Contracts.ClaimPaymentCompleted>,
     IIntegrationEventHandler<GeneralClaimApproved>,
+    IIntegrationEventHandler<Contracts.ClaimMigrated>,
     IIntegrationEventHandler<LifeClaimApproved>,
     IIntegrationEventHandler<RecoveryRecorded>,
     IIntegrationEventHandler<Party.Contracts.DueDiligenceChanged>,
@@ -852,6 +856,21 @@ public sealed class ClaimsPolicies(IClaimsRepository claims, IBankAccounts bankA
     /// instruction is for the approved amount, never more. Released when the reserve covers it; otherwise it waits,
     /// approved, for the reserve to be raised and a release through the API.
     /// </summary>
+    /// <summary>B-013: an open claim from a source system joins the register, with its reserve.</summary>
+    public async Task Handle(Contracts.ClaimMigrated migrated, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (await claims.ByNumber(migrated.ClaimNumber, cancellationToken) is not null)
+        {
+            return;
+        }
+
+        await claims.AddNow(ClaimRegistration.Migrated(Guid.CreateVersion7(), migrated.ClaimNumber, migrated.Domain, migrated.DomainClaimId, migrated.PolicyRef, migrated.BatchCode, clock.UtcNow, migrated.ProductCode, migrated.OrgNodeCode), cancellationToken);
+        if (migrated.Reserve > 0)
+        {
+            claims.Add(FinancialMovement.OpeningReserve(migrated.ClaimNumber, migrated.ReserveType, migrated.Reserve, migrated.Currency, clock.UtcNow));
+        }
+    }
+
     public async Task Handle(GeneralClaimApproved approved, EventEnvelope envelope, CancellationToken cancellationToken)
     {
         var reference = $"SETTLEMENT:{approved.ApprovalId:N}";
