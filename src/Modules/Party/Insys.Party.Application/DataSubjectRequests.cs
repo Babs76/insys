@@ -188,7 +188,7 @@ internal sealed class DataSubjectRequestHandlers(IDataSubjectRequests requests, 
         }
 
         audit.Record(new AuditEntry("PARTY", operation, nameof(DataSubjectRequest), id.ToString()));
-        return DataSubjectRequestView.From(request);
+        return DataSubjectRequestView.From(request) with { RowVersion = request.RowVersion + 1 };
     }
 
     public async Task<Result<string>> Handle(ExportDataSubjectRequest command, CancellationToken cancellationToken)
@@ -260,7 +260,7 @@ internal sealed class DataSubjectRequestHandlers(IDataSubjectRequests requests, 
         if (refusal is not null)
         {
             request.Refuse(refusal);
-            return DataSubjectRequestView.From(request);
+            return DataSubjectRequestView.From(request) with { RowVersion = request.RowVersion + 1 };
         }
 
         var anonymised = party.AnonymiseParty(clock.UtcNow);
@@ -270,7 +270,7 @@ internal sealed class DataSubjectRequestHandlers(IDataSubjectRequests requests, 
         }
 
         request.Complete(null);
-        return DataSubjectRequestView.From(request);
+        return DataSubjectRequestView.From(request) with { RowVersion = request.RowVersion + 1 };
     }
 
     public async Task<Result<int>> Handle(RaisePartyRetentionReviews command, CancellationToken cancellationToken)

@@ -127,7 +127,7 @@ internal sealed class FraudCaseHandlers(IFraudCases cases, IExecutionContext exe
         }
 
         audit.Record(new AuditEntry("CLAIMS", operation, nameof(FraudCase), id.ToString()));
-        return FraudCaseView.From(fraudCase);
+        return FraudCaseView.From(fraudCase) with { RowVersion = fraudCase.RowVersion + 1 };
     }
 
     public async Task<Result<FraudCaseView>> Handle(ReadFraudCase command, CancellationToken cancellationToken)

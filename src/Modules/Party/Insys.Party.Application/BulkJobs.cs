@@ -166,7 +166,7 @@ internal sealed class BulkJobHandlers(IBulkJobs jobs, IPartyRepository parties, 
         }
 
         audit.Record(new AuditEntry("PARTY", "ApprovePartyExport", nameof(BulkJob), job.Id.ToString()));
-        return BulkJobView.From(job);
+        return BulkJobView.From(job) with { RowVersion = job.RowVersion + 1 };
     }
 
     public async Task<Result<string>> Handle(DownloadPartyExport command, CancellationToken cancellationToken)

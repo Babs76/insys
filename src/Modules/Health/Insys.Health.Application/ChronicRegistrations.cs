@@ -155,7 +155,7 @@ internal sealed class ChronicRegistrationHandlers(IHealthRepository health, IHea
         }
 
         audit.Record(new AuditEntry("HEALTH", "ApproveChronicRegistration", nameof(ChronicRegistration), registration.Id.ToString()));
-        return ChronicRegistrationView.From(registration);
+        return ChronicRegistrationView.From(registration) with { RowVersion = registration.RowVersion + 1 };
     }
 
     public async Task<Result<ChronicRegistrationView>> Handle(DeclineChronicRegistration command, CancellationToken cancellationToken)
@@ -185,7 +185,7 @@ internal sealed class ChronicRegistrationHandlers(IHealthRepository health, IHea
         }
 
         audit.Record(new AuditEntry("HEALTH", "DeclineChronicRegistration", nameof(ChronicRegistration), registration.Id.ToString()));
-        return ChronicRegistrationView.From(registration);
+        return ChronicRegistrationView.From(registration) with { RowVersion = registration.RowVersion + 1 };
     }
 
     public async Task<Result<ChronicRegistrationView>> Handle(EndChronicRegistration command, CancellationToken cancellationToken)
@@ -202,7 +202,7 @@ internal sealed class ChronicRegistrationHandlers(IHealthRepository health, IHea
         }
 
         audit.Record(new AuditEntry("HEALTH", "EndChronicRegistration", nameof(ChronicRegistration), registration.Id.ToString()));
-        return ChronicRegistrationView.From(registration);
+        return ChronicRegistrationView.From(registration) with { RowVersion = registration.RowVersion + 1 };
     }
 
     public async Task<Result<ChronicRegistrationClinicalView>> Handle(ReadChronicRegistrationClinical command, CancellationToken cancellationToken)
