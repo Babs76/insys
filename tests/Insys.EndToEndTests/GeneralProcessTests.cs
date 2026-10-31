@@ -2234,6 +2234,20 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         var approved = await second.Send(HttpMethod.Post, $"{job}/approve", ifMatch: requested.ETag());
         approved.StatusCode.ShouldBe(HttpStatusCode.OK, await approved.Content.ReadAsStringAsync());
         (await (await first.GetAsync($"{job}/content")).Content.ReadAsStringAsync()).ShouldContain("BulkTwo");
+
+        // BR-122: newest first, filtered, summary fields only, read permission needed.
+        const string Jobs = "/api/v1/integration/bulk-jobs";
+        var listed = (await (await first.GetAsync(Jobs)).Json()).GetProperty("items");
+        listed.EnumerateArray().Select(j => j.GetProperty("direction").GetString()).ShouldBe(["EXPORT", "IMPORT", "IMPORT"]);
+        listed[0].TryGetProperty("rejectedLines", out _).ShouldBeFalse();
+        (await (await first.GetAsync($"{Jobs}?direction=IMPORT&status=REJECTED")).Json()).GetProperty("items").GetArrayLength().ShouldBe(1);
+        (await (await first.GetAsync($"{Jobs}?type=PARTY_EXPORT&status=APPROVED")).Json()).GetProperty("items").GetArrayLength().ShouldBe(1);
+        var page = await (await first.GetAsync($"{Jobs}?limit=1")).Json();
+        var rest = await (await first.GetAsync($"{Jobs}?limit=5&cursor={page.GetProperty("nextCursor").GetString()}")).Json();
+        rest.GetProperty("items").GetArrayLength().ShouldBe(2);
+        (await (await first.GetAsync($"{Jobs}?from=2000-01-01&to=2000-01-02")).Json()).GetProperty("items").GetArrayLength().ShouldBe(0);
+        (await first.GetAsync($"{Jobs}?status=NOPE")).StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+        (await _maker.GetAsync(Jobs)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
     }
 
     /// <summary>Wave 6 §10: a disclosure point refuses its step until acknowledged; a data-subject deletion is refused within retention (F059, F060, OQ-157).</summary>

@@ -8,6 +8,11 @@ What changed in the API contract, newest first, so the front end can sync. The O
 - **`blocks` on `PARTY_ANONYMISATION_BLOCKED`** can name `recordType` `CASE`, with `retention` `CASE`; and `PARTY` with `reason` `IN_RETENTION`.
 - **`party.cfg_record_retention_policies.recordKind`** gains `CASE`.
 
+## Small fixes (branch `small-fixes`, Ade's decisions of 31 October 2026)
+
+- **New `GET /integration/bulk-jobs` (BR-122, GAP-126):** `type` (`PARTY_IMPORT`, `PARTY_EXPORT`), `direction` (`IMPORT`, `EXPORT`), `status`, `from`, `to` (UTC dates, inclusive), `cursor`, `limit`. Newest first, as `{items, nextCursor}`. Each row: `id`, `jobType`, `direction`, `status`, `totalCount`, `acceptedCount`, `runBy`, `createdAt`. Rejected lines and the filter stay on `GET /party/bulk-jobs/{id}`. Permission `party_bulk_job.read`. Added to the `PARTY_BULK_JOBS` screen's functions.
+- **Readiness blocker `DISCLOSURE_MANDATORY_TEXTS`** in `INTEGRATION_AND_REPORTING`. `DISCLOSURE_TEXTS` now warns of `PROPOSAL` only.
+
 ## Wave 6 batch 6.3 (branch `wave6-3`): fraud cases and bulk jobs (addendum §4.8, §4.9; F058, F076)
 
 ### New
@@ -20,7 +25,7 @@ What changed in the API contract, newest first, so the front end can sync. The O
 - **`/party/data-subject-requests`:** `POST`, `GET`, `GET /{id}`, and `POST /{id}/confirm-identity`, `/approve`, `/refuse`, `/complete-correction`, `/execute-deletion`, `GET /{id}/export`. Portal: `POST`, `GET /portal/party/data-subject-requests`. Permissions `data_subject_request.read`, `.create`, `.update`, `.approve`. `party.cfg_data_subject_settings` holds the days.
 - **`GET /integration/disclosures`, `POST /integration/disclosure-acknowledgements`,** and on the portal `GET /portal/disclosures`, `POST /portal/disclosure-acknowledgements`. Permissions `disclosure.read`, `.create`.
 - **Error `DISCLOSURE_REQUIRED` (409)**, with `displayPoint` and `noticeTypes`: from accepting a General quote, issuing a General or Life policy, enrolling a Health member, accepting a General renewal, once a text is in force at that point: display points `QUOTE`, `ISSUE`, `RENEWAL`, `CLAIM`. Acknowledge with the record named: `GENERAL_QUOTE`, `LIFE_PROPOSAL`, `GENERAL_RENEWAL`; Health names none.
-- **Business references** `DATA_SUBJECT_REQUEST`, `PARTY_RETENTION`. **Readiness warnings** `DISCLOSURE_TEXTS`, `REGISTER_ENFORCEMENT`.
+- **Business references** `DATA_SUBJECT_REQUEST`, `PARTY_RETENTION`. **Readiness warnings** `DISCLOSURE_TEXTS` (non-mandatory points), `REGISTER_ENFORCEMENT`. **Readiness blocker** `DISCLOSURE_MANDATORY_TEXTS` (OQ-157, each sale country; entries read `NA QUOTE: P-READY`).
 
 ### Changed
 - **`reporting.cfg_compliance_register_entries`** gains `enforcedBy`.

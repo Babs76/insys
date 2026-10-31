@@ -60,6 +60,20 @@ internal sealed class SellableProducts([FromKeyedServices(ProductFactoryDbContex
         return sellable;
     }
 
+    public async Task<IReadOnlyList<string>> SaleCountries(Guid tenantId, string productCode, DateOnly day, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await TenantSession.SetTenant(connection, transaction, tenantId, cancellationToken);
+        var countries = await BuildingBlocks.Infrastructure.Readiness.ReadinessSql.Strings(connection, transaction, $"""
+            SELECT DISTINCT unnest(countries) FROM product.cfg_product_availability_rules
+            WHERE (tenant_id = @t OR tenant_id IS NULL) AND product_code = @c AND {BuildingBlocks.Infrastructure.Readiness.ReadinessSql.InForce}
+              AND sale_from <= @day AND (sale_to IS NULL OR sale_to >= @day) ORDER BY 1
+            """, cancellationToken, ("t", tenantId), ("c", productCode), ("inForce", StaticLifecycle.Configuration.InForce), ("day", day));
+        await transaction.CommitAsync(cancellationToken);
+        return countries;
+    }
+
     private static readonly string[] Sold = ["PUBLISHED", "EFFECTIVE"];
     private static readonly string[] Issued = ["PUBLISHED", "EFFECTIVE", "WITHDRAWN", "RETIRED"];
 

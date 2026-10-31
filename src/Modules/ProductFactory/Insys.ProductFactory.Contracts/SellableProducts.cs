@@ -84,4 +84,7 @@ public interface IProductDomains
 public interface IPublishedProducts
 {
     Task<IReadOnlyList<(string ProductCode, int Version)>> Sellable(Guid tenantId, DateOnly day, CancellationToken cancellationToken);
+
+    /// <summary>The countries the product's availability rules in force sell it in; none when no rule names any.</summary>
+    Task<IReadOnlyList<string>> SaleCountries(Guid tenantId, string productCode, DateOnly day, CancellationToken cancellationToken);
 }

@@ -265,6 +265,11 @@ internal static class SavedVersions
         record ??= saved.ChangedRoots.Count == 1 ? saved.ChangedRoots[0] : null;
         if (record is null)
         {
+            if (require && saved.ChangedRoots.Count > 1)
+            {
+                throw new InvalidOperationException($"{typeof(TCommand).Name} returned a {view.GetType().Name} with id {id}, which matches none of the aggregates it changed: {string.Join(", ", saved.ChangedRoots.Select(e => e.Metadata.ClrType.Name))}. The response's version can't be told.");
+            }
+
             // Nothing this command saved is the view's: it was read, so its version is current.
             return result;
         }
@@ -329,6 +334,6 @@ public sealed class ConflictRetryOptions
 {
     public int MaxAttempts { get; set; } = 3;
 
-    /// <summary>Tests only: a command returning a version whose aggregate can't be told is an error, so every flow the suites run proves it.</summary>
+    /// <summary>Tests only: a command returning a version whose aggregate can't be told, or a view matching none of several aggregates it changed, is an error, so every flow the suites run proves it.</summary>
     public bool RequireSavedVersion { get; set; }
 }
