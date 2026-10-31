@@ -41,6 +41,7 @@ public sealed class BulkJob : AggregateRoot<Guid>
 {
     public const string Import = "PARTY_IMPORT";
     public const string Export = "PARTY_EXPORT";
+    public const string PolicyExport = "POLICY_EXPORT";
 
     private BulkJob()
     {
@@ -80,9 +81,17 @@ public sealed class BulkJob : AggregateRoot<Guid>
         return job;
     }
 
+    /// <summary>OQ-158: policies leave the same way as parties: a second person approves first.</summary>
+    public static BulkJob PolicyExportRequested(Guid id, string? domain, int rows, Guid runBy)
+    {
+        var job = new BulkJob { Id = Guard.NotEmpty(id), JobType = PolicyExport, Status = BulkJobStatus.ToApprove, Filter = domain, TotalCount = rows, RunBy = Guard.NotEmpty(runBy) };
+        job.MarkChanged();
+        return job;
+    }
+
     public Result ApproveExport(Guid by)
     {
-        if (JobType != Export || Status != BulkJobStatus.ToApprove)
+        if (JobType is not (Export or PolicyExport) || Status != BulkJobStatus.ToApprove)
         {
             return Error.Conflict(ErrorCodes.InvalidStateTransition, $"This job is {Status}.");
         }

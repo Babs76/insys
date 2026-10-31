@@ -427,10 +427,13 @@ public sealed class PartyModule : IModule
         var bulk = api.MapGroup("/party/bulk-jobs").WithTags(Name).ETagsFromRowVersion();
         bulk.MapPost("/imports", async (ImportParties r, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Send(r, ct)).ToHttp(v => Results.Created($"/api/v1/party/bulk-jobs/{v.Id}", v)))
             .Produces<BulkJobView>(StatusCodes.Status201Created).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
-            .WithName("PartyImportParties").WithSummary("Import individuals, all or nothing: one bad line rejects the import, and every bad line is named (F076)").RequirePermission(PartyPermissions.BulkJobCreate).RequireIdempotencyKey();
+            .WithName("PartyImportParties").WithSummary("Import individuals and organisations, all or nothing: one bad line rejects the import, and every bad line is named (F076)").RequirePermission(PartyPermissions.BulkJobCreate).RequireIdempotencyKey();
         bulk.MapPost("/exports", async (RequestPartyExport r, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Send(r, ct)).ToHttp(v => Results.Created($"/api/v1/party/bulk-jobs/{v.Id}", v)))
             .Produces<BulkJobView>(StatusCodes.Status201Created).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
             .WithName("PartyRequestExport").WithSummary("Ask for an export of parties; a second person approves it before it leaves").RequirePermission(PartyPermissions.BulkJobCreate).RequireIdempotencyKey();
+        bulk.MapPost("/policy-exports", async (RequestPolicyExport r, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Send(r, ct)).ToHttp(v => Results.Created($"/api/v1/party/bulk-jobs/{v.Id}", v)))
+            .Produces<BulkJobView>(StatusCodes.Status201Created).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("PartyRequestPolicyExport").WithSummary("Ask for an export of policies and memberships; a second person approves it before it leaves (OQ-158)").RequirePermission(PartyPermissions.BulkJobCreate).RequireIdempotencyKey();
         // BR-122: the back office's list of every bulk job, on the route the front end asked for; the jobs stay Party's.
         api.MapGet("/integration/bulk-jobs", async (string? type, string? direction, string? status, DateOnly? from, DateOnly? to, string? cursor, int? limit, IDispatcher dispatcher, CancellationToken ct) =>
                 {
@@ -439,7 +442,7 @@ public sealed class PartyModule : IModule
                         return Problems.For(BuildingBlocks.Domain.ErrorCodes.ValidationFailed, "The cursor is not valid.", StatusCodes.Status422UnprocessableEntity);
                     }
 
-                    if (type is not (null or BulkJob.Import or BulkJob.Export) || direction is not (null or "IMPORT" or "EXPORT")
+                    if (type is not (null or BulkJob.Import or BulkJob.Export or BulkJob.PolicyExport) || direction is not (null or "IMPORT" or "EXPORT")
                         || status is not (null or BulkJobStatus.Done or BulkJobStatus.Rejected or BulkJobStatus.ToApprove or BulkJobStatus.Approved) || (from is not null && to is not null && from > to))
                     {
                         return Problems.For(BuildingBlocks.Domain.ErrorCodes.ValidationFailed, "A filter is not valid.", StatusCodes.Status422UnprocessableEntity);

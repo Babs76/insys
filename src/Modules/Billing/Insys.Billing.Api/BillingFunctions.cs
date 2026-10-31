@@ -48,6 +48,7 @@ internal static class BillingFunctions
         .Action("BILLING_REQUEST_REFUND", "BILLING_ACCOUNTS", "BillingRequestRefund")
         .Screen("BILLING_INVOICES", "BILLING", "Invoices & credit notes", "billing/invoices", "BillingGetInvoice", "BillingListInvoices")
         .Action("BILLING_RAISE_CREDIT_NOTE", "BILLING_INVOICES", "BillingRaiseCreditNote")
+        .Action("BILLING_MIGRATE_OUTSTANDING_PREMIUMS", "BILLING_INVOICES", "BillingMigrateOutstandingPremiums")
         .Screen("BILLING_DASHBOARD", "BILLING", "Arrears ageing & cases", "billing/summary", "BillingSummary")
         .Screen("BILLING_REFUNDS", "BILLING", "Refunds (second person)", "billing/refunds", "BillingListRefunds", "BillingGetRefund")
         .Job("BILLING_DAILY_JOBS", "BILLING", "Background processing")

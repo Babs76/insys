@@ -325,6 +325,10 @@ public sealed class HealthModule : IModule
                 .WithName($"HealthScheme{action}").WithSummary($"{action} the scheme").RequirePermission(HealthPermissions.SchemeUpdate);
         }
 
+        health.MapPost("/migration/memberships", async (MigrateHealthMemberships r, IDispatcher d, CancellationToken ct) => (await d.Send(r, ct)).ToHttp(Results.Ok))
+            .Produces<HealthMigrationResult>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("HealthMigrateMemberships").WithSummary("Bring in-force memberships from a source system, all or nothing, against the file's control totals; every bad line is named (OQ-158)")
+            .RequirePermission(HealthPermissions.MembershipMigrate).RequireIdempotencyKey();
         health.MapPost("/memberships", async (EnrolHealthMember r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(r, ct)).ToHttp(v => Results.Created($"/api/v1/health/memberships/{v.Id}", v)))
             .Produces<MembershipView>(StatusCodes.Status201Created)

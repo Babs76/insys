@@ -44,6 +44,7 @@ internal static class IntegrationFunctions
         .. new FunctionMap([Audiences.Staff], null)
         .Screen("INTEGRATION_DISCLOSURES", "INTEGRATION_OPERATIONS", "Disclosures", "integration/disclosures", "IntegrationGetDisclosureText")
         .Action("INTEGRATION_ACKNOWLEDGE_DISCLOSURE", "INTEGRATION_DISCLOSURES", "IntegrationAcknowledgeDisclosure")
+        .Screen("INTEGRATION_MIGRATION", "INTEGRATION_OPERATIONS", "Migration reconciliation", "integration/migration-batches", "IntegrationReconcileMigrationBatch")
         .Screen("INTEGRATION_DEAD_LETTERS", "INTEGRATION_OPERATIONS", "Dead letters", "integration/dead-letters", "ListDeadLetters", "GetDeadLetter")
         .Action("REPLAY_MESSAGE", "INTEGRATION_DEAD_LETTERS", "ReplayMessage")
         .Action("DISCARD_MESSAGE", "INTEGRATION_DEAD_LETTERS", "DiscardMessage", privileged: true)

@@ -78,6 +78,9 @@ public interface IBillingRepository
 
     void Add(Invoice invoice);
 
+    /// <summary>Which of these source references an outstanding premium already has.</summary>
+    Task<IReadOnlyList<string>> InvoiceSourceReferencesKnown(IReadOnlyCollection<string> references, CancellationToken cancellationToken);
+
     void Add(RefundRequest refund);
 }
 

@@ -66,6 +66,8 @@ public static class ClaimsFrameworkInfrastructure
         services.AddIntegrationEventHandler<PaymentInitiated, ClaimsPolicies, ClaimsFrameworkDbContext>(schema, "PaymentInitiated");
         services.AddIntegrationEventHandler<PaymentFailed, ClaimsPolicies, ClaimsFrameworkDbContext>(schema, "PaymentFailed");
         services.AddIntegrationEventHandler<ClaimPaymentCompleted, ClaimsPolicies, ClaimsFrameworkDbContext>(schema, "ClaimPaymentCompleted");
+        services.AddSingleton<BuildingBlocks.Application.Context.IMigrationTotals, Persistence.ClaimsMigrationTotals>();
+        services.AddIntegrationEventHandler<ClaimMigrated, ClaimsPolicies, ClaimsFrameworkDbContext>(schema, "ClaimMigrated");
         services.AddIntegrationEventHandler<GeneralClaimApproved, ClaimsPolicies, ClaimsFrameworkDbContext>(schema, "GeneralClaimApproved");
         services.AddIntegrationEventHandler<Life.Contracts.LifeClaimApproved, ClaimsPolicies, ClaimsFrameworkDbContext>(schema, "LifeClaimApproved");
         services.AddIntegrationEventHandler<RecoveryRecorded, ClaimsPolicies, ClaimsFrameworkDbContext>(schema, "RecoveryRecorded");

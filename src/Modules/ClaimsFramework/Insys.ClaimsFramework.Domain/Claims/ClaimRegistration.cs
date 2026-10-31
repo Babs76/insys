@@ -243,6 +243,20 @@ public sealed class ClaimRegistration : AggregateRoot<Guid>
         return registration;
     }
 
+    public string? MigrationBatch { get; private set; }
+
+    /// <summary>B-013: the number was given when the claim was loaded, so nothing is announced.</summary>
+    public static ClaimRegistration Migrated(Guid id, string claimNumber, string domain, Guid domainClaimId, Guid policyRef, string batch, DateTimeOffset now, string? productCode, string? orgNodeCode)
+    {
+        var registration = new ClaimRegistration
+        {
+            Id = Guard.NotEmpty(id), ClaimNumber = Guard.MaxLength(claimNumber, 25), Domain = Guard.MaxLength(domain, 10), DomainClaimId = Guard.NotEmpty(domainClaimId), PolicyRef = Guard.NotEmpty(policyRef),
+            ProductCode = productCode, OrgNodeCode = orgNodeCode, RegisteredAt = now, MigrationBatch = Guard.MaxLength(batch, 30),
+        };
+        registration.MarkChanged();
+        return registration;
+    }
+
     public Result RequestEvidence(string evidenceType, DateTimeOffset now)
     {
         if (_evidence.Any(e => e.EvidenceType == evidenceType && e.Status == "REQUESTED"))

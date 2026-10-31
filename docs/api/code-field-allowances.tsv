@@ -422,3 +422,22 @@ core	IntegrationDisclosureTextView.noticeType	to declare
 core	ClaimsFrameworkFraudCaseView.indicatorCodes	to declare
 core	ClaimsFrameworkOpenFraudCase.indicatorCodes	to declare
 core	PartyBulkJobView.jobType	to declare
+core	GeneralMigrateGeneralPolicies.batchCode	the batch name the file gives; no list
+core	GeneralMigratedPolicy.intermediaryCode	an intermediary register key, as on a quote
+core	GeneralMigratedPolicy.productCode	a product key, as on a quote
+core	HealthMigrateHealthMemberships.batchCode	the batch name the file gives; no list
+core	HealthMigratedDependant.dependantType	a dependant type key, checked by the membership
+core	LifeMigrateLifePolicies.batchCode	the batch name the file gives; no list
+core	LifeMigratedLifePolicy.productCode	a product key, as on a proposal
+core	LifeMigratedLifePolicy.intermediaryCode	an intermediary key, as on a proposal
+core	LifeMigratedBenefit.benefitCode	a benefit key of the product
+core	BillingMigrateOutstandingPremiums.batchCode	the batch name the file gives; no list
+core	FinanceMigrateOpeningBalances.batchCode	the batch name the file gives; no list
+core	FinanceOpeningBalanceLine.accountCode	an account key, checked against the chart
+core	IntegrationMigrationReconciliationReport.batchCode	the batch name the file gives; no list
+core	GeneralMigrateGeneralClaims.batchCode	the batch name the file gives; no list
+core	GeneralMigratedClaim.coverageCode	a coverage key of the policy
+core	LifeMigrateLifeClaims.batchCode	the batch name the file gives; no list
+core	LifeMigratedLifeClaim.causeCode	a cause key, as a source system has it
+core	LifeMigratedLifeClaim.reserveType	a reserve type key, checked by the Claims Framework
+core	LifeMigratedLifeClaim.claimType	a claim type key, as a source system has it

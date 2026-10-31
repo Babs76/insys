@@ -158,6 +158,10 @@ public sealed class BillingModule : IModule
             .WithSummary("Get an invoice or credit note")
             .RequirePermission(BillingPermissions.InvoiceRead);
 
+        billing.MapPost("/migration/outstanding-premiums", async (MigrateOutstandingPremiums r, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Send(r, ct)).ToHttp(Results.Ok))
+            .Produces<PremiumMigrationResult>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("BillingMigrateOutstandingPremiums").WithSummary("Bring premiums outstanding in a source system, all or nothing, against the file's control totals (B-013)")
+            .RequirePermission(BillingPermissions.PremiumMigrate).RequireIdempotencyKey();
         billing.MapPost("/invoices/{id:guid}/credit-notes", async (Guid id, CreditNoteRequest r, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Send(new RaiseCreditNote(id, r.Amount, r.ReasonCode), ct)).ToHttp(view => Results.Created($"/api/v1/billing/invoices/{view.Id}", view)))
             .Produces<InvoiceView>(StatusCodes.Status201Created)

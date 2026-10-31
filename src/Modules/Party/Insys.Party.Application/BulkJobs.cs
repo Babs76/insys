@@ -38,10 +38,16 @@ namespace Insys.Party.Application;
 
 // F076 (addenda/finance-and-compliance.md §4.9, OQ-158): parties. Each row goes through RegisterParty's own validator and duplicate match.
 
-public sealed record ImportParties(IReadOnlyList<IndividualData> Rows) : ICommand<BulkJobView>;
+/// <param name="Rows">The individuals, numbered in the rejected lines from 1.</param>
+/// <param name="Organisations">The organisations, numbered after the individuals.</param>
+/// <param name="ControlCount">The source's count of rows: a file that disagrees is rejected whole (B-013).</param>
+public sealed record ImportParties(IReadOnlyList<IndividualData>? Rows, IReadOnlyList<OrganisationData>? Organisations = null, int? ControlCount = null) : ICommand<BulkJobView>;
 
 /// <param name="Status">Only parties with this status; null for all.</param>
 public sealed record RequestPartyExport([property: OneOf("ACTIVE", "DORMANT", "DECEASED")] string? Status) : ICommand<BulkJobView>;
+
+/// <param name="Domain">Only this domain's policies; null for all.</param>
+public sealed record RequestPolicyExport([property: OneOf("GENERAL", "LIFE", "HEALTH")] string? Domain) : ICommand<BulkJobView>;
 
 public sealed record ApprovePartyExport(Guid Id) : ICommand<BulkJobView>;
 
@@ -58,7 +64,7 @@ public sealed record GetBulkJob(Guid Id) : IQuery<BulkJobView>;
 public sealed record ListBulkJobs(string? JobType, string? Direction, string? Status, DateOnly? From, DateOnly? To, Guid? BeforeId, int Limit) : IQuery<IReadOnlyList<BulkJobSummary>>;
 
 /// <summary>BR-122: what a list row shows; the rejected lines and the export's filter stay on the job itself.</summary>
-public sealed record BulkJobSummary(Guid Id, [property: OneOf(BulkJob.Import, BulkJob.Export)] string JobType, [property: OneOf("IMPORT", "EXPORT")] string Direction, [property: OneOf(BulkJobStatus.Done, BulkJobStatus.Rejected, BulkJobStatus.ToApprove, BulkJobStatus.Approved)] string Status,
+public sealed record BulkJobSummary(Guid Id, [property: OneOf(BulkJob.Import, BulkJob.Export, BulkJob.PolicyExport)] string JobType, [property: OneOf("IMPORT", "EXPORT")] string Direction, [property: OneOf(BulkJobStatus.Done, BulkJobStatus.Rejected, BulkJobStatus.ToApprove, BulkJobStatus.Approved)] string Status,
     int TotalCount, int AcceptedCount, Guid RunBy, DateTimeOffset CreatedAt);
 
 public sealed record RejectedLine(int Line, string Reason);
@@ -87,12 +93,13 @@ public sealed class ImportPartiesValidator : AbstractValidator<ImportParties>
 {
     public const int MaxRows = 5000;
 
-    public ImportPartiesValidator() => RuleFor(c => c.Rows).NotEmpty().Must(r => r.Count <= MaxRows).WithMessage($"An import has at most {MaxRows} rows.");
+    public ImportPartiesValidator() => RuleFor(c => c).Must(c => (c.Rows?.Count ?? 0) + (c.Organisations?.Count ?? 0) is > 0 and <= MaxRows).WithMessage($"An import has from 1 to {MaxRows} rows.");
 }
 
-internal sealed class BulkJobHandlers(IBulkJobs jobs, IPartyRepository parties, IValidator<RegisterParty> rowValidator, IExecutionContext execution, IClock clock, IAuditTrail audit) :
+internal sealed class BulkJobHandlers(IEnumerable<BuildingBlocks.Application.Context.IPolicyExportRows> policySources, BuildingBlocks.Application.Context.ITenantContext tenant, IBulkJobs jobs, IPartyRepository parties, IValidator<RegisterParty> rowValidator, IExecutionContext execution, IClock clock, IAuditTrail audit) :
     ICommandHandler<ImportParties, BulkJobView>,
     ICommandHandler<RequestPartyExport, BulkJobView>,
+    ICommandHandler<RequestPolicyExport, BulkJobView>,
     ICommandHandler<ApprovePartyExport, BulkJobView>,
     ICommandHandler<DownloadPartyExport, string>,
     IQueryHandler<GetBulkJob, BulkJobView>,
@@ -108,11 +115,18 @@ internal sealed class BulkJobHandlers(IBulkJobs jobs, IPartyRepository parties, 
             return user.Error;
         }
 
+        var (people, organisations) = (command.Rows ?? [], command.Organisations ?? []);
+        var total = people.Count + organisations.Count;
         var rejected = new List<RejectedLine>();
-        var seen = new HashSet<(string, string, DateOnly)>();
-        for (var i = 0; i < command.Rows.Count; i++)
+        if (command.ControlCount is { } control && control != total)
         {
-            var row = command.Rows[i];
+            rejected.Add(new RejectedLine(0, $"The file has {total} rows; its control count says {control}."));
+        }
+
+        var seen = new HashSet<(string, string, DateOnly)>();
+        for (var i = 0; i < people.Count; i++)
+        {
+            var row = people[i];
             var valid = await rowValidator.ValidateAsync(new RegisterParty(row, null), cancellationToken);
             if (!valid.IsValid)
             {
@@ -128,20 +142,45 @@ internal sealed class BulkJobHandlers(IBulkJobs jobs, IPartyRepository parties, 
             }
         }
 
-        // All or nothing: one bad line changes nothing, and every bad line is named. No line's content is logged or audited.
-        if (rejected.Count == 0)
+        var seenOrganisations = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        for (var i = 0; i < organisations.Count; i++)
         {
-            foreach (var row in command.Rows)
+            var row = organisations[i];
+            var line = people.Count + i + 1;
+            var valid = await rowValidator.ValidateAsync(new RegisterParty(null, row), cancellationToken);
+            if (!valid.IsValid)
             {
-                parties.Add(Domain.Parties.Party.RegisterIndividual(Guid.CreateVersion7(), row, clock.UtcNow));
+                rejected.Add(new RejectedLine(line, string.Join("; ", valid.Errors.Select(e => e.ErrorMessage))));
+            }
+            else if (!seenOrganisations.Add(row.RegistrationNumber ?? row.LegalName))
+            {
+                rejected.Add(new RejectedLine(line, "The same organisation appears earlier in the file."));
+            }
+            else if (await parties.OrganisationExists(row.LegalName, row.RegistrationNumber, cancellationToken))
+            {
+                rejected.Add(new RejectedLine(line, "An existing party matches this organisation."));
             }
         }
 
-        var job = BulkJob.Imported(Guid.CreateVersion7(), command.Rows.Count, rejected.Count == 0 ? null : JsonSerializer.Serialize(rejected, JsonSerializerOptions.Web), rejected.Count, user.Value);
+        // All or nothing: one bad line changes nothing, and every bad line is named. No line's content is logged or audited.
+        if (rejected.Count == 0)
+        {
+            foreach (var row in people)
+            {
+                parties.Add(Domain.Parties.Party.RegisterIndividual(Guid.CreateVersion7(), row, clock.UtcNow));
+            }
+
+            foreach (var row in organisations)
+            {
+                parties.Add(Domain.Parties.Party.RegisterOrganisation(Guid.CreateVersion7(), row, clock.UtcNow));
+            }
+        }
+
+        var job = BulkJob.Imported(Guid.CreateVersion7(), total, rejected.Count == 0 ? null : JsonSerializer.Serialize(rejected, JsonSerializerOptions.Web), rejected.Count, user.Value);
         jobs.Add(job);
         audit.Record(new AuditEntry("PARTY", "ImportParties", nameof(BulkJob), job.Id.ToString(), new Dictionary<string, string?>
         {
-            ["rows"] = command.Rows.Count.ToString(CultureInfo.InvariantCulture), ["rejected"] = rejected.Count.ToString(CultureInfo.InvariantCulture),
+            ["rows"] = total.ToString(CultureInfo.InvariantCulture), ["rejected"] = rejected.Count.ToString(CultureInfo.InvariantCulture),
         }));
         return BulkJobView.From(job);
     }
@@ -158,6 +197,31 @@ internal sealed class BulkJobHandlers(IBulkJobs jobs, IPartyRepository parties, 
         jobs.Add(job);
         audit.Record(new AuditEntry("PARTY", "RequestPartyExport", nameof(BulkJob), job.Id.ToString(), new Dictionary<string, string?> { ["filter"] = command.Status }));
         return BulkJobView.From(job);
+    }
+
+    public async Task<Result<BulkJobView>> Handle(RequestPolicyExport command, CancellationToken cancellationToken)
+    {
+        var user = Parties.User(execution);
+        if (user.IsFailure)
+        {
+            return user.Error;
+        }
+
+        var job = BulkJob.PolicyExportRequested(Guid.CreateVersion7(), command.Domain, (await PolicyRows(command.Domain, cancellationToken)).Count, user.Value);
+        jobs.Add(job);
+        audit.Record(new AuditEntry("PARTY", "RequestPolicyExport", nameof(BulkJob), job.Id.ToString(), new Dictionary<string, string?> { ["filter"] = command.Domain }));
+        return BulkJobView.From(job);
+    }
+
+    private async Task<List<BuildingBlocks.Application.Context.PolicyExportRow>> PolicyRows(string? domain, CancellationToken cancellationToken)
+    {
+        var rows = new List<BuildingBlocks.Application.Context.PolicyExportRow>();
+        foreach (var source in policySources.Where(s => domain is null || s.Domain == domain).OrderBy(s => s.Domain, StringComparer.Ordinal))
+        {
+            rows.AddRange(await source.All(tenant.RequireTenantId(), cancellationToken));
+        }
+
+        return rows;
     }
 
     public async Task<Result<BulkJobView>> Handle(ApprovePartyExport command, CancellationToken cancellationToken)
@@ -185,7 +249,7 @@ internal sealed class BulkJobHandlers(IBulkJobs jobs, IPartyRepository parties, 
 
     public async Task<Result<string>> Handle(DownloadPartyExport command, CancellationToken cancellationToken)
     {
-        if (await jobs.Get(command.Id, cancellationToken) is not { JobType: BulkJob.Export } job)
+        if (await jobs.Get(command.Id, cancellationToken) is not { JobType: BulkJob.Export or BulkJob.PolicyExport } job)
         {
             return NotFound;
         }
@@ -193,6 +257,22 @@ internal sealed class BulkJobHandlers(IBulkJobs jobs, IPartyRepository parties, 
         if (job.Status != BulkJobStatus.Approved)
         {
             return Error.Conflict(ErrorCodes.InvalidStateTransition, "A second person approves the export before it leaves.");
+        }
+
+        if (job.JobType == BulkJob.PolicyExport)
+        {
+            var policies = await PolicyRows(job.Filter, cancellationToken);
+            audit.Record(new AuditEntry("PARTY", "DownloadPolicyExport", nameof(BulkJob), job.Id.ToString(), new Dictionary<string, string?>
+            {
+                ["filter"] = job.Filter, ["rows"] = policies.Count.ToString(CultureInfo.InvariantCulture),
+            }));
+            var lines = new StringBuilder("domain,policy_number,product_code,policyholder_party_id,status,start_date,end_date,currency\n");
+            foreach (var row in policies)
+            {
+                lines.Append(CultureInfo.InvariantCulture, $"{row.Domain},{row.PolicyNumber},{row.ProductCode},{row.PolicyholderPartyId},{row.Status},{row.StartDate:yyyy-MM-dd},{row.EndDate:yyyy-MM-dd},{row.Currency}\n");
+            }
+
+            return lines.ToString();
         }
 
         var rows = await jobs.ExportRows(job.Filter, cancellationToken);
