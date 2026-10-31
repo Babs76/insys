@@ -39,10 +39,10 @@ namespace Insys.General.Application;
 
 // OQ-158, B-013: a batch of in-force policies from a source system.
 
-public sealed record MigratedRisk(string ObjectType, JsonElement Attributes, decimal? Valuation, string? ValuationBasis, decimal SumInsured, IReadOnlyList<CoverageRequest> Coverages);
+public sealed record MigratedRisk([property: CodeList(CodeLists.RiskObjectTypes, "object_type")] string ObjectType, JsonElement Attributes, decimal? Valuation, [property: CodeList(CodeLists.ValuationBases, "code")] string? ValuationBasis, decimal SumInsured, IReadOnlyList<CoverageRequest> Coverages);
 
 public sealed record MigratedPolicy(string SourceReference, string ProductCode, int ProductVersion, Guid PolicyholderPartyId, Guid? PayerPartyId, DateOnly PeriodStart, DateOnly PeriodEnd, string Currency, decimal AnnualPremium,
-    string BillingFrequency, string CollectionMethod, string? IntermediaryCode, IReadOnlyList<MigratedRisk> Risks);
+    [property: CodeList(CodeLists.BillingFrequencies, "code")] string BillingFrequency, [property: CodeList(CodeLists.CollectionMethods, "method_code")] string CollectionMethod, string? IntermediaryCode, IReadOnlyList<MigratedRisk> Risks);
 
 /// <param name="BatchCode">The migration batch; its reconciliation reports what this file loaded.</param>
 /// <param name="ControlCount">The source system's count of policies.</param>

@@ -53205,10 +53205,14 @@
             "format": "double"
           },
           "billingFrequency": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "billing.ref_billing_frequencies",
+            "x-code-list-column": "code"
           },
           "collectionMethod": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "billing.ref_collection_methods",
+            "x-code-list-column": "method_code"
           },
           "intermediaryCode": {
             "type": [
@@ -53236,7 +53240,9 @@
         "type": "object",
         "properties": {
           "objectType": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "general.cfg_risk_object_types_and_attribute_schemas",
+            "x-code-list-column": "object_type"
           },
           "attributes": {
             "$ref": "#/components/schemas/JsonElement"
@@ -53254,7 +53260,9 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "x-code-list": "general.ref_valuation_bases",
+            "x-code-list-column": "code"
           },
           "sumInsured": {
             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",

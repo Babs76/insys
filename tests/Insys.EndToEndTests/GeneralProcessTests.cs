@@ -2369,7 +2369,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         await _factory.DrainOutbox();
 
         (await _db.ScalarAsOwner<long>("SELECT count(*) FROM billing.invoice WHERE policy_ref = @p", ("p", policy))).ShouldBe(0);
-        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM billing.instalment i JOIN billing.premium_schedule s ON s.tenant_id = i.tenant_id AND s.id = i.schedule_id WHERE s.policy_ref = @p AND i.status = 'SCHEDULED'", ("p", policy))).ShouldBeGreaterThan(0);
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM billing.premium_instalment i JOIN billing.premium_schedule s ON s.tenant_id = i.tenant_id AND s.id = i.schedule_id WHERE s.policy_ref = @p AND i.status = 'SCHEDULED'", ("p", policy))).ShouldBeGreaterThan(0);
         (await _db.ScalarAsOwner<long>("SELECT count(*) FROM document.document WHERE business_ref_id = @p", ("p", policy))).ShouldBe(0, "nothing is issued afresh");
         (await (await migrator.Send(HttpMethod.Post, "/api/v1/general/migration/policies", new { batchCode = "B1", controlCount = 1, controlPremium = 1200m, rows = new[] { Row("SRC-1") } }, idempotent: true)).Json())
             .GetProperty("loaded").GetInt32().ShouldBe(0, "a source reference loads once");

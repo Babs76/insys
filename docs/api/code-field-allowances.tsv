@@ -422,3 +422,6 @@ core	IntegrationDisclosureTextView.noticeType	to declare
 core	ClaimsFrameworkFraudCaseView.indicatorCodes	to declare
 core	ClaimsFrameworkOpenFraudCase.indicatorCodes	to declare
 core	PartyBulkJobView.jobType	to declare
+core	GeneralMigrateGeneralPolicies.batchCode	the batch name the file gives; no list
+core	GeneralMigratedPolicy.intermediaryCode	an intermediary register key, as on a quote
+core	GeneralMigratedPolicy.productCode	a product key, as on a quote
