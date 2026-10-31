@@ -1404,6 +1404,45 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         (await (await _factory.ClientFor(Tenant, "chronic-principal", "member-portal").GetAsync("/api/v1/portal/health/chronic-registrations")).Json()).GetArrayLength().ShouldBe(0);
     }
 
+    /// <summary>Owed from Wave 5b: a provider asks through its portal, as itself; the member's unknown number is refused; the request reaches staff with the provider named from its link, not the body.</summary>
+    [Fact]
+    public async Task AProvider_RequestsAChronicRegistrationThroughItsPortal_AsItself_F083()
+    {
+        await Seed("health.cfg_chronic_condition_list", "EFFECTIVE", "DM2", ("condition_code", "DM2"), ("name", "Diabetes"), ("diagnosis_codes", new[] { "E11" }), ("benefit_category", "CHRONIC"));
+        await Provider();
+        var scheme = await Created("/api/v1/health/schemes", new { sponsorCode = "S-ACME", startDate = Today.AddYears(-1), renewalDate = Today.AddMonths(6), currency = "ZAR" });
+        var principal = await _maker.RegisterPerson("ChronicByProvider");
+        var membership = await Created("/api/v1/health/memberships", new
+        {
+            principalPartyId = principal, schemeId = scheme, memberCategory = "ALL_STAFF", planCode = "HLT-CORE", optionCode = "A", startDate = Today.AddMonths(-6),
+            currency = "ZAR", collectionMethod = "DEBIT_ORDER", facts = new { employment_type = "PERMANENT" },
+        });
+        await _factory.DrainOutbox();
+        var memberNumber = (await Get($"/api/v1/health/memberships/{membership}")).GetProperty("memberNumber").GetString();
+
+        var user = await _db.UserWithPermissions(Tenant, "chronic-PR-1", HealthPermissions.ChronicCreate, HealthPermissions.ChronicRead);
+        await _db.ExecuteAsOwner("""
+            INSERT INTO iam.user_subject_link (tenant_id, id, row_version, created_at, created_by, updated_at, updated_by, user_id, kind, provider_id, status, requested_by, decided_by, decided_at)
+            VALUES (@t, gen_random_uuid(), 1, now(), 'seed', now(), 'seed', @u, 'PROVIDER', 'PR-1', 'ACTIVE', gen_random_uuid(), gen_random_uuid(), now())
+            """, ("t", Tenant), ("u", user));
+        await _db.UserWithPermissions(Tenant, "chronic-staff", HealthPermissions.ChronicRead);
+        await _db.AdoptFunctionCatalogue();
+        var portal = _factory.ClientFor(Tenant, "chronic-PR-1", "provider-portal", multiFactor: true);
+
+        var unknown = await portal.Send(HttpMethod.Post, "/api/v1/portal/health/chronic-registrations", new { memberNumber = "NOPE", conditionCode = "DM2", diagnosisCode = "E11", supportingNote = "HbA1c" }, idempotent: true);
+        unknown.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+
+        var requested = await portal.Send(HttpMethod.Post, "/api/v1/portal/health/chronic-registrations", new { memberNumber, conditionCode = "DM2", diagnosisCode = "E11", supportingNote = "HbA1c", requestingProviderId = "PR-9" }, idempotent: true);
+        requested.StatusCode.ShouldBe(HttpStatusCode.Created, await requested.Content.ReadAsStringAsync());
+        var view = await requested.Json();
+        view.TryGetProperty("conditionCode", out _).ShouldBeFalse("the ordinary view is not clinical");
+        var id = view.GetProperty("id").GetGuid();
+        (await _db.ScalarAsOwner<string>("SELECT requesting_provider_id FROM health.chronic_registration WHERE id = @i", ("i", id))).ShouldBe("PR-1");
+
+        var staff = await (await _factory.ClientFor(Tenant, "chronic-staff").GetAsync($"/api/v1/health/chronic-registrations?membershipId={membership}")).Json();
+        staff.GetProperty("items").EnumerateArray().Select(r => r.GetProperty("id").GetGuid()).ShouldBe([id]);
+    }
+
     /// <summary>Wave 5b §10: a pharmacy claim from receipt through a payment run; what it dispensed is clinical; a reversal gives its limit back.</summary>
     [Fact]
     public async Task APharmacyClaim_RunsFromReceiptThroughAPaymentRun_AndWhatItDispensedIsClinical_F039_F045_HLT008()

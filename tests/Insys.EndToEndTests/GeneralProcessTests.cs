@@ -2326,6 +2326,44 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         (await (await preparer.GetAsync($"/api/v1/finance/tax-returns/{id}/content")).Content.ReadAsStringAsync()).ShouldContain("VAT,ZAR");
     }
 
+    /// <summary>Owed from Wave 6: a credit note takes back its share of the invoice's tax, posted through its own rule, and the return nets it off (F094, 5a.3).</summary>
+    [Fact]
+    public async Task ACreditNotesTax_IsPostedBack_AndTheReturnNetsItOff_F094()
+    {
+        await Seed("finance.mst_chart_of_accounts", "ACTIVE", "ACC-2200", ("account_code", "2200"), ("name", "VAT"), ("type", "LIABILITY"), ("gl_account", "GL2200"), ("status", "ACTIVE"));
+        await Seed("finance.cfg_posting_rules", "EFFECTIVE", "PR-TAX", ("rule_code", "PR-TAX"), ("transaction_type", TransactionTypes.PremiumTax), ("debit_account", "4000"), ("credit_account", "2200"));
+        await Seed("finance.cfg_posting_rules", "EFFECTIVE", "PR-TAX-CR", ("rule_code", "PR-TAX-CR"), ("transaction_type", TransactionTypes.PremiumTaxCredited), ("debit_account", "2200"), ("credit_account", "4000"));
+        await Seed("finance.cfg_tax_codes_on_financial_transactions", "EFFECTIVE", "VAT", ("tax_code", "VAT"), ("rate", 15m), ("account", "2200"), ("jurisdiction", "ZA"));
+        await Seed("rating.cfg_premium_tax_and_levy_rates", "EFFECTIVE", "VAT-INV", ("tax_code", "VAT"), ("jurisdiction", "INVOICES"), ("rate", 15m), ("base", "GROSS_PREMIUM"), ("rounding", "NONE"),
+            ("product_code", Product));
+        var (policy, _) = await IssuedPolicy();
+        await _factory.DrainOutbox();
+        var invoiceId = await _db.ScalarAsOwner<Guid>("SELECT id FROM billing.invoice WHERE policy_ref = @p AND document_type = 'INVOICE'", ("p", policy));
+        var invoice = await (await _maker.GetAsync($"/api/v1/billing/invoices/{invoiceId}")).Json();
+        var (total, tax) = (invoice.GetProperty("totalAmount").GetDecimal(), invoice.GetProperty("taxAmount").GetDecimal());
+        tax.ShouldBeGreaterThan(0m);
+
+        await _db.UserWithPermissions(Tenant, "credit-clerk", BillingPermissions.InvoiceCreate, BillingPermissions.InvoiceRead);
+        await _db.UserWithPermissions(Tenant, "credit-return", FinancePermissions.TaxReturnCreate, FinancePermissions.TaxReturnRead);
+        await _db.AdoptFunctionCatalogue();
+        var half = Math.Round(total / 2, 2, MidpointRounding.AwayFromZero);
+        var raised = await _factory.ClientFor(Tenant, "credit-clerk").Send(HttpMethod.Post, $"/api/v1/billing/invoices/{invoiceId}/credit-notes", new { amount = half, reasonCode = "INS_REQUEST" }, idempotent: true);
+        raised.StatusCode.ShouldBe(HttpStatusCode.Created, await raised.Content.ReadAsStringAsync());
+        var note = await raised.Json();
+        var noteId = note.GetProperty("id").GetGuid();
+        var noteTax = note.GetProperty("taxAmount").GetDecimal();
+        noteTax.ShouldBe(Math.Round(tax * half / total, 2, MidpointRounding.AwayFromZero));
+        await _factory.DrainOutbox();
+
+        (await Journals("INVOICE", noteId)).Count.ShouldBe(2, "the credit, and the tax it takes back");
+        (await _db.ScalarAsOwner<decimal>("SELECT coalesce(sum(debit - credit), 0) FROM finance.subledger_entry WHERE business_ref_id = @n AND account_code = '2200'", ("n", noteId))).ShouldBe(noteTax);
+
+        var month = new DateOnly(Today.Year, Today.Month, 1);
+        var prepared = await _factory.ClientFor(Tenant, "credit-return").Send(HttpMethod.Post, "/api/v1/finance/tax-returns", new { taxCode = "VAT", currency = "ZAR", periodStart = month, periodEnd = month.AddMonths(1).AddDays(-1) }, idempotent: true);
+        prepared.StatusCode.ShouldBe(HttpStatusCode.Created, await prepared.Content.ReadAsStringAsync());
+        (await prepared.Json()).GetProperty("outputTotal").GetDecimal().ShouldBe(tax - noteTax);
+    }
+
     private async Task<(Guid Policy, Guid Vehicle)> IssuedPolicy(string product = Product, DateOnly? start = null, string? riskZone = null, string? orgNodeCode = null,
         Guid? proposer = null, string? intermediaryCode = null, Func<Guid, object, Task>? beforeIssue = null)
     {
