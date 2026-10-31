@@ -279,7 +279,11 @@ internal static class SavedVersions
         bool Named(Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry e) => e.Metadata.FindProperty("Id") is not null && ids.Contains(e.Property("Id").CurrentValue);
         if (System.Reflection.CustomAttributeExtensions.GetCustomAttribute<VersionOfAttribute>(typeof(TCommand)) is { } declared)
         {
-            return saved.Tracked.Where(e => e.Metadata.ClrType == declared.Record).ToList() is { Count: 1 } only ? only[0] : null;
+            // A family of versions may be loaded; the one that changed is meant, else the one named, else the only one.
+            var ofType = saved.Tracked.Where(e => e.Metadata.ClrType == declared.Record).ToList();
+            var moved = ofType.Where(saved.Changed.Contains).ToList();
+            var pool = moved.Count > 0 ? moved : ofType;
+            return pool.Count == 1 ? pool[0] : pool.Where(Named).ToList() is { Count: 1 } theOne ? theOne[0] : null;
         }
 
         if (saved.ChangedRoots.Count > 0)
