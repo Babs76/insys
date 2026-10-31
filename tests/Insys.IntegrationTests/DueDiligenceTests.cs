@@ -304,8 +304,8 @@ public sealed class DueDiligenceTests(DatabaseFixture fixture) : IClassFixture<D
         life.Cleared.ShouldBeFalse("Life needs the payee's CDD cleared");
         life.Outstanding.ShouldBe(["IDENTITY", "ADDRESS"], ignoreOrder: true);
 
-        // A screening older than the gate allows is not enough (30 days).
-        await fixture.Database.ExecuteAsOwner("UPDATE party.due_diligence SET last_screened_at = now() - interval '31 days' WHERE party_id = @p", ("p", member));
+        // A screening older than the gate allows is not enough (30 days). Two days over: from 22:00 UTC this host's test date, in UTC, is a day behind the tenant's date for the screening.
+        await fixture.Database.ExecuteAsOwner("UPDATE party.due_diligence SET last_screened_at = now() - interval '32 days' WHERE party_id = @p", ("p", member));
         (await Gate(w, member, DueDiligenceSteps.ClaimPayout, "HEALTH")).Outstanding.ShouldBe(["SCREENING"]);
 
         // A tenant from before V0092 has its gates off (§5): everything is cleared.

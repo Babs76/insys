@@ -28,6 +28,7 @@ An earlier full run, with test projects in parallel, gave 1033 failures because 
 
 ## Found and fixed on the way
 - **A broker change's clawback would have failed.** The reason `BROKER_OF_RECORD_CHANGED` is 24 characters and the column takes 20, so clawing back on a broker change threw. No test reached that path. It is now `BROKER_CHANGED`.
+- **Two tests failed from 22:00 to 24:00 UTC, on main too.** Reproduced alone, inside the window. `TheGates...OQ123`: the integration host's test date is in UTC, a day behind the tenant's date for the screening, so a screening 31 days old fell exactly on the limit. That is the test's clock, not the rule: production has no test date. `ADormantPartyWithNoRecordEver...OQ054`, which I added: it expected UTC's date for a registration dated in Johannesburg. Fixed in both tests. Integration hosts still have this test date, so another date-comparing test could do the same; the end-to-end hosts moved to a window clock already.
 - **CI's end-to-end jobs** ran 15 to 30 minutes against a 30-minute limit, and slow runners were cancelled. Now 45, as integration has.
 
 ## Decisions for Ade

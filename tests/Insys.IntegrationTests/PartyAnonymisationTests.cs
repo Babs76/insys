@@ -389,7 +389,7 @@ public sealed class PartyAnonymisationTests(DatabaseFixture fixture) : IClassFix
         refused.StatusCode.ShouldBe(HttpStatusCode.Conflict, await refused.Content.ReadAsStringAsync());
         var blocks = (await refused.Json()).GetProperty("blocks").EnumerateArray().ToList();
         blocks.ShouldContain(b => b.GetProperty("recordType").GetString() == "PARTY" && b.GetProperty("reason").GetString() == "IN_RETENTION"
-            && b.GetProperty("until").GetString() == TestClock.Today.AddYears(5).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture));
+            && b.GetProperty("until").GetString() == DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, TimeZoneInfo.FindSystemTimeZoneById(TestClock.DefaultTimeZone)).DateTime).AddYears(5).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture));
     }
 
     private async Task<Guid> DeceasedParty(Guid tenant, string surname)
