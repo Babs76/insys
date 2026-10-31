@@ -147,8 +147,8 @@ Keycloak runs on CCE in af-south-1 (ADR-016), with the realm imported once and t
 ## Field encryption keys: DEW KMS (ADR-018)
 
 - `FieldProtection:Provider` is `local` by default: keys from configuration, for development and CI.
-- Production uses `envelope`, with `FieldProtection:Envelope:Kms=dew`, and needs:
-  - `Huawei:Kms:Region` (`af-south-1`);
+- Production uses `envelope`, with `Kms:Provider=dew`, and needs:
+  - `Kms:Region` (`af-south-1`);
   - `ProjectId`;
   - `MasterKeyId`, the CMK's ID;
   - `AccessKey` and `SecretKey`, from the secret store.
@@ -162,9 +162,10 @@ Keycloak runs on CCE in af-south-1 (ADR-016), with the realm imported once and t
 
 ## Document storage: OBS (ADR-016)
 
-- `Documents:Storage:Provider` is `filesystem` by default, for development.
-- Production uses `object-store`, with:
-  - `Huawei:Obs:ServiceUrl` (`https://obs.af-south-1.myhuaweicloud.com`);
+- Documents stay on the file system by default, for development. `ObjectStore:Provider=s3-compatible` keeps them in an object store.
+- The old names (`FieldProtection:Envelope:Kms`, `Huawei:Kms:*`, `Huawei:Obs:*`, `Documents:Storage:Provider=object-store`) work for one more release and log a warning at start-up (ADR-027). The neutral name wins where both are set. A provider with no adapter yet (`aws`, `azure`, `alibaba`, `vault`, `azure-blob`) stops the start.
+- Production uses `ObjectStore:Provider=s3-compatible`, with:
+  - `ObjectStore:ServiceUrl` (`https://obs.af-south-1.myhuaweicloud.com`);
   - `Bucket`;
   - `AccessKey` and `SecretKey`, from the secret store.
 - Objects are kept under `tenant/<tenant id>/documents/<document id>`, and a key outside the calling tenant's prefix is refused.
