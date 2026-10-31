@@ -30,3 +30,8 @@
 -- =====================================================================
 -- B-007, B-008: an endorsement that adjusts the premium by a per cent, or changes the billing frequency.
 ALTER TABLE general.endorsement ADD COLUMN adjustment_pct numeric(7,4), ADD COLUMN new_billing_frequency varchar(15), ADD COLUMN new_loading_pct numeric(7,4);
+-- Neither re-rates the risk, so neither has a rating request; each carries what it changes.
+ALTER TABLE general.endorsement DROP CONSTRAINT ck_endorsement_rated;
+ALTER TABLE general.endorsement ADD CONSTRAINT ck_endorsement_rated CHECK (status = 'DRAFT' OR (new_annual_premium IS NOT NULL
+  AND (rating_request_id IS NOT NULL OR (endorsement_type = 'INTERMEDIARY' AND new_intermediary_code IS NOT NULL)
+       OR (endorsement_type = 'PREMIUM_ADJUST' AND adjustment_pct IS NOT NULL) OR (endorsement_type = 'BILLING_FREQ' AND new_billing_frequency IS NOT NULL))));
