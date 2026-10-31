@@ -37,6 +37,7 @@ internal sealed class LifeMigrationTotals([FromKeyedServices(LifeDbContext.Schem
     public Task<IReadOnlyList<MigrationTotal>> For(Guid tenantId, string batchCode, CancellationToken cancellationToken) =>
         MigrationTotalsReader.Read(dataSource, tenantId, batchCode, """
         SELECT 'LIFE_POLICY', count(DISTINCT p.id), sum(b.premium) FROM life.policy p JOIN life.policy_benefit b ON b.tenant_id = p.tenant_id AND b.policy_id = p.id WHERE p.migration_batch = @batch HAVING count(*) > 0
+        UNION ALL SELECT 'LIFE_CLAIM', count(*), NULL::numeric FROM life.claim WHERE migration_batch = @batch HAVING count(*) > 0
         """, cancellationToken);
 }
 

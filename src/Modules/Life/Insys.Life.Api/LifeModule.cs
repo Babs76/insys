@@ -213,6 +213,10 @@ public sealed class LifeModule : IModule
 
     private static void MapPolicies(RouteGroupBuilder life)
     {
+        life.MapPost("/migration/claims", async (MigrateLifeClaims r, IDispatcher d, CancellationToken ct) => (await d.Send(r, ct)).ToHttp(Results.Ok))
+            .Produces<LifeMigrationResult>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("LifeMigrateClaims").WithSummary("Bring claims open in a source system, all or nothing, against the file's control totals; reserves are carried without posting (B-013)")
+            .RequirePermission(LifePermissions.PolicyMigrate).RequireIdempotencyKey();
         life.MapPost("/migration/policies", async (MigrateLifePolicies r, IDispatcher d, CancellationToken ct) => (await d.Send(r, ct)).ToHttp(Results.Ok))
             .Produces<LifeMigrationResult>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
             .WithName("LifeMigratePolicies").WithSummary("Bring in-force policies from a source system, all or nothing, against the file's control totals; every bad line is named (OQ-158)")

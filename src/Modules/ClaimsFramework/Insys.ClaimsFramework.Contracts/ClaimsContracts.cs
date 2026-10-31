@@ -114,6 +114,10 @@ public sealed record ClaimRegistrationResult(bool Succeeded, string? ClaimNumber
 /// number here: idempotent per domain and domain claim (CLM-005). The fraud indicators in force are evaluated against
 /// the facts given; an indicator that cannot be evaluated does not stop the registration.
 /// </summary>
+/// <summary>An open claim from a source system (B-013): registered under the number it was given, its reserve carried without a posting, since the opening balances hold it.</summary>
+[IntegrationEvent("claims.ClaimMigrated")]
+public sealed record ClaimMigrated(string ClaimNumber, string Domain, Guid DomainClaimId, Guid PolicyRef, string? ProductCode, string? OrgNodeCode, string BatchCode, string ReserveType, decimal Reserve, string Currency) : IIntegrationEvent;
+
 public interface IClaimRegistry
 {
     /// <param name="owner">The domain claim's product and node (F103).</param>

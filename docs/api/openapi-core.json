@@ -18174,6 +18174,77 @@
         "x-eventual-effects": "the Workflow approval appears (approvalId on the case); once it is granted the case is decided and the proposal reads Accepted, Declined or Postponed."
       }
     },
+    "/api/v1/life/migration/claims": {
+      "post": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "Bring claims open in a source system, all or nothing, against the file\u0027s control totals; reserves are carried without posting (B-013)",
+        "operationId": "LifeMigrateClaims",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LifeMigrateLifeClaims"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LifeMigrationResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          }
+        },
+        "x-permission": "life_policy.migrate",
+        "x-function": [
+          "LIFE_MIGRATE_POLICIES"
+        ]
+      }
+    },
     "/api/v1/life/migration/policies": {
       "post": {
         "tags": [
@@ -22091,6 +22162,77 @@
         "x-permission": "general_quote.underwrite",
         "x-function": [
           "GENERAL_ACCEPT_PROPOSAL"
+        ]
+      }
+    },
+    "/api/v1/general/migration/claims": {
+      "post": {
+        "tags": [
+          "General"
+        ],
+        "summary": "Bring claims open in a source system, all or nothing, against the file\u0027s control totals; reserves are carried without posting (B-013)",
+        "operationId": "GeneralMigrateClaims",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GeneralMigrateGeneralClaims"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneralPolicyMigrationResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          }
+        },
+        "x-permission": "general_policy.migrate",
+        "x-function": [
+          "GENERAL_MIGRATE_POLICIES"
         ]
       }
     },
@@ -53785,6 +53927,42 @@
           }
         }
       },
+      "GeneralMigrateGeneralClaims": {
+        "required": [
+          "batchCode",
+          "controlCount",
+          "controlReserve",
+          "rows"
+        ],
+        "type": "object",
+        "properties": {
+          "batchCode": {
+            "type": "string"
+          },
+          "controlCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "controlReserve": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GeneralMigratedClaim"
+            }
+          }
+        }
+      },
       "GeneralMigrateGeneralPolicies": {
         "required": [
           "batchCode",
@@ -53818,6 +53996,71 @@
             "items": {
               "$ref": "#/components/schemas/GeneralMigratedPolicy"
             }
+          }
+        }
+      },
+      "GeneralMigratedClaim": {
+        "required": [
+          "sourceReference",
+          "policyId",
+          "riskObjectId",
+          "coverageCode",
+          "lossDate",
+          "causeCode",
+          "perilCode",
+          "description",
+          "reserveType",
+          "reserve"
+        ],
+        "type": "object",
+        "properties": {
+          "sourceReference": {
+            "type": "string"
+          },
+          "policyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "riskObjectId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "coverageCode": {
+            "type": "string"
+          },
+          "lossDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "causeCode": {
+            "type": "string",
+            "x-code-list": "general.ref_loss_cause_codes",
+            "x-code-list-column": "cause_code"
+          },
+          "perilCode": {
+            "type": "string",
+            "x-code-list": "general.ref_peril_codes",
+            "x-code-list-column": "peril_code"
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reserveType": {
+            "type": "string"
+          },
+          "reserve": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
           }
         }
       },
@@ -66503,6 +66746,42 @@
           }
         }
       },
+      "LifeMigrateLifeClaims": {
+        "required": [
+          "batchCode",
+          "controlCount",
+          "controlReserve",
+          "rows"
+        ],
+        "type": "object",
+        "properties": {
+          "batchCode": {
+            "type": "string"
+          },
+          "controlCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "controlReserve": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LifeMigratedLifeClaim"
+            }
+          }
+        }
+      },
       "LifeMigrateLifePolicies": {
         "required": [
           "batchCode",
@@ -66597,6 +66876,61 @@
             "items": {
               "$ref": "#/components/schemas/LifeMigratedBenefit"
             }
+          }
+        }
+      },
+      "LifeMigratedLifeClaim": {
+        "required": [
+          "sourceReference",
+          "policyId",
+          "insuredPartyId",
+          "claimantPartyId",
+          "claimType",
+          "eventDate",
+          "causeCode",
+          "reserveType",
+          "reserve"
+        ],
+        "type": "object",
+        "properties": {
+          "sourceReference": {
+            "type": "string"
+          },
+          "policyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "insuredPartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "claimantPartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "claimType": {
+            "type": "string"
+          },
+          "eventDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "causeCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reserveType": {
+            "type": "string"
+          },
+          "reserve": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
           }
         }
       },

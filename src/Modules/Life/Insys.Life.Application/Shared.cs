@@ -100,6 +100,9 @@ public interface ILifeRepository
 
     void Add(LifeClaim claim);
 
+    /// <summary>Which of these source references a migrated claim already has.</summary>
+    Task<IReadOnlyList<string>> ClaimSourceReferencesKnown(IReadOnlyCollection<string> references, CancellationToken cancellationToken);
+
     void Add(GroupScheme scheme);
 }
 

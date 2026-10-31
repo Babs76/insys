@@ -2421,6 +2421,18 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         premiums.GetProperty("loaded").GetInt32().ShouldBe(1, premiums.ToString());
         (await _db.ScalarAsOwner<string>("SELECT status FROM billing.invoice WHERE source_reference = 'RB-I1'")).ShouldBe("ISSUED");
 
+        var claims = await (await migrator.Send(HttpMethod.Post, "/api/v1/general/migration/claims", new
+        {
+            batchCode = "RB1", controlCount = 1, controlReserve = 5000m,
+            rows = new[] { new { sourceReference = "RB-C1", policyId = policy, coverageCode = "OWN_DAMAGE", lossDate = Today.AddDays(-30), causeCode = "COLLISION", perilCode = "COLLISION", reserveType = "INDEMNITY", reserve = 5000m } },
+        }, idempotent: true)).Json();
+        claims.GetProperty("loaded").GetInt32().ShouldBe(1, claims.ToString());
+        (await _db.ScalarAsOwner<string>("SELECT status FROM general.claim WHERE source_reference = 'RB-C1'")).ShouldBe("REGISTERED");
+        await _factory.DrainOutbox();
+        var claimNumber = await _db.ScalarAsOwner<string>("SELECT claim_number FROM general.claim WHERE source_reference = 'RB-C1'");
+        (await _db.ScalarAsOwner<decimal>("SELECT sum(amount) FROM claims.claim_financial_movement WHERE claim_number = @n", ("n", claimNumber!))).ShouldBe(5000m);
+        (await Journals("GENERAL_CLAIM", await _db.ScalarAsOwner<Guid>("SELECT id FROM general.claim WHERE source_reference = 'RB-C1'"))).ShouldBeEmpty("the opening balances hold the reserve");
+
         object Balances(decimal debit) => new
         {
             batchCode = "RB1", accountingDate = Today, controlDebit = debit, controlCredit = 100m,
@@ -2434,7 +2446,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
 
         object Source(decimal premium) => new[]
         {
-            new { kind = "GENERAL_POLICY", count = 1L, amount = (decimal?)premium }, new { kind = "OUTSTANDING_PREMIUM", count = 1L, amount = (decimal?)100m },
+            new { kind = "GENERAL_POLICY", count = 1L, amount = (decimal?)premium }, new { kind = "OUTSTANDING_PREMIUM", count = 1L, amount = (decimal?)100m }, new { kind = "GENERAL_CLAIM", count = 1L, amount = (decimal?)null }, new { kind = "CLAIM_RESERVE", count = 1L, amount = (decimal?)5000m },
             new { kind = "OPENING_BALANCE:1100", count = 1L, amount = (decimal?)100m }, new { kind = "OPENING_BALANCE:4000", count = 1L, amount = (decimal?)-100m },
         };
         var agrees = await (await migrator.Send(HttpMethod.Post, "/api/v1/integration/migration-batches/RB1/reconciliation", Source(1200m))).Json();

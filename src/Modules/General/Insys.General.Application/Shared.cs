@@ -174,6 +174,9 @@ public interface IGeneralRepository
 
     void Add(GeneralClaim claim);
 
+    /// <summary>Which of these source references a migrated claim already has.</summary>
+    Task<IReadOnlyList<string>> ClaimSourceReferencesKnown(IReadOnlyCollection<string> references, CancellationToken cancellationToken);
+
     void Add(LossAssessment assessment);
 
     void Add(RecoveryCase recovery);

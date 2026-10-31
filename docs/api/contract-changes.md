@@ -10,6 +10,7 @@ What changed in the API contract, newest first, so the front end can sync. The O
 ## Migration batch (branch `migration-batch`, OQ-158, B-013)
 
 - **New, each idempotent and all or nothing against the file's control totals:** `POST /general/migration/policies`, `/life/migration/policies`, `/health/migration/memberships`, `/billing/migration/outstanding-premiums`, `/finance/migration/opening-balances`. Permissions `general_policy.migrate`, `life_policy.migrate`, `health_membership.migrate`, `invoice.migrate`, `journal.migrate`.
+- **`POST /general/migration/claims`, `/life/migration/claims`:** claims open in a source system. Their numbers start `MIG-`. Permissions as for each domain's policies.
 - **`POST /integration/migration-batches/{code}/reconciliation`:** the source's totals in, every difference out. Permission `migration_batch.reconcile`.
 - **`POST /party/bulk-jobs/policy-exports`:** a second person approves, as for parties. `jobType` gains `POLICY_EXPORT`.
 - **`POST /party/bulk-jobs/imports`** also takes `organisations` and `controlCount`; `rows` is optional. A rejected line 0 means the whole file.

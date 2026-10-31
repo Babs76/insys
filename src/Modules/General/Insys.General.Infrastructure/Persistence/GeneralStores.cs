@@ -61,6 +61,9 @@ internal sealed class GeneralRepository(GeneralDbContext db, IExecutionContext e
     public async Task<GeneralProposal?> ProposalForQuote(Guid quoteId, CancellationToken cancellationToken) =>
         await OfQuote(await db.Proposals.SingleOrDefaultAsync(p => p.QuoteId == quoteId, cancellationToken), cancellationToken);
 
+    public async Task<IReadOnlyList<string>> ClaimSourceReferencesKnown(IReadOnlyCollection<string> references, CancellationToken cancellationToken) =>
+        await db.Set<GeneralClaim>().AsNoTracking().Where(c => c.SourceReference != null && references.Contains(c.SourceReference)).Select(c => c.SourceReference!).ToListAsync(cancellationToken);
+
     public async Task<IReadOnlyList<string>> SourceReferencesKnown(IReadOnlyCollection<string> references, CancellationToken cancellationToken) =>
         await db.Set<GeneralPolicy>().AsNoTracking().Where(p => p.SourceReference != null && references.Contains(p.SourceReference)).Select(p => p.SourceReference!).ToListAsync(cancellationToken);
 
@@ -606,6 +609,7 @@ internal sealed class GeneralEventMapper : IDomainEventMapper
         EndorsementSubmitted e => new BuildingBlocks.Contracts.Approvals.ApprovalRequested(Contracts.GeneralApprovals.EndorsementBusinessRefType, e.EndorsementId,
             Contracts.GeneralApprovals.EndorsementApprovalType, e.RequestedBy, Math.Abs(e.PremiumDelta), e.Currency,
             e.ExceededLimit is null ? $"Endorsement {e.EndorsementNumber}" : $"Endorsement {e.EndorsementNumber}; exceeds aggregation limit {e.ExceededLimit} (F062)"),
+        GeneralClaimMigrated e => new ClaimsFramework.Contracts.ClaimMigrated(e.ClaimNumber, "GENERAL", e.ClaimId, e.PolicyId, e.ProductCode, e.OrgNodeCode, e.BatchCode, e.ReserveType, e.Reserve, e.Currency),
         GeneralClaimRegistered e => new Contracts.GeneralClaimRegistered(e.ClaimId, e.ClaimNumber, e.PolicyId, e.LossDate, e.PerilCode),
         AssessorAppointed e => new Contracts.AssessorAppointed(e.ClaimId, e.AssessorPartyId),
         SettlementRequested e => new BuildingBlocks.Contracts.Approvals.ApprovalRequested(Contracts.GeneralApprovals.SettlementBusinessRefType, e.ClaimId,

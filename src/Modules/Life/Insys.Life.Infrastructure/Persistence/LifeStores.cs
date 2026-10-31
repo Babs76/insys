@@ -62,6 +62,9 @@ internal sealed class LifeRepository(LifeDbContext db, IExecutionContext executi
         db.ChangeTracker.Entries<LifeUnderwritingCase>().Select(e => e.Entity).FirstOrDefault(c => c.ProposalId == proposalId)
         ?? await OfProposal(await Cases().SingleOrDefaultAsync(c => c.ProposalId == proposalId, cancellationToken), cancellationToken);
 
+    public async Task<IReadOnlyList<string>> ClaimSourceReferencesKnown(IReadOnlyCollection<string> references, CancellationToken cancellationToken) =>
+        await db.Set<Domain.Claims.LifeClaim>().AsNoTracking().Where(c => c.SourceReference != null && references.Contains(c.SourceReference)).Select(c => c.SourceReference!).ToListAsync(cancellationToken);
+
     public async Task<IReadOnlyList<string>> SourceReferencesKnown(IReadOnlyCollection<string> references, CancellationToken cancellationToken) =>
         await db.Policies.AsNoTracking().Where(p => p.SourceReference != null && references.Contains(p.SourceReference)).Select(p => p.SourceReference!).ToListAsync(cancellationToken);
 
@@ -283,6 +286,7 @@ internal sealed class LifeEventMapper : IDomainEventMapper
         Domain.Policies.LifePolicyReinstated e => new Contracts.LifePolicyReinstated(e.PolicyId, e.PolicyNumber, e.ReinstatedOn, e.TermEndDate),
         Domain.Policies.PolicyLoanIssued e => new Contracts.PolicyLoanIssued(e.LoanId, e.LoanNumber, e.PolicyId, e.Principal, e.Currency),
         Domain.Policies.PolicyLoanRepaid e => new Contracts.PolicyLoanRepaid(e.LoanId, e.LoanNumber, e.PolicyId),
+        Domain.Claims.LifeClaimMigrated e => new ClaimsFramework.Contracts.ClaimMigrated(e.ClaimNumber, "LIFE", e.ClaimId, e.PolicyId, e.ProductCode, e.OrgNodeCode, e.BatchCode, e.ReserveType, e.Reserve, e.Currency),
         Domain.Claims.LifeClaimRegistered e => new Contracts.LifeClaimRegistered(e.ClaimId, e.ClaimNumber, e.PolicyId, e.ClaimType, e.EventDate),
         LifeClaimApprovalRequested e => new ApprovalRequested(LifeApprovals.ClaimBusinessRefType, e.ClaimId, LifeApprovals.ClaimApprovalType, e.RequestedBy, e.Amount,
             e.Currency, $"Life claim {e.ClaimNumber}", e.SubjectHash),
