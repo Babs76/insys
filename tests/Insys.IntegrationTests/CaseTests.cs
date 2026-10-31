@@ -116,6 +116,16 @@ public sealed class CaseTests(DatabaseFixture fixture) : IClassFixture<DatabaseF
     private static Task Reference(TestDatabase db, string table, string code, params (string Column, object Value)[] fields) =>
         db.SeedStatic(T, table, "ACTIVE", code, From, fields);
 
+    /// <summary>The ETag a change returns takes the next change (a case's version, returned as a number).</summary>
+    [Fact]
+    public async Task ACaseChangesReturnedETag_TakesTheNextChange_AndTheOneBeforeItIsRefused()
+    {
+        var id = await OpenComplaint();
+        var before = (await _clerk.GetAsync($"{Cases}/{id}")).ETag();
+        await (await _clerk.Send(HttpMethod.Post, $"{Cases}/{id}/acknowledge", new { }, ifMatch: before))
+            .ShouldChain(before, etag => _clerk.Send(HttpMethod.Post, $"{Cases}/{id}/start", new { }, ifMatch: etag));
+    }
+
     [Fact]
     public async Task AComplaint_IsAcknowledgedExtendedRejectedReviewedByAnotherPerson_AndGoesToTheOmbud_Cases12()
     {
@@ -134,10 +144,7 @@ public sealed class CaseTests(DatabaseFixture fixture) : IClassFixture<DatabaseF
         (await fixture.Database.ScalarAsOwner<string>("SELECT t.queue_code FROM workflow.task t JOIN workflow.service_case c ON c.process_instance_id = t.process_instance_id WHERE c.id = @id",
             ("id", id))).ShouldBe("CASES");
 
-        // The ETag a change returns takes the next change (a case's version, returned as a number).
-        var before = (await _clerk.GetAsync($"{Cases}/{id}")).ETag();
-        await (await _clerk.Send(HttpMethod.Post, $"{Cases}/{id}/acknowledge", new { }, ifMatch: before))
-            .ShouldChain(before, etag => _clerk.Send(HttpMethod.Post, $"{Cases}/{id}/start", new { }, ifMatch: etag));
+        (await Act(_clerk, id, "acknowledge")).StatusCode.ShouldBe(HttpStatusCode.NoContent);
         var acknowledged = await Get(_clerk, id);
         acknowledged.GetProperty("expectedBy").GetDateTimeOffset().ShouldBe(received.AddDays(30), "RESOLVE: 30 calendar days from receipt");
 

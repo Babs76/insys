@@ -46,6 +46,18 @@ public sealed class IdentityTests(DatabaseFixture fixture) : IClassFixture<Datab
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
+    /// <summary>The ETag a change returns takes the next change (an endpoint that sets it from the returned version, with no body).</summary>
+    [Fact]
+    public async Task ARoleChangesReturnedETag_TakesTheNextChange_AndTheOneBeforeItIsRefused()
+    {
+        var userId = await fixture.Database.UserWithPermissions(DatabaseFixture.TenantA, "clerk-chain", IntegrationPermissions.DeadLetterRead);
+        var role = await fixture.Database.ScalarAsOwner<string>("SELECT role_code FROM iam.user_role_assignment WHERE user_id = @u", ("u", userId));
+        var admin = _factory.ClientFor(DatabaseFixture.TenantA, Admin);
+        var version = (await admin.GetAsync($"/api/v1/identity/users/{userId}")).ETag();
+        await (await admin.Send(HttpMethod.Post, $"/api/v1/identity/users/{userId}/revoke-role", new { roleCode = role }, ifMatch: version))
+            .ShouldChain(version, etag => admin.Send(HttpMethod.Post, $"/api/v1/identity/users/{userId}/assign-role", new { roleCode = role }, ifMatch: etag));
+    }
+
     [Fact]
     public async Task RevokedRole_DeniesTheNextRequestWithTheSameToken_IAM005()
     {
@@ -83,11 +95,6 @@ public sealed class IdentityTests(DatabaseFixture fixture) : IClassFixture<Datab
         var user = await admin.GetAsync($"/api/v1/identity/users/{userId}");
         (await admin.Send(HttpMethod.Post, $"/api/v1/identity/users/{userId}/assign-role", new { roleCode = role }, ifMatch: user.ETag()))
             .StatusCode.ShouldBe(HttpStatusCode.NoContent);
-
-        // The ETag a change returns takes the next change (an endpoint that sets it from the returned version, with no body).
-        var version = (await admin.GetAsync($"/api/v1/identity/users/{userId}")).ETag();
-        await (await admin.Send(HttpMethod.Post, $"/api/v1/identity/users/{userId}/revoke-role", new { roleCode = role }, ifMatch: version))
-            .ShouldChain(version, etag => admin.Send(HttpMethod.Post, $"/api/v1/identity/users/{userId}/assign-role", new { roleCode = role }, ifMatch: etag));
 
         (await clerk.GetAsync("/api/v1/integration/dead-letters")).StatusCode.ShouldBe(HttpStatusCode.OK);
         await _factory.DrainOutbox();
