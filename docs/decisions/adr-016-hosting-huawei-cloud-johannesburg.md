@@ -1,5 +1,7 @@
 # ADR-016: Hosting on Huawei Cloud, AF-Johannesburg (af-south-1)
 
+**Under ADR-027's amendment (for sign-off, 31 October 2026), this becomes optional deployment notes: Huawei is no longer the reference deployment.**
+
 - **Status:** Accepted (Phase 8 brief, decisions table, 23 October 2026). Two items are still to confirm in the console (below).
 - **Date:** 23 October 2026
 - **Requirements:** NFR-005, NFR-006, NFR-014; DBA-002 (no superuser roles); SRS §30 (hosting decisions)
