@@ -754,7 +754,7 @@
    "fields": [
     {
      "name": "record_kind",
-     "logicalType": "Enum{Policy,Claim,Payment}",
+     "logicalType": "Enum{Policy,Claim,Payment,Case}",
      "mandatory": true,
      "sample": "Policy"
     },

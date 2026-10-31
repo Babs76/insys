@@ -53,18 +53,21 @@ Estimates are working days for one developer, including unit, integration and en
 - **B-007, B-008, B-009 and B-011** together, as one batch after Wave 6 and before the first go-live.
 
 ### B-007: a premium adjustment endorsement (General)
+- **Built:** branch `endorsement-actions`, type code `PREMIUM_ADJUST`; see `docs/reports/2026-10-31-decisions-of-31-october.md`.
 - **Decided:** 30 October 2026, option (b) of the 4.3b report, as a general feature, not retention-only.
 - **What:** a General endorsement action `PREMIUM_ADJUSTMENT` that changes a policy's annual premium by a per cent (a discount or a loading) from its effective date for the rest of the period, without re-rating the risk. It is approved like any endorsement (maker-checker, within the approver's authority) and billed through the existing `GeneralPolicyEndorsed` path (Billing's `AmendSchedule`; instalments already invoiced are not changed). An accepted mid-term retention discount drafts one for the case's owner to submit.
 - **Estimate:** 2 to 3 days.
 - **Until then:** the manual route stands: the case owner records the accepted offer and makes the change by hand, then closes the case.
 
 ### B-008: a billing frequency change endorsement (General)
+- **Built:** branch `endorsement-actions`, type code `BILLING_FREQ`; see `docs/reports/2026-10-31-decisions-of-31-october.md`.
 - **Decided:** 30 October 2026, option (b) of the 4.3b report, as a general feature, not retention-only.
 - **What:** a General endorsement action that changes a policy's billing frequency from its next uninvoiced instalment, to a frequency the product allows (`cfg_product_billing_frequencies`), with that frequency's instalment loading. Billing amends the schedule's frequency and instalments from that date; invoices already issued stand. Approved like any endorsement. An accepted payment-terms retention offer drafts one.
 - **Estimate:** 3 to 4 days (Billing's schedule change by frequency is new; the endorsement side follows B-007).
 - **Until then:** the manual route stands (a billing change by hand).
 
 ### B-009: recover commission already paid when a broker of record changes (tenant setting)
+- **Built:** branch `commission-recovery`; see `docs/reports/2026-10-31-decisions-of-31-october.md`.
 - **Decided:** 30 October 2026, on 4.3c's question 1.
 - **What:** a tenant setting for a broker of record change when the outgoing broker's commission on the period is already paid on a settled statement:
   - `RECOVER` (default): the unearned part (the days from the change's effective date) is offset against the outgoing broker's next statement and allocated to the incoming broker as a broker share.
@@ -81,6 +84,7 @@ Estimates are working days for one developer, including unit, integration and en
 - **Built:** Wave 5, branch `wave5-b010`; see `docs/reports/2026-10-30-wave5-batch-b010.md`.
 
 ### B-011: callback tokens only from service accounts
+- **Built:** branch `service-callback-tokens`; see `docs/reports/2026-10-31-decisions-of-31-october.md`.
 - **Decided:** 30 October 2026, by Ade.
 - **What:** callback tokens (Payments and Communications) are accepted only from service accounts, that is Keycloak client-credentials tokens: never a person's token, even if it holds the function. IAM marks service accounts, and the readiness checks `PAYMENT_CALLBACK_CLIENT` and `COMMUNICATION_CALLBACK_CLIENT` require a service account holder.
 - **Estimate:** 3 to 4 days (a migration and a kind on the user account, provisioning a service account per tenant and provider, the token check, both readiness checks, tests).
@@ -93,6 +97,7 @@ Estimates are working days for one developer, including unit, integration and en
 - **Until then:** pharmacy claims come through the claim API and the provider portal, adjudicated after the event.
 
 ### B-013: import of open claims and outstanding premiums for migration
+- **Built:** branch `migration-batch`, with OQ-158; see `docs/reports/2026-10-31-decisions-of-31-october.md`.
 - **Decided:** 31 October 2026, by Ade, on OQ-158. Needed before the first customer migration.
 - **What:** import of open claims and outstanding premiums, added to the Wave 6 bulk import of parties and policies, with reconciliation rules: control totals per file, agreement with the source system's trial balance, opening balances posted through Finance, and a report of every difference.
 - **Estimate:** 10 to 15 days, of which the reconciliation rules are about half.
