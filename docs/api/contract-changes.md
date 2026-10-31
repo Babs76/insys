@@ -2,7 +2,6 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
-<<<<<<< HEAD
 ## Wave 6 batch 6.3 (branch `wave6-3`): fraud cases and bulk jobs (addendum §4.8, §4.9; F058, F076)
 
 ### New
@@ -64,12 +63,10 @@ What changed in the API contract, newest first, so the front end can sync. The O
 - **Claims:** a line in `POST /health/claims` and `/portal/health/claims` takes `pharmacy`: `daysSupply`, `prescriptionNumber`, `prescriber`, `prescribedOn`, `repeatNumber`, `repeatsAuthorised`; `tariffCode` is then the product code, up to 20 characters. A format that isn't `PHARMACY` rejects such a line.
 - **`ClaimLineView`:** a pharmacy line's `tariffCode` is the word `PHARMACY`. New `paidQuantity`; new reasons `QUANTITY_CUT`, `NOT_ON_FORMULARY`, `TIER_NOT_COVERED`, `NO_PRESCRIPTION_BENEFIT`, `PRESCRIPTION_NOT_VALID`, `REPEAT_EXCEEDED`.
 - **`PortalClaimLineView.tariffCode` can be null** (OQ-161): a principal member looking at an adult dependant's claim. **The front end must handle this.**
-=======
 ## A change's response carries the version as saved (branch `etag-after-save`)
 
 ### Changed
 - **Every write's `rowVersion` and ETag are now the record's version after the save.** Before, many were one behind, so a client needed a fresh GET. A client may now use the returned ETag for its next change.
->>>>>>> origin/etag-after-save
 
 ## Wave 5a batch 5a.3 (branch `wave5a-3`): recoveries, credit notes and disputes (addendum §4.6 to §4.8; F048 to F050)
 
