@@ -326,6 +326,71 @@ public sealed class PartyAnonymisationTests(DatabaseFixture fixture) : IClassFix
     }
 
     /// <summary>A person registered and recorded as deceased today, with the audit events of both recorded.</summary>
+    /// <summary>The daily job's look, as if it hadn't looked today.</summary>
+    private async Task ReviewDormancy(Guid tenant)
+    {
+        await fixture.Database.ExecuteAsOwner("UPDATE party.party SET dormancy_checked_on = NULL WHERE tenant_id = @t", ("t", tenant));
+        await _today.Services.GetRequiredService<Insys.Party.Infrastructure.DueDiligenceJobs>().RunForTenant(tenant, CancellationToken.None);
+    }
+
+    private async Task<string> StatusOf(Guid tenant, Guid party) =>
+        (await (await _today.ClientFor(tenant, Officer).GetAsync($"/api/v1/party/parties/{party}")).Json()).GetProperty("status").GetString()!;
+
+    [Fact]
+    public async Task APartyGoesDormantWhenNothingIsOpen_AndBackWhenSomethingIs_CountingACase_OQ054()
+    {
+        var tenant = DatabaseFixture.TenantA;
+        var party = await _today.ClientFor(tenant, Officer).RegisterPerson("DormantOne");
+        var policy = await LifePolicy(tenant, party, "IN_FORCE", closedYearsAgo: null);
+        await ReviewDormancy(tenant);
+        (await StatusOf(tenant, party)).ShouldBe("ACTIVE", "a policy is in force");
+
+        await fixture.Database.ExecuteAsOwner("UPDATE life.policy SET status = 'TERMINATED' WHERE id = @p", ("p", policy));
+        await ReviewDormancy(tenant);
+        (await StatusOf(tenant, party)).ShouldBe("DORMANT");
+
+        var aCase = await Insert(tenant, "workflow.service_case", ("status", "RECEIVED"), ("family", "ENQUIRY"), ("complainant_party_id", party));
+        await ReviewDormancy(tenant);
+        (await StatusOf(tenant, party)).ShouldBe("ACTIVE", "a case is open");
+
+        await fixture.Database.ExecuteAsOwner("UPDATE workflow.service_case SET status = 'CLOSED' WHERE id = @c", ("c", aCase));
+        await ReviewDormancy(tenant);
+        (await StatusOf(tenant, party)).ShouldBe("DORMANT");
+    }
+
+    [Fact]
+    public async Task ADormantPartysPeriods_CountFromTheLastRecordEnding_OQ054()
+    {
+        var tenant = DatabaseFixture.TenantA;
+        var party = await _today.ClientFor(tenant, Officer).RegisterPerson("DormantTwo");
+        var policy = await GeneralPolicy(tenant, party, "EXPIRED", closedYearsAgo: 9);
+        var claim = await GeneralClaim(tenant, party, "CLOSED", closedYearsAgo: 1);
+        await ReviewDormancy(tenant);
+        (await StatusOf(tenant, party)).ShouldBe("DORMANT");
+
+        // On its own the policy's five years ran out four years ago; the claim's ending a year ago starts them again.
+        (await Blocked(tenant, party)).ShouldBe(new[]
+        {
+            $"IN_RETENTION GENERAL_CLAIM {claim} CLAIM {Ago(1).AddYears(3):yyyy-MM-dd}", $"IN_RETENTION GENERAL_POLICY {policy} POLICY {Ago(1).AddYears(5):yyyy-MM-dd}",
+        }, ignoreOrder: true);
+    }
+
+    [Fact]
+    public async Task ADormantPartyWithNoRecordEver_CountsFromItsRegistration_AndAPaymentDoesntKeepItActive_OQ054()
+    {
+        var tenant = DatabaseFixture.TenantA;
+        var party = await _today.ClientFor(tenant, Officer).RegisterPerson("DormantThree");
+        await Payment(tenant, party, "PENDING", paidYearsAgo: 0);
+        await ReviewDormancy(tenant);
+        (await StatusOf(tenant, party)).ShouldBe("DORMANT");
+
+        var refused = await Anonymise(_today, tenant, party);
+        refused.StatusCode.ShouldBe(HttpStatusCode.Conflict, await refused.Content.ReadAsStringAsync());
+        var blocks = (await refused.Json()).GetProperty("blocks").EnumerateArray().ToList();
+        blocks.ShouldContain(b => b.GetProperty("recordType").GetString() == "PARTY" && b.GetProperty("reason").GetString() == "IN_RETENTION"
+            && b.GetProperty("until").GetString() == TestClock.Today.AddYears(5).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture));
+    }
+
     private async Task<Guid> DeceasedParty(Guid tenant, string surname)
     {
         var client = _today.ClientFor(tenant, Officer);

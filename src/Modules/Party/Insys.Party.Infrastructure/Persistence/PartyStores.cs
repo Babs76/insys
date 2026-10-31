@@ -61,6 +61,18 @@ internal sealed class DataSubjectRequests(PartyDbContext db) : IDataSubjectReque
         await db.Set<StaticData.DataSubjectSettings>().AsNoTracking().InForce(BuildingBlocks.Infrastructure.StaticData.StaticLifecycle.Configuration, day).OrderBy(s => s.Code).Select(s => (int?)s.ResponseDays)
             .FirstOrDefaultAsync(cancellationToken) ?? DataSubjectDefaults.ResponseDays;
 
+    public async Task<IReadOnlyList<(Guid Id, PartyStatus Status)>> DormancyCandidates(DateOnly day, int limit, CancellationToken cancellationToken)
+    {
+        var rows = await db.Parties.AsNoTracking().Where(p => (p.Status == PartyStatus.Active || p.Status == PartyStatus.Dormant)
+                && (EF.Property<DateOnly?>(p, "DormancyCheckedOn") == null || EF.Property<DateOnly?>(p, "DormancyCheckedOn") < day))
+            .OrderBy(p => EF.Property<DateOnly?>(p, "DormancyCheckedOn") != null).ThenBy(p => EF.Property<DateOnly?>(p, "DormancyCheckedOn")).ThenBy(p => p.Id)
+            .Select(p => new { p.Id, p.Status }).Take(limit).ToListAsync(cancellationToken);
+        return rows.Select(r => (r.Id, r.Status)).ToList();
+    }
+
+    public Task DormancyChecked(IReadOnlyList<Guid> ids, DateOnly day, CancellationToken cancellationToken) =>
+        db.Parties.Where(p => ids.Contains(p.Id)).ExecuteUpdateAsync(set => set.SetProperty(p => EF.Property<DateOnly?>(p, "DormancyCheckedOn"), day), cancellationToken);
+
     public async Task<IReadOnlyList<Guid>> RetentionCandidates(int limit, CancellationToken cancellationToken) =>
         await db.Parties.AsNoTracking().Where(p => (p.Status == PartyStatus.Dormant || p.Status == PartyStatus.Deceased) && p.RetentionReviewRaisedOn == null).OrderBy(p => p.Id).Select(p => p.Id).Take(limit).ToListAsync(cancellationToken);
 
@@ -81,6 +93,12 @@ internal sealed class PartyRepository(PartyDbContext db) : IPartyRepository
         }
 
         return found;
+    }
+
+    public async Task<DateOnly?> RegisteredOn(Guid id, TimeZoneInfo zone, CancellationToken cancellationToken)
+    {
+        var at = await db.Parties.AsNoTracking().Where(p => p.Id == id).Select(p => (DateTimeOffset?)EF.Property<DateTimeOffset>(p, ModuleDbContext.CreatedAt)).FirstOrDefaultAsync(cancellationToken);
+        return at is { } when ? DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(when, zone).DateTime) : null;
     }
 
     public Task<Domain.Parties.Party?> Get(Guid id, CancellationToken cancellationToken) =>

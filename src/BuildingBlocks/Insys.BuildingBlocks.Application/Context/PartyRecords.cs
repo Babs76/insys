@@ -31,7 +31,7 @@ namespace Insys.BuildingBlocks.Application.Context;
 /// <see cref="ClosedOn"/>, the business date it reached its final status (from its status history), for the tenant's
 /// period of its <see cref="Retention"/> kind. Null while it is not in a final status, so it keeps the party's data.
 /// </summary>
-/// <param name="RecordType">LIFE_POLICY, LIFE_CLAIM, GENERAL_POLICY, GENERAL_CLAIM, HEALTH_MEMBERSHIP, HEALTH_CLAIM or PAYMENT.</param>
+/// <param name="RecordType">LIFE_POLICY, LIFE_CLAIM, GENERAL_POLICY, GENERAL_CLAIM, HEALTH_MEMBERSHIP, HEALTH_CLAIM, CASE or PAYMENT.</param>
 /// <param name="Retention">Which retention period applies: <see cref="PartyRecordRetention"/>.</param>
 public sealed record PartyLinkedRecord(string RecordType, Guid RecordId, string Retention, DateOnly? ClosedOn);
 
@@ -46,6 +46,9 @@ public static class PartyRecordRetention
 
     /// <summary>A payment, from its final status (an outcome).</summary>
     public const string Payment = "PAYMENT";
+
+    /// <summary>A case, from its closing or withdrawal.</summary>
+    public const string Case = "CASE";
 }
 
 /// <summary>

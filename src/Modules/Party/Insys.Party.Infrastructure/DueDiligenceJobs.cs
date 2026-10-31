@@ -63,11 +63,24 @@ public sealed class DueDiligenceJobs(IServiceScopeFactory scopes, ITenantDirecto
         return runs;
     }
 
+    private const int DormancyBatch = 1000;
+
     public async Task<DueDiligenceJobRun?> RunForTenant(Guid tenantId, CancellationToken cancellationToken)
     {
         await using var scope = scopes.CreateAsyncScope();
         scope.ServiceProvider.GetRequiredService<ExecutionScope>().InitialiseForService(tenantId, ServiceName);
         var result = await scope.ServiceProvider.GetRequiredService<IDispatcher>().Send(new RunDueDiligenceJobs(), cancellationToken);
+        await using (var dormancyScope = scopes.CreateAsyncScope())
+        {
+            // OQ-054: before retention, so a party gone dormant today is looked at today.
+            dormancyScope.ServiceProvider.GetRequiredService<ExecutionScope>().InitialiseForService(tenantId, ServiceName);
+            var dormancy = await dormancyScope.ServiceProvider.GetRequiredService<IDispatcher>().Send(new ReviewPartyDormancy(DormancyBatch), cancellationToken);
+            if (dormancy.IsFailure)
+            {
+                logger.LogError("Party dormancy review failed for tenant {TenantId}: {Code}", tenantId, dormancy.Error.Code);
+            }
+        }
+
         await using (var retentionScope = scopes.CreateAsyncScope())
         {
             // F064: a separate transaction, so a retention failure doesn't lose the due diligence work.

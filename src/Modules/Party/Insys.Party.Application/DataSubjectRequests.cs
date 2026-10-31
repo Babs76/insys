@@ -24,6 +24,7 @@
  * UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
  * ============================================================================
  */
+using System.Globalization;
 using FluentValidation;
 using Insys.BuildingBlocks.Application.Auditing;
 using Insys.BuildingBlocks.Application.Context;
@@ -68,6 +69,9 @@ public sealed record ListPortalDataSubjectRequests : IQuery<IReadOnlyList<DataSu
 /// <summary>The daily job's work (F064): each dormant or deceased party whose retention has ended gets one review.</summary>
 public sealed record RaisePartyRetentionReviews(int Limit) : ICommand<int>;
 
+/// <summary>OQ-054: looks at the parties looked at longest ago, and makes each dormant, or active again, as its records say. Returns how many changed.</summary>
+public sealed record ReviewPartyDormancy(int Limit) : ICommand<int>;
+
 public sealed record DataSubjectRequestView(Guid Id, string RequestNumber, Guid PartyId,
     [property: OneOf(DataSubjectRequestTypes.Access, DataSubjectRequestTypes.Correction, DataSubjectRequestTypes.Deletion)] string RequestType, DateOnly ReceivedOn, DateOnly DueOn,
     [property: OneOf(DataSubjectRequestStatus.Received, DataSubjectRequestStatus.IdentityConfirmed, DataSubjectRequestStatus.Approved, DataSubjectRequestStatus.Completed, DataSubjectRequestStatus.Refused)] string Status,
@@ -84,6 +88,12 @@ public interface IDataSubjectRequests
 
     /// <summary>The tenant's days to answer in force; with none, <see cref="DataSubjectDefaults.ResponseDays"/> (OQ-159).</summary>
     Task<int> ResponseDays(DateOnly day, CancellationToken cancellationToken);
+
+    /// <summary>Active and dormant parties not looked at today, those looked at longest ago first.</summary>
+    Task<IReadOnlyList<(Guid Id, PartyStatus Status)>> DormancyCandidates(DateOnly day, int limit, CancellationToken cancellationToken);
+
+    /// <summary>Notes the look without touching the party's version, so a client's ETag still holds when nothing changed.</summary>
+    Task DormancyChecked(IReadOnlyList<Guid> ids, DateOnly day, CancellationToken cancellationToken);
 
     /// <summary>Dormant or deceased parties with no retention review raised yet.</summary>
     Task<IReadOnlyList<Guid>> RetentionCandidates(int limit, CancellationToken cancellationToken);
@@ -120,6 +130,7 @@ internal sealed class DataSubjectRequestHandlers(IDataSubjectRequests requests, 
     ICommandHandler<CompleteDataSubjectCorrection, DataSubjectRequestView>,
     ICommandHandler<ExecuteDataSubjectDeletion, DataSubjectRequestView>,
     ICommandHandler<RaisePartyRetentionReviews, int>,
+    ICommandHandler<ReviewPartyDormancy, int>,
     IQueryHandler<GetDataSubjectRequest, DataSubjectRequestView>,
     IQueryHandler<ListDataSubjectRequests, IReadOnlyList<DataSubjectRequestView>>,
     IQueryHandler<ListPortalDataSubjectRequests, IReadOnlyList<DataSubjectRequestView>>
@@ -283,6 +294,36 @@ internal sealed class DataSubjectRequestHandlers(IDataSubjectRequests requests, 
         }
 
         return raised;
+    }
+
+    public async Task<Result<int>> Handle(ReviewPartyDormancy command, CancellationToken cancellationToken)
+    {
+        var candidates = await requests.DormancyCandidates(businessDate.Today, command.Limit, cancellationToken);
+        var (dormant, resumed) = (0, 0);
+        foreach (var (id, status) in candidates)
+        {
+            var active = await check.HasActivity(id, cancellationToken);
+            if (status == PartyStatus.Active && !active && await parties.Get(id, cancellationToken) is { } idle && idle.BecomeDormant().IsSuccess)
+            {
+                dormant++;
+            }
+            else if (status == PartyStatus.Dormant && active && await parties.Get(id, cancellationToken) is { } back && back.ResumeActivity().IsSuccess)
+            {
+                resumed++;
+            }
+        }
+
+        await requests.DormancyChecked(candidates.Select(c => c.Id).ToList(), businessDate.Today, cancellationToken);
+        if (dormant + resumed > 0)
+        {
+            // One entry for the run: an entry about each party would restart its audit evidence's retention.
+            audit.Record(new AuditEntry("PARTY", "ReviewPartyDormancy", nameof(Domain.Parties.Party), "RUN", new Dictionary<string, string?>
+            {
+                ["dormant"] = dormant.ToString(CultureInfo.InvariantCulture), ["resumed"] = resumed.ToString(CultureInfo.InvariantCulture),
+            }));
+        }
+
+        return dormant + resumed;
     }
 
     public async Task<Result<DataSubjectRequestView>> Handle(GetDataSubjectRequest query, CancellationToken cancellationToken) =>

@@ -42,6 +42,9 @@ public interface IPartyRepository
 {
     Task<Domain.Parties.Party?> Get(Guid id, CancellationToken cancellationToken);
 
+    /// <summary>The business date in <paramref name="zone"/> the party was registered.</summary>
+    Task<DateOnly?> RegisteredOn(Guid id, TimeZoneInfo zone, CancellationToken cancellationToken);
+
     /// <summary>The party that holds the bank account.</summary>
     Task<Domain.Parties.Party?> WithBankAccount(Guid bankAccountId, CancellationToken cancellationToken);
 

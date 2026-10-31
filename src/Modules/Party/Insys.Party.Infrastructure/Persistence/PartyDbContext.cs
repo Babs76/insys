@@ -126,6 +126,7 @@ public sealed class PartyDbContext(DbContextOptions<PartyDbContext> options, Mod
             party.HasKey(p => new { p.TenantId, p.Id });
             party.HasAuditColumns();
             party.Property(p => p.RetentionReviewRaisedOn);
+            party.Property<DateOnly?>("DormancyCheckedOn");
             party.Ignore(p => p.DomainEvents);
             party.Ignore(p => p.HasChanges);
             party.Property(p => p.Kind).HasColumnName("party_kind").HasConversion(new UpperCaseEnumConverter<PartyKind>()).HasMaxLength(12);
