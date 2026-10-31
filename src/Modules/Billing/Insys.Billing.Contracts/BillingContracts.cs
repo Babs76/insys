@@ -54,12 +54,12 @@ public sealed record BillingAccountOpened(Guid AccountId, string AccountNumber, 
 /// </summary>
 [IntegrationEvent("billing.InvoiceIssued")]
 public sealed record InvoiceIssued(Guid InvoiceId, string InvoiceNumber, Guid BillingAccountId, Guid PayerPartyId, string PaymentMethod, string SourceDomain, Guid PolicyRef,
-    string ProductVersionRef, DateOnly IssueDate, DateOnly DueDate, string Currency, decimal NetAmount, decimal TaxAmount, decimal TotalAmount) : IIntegrationEvent;
+    string ProductVersionRef, DateOnly IssueDate, DateOnly DueDate, string Currency, decimal NetAmount, decimal TaxAmount, decimal TotalAmount, string? TaxCode = null) : IIntegrationEvent;
 
 /// <summary>A credit note corrects an issued invoice (BIL-004); the invoice itself never changes.</summary>
 [IntegrationEvent("billing.CreditNoteIssued")]
 public sealed record CreditNoteIssued(Guid CreditNoteId, string CreditNoteNumber, Guid InvoiceId, Guid BillingAccountId, string SourceDomain, Guid PolicyRef,
-    DateOnly IssueDate, string Currency, decimal TotalAmount, string ReasonCode) : IIntegrationEvent;
+    DateOnly IssueDate, string Currency, decimal TotalAmount, string ReasonCode, decimal TaxAmount = 0, string? TaxCode = null) : IIntegrationEvent;
 
 [IntegrationEvent("billing.InvoiceSettled")]
 /// <summary>An invoice was paid in full; <paramref name="PolicyRef"/> is the policy it bills in <paramref name="SourceDomain"/>.</summary>

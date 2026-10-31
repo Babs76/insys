@@ -265728,6 +265728,12 @@
           "rounding": {
             "type": "string"
           },
+          "productCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "id": {
             "type": "string",
             "format": "uuid"
@@ -265949,6 +265955,12 @@
             ]
           },
           "rounding": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "productCode": {
             "type": [
               "null",
               "string"

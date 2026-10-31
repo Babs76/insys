@@ -57,6 +57,15 @@ public sealed record SimulatedPremium(bool Succeeded, decimal? Premium, string C
 /// <summary>One case of the rating test case library, run against a product version.</summary>
 public sealed record RatingTestCaseResult(string CaseId, decimal ExpectedPremium, decimal Tolerance, decimal? ActualPremium, bool Passed, string? ErrorCode);
 
+/// <summary>A tax a product's invoices carry (rating.cfg_premium_tax_and_levy_rates with a product, OQ-156). The rate is a percentage.</summary>
+public sealed record ProductTaxRate(string TaxCode, decimal Rate);
+
+/// <summary>Public query interface: the tax on a product's invoices on a day, or null when it carries none. Rating's rates are the one source (OQ-058).</summary>
+public interface IProductTaxRates
+{
+    Task<ProductTaxRate?> ForProduct(Guid tenantId, string productCode, DateOnly day, CancellationToken cancellationToken);
+}
+
 /// <summary>
 /// Public query interface: dry-run rating without recording anything, for Product Factory's simulation before
 /// publication (PRD-005). Runs on Rating's own connection, for the current tenant.

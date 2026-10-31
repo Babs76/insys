@@ -35495,6 +35495,419 @@
         ]
       }
     },
+    "/api/v1/finance/tax-returns": {
+      "post": {
+        "tags": [
+          "Finance"
+        ],
+        "summary": "Total a period\u0027s tax for a tax code from what was posted to its account (F094)",
+        "operationId": "FinancePrepareTaxReturn",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FinancePrepareTaxReturnRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FinanceTaxReturnView"
+                }
+              }
+            }
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          }
+        },
+        "x-permission": "tax_return.create",
+        "x-function": [
+          "FINANCE_PREPARE_TAX_RETURN"
+        ]
+      },
+      "get": {
+        "tags": [
+          "Finance"
+        ],
+        "summary": "Tax returns",
+        "operationId": "FinanceListTaxReturns",
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfFinanceTaxReturnView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "tax_return.read",
+        "x-function": [
+          "FINANCE_TAX_RETURNS"
+        ]
+      }
+    },
+    "/api/v1/finance/tax-returns/{id}": {
+      "get": {
+        "tags": [
+          "Finance"
+        ],
+        "summary": "A tax return",
+        "operationId": "FinanceGetTaxReturn",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FinanceTaxReturnView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "tax_return.read",
+        "x-function": [
+          "FINANCE_TAX_RETURNS"
+        ]
+      }
+    },
+    "/api/v1/finance/tax-returns/{id}/approve": {
+      "post": {
+        "tags": [
+          "Finance"
+        ],
+        "summary": "Approve a return; not for who prepared it (SRS-002)",
+        "operationId": "FinanceApproveTaxReturn",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FinanceTaxReturnView"
+                }
+              }
+            }
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "tax_return.approve",
+        "x-function": [
+          "FINANCE_APPROVE_TAX_RETURN"
+        ]
+      }
+    },
+    "/api/v1/finance/tax-returns/{id}/reject": {
+      "post": {
+        "tags": [
+          "Finance"
+        ],
+        "summary": "Reject a return with a reason; another can then be prepared",
+        "operationId": "FinanceRejectTaxReturn",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FinanceRejectTaxReturnRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FinanceTaxReturnView"
+                }
+              }
+            }
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "tax_return.approve",
+        "x-function": [
+          "FINANCE_REJECT_TAX_RETURN"
+        ]
+      }
+    },
+    "/api/v1/finance/tax-returns/{id}/content": {
+      "get": {
+        "tags": [
+          "Finance"
+        ],
+        "summary": "An approved return as CSV; INSYS files nothing",
+        "operationId": "FinanceExportTaxReturn",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "tax_return.read",
+        "x-function": [
+          "FINANCE_TAX_RETURNS"
+        ]
+      }
+    },
     "/api/v1/finance/periods": {
       "get": {
         "tags": [
@@ -41113,6 +41526,7 @@
                 "ServiceCase",
                 "SimulationRun",
                 "StaticDataChange",
+                "TaxReturn",
                 "Tenant",
                 "TenantAdministratorRequest",
                 "TenantGovernanceSettings",
@@ -41579,6 +41993,7 @@
                 "ServiceCase",
                 "SimulationRun",
                 "StaticDataChange",
+                "TaxReturn",
                 "Tenant",
                 "TenantAdministratorRequest",
                 "TenantGovernanceSettings",
@@ -45946,6 +46361,27 @@
           }
         }
       },
+      "CursorPageOfFinanceTaxReturnView": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FinanceTaxReturnView"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "CursorPageOfGeneralAggregationAlertView": {
         "required": [
           "items",
@@ -49027,6 +49463,42 @@
           }
         }
       },
+      "FinancePrepareTaxReturnRequest": {
+        "required": [
+          "taxCode",
+          "currency",
+          "periodStart",
+          "periodEnd"
+        ],
+        "type": "object",
+        "properties": {
+          "taxCode": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "periodStart": {
+            "type": "string",
+            "format": "date"
+          },
+          "periodEnd": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      },
+      "FinanceRejectTaxReturnRequest": {
+        "required": [
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
       "FinanceRetryPostingRequest": {
         "required": [
           "accountingDate"
@@ -49055,6 +49527,108 @@
           },
           "reason": {
             "type": "string"
+          }
+        }
+      },
+      "FinanceTaxReturnView": {
+        "required": [
+          "id",
+          "returnNumber",
+          "taxCode",
+          "accountCode",
+          "currency",
+          "periodStart",
+          "periodEnd",
+          "outputTotal",
+          "inputTotal",
+          "status",
+          "preparedBy",
+          "decidedBy",
+          "decidedAt",
+          "rejectReason",
+          "rowVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "returnNumber": {
+            "type": "string"
+          },
+          "taxCode": {
+            "type": "string"
+          },
+          "accountCode": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "periodStart": {
+            "type": "string",
+            "format": "date"
+          },
+          "periodEnd": {
+            "type": "string",
+            "format": "date"
+          },
+          "outputTotal": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "inputTotal": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "status": {
+            "enum": [
+              "PREPARED",
+              "APPROVED",
+              "REJECTED"
+            ],
+            "type": "string"
+          },
+          "preparedBy": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "decidedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "decidedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "rejectReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
           }
         }
       },

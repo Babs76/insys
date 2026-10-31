@@ -88,13 +88,33 @@ public sealed class PostingPolicies(EventPoster poster, IBusinessDate businessDa
             : Post(envelope, e.SourceDomain, TransactionTypes.ReinsuranceRecovered, e.SettledOn, e.Amount, e.Currency, "RI_RECOVERY", e.RecoveryId,
                 new() { ["domain"] = e.SourceDomain, ["treaty"] = e.TreatyCode }, cancellationToken);
 
-    public Task Handle(InvoiceIssued e, EventEnvelope envelope, CancellationToken cancellationToken) =>
-        e.SourceDomain == Health.Contracts.HealthReferences.RecoverySourceDomain ? Task.CompletedTask : Post(envelope, e.SourceDomain, TransactionTypes.PremiumDue, e.IssueDate, e.TotalAmount, e.Currency, "INVOICE", e.InvoiceId,
-            new() { ["domain"] = e.SourceDomain, ["product_version"] = e.ProductVersionRef }, cancellationToken);
+    /// <summary>The invoice's total is due; the tax it includes moves from premium income to the tax code's account (OQ-058). An invoice with no tax posts as it always has.</summary>
+    public async Task Handle(InvoiceIssued e, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (e.SourceDomain == Health.Contracts.HealthReferences.RecoverySourceDomain)
+        {
+            return;
+        }
 
-    public Task Handle(CreditNoteIssued e, EventEnvelope envelope, CancellationToken cancellationToken) =>
-        Post(envelope, e.SourceDomain, TransactionTypes.PremiumCredited, e.IssueDate, e.TotalAmount, e.Currency, "INVOICE", e.CreditNoteId,
+        await Post(envelope, e.SourceDomain, TransactionTypes.PremiumDue, e.IssueDate, e.TotalAmount, e.Currency, "INVOICE", e.InvoiceId,
+            new() { ["domain"] = e.SourceDomain, ["product_version"] = e.ProductVersionRef }, cancellationToken);
+        if (e.TaxAmount > 0)
+        {
+            await Post(envelope, e.SourceDomain, TransactionTypes.PremiumTax, e.IssueDate, e.TaxAmount, e.Currency, "INVOICE", e.InvoiceId,
+                new() { ["domain"] = e.SourceDomain, ["tax_code"] = e.TaxCode }, cancellationToken);
+        }
+    }
+
+    public async Task Handle(CreditNoteIssued e, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        await Post(envelope, e.SourceDomain, TransactionTypes.PremiumCredited, e.IssueDate, e.TotalAmount, e.Currency, "INVOICE", e.CreditNoteId,
             new() { ["domain"] = e.SourceDomain, ["reason"] = e.ReasonCode }, cancellationToken);
+        if (e.TaxAmount > 0)
+        {
+            await Post(envelope, e.SourceDomain, TransactionTypes.PremiumTaxCredited, e.IssueDate, e.TaxAmount, e.Currency, "INVOICE", e.CreditNoteId,
+                new() { ["domain"] = e.SourceDomain, ["tax_code"] = e.TaxCode }, cancellationToken);
+        }
+    }
 
     public Task Handle(PaymentReceived e, EventEnvelope envelope, CancellationToken cancellationToken) =>
         Post(envelope, "SHARED", TransactionTypes.PaymentReceived, e.ValueDate, e.Amount, e.Currency, "PAYMENT", e.PaymentId,

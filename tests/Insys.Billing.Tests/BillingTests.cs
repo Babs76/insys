@@ -47,6 +47,52 @@ public sealed class BillingTests
         return (account, invoice);
     }
 
+    private static Invoice Taxed(decimal instalment, decimal rate = 15m)
+    {
+        var account = BillingAccount.OpenAccount(Guid.CreateVersion7(), Guid.CreateVersion7(), "ZAR", "DEBIT_ORDER", null, Now);
+        var schedule = account.CreateSchedule("GENERAL", Guid.CreateVersion7(), "MOTOR-v1", Monthly, Start, null, instalment).Value;
+        return Invoice.IssueInvoice(Guid.CreateVersion7(), "INV-", account, schedule, account.DueInstalments(Start).Select(d => d.Instalment).ToList(), "DEBIT_ORDER", Start, Now,
+            tax: new InvoiceTax("VAT", rate)).Value;
+    }
+
+    [Fact]
+    public void AnInvoicesTax_IsTakenOutOfThePremium_SoWhatIsOwedDoesNotChange_OQ058()
+    {
+        var invoice = Taxed(115m);
+        (invoice.TotalAmount, invoice.TaxAmount, invoice.NetAmount).ShouldBe((115m, 15m, 100m));
+        (invoice.Lines.Single().TaxCode, invoice.Lines.Single().TaxAmount, invoice.Lines.Single().Amount).ShouldBe(("VAT", 15m, 115m));
+        invoice.DomainEvents.OfType<InvoiceIssued>().Single().ShouldSatisfyAllConditions(e => e.TaxAmount.ShouldBe(15m), e => e.TaxCode.ShouldBe("VAT"), e => e.TotalAmount.ShouldBe(115m));
+    }
+
+    [Fact]
+    public void ATaxFreeProduct_IsUnchanged_OQ156()
+    {
+        var (_, invoice) = Issued(300m);
+        (invoice.TotalAmount, invoice.TaxAmount, invoice.NetAmount).ShouldBe((300m, 0m, 300m));
+        invoice.Lines.Single().TaxCode.ShouldBeNull();
+    }
+
+    [Theory]
+    [InlineData(100, 15, 13.04)]
+    [InlineData(99.99, 15, 13.04)]
+    [InlineData(0.05, 15, 0.01)]
+    public void TheTaxIncluded_IsRoundedToTheCent(decimal amount, decimal rate, decimal tax) => new InvoiceTax("VAT", rate).IncludedIn(amount).ShouldBe(tax);
+
+    [Fact]
+    public void ACreditNote_TakesItsShareOfTheTax_AndCreditsAddUpToTheInvoicesTaxExactly_OQ058()
+    {
+        var invoice = Taxed(100m); // tax 13.04
+        var reason = new AdjustmentReason("ERROR", false);
+        var first = invoice.RaiseCreditNote(Guid.CreateVersion7(), "CN-", 33.33m, reason, Guid.CreateVersion7(), Start, Now).Value;
+        var second = invoice.RaiseCreditNote(Guid.CreateVersion7(), "CN-", 33.33m, reason, Guid.CreateVersion7(), Start, Now).Value;
+        var last = invoice.RaiseCreditNote(Guid.CreateVersion7(), "CN-", 33.34m, reason, Guid.CreateVersion7(), Start, Now).Value;
+        (first.TaxAmount, first.NetAmount).ShouldBe((4.35m, 28.98m));
+        second.TaxAmount.ShouldBe(4.35m);
+        last.TaxAmount.ShouldBe(4.34m);
+        (first.TaxAmount + second.TaxAmount + last.TaxAmount).ShouldBe(invoice.TaxAmount);
+        last.DomainEvents.OfType<CreditNoteIssued>().Single().ShouldSatisfyAllConditions(e => e.TaxAmount.ShouldBe(4.34m), e => e.TaxCode.ShouldBe("VAT"));
+    }
+
     [Fact]
     public void RefundRequest_Lifecycle_MatchesDomainModel()
     {

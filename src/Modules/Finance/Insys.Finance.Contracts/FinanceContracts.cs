@@ -31,6 +31,11 @@ namespace Insys.Finance.Contracts;
 public static class FinancePermissions
 {
     public const string JournalRead = "journal.read";
+    public const string TaxReturnRead = "tax_return.read";
+    public const string TaxReturnCreate = "tax_return.create";
+
+    /// <summary>A second person approves or rejects a tax return (SRS-002).</summary>
+    public const string TaxReturnApprove = "tax_return.approve";
     public const string JournalReverse = "journal.reverse";
     public const string PeriodRead = "accounting_period.read";
     public const string PeriodUpdate = "accounting_period.update";
@@ -54,6 +59,12 @@ public static class TransactionTypes
 {
     public const string PremiumDue = "PREMIUM_DUE";
     public const string PremiumCredited = "PREMIUM_CREDITED";
+
+    /// <summary>The tax included in an invoice (OQ-058): debit premium income, credit the tax code's account.</summary>
+    public const string PremiumTax = "PREMIUM_TAX";
+
+    /// <summary>The tax on a credit note: debit the tax code's account, credit premium income.</summary>
+    public const string PremiumTaxCredited = "PREMIUM_TAX_CREDITED";
     public const string PaymentReceived = "PAYMENT_RECEIVED";
     public const string PaymentReversed = "PAYMENT_REVERSED";
     public const string RefundPaid = "REFUND_PAID";

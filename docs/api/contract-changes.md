@@ -2,6 +2,16 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
+## Wave 6 batch 6.1 (branch `wave6-1`): tax on invoices and returns (addendum §4.2; F094)
+
+### New
+- **`POST`, `GET /finance/tax-returns`, `GET /{id}`, `POST /{id}/approve`, `/reject`, `GET /{id}/content`.** Permissions `tax_return.read`, `.create`, `.approve`.
+- **Transaction types** `PREMIUM_TAX`, `PREMIUM_TAX_CREDITED`: a tenant with a tax code in force needs posting rules for them (readiness `TAX_POSTING_RULES`).
+
+### Changed
+- **`rating.cfg_premium_tax_and_levy_rates`** gains `productCode`. A rate naming a product applies to its invoices.
+- **Invoices:** `taxAmount` and `netAmount` are now filled for such products, and `totalAmount` doesn't change: the tax is taken out of the premium.
+
 ## Wave 5b batch 5b.4 (branch `wave5b4`): disease programmes and preventive schedules (addendum §4.4, §4.5; F086 to F088)
 
 ### New

@@ -36,6 +36,26 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Insys.Finance.Infrastructure.Persistence;
 
+internal sealed class TaxReturns(FinanceDbContext db) : ITaxReturns
+{
+    public Task<TaxReturn?> Get(Guid id, CancellationToken cancellationToken) => db.TaxReturns.SingleOrDefaultAsync(r => r.Id == id, cancellationToken);
+
+    public async Task<IReadOnlyList<TaxReturn>> List(Guid? afterId, int limit, CancellationToken cancellationToken) =>
+        await db.TaxReturns.AsNoTracking().Where(r => afterId == null || r.Id.CompareTo(afterId.Value) > 0).OrderBy(r => r.Id).Take(limit).ToListAsync(cancellationToken);
+
+    public Task<bool> Exists(string taxCode, string currency, DateOnly periodStart, DateOnly periodEnd, CancellationToken cancellationToken) =>
+        db.TaxReturns.AnyAsync(r => r.TaxCode == taxCode && r.Currency == currency && r.PeriodStart == periodStart && r.PeriodEnd == periodEnd && r.Status != TaxReturnStatus.Rejected, cancellationToken);
+
+    public async Task<string?> TaxAccount(string taxCode, DateOnly day, CancellationToken cancellationToken) =>
+        await db.Set<StaticData.TaxCodesOnFinancialTransactions>().AsNoTracking().InForce(StaticLifecycle.Configuration, day).Where(t => t.TaxCode == taxCode).Select(t => t.Account).FirstOrDefaultAsync(cancellationToken);
+
+    public async Task<decimal> NetCredits(string accountCode, string currency, DateOnly from, DateOnly to, CancellationToken cancellationToken) =>
+        await db.Set<SubledgerEntry>().AsNoTracking().Where(e => e.AccountCode == accountCode && e.Currency == currency && e.AccountingDate >= from && e.AccountingDate <= to)
+            .SumAsync(e => e.Credit - e.Debit, cancellationToken);
+
+    public void Add(TaxReturn taxReturn) => db.TaxReturns.Add(taxReturn);
+}
+
 internal sealed class JournalRepository(FinanceDbContext db) : IJournalRepository
 {
     public Task<Journal?> Get(Guid id, CancellationToken cancellationToken) =>

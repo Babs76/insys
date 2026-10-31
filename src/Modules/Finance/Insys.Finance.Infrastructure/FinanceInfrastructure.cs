@@ -49,6 +49,21 @@ public static class FinanceInfrastructure
         services.AddStaticData<FinanceDbContext>(schema, FinanceStaticData.Descriptors);
         services.AddModuleHandlers<FinanceDbContext>(typeof(ReverseJournal).Assembly);
         services.AddDomainEventMapper<FinanceEventMapper>(schema);
+        services.AddScoped<ITaxReturns, TaxReturns>();
+        // Wave 6 §6: a tax code in force needs posting rules for invoice tax and its credit.
+        BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddSqlReadiness(services, Persistence.FinanceDbContext.SchemaName, ["FINANCIAL_FOUNDATIONS"], async (context, connection, transaction, ct) =>
+        {
+            var inForce = BuildingBlocks.Infrastructure.Readiness.ReadinessSql.InForce;
+            var parameters = new (string, object)[] { ("t", context.TenantId), ("inForce", BuildingBlocks.Infrastructure.StaticData.StaticLifecycle.Configuration.InForce), ("day", context.Day) };
+            if (await BuildingBlocks.Infrastructure.Readiness.ReadinessSql.Count(connection, transaction, $"SELECT count(*) FROM finance.cfg_tax_codes_on_financial_transactions WHERE tenant_id = @t AND {inForce}", ct, parameters) == 0)
+            {
+                return [];
+            }
+
+            var ruled = await BuildingBlocks.Infrastructure.Readiness.ReadinessSql.Strings(connection, transaction, $"SELECT DISTINCT transaction_type FROM finance.cfg_posting_rules WHERE tenant_id = @t AND {inForce}", ct, parameters);
+            return [BuildingBlocks.Application.ReadinessResult.Of("FINANCIAL_FOUNDATIONS", "TAX_POSTING_RULES", "Posting rules for the tax on invoices and credit notes",
+                new[] { Contracts.TransactionTypes.PremiumTax, Contracts.TransactionTypes.PremiumTaxCredited }.Except(ruled).ToList())];
+        });
         services.AddScoped<IJournalRepository, JournalRepository>();
         services.AddScoped<IAccountingPeriods, AccountingPeriods>();
         services.AddScoped<IPostingExceptions, PostingExceptions>();

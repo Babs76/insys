@@ -50,6 +50,8 @@ public sealed class PremiumTaxAndLevyRates : StaticRecord<PremiumTaxAndLevyRates
 
     public string Rounding { get; set; } = "";
 
+    public string? ProductCode { get; set; }
+
     public override void ApplyFields(PremiumTaxAndLevyRatesInput input, IFieldProtector protector)
     {
         TaxCode = input.TaxCode!;
@@ -57,6 +59,7 @@ public sealed class PremiumTaxAndLevyRates : StaticRecord<PremiumTaxAndLevyRates
         Rate = input.Rate.GetValueOrDefault();
         Base = input.Base!;
         Rounding = input.Rounding!;
+        ProductCode = input.ProductCode;
     }
 }
 
@@ -79,6 +82,8 @@ public sealed record PremiumTaxAndLevyRatesInput : StaticRecordInput
     [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Rounding { get; init; }
 
+    public string? ProductCode { get; init; }
+
     protected override void ValidateFields(StaticFieldErrors errors)
     {
         errors.Required("taxCode", TaxCode);
@@ -91,5 +96,6 @@ public sealed record PremiumTaxAndLevyRatesInput : StaticRecordInput
         errors.OneOf("base", Base, ["GROSS_PREMIUM", "NET_PREMIUM", "COMMISSION"]);
         errors.Required("rounding", Rounding);
         errors.MaxLength("rounding", Rounding, 80);
+        errors.MaxLength("productCode", ProductCode, 15);
     }
 }

@@ -179,8 +179,11 @@ internal sealed class BillingRepository(BillingDbContext db, IExecutionContext e
     public void Add(RefundRequest refund) => db.Refunds.Add(refund);
 }
 
-internal sealed class BillingCodes(BillingDbContext db) : IBillingCodes
+internal sealed class BillingCodes(BillingDbContext db, Rating.Contracts.IProductTaxRates taxRates, ITenantContext tenant) : IBillingCodes
 {
+    public async Task<InvoiceTax?> InvoiceTax(string productCode, DateOnly day, CancellationToken cancellationToken) =>
+        await taxRates.ForProduct(tenant.RequireTenantId(), productCode, day, cancellationToken) is { } rate ? new InvoiceTax(rate.TaxCode, rate.Rate) : null;
+
     public async Task<BillingFrequency?> Frequency(string code, DateOnly day, CancellationToken cancellationToken) =>
         await InForce<BillingFrequencies>(day).Where(f => f.Code == code).Select(f => new BillingFrequency(f.Code, f.PeriodsPerYear)).FirstOrDefaultAsync(cancellationToken);
 
@@ -319,9 +322,9 @@ internal sealed class BillingEventMapper : IDomainEventMapper
     {
         Domain.Billing.BillingAccountOpened e => new Contracts.BillingAccountOpened(e.AccountId, e.AccountNumber, e.PayerPartyId, e.Currency),
         Domain.Billing.InvoiceIssued e => new Contracts.InvoiceIssued(e.InvoiceId, e.InvoiceNumber, e.BillingAccountId, e.PayerPartyId, e.PaymentMethod, e.SourceDomain, e.PolicyRef, e.ProductVersionRef,
-            e.IssueDate, e.DueDate, e.Currency, e.NetAmount, e.TaxAmount, e.TotalAmount),
+            e.IssueDate, e.DueDate, e.Currency, e.NetAmount, e.TaxAmount, e.TotalAmount, e.TaxCode),
         Domain.Billing.CreditNoteIssued e => new Contracts.CreditNoteIssued(e.CreditNoteId, e.CreditNoteNumber, e.InvoiceId, e.BillingAccountId, e.SourceDomain,
-            e.PolicyRef, e.IssueDate, e.Currency, e.TotalAmount, e.ReasonCode),
+            e.PolicyRef, e.IssueDate, e.Currency, e.TotalAmount, e.ReasonCode, e.TaxAmount, e.TaxCode),
         Domain.Billing.InvoiceSettled e => new Contracts.InvoiceSettled(e.InvoiceId, e.BillingAccountId, e.SourceDomain, e.PolicyRef),
         Domain.Billing.InvoiceOverdue e => new Contracts.InvoiceOverdue(e.InvoiceId, e.BillingAccountId, e.SourceDomain, e.PolicyRef, e.DueDate, e.Outstanding, e.Currency),
         Domain.Billing.ArrearsAgeingBlocked e => new Contracts.ArrearsAgeingBlocked(e.AccountId, e.BucketCode, e.DaysOverdue),

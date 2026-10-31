@@ -84,6 +84,9 @@ public interface IBillingRepository
 /// <summary>The Billing module's static data in force.</summary>
 public interface IBillingCodes
 {
+    /// <summary>The tax the product's invoices carry on the day; null when it carries none (OQ-156).</summary>
+    Task<InvoiceTax?> InvoiceTax(string productCode, DateOnly day, CancellationToken cancellationToken);
+
     Task<BillingFrequency?> Frequency(string code, DateOnly day, CancellationToken cancellationToken);
 
     Task<bool> CollectionMethodExists(string code, DateOnly day, CancellationToken cancellationToken);
@@ -414,8 +417,9 @@ public static class DueInvoices
         foreach (var group in account.DueInstalments(asOf).GroupBy(d => d.Schedule).ToList())
         {
             var instalments = group.Select(g => g.Instalment).ToList();
+            var rate = group.Key.ProductCode is { } product ? await codes.InvoiceTax(product, businessDate.Today, cancellationToken) : null;
             var invoice = Invoice.IssueInvoice(Guid.CreateVersion7(), prefix, account, group.Key, instalments, paymentMethod, businessDate.Today, clock.UtcNow,
-                firstBilling ? businessDate.Today : null);
+                firstBilling ? businessDate.Today : null, rate);
             if (invoice.IsFailure)
             {
                 return invoice.Error;

@@ -2169,6 +2169,12 @@
      "logicalType": "Date",
      "mandatory": true,
      "sample": "2027-01-01"
+    },
+    {
+     "name": "product_code",
+     "logicalType": "String(15)",
+     "mandatory": false,
+     "sample": "GEN-MOTOR"
     }
    ]
   },

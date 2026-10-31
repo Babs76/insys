@@ -2197,6 +2197,40 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
     }
 
     /// <summary>A vehicle, a quote rated through Rating, issued and accepted (GeneralQuoteAccepted), a proposal, and the policy issued from it.</summary>
+    /// <summary>Wave 6 §10: a product's invoice carries its rate's tax, posted to the tax code's account; a return's total equals the postings; a second person approves it.</summary>
+    [Fact]
+    public async Task AnInvoicesTax_IsPostedToItsAccount_AndAReturnTotalsIt_F094_OQ058()
+    {
+        await Seed("finance.mst_chart_of_accounts", "ACTIVE", "ACC-2200", ("account_code", "2200"), ("name", "VAT"), ("type", "LIABILITY"), ("gl_account", "GL2200"), ("status", "ACTIVE"));
+        await Seed("finance.cfg_posting_rules", "EFFECTIVE", "PR-TAX", ("rule_code", "PR-TAX"), ("transaction_type", TransactionTypes.PremiumTax), ("debit_account", "4000"), ("credit_account", "2200"));
+        await Seed("finance.cfg_tax_codes_on_financial_transactions", "EFFECTIVE", "VAT", ("tax_code", "VAT"), ("rate", 15m), ("account", "2200"), ("jurisdiction", "ZA"));
+        await Seed("rating.cfg_premium_tax_and_levy_rates", "EFFECTIVE", "VAT-INV", ("tax_code", "VAT"), ("jurisdiction", "INVOICES"), ("rate", 15m), ("base", "GROSS_PREMIUM"), ("rounding", "NONE"),
+            ("product_code", Product));
+        var (policy, _) = await IssuedPolicy();
+        await _factory.DrainOutbox();
+        var invoiceId = await _db.ScalarAsOwner<Guid>("SELECT id FROM billing.invoice WHERE policy_ref = @p AND document_type = 'INVOICE'", ("p", policy));
+        var invoice = await (await _maker.GetAsync($"/api/v1/billing/invoices/{invoiceId}")).Json();
+        var (total, tax) = (invoice.GetProperty("totalAmount").GetDecimal(), invoice.GetProperty("taxAmount").GetDecimal());
+        tax.ShouldBe(Math.Round(total * 15m / 115m, 2, MidpointRounding.AwayFromZero));
+        invoice.GetProperty("netAmount").GetDecimal().ShouldBe(total - tax);
+        (await Journals("INVOICE", invoiceId)).Count.ShouldBe(2);
+
+        await _db.UserWithPermissions(Tenant, "tax-preparer", FinancePermissions.TaxReturnCreate, FinancePermissions.TaxReturnRead);
+        await _db.UserWithPermissions(Tenant, "tax-approver", FinancePermissions.TaxReturnApprove, FinancePermissions.TaxReturnRead);
+        await _db.AdoptFunctionCatalogue();
+        var preparer = _factory.ClientFor(Tenant, "tax-preparer");
+        var approver = _factory.ClientFor(Tenant, "tax-approver");
+        var month = new DateOnly(Today.Year, Today.Month, 1);
+        var prepared = await preparer.Send(HttpMethod.Post, "/api/v1/finance/tax-returns", new { taxCode = "VAT", currency = "ZAR", periodStart = month, periodEnd = month.AddMonths(1).AddDays(-1) }, idempotent: true);
+        prepared.StatusCode.ShouldBe(HttpStatusCode.Created, await prepared.Content.ReadAsStringAsync());
+        var view = await prepared.Json();
+        var id = view.GetProperty("id").GetGuid();
+        view.GetProperty("outputTotal").GetDecimal().ShouldBe(tax);
+        (await preparer.GetAsync($"/api/v1/finance/tax-returns/{id}/content")).StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        (await approver.Send(HttpMethod.Post, $"/api/v1/finance/tax-returns/{id}/approve", new { })).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await (await preparer.GetAsync($"/api/v1/finance/tax-returns/{id}/content")).Content.ReadAsStringAsync()).ShouldContain("VAT,ZAR");
+    }
+
     private async Task<(Guid Policy, Guid Vehicle)> IssuedPolicy(string product = Product, DateOnly? start = null, string? riskZone = null, string? orgNodeCode = null,
         Guid? proposer = null, string? intermediaryCode = null)
     {

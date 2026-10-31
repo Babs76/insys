@@ -49,10 +49,10 @@ public enum DocumentType
 public sealed record AdjustmentReason(string Code, bool RequiresApproval);
 
 public sealed record InvoiceIssued(Guid InvoiceId, string InvoiceNumber, Guid BillingAccountId, Guid PayerPartyId, string PaymentMethod, string SourceDomain, Guid PolicyRef, string ProductVersionRef,
-    DateOnly IssueDate, DateOnly DueDate, string Currency, decimal NetAmount, decimal TaxAmount, decimal TotalAmount, DateTimeOffset OccurredAt) : IDomainEvent;
+    DateOnly IssueDate, DateOnly DueDate, string Currency, decimal NetAmount, decimal TaxAmount, decimal TotalAmount, DateTimeOffset OccurredAt, string? TaxCode = null) : IDomainEvent;
 
 public sealed record CreditNoteIssued(Guid CreditNoteId, string CreditNoteNumber, Guid InvoiceId, Guid BillingAccountId, string SourceDomain, Guid PolicyRef,
-    DateOnly IssueDate, string Currency, decimal TotalAmount, string ReasonCode, DateTimeOffset OccurredAt) : IDomainEvent;
+    DateOnly IssueDate, string Currency, decimal TotalAmount, string ReasonCode, DateTimeOffset OccurredAt, decimal TaxAmount = 0, string? TaxCode = null) : IDomainEvent;
 
 public sealed record InvoiceSettled(Guid InvoiceId, Guid BillingAccountId, string SourceDomain, Guid PolicyRef, DateTimeOffset OccurredAt) : IDomainEvent;
 
@@ -80,10 +80,20 @@ public sealed class InvoiceLine : Entity<Guid>, ITenantScoped
 
     public string? TaxCode { get; private set; }
 
+    /// <summary>The tax included in <see cref="Amount"/> (OQ-058).</summary>
+    public decimal TaxAmount { get; private set; }
+
     public long RowVersion { get; private set; }
 
-    internal static InvoiceLine Create(Guid invoiceId, short lineNo, string chargeType, string description, decimal amount) =>
-        new() { Id = Guid.CreateVersion7(), InvoiceId = invoiceId, LineNo = lineNo, ChargeType = chargeType, Description = description, Amount = amount };
+    internal static InvoiceLine Create(Guid invoiceId, short lineNo, string chargeType, string description, decimal amount, string? taxCode = null, decimal taxAmount = 0) =>
+        new() { Id = Guid.CreateVersion7(), InvoiceId = invoiceId, LineNo = lineNo, ChargeType = chargeType, Description = description, Amount = amount, TaxCode = taxCode, TaxAmount = taxAmount };
+}
+
+/// <summary>The tax a product's invoices carry, by its rate in force on the issue date (OQ-156). The rate is a percentage.</summary>
+public sealed record InvoiceTax(string TaxCode, decimal Rate)
+{
+    /// <summary>The tax included in an amount: amount x rate / (100 + rate), to the cent.</summary>
+    public decimal IncludedIn(decimal amount) => Math.Round(amount * Rate / (100m + Rate), 2, MidpointRounding.AwayFromZero);
 }
 
 /// <summary>Entity Adjustment (billing.adjustment): the auditable record of a credit against an invoice (BIL-004).</summary>
@@ -158,6 +168,9 @@ public sealed class Invoice : AggregateRoot<Guid>
 
     public decimal TaxAmount { get; private set; }
 
+    /// <summary>How much of <see cref="TaxAmount"/> credit notes have taken back.</summary>
+    public decimal CreditedTax { get; private set; }
+
     public decimal TotalAmount { get; private set; }
 
     public decimal AllocatedAmount { get; private set; }
@@ -180,10 +193,11 @@ public sealed class Invoice : AggregateRoot<Guid>
     /// Command IssueInvoice: for the instalments due, with one line each. The invoice is due on its earliest instalment's
     /// due date, so a premium invoiced a day late is still overdue from the day it fell due (request 46), but never before
     /// <paramref name="dueNoEarlierThan"/>: back premiums of a policy billed for the first time (backdated, reinstated,
-    /// enrolled late) are due from the day they are invoiced. TODO(spec): premium taxes on invoices are not specified (OQ-058).
+    /// enrolled late) are due from the day they are invoiced. With <paramref name="tax"/>, each line's tax is taken out of its amount (OQ-058): the premium
+    /// already includes it, so the total is the same with or without it.
     /// </summary>
     public static Result<Invoice> IssueInvoice(Guid id, string prefix, BillingAccount account, PremiumSchedule schedule, IReadOnlyList<Instalment> instalments,
-        string paymentMethod, DateOnly issueDate, DateTimeOffset now, DateOnly? dueNoEarlierThan = null)
+        string paymentMethod, DateOnly issueDate, DateTimeOffset now, DateOnly? dueNoEarlierThan = null, InvoiceTax? tax = null)
     {
         if (instalments.Count == 0 || account.Status == AccountStatus.Closed)
         {
@@ -195,14 +209,16 @@ public sealed class Invoice : AggregateRoot<Guid>
         (invoice.ProductCode, invoice.OrgNodeCode) = (schedule.ProductCode, schedule.OrgNodeCode);
         foreach (var instalment in instalments.OrderBy(i => i.DueDate))
         {
-            invoice._lines.Add(InvoiceLine.Create(id, (short)(invoice._lines.Count + 1), "PREMIUM", $"Premium due {instalment.DueDate:yyyy-MM-dd}", instalment.Amount));
+            invoice._lines.Add(InvoiceLine.Create(id, (short)(invoice._lines.Count + 1), "PREMIUM", $"Premium due {instalment.DueDate:yyyy-MM-dd}", instalment.Amount, tax?.TaxCode,
+                tax?.IncludedIn(instalment.Amount) ?? 0));
         }
 
-        invoice.NetAmount = invoice._lines.Sum(l => l.Amount);
-        invoice.TotalAmount = invoice.NetAmount;
+        invoice.TotalAmount = invoice._lines.Sum(l => l.Amount);
+        invoice.TaxAmount = invoice._lines.Sum(l => l.TaxAmount);
+        invoice.NetAmount = invoice.TotalAmount - invoice.TaxAmount;
         invoice.Status = InvoiceStatus.Issued;
         invoice.Raise(new InvoiceIssued(id, invoice.InvoiceNumber, account.Id, account.PayerPartyId, paymentMethod, invoice.SourceDomain, invoice.PolicyRef, invoice.ProductVersionRef, issueDate,
-            invoice.DueDate, invoice.Currency, invoice.NetAmount, invoice.TaxAmount, invoice.TotalAmount, now));
+            invoice.DueDate, invoice.Currency, invoice.NetAmount, invoice.TaxAmount, invoice.TotalAmount, now, tax?.TaxCode));
         return invoice;
     }
 
@@ -225,11 +241,17 @@ public sealed class Invoice : AggregateRoot<Guid>
 
         var credit = New(creditNoteId, prefix, DocumentType.CreditNote, BillingAccountId, SourceDomain, PolicyRef, ProductVersionRef, issueDate, issueDate, Currency, Id);
         (credit.ProductCode, credit.OrgNodeCode) = (ProductCode, OrgNodeCode);
-        credit._lines.Add(InvoiceLine.Create(creditNoteId, 1, "CREDIT", $"Credit for {InvoiceNumber} ({reason.Code})", amount));
-        credit.NetAmount = amount;
+        // The credit's share of the invoice's tax; the last credit takes what remains, so credits add up to the invoice's tax exactly.
+        var fullyCredited = Credited + amount >= TotalAmount;
+        var creditTax = fullyCredited ? TaxAmount - CreditedTax : Math.Min(TaxAmount - CreditedTax, Math.Round(TaxAmount * amount / TotalAmount, 2, MidpointRounding.AwayFromZero));
+        var taxCode = _lines.Select(l => l.TaxCode).FirstOrDefault(c => c is not null);
+        CreditedTax += creditTax;
+        credit._lines.Add(InvoiceLine.Create(creditNoteId, 1, "CREDIT", $"Credit for {InvoiceNumber} ({reason.Code})", amount, taxCode, creditTax));
+        credit.TaxAmount = creditTax;
+        credit.NetAmount = amount - creditTax;
         credit.TotalAmount = amount;
         credit.Status = InvoiceStatus.Issued;
-        credit.Raise(new CreditNoteIssued(creditNoteId, credit.InvoiceNumber, Id, BillingAccountId, SourceDomain, PolicyRef, issueDate, Currency, amount, reason.Code, now));
+        credit.Raise(new CreditNoteIssued(creditNoteId, credit.InvoiceNumber, Id, BillingAccountId, SourceDomain, PolicyRef, issueDate, Currency, amount, reason.Code, now, creditTax, taxCode));
 
         _adjustments.Add(Adjustment.Create(Id, reason.Code, amount, Currency, creditNoteId, approvedBy, now));
         if (Credited + AllocatedAmount >= TotalAmount)

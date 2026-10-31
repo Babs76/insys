@@ -90,6 +90,7 @@ public static class RatingStaticData
             entity.Property(x => x.Rate).HasColumnName("rate").HasPrecision(7, 4);
             entity.Property(x => x.Base).HasColumnName("base").HasMaxLength(40);
             entity.Property(x => x.Rounding).HasColumnName("rounding").HasMaxLength(80);
+            entity.Property(x => x.ProductCode).HasColumnName("product_code").HasMaxLength(15);
         });
         modelBuilder.Entity<RatingFactorDefinitions>(entity =>
         {

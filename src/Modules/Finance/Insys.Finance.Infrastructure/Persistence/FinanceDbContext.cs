@@ -41,6 +41,8 @@ public sealed class FinanceDbContext(DbContextOptions<FinanceDbContext> options,
 
     public DbSet<Journal> Journals => Set<Journal>();
 
+    public DbSet<TaxReturn> TaxReturns => Set<TaxReturn>();
+
     public DbSet<AccountingPeriod> Periods => Set<AccountingPeriod>();
 
     public DbSet<PostingException> PostingExceptions => Set<PostingException>();
@@ -51,6 +53,22 @@ public sealed class FinanceDbContext(DbContextOptions<FinanceDbContext> options,
 
         // journal and subledger_entry are partitioned by accounting_date, part of their keys. Neither is ever updated
         // (V0014: no UPDATE or DELETE grant, and a trigger), and the database checks each journal balances at commit.
+        modelBuilder.Entity<TaxReturn>(taxReturn =>
+        {
+            taxReturn.ToTable("tax_return"); // Wave 6 §4.2, F094
+            taxReturn.HasKey(r => new { r.TenantId, r.Id });
+            taxReturn.HasAuditColumns();
+            taxReturn.Property(r => r.ReturnNumber).HasMaxLength(25);
+            taxReturn.Property(r => r.TaxCode).HasMaxLength(15);
+            taxReturn.Property(r => r.AccountCode).HasMaxLength(80);
+            taxReturn.Property(r => r.Currency).HasMaxLength(3).IsFixedLength();
+            taxReturn.Property(r => r.OutputTotal).HasPrecision(18, 2);
+            taxReturn.Property(r => r.InputTotal).HasPrecision(18, 2);
+            taxReturn.Property(r => r.Status).HasMaxLength(10);
+            taxReturn.Property(r => r.RejectReason).HasMaxLength(500);
+            taxReturn.Property(r => r.RowVersion).IsConcurrencyToken();
+        });
+
         modelBuilder.Entity<Journal>(journal =>
         {
             journal.ToTable("journal");

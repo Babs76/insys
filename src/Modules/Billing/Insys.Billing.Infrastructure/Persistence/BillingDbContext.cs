@@ -124,6 +124,7 @@ public sealed class BillingDbContext(DbContextOptions<BillingDbContext> options,
             invoice.Property(i => i.Currency).HasColumnType("char(3)");
             invoice.Property(i => i.NetAmount).HasPrecision(18, 2);
             invoice.Property(i => i.TaxAmount).HasPrecision(18, 2);
+            invoice.Property(i => i.CreditedTax).HasPrecision(18, 2);
             invoice.Property(i => i.TotalAmount).HasPrecision(18, 2);
             invoice.Property(i => i.AllocatedAmount).HasPrecision(18, 2);
             invoice.Property(i => i.Status).HasConversion(new UpperCaseEnumConverter<InvoiceStatus>()).HasMaxLength(12);
@@ -142,6 +143,7 @@ public sealed class BillingDbContext(DbContextOptions<BillingDbContext> options,
             line.Property(l => l.Description).HasMaxLength(200);
             line.Property(l => l.Amount).HasPrecision(18, 2);
             line.Property(l => l.TaxCode).HasMaxLength(15);
+            line.Property(l => l.TaxAmount).HasPrecision(18, 2);
         });
 
         modelBuilder.Entity<Adjustment>(adjustment =>
