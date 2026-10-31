@@ -281,6 +281,8 @@ public sealed class OnboardingReadinessTests(DatabaseFixture fixture) : IClassFi
         Check(await Readiness(url), "PAYMENTS_AND_DISTRIBUTION", "PAYMENT_CALLBACK_CLIENT").GetProperty("ready").GetBoolean().ShouldBeFalse("a role without the function");
 
         var holder = await fixture.Database.UserWithFunctions(tenantId, "callback-client", PaymentFunctionCodes.CallbackClient);
+        Check(await Readiness(url), "PAYMENTS_AND_DISTRIBUTION", "PAYMENT_CALLBACK_CLIENT").GetProperty("ready").GetBoolean().ShouldBeFalse("a person holding it doesn't answer (B-011)");
+        await fixture.Database.MarkServiceAccount(tenantId, "callback-client");
         Check(await Readiness(url), "PAYMENTS_AND_DISTRIBUTION", "PAYMENT_CALLBACK_CLIENT").GetProperty("ready").GetBoolean().ShouldBeTrue();
 
         await fixture.Database.ExecuteAsOwner("UPDATE iam.user_account SET status = 'DISABLED' WHERE id = @u", ("u", holder));
@@ -313,6 +315,7 @@ public sealed class OnboardingReadinessTests(DatabaseFixture fixture) : IClassFi
         Check(await Readiness(url), "SHARED_OPERATIONAL_SETUP", "COMMUNICATION_CALLBACK_CLIENT").GetProperty("ready").GetBoolean().ShouldBeFalse("a role without the function");
 
         var holder = await fixture.Database.UserWithFunctions(tenantId, "callback-client", CommunicationFunctionCodes.CallbackClient);
+        await fixture.Database.MarkServiceAccount(tenantId, "callback-client");
         Check(await Readiness(url), "SHARED_OPERATIONAL_SETUP", "COMMUNICATION_CALLBACK_CLIENT").GetProperty("ready").GetBoolean().ShouldBeTrue();
 
         await fixture.Database.ExecuteAsOwner("UPDATE iam.user_account SET status = 'DISABLED' WHERE id = @u", ("u", holder));

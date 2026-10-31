@@ -19,6 +19,11 @@ What changed in the API contract, newest first, so the front end can sync. The O
 - **New static data `commission.cfg_broker_change_settings`:** `paidCommission` `RECOVER` (the default, with no row) or `KEEP`.
 - **A statement's net** can be lowered by what the broker owes, as far as it has commission.
 
+## Service accounts (branch `service-callback-tokens`, B-011)
+
+- **New `POST /identity/users/service-accounts`:** registers a client-credentials identity. Permission as for provisioning a user.
+- **A callback endpoint requiring a client token** now takes it only from a service account. **Readiness** `PAYMENT_CALLBACK_CLIENT` and `COMMUNICATION_CALLBACK_CLIENT` need a service account holding the function.
+
 ## Migration batch (branch `migration-batch`, OQ-158, B-013)
 
 - **New, each idempotent and all or nothing against the file's control totals:** `POST /general/migration/policies`, `/life/migration/policies`, `/health/migration/memberships`, `/billing/migration/outstanding-premiums`, `/finance/migration/opening-balances`. Permissions `general_policy.migrate`, `life_policy.migrate`, `health_membership.migrate`, `invoice.migrate`, `journal.migrate`.

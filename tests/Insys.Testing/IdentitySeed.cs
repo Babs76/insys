@@ -33,6 +33,10 @@ namespace Insys.Testing;
 public static class IdentitySeed
 {
     /// <summary>Creates the user (or reuses it) and assigns a new role holding the permissions. Returns the user ID.</summary>
+    /// <summary>B-011: this subject is a client-credentials identity.</summary>
+    public static Task MarkServiceAccount(this TestDatabase database, Guid tenantId, string subject) =>
+        database.ExecuteAsOwner("UPDATE iam.user_account SET account_kind = 'SERVICE' WHERE tenant_id = @t AND external_subject = @s", ("t", tenantId), ("s", subject));
+
     public static async Task<Guid> UserWithPermissions(this TestDatabase database, Guid tenantId, string subject, params string[] permissions)
     {
         var userId = await database.ScalarAsOwner<Guid?>("SELECT id FROM iam.user_account WHERE tenant_id = @t AND external_subject = @s",

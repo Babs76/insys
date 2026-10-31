@@ -233,6 +233,8 @@ public sealed class ProviderCallbackTests(DatabaseFixture fixture) : IClassFixtu
         response.StatusCode.ShouldBe(HttpStatusCode.Created, await response.Content.ReadAsStringAsync());
         var endpoint = (await response.Content.ReadFromJsonAsync<IssuedCallbackEndpoint>(Json))!;
         await fixture.Database.UserWithPermissions(tenant, "callback-client", PaymentPermissions.CallbackCreate);
+        await fixture.Database.UserWithPermissions(tenant, "callback-person", PaymentPermissions.CallbackCreate);
+        await fixture.Database.MarkServiceAccount(tenant, "callback-client");
         await fixture.Database.UserWithPermissions(tenant, "callback-other", PaymentPermissions.CallbackEndpointRead);
         await fixture.Database.AdoptFunctionCatalogue();
         var payment = await PendingPayment(tenant);
@@ -241,6 +243,8 @@ public sealed class ProviderCallbackTests(DatabaseFixture fixture) : IClassFixtu
         (await Callback(endpoint.CallbackPath, endpoint.SigningSecret, body)).StatusCode.ShouldBe(HttpStatusCode.Unauthorized, "no token");
         (await Callback(endpoint.CallbackPath, endpoint.SigningSecret, body, bearer: TestTokens.For(tenant, "callback-other", DateTime.UtcNow))).StatusCode
             .ShouldBe(HttpStatusCode.Unauthorized, "a token without the permission");
+        (await Callback(endpoint.CallbackPath, endpoint.SigningSecret, body, bearer: TestTokens.For(tenant, "callback-person", DateTime.UtcNow))).StatusCode
+            .ShouldBe(HttpStatusCode.Unauthorized, "a person's token, even holding the permission (B-011)");
         var taken = await Callback(endpoint.CallbackPath, endpoint.SigningSecret, body, bearer: TestTokens.For(tenant, "callback-client", DateTime.UtcNow));
         taken.IsSuccessStatusCode.ShouldBeTrue(await taken.Content.ReadAsStringAsync());
         (await Status(payment)).ShouldBe("SUCCEEDED");
