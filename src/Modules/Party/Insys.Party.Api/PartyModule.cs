@@ -387,7 +387,7 @@ public sealed class PartyModule : IModule
             .RequirePermission(PartyPermissions.PartyMerge)
             .RequireIdempotencyKey();
 
-        var dsr = api.MapGroup("/party/data-subject-requests").WithTags(Name);
+        var dsr = api.MapGroup("/party/data-subject-requests").WithTags(Name).ETagsFromRowVersion();
         dsr.MapPost("/", async (ReceiveDataSubjectRequest r, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Send(r, ct)).ToHttp(v => Results.Created($"/api/v1/party/data-subject-requests/{v.Id}", v)))
             .Produces<DataSubjectRequestView>(StatusCodes.Status201Created).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
             .WithName("PartyReceiveDataSubjectRequest").WithSummary("Record a data subject's access, correction or deletion request (F059); it's due after the tenant's days").RequirePermission(PartyPermissions.DataSubjectCreate).RequireIdempotencyKey();
@@ -424,7 +424,7 @@ public sealed class PartyModule : IModule
             .Produces<DataSubjectRequestView>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status409Conflict).TakesIfMatch()
             .WithName("PartyExecuteDataSubjectDeletion").WithSummary("Run the anonymise check on an approved deletion: within retention or under hold it is refused, with the reason").RequirePermission(PartyPermissions.DataSubjectApprove);
 
-        var bulk = api.MapGroup("/party/bulk-jobs").WithTags(Name);
+        var bulk = api.MapGroup("/party/bulk-jobs").WithTags(Name).ETagsFromRowVersion();
         bulk.MapPost("/imports", async (ImportParties r, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Send(r, ct)).ToHttp(v => Results.Created($"/api/v1/party/bulk-jobs/{v.Id}", v)))
             .Produces<BulkJobView>(StatusCodes.Status201Created).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
             .WithName("PartyImportParties").WithSummary("Import individuals, all or nothing: one bad line rejects the import, and every bad line is named (F076)").RequirePermission(PartyPermissions.BulkJobCreate).RequireIdempotencyKey();

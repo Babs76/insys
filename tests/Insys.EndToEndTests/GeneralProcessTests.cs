@@ -2211,6 +2211,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         var id = (await opened.Json()).GetProperty("id").GetGuid();
         (await _maker.GetAsync($"/api/v1/claims/fraud-cases/{id}")).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         (await fraud.GetAsync($"/api/v1/claims/fraud-cases/{id}")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        await _factory.DrainOutbox();
         (await _db.ScalarAsOwner<long>("SELECT count(*) FROM audit.audit_event WHERE target_id = @t AND operation = 'ReadFraudCase'", ("t", id.ToString()))).ShouldBe(1);
         var assigned = await fraud.Send(HttpMethod.Post, $"/api/v1/claims/fraud-cases/{id}/assign", new { investigatorId = investigator }, ifMatch: opened.ETag());
         assigned.StatusCode.ShouldBe(HttpStatusCode.OK, await assigned.Content.ReadAsStringAsync());
@@ -2307,7 +2308,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         var id = view.GetProperty("id").GetGuid();
         view.GetProperty("outputTotal").GetDecimal().ShouldBe(tax);
         (await preparer.GetAsync($"/api/v1/finance/tax-returns/{id}/content")).StatusCode.ShouldBe(HttpStatusCode.Conflict);
-        (await approver.Send(HttpMethod.Post, $"/api/v1/finance/tax-returns/{id}/approve", new { })).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await approver.Send(HttpMethod.Post, $"/api/v1/finance/tax-returns/{id}/approve", new { }, ifMatch: (await approver.GetAsync($"/api/v1/finance/tax-returns/{id}")).ETag())).StatusCode.ShouldBe(HttpStatusCode.OK);
         (await (await preparer.GetAsync($"/api/v1/finance/tax-returns/{id}/content")).Content.ReadAsStringAsync()).ShouldContain("VAT,ZAR");
     }
 

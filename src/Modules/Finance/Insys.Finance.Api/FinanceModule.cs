@@ -91,23 +91,24 @@ public sealed class FinanceModule : IModule
             .RequirePermission(FinancePermissions.JournalReverse)
             .RequireIdempotencyKey();
 
-        finance.MapPost("/tax-returns", async (PrepareTaxReturnRequest r, IDispatcher dispatcher, CancellationToken ct) =>
+        var taxReturns = finance.MapGroup("/tax-returns").ETagsFromRowVersion();
+        taxReturns.MapPost("/", async (PrepareTaxReturnRequest r, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Send(new PrepareTaxReturn(r.TaxCode, r.Currency, r.PeriodStart, r.PeriodEnd), ct)).ToHttp(v => Results.Created($"/api/v1/finance/tax-returns/{v.Id}", v)))
             .Produces<TaxReturnView>(StatusCodes.Status201Created).ProducesProblem(StatusCodes.Status409Conflict).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
             .WithName("FinancePrepareTaxReturn").WithSummary("Total a period's tax for a tax code from what was posted to its account (F094)").RequirePermission(FinancePermissions.TaxReturnCreate).RequireIdempotencyKey();
-        finance.MapGet("/tax-returns", async (string? cursor, int? limit, IDispatcher dispatcher, CancellationToken ct) =>
+        taxReturns.MapGet("/", async (string? cursor, int? limit, IDispatcher dispatcher, CancellationToken ct) =>
                 await Page(cursor, limit, (after, size) => dispatcher.Query(new ListTaxReturns(after, size), ct), r => r.Id))
             .Produces<CursorPage<TaxReturnView>>(StatusCodes.Status200OK)
             .WithName("FinanceListTaxReturns").WithSummary("Tax returns").RequirePermission(FinancePermissions.TaxReturnRead);
-        finance.MapGet("/tax-returns/{id:guid}", async (Guid id, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Query(new GetTaxReturn(id), ct)).ToHttp(Results.Ok))
+        taxReturns.MapGet("/{id:guid}", async (Guid id, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Query(new GetTaxReturn(id), ct)).ToHttp(Results.Ok))
             .Produces<TaxReturnView>(StatusCodes.Status200OK).WithName("FinanceGetTaxReturn").WithSummary("A tax return").RequirePermission(FinancePermissions.TaxReturnRead);
-        finance.MapPost("/tax-returns/{id:guid}/approve", async (Guid id, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Send(new ApproveTaxReturn(id), ct)).ToHttp(Results.Ok))
+        taxReturns.MapPost("/{id:guid}/approve", async (Guid id, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Send(new ApproveTaxReturn(id), ct)).ToHttp(Results.Ok))
             .Produces<TaxReturnView>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status409Conflict).TakesIfMatch()
             .WithName("FinanceApproveTaxReturn").WithSummary("Approve a return; not for who prepared it (SRS-002)").RequirePermission(FinancePermissions.TaxReturnApprove);
-        finance.MapPost("/tax-returns/{id:guid}/reject", async (Guid id, RejectTaxReturnRequest r, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Send(new RejectTaxReturn(id, r.Reason), ct)).ToHttp(Results.Ok))
+        taxReturns.MapPost("/{id:guid}/reject", async (Guid id, RejectTaxReturnRequest r, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Send(new RejectTaxReturn(id, r.Reason), ct)).ToHttp(Results.Ok))
             .Produces<TaxReturnView>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status409Conflict).ProducesProblem(StatusCodes.Status422UnprocessableEntity).TakesIfMatch()
             .WithName("FinanceRejectTaxReturn").WithSummary("Reject a return with a reason; another can then be prepared").RequirePermission(FinancePermissions.TaxReturnApprove);
-        finance.MapGet("/tax-returns/{id:guid}/content", async (Guid id, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Send(new ExportTaxReturn(id), ct)).ToHttp(csv => Results.Text(csv, "text/csv")))
+        taxReturns.MapGet("/{id:guid}/content", async (Guid id, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Send(new ExportTaxReturn(id), ct)).ToHttp(csv => Results.Text(csv, "text/csv")))
             .Produces<string>(StatusCodes.Status200OK, "text/csv").ProducesProblem(StatusCodes.Status409Conflict)
             .WithName("FinanceExportTaxReturn").WithSummary("An approved return as CSV; INSYS files nothing").RequirePermission(FinancePermissions.TaxReturnRead);
         finance.MapGet("/periods", async (IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Query(new ListPeriods(), ct)).ToHttp(Results.Ok))
