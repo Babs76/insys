@@ -857,7 +857,7 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
     [Fact]
     public async Task ABrokerOfRecordChange_NeedsTheAppointmentLetterAndASecondPerson_MovesAtItsDate_AndSplitsCommissionProRata_B001()
     {
-        await Seed("general.cfg_endorsement_types", "EFFECTIVE", "INTERMEDIARY", ("premium_method", "NONE"), ("documents", Array.Empty<string>()),
+        await Seed("general.cfg_endorsement_types", "EFFECTIVE", "INTERMEDIARY", ("premium_method", "NONE"), ("documents", new[] { "POLICY_SCHEDULE" }),
             ("requires_underwriting", false));
         await Seed("document.ref_document_categories", "ACTIVE", "APPOINTMENT", ("category_code", "APPOINTMENT"), ("label", "Broker appointment"),
             ("classification", "PERSONAL"), ("domain", "ALL"), ("allowed_roles", Array.Empty<string>()));
@@ -898,11 +898,24 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
         var recorded = await _maker.Send(HttpMethod.Post, $"/api/v1/general/endorsements/{endorsement}/appointment-letter",
             new { documentId = (await letter.Json()).GetProperty("id").GetGuid() }, ifMatch: (await _maker.GetAsync($"/api/v1/general/endorsements/{endorsement}")).ETag());
         recorded.StatusCode.ShouldBe(HttpStatusCode.OK, await recorded.Content.ReadAsStringAsync());
-        var version = (await _maker.GetAsync($"/api/v1/general/endorsements/{endorsement}")).ETag();
-        (await _maker.Send(HttpMethod.Post, $"/api/v1/general/endorsements/{endorsement}/submit", ifMatch: version)).StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        // BR-121: the letter's DocumentGenerated doesn't touch the endorsement, so the version the filing returned still submits, and the letter is only the letter.
+        var filed = await recorded.Json();
+        var letterId = filed.GetProperty("appointmentLetterId").GetGuid();
+        await _factory.DrainOutbox();
+        var afterEvents = await (await _maker.GetAsync($"/api/v1/general/endorsements/{endorsement}")).Json();
+        afterEvents.GetProperty("documentId").ValueKind.ShouldBe(JsonValueKind.Null);
+        afterEvents.GetProperty("rowVersion").GetInt64().ShouldBe(filed.GetProperty("rowVersion").GetInt64());
+        var submitted = await _maker.Send(HttpMethod.Post, $"/api/v1/general/endorsements/{endorsement}/submit", ifMatch: recorded.ETag());
+        submitted.StatusCode.ShouldBe(HttpStatusCode.OK, await submitted.Content.ReadAsStringAsync());
         await _factory.DrainOutbox();
         await Decide(GeneralApprovals.EndorsementBusinessRefType, endorsement);
         await _factory.DrainOutbox();
+
+        // BR-121: the endorsement's own document attaches when generated; the letter stays where it was.
+        var decided = await (await _maker.GetAsync($"/api/v1/general/endorsements/{endorsement}")).Json();
+        decided.GetProperty("appointmentLetterId").GetGuid().ShouldBe(letterId);
+        decided.GetProperty("documentId").GetGuid().ShouldNotBe(letterId);
 
         // OQ-136: approved for a later date, the policy stays with its broker, the change waiting on it.
         (await _db.ScalarAsOwner<string>("SELECT intermediary_code || ':' || pending_intermediary_code || ':' || pending_intermediary_from FROM general.policy WHERE id = @p",
