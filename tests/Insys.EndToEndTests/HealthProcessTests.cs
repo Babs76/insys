@@ -1431,7 +1431,7 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         loaded.GetProperty("loaded").GetInt32().ShouldBe(1, loaded.ToString());
         var membership = await _db.ScalarAsOwner<Guid>("SELECT id FROM health.membership WHERE source_reference = 'H-SRC-1'");
         (await _db.ScalarAsOwner<string>("SELECT status FROM health.membership WHERE id = @m", ("m", membership))).ShouldBe("ACTIVE");
-        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM health.dependant WHERE membership_id = @m", ("m", membership))).ShouldBe(1);
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM health.member_dependant WHERE membership_id = @m", ("m", membership))).ShouldBe(1);
         await _factory.DrainOutbox();
         (await _db.ScalarAsOwner<long>("SELECT count(*) FROM billing.premium_schedule WHERE policy_ref = @m", ("m", membership))).ShouldBe(1);
         (await _db.ScalarAsOwner<long>("SELECT count(*) FROM billing.invoice WHERE policy_ref = @m", ("m", membership))).ShouldBe(0);

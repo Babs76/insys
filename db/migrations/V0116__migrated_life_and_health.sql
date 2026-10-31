@@ -29,6 +29,7 @@
 -- fraud function; bulk jobs for parties, all or nothing.
 -- =====================================================================
 -- OQ-158, B-013: which migration batch a Life policy or Health membership came from, and its number in the source system. Null for one INSYS issued.
+ALTER TABLE life.policy ALTER COLUMN proposal_id DROP NOT NULL;
 ALTER TABLE life.policy ADD COLUMN migration_batch varchar(30), ADD COLUMN source_reference varchar(40);
 CREATE UNIQUE INDEX uq_life_policy_source ON life.policy (tenant_id, source_reference) WHERE source_reference IS NOT NULL;
 ALTER TABLE health.membership ADD COLUMN migration_batch varchar(30), ADD COLUMN source_reference varchar(40);

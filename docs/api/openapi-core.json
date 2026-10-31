@@ -66878,7 +66878,10 @@
             "type": "string"
           },
           "proposalId": {
-            "type": "string",
+            "type": [
+              "null",
+              "string"
+            ],
             "format": "uuid"
           }
         }
@@ -66918,7 +66921,10 @@
             "type": "string"
           },
           "proposalId": {
-            "type": "string",
+            "type": [
+              "null",
+              "string"
+            ],
             "format": "uuid"
           },
           "productCode": {
@@ -67771,7 +67777,10 @@
             "format": "uuid"
           },
           "proposalId": {
-            "type": "string",
+            "type": [
+              "null",
+              "string"
+            ],
             "format": "uuid"
           },
           "proposalNumber": {

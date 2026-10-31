@@ -41,13 +41,13 @@ public sealed record LifeProposalSummary(Guid Id, string ProposalNumber, string 
 
 /// <param name="ProposalId">The proposal the policy was issued from (BR-086).</param>
 public sealed record LifePolicySummary(Guid Id, string PolicyNumber, string ProductCode, Guid PolicyholderPartyId, LifePolicyStatus Status, DateOnly InceptionDate,
-    DateOnly? TermEndDate, string Currency, Guid ProposalId);
+    DateOnly? TermEndDate, string Currency, Guid? ProposalId);
 
 /// <summary>A policy loan in a list (BR-062), in its policy's currency (BR-063).</summary>
 public sealed record LifeLoanSummary(Guid Id, string LoanNumber, Guid PolicyId, decimal Principal, decimal Balance, LoanStatus Status, DateOnly IssuedAt, string Currency);
 
 /// <summary>An underwriting case in a list (BR-074). DecisionPending: a decision is proposed and waits for a second person.</summary>
-public sealed record UnderwritingCaseSummary(Guid Id, Guid ProposalId, string ProposalNumber, CaseStatus Status, Guid? AssignedTo, bool DecisionPending,
+public sealed record UnderwritingCaseSummary(Guid Id, Guid? ProposalId, string ProposalNumber, CaseStatus Status, Guid? AssignedTo, bool DecisionPending,
     string? DecisionCode, Guid? RequestedBy);
 
 /// <summary>ClaimNumber is null until the claim is registered.</summary>

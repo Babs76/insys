@@ -233,7 +233,7 @@ public sealed record ScheduleView(string Frequency, decimal Premium, DateOnly Ne
 
 public sealed record LapseView(string EventType, DateOnly EffectiveDate, string Reason);
 
-public sealed record PolicyView(Guid Id, string PolicyNumber, Guid ProposalId, string ProductCode, int ProductVersion, int RatingVersion, int? RulesetVersion,
+public sealed record PolicyView(Guid Id, string PolicyNumber, Guid? ProposalId, string ProductCode, int ProductVersion, int RatingVersion, int? RulesetVersion,
     Guid PolicyholderPartyId, LifePolicyStatus Status, DateOnly InceptionDate, DateOnly? TermEndDate, string Currency, Guid BillingAccountRef, string? IntermediaryCode,
     IReadOnlyList<InsuredLifeView> Lives, IReadOnlyList<BenefitView> Benefits, IReadOnlyList<BeneficiaryView> Beneficiaries, ScheduleView Schedule,
     IReadOnlyList<LapseView> LapseHistory, long RowVersion,

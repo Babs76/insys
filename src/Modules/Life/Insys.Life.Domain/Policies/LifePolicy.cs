@@ -353,7 +353,8 @@ public sealed class LifePolicy : AggregateRoot<Guid>
 
     public string PolicyNumber { get; private set; } = "";
 
-    public Guid ProposalId { get; private set; }
+    /// <summary>Null for a policy migrated from a source system (OQ-158).</summary>
+    public Guid? ProposalId { get; private set; }
 
     /// <summary>The organisation node that owns the policy: its proposal's (F103, addenda/access-scopes.md §2).</summary>
     public string? OrgNodeCode { get; private set; }
@@ -417,14 +418,14 @@ public sealed class LifePolicy : AggregateRoot<Guid>
 
     public string? SourceReference { get; private set; }
 
-    /// <summary>OQ-158: a policy already in force in the source system. It has no proposal (an empty id) and rating and ruleset version 0, which say it was never decided here.</summary>
+    /// <summary>OQ-158: a policy already in force in the source system. It has no proposal, and rating and ruleset version 0, which say it was never decided here.</summary>
     public static LifePolicy Migrate(Guid id, string policyNumber, string batch, string sourceReference, string productCode, int productVersion, Guid holder, Guid payer, Guid billingAccountRef, string frequency, string collectionMethod,
         DateOnly inception, DateOnly? termEnd, string currency, string? intermediary, IReadOnlyList<(Guid PartyId, string Role, int EntryAge, IReadOnlyList<(string Code, decimal SumAssured, decimal Premium)> Benefits)> lives,
         IReadOnlyList<BeneficiaryNomination> beneficiaries, DateOnly today, DateTimeOffset now)
     {
         var policy = new LifePolicy
         {
-            Id = id, PolicyNumber = Guard.MaxLength(policyNumber, 15), ProposalId = Guid.Empty, ProductCode = productCode, ProductVersion = productVersion, RatingVersion = 0, RulesetVersion = 0, PolicyholderPartyId = holder,
+            Id = id, PolicyNumber = Guard.MaxLength(policyNumber, 15), ProductCode = productCode, ProductVersion = productVersion, RatingVersion = 0, RulesetVersion = 0, PolicyholderPartyId = holder,
             Status = LifePolicyStatus.Issued, InceptionDate = inception, TermEndDate = termEnd, Currency = currency, PremiumFrequency = frequency, BillingAccountRef = billingAccountRef, PayerPartyId = payer, CollectionMethod = collectionMethod,
             IntermediaryCode = intermediary, MigrationBatch = Guard.MaxLength(batch, 30), SourceReference = Guard.MaxLength(sourceReference, 40),
         };
