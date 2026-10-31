@@ -924,16 +924,6 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         var memberNumber = (await Get($"/api/v1/health/memberships/{membership}")).GetProperty("memberNumber").GetString();
 
         // With channels in force, the writer refers on its portal and staff record consent through the back office.
-        var adult = await _maker.RegisterPerson("PortalSpouse");
-        var minor = await _maker.RegisterPerson("PortalChild", Today.AddYears(-10));
-        await PortalUser("member-adult", "PARTY", adult, null, HealthPermissions.MembershipRead, HealthPermissions.ClaimRead);
-        (await _maker.Send(HttpMethod.Post, $"/api/v1/health/memberships/{mine}/dependants", new { partyId = adult, dependantType = "SPOUSE", student = false, startDate = Today }, idempotent: true))
-            .StatusCode.ShouldBe(HttpStatusCode.OK);
-        (await _maker.Send(HttpMethod.Post, $"/api/v1/health/memberships/{mine}/dependants", new { partyId = minor, dependantType = "CHILD", student = false, startDate = Today }, idempotent: true))
-            .StatusCode.ShouldBe(HttpStatusCode.OK);
-        var adultClaim = await Claim(mine, adult, 100m);
-        var minorClaim = await Claim(mine, minor, 100m);
-
         await Seed("channel.cfg_channel_definitions", "EFFECTIVE", "CH-PRV", ("channel_code", "PRV"), ("audience", "PROVIDER"), ("name", "Provider portal"), ("client_ids", new[] { "provider-portal" }));
         await Seed("channel.cfg_channel_definitions", "EFFECTIVE", "CH-STF", ("channel_code", "STF"), ("audience", "STAFF"), ("name", "Back office"), ("client_ids", new[] { "insys-web" }));
         var writerRole = (await _db.ScalarAsOwner<string>("""
@@ -1707,6 +1697,16 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         await PortalUser("provider-2", "PROVIDER", null, "PR-2", providerPermissions);
         await PortalUser("member-1", "PARTY", me, null, HealthPermissions.MembershipRead, HealthPermissions.ClaimRead);
         await PortalUser("member-2", "PARTY", them, null, HealthPermissions.MembershipRead, HealthPermissions.ClaimRead);
+
+        var adult = await _maker.RegisterPerson("PortalSpouse");
+        var minor = await _maker.RegisterPerson("PortalChild", Today.AddYears(-10));
+        await PortalUser("member-adult", "PARTY", adult, null, HealthPermissions.MembershipRead, HealthPermissions.ClaimRead);
+        (await _maker.Send(HttpMethod.Post, $"/api/v1/health/memberships/{mine}/dependants", new { partyId = adult, dependantType = "SPOUSE", student = false, startDate = Today }, idempotent: true))
+            .StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await _maker.Send(HttpMethod.Post, $"/api/v1/health/memberships/{mine}/dependants", new { partyId = minor, dependantType = "CHILD", student = false, startDate = Today }, idempotent: true))
+            .StatusCode.ShouldBe(HttpStatusCode.OK);
+        var adultClaim = await Claim(mine, adult, 100m);
+        var minorClaim = await Claim(mine, minor, 100m);
 
         await Seed("channel.cfg_channel_definitions", "EFFECTIVE", "CH-PRV", ("channel_code", "PRV"), ("audience", "PROVIDER"), ("name", "Provider portal"),
             ("client_ids", new[] { "provider-portal" }));
