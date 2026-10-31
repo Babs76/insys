@@ -33,15 +33,14 @@ using Microsoft.Extensions.Options;
 namespace Insys.BuildingBlocks.Cloud;
 
 /// <summary>
-/// Huawei Cloud OBS settings (Huawei:Obs; ADR-016). OBS is reached through its S3-compatible API, so the same adapter
-/// works against any S3-compatible store (MinIO in the contract tests). Credentials come from the secret store.
+/// An S3-compatible object store's settings (ObjectStore; ADR-027): Huawei OBS in the first deployment, MinIO in the contract tests. Credentials come from the secret store.
 /// </summary>
-public sealed class ObsOptions
+public sealed class ObjectStoreOptions
 {
-    /// <summary>The regional endpoint, https://obs.af-south-1.myhuaweicloud.com in production.</summary>
-    public string ServiceUrl { get; set; } = "https://obs.af-south-1.myhuaweicloud.com";
+    /// <summary>The store's endpoint, for example https://obs.af-south-1.myhuaweicloud.com.</summary>
+    public string ServiceUrl { get; set; } = "";
 
-    public string Region { get; set; } = "af-south-1";
+    public string Region { get; set; } = "";
 
     public string Bucket { get; set; } = "";
 
@@ -54,26 +53,26 @@ public sealed class ObsOptions
 }
 
 /// <summary>
-/// An object store on OBS through the S3 API (AWSSDK.S3, Apache-2.0). The SDK's newer integrity checksums are sent only
+/// An object store through the S3 API (AWSSDK.S3, Apache-2.0). The SDK's newer integrity checksums are sent only
 /// when an operation requires them, since S3-compatible stores do not all support them.
 /// </summary>
 public sealed class S3ObjectStore : IObjectStore, IDisposable
 {
-    private readonly ObsOptions _settings;
+    private readonly ObjectStoreOptions _settings;
     private readonly AmazonS3Client _client;
 
-    public S3ObjectStore(IOptions<ObsOptions> options)
+    public S3ObjectStore(IOptions<ObjectStoreOptions> options)
     {
         _settings = options.Value;
-        if (string.IsNullOrWhiteSpace(_settings.Bucket) || string.IsNullOrWhiteSpace(_settings.AccessKey) || string.IsNullOrWhiteSpace(_settings.SecretKey))
+        if (string.IsNullOrWhiteSpace(_settings.ServiceUrl) || string.IsNullOrWhiteSpace(_settings.Bucket) || string.IsNullOrWhiteSpace(_settings.AccessKey) || string.IsNullOrWhiteSpace(_settings.SecretKey))
         {
-            throw new InvalidOperationException("Huawei:Obs:Bucket, AccessKey and SecretKey must be configured, the keys from the secret store.");
+            throw new InvalidOperationException("ObjectStore:ServiceUrl, Bucket, AccessKey and SecretKey must be configured, the keys from the secret store.");
         }
 
         _client = new AmazonS3Client(new BasicAWSCredentials(_settings.AccessKey, _settings.SecretKey), new AmazonS3Config
         {
             ServiceURL = _settings.ServiceUrl,
-            AuthenticationRegion = _settings.Region,
+            AuthenticationRegion = string.IsNullOrEmpty(_settings.Region) ? null : _settings.Region,
             ForcePathStyle = _settings.ForcePathStyle,
             RequestChecksumCalculation = RequestChecksumCalculation.WHEN_REQUIRED,
             ResponseChecksumValidation = ResponseChecksumValidation.WHEN_REQUIRED,

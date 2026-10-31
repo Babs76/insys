@@ -77,8 +77,8 @@ public sealed class ObjectStoreTests(DatabaseFixture fixture) : IClassFixture<Da
     {
         var settings = new Dictionary<string, string?>
         {
-            ["Documents:Storage:Provider"] = "object-store", ["Huawei:Obs:ServiceUrl"] = ServiceUrl, ["Huawei:Obs:Bucket"] = Bucket,
-            ["Huawei:Obs:AccessKey"] = AccessKey, ["Huawei:Obs:SecretKey"] = SecretKey, ["Huawei:Obs:ForcePathStyle"] = "true",
+            ["ObjectStore:Provider"] = "s3-compatible", ["ObjectStore:ServiceUrl"] = ServiceUrl, ["ObjectStore:Bucket"] = Bucket,
+            ["ObjectStore:AccessKey"] = AccessKey, ["ObjectStore:SecretKey"] = SecretKey, ["ObjectStore:ForcePathStyle"] = "true",
         };
         var factory = await fixture.Host(settings);
         await fixture.Database.UserWithPermissions(DatabaseFixture.TenantA, "obs-user", DocumentPermissions.DocumentCreate, DocumentPermissions.DocumentRead);
@@ -99,7 +99,7 @@ public sealed class ObjectStoreTests(DatabaseFixture fixture) : IClassFixture<Da
         (await factory.Services.GetRequiredService<IObjectStore>().Get(key, CancellationToken.None)).ShouldNotBeNull();
     }
 
-    private ObsOptions Obs() => new()
+    private ObjectStoreOptions Obs() => new()
     {
         ServiceUrl = ServiceUrl, Bucket = Bucket, AccessKey = AccessKey, SecretKey = SecretKey, ForcePathStyle = true,
     };

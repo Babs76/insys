@@ -62,7 +62,7 @@ public sealed class HuaweiCloudTests
     public async Task Obs_PutsGetsAndDeletesAnObject()
     {
         Assert.SkipUnless(Env("INSYS_HUAWEI_AK") is not null && Env("INSYS_HUAWEI_OBS_BUCKET") is not null, "No Huawei Cloud OBS credentials in the environment.");
-        using var store = new S3ObjectStore(Options.Create(new ObsOptions
+        using var store = new S3ObjectStore(Options.Create(new ObjectStoreOptions
         {
             ServiceUrl = $"https://obs.{Region}.myhuaweicloud.com", Region = Region, Bucket = Env("INSYS_HUAWEI_OBS_BUCKET")!,
             AccessKey = Env("INSYS_HUAWEI_AK")!, SecretKey = Env("INSYS_HUAWEI_SK")!,

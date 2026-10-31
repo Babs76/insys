@@ -1,6 +1,10 @@
 # ADR-027: Cloud-neutral deployment
 
-- **Status:** **DRAFT for Ade's sign-off, 31 October 2026.** Nothing here is built, and nothing will be until it is signed.
+- **Status:** **Signed in phases (Ade, 31 October 2026).**
+  - **Phase 1, now:** neutral settings, with the old names working one release with a warning, and the SDK guard. Built.
+  - **Phase 2, before the first customer:** the Helm chart (one API instance, ADR-006), a generic runbook and the Huawei runbook.
+  - **Phase 3, per customer:** that cloud's adapter and key re-wrapping, when that cloud is chosen.
+  - **Questions 1 to 3 accepted as recommended:** Google through Vault or OpenBao for now; the provider is named `vault`, tested against OpenBao, with legal to confirm before we host Vault; re-wrapping is in phase 3.
 - **Supersedes:** ADR-016 (Huawei Cloud as the only host), which becomes the first reference deployment. Amends ADR-018: envelope encryption stays, DEW becomes one key adapter.
 - **Requirements:** NFR-005, NFR-006, NFR-014; DBA-002; SRS §30.
 

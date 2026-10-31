@@ -35,7 +35,7 @@ using Microsoft.Extensions.Options;
 namespace Insys.BuildingBlocks.Cloud;
 
 /// <summary>
-/// Huawei Cloud DEW KMS settings (Huawei:Kms; ADR-016, ADR-018). The access key pair comes from the secret store, never
+/// Huawei Cloud DEW KMS settings (Kms; ADR-018, ADR-027). The access key pair comes from the secret store, never
 /// from the repository; the master key (CMK) is created in the account and named here by its ID.
 /// </summary>
 public sealed class DewKmsOptions
@@ -80,7 +80,7 @@ public sealed class DewKmsApi : IDewKmsApi
             var settings = options.Value;
             if (string.IsNullOrWhiteSpace(settings.AccessKey) || string.IsNullOrWhiteSpace(settings.SecretKey) || string.IsNullOrWhiteSpace(settings.ProjectId))
             {
-                throw new InvalidOperationException("Huawei:Kms:AccessKey, SecretKey and ProjectId must come from the secret store.");
+                throw new InvalidOperationException("Kms:AccessKey, SecretKey and ProjectId must come from the secret store.");
             }
 
             return KmsAsyncClient.NewBuilder()
@@ -114,7 +114,7 @@ public sealed class DewKmsApi : IDewKmsApi
 }
 
 /// <summary>
-/// DEW KMS for envelope encryption (FieldProtection:Envelope:Kms "dew"; ADR-018). DEW is rate-limited per account, so
+/// DEW KMS for envelope encryption (Kms:Provider "dew"; ADR-018). DEW is rate-limited per account, so
 /// the data key ring calls this rarely. A throttled (429) or failed (5xx, timeout, lost connection) call is retried with
 /// exponential back-off, as Huawei's DEW best practice recommends: 200 ms doubled per attempt, at most six attempts,
 /// each wait capped at 5 seconds and jittered so instances do not retry together.

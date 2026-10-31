@@ -55,7 +55,7 @@ public static class DocumentsInfrastructure
         services.AddScoped<IRecordHoldRepository, RecordHoldRepository>();
         services.AddScoped<RecordHoldTargets>();
         services.AddOptions<DocumentStorageOptions>().BindConfiguration("Documents:Storage");
-        if (string.Equals(configuration["Documents:Storage:Provider"], "object-store", StringComparison.OrdinalIgnoreCase))
+        if (BuildingBlocks.Infrastructure.CloudSettings.ObjectStoreProvider(configuration) is not null)
         {
             services.AddSingleton<IDocumentStorage, ObjectStoreDocumentStorage>();
         }

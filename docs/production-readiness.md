@@ -31,7 +31,7 @@ What must be in place before the first production go-live. Each item names the d
 
 | Item | Detail |
 |---|---|
-| IAM agency credentials | DEW KMS and OBS authenticate through the IAM agency of the ECS or CCE nodes, not an access key pair. The adapters take an access key pair today (`Huawei:Kms:*`, `Huawei:Obs:*`); add the agency (metadata) credential path. |
+| IAM agency credentials | DEW KMS and OBS authenticate through the IAM agency of the ECS or CCE nodes, not an access key pair. The adapters take an access key pair today (`Kms:*`, `ObjectStore:*`); add the agency (metadata) credential path. |
 | CMK protection | A key policy blocks scheduled deletion of the master key: without it, the data would become unreadable. |
 | `datakey_cipher_length` | Confirm against DEW when the real-cloud tests first run (`HuaweiCloudTests`). |
 | Lookup hash key | Kept in DEW CSMS. It cannot be rotated in place (OQ-020). |

@@ -193,7 +193,7 @@ public sealed class DataKeyRotationService(DataKeyRing ring, IOptions<FieldProte
 }
 
 /// <summary>
-/// A local stand-in for the KMS (Envelope:Kms "local"): data keys are wrapped with a master key from configuration. For
+/// A local stand-in for the KMS (Kms:Provider "local"): data keys are wrapped with a master key from configuration. For
 /// development and CI only; production uses DEW KMS (ADR-018).
 /// </summary>
 public sealed class LocalKeyManagementService(IOptions<FieldProtectionOptions> options) : IKeyManagementService
@@ -274,7 +274,7 @@ public static class FieldProtectionRegistration
             services.AddSingleton<DataKeyRing>();
             services.AddSingleton<IFieldProtector, EnvelopeFieldProtector>();
             services.AddHostedService<DataKeyRotationService>();
-            if (string.Equals(configuration["FieldProtection:Envelope:Kms"] ?? "local", "local", StringComparison.OrdinalIgnoreCase))
+            if (CloudSettings.KmsProvider(configuration) == CloudSettings.LocalKms)
             {
                 services.AddSingleton<IKeyManagementService, LocalKeyManagementService>();
             }
