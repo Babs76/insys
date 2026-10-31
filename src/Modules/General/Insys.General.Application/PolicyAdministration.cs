@@ -109,7 +109,7 @@ internal static class PolicyNumbers
             : Error.Validation(GeneralErrorCodes.CodeNotInForce, "No General policy numbering scheme is in force.");
 }
 
-internal sealed class IssuePolicyHandler(IGeneralRepository general, IGeneralCodes codes, ISellableProducts products, Party.Contracts.IDueDiligenceStatus dueDiligence,
+internal sealed class IssuePolicyHandler(IGeneralRepository general, IGeneralCodes codes, ISellableProducts products, Party.Contracts.IDueDiligenceStatus dueDiligence, Integration.Contracts.IDisclosureGate disclosures,
     ITenantContext tenant, IBusinessDate businessDate, IClock clock, IAuditTrail audit)
     : ICommandHandler<IssuePolicy, PolicyView>
 {
@@ -130,6 +130,13 @@ internal sealed class IssuePolicyHandler(IGeneralRepository general, IGeneralCod
         if (!cleared.Cleared)
         {
             return DueDiligenceRefusal.For(cleared.Outstanding, false);
+        }
+
+        // F060: the inception disclosures are acknowledged first, if the tenant has adopted them.
+        if (await disclosures.Outstanding(tenant.RequireTenantId(), quote.ProposerPartyId, Integration.Contracts.DisclosurePoints.Inception, Contracts.GeneralDocuments.QuoteRefType, quote.Id, businessDate.Today, cancellationToken)
+            is { Count: > 0 } outstanding)
+        {
+            return DisclosureRefusal.For(Integration.Contracts.DisclosurePoints.Inception, outstanding);
         }
 
         // The product version is still on sale when the policy is issued.

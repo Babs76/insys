@@ -157,9 +157,15 @@ public static class BuiltInProcesses
     public static readonly ProcessDefinition ProgrammeReview = new("HEALTH_PROGRAMME_REVIEW", 1, ["REVIEW_PROGRAMME", "REVIEWED"],
         [new TransitionDefinition("REVIEW_PROGRAMME", "REVIEWED", null)], null);
 
+    public static readonly ProcessDefinition DataSubjectRequest = new("DATA_SUBJECT_REQUEST", 1, ["ANSWER_REQUEST", "ANSWERED"],
+        [new TransitionDefinition("ANSWER_REQUEST", "ANSWERED", null)], null);
+
+    public static readonly ProcessDefinition PartyRetentionReview = new("PARTY_RETENTION_REVIEW", 1, ["REVIEW_RETENTION", "REVIEWED"],
+        [new TransitionDefinition("REVIEW_RETENTION", "REVIEWED", null)], null);
+
     public static ProcessDefinition? Find(string processCode, int? version) =>
         new[] { ParkedDelivery, ConfigurationReview, HeldClaimPayment, PartyMatchReview, AggregationReview, ApprovalFollowUp, GeneralReferral, DueDiligenceHitReview,
-            DueDiligenceSanctionsMatch, DueDiligenceReview, HealthArrearsTermination, GeneralRenewalReview, GeneralRetention, ProviderMeasureReview, CareActivityFollowUp, RecoveryReview, ProgrammeReview }.FirstOrDefault(d => d.ProcessCode == processCode && (version is null || version == d.Version));
+            DueDiligenceSanctionsMatch, DueDiligenceReview, HealthArrearsTermination, GeneralRenewalReview, GeneralRetention, ProviderMeasureReview, CareActivityFollowUp, RecoveryReview, ProgrammeReview, DataSubjectRequest, PartyRetentionReview }.FirstOrDefault(d => d.ProcessCode == processCode && (version is null || version == d.Version));
 }
 
 /// <summary>Where a new task goes and when it is due: from the task type, queue and SLA definitions in force.</summary>

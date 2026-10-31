@@ -50036,6 +50036,15 @@
             "type": "string",
             "format": "date"
           },
+          "enforcedBy": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
           "id": {
             "type": "string",
             "format": "uuid"
@@ -50262,6 +50271,15 @@
               "string"
             ],
             "format": "date"
+          },
+          "enforcedBy": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
           },
           "code": {
             "type": "string"

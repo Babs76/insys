@@ -88,6 +88,8 @@ public static class GeneralDocuments
 {
     public const string PolicyRefType = "GENERAL_POLICY";
     public const string EndorsementRefType = "GENERAL_ENDORSEMENT";
+    public const string QuoteRefType = "GENERAL_QUOTE";
+    public const string RenewalRefType = "GENERAL_RENEWAL";
 }
 
 [IntegrationEvent("general.GeneralRiskObjectRegistered")]

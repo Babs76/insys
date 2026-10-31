@@ -80,7 +80,7 @@ public sealed class ProposeNonRenewalValidator : AbstractValidator<ProposeNonRen
 
 /// <summary>The customer's answer to a renewal, recorded by staff or through a portal (§4.4, §4.6), and an insurer's non-renewal (§4.3).</summary>
 internal sealed class RenewalResponseHandlers(IGeneralRepository general, IGeneralPortalQueries portal, IGeneralCodes codes, IExecutionContext execution,
-    IBusinessDate businessDate, IClock clock, IAuditTrail audit) :
+    IBusinessDate businessDate, IClock clock, IAuditTrail audit, Integration.Contracts.IDisclosureGate disclosures, ITenantContext tenant) :
     ICommandHandler<AcceptRenewal, RenewalView>,
     ICommandHandler<DeclineRenewal, RenewalView>,
     ICommandHandler<PortalAcceptRenewal, PortalRenewalView>,
@@ -158,6 +158,18 @@ internal sealed class RenewalResponseHandlers(IGeneralRepository general, IGener
         return RenewalView.From(renewal);
     }
 
+    /// <summary>F060: accepting a renewal needs its disclosures acknowledged, if the tenant has adopted them. An automatic renewal has no such step.</summary>
+    private async Task<Error?> UnacknowledgedDisclosure(Renewal renewal, CancellationToken cancellationToken)
+    {
+        if (await general.Policy(renewal.PolicyId, cancellationToken) is not { } policy)
+        {
+            return null;
+        }
+
+        var outstanding = await disclosures.Outstanding(tenant.RequireTenantId(), policy.PolicyholderPartyId, Integration.Contracts.DisclosurePoints.Renewal, Contracts.GeneralDocuments.RenewalRefType, renewal.Id, businessDate.Today, cancellationToken);
+        return outstanding.Count > 0 ? DisclosureRefusal.For(Integration.Contracts.DisclosurePoints.Renewal, outstanding) : null;
+    }
+
     private async Task<Result<RenewalView>> Staff(Guid renewalId, string action, Func<Renewal, Guid, Result> respond, CancellationToken cancellationToken)
     {
         var user = Users.Require(execution);
@@ -169,6 +181,11 @@ internal sealed class RenewalResponseHandlers(IGeneralRepository general, IGener
         if (await general.Renewal(renewalId, cancellationToken) is not { } renewal)
         {
             return NotFound;
+        }
+
+        if (action == "AcceptRenewal" && await UnacknowledgedDisclosure(renewal, cancellationToken) is { } refused)
+        {
+            return refused;
         }
 
         var result = respond(renewal, user.Value);
@@ -187,6 +204,11 @@ internal sealed class RenewalResponseHandlers(IGeneralRepository general, IGener
         if (await Visible(renewalId, cancellationToken) is not { } shown || await general.Renewal(shown.Id, cancellationToken) is not { } renewal)
         {
             return NotFound;
+        }
+
+        if (action == "PortalAcceptRenewal" && await UnacknowledgedDisclosure(renewal, cancellationToken) is { } refused)
+        {
+            return refused;
         }
 
         var who = Related.Require(execution);

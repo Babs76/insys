@@ -168,6 +168,10 @@ public static class ErrorCodes
     [ErrorCode(422, "error.money.currency_mismatch")]
     public const string CurrencyMismatch = "CURRENCY_MISMATCH";
 
+    /// <summary>A mandatory disclosure hasn't been acknowledged at this point of the process (F060, OQ-157).</summary>
+    [ErrorCode(409, "error.disclosure.not_acknowledged")]
+    public const string DisclosureRequired = "DISCLOSURE_REQUIRED";
+
     [ErrorCode(403, "error.approval.maker_is_checker")]
     public const string MakerCheckerSamePerson = "MAKER_CHECKER_SAME_PERSON";
 
@@ -199,4 +203,14 @@ public static class ErrorCodes
             })
             .OrderBy(e => e.Code, StringComparer.Ordinal)
             .ToList();
+}
+
+/// <summary>The refusal when a step's mandatory disclosures aren't acknowledged (F060): it names the point and the notices.</summary>
+public static class DisclosureRefusal
+{
+    public static Error For(string displayPoint, IReadOnlyList<string> noticeTypes) =>
+        new(ErrorCodes.DisclosureRequired, $"The {displayPoint} disclosures aren't acknowledged yet.", ErrorKind.Conflict)
+        {
+            Extensions = new Dictionary<string, object?> { ["displayPoint"] = displayPoint, ["noticeTypes"] = noticeTypes },
+        };
 }

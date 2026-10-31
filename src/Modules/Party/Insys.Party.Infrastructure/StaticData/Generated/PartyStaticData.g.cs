@@ -34,7 +34,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Insys.Party.Infrastructure.StaticData;
 
-/// <summary>The 16 static data tables owned by the Party module.</summary>
+/// <summary>The 17 static data tables owned by the Party module.</summary>
 public static class PartyStaticData
 {
     public static readonly IReadOnlyList<StaticDataDescriptor> Descriptors =
@@ -42,6 +42,7 @@ public static class PartyStaticData
         new("party", "cfg_consent_purposes", "cfg_consent_purposes", "Consent purposes", "party", "consent-purposes", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(ConsentPurposes), typeof(ConsentPurposesInput), "Party Management"),
         new("party", "cfg_customer_risk_classes", "cfg_customer_risk_classes", "Customer risk classes", "party", "customer-risk-classes", StaticScope.GT, 1, StaticLifecycle.Configuration, typeof(CustomerRiskClasses), typeof(CustomerRiskClassesInput), "Party Management"),
         new("party", "cfg_customer_risk_factors", "cfg_customer_risk_factors", "Customer risk factors", "party", "customer-risk-factors", StaticScope.GT, 1, StaticLifecycle.Configuration, typeof(CustomerRiskFactors), typeof(CustomerRiskFactorsInput), "Party Management"),
+        new("party", "cfg_data_subject_settings", "cfg_data_subject_settings", "Data subject settings", "party", "data-subject-settings", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(DataSubjectSettings), typeof(DataSubjectSettingsInput), "Party Management"),
         new("party", "cfg_due_diligence_gates", "cfg_due_diligence_gates", "Due diligence gates", "party", "due-diligence-gates", StaticScope.GT, 1, StaticLifecycle.Configuration, typeof(DueDiligenceGates), typeof(DueDiligenceGatesInput), "Party Management"),
         new("party", "cfg_due_diligence_requirements", "cfg_due_diligence_requirements", "Due diligence requirements", "party", "due-diligence-requirements", StaticScope.GT, 1, StaticLifecycle.Configuration, typeof(DueDiligenceRequirements), typeof(DueDiligenceRequirementsInput), "Party Management"),
         new("party", "cfg_due_diligence_settings", "cfg_due_diligence_settings", "Due diligence settings", "party", "due-diligence-settings", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(DueDiligenceSettings), typeof(DueDiligenceSettingsInput), "Party Management"),
@@ -88,6 +89,13 @@ public static class PartyStaticData
             entity.Property(x => x.Factor).HasColumnName("factor").HasMaxLength(20);
             entity.Property(x => x.MatchValues).HasColumnName("match_values");
             entity.Property(x => x.Weight).HasColumnName("weight");
+        });
+        modelBuilder.Entity<DataSubjectSettings>(entity =>
+        {
+            entity.ToTable("cfg_data_subject_settings", "party");
+            StaticModel.ConfigureCommon(entity);
+            entity.Property(x => x.SettingCode).HasColumnName("setting_code").HasMaxLength(15);
+            entity.Property(x => x.ResponseDays).HasColumnName("response_days");
         });
         modelBuilder.Entity<DueDiligenceGates>(entity =>
         {

@@ -51,6 +51,8 @@ public sealed class ComplianceRegisterEntries : StaticRecord<ComplianceRegisterE
 
     public DateOnly ReviewDate { get; set; }
 
+    public string[]? EnforcedBy { get; set; }
+
     public override void ApplyFields(ComplianceRegisterEntriesInput input, IFieldProtector protector)
     {
         EntryCode = input.EntryCode!;
@@ -59,6 +61,7 @@ public sealed class ComplianceRegisterEntries : StaticRecord<ComplianceRegisterE
         Obligation = input.Obligation!;
         Evidence = input.Evidence;
         ReviewDate = input.ReviewDate.GetValueOrDefault();
+        EnforcedBy = input.EnforcedBy;
     }
 }
 
@@ -81,6 +84,8 @@ public sealed record ComplianceRegisterEntriesInput : StaticRecordInput
 
     [Insys.BuildingBlocks.Domain.RequiredField]
     public DateOnly? ReviewDate { get; init; }
+
+    public string[]? EnforcedBy { get; init; }
 
     protected override void ValidateFields(StaticFieldErrors errors)
     {

@@ -57,6 +57,7 @@ public static class ComplianceStaticData
             entity.Property(x => x.Obligation).HasColumnName("obligation");
             entity.Property(x => x.Evidence).HasColumnName("evidence");
             entity.Property(x => x.ReviewDate).HasColumnName("review_date");
+            entity.Property(x => x.EnforcedBy).HasColumnName("enforced_by");
         });
         modelBuilder.Entity<RegulatoryReturnDefinitions>(entity =>
         {

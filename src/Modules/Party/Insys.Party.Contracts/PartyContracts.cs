@@ -65,8 +65,23 @@ public static class PartyApprovals
     public const string UnblockType = "DUE_DILIGENCE_UNBLOCK";
 }
 
+/// <summary>F059: a request came in; Workflow asks a person to deal with it by its due date. Names no party.</summary>
+[IntegrationEvent("party.DataSubjectRequestReceived")]
+public sealed record DataSubjectRequestReceived(Guid RequestId, string RequestNumber, DateOnly DueOn) : IIntegrationEvent;
+
+/// <summary>F064: nothing keeps this party's data any more; Workflow asks a person whether to anonymise it.</summary>
+[IntegrationEvent("party.PartyRetentionEnded")]
+public sealed record PartyRetentionEnded(Guid PartyId) : IIntegrationEvent;
+
 public static class PartyPermissions
 {
+    public const string DataSubjectRead = "data_subject_request.read";
+    public const string DataSubjectCreate = "data_subject_request.create";
+    public const string DataSubjectUpdate = "data_subject_request.update";
+
+    /// <summary>A second person, before any export leaves or any deletion runs.</summary>
+    public const string DataSubjectApprove = "data_subject_request.approve";
+
     public const string PartyRead = "party.read";
 
     /// <summary>Place and release legal holds on the party search access log (OQ-073).</summary>

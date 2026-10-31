@@ -152,7 +152,7 @@ internal sealed class GetHealthSchemeHandler(IHealthRepository health) : IQueryH
 }
 
 internal sealed class EnrolHealthMemberHandler(IHealthRepository health, IHealthCodes codes, IBusinessDate businessDate, IClock clock, IAuditTrail audit,
-    ITenantContext tenant, IExecutionContext execution, IOrganisationStructure organisation, ISellableProducts products, Party.Contracts.IDueDiligenceStatus dueDiligence)
+    ITenantContext tenant, IExecutionContext execution, IOrganisationStructure organisation, ISellableProducts products, Party.Contracts.IDueDiligenceStatus dueDiligence, Integration.Contracts.IDisclosureGate disclosures)
     : ICommandHandler<EnrolHealthMember, MembershipView>
 {
     public async Task<Result<MembershipView>> Handle(EnrolHealthMember command, CancellationToken cancellationToken)
@@ -175,6 +175,12 @@ internal sealed class EnrolHealthMemberHandler(IHealthRepository health, IHealth
         if (!cleared.Cleared)
         {
             return DueDiligenceRefusal.For(cleared.Outstanding, false);
+        }
+
+        // F060: the inception disclosures are acknowledged first, if the tenant has adopted them. There is no record yet to name.
+        if (await disclosures.Outstanding(tenant.RequireTenantId(), command.PrincipalPartyId, Integration.Contracts.DisclosurePoints.Inception, null, null, businessDate.Today, cancellationToken) is { Count: > 0 } outstanding)
+        {
+            return DisclosureRefusal.For(Integration.Contracts.DisclosurePoints.Inception, outstanding);
         }
 
         // F103 (addenda/access-scopes.md §2): the owning node, and the product, in the caller's scope.

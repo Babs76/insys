@@ -1743,6 +1743,33 @@
      "sample": "true"
     }
    ]
+  },
+  {
+   "layer": "Domain",
+   "module": "Party Management",
+   "subModule": "Data-subject requests",
+   "entity": "Data subject settings",
+   "table": "party.cfg_data_subject_settings",
+   "class": "CFG",
+   "scope": "T",
+   "tier": 2,
+   "proposedOwner": "Compliance Officer",
+   "provenance": "Wave 6 addendum (addenda/finance-and-compliance.md), signed off by Ade, 31 October 2026",
+   "basis": "F059; OQ-159",
+   "fields": [
+    {
+     "name": "setting_code",
+     "logicalType": "String(15)",
+     "mandatory": true,
+     "sample": "DEFAULT"
+    },
+    {
+     "name": "response_days",
+     "logicalType": "Integer",
+     "mandatory": true,
+     "sample": "30"
+    }
+   ]
   }
  ]
 }

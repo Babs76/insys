@@ -2197,6 +2197,48 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
     }
 
     /// <summary>A vehicle, a quote rated through Rating, issued and accepted (GeneralQuoteAccepted), a proposal, and the policy issued from it.</summary>
+    /// <summary>Wave 6 §10: a disclosure point refuses its step until acknowledged; a data-subject deletion is refused within retention (F059, F060, OQ-157).</summary>
+    [Fact]
+    public async Task ADisclosurePoint_RefusesTheStepUntilAcknowledged_AndADeletionIsRefusedWhileRecordsAreKept_F059_F060()
+    {
+        var proposer = await _maker.RegisterPerson("Disclosed");
+        await Seed("channel.cfg_disclosure_and_notice_texts", "EFFECTIVE", "DISC-INC", ("notice_type", "POLICY_TERMS"), ("jurisdiction", "ZA"), ("language", "en"), ("text", "Your cover starts when issued."),
+            ("text_version", 3), ("display_point", "INCEPTION"));
+        await _db.UserWithPermissions(Tenant, "disclosure-clerk", IntegrationPermissions.DisclosureRead, IntegrationPermissions.DisclosureCreate);
+        await _db.UserWithPermissions(Tenant, "dsr-first", PartyPermissions.DataSubjectCreate, PartyPermissions.DataSubjectRead, PartyPermissions.DataSubjectUpdate);
+        await _db.UserWithPermissions(Tenant, "dsr-second", PartyPermissions.DataSubjectRead, PartyPermissions.DataSubjectApprove);
+        await _db.AdoptFunctionCatalogue();
+        var clerk = _factory.ClientFor(Tenant, "disclosure-clerk");
+
+        await IssuedPolicy(proposer: proposer, beforeIssue: async (quoted, body) =>
+        {
+            (await (await _maker.Send(HttpMethod.Post, "/api/v1/general/policies", body, idempotent: true)).Code()).ShouldBe("DISCLOSURE_REQUIRED");
+            var text = await (await clerk.GetAsync("/api/v1/integration/disclosures?displayPoint=INCEPTION&noticeType=POLICY_TERMS&jurisdiction=ZA&language=en")).Json();
+            text.GetProperty("textVersion").GetInt32().ShouldBe(3);
+            var acknowledged = await clerk.Send(HttpMethod.Post, "/api/v1/integration/disclosure-acknowledgements", new
+            {
+                partyId = proposer, displayPoint = "INCEPTION", noticeType = "POLICY_TERMS", jurisdiction = "ZA", language = "en", businessRefType = GeneralDocuments.QuoteRefType, businessRefId = quoted,
+            }, idempotent: true);
+            acknowledged.StatusCode.ShouldBe(HttpStatusCode.Created, await acknowledged.Content.ReadAsStringAsync());
+        });
+
+        // A deletion while a policy is open: a person confirms, a second approves, and the check refuses it with its reason.
+        var first = _factory.ClientFor(Tenant, "dsr-first");
+        var second = _factory.ClientFor(Tenant, "dsr-second");
+        var received = await first.Send(HttpMethod.Post, "/api/v1/party/data-subject-requests", new { partyId = proposer, requestType = "DELETION" }, idempotent: true);
+        received.StatusCode.ShouldBe(HttpStatusCode.Created, await received.Content.ReadAsStringAsync());
+        var url = $"/api/v1/party/data-subject-requests/{(await received.Json()).GetProperty("id").GetGuid()}";
+        var confirmed = await first.Send(HttpMethod.Post, $"{url}/confirm-identity", ifMatch: received.ETag());
+        confirmed.StatusCode.ShouldBe(HttpStatusCode.OK, await confirmed.Content.ReadAsStringAsync());
+        var approved = await second.Send(HttpMethod.Post, $"{url}/approve", ifMatch: confirmed.ETag());
+        approved.StatusCode.ShouldBe(HttpStatusCode.OK, await approved.Content.ReadAsStringAsync());
+        var run = await second.Send(HttpMethod.Post, $"{url}/execute-deletion", ifMatch: approved.ETag());
+        run.StatusCode.ShouldBe(HttpStatusCode.OK, await run.Content.ReadAsStringAsync());
+        var answer = await run.Json();
+        (answer.GetProperty("status").GetString(), answer.GetProperty("outcome").GetString()).ShouldBe(("REFUSED", "REFUSED"));
+        answer.GetProperty("outcomeReason").GetString().ShouldBe("The relationship is still active.");
+    }
+
     /// <summary>Wave 6 §10: a product's invoice carries its rate's tax, posted to the tax code's account; a return's total equals the postings; a second person approves it.</summary>
     [Fact]
     public async Task AnInvoicesTax_IsPostedToItsAccount_AndAReturnTotalsIt_F094_OQ058()
@@ -2232,7 +2274,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
     }
 
     private async Task<(Guid Policy, Guid Vehicle)> IssuedPolicy(string product = Product, DateOnly? start = null, string? riskZone = null, string? orgNodeCode = null,
-        Guid? proposer = null, string? intermediaryCode = null)
+        Guid? proposer = null, string? intermediaryCode = null, Func<Guid, object, Task>? beforeIssue = null)
     {
         var periodStart = start ?? Today;
         var vehicle = await Created("/api/v1/general/risk-objects", new
@@ -2263,7 +2305,13 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         var proposal = await Created("/api/v1/general/proposals", new { quoteId = quote, declarations = new { claims_last_3_years = 0 } });
         (await _maker.PostAsync($"/api/v1/general/proposals/{proposal}/accept", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
 
-        var policy = await Created("/api/v1/general/policies", new { quoteId = quote, billingFrequency = "MONTHLY", collectionMethod = "DEBIT_ORDER" });
+        var issueBody = new { quoteId = quote, billingFrequency = "MONTHLY", collectionMethod = "DEBIT_ORDER" };
+        if (beforeIssue is not null)
+        {
+            await beforeIssue(quote, issueBody);
+        }
+
+        var policy = await Created("/api/v1/general/policies", issueBody);
 
         // BR-035: the forward and back links from quote to proposal to policy, and the quote's node.
         var quoted = await (await _maker.GetAsync($"/api/v1/general/quotes/{quote}")).Json();

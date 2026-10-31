@@ -29,6 +29,7 @@
     <ProjectReference Include="..\..\..\BuildingBlocks\Insys.BuildingBlocks.Application\Insys.BuildingBlocks.Application.csproj" />
     <ProjectReference Include="..\Insys.General.Domain\Insys.General.Domain.csproj" />
     <ProjectReference Include="..\Insys.General.Contracts\Insys.General.Contracts.csproj" />
+    <ProjectReference Include="..\..\Integration\Insys.Integration.Contracts\Insys.Integration.Contracts.csproj" />
     <ProjectReference Include="..\..\Billing\Insys.Billing.Contracts\Insys.Billing.Contracts.csproj" />
     <ProjectReference Include="..\..\ClaimsFramework\Insys.ClaimsFramework.Contracts\Insys.ClaimsFramework.Contracts.csproj" />
     <ProjectReference Include="..\..\Documents\Insys.Documents.Contracts\Insys.Documents.Contracts.csproj" />

@@ -9323,6 +9323,12 @@
      "logicalType": "Date",
      "mandatory": true,
      "sample": "2027-06-30"
+    },
+    {
+     "name": "enforced_by",
+     "logicalType": "List<String>",
+     "mandatory": false,
+     "sample": "general.cfg_claim_rules"
     }
    ]
   },

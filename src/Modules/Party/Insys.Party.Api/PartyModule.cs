@@ -387,7 +387,52 @@ public sealed class PartyModule : IModule
             .RequirePermission(PartyPermissions.PartyMerge)
             .RequireIdempotencyKey();
 
+        var dsr = api.MapGroup("/party/data-subject-requests").WithTags(Name);
+        dsr.MapPost("/", async (ReceiveDataSubjectRequest r, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Send(r, ct)).ToHttp(v => Results.Created($"/api/v1/party/data-subject-requests/{v.Id}", v)))
+            .Produces<DataSubjectRequestView>(StatusCodes.Status201Created).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("PartyReceiveDataSubjectRequest").WithSummary("Record a data subject's access, correction or deletion request (F059); it's due after the tenant's days").RequirePermission(PartyPermissions.DataSubjectCreate).RequireIdempotencyKey();
+        dsr.MapGet("/", async (Guid? partyId, string? cursor, int? limit, IDispatcher dispatcher, CancellationToken ct) =>
+                {
+                    if (!Cursor.TryDecode(cursor, out var after))
+                    {
+                        return Problems.For(BuildingBlocks.Domain.ErrorCodes.ValidationFailed, "The cursor is not valid.", StatusCodes.Status422UnprocessableEntity);
+                    }
+
+                    var size = Cursor.ClampLimit(limit);
+                    return (await dispatcher.Query(new ListDataSubjectRequests(partyId, after, size), ct)).ToHttp(items => Results.Ok(new CursorPage<DataSubjectRequestView>(items, items.Count == size ? Cursor.Encode(items[^1].Id) : null)));
+                })
+            .Produces<CursorPage<DataSubjectRequestView>>(StatusCodes.Status200OK).WithName("PartyListDataSubjectRequests").WithSummary("Data-subject requests").RequirePermission(PartyPermissions.DataSubjectRead);
+        dsr.MapGet("/{id:guid}", async (Guid id, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Query(new GetDataSubjectRequest(id), ct)).ToHttp(Results.Ok))
+            .Produces<DataSubjectRequestView>(StatusCodes.Status200OK).WithName("PartyGetDataSubjectRequest").WithSummary("A data-subject request").RequirePermission(PartyPermissions.DataSubjectRead);
+        dsr.MapPost("/{id:guid}/confirm-identity", async (Guid id, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Send(new ConfirmDataSubjectIdentity(id), ct)).ToHttp(Results.Ok))
+            .Produces<DataSubjectRequestView>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status409Conflict).TakesIfMatch()
+            .WithName("PartyConfirmDataSubjectIdentity").WithSummary("A person confirms who is asking").RequirePermission(PartyPermissions.DataSubjectUpdate);
+        dsr.MapPost("/{id:guid}/approve", async (Guid id, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Send(new ApproveDataSubjectRequest(id), ct)).ToHttp(Results.Ok))
+            .Produces<DataSubjectRequestView>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status409Conflict).TakesIfMatch()
+            .WithName("PartyApproveDataSubjectRequest").WithSummary("A second person approves, before any export leaves or deletion runs").RequirePermission(PartyPermissions.DataSubjectApprove);
+        dsr.MapPost("/{id:guid}/refuse", async (Guid id, RefuseDataSubjectRequestBody r, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Send(new RefuseDataSubjectRequest(id, r.Reason), ct)).ToHttp(Results.Ok))
+            .Produces<DataSubjectRequestView>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status409Conflict).ProducesProblem(StatusCodes.Status422UnprocessableEntity).TakesIfMatch()
+            .WithName("PartyRefuseDataSubjectRequest").WithSummary("Refuse with a reason: the answer to the data subject").RequirePermission(PartyPermissions.DataSubjectApprove);
+        dsr.MapGet("/{id:guid}/export", async (Guid id, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Send(new ExportDataSubjectRequest(id), ct)).ToHttp(json => Results.Text(json, "application/json")))
+            .Produces<string>(StatusCodes.Status200OK, "application/json").ProducesProblem(StatusCodes.Status409Conflict)
+            .WithName("PartyExportDataSubjectRequest").WithSummary("An approved access request's records; health records only for the clinical function; audited").RequirePermission(PartyPermissions.DataSubjectApprove);
+        dsr.MapPost("/{id:guid}/complete-correction", async (Guid id, CompleteCorrectionBody r, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Send(new CompleteDataSubjectCorrection(id, r.Reference), ct)).ToHttp(Results.Ok))
+            .Produces<DataSubjectRequestView>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status409Conflict).ProducesProblem(StatusCodes.Status422UnprocessableEntity).TakesIfMatch()
+            .WithName("PartyCompleteDataSubjectCorrection").WithSummary("An approved correction, made through the party change that the reference names").RequirePermission(PartyPermissions.DataSubjectUpdate);
+        dsr.MapPost("/{id:guid}/execute-deletion", async (Guid id, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Send(new ExecuteDataSubjectDeletion(id), ct)).ToHttp(Results.Ok))
+            .Produces<DataSubjectRequestView>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status409Conflict).TakesIfMatch()
+            .WithName("PartyExecuteDataSubjectDeletion").WithSummary("Run the anonymise check on an approved deletion: within retention or under hold it is refused, with the reason").RequirePermission(PartyPermissions.DataSubjectApprove);
+
         var portal = api.MapGroup("/portal/party").WithTags(Name);
+        portal.MapPost("/data-subject-requests", async (ReceivePortalDataSubjectRequest r, IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Send(r, ct)).ToHttp(v => Results.Created($"/api/v1/portal/party/data-subject-requests/{v.Id}", v)))
+            .Produces<DataSubjectRequestView>(StatusCodes.Status201Created).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("PortalPartyRaiseDataSubjectRequest").WithSummary("Ask what is held about you, or for a correction or deletion").RequirePermission(PartyPermissions.DataSubjectCreate)
+            .ForPortal(BuildingBlocks.Application.Context.ExternalSubject.Party).RequireIdempotencyKey();
+        portal.MapGet("/data-subject-requests", async (IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Query(new ListPortalDataSubjectRequests(), ct)).ToHttp(Results.Ok))
+            .Produces<IReadOnlyList<DataSubjectRequestView>>(StatusCodes.Status200OK)
+            .WithName("PortalPartyListDataSubjectRequests").WithSummary("Your requests and where they stand").RequirePermission(PartyPermissions.DataSubjectRead)
+            .ForPortal(BuildingBlocks.Application.Context.ExternalSubject.Party);
         portal.MapGet("/parties", async (string? cursor, int? limit, IDispatcher dispatcher, CancellationToken ct) =>
                 {
                     if (!Cursor.TryDecode(cursor, out var after))
@@ -577,3 +622,7 @@ public sealed record SearchLogHoldRequest(string? SearchedBy, string Reason);
 
 /// <param name="Reason">Why the hold may be released (at most 200 characters); the checker sees it.</param>
 public sealed record SearchLogHoldReleaseRequest([property: System.ComponentModel.DataAnnotations.MinLength(1), System.ComponentModel.DataAnnotations.MaxLength(200)] string Reason);
+
+public sealed record RefuseDataSubjectRequestBody(string Reason);
+
+public sealed record CompleteCorrectionBody(string Reference);

@@ -35,6 +35,23 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Insys.Party.Infrastructure.Persistence;
 
+internal sealed class DataSubjectRequests(PartyDbContext db) : IDataSubjectRequests
+{
+    public Task<DataSubjectRequest?> Get(Guid id, CancellationToken cancellationToken) => db.DataSubjectRequests.SingleOrDefaultAsync(r => r.Id == id, cancellationToken);
+
+    public async Task<IReadOnlyList<DataSubjectRequest>> List(Guid? partyId, Guid? afterId, int limit, CancellationToken cancellationToken) =>
+        await db.DataSubjectRequests.AsNoTracking().Where(r => (partyId == null || r.PartyId == partyId) && (afterId == null || r.Id.CompareTo(afterId.Value) > 0)).OrderBy(r => r.Id).Take(limit).ToListAsync(cancellationToken);
+
+    public async Task<int> ResponseDays(DateOnly day, CancellationToken cancellationToken) =>
+        await db.Set<StaticData.DataSubjectSettings>().AsNoTracking().InForce(BuildingBlocks.Infrastructure.StaticData.StaticLifecycle.Configuration, day).OrderBy(s => s.Code).Select(s => (int?)s.ResponseDays)
+            .FirstOrDefaultAsync(cancellationToken) ?? DataSubjectDefaults.ResponseDays;
+
+    public async Task<IReadOnlyList<Guid>> RetentionCandidates(int limit, CancellationToken cancellationToken) =>
+        await db.Parties.AsNoTracking().Where(p => (p.Status == PartyStatus.Dormant || p.Status == PartyStatus.Deceased) && p.RetentionReviewRaisedOn == null).OrderBy(p => p.Id).Select(p => p.Id).Take(limit).ToListAsync(cancellationToken);
+
+    public void Add(DataSubjectRequest request) => db.DataSubjectRequests.Add(request);
+}
+
 internal sealed class PartyRepository(PartyDbContext db) : IPartyRepository
 {
     public async Task<IReadOnlyList<Guid>> MergedInto(Guid partyId, CancellationToken cancellationToken)
@@ -166,6 +183,8 @@ internal sealed class PartyEventMapper : IDomainEventMapper
 {
     public IIntegrationEvent? Map(IDomainEvent domainEvent) => domainEvent switch
     {
+        DataSubjectRequestReceived e => new Contracts.DataSubjectRequestReceived(e.RequestId, e.RequestNumber, e.DueOn),
+        PartyRetentionEnded e => new Contracts.PartyRetentionEnded(e.PartyId),
         PartyRegistered e => new Contracts.PartyRegistered(e.PartyId, e.Kind.ToString().ToUpperInvariant()),
         PartyDetailsChanged e => new Contracts.PartyDetailsChanged(e.PartyId, e.Part),
         PartyIdentifierAdded e => new Contracts.PartyIdentifierAdded(e.PartyId, e.IdentifierId),

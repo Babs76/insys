@@ -43,6 +43,10 @@ public static class IntegrationInfrastructure
 {
     public static IServiceCollection AddIntegrationInfrastructure(this IServiceCollection services)
     {
+        services.AddSingleton<Channels.Disclosures>();
+        services.AddSingleton<IDisclosureGate>(sp => sp.GetRequiredService<Channels.Disclosures>());
+        services.AddSingleton<Application.IDisclosures>(sp => sp.GetRequiredService<Channels.Disclosures>());
+        services.AddSingleton<BuildingBlocks.Application.IReadinessCheck, Channels.DisclosureReadiness>();
         // Its dashboard figure codes, for the OpenAPI enum of DashboardFigure.code.
         BuildingBlocks.Application.DashboardFigureCodes.Declare(Insys.Integration.Application.Parking.DeliveryFigures.Parked, Insys.Integration.Application.Parking.DeliveryFigures.Failing, Insys.Integration.Application.Parking.DeliveryFigures.DeadLettersOpen,
             Insys.Integration.Application.Parking.DeliveryFigures.WebhooksFailing, Insys.Integration.Application.Parking.DeliveryFigures.OldestParkedAt, Insys.Integration.Application.Parking.DeliveryFigures.JobFunctionsOff);

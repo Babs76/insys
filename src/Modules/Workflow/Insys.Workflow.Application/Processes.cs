@@ -970,6 +970,34 @@ public sealed class CareActivityFollowUpTasks(IProcessRepository processes, IPro
     }
 }
 
+/// <summary>F059, F064: a data-subject request and a party past retention each get a person's task. They name no one.</summary>
+public sealed class PartyComplianceTasks(IProcessRepository processes, IProcessQueries queries, IWorkflowConfiguration configuration, IBusinessDate businessDate,
+    IClock clock, IAuditTrail audit) : IIntegrationEventHandler<Party.Contracts.DataSubjectRequestReceived>, IIntegrationEventHandler<Party.Contracts.PartyRetentionEnded>
+{
+    public const string RequestRefType = "DATA_SUBJECT_REQUEST";
+    public const string RetentionRefType = "PARTY_RETENTION";
+
+    public Task Handle(Party.Contracts.DataSubjectRequestReceived received, EventEnvelope envelope, CancellationToken cancellationToken) =>
+        Start(BuiltInProcesses.DataSubjectRequest, RequestRefType, received.RequestId, cancellationToken);
+
+    public Task Handle(Party.Contracts.PartyRetentionEnded ended, EventEnvelope envelope, CancellationToken cancellationToken) =>
+        Start(BuiltInProcesses.PartyRetentionReview, RetentionRefType, ended.PartyId, cancellationToken);
+
+    private async Task Start(ProcessDefinition definition, string refType, Guid refId, CancellationToken cancellationToken)
+    {
+        if ((await queries.List(refType, refId, null, 1, cancellationToken)).Count > 0)
+        {
+            return;
+        }
+
+        var now = clock.UtcNow;
+        var routing = await configuration.Routing(businessDate.Today, now, cancellationToken);
+        var process = ProcessInstance.StartProcess(Guid.CreateVersion7(), definition, refType, refId, routing, now);
+        processes.Add(process.Value);
+        audit.Record(new AuditEntry("WORKFLOW", "StartProcess", nameof(ProcessInstance), process.Value.Id.ToString(), new Dictionary<string, string?> { ["process"] = $"{definition.ProcessCode}@{definition.Version}" }));
+    }
+}
+
 /// <summary>F086: a programme enrolment's review gets a person's task, in the queue its task type routes to. Names no programme.</summary>
 public sealed class ProgrammeReviewTasks(IProcessRepository processes, IProcessQueries queries, IWorkflowConfiguration configuration, IBusinessDate businessDate,
     IClock clock, IAuditTrail audit) : IIntegrationEventHandler<Health.Contracts.ProgrammeReviewDue>

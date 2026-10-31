@@ -32,6 +32,10 @@ namespace Insys.Integration.Contracts;
 /// </summary>
 public static class IntegrationPermissions
 {
+    public const string DisclosureRead = "disclosure.read";
+
+    /// <summary>Records that a party acknowledged a disclosure.</summary>
+    public const string DisclosureCreate = "disclosure.create";
     public const string DeadLetterRead = "dead_letter.read";
     public const string DeadLetterUpdate = "dead_letter.update";
     public const string WebhookRead = "webhook_delivery.read";

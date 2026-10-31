@@ -48,6 +48,14 @@ public static class ComplianceInfrastructure
         services.AddModuleHandlers<ComplianceDbContext>(typeof(PrepareReturn).Assembly);
         services.AddDomainEventMapper<ComplianceEventMapper>(schema);
         services.AddScoped<IComplianceRepository, ComplianceRepository>();
+        // Wave 6 §4.4 (F057): enforcement stays in each module's checks; a register entry names what does it, and one that names nothing is a warning.
+        BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddSqlReadiness(services, schema, ["INTEGRATION_AND_REPORTING"], async (context, connection, transaction, ct) =>
+        {
+            var unenforced = await BuildingBlocks.Infrastructure.Readiness.ReadinessSql.Strings(connection, transaction,
+                $"SELECT entry_code FROM reporting.cfg_compliance_register_entries WHERE (tenant_id = @t OR tenant_id IS NULL) AND {BuildingBlocks.Infrastructure.Readiness.ReadinessSql.InForce} AND coalesce(cardinality(enforced_by), 0) = 0 ORDER BY 1", ct,
+                ("t", context.TenantId), ("inForce", BuildingBlocks.Infrastructure.StaticData.StaticLifecycle.Configuration.InForce), ("day", context.Day));
+            return [BuildingBlocks.Application.ReadinessResult.Warning("INTEGRATION_AND_REPORTING", "REGISTER_ENFORCEMENT", "A compliance register entry names the configuration that enforces it", unenforced)];
+        });
         services.AddScoped<IComplianceCodes, ComplianceCodes>();
         services.AddScoped<ReturnValues>();
         services.AddIntegrationEventHandler<AccountingPeriodClosed, ReturnPolicies, ComplianceDbContext>(schema, "AccountingPeriodClosed");

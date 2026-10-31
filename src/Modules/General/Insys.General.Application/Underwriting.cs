@@ -425,7 +425,8 @@ internal sealed class CreateQuoteHandler(IGeneralRepository general, ISellablePr
     }
 }
 
-internal sealed class ChangeQuoteHandler(IGeneralRepository general, IGeneralCodes codes, IBusinessDate businessDate, IClock clock, IAuditTrail audit, IExecutionContext execution)
+internal sealed class ChangeQuoteHandler(IGeneralRepository general, IGeneralCodes codes, IBusinessDate businessDate, IClock clock, IAuditTrail audit, IExecutionContext execution,
+    Integration.Contracts.IDisclosureGate disclosures, ITenantContext tenant)
     : ICommandHandler<ChangeQuote, QuoteView>
 {
     public async Task<Result<QuoteView>> Handle(ChangeQuote command, CancellationToken cancellationToken)
@@ -466,6 +467,13 @@ internal sealed class ChangeQuoteHandler(IGeneralRepository general, IGeneralCod
                 result = quote.IssueQuote(businessDate.Today.AddDays(days), clock.UtcNow);
                 break;
             case QuoteAction.Accept:
+                // F060: the quote's disclosures are acknowledged first, if the tenant has adopted them.
+                if (await disclosures.Outstanding(tenant.RequireTenantId(), quote.ProposerPartyId, Integration.Contracts.DisclosurePoints.Quote, Contracts.GeneralDocuments.QuoteRefType, quote.Id, businessDate.Today, cancellationToken)
+                    is { Count: > 0 } outstanding)
+                {
+                    return DisclosureRefusal.For(Integration.Contracts.DisclosurePoints.Quote, outstanding);
+                }
+
                 result = quote.AcceptQuote(businessDate.Today, clock.UtcNow);
                 break;
             default:

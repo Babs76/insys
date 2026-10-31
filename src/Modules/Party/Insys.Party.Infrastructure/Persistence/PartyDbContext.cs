@@ -43,6 +43,8 @@ public sealed class PartyDbContext(DbContextOptions<PartyDbContext> options, Mod
 
     public DbSet<ConsentRecord> Consents => Set<ConsentRecord>();
 
+    public DbSet<DataSubjectRequest> DataSubjectRequests => Set<DataSubjectRequest>();
+
     public DbSet<DuplicateCandidate> DuplicateCandidates => Set<DuplicateCandidate>();
 
     public DbSet<DueDiligenceCheck> DueDiligenceChecks => Set<DueDiligenceCheck>();
@@ -54,6 +56,19 @@ public sealed class PartyDbContext(DbContextOptions<PartyDbContext> options, Mod
     protected override void ConfigureModel(ModelBuilder modelBuilder)
     {
         PartyStaticData.Configure(modelBuilder);
+
+        modelBuilder.Entity<DataSubjectRequest>(request =>
+        {
+            request.ToTable("data_subject_request"); // Wave 6 §4.5, F059
+            request.HasKey(r => new { r.TenantId, r.Id });
+            request.HasAuditColumns();
+            request.Property(r => r.RequestNumber).HasMaxLength(25);
+            request.Property(r => r.RequestType).HasMaxLength(12);
+            request.Property(r => r.Status).HasMaxLength(20);
+            request.Property(r => r.Outcome).HasMaxLength(12);
+            request.Property(r => r.OutcomeReason).HasMaxLength(1000);
+            request.Property(r => r.RowVersion).IsConcurrencyToken();
+        });
 
         modelBuilder.Entity<SearchLogHold>(hold =>
         {
@@ -94,6 +109,7 @@ public sealed class PartyDbContext(DbContextOptions<PartyDbContext> options, Mod
             party.Property(p => p.MatchResolution).HasMaxLength(4);
             party.HasKey(p => new { p.TenantId, p.Id });
             party.HasAuditColumns();
+            party.Property(p => p.RetentionReviewRaisedOn);
             party.Ignore(p => p.DomainEvents);
             party.Ignore(p => p.HasChanges);
             party.Property(p => p.Kind).HasColumnName("party_kind").HasConversion(new UpperCaseEnumConverter<PartyKind>()).HasMaxLength(12);

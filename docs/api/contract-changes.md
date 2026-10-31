@@ -2,6 +2,17 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
+## Wave 6 batch 6.2 (branch `wave6-2`): register, data-subject requests, disclosures, retention (addendum §4.4 to §4.7; F057, F059, F060, F064)
+
+### New
+- **`/party/data-subject-requests`:** `POST`, `GET`, `GET /{id}`, and `POST /{id}/confirm-identity`, `/approve`, `/refuse`, `/complete-correction`, `/execute-deletion`, `GET /{id}/export`. Portal: `POST`, `GET /portal/party/data-subject-requests`. Permissions `data_subject_request.read`, `.create`, `.update`, `.approve`. `party.cfg_data_subject_settings` holds the days.
+- **`GET /integration/disclosures`, `POST /integration/disclosure-acknowledgements`,** and on the portal `GET /portal/disclosures`, `POST /portal/disclosure-acknowledgements`. Permissions `disclosure.read`, `.create`.
+- **Error `DISCLOSURE_REQUIRED` (409)**, with `displayPoint` and `noticeTypes`: from accepting a General quote, issuing a General or Life policy, enrolling a Health member, accepting a General renewal, once a text is in force at that point. Acknowledge with the record named: `GENERAL_QUOTE`, `LIFE_PROPOSAL`, `GENERAL_RENEWAL`; Health names none.
+- **Business references** `DATA_SUBJECT_REQUEST`, `PARTY_RETENTION`. **Readiness warnings** `DISCLOSURE_TEXTS`, `REGISTER_ENFORCEMENT`.
+
+### Changed
+- **`reporting.cfg_compliance_register_entries`** gains `enforcedBy`.
+
 ## Wave 6 batch 6.1 (branch `wave6-1`): tax on invoices and returns (addendum §4.2; F094)
 
 ### New

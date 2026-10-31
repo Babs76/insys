@@ -563,6 +563,15 @@ public sealed class Party : AggregateRoot<Guid>
 
     public PartyStatus Status { get; private set; }
 
+    /// <summary>The day a person was asked to review this party's retention (F064), so one party raises one task.</summary>
+    public DateOnly? RetentionReviewRaisedOn { get; private set; }
+
+    public void RaiseRetentionReview(DateOnly day, DateTimeOffset now)
+    {
+        RetentionReviewRaisedOn = day;
+        Raise(new PartyRetentionEnded(Id, now));
+    }
+
     public Guid? MergedIntoId { get; private set; }
 
     /// <summary>PENDING_REVIEW for a portal registration that matched an existing party, until staff resolve it (external-user access §6).</summary>

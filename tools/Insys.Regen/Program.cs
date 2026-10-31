@@ -40,6 +40,7 @@ public static class Regen
         _ = host.Services.GetServices<EndpointDataSource>().SelectMany(s => s.Endpoints).ToList();
         await File.WriteAllTextAsync(FunctionCatalogueSeed.FilePath, FunctionCatalogueSeed.Generate());
         await File.WriteAllTextAsync(RoleTemplateAddendum.FilePath, RoleTemplateAddendum.Document(FunctionRegistry.All()));
+        await File.WriteAllTextAsync(ErrorCodeSeed.FilePath, ErrorCodeSeed.Generate());
         Console.WriteLine($"functions: {FunctionRegistry.All().Count}");
     }
 }

@@ -415,3 +415,7 @@ core	HealthPortalEntitlementView.productCode	to declare
 core	HealthProgrammeEnrolmentClinicalView.programmeCode	to declare
 core	HealthRequestChronicRegistrationRequest.conditionCode	to declare
 core	HealthRequestChronicRegistrationRequest.diagnosisCode	to declare
+core	IntegrationAcknowledgeDisclosure.noticeType	to declare
+core	IntegrationAcknowledgeDisclosure.businessRefType	to declare
+core	IntegrationDisclosureAcknowledgementView.noticeType	to declare
+core	IntegrationDisclosureTextView.noticeType	to declare

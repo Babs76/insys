@@ -106,7 +106,7 @@ internal static class LifePolicies
         await life.Policy(id, cancellationToken) is { } policy ? policy : Error.NotFound(ErrorCodes.NotFound, "The policy was not found.");
 }
 
-internal sealed class IssueLifePolicyHandler(ILifeRepository life, ILifeCodes codes, ISellableProducts products, Party.Contracts.IDueDiligenceStatus dueDiligence,
+internal sealed class IssueLifePolicyHandler(ILifeRepository life, ILifeCodes codes, ISellableProducts products, Integration.Contracts.IDisclosureGate disclosures, Party.Contracts.IDueDiligenceStatus dueDiligence,
     ITenantContext tenant, IBusinessDate businessDate, IClock clock, IAuditTrail audit)
     : ICommandHandler<IssueLifePolicy, PolicyView>
 {
@@ -132,6 +132,13 @@ internal sealed class IssueLifePolicyHandler(ILifeRepository life, ILifeCodes co
         if (!cleared.Cleared)
         {
             return DueDiligenceRefusal.For(cleared.Outstanding, false);
+        }
+
+        // F060: the inception disclosures are acknowledged first, if the tenant has adopted them.
+        if (await disclosures.Outstanding(tenant.RequireTenantId(), proposal.ApplicantPartyId, Integration.Contracts.DisclosurePoints.Inception, "LIFE_PROPOSAL", proposal.Id, businessDate.Today, cancellationToken)
+            is { Count: > 0 } outstanding)
+        {
+            return DisclosureRefusal.For(Integration.Contracts.DisclosurePoints.Inception, outstanding);
         }
 
         // Issued on the approved product version (LIF-003), still on sale when the policy is issued.

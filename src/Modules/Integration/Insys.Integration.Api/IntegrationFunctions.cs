@@ -37,7 +37,13 @@ internal static class IntegrationFunctions
 {
     public static readonly IReadOnlyList<FunctionDeclaration> All =
     [
+        .. new FunctionMap([Audiences.Customer], Features.CustomerPortal)
+        .Screen("CUSTOMER_PORTAL_DISCLOSURES", "CUSTOMER_PORTAL", "Disclosures", "portal/disclosures", "PortalGetDisclosureText")
+        .Action("CUSTOMER_PORTAL_ACKNOWLEDGE_DISCLOSURE", "CUSTOMER_PORTAL_DISCLOSURES", "PortalAcknowledgeDisclosure")
+            .Functions,
         .. new FunctionMap([Audiences.Staff], null)
+        .Screen("INTEGRATION_DISCLOSURES", "INTEGRATION_OPERATIONS", "Disclosures", "integration/disclosures", "IntegrationGetDisclosureText")
+        .Action("INTEGRATION_ACKNOWLEDGE_DISCLOSURE", "INTEGRATION_DISCLOSURES", "IntegrationAcknowledgeDisclosure")
         .Screen("INTEGRATION_DEAD_LETTERS", "INTEGRATION_OPERATIONS", "Dead letters", "integration/dead-letters", "ListDeadLetters", "GetDeadLetter")
         .Action("REPLAY_MESSAGE", "INTEGRATION_DEAD_LETTERS", "ReplayMessage")
         .Action("DISCARD_MESSAGE", "INTEGRATION_DEAD_LETTERS", "DiscardMessage", privileged: true)

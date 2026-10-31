@@ -65,6 +65,22 @@ public sealed class IntegrationModule : IModule
     {
         IntegrationStaticDataEndpoints.MapStaticData(api);
 
+        const string member = BuildingBlocks.Application.Context.ExternalSubject.Party;
+        api.MapGet("/integration/disclosures", async (string displayPoint, string noticeType, string jurisdiction, string language, IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Query(new Application.GetDisclosureText(displayPoint, noticeType, jurisdiction, language), ct)).ToHttp(Results.Ok))
+            .Produces<Application.DisclosureTextView>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status404NotFound).WithTags(Name)
+            .WithName("IntegrationGetDisclosureText").WithSummary("The disclosure text in force for a display point, jurisdiction and language (F060)").RequirePermission(IntegrationPermissions.DisclosureRead);
+        api.MapPost("/integration/disclosure-acknowledgements", async (Application.AcknowledgeDisclosure r, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Send(r, ct)).ToHttp(v => Results.Created($"/api/v1/integration/disclosure-acknowledgements/{v.Id}", v)))
+            .Produces<Application.DisclosureAcknowledgementView>(StatusCodes.Status201Created).ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status422UnprocessableEntity).WithTags(Name)
+            .WithName("IntegrationAcknowledgeDisclosure").WithSummary("Record a party's acknowledgement of the text in force, with its version").RequirePermission(IntegrationPermissions.DisclosureCreate).RequireIdempotencyKey();
+        api.MapGet("/portal/disclosures", async (string displayPoint, string noticeType, string jurisdiction, string language, IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Query(new Application.GetDisclosureText(displayPoint, noticeType, jurisdiction, language), ct)).ToHttp(Results.Ok))
+            .Produces<Application.DisclosureTextView>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status404NotFound).WithTags(Name)
+            .WithName("PortalGetDisclosureText").WithSummary("A disclosure to read and acknowledge").RequirePermission(IntegrationPermissions.DisclosureRead).ForPortal(member);
+        api.MapPost("/portal/disclosure-acknowledgements", async (Application.AcknowledgeDisclosure r, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Send(r, ct)).ToHttp(v => Results.Created($"/api/v1/portal/disclosure-acknowledgements/{v.Id}", v)))
+            .Produces<Application.DisclosureAcknowledgementView>(StatusCodes.Status201Created).ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status422UnprocessableEntity).WithTags(Name)
+            .WithName("PortalAcknowledgeDisclosure").WithSummary("Acknowledge a disclosure as yourself").RequirePermission(IntegrationPermissions.DisclosureCreate).ForPortal(member).RequireIdempotencyKey();
+
         var deadLetters = api.MapGroup("/integration/dead-letters").WithTags(Name);
 
         deadLetters.MapGet("/", async (string? cursor, int? limit, DeadLetterStatus? status, string? source, IDispatcher dispatcher, CancellationToken ct) =>

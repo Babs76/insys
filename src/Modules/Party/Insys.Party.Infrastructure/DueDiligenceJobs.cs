@@ -68,6 +68,17 @@ public sealed class DueDiligenceJobs(IServiceScopeFactory scopes, ITenantDirecto
         await using var scope = scopes.CreateAsyncScope();
         scope.ServiceProvider.GetRequiredService<ExecutionScope>().InitialiseForService(tenantId, ServiceName);
         var result = await scope.ServiceProvider.GetRequiredService<IDispatcher>().Send(new RunDueDiligenceJobs(), cancellationToken);
+        await using (var retentionScope = scopes.CreateAsyncScope())
+        {
+            // F064: a separate transaction, so a retention failure doesn't lose the due diligence work.
+            retentionScope.ServiceProvider.GetRequiredService<ExecutionScope>().InitialiseForService(tenantId, ServiceName);
+            var retention = await retentionScope.ServiceProvider.GetRequiredService<IDispatcher>().Send(new RaisePartyRetentionReviews(200), cancellationToken);
+            if (retention.IsFailure)
+            {
+                logger.LogError("Party retention reviews failed for tenant {TenantId}: {Code}", tenantId, retention.Error.Code);
+            }
+        }
+
         if (result.IsFailure)
         {
             logger.LogError("Due diligence jobs failed for tenant {TenantId}: {Code}", tenantId, result.Error.Code);

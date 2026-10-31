@@ -39,6 +39,14 @@ internal static class PartyFunctions
     public static readonly IReadOnlyList<FunctionDeclaration> All =
     [
         .. new FunctionMap([Audiences.Staff], null)
+        .Screen("PARTY_DATA_SUBJECT_REQUESTS", "PARTIES", "Data-subject requests", "party/data-subject-requests", "PartyListDataSubjectRequests", "PartyGetDataSubjectRequest")
+        .Action("PARTY_RECEIVE_DATA_SUBJECT_REQUEST", "PARTY_DATA_SUBJECT_REQUESTS", "PartyReceiveDataSubjectRequest")
+        .Action("PARTY_CONFIRM_DATA_SUBJECT_IDENTITY", "PARTY_DATA_SUBJECT_REQUESTS", "PartyConfirmDataSubjectIdentity")
+        .Action("PARTY_APPROVE_DATA_SUBJECT_REQUEST", "PARTY_DATA_SUBJECT_REQUESTS", "PartyApproveDataSubjectRequest")
+        .Action("PARTY_REFUSE_DATA_SUBJECT_REQUEST", "PARTY_DATA_SUBJECT_REQUESTS", "PartyRefuseDataSubjectRequest")
+        .Action("PARTY_EXPORT_DATA_SUBJECT_REQUEST", "PARTY_DATA_SUBJECT_REQUESTS", "PartyExportDataSubjectRequest")
+        .Action("PARTY_COMPLETE_DATA_SUBJECT_CORRECTION", "PARTY_DATA_SUBJECT_REQUESTS", "PartyCompleteDataSubjectCorrection")
+        .Action("PARTY_EXECUTE_DATA_SUBJECT_DELETION", "PARTY_DATA_SUBJECT_REQUESTS", "PartyExecuteDataSubjectDeletion")
         .Screen("PARTIES", "PARTIES", "Register people & organisations", "party/parties", "PartyGetParty", "PartyListIdentityChecks")
         .Action("PARTY_SEARCH_PARTIES", "PARTIES", "PartySearchParties")
         .Action("PARTY_REGISTER_PARTY", "PARTIES", "PartyRegisterParty")
@@ -73,6 +81,10 @@ internal static class PartyFunctions
         .Action("PARTY_UNBLOCK_DUE_DILIGENCE", "PARTY_DUE_DILIGENCE", "PartyRequestDueDiligenceUnblock", privileged: true)
         .Permission("PARTY_APPROVE_ENHANCED_DD", "PARTY_DUE_DILIGENCE", PartyPermissions.DueDiligenceApproveEnhanced, privileged: true)
         .Job("PARTY_DUE_DILIGENCE_JOBS", "PARTIES", "Background processing")
+            .Functions,
+        .. new FunctionMap([Audiences.Customer], Features.CustomerPortal)
+        .Screen("CUSTOMER_PORTAL_DATA_SUBJECT_REQUESTS", "CUSTOMER_PORTAL", "Your data", "portal/party/data-subject-requests", "PortalPartyListDataSubjectRequests")
+        .Action("CUSTOMER_PORTAL_RAISE_DATA_SUBJECT_REQUEST", "CUSTOMER_PORTAL_DATA_SUBJECT_REQUESTS", "PortalPartyRaiseDataSubjectRequest")
             .Functions,
         .. new FunctionMap([Audiences.Broker], Features.BrokerPortal)
         .Screen("BROKER_PORTAL_PARTY_PARTIES", "BROKER_PORTAL", "Clients", "portal/party/parties", "PortalPartyListClients", "PortalPartyGetClient")

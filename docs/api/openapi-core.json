@@ -6,6 +6,308 @@
     "version": "v1"
   },
   "paths": {
+    "/api/v1/integration/disclosures": {
+      "get": {
+        "tags": [
+          "Integration"
+        ],
+        "summary": "The disclosure text in force for a display point, jurisdiction and language (F060)",
+        "operationId": "IntegrationGetDisclosureText",
+        "parameters": [
+          {
+            "name": "displayPoint",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "noticeType",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "jurisdiction",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "language",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationDisclosureTextView"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "disclosure.read",
+        "x-function": [
+          "INTEGRATION_DISCLOSURES"
+        ]
+      }
+    },
+    "/api/v1/integration/disclosure-acknowledgements": {
+      "post": {
+        "tags": [
+          "Integration"
+        ],
+        "summary": "Record a party\u0027s acknowledgement of the text in force, with its version",
+        "operationId": "IntegrationAcknowledgeDisclosure",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IntegrationAcknowledgeDisclosure"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationDisclosureAcknowledgementView"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          }
+        },
+        "x-permission": "disclosure.create",
+        "x-function": [
+          "INTEGRATION_ACKNOWLEDGE_DISCLOSURE"
+        ]
+      }
+    },
+    "/api/v1/portal/disclosures": {
+      "get": {
+        "tags": [
+          "Integration"
+        ],
+        "summary": "A disclosure to read and acknowledge",
+        "operationId": "PortalGetDisclosureText",
+        "parameters": [
+          {
+            "name": "displayPoint",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "noticeType",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "jurisdiction",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "language",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationDisclosureTextView"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "disclosure.read",
+        "x-function": [
+          "CUSTOMER_PORTAL_DISCLOSURES"
+        ]
+      }
+    },
+    "/api/v1/portal/disclosure-acknowledgements": {
+      "post": {
+        "tags": [
+          "Integration"
+        ],
+        "summary": "Acknowledge a disclosure as yourself",
+        "operationId": "PortalAcknowledgeDisclosure",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IntegrationAcknowledgeDisclosure"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationDisclosureAcknowledgementView"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          }
+        },
+        "x-permission": "disclosure.create",
+        "x-function": [
+          "CUSTOMER_PORTAL_ACKNOWLEDGE_DISCLOSURE"
+        ]
+      }
+    },
     "/api/v1/integration/dead-letters": {
       "get": {
         "tags": [
@@ -3650,6 +3952,783 @@
         "x-permission": "party.merge",
         "x-function": [
           "PARTY_MERGE_PARTIES"
+        ]
+      }
+    },
+    "/api/v1/party/data-subject-requests": {
+      "post": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "Record a data subject\u0027s access, correction or deletion request (F059); it\u0027s due after the tenant\u0027s days",
+        "operationId": "PartyReceiveDataSubjectRequest",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartyReceiveDataSubjectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyDataSubjectRequestView"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          }
+        },
+        "x-permission": "data_subject_request.create",
+        "x-function": [
+          "PARTY_RECEIVE_DATA_SUBJECT_REQUEST"
+        ]
+      },
+      "get": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "Data-subject requests",
+        "operationId": "PartyListDataSubjectRequests",
+        "parameters": [
+          {
+            "name": "partyId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfPartyDataSubjectRequestView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "data_subject_request.read",
+        "x-function": [
+          "PARTY_DATA_SUBJECT_REQUESTS"
+        ]
+      }
+    },
+    "/api/v1/party/data-subject-requests/{id}": {
+      "get": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "A data-subject request",
+        "operationId": "PartyGetDataSubjectRequest",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyDataSubjectRequestView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "data_subject_request.read",
+        "x-function": [
+          "PARTY_DATA_SUBJECT_REQUESTS"
+        ]
+      }
+    },
+    "/api/v1/party/data-subject-requests/{id}/confirm-identity": {
+      "post": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "A person confirms who is asking",
+        "operationId": "PartyConfirmDataSubjectIdentity",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyDataSubjectRequestView"
+                }
+              }
+            }
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "data_subject_request.update",
+        "x-function": [
+          "PARTY_CONFIRM_DATA_SUBJECT_IDENTITY"
+        ]
+      }
+    },
+    "/api/v1/party/data-subject-requests/{id}/approve": {
+      "post": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "A second person approves, before any export leaves or deletion runs",
+        "operationId": "PartyApproveDataSubjectRequest",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyDataSubjectRequestView"
+                }
+              }
+            }
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "data_subject_request.approve",
+        "x-function": [
+          "PARTY_APPROVE_DATA_SUBJECT_REQUEST"
+        ]
+      }
+    },
+    "/api/v1/party/data-subject-requests/{id}/refuse": {
+      "post": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "Refuse with a reason: the answer to the data subject",
+        "operationId": "PartyRefuseDataSubjectRequest",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartyRefuseDataSubjectRequestBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyDataSubjectRequestView"
+                }
+              }
+            }
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "data_subject_request.approve",
+        "x-function": [
+          "PARTY_REFUSE_DATA_SUBJECT_REQUEST"
+        ]
+      }
+    },
+    "/api/v1/party/data-subject-requests/{id}/export": {
+      "get": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "An approved access request\u0027s records; health records only for the clinical function; audited",
+        "operationId": "PartyExportDataSubjectRequest",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "data_subject_request.approve",
+        "x-function": [
+          "PARTY_EXPORT_DATA_SUBJECT_REQUEST"
+        ]
+      }
+    },
+    "/api/v1/party/data-subject-requests/{id}/complete-correction": {
+      "post": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "An approved correction, made through the party change that the reference names",
+        "operationId": "PartyCompleteDataSubjectCorrection",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartyCompleteCorrectionBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyDataSubjectRequestView"
+                }
+              }
+            }
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "data_subject_request.update",
+        "x-function": [
+          "PARTY_COMPLETE_DATA_SUBJECT_CORRECTION"
+        ]
+      }
+    },
+    "/api/v1/party/data-subject-requests/{id}/execute-deletion": {
+      "post": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "Run the anonymise check on an approved deletion: within retention or under hold it is refused, with the reason",
+        "operationId": "PartyExecuteDataSubjectDeletion",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyDataSubjectRequestView"
+                }
+              }
+            }
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "data_subject_request.approve",
+        "x-function": [
+          "PARTY_EXECUTE_DATA_SUBJECT_DELETION"
+        ]
+      }
+    },
+    "/api/v1/portal/party/data-subject-requests": {
+      "post": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "Ask what is held about you, or for a correction or deletion",
+        "operationId": "PortalPartyRaiseDataSubjectRequest",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartyReceivePortalDataSubjectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyDataSubjectRequestView"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          }
+        },
+        "x-permission": "data_subject_request.create",
+        "x-function": [
+          "CUSTOMER_PORTAL_RAISE_DATA_SUBJECT_REQUEST"
+        ]
+      },
+      "get": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "Your requests and where they stand",
+        "operationId": "PortalPartyListDataSubjectRequests",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PartyDataSubjectRequestView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "data_subject_request.read",
+        "x-function": [
+          "CUSTOMER_PORTAL_DATA_SUBJECT_REQUESTS"
         ]
       }
     },
@@ -41461,6 +42540,7 @@
                 "CommissionStatement",
                 "ComplexCase",
                 "ConsentRecord",
+                "DataSubjectRequest",
                 "DeadLetter",
                 "DeviceRegistration",
                 "Document",
@@ -41584,6 +42664,7 @@
                 "cfg_customer_risk_classes",
                 "cfg_customer_risk_factors",
                 "cfg_dashboard_definitions",
+                "cfg_data_subject_settings",
                 "cfg_decline_conditions",
                 "cfg_delegation_and_approval_au",
                 "cfg_delivery_channel_settings",
@@ -41928,6 +43009,7 @@
                 "CommissionStatement",
                 "ComplexCase",
                 "ConsentRecord",
+                "DataSubjectRequest",
                 "DeadLetter",
                 "DeviceRegistration",
                 "Document",
@@ -42051,6 +43133,7 @@
                 "cfg_customer_risk_classes",
                 "cfg_customer_risk_factors",
                 "cfg_dashboard_definitions",
+                "cfg_data_subject_settings",
                 "cfg_decline_conditions",
                 "cfg_delegation_and_approval_au",
                 "cfg_delivery_channel_settings",
@@ -47422,6 +48505,27 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/LifeUnderwritingCaseSummary"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CursorPageOfPartyDataSubjectRequestView": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PartyDataSubjectRequestView"
             }
           },
           "nextCursor": {
@@ -60739,6 +61843,52 @@
           }
         }
       },
+      "IntegrationAcknowledgeDisclosure": {
+        "required": [
+          "partyId",
+          "displayPoint",
+          "noticeType",
+          "jurisdiction",
+          "language",
+          "businessRefType",
+          "businessRefId"
+        ],
+        "type": "object",
+        "properties": {
+          "partyId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "displayPoint": {
+            "type": "string"
+          },
+          "noticeType": {
+            "type": "string"
+          },
+          "jurisdiction": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          },
+          "businessRefType": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "businessRefId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
       "IntegrationDeadLetterDetail": {
         "required": [
           "id",
@@ -60844,6 +61994,81 @@
           "firstFailedAt": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "IntegrationDisclosureAcknowledgementView": {
+        "required": [
+          "id",
+          "partyId",
+          "noticeType",
+          "displayPoint",
+          "textVersion",
+          "acknowledgedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "partyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "noticeType": {
+            "type": "string"
+          },
+          "displayPoint": {
+            "type": "string"
+          },
+          "textVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "acknowledgedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "IntegrationDisclosureTextView": {
+        "required": [
+          "noticeType",
+          "displayPoint",
+          "jurisdiction",
+          "language",
+          "textVersion",
+          "text"
+        ],
+        "type": "object",
+        "properties": {
+          "noticeType": {
+            "type": "string"
+          },
+          "displayPoint": {
+            "type": "string"
+          },
+          "jurisdiction": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          },
+          "textVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "text": {
+            "type": "string"
           }
         }
       },
@@ -64226,6 +65451,17 @@
           }
         }
       },
+      "PartyCompleteCorrectionBody": {
+        "required": [
+          "reference"
+        ],
+        "type": "object",
+        "properties": {
+          "reference": {
+            "type": "string"
+          }
+        }
+      },
       "PartyConsentRequest": {
         "required": [
           "purposeCode",
@@ -64343,6 +65579,80 @@
               "string"
             ],
             "format": "date-time"
+          }
+        }
+      },
+      "PartyDataSubjectRequestView": {
+        "required": [
+          "id",
+          "requestNumber",
+          "partyId",
+          "requestType",
+          "receivedOn",
+          "dueOn",
+          "status",
+          "outcome",
+          "outcomeReason",
+          "rowVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "requestNumber": {
+            "type": "string"
+          },
+          "partyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "requestType": {
+            "enum": [
+              "ACCESS",
+              "CORRECTION",
+              "DELETION"
+            ],
+            "type": "string"
+          },
+          "receivedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "dueOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "status": {
+            "enum": [
+              "RECEIVED",
+              "IDENTITY_CONFIRMED",
+              "APPROVED",
+              "COMPLETED",
+              "REFUSED"
+            ],
+            "type": "string"
+          },
+          "outcome": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "outcomeReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
           }
         }
       },
@@ -65147,6 +66457,54 @@
             ],
             "x-code-list": "refdata.ref_languages",
             "x-code-list-column": "code"
+          }
+        }
+      },
+      "PartyReceiveDataSubjectRequest": {
+        "required": [
+          "partyId",
+          "requestType"
+        ],
+        "type": "object",
+        "properties": {
+          "partyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "requestType": {
+            "enum": [
+              "ACCESS",
+              "CORRECTION",
+              "DELETION"
+            ],
+            "type": "string"
+          }
+        }
+      },
+      "PartyReceivePortalDataSubjectRequest": {
+        "required": [
+          "requestType"
+        ],
+        "type": "object",
+        "properties": {
+          "requestType": {
+            "enum": [
+              "ACCESS",
+              "CORRECTION",
+              "DELETION"
+            ],
+            "type": "string"
+          }
+        }
+      },
+      "PartyRefuseDataSubjectRequestBody": {
+        "required": [
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string"
           }
         }
       },
@@ -70679,8 +72037,8 @@
       }
     },
     "responses": {
-      "Problem422": {
-        "description": "Unprocessable Entity. Codes any operation may return: VALIDATION_FAILED, IDEMPOTENCY_KEY_REQUIRED, IDEMPOTENCY_KEY_REUSED.",
+      "Problem404": {
+        "description": "Not Found",
         "headers": {
           "X-Correlation-Id": {
             "$ref": "#/components/headers/X-Correlation-Id"
@@ -70796,8 +72154,8 @@
           }
         }
       },
-      "Problem404": {
-        "description": "Not Found",
+      "Problem422": {
+        "description": "Unprocessable Entity. Codes any operation may return: VALIDATION_FAILED, IDEMPOTENCY_KEY_REQUIRED, IDEMPOTENCY_KEY_REUSED.",
         "headers": {
           "X-Correlation-Id": {
             "$ref": "#/components/headers/X-Correlation-Id"
@@ -70816,6 +72174,24 @@
       },
       "Problem400": {
         "description": "Bad Request",
+        "headers": {
+          "X-Correlation-Id": {
+            "$ref": "#/components/headers/X-Correlation-Id"
+          },
+          "Content-Language": {
+            "$ref": "#/components/headers/Content-Language"
+          }
+        },
+        "content": {
+          "application/problem\u002Bjson": {
+            "schema": {
+              "$ref": "#/components/schemas/ProblemDetails"
+            }
+          }
+        }
+      },
+      "Problem409": {
+        "description": "Conflict. Codes any operation may return: TENANT_NOT_ACTIVE, IDEMPOTENCY_IN_PROGRESS, IDEMPOTENCY_RESPONSE_NOT_KEPT, INVALID_STATE_TRANSITION.",
         "headers": {
           "X-Correlation-Id": {
             "$ref": "#/components/headers/X-Correlation-Id"
@@ -70852,24 +72228,6 @@
       },
       "Problem428": {
         "description": "Precondition Required",
-        "headers": {
-          "X-Correlation-Id": {
-            "$ref": "#/components/headers/X-Correlation-Id"
-          },
-          "Content-Language": {
-            "$ref": "#/components/headers/Content-Language"
-          }
-        },
-        "content": {
-          "application/problem\u002Bjson": {
-            "schema": {
-              "$ref": "#/components/schemas/ProblemDetails"
-            }
-          }
-        }
-      },
-      "Problem409": {
-        "description": "Conflict. Codes any operation may return: TENANT_NOT_ACTIVE, IDEMPOTENCY_IN_PROGRESS, IDEMPOTENCY_RESPONSE_NOT_KEPT, INVALID_STATE_TRANSITION.",
         "headers": {
           "X-Correlation-Id": {
             "$ref": "#/components/headers/X-Correlation-Id"
