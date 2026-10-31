@@ -45,6 +45,7 @@ public static class FinanceInfrastructure
         // Its approval kinds and the screens that open their records (BR-005).
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Finance.Contracts.FinanceApprovals.PeriodBusinessRefType, "FINANCE_PERIODS", Insys.Finance.Contracts.FinanceApprovals.ReopenApprovalType);
         const string schema = FinanceDbContext.SchemaName;
+        services.AddSingleton<BuildingBlocks.Application.Context.IMigrationTotals, Persistence.FinanceMigrationTotals>();
         services.AddModuleDbContext<FinanceDbContext>(schema, "Finance");
         services.AddStaticData<FinanceDbContext>(schema, FinanceStaticData.Descriptors);
         services.AddModuleHandlers<FinanceDbContext>(typeof(ReverseJournal).Assembly);

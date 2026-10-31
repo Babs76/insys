@@ -49,7 +49,7 @@ public sealed record MigrateLifePolicies(string BatchCode, int ControlCount, dec
 
 public sealed record LifeMigrationRejectedLine(int Line, string Reason);
 
-public sealed record LifeMigrationResult(int Loaded, decimal LoadedPremium, IReadOnlyList<LifeMigrationRejectedLine> RejectedLines);
+public sealed record LifeMigrationResult(int Loaded, decimal LoadedPremium, IReadOnlyList<LifeMigrationRejectedLine> RejectedLines, IReadOnlyDictionary<string, Guid>? Policies = null);
 
 public sealed class MigrateLifePoliciesValidator : AbstractValidator<MigrateLifePolicies>
 {
@@ -134,9 +134,10 @@ internal sealed class MigrateLifePoliciesHandler(ILifeRepository life, ILifeCode
             return new LifeMigrationResult(0, 0, rejected);
         }
 
+        var ids = new Dictionary<string, Guid>(StringComparer.Ordinal);
         foreach (var row in command.Rows)
         {
-            var id = Guid.CreateVersion7();
+            var id = ids[row.SourceReference] = Guid.CreateVersion7();
             var number = await Numbers.Policy(codes, id, today, cancellationToken);
             if (number.IsFailure)
             {
@@ -148,6 +149,6 @@ internal sealed class MigrateLifePoliciesHandler(ILifeRepository life, ILifeCode
                 row.Lives.Select(l => (l.PartyId, l.LifeRole, l.EntryAge, (IReadOnlyList<(string, decimal, decimal)>)l.Benefits.Select(b => (b.BenefitCode, b.SumAssured, b.Premium)).ToList())).ToList(), row.Beneficiaries ?? [], today, clock.UtcNow));
         }
 
-        return new LifeMigrationResult(command.Rows.Count, total, []);
+        return new LifeMigrationResult(command.Rows.Count, total, [], ids);
     }
 }

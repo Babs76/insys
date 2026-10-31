@@ -32,6 +32,7 @@ namespace Insys.Integration.Contracts;
 /// </summary>
 public static class IntegrationPermissions
 {
+    public const string MigrationReconcile = "migration_batch.reconcile";
     public const string DisclosureRead = "disclosure.read";
 
     /// <summary>Records that a party acknowledged a disclosure.</summary>

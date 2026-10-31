@@ -35,6 +35,7 @@ public static class BillingPermissions
     public const string AccountUpdate = "billing_account.update";
     public const string InvoiceRead = "invoice.read";
     public const string InvoiceCreate = "invoice.create";
+    public const string PremiumMigrate = "invoice.migrate";
     public const string RefundRead = "refund.read";
     public const string RefundCreate = "refund.create";
 }

@@ -433,3 +433,9 @@ core	LifeMigratedLifePolicy.productCode	a product key, as on a proposal
 core	LifeMigratedLifePolicy.intermediaryCode	an intermediary key, as on a proposal
 core	LifeMigratedBenefit.benefitCode	a benefit key of the product
 core	LifeMigratedLife.lifeRole	a role key, as on a proposal
+core	BillingMigrateOutstandingPremiums.batchCode	the batch name the file gives; no list
+core	FinanceMigrateOpeningBalances.batchCode	the batch name the file gives; no list
+core	FinanceOpeningBalanceLine.accountCode	an account key, checked against the chart
+core	IntegrationReconciliationLine.kind	a total kind, some naming an account
+core	IntegrationSourceTotal.kind	a total kind, some naming an account
+core	IntegrationMigrationReconciliationReport.batchCode	the batch name the file gives; no list

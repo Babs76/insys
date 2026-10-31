@@ -81,6 +81,10 @@ public sealed class FinanceModule : IModule
             .WithKnownValues("businessRefType", JournalReferenceTypes.Known, "The business record types Finance posts journals for (GAP-037).")
             .RequirePermission(FinancePermissions.JournalRead);
 
+        finance.MapPost("/migration/opening-balances", async (MigrateOpeningBalances r, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Send(r, ct)).ToHttp(Results.Ok))
+            .Produces<OpeningBalancesResult>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status409Conflict).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("FinanceMigrateOpeningBalances").WithSummary("Post a source system's trial balance on cut-over as one balanced journal (B-013)")
+            .RequirePermission(FinancePermissions.JournalMigrate).RequireIdempotencyKey();
         finance.MapPost("/journals/{id:guid}/reverse", async (Guid id, ReverseJournalRequest r, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Send(new ReverseJournal(id, r.AccountingDate, r.Reason), ct))
                 .ToHttp(view => Results.Created($"/api/v1/finance/journals/{view.Id}", view)))

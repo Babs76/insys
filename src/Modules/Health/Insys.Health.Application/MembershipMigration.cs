@@ -46,7 +46,7 @@ public sealed record MigrateHealthMemberships(string BatchCode, int ControlCount
 
 public sealed record HealthMigrationRejectedLine(int Line, string Reason);
 
-public sealed record HealthMigrationResult(int Loaded, decimal LoadedContribution, IReadOnlyList<HealthMigrationRejectedLine> RejectedLines);
+public sealed record HealthMigrationResult(int Loaded, decimal LoadedContribution, IReadOnlyList<HealthMigrationRejectedLine> RejectedLines, IReadOnlyDictionary<string, Guid>? Memberships = null);
 
 public sealed class MigrateHealthMembershipsValidator : AbstractValidator<MigrateHealthMemberships>
 {
@@ -136,15 +136,16 @@ internal sealed class MigrateHealthMembershipsHandler(IHealthRepository health, 
             return new HealthMigrationResult(0, 0, rejected);
         }
 
+        var ids = new Dictionary<string, Guid>(StringComparer.Ordinal);
         for (var i = 0; i < command.Rows.Count; i++)
         {
             var row = command.Rows[i];
-            var id = Guid.CreateVersion7();
+            var id = ids[row.SourceReference] = Guid.CreateVersion7();
             health.Add(HealthMembership.Migrate(id, Numbers.Of(prefix, id, 12), command.BatchCode, row.SourceReference, row.PrincipalPartyId, row.SchemeId, row.MemberCategory, new PlanOption(row.PlanCode, row.OptionCode, plans[i].Version), row.StartDate,
                 row.PayerPartyId ?? row.PrincipalPartyId, Guid.CreateVersion7(), row.CollectionMethod, row.Currency.ToUpperInvariant(), row.MonthlyContribution, row.EmployerContribution, row.SponsorPartyId,
                 (row.Dependants ?? []).Select(d => (d.PartyId, d.DependantType)).ToList(), plans[i].ProductCode, plans[i].Version, today, clock.UtcNow));
         }
 
-        return new HealthMigrationResult(command.Rows.Count, total, []);
+        return new HealthMigrationResult(command.Rows.Count, total, [], ids);
     }
 }

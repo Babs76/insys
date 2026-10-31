@@ -196,6 +196,25 @@ public sealed class Invoice : AggregateRoot<Guid>
     /// enrolled late) are due from the day they are invoiced. With <paramref name="tax"/>, each line's tax is taken out of its amount (OQ-058): the premium
     /// already includes it, so the total is the same with or without it.
     /// </summary>
+    public string? MigrationBatch { get; private set; }
+
+    public string? SourceReference { get; private set; }
+
+    /// <summary>B-013: a premium outstanding in the source system. It was invoiced and posted there, so nothing is raised: the opening balances carry it in the ledger.</summary>
+    public static Invoice Migrated(Guid id, string prefix, BillingAccount account, PremiumSchedule schedule, decimal amount, DateOnly dueDate, DateOnly issueDate, string batch, string sourceReference)
+    {
+        var invoice = New(id, prefix, DocumentType.Invoice, account.Id, schedule.SourceDomain, schedule.PolicyRef, schedule.ProductVersionRef, issueDate, dueDate, account.Currency, null);
+        (invoice.ProductCode, invoice.OrgNodeCode) = (schedule.ProductCode, schedule.OrgNodeCode);
+        invoice._lines.Add(InvoiceLine.Create(id, 1, "PREMIUM", $"Premium outstanding from before migration, due {dueDate:yyyy-MM-dd}", amount, null, 0));
+        invoice.TotalAmount = amount;
+        invoice.NetAmount = amount;
+        invoice.Status = InvoiceStatus.Issued;
+        invoice.MigrationBatch = Guard.MaxLength(batch, 30);
+        invoice.SourceReference = Guard.MaxLength(sourceReference, 40);
+        invoice.MarkChanged();
+        return invoice;
+    }
+
     public static Result<Invoice> IssueInvoice(Guid id, string prefix, BillingAccount account, PremiumSchedule schedule, IReadOnlyList<Instalment> instalments,
         string paymentMethod, DateOnly issueDate, DateTimeOffset now, DateOnly? dueNoEarlierThan = null, InvoiceTax? tax = null)
     {

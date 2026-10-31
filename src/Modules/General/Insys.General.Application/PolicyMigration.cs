@@ -52,7 +52,8 @@ public sealed record MigrateGeneralPolicies(string BatchCode, int ControlCount, 
 public sealed record MigrationRejectedLine(int Line, string Reason);
 
 /// <param name="Loaded">The policies loaded: all of the file, or none.</param>
-public sealed record PolicyMigrationResult(int Loaded, decimal LoadedPremium, IReadOnlyList<MigrationRejectedLine> RejectedLines);
+/// <param name="Policies">Each loaded policy's id here, to name in the batch's outstanding premiums.</param>
+public sealed record PolicyMigrationResult(int Loaded, decimal LoadedPremium, IReadOnlyList<MigrationRejectedLine> RejectedLines, IReadOnlyDictionary<string, Guid>? Policies = null);
 
 public sealed class MigrateGeneralPoliciesValidator : AbstractValidator<MigrateGeneralPolicies>
 {
@@ -168,9 +169,10 @@ internal sealed class MigrateGeneralPoliciesHandler(IGeneralRepository general, 
             return new PolicyMigrationResult(0, 0, rejected);
         }
 
+        var ids = new Dictionary<string, Guid>(StringComparer.Ordinal);
         foreach (var (row, risks) in ready)
         {
-            var id = Guid.CreateVersion7();
+            var id = ids[row.SourceReference] = Guid.CreateVersion7();
             var number = await PolicyNumbers.Next(codes, id, today, cancellationToken);
             if (number.IsFailure)
             {
@@ -187,6 +189,6 @@ internal sealed class MigrateGeneralPoliciesHandler(IGeneralRepository general, 
                 risks.Select(r => new RiskRequest(r.Object.Id, r.Risk.SumInsured, r.Risk.Coverages)).ToList(), row.AnnualPremium, today, clock.UtcNow));
         }
 
-        return new PolicyMigrationResult(command.Rows.Count, total, []);
+        return new PolicyMigrationResult(command.Rows.Count, total, [], ids);
     }
 }

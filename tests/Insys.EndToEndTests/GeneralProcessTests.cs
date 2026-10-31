@@ -2375,6 +2375,66 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
             .GetProperty("loaded").GetInt32().ShouldBe(0, "a source reference loads once");
     }
 
+    /// <summary>B-013: a whole batch: a policy, what's outstanding on it, the opening balances, and a report that agrees until the source says otherwise.</summary>
+    [Fact]
+    public async Task AMigrationBatch_ReconcilesAgainstTheSourceSystem_AndReportsEveryDifference_B013()
+    {
+        await _db.UserWithPermissions(Tenant, "batch-migrator", GeneralPermissions.PolicyMigrate, BillingPermissions.PremiumMigrate, FinancePermissions.JournalMigrate, IntegrationPermissions.MigrationReconcile, BillingPermissions.InvoiceRead);
+        await _db.AdoptFunctionCatalogue();
+        var migrator = _factory.ClientFor(Tenant, "batch-migrator");
+        var holder = await _maker.RegisterPerson("BatchHolder");
+        var loaded = await (await migrator.Send(HttpMethod.Post, "/api/v1/general/migration/policies", new
+        {
+            batchCode = "RB1", controlCount = 1, controlPremium = 1200m,
+            rows = new[]
+            {
+                new
+                {
+                    sourceReference = "RB-P1", productCode = Product, productVersion = 1, policyholderPartyId = holder, periodStart = Today.AddMonths(-3), periodEnd = Today.AddMonths(9).AddDays(-1), currency = "ZAR", annualPremium = 1200m,
+                    billingFrequency = "MONTHLY", collectionMethod = "DEBIT_ORDER",
+                    risks = new[]
+                    {
+                        new
+                        {
+                            objectType = "VEHICLE", attributes = new { registration = "RB123456", vehicle_group = "G3", year = Today.Year - 2 }, valuation = 180_000m, valuationBasis = "RETAIL", sumInsured = 180_000m,
+                            coverages = new[] { new { coverageCode = "OWN_DAMAGE", sumInsured = 180_000m } },
+                        },
+                    },
+                },
+            },
+        }, idempotent: true)).Json();
+        var policy = loaded.GetProperty("policies").GetProperty("RB-P1").GetGuid();
+        object Premiums(Guid policyRef) => new { batchCode = "RB1", controlCount = 1, controlAmount = 100m, rows = new[] { new { sourceReference = "RB-I1", sourceDomain = "GENERAL", policyRef, amount = 100m, dueDate = Today.AddDays(-20) } } };
+
+        (await (await migrator.Send(HttpMethod.Post, "/api/v1/billing/migration/outstanding-premiums", Premiums(Guid.CreateVersion7()), idempotent: true)).Json()).GetProperty("loaded").GetInt32().ShouldBe(0, "no account for it");
+        await _factory.DrainOutbox();
+        var premiums = await (await migrator.Send(HttpMethod.Post, "/api/v1/billing/migration/outstanding-premiums", Premiums(policy), idempotent: true)).Json();
+        premiums.GetProperty("loaded").GetInt32().ShouldBe(1, premiums.ToString());
+        (await _db.ScalarAsOwner<string>("SELECT status FROM billing.invoice WHERE source_reference = 'RB-I1'")).ShouldBe("ISSUED");
+
+        object Balances(decimal debit) => new
+        {
+            batchCode = "RB1", accountingDate = Today, controlDebit = debit, controlCredit = 100m,
+            lines = new[] { new { accountCode = "1100", debit = 100m, credit = 0m }, new { accountCode = "4000", debit = 0m, credit = 100m } },
+        };
+        (await (await migrator.Send(HttpMethod.Post, "/api/v1/finance/migration/opening-balances", Balances(99m), idempotent: true)).Json()).GetProperty("rejectedLines").GetArrayLength().ShouldBe(1);
+        var opening = await migrator.Send(HttpMethod.Post, "/api/v1/finance/migration/opening-balances", Balances(100m), idempotent: true);
+        opening.StatusCode.ShouldBe(HttpStatusCode.OK, await opening.Content.ReadAsStringAsync());
+        (await opening.Json()).GetProperty("journalId").ValueKind.ShouldBe(JsonValueKind.String, "posted");
+        (await (await migrator.Send(HttpMethod.Post, "/api/v1/finance/migration/opening-balances", Balances(100m), idempotent: true)).Json()).GetProperty("rejectedLines").GetArrayLength().ShouldBe(1, "a batch has one");
+
+        object Source(decimal premium) => new[]
+        {
+            new { kind = "GENERAL_POLICY", count = 1L, amount = (decimal?)premium }, new { kind = "OUTSTANDING_PREMIUM", count = 1L, amount = (decimal?)100m },
+            new { kind = "OPENING_BALANCE:1100", count = 1L, amount = (decimal?)100m }, new { kind = "OPENING_BALANCE:4000", count = 1L, amount = (decimal?)-100m },
+        };
+        var agrees = await (await migrator.Send(HttpMethod.Post, "/api/v1/integration/migration-batches/RB1/reconciliation", Source(1200m))).Json();
+        agrees.GetProperty("reconciled").GetBoolean().ShouldBeTrue(agrees.ToString());
+        var differs = await (await migrator.Send(HttpMethod.Post, "/api/v1/integration/migration-batches/RB1/reconciliation", Source(1300m))).Json();
+        differs.GetProperty("reconciled").GetBoolean().ShouldBeFalse();
+        differs.GetProperty("lines").EnumerateArray().Where(l => !l.GetProperty("agrees").GetBoolean()).Select(l => l.GetProperty("kind").GetString()).ShouldBe(["GENERAL_POLICY"]);
+    }
+
     private async Task<(Guid Policy, Guid Vehicle)> IssuedPolicy(string product = Product, DateOnly? start = null, string? riskZone = null, string? orgNodeCode = null,
         Guid? proposer = null, string? intermediaryCode = null, Func<Guid, object, Task>? beforeIssue = null)
     {
