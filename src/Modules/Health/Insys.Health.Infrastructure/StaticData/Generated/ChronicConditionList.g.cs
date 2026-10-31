@@ -47,12 +47,15 @@ public sealed class ChronicConditionList : StaticRecord<ChronicConditionListInpu
 
     public string? TreatmentBasket { get; set; }
 
+    public string? BenefitCategory { get; set; }
+
     public override void ApplyFields(ChronicConditionListInput input, IFieldProtector protector)
     {
         ConditionCode = input.ConditionCode!;
         Name = input.Name!;
         DiagnosisCodes = input.DiagnosisCodes!;
         TreatmentBasket = input.TreatmentBasket;
+        BenefitCategory = input.BenefitCategory;
     }
 }
 
@@ -70,6 +73,8 @@ public sealed record ChronicConditionListInput : StaticRecordInput
 
     public string? TreatmentBasket { get; init; }
 
+    public string? BenefitCategory { get; init; }
+
     protected override void ValidateFields(StaticFieldErrors errors)
     {
         errors.Required("conditionCode", ConditionCode);
@@ -78,5 +83,6 @@ public sealed record ChronicConditionListInput : StaticRecordInput
         errors.MaxLength("name", Name, 80);
         errors.Required("diagnosisCodes", DiagnosisCodes);
         errors.MaxLength("treatmentBasket", TreatmentBasket, 80);
+        errors.MaxLength("benefitCategory", BenefitCategory, 15);
     }
 }

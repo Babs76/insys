@@ -173,6 +173,15 @@ public static class FormularyTiers
 /// <summary>A medicine paid on another adjudicated claim for the patient, not rejected or reversed. What a limit has used is counted from these, so a reversal gives it back.</summary>
 public sealed record PriorMedicine(Guid ClaimId, string ProductCode, string? ActiveIngredient, string? Tier, DateOnly ServiceDate, int Quantity, int? DaysSupply, decimal Paid);
 
+/// <summary>A medicine allowed under a chronic registration, with its monthly quantity. Above it, the excess isn't paid (§4.3).</summary>
+public sealed record ChronicEntitlement(string? ProductCode, string? ActiveIngredient, int MonthlyQuantity)
+{
+    public bool Covers(string productCode, string? ingredient) => ProductCode == productCode || (ActiveIngredient is not null && ActiveIngredient == ingredient);
+}
+
+/// <summary>An approved registration in force for the patient on the service date, with its condition's benefit category and diagnosis codes (F084).</summary>
+public sealed record ChronicBenefit(string Category, IReadOnlyList<string> DiagnosisCodes, IReadOnlyList<ChronicEntitlement> Entitlements);
+
 /// <summary>A limit on a product or an active ingredient (health.cfg_medication_limits), on top of category limits; the most restrictive wins (F046).</summary>
 public sealed record MedicationLimit(string? PlanCode, string? ProductCode, string? ActiveIngredient, int? MaxQuantity, decimal? MaxAmount, string Period)
 {
@@ -290,6 +299,8 @@ public sealed record AdjudicationContext
     public IReadOnlyList<PriorMedicine> PriorMedicines { get; init; } = [];
 
     public IReadOnlyList<MedicationLimit> MedicationLimits { get; init; } = [];
+
+    public IReadOnlyList<ChronicBenefit> ChronicBenefits { get; init; } = [];
 }
 
 public sealed record LineResult(int LineNo, LineOutcome Outcome, string? Reason, string? Category, NetworkStatus? NetworkStatus, decimal? Tariff, decimal Allowed,
@@ -426,6 +437,19 @@ public static class AdjudicationEngine
         return scope;
     }
 
+    /// <summary>The registration a line draws on: its diagnosis is on the condition's list, or its medicine is entitled.</summary>
+    private static ChronicBenefit? ChronicFor(ClaimLineInput line, FormularyItem? item, AdjudicationContext context) =>
+        context.ChronicBenefits.FirstOrDefault(c => (line.DiagnosisCode is not null && CodeRanges.Contains(c.DiagnosisCodes, line.DiagnosisCode))
+            || (line.Pharmacy is not null && c.Entitlements.Any(e => e.Covers(line.TariffCode, item?.ActiveIngredient))));
+
+    /// <summary>The benefit category a line draws on, whichever accumulators it needs (ADR-012, a; a registered condition first).</summary>
+    public static string? CategoryOf(ClaimLineInput line, AdjudicationContext context)
+    {
+        var rx = line.Pharmacy is null ? null : PharmacyTerms.Of(line.TariffCode, context);
+        return ChronicFor(line, rx?.Item, context)?.Category ?? (rx is not null ? rx.Category
+            : BenefitCategories.Of(line.TariffCode, context.CodeSystems.GetValueOrDefault(line.TariffCode), context.Provider.ProviderType, context.Mappings));
+    }
+
     /// <summary>The pend reason of a claim held while the membership's contributions are in arrears (F006).</summary>
     public const string HeldForArrearsReason = "CONTRIBUTIONS_UNPAID";
 
@@ -490,8 +514,7 @@ public static class AdjudicationEngine
         }
 
         // (a) Benefit category.
-        context.CodeSystems.TryGetValue(line.TariffCode, out var codeSystem);
-        var category = rx is not null ? rx.Category : BenefitCategories.Of(line.TariffCode, codeSystem, context.Provider.ProviderType, context.Mappings);
+        var category = CategoryOf(line, context);
         if (category is null)
         {
             return Stop(LineOutcome.Pend, AdjudicationReasons.NoBenefitCategory);
@@ -512,6 +535,13 @@ public static class AdjudicationEngine
 
         var payableQuantity = rx?.PayableQuantity(line.Quantity, line.Pharmacy!.DaysSupply);
         var medicationLimits = rx is null ? [] : context.MedicationLimits.Where(l => l.AppliesTo(line.TariffCode, rx.Item?.ActiveIngredient, context.Plan.PlanCode)).ToList();
+        if (rx is not null && ChronicFor(line, rx.Item, context)?.Entitlements.FirstOrDefault(e => e.Covers(line.TariffCode, rx.Item?.ActiveIngredient)) is { } entitlement)
+        {
+            var usedThisMonth = medicines.Where(m => entitlement.Covers(m.ProductCode, m.ActiveIngredient) && m.ServiceDate.Year == context.ServiceDate.Year && m.ServiceDate.Month == context.ServiceDate.Month)
+                .Sum(m => m.Quantity);
+            payableQuantity = Math.Min(payableQuantity!.Value, Math.Max(0, entitlement.MonthlyQuantity - usedThisMonth));
+        }
+
         foreach (var limit in medicationLimits.Where(l => l.MaxQuantity is not null))
         {
             payableQuantity = Math.Min(payableQuantity!.Value, Math.Max(0, limit.MaxQuantity!.Value - limit.Counted(medicines, context.ServiceDate).Sum(m => m.Quantity)));

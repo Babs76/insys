@@ -62,6 +62,12 @@ public static class HealthPermissions
 
     /// <summary>The clinical function: reads and writes any complex case's clinical detail (OQ-143).</summary>
     public const string ClinicalRead = "health_case.read_clinical";
+    public const string ChronicRead = "health_chronic.read";
+    public const string ChronicCreate = "health_chronic.create";
+
+    /// <summary>Decides a chronic registration; the decider also needs the clinical function (OQ-150).</summary>
+    public const string ChronicDecide = "health_chronic.decide";
+    public const string ChronicUpdate = "health_chronic.update";
     public const string ReferralRead = "health_referral.read";
     public const string ReferralCreate = "health_referral.create";
     public const string ReferralDecide = "health_referral.decide";

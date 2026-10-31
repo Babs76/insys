@@ -79,6 +79,18 @@ public interface IHealthRepository
     /// <summary>The patient's paid medicines on other adjudicated claims from a date; a pended, rejected or reversed claim doesn't count.</summary>
     Task<IReadOnlyList<PriorMedicine>> PriorMedicines(Guid patientPartyId, DateOnly from, Guid exceptClaimId, CancellationToken cancellationToken);
 
+    Task<ChronicRegistration?> ChronicRegistration(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>Approved registrations for the patient covering the day, with their entitlements.</summary>
+    Task<IReadOnlyList<ChronicRegistration>> ChronicRegistrationsInForce(Guid patientPartyId, DateOnly day, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<ChronicRegistration>> ChronicRegistrations(Guid? membershipId, string? status, Guid? afterId, int limit, CancellationToken cancellationToken);
+
+    /// <summary>A member's own registrations and, as principal, their dependants'; the caller filters what it may show (OQ-161).</summary>
+    Task<IReadOnlyList<ChronicRegistration>> MemberChronicRegistrations(Guid partyId, CancellationToken cancellationToken);
+
+    void Add(ChronicRegistration registration);
+
     Task<IReadOnlyList<MedicalClaim>> ClaimsForRun(DateTimeOffset cutOff, string currency, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<MedicalClaim>> ClaimsInRun(Guid runId, CancellationToken cancellationToken);
@@ -259,6 +271,9 @@ public sealed record ClaimFormatTerms(string? LineKind, IReadOnlyList<string>? R
     }
 }
 
+/// <summary>A condition on the tenant's list (health.cfg_chronic_condition_list).</summary>
+public sealed record ChronicConditionTerms(string? Category, IReadOnlyList<string> DiagnosisCodes);
+
 public interface IHealthCodes
 {
     Task<RecoverySettings?> RecoverySettings(DateOnly day, CancellationToken cancellationToken);
@@ -328,6 +343,8 @@ public interface IHealthCodes
     Task<IReadOnlyDictionary<string, FormularyItem>> Formulary(IReadOnlyCollection<string> productCodes, DateOnly day, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<MedicationLimit>> MedicationLimits(string planCode, DateOnly day, CancellationToken cancellationToken);
+
+    Task<IReadOnlyDictionary<string, ChronicConditionTerms>> ChronicConditions(IReadOnlyCollection<string> conditionCodes, DateOnly day, CancellationToken cancellationToken);
 
     /// <summary>The prescription benefits for the plan and for every plan.</summary>
     Task<IReadOnlyList<PrescriptionBenefit>> PrescriptionBenefits(string planCode, DateOnly day, CancellationToken cancellationToken);

@@ -86,6 +86,16 @@ public sealed record CareNoteRequest([property: BuildingBlocks.Domain.OneOf("PRO
 
 public sealed record DecideReferralRequest(bool Approved, string? Reason);
 
+public sealed record RequestChronicRegistrationRequest(Guid MembershipId, Guid PatientPartyId, string ConditionCode, string? DiagnosisCode, string SupportingNote);
+
+public sealed record PortalChronicRequest(string MemberNumber, string? DependantSuffix, string ConditionCode, string? DiagnosisCode, string SupportingNote);
+
+public sealed record ApproveChronicRequest(DateOnly ValidFrom, DateOnly? ValidTo, DateOnly? ReviewOn, IReadOnlyList<Domain.Care.EntitlementRequest> Entitlements);
+
+public sealed record DeclineChronicRequest(string Reason);
+
+public sealed record EndChronicRequest(DateOnly LastDay);
+
 public sealed record CaseOutcomeRequest(string Outcome);
 
 /// <summary>
@@ -179,6 +189,32 @@ public sealed class HealthModule : IModule
         health.MapGet("/referrals/{id:guid}/clinical", async (Guid id, string? purpose, IDispatcher d, CancellationToken ct) => (await d.Send(new ReadReferralClinical(id, purpose), ct)).ToHttp(Results.Ok))
             .Produces<ReferralClinicalView>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
             .WithName("HealthReadReferralClinical").WithSummary("A referral's clinical reason, for the clinical function, with a purpose; every read is audited").RequirePermission(HealthPermissions.ClinicalRead);
+        health.MapPost("/chronic-registrations", async (RequestChronicRegistrationRequest r, IDispatcher d, CancellationToken ct) =>
+                (await d.Send(new RequestChronicRegistration(r.MembershipId, r.PatientPartyId, r.ConditionCode, r.DiagnosisCode, r.SupportingNote), ct))
+                    .ToHttp(v => Results.Created($"/api/v1/health/chronic-registrations/{v.Id}", v)))
+            .Produces<ChronicRegistrationView>(StatusCodes.Status201Created).ProducesProblem(StatusCodes.Status409Conflict).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("HealthRequestChronicRegistration").WithSummary("Request a chronic registration, with the diagnosis and a supporting note (F083)").RequirePermission(HealthPermissions.ChronicCreate).RequireIdempotencyKey();
+        health.MapGet("/chronic-registrations", async (Guid? membershipId, string? status, string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
+                await Page(cursor, limit, (after, size) => d.Query(new ListChronicRegistrations(membershipId, status, after, size), ct), r => r.Id))
+            .Produces<CursorPage<ChronicRegistrationView>>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("HealthListChronicRegistrations").WithSummary("Chronic registrations, by membership or status; no clinical detail").RequirePermission(HealthPermissions.ChronicRead);
+        health.MapGet("/chronic-registrations/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetChronicRegistration(id), ct)).ToHttp(Results.Ok))
+            .Produces<ChronicRegistrationView>(StatusCodes.Status200OK).WithName("HealthGetChronicRegistration").WithSummary("A chronic registration; no clinical detail").RequirePermission(HealthPermissions.ChronicRead);
+        health.MapGet("/chronic-registrations/{id:guid}/clinical", async (Guid id, string? purpose, IDispatcher d, CancellationToken ct) => (await d.Send(new ReadChronicRegistrationClinical(id, purpose), ct)).ToHttp(Results.Ok))
+            .Produces<ChronicRegistrationClinicalView>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("HealthReadChronicRegistrationClinical").WithSummary("A registration's condition, diagnosis, note and entitlements, for the clinical function, with a purpose; every read is audited").RequirePermission(HealthPermissions.ClinicalRead);
+        health.MapPost("/chronic-registrations/{id:guid}/approve", async (Guid id, ApproveChronicRequest r, IDispatcher d, CancellationToken ct) =>
+                (await d.Send(new ApproveChronicRegistration(id, r.ValidFrom, r.ValidTo, r.ReviewOn, r.Entitlements), ct)).ToHttp(Results.Ok))
+            .Produces<ChronicRegistrationView>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status403Forbidden).ProducesProblem(StatusCodes.Status422UnprocessableEntity).TakesIfMatch()
+            .WithName("HealthApproveChronicRegistration").WithSummary("Approve a registration with its dates and entitlements; needs the clinical function and isn't for its requester (OQ-150)").RequirePermission(HealthPermissions.ChronicDecide);
+        health.MapPost("/chronic-registrations/{id:guid}/decline", async (Guid id, DeclineChronicRequest r, IDispatcher d, CancellationToken ct) =>
+                (await d.Send(new DeclineChronicRegistration(id, r.Reason), ct)).ToHttp(Results.Ok))
+            .Produces<ChronicRegistrationView>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status403Forbidden).ProducesProblem(StatusCodes.Status422UnprocessableEntity).TakesIfMatch()
+            .WithName("HealthDeclineChronicRegistration").WithSummary("Decline a registration with a reason; the member is sent their rights, naming no condition").RequirePermission(HealthPermissions.ChronicDecide);
+        health.MapPost("/chronic-registrations/{id:guid}/end", async (Guid id, EndChronicRequest r, IDispatcher d, CancellationToken ct) =>
+                (await d.Send(new EndChronicRegistration(id, r.LastDay), ct)).ToHttp(Results.Ok))
+            .Produces<ChronicRegistrationView>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status409Conflict).TakesIfMatch()
+            .WithName("HealthEndChronicRegistration").WithSummary("End an approved registration from a day").RequirePermission(HealthPermissions.ChronicUpdate);
         health.MapPost("/referrals/{id:guid}/decide", async (Guid id, DecideReferralRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new DecideClinicalReferral(id, r.Approved, r.Reason), ct)).ToHttp(Results.Ok))
             .Produces<ClinicalReferralView>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity).TakesIfMatch()
@@ -628,6 +664,20 @@ public sealed class HealthModule : IModule
             .Produces<ClinicalReferralView>(StatusCodes.Status201Created).ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
             .WithName("PortalHealthRequestReferral").WithSummary("Refer a member, as yourself (F038); name the member's consent for the receiving provider to read the reason")
             .RequirePermission(HealthPermissions.ReferralCreate).ForPortal(provider).RequireIdempotencyKey();
+        portal.MapPost("/chronic-registrations", async (PortalChronicRequest r, IDispatcher d, IExecutionContext execution, CancellationToken ct) =>
+                {
+                    var patient = await d.Query(new PortalPatientOf(r.MemberNumber, r.DependantSuffix), ct);
+                    return patient.IsFailure
+                        ? patient.ToHttp(_ => Results.Ok())
+                        : (await d.Send(new RequestChronicRegistration(patient.Value.MembershipId, patient.Value.PatientPartyId, r.ConditionCode, r.DiagnosisCode, r.SupportingNote, execution.External!.ProviderId!), ct))
+                            .ToHttp(v => Results.Created($"/api/v1/portal/health/chronic-registrations/{v.Id}", v));
+                })
+            .Produces<ChronicRegistrationView>(StatusCodes.Status201Created).ProducesProblem(StatusCodes.Status409Conflict).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("PortalHealthRequestChronicRegistration").WithSummary("Request a chronic registration for a member, as yourself (F083)").RequirePermission(HealthPermissions.ChronicCreate).ForPortal(provider).RequireIdempotencyKey();
+        portal.MapGet("/chronic-registrations", async (IDispatcher d, CancellationToken ct) => (await d.Query(new ListPortalChronicRegistrations(), ct)).ToHttp(Results.Ok))
+            .Produces<IReadOnlyList<PortalChronicRegistrationView>>(StatusCodes.Status200OK)
+            .WithName("PortalHealthListChronicRegistrations").WithSummary("Your registrations and those of minors on your membership, and what remains of each entitlement this month (OQ-161)")
+            .RequirePermission(HealthPermissions.ChronicRead).ForPortal(member);
         portal.MapGet("/referrals", async (string? status, string? cursor, int? limit, IDispatcher d, IExecutionContext execution, CancellationToken ct) =>
                 await Page(cursor, limit, (after, size) => d.Query(new ListClinicalReferrals(null, execution.External!.ProviderId!, status, after, size), ct), r => r.Id))
             .Produces<CursorPage<ClinicalReferralView>>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity)

@@ -31537,6 +31537,582 @@
         ]
       }
     },
+    "/api/v1/health/chronic-registrations": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Request a chronic registration, with the diagnosis and a supporting note (F083)",
+        "operationId": "HealthRequestChronicRegistration",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealthRequestChronicRegistrationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthChronicRegistrationView"
+                }
+              }
+            }
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          }
+        },
+        "x-permission": "health_chronic.create",
+        "x-function": [
+          "HEALTH_REQUEST_CHRONIC_REGISTRATION"
+        ]
+      },
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Chronic registrations, by membership or status; no clinical detail",
+        "operationId": "HealthListChronicRegistrations",
+        "parameters": [
+          {
+            "name": "membershipId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfHealthChronicRegistrationView"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "health_chronic.read",
+        "x-function": [
+          "HEALTH_CHRONIC_REGISTRATIONS"
+        ]
+      }
+    },
+    "/api/v1/health/chronic-registrations/{id}": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "A chronic registration; no clinical detail",
+        "operationId": "HealthGetChronicRegistration",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthChronicRegistrationView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "health_chronic.read",
+        "x-function": [
+          "HEALTH_CHRONIC_REGISTRATIONS"
+        ]
+      }
+    },
+    "/api/v1/health/chronic-registrations/{id}/clinical": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "A registration\u0027s condition, diagnosis, note and entitlements, for the clinical function, with a purpose; every read is audited",
+        "operationId": "HealthReadChronicRegistrationClinical",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthChronicRegistrationClinicalView"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "health_case.read_clinical",
+        "x-function": [
+          "HEALTH_READ_CHRONIC_CLINICAL"
+        ]
+      }
+    },
+    "/api/v1/health/chronic-registrations/{id}/approve": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Approve a registration with its dates and entitlements; needs the clinical function and isn\u0027t for its requester (OQ-150)",
+        "operationId": "HealthApproveChronicRegistration",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealthApproveChronicRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthChronicRegistrationView"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          }
+        },
+        "x-permission": "health_chronic.decide",
+        "x-function": [
+          "HEALTH_APPROVE_CHRONIC_REGISTRATION"
+        ]
+      }
+    },
+    "/api/v1/health/chronic-registrations/{id}/decline": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Decline a registration with a reason; the member is sent their rights, naming no condition",
+        "operationId": "HealthDeclineChronicRegistration",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealthDeclineChronicRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthChronicRegistrationView"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          }
+        },
+        "x-permission": "health_chronic.decide",
+        "x-function": [
+          "HEALTH_DECLINE_CHRONIC_REGISTRATION"
+        ]
+      }
+    },
+    "/api/v1/health/chronic-registrations/{id}/end": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "End an approved registration from a day",
+        "operationId": "HealthEndChronicRegistration",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealthEndChronicRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthChronicRegistrationView"
+                }
+              }
+            }
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "health_chronic.update",
+        "x-function": [
+          "HEALTH_END_CHRONIC_REGISTRATION"
+        ]
+      }
+    },
     "/api/v1/health/referrals/{id}/decide": {
       "post": {
         "tags": [
@@ -33280,6 +33856,118 @@
         "x-permission": "health_referral.read",
         "x-function": [
           "PROVIDER_PORTAL_HEALTH_REFERRALS"
+        ]
+      }
+    },
+    "/api/v1/portal/health/chronic-registrations": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Request a chronic registration for a member, as yourself (F083)",
+        "operationId": "PortalHealthRequestChronicRegistration",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealthPortalChronicRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthChronicRegistrationView"
+                }
+              }
+            }
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          }
+        },
+        "x-permission": "health_chronic.create",
+        "x-function": [
+          "PROVIDER_PORTAL_HEALTH_REQUEST_CHRONIC"
+        ]
+      },
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Your registrations and those of minors on your membership, and what remains of each entitlement this month (OQ-161)",
+        "operationId": "PortalHealthListChronicRegistrations",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HealthPortalChronicRegistrationView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "health_chronic.read",
+        "x-function": [
+          "CUSTOMER_PORTAL_HEALTH_CHRONIC"
         ]
       }
     },
@@ -39881,6 +40569,7 @@
                 "CallbackEndpoint",
                 "CaseRedress",
                 "Cession",
+                "ChronicRegistration",
                 "ClaimFinancials",
                 "ClaimPaymentInstruction",
                 "ClaimRegistration",
@@ -40343,6 +41032,7 @@
                 "CallbackEndpoint",
                 "CaseRedress",
                 "Cession",
+                "ChronicRegistration",
                 "ClaimFinancials",
                 "ClaimPaymentInstruction",
                 "ClaimRegistration",
@@ -45106,6 +45796,27 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/GeneralRiskObjectView"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CursorPageOfHealthChronicRegistrationView": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthChronicRegistrationView"
             }
           },
           "nextCursor": {
@@ -51942,6 +52653,41 @@
           }
         }
       },
+      "HealthApproveChronicRequest": {
+        "required": [
+          "validFrom",
+          "validTo",
+          "reviewOn",
+          "entitlements"
+        ],
+        "type": "object",
+        "properties": {
+          "validFrom": {
+            "type": "string",
+            "format": "date"
+          },
+          "validTo": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "reviewOn": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "entitlements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthEntitlementRequest"
+            }
+          }
+        }
+      },
       "HealthApproveClaimRequest": {
         "type": "object",
         "properties": {
@@ -52325,6 +53071,132 @@
               "string"
             ],
             "format": "date"
+          }
+        }
+      },
+      "HealthChronicRegistrationClinicalView": {
+        "required": [
+          "id",
+          "conditionCode",
+          "diagnosisCode",
+          "supportingNote",
+          "declineReason",
+          "entitlements"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "conditionCode": {
+            "type": "string"
+          },
+          "diagnosisCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "supportingNote": {
+            "type": "string"
+          },
+          "declineReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "entitlements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthEntitlementRequest"
+            }
+          }
+        }
+      },
+      "HealthChronicRegistrationView": {
+        "required": [
+          "id",
+          "registrationNumber",
+          "membershipId",
+          "patientPartyId",
+          "status",
+          "validFrom",
+          "validTo",
+          "reviewOn",
+          "decidedBy",
+          "decidedAt",
+          "rowVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "registrationNumber": {
+            "type": "string"
+          },
+          "membershipId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "patientPartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "enum": [
+              "REQUESTED",
+              "APPROVED",
+              "DECLINED",
+              "ENDED"
+            ],
+            "type": "string"
+          },
+          "validFrom": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "validTo": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "reviewOn": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "decidedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "decidedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
           }
         }
       },
@@ -52934,6 +53806,17 @@
           }
         }
       },
+      "HealthDeclineChronicRequest": {
+        "required": [
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
       "HealthDependantRemovalRequest": {
         "required": [
           "lastDay"
@@ -53145,6 +54028,18 @@
           }
         }
       },
+      "HealthEndChronicRequest": {
+        "required": [
+          "lastDay"
+        ],
+        "type": "object",
+        "properties": {
+          "lastDay": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      },
       "HealthEnrolHealthMember": {
         "required": [
           "principalPartyId",
@@ -53231,6 +54126,36 @@
               "null",
               "string"
             ]
+          }
+        }
+      },
+      "HealthEntitlementRequest": {
+        "required": [
+          "productCode",
+          "activeIngredient",
+          "monthlyQuantity"
+        ],
+        "type": "object",
+        "properties": {
+          "productCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "activeIngredient": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "monthlyQuantity": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         }
       },
@@ -54303,6 +55228,91 @@
           }
         }
       },
+      "HealthPortalChronicRegistrationView": {
+        "required": [
+          "id",
+          "registrationNumber",
+          "patientPartyId",
+          "conditionCode",
+          "status",
+          "validFrom",
+          "validTo",
+          "entitlements"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "registrationNumber": {
+            "type": "string"
+          },
+          "patientPartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "conditionCode": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "validFrom": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "validTo": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "entitlements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthPortalEntitlementView"
+            }
+          }
+        }
+      },
+      "HealthPortalChronicRequest": {
+        "required": [
+          "memberNumber",
+          "dependantSuffix",
+          "conditionCode",
+          "diagnosisCode",
+          "supportingNote"
+        ],
+        "type": "object",
+        "properties": {
+          "memberNumber": {
+            "type": "string"
+          },
+          "dependantSuffix": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "conditionCode": {
+            "type": "string"
+          },
+          "diagnosisCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "supportingNote": {
+            "type": "string"
+          }
+        }
+      },
       "HealthPortalClaimLineView": {
         "required": [
           "lineNo",
@@ -54396,6 +55406,45 @@
               "string"
             ],
             "format": "date"
+          }
+        }
+      },
+      "HealthPortalEntitlementView": {
+        "required": [
+          "productCode",
+          "activeIngredient",
+          "monthlyQuantity",
+          "remainingThisMonth"
+        ],
+        "type": "object",
+        "properties": {
+          "productCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "activeIngredient": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "monthlyQuantity": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "remainingThisMonth": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         }
       },
@@ -56352,6 +57401,38 @@
             "items": {
               "$ref": "#/components/schemas/HealthPreauthLineRequest"
             }
+          }
+        }
+      },
+      "HealthRequestChronicRegistrationRequest": {
+        "required": [
+          "membershipId",
+          "patientPartyId",
+          "conditionCode",
+          "diagnosisCode",
+          "supportingNote"
+        ],
+        "type": "object",
+        "properties": {
+          "membershipId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "patientPartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "conditionCode": {
+            "type": "string"
+          },
+          "diagnosisCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "supportingNote": {
+            "type": "string"
           }
         }
       },

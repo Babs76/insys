@@ -173,6 +173,8 @@ public sealed class BenefitContexts(IHealthRepository health, IHealthCodes codes
             Reviews = reviews ?? new Dictionary<int, ReviewDecision>(),
         };
 
+        context = context with { ChronicBenefits = await ChronicBenefitsFor(patientPartyId, serviceDate, cancellationToken) };
+
         // Pharmacy lines only: a claim with none reads nothing more, and adjudicates exactly as before.
         if (lines.Any(l => l.Pharmacy is not null))
         {
@@ -199,12 +201,24 @@ public sealed class BenefitContexts(IHealthRepository health, IHealthCodes codes
 
         // The accumulators of every category the lines (or the authorisation) fall in.
         var priced = context;
-        var wanted = (categories ?? lines.Select(l => l.Pharmacy is not null ? PharmacyTerms.Of(l.TariffCode, priced).Category
-                    : BenefitCategories.Of(l.TariffCode, codeSystems.GetValueOrDefault(l.TariffCode), network.ProviderType, rules.Mappings))
-                .OfType<string>().ToList()).Distinct().ToList();
+        var wanted = (categories ?? lines.Select(l => AdjudicationEngine.CategoryOf(l, priced)).OfType<string>().ToList()).Distinct().ToList();
         var keys = wanted.SelectMany(c => Limits.For(c, context, serviceDate).Accumulators.Keys).Distinct().ToList();
         var accumulators = await health.Accumulators(membership.Id, keys, cancellationToken);
         return context with { Accumulators = accumulators.ToDictionary(a => a.Key, a => a.State) };
+    }
+
+    /// <summary>The patient's registrations in force, each with its condition as configured on the day. A condition with no benefit category draws on nothing special.</summary>
+    private async Task<IReadOnlyList<ChronicBenefit>> ChronicBenefitsFor(Guid patientPartyId, DateOnly day, CancellationToken cancellationToken)
+    {
+        var registrations = await health.ChronicRegistrationsInForce(patientPartyId, day, cancellationToken);
+        if (registrations.Count == 0)
+        {
+            return [];
+        }
+
+        var conditions = await codes.ChronicConditions(registrations.Select(r => r.ConditionCode).Distinct().ToList(), day, cancellationToken);
+        return registrations.Where(r => conditions.TryGetValue(r.ConditionCode, out var c) && c.Category is not null)
+            .Select(r => new ChronicBenefit(conditions[r.ConditionCode].Category!, conditions[r.ConditionCode].DiagnosisCodes, r.Entitlements.Select(e => e.ToTerms()).ToList())).ToList();
     }
 
     /// <summary>Applies a claim's (or authorisation's) accumulator changes: an accumulator is opened for a period when it does not exist yet.</summary>

@@ -316,6 +316,35 @@ internal sealed class HealthRepository(HealthDbContext db, IExecutionContext exe
         return await OfMembership(referral, referral?.MembershipId, cancellationToken);
     }
 
+    public async Task<ChronicRegistration?> ChronicRegistration(Guid id, CancellationToken cancellationToken)
+    {
+        var registration = await db.ChronicRegistrations.Include(r => r.Entitlements).SingleOrDefaultAsync(r => r.Id == id, cancellationToken);
+        return await OfMembership(registration, registration?.MembershipId, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<ChronicRegistration>> ChronicRegistrationsInForce(Guid patientPartyId, DateOnly day, CancellationToken cancellationToken) =>
+        await db.ChronicRegistrations.AsNoTracking().Include(r => r.Entitlements)
+            .Where(r => r.PatientPartyId == patientPartyId && r.Status == ChronicStatus.Approved && r.ValidFrom <= day && (r.ValidTo == null || day <= r.ValidTo))
+            .OrderBy(r => r.Id).ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<ChronicRegistration>> ChronicRegistrations(Guid? membershipId, string? status, Guid? afterId, int limit, CancellationToken cancellationToken)
+    {
+        var rows = db.ChronicRegistrations.AsNoTracking();
+        if (!execution.CurrentScope.IsUnrestricted)
+        {
+            rows = rows.Where(r => MembershipsInScope.Contains(r.MembershipId));
+        }
+
+        return await rows.Where(r => (membershipId == null || r.MembershipId == membershipId) && (status == null || r.Status == status) && (afterId == null || r.Id.CompareTo(afterId.Value) > 0))
+            .OrderBy(r => r.Id).Take(limit).ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<ChronicRegistration>> MemberChronicRegistrations(Guid partyId, CancellationToken cancellationToken) =>
+        await db.ChronicRegistrations.AsNoTracking().Include(r => r.Entitlements)
+            .Where(r => r.PatientPartyId == partyId || db.Memberships.Any(m => m.Id == r.MembershipId && m.PrincipalPartyId == partyId)).OrderBy(r => r.Id).ToListAsync(cancellationToken);
+
+    public void Add(ChronicRegistration registration) => db.ChronicRegistrations.Add(registration);
+
     public async Task<IReadOnlyList<ClinicalReferral>> ClinicalReferrals(Guid? membershipId, string? providerId, string? status, Guid? afterId, int limit, CancellationToken cancellationToken)
     {
         var rows = db.ClinicalReferrals.AsNoTracking();
@@ -565,6 +594,10 @@ internal sealed class HealthCodes(HealthDbContext db) : IHealthCodes
         .GroupBy(f => f.ProductCode).ToDictionary(g => g.Key, g => g.Select(f => new FormularyItem(f.ProductCode, f.ActiveIngredient, f.Tier, f.ReferencePrice, f.BenefitCategory,
             f.PriorAuthRequired ?? false, f.MaxQuantity, f.MaxDaysSupply)).First());
 
+    public async Task<IReadOnlyDictionary<string, ChronicConditionTerms>> ChronicConditions(IReadOnlyCollection<string> conditionCodes, DateOnly day, CancellationToken cancellationToken) =>
+        (await InForce<ChronicConditionList>(day).Where(c => conditionCodes.Contains(c.ConditionCode)).ToListAsync(cancellationToken))
+        .GroupBy(c => c.ConditionCode).ToDictionary(g => g.Key, g => new ChronicConditionTerms(g.First().BenefitCategory, g.First().DiagnosisCodes));
+
     public async Task<IReadOnlyList<MedicationLimit>> MedicationLimits(string planCode, DateOnly day, CancellationToken cancellationToken) =>
         await InForce<StaticData.MedicationLimits>(day).Where(l => l.PlanCode == null || l.PlanCode == planCode)
             .Select(l => new MedicationLimit(l.PlanCode, l.ProductCode, l.ActiveIngredient, l.MaxQuantity, l.MaxAmount, l.Period)).ToListAsync(cancellationToken);
@@ -647,6 +680,11 @@ internal sealed class HealthEventMapper : IDomainEventMapper
         Domain.Care.MedicalClaimRejected e => new Contracts.MedicalClaimRejected(e.ClaimId, e.ClaimNumber, e.MembershipId, e.ReasonCode),
         Domain.Care.MedicalClaimDecisionRightsDue e => new Communications.Contracts.NotificationRequested(Communications.Contracts.NotificationTypes.ClaimDecisionRights,
             e.RecipientPartyId, "HEALTH_CLAIM", e.ClaimId, RightsMerge(e), e.ProductCode, e.OrgNodeCode),
+        Domain.Care.ChronicRegistrationDeclinedRightsDue e => new Communications.Contracts.NotificationRequested(Communications.Contracts.NotificationTypes.ClaimDecisionRights,
+            e.RecipientPartyId, "HEALTH_CHRONIC", e.RegistrationId, new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["claim_number"] = e.RegistrationNumber, ["decision_date"] = e.DecidedOn.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture), ["amount"] = "0.00", ["currency"] = e.Currency,
+            }, e.ProductCode, e.OrgNodeCode),
         Domain.Care.CareActivityOverdue e => new Contracts.CareActivityOverdue(e.CaseId, e.CaseNumber, e.ActivityId, e.CaseManagerId),
         Domain.Providers.ProviderMeasureBreached e => new Contracts.ProviderMeasureBreached(e.ResultId, e.ProviderId, e.MonthKey, e.MeasureCode, e.Value, e.Threshold),
         Domain.Care.MedicalClaimReversed e => new Contracts.MedicalClaimReversed(e.ClaimId, e.ClaimNumber, e.ProviderId, e.Amount, e.Currency, e.Reason),

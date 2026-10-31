@@ -135,6 +135,7 @@ public static class HealthStaticData
             entity.Property(x => x.Name).HasColumnName("name").HasMaxLength(80);
             entity.Property(x => x.DiagnosisCodes).HasColumnName("diagnosis_codes");
             entity.Property(x => x.TreatmentBasket).HasColumnName("treatment_basket").HasMaxLength(80);
+            entity.Property(x => x.BenefitCategory).HasColumnName("benefit_category").HasMaxLength(15);
         });
         modelBuilder.Entity<ClaimFormatDefinitions>(entity =>
         {

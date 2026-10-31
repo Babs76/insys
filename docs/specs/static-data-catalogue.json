@@ -7504,6 +7504,12 @@
      "logicalType": "Ref Formulary list",
      "mandatory": false,
      "sample": "BASKET-ASTHMA-01"
+    },
+    {
+     "name": "benefit_category",
+     "logicalType": "String(15)",
+     "mandatory": false,
+     "sample": "CHRONIC"
     }
    ]
   },

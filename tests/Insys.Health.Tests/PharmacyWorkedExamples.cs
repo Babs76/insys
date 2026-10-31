@@ -270,6 +270,41 @@ public sealed class PharmacyWorkedExamples
         One(authorised, Line("NAPPI-R", 45m)).Outcome.ShouldBe(LineOutcome.Pay);
     }
 
+    private static readonly ChronicBenefit Diabetes = new("CHRONIC", ["E10-E14"], [new ChronicEntitlement(null, "METFORMIN", 60)]);
+
+    [Fact]
+    public void AnEntitledMedicine_DrawsOnTheChronicCategory_F084()
+    {
+        var line = One(Context() with { ChronicBenefits = [Diabetes] }, Line("NAPPI-1", 45m));
+        line.Category.ShouldBe("CHRONIC");
+        line.Paid.ShouldBe(45m);
+    }
+
+    [Fact]
+    public void AboveTheMonthlyEntitlement_TheExcessIsNotPaid_AndLastMonthDoesNotCount_F085()
+    {
+        var taken = new PriorMedicine(Guid.CreateVersion7(), "NAPPI-7", "METFORMIN", "1", new DateOnly(2026, 6, 1), 40, null, 40m);
+        var line = One(Context() with { ChronicBenefits = [Diabetes], PriorMedicines = [taken] }, Line("NAPPI-1", 45m));
+        line.PaidQuantity.ShouldBe(20);
+        line.Reason.ShouldBe(AdjudicationReasons.QuantityCut);
+
+        var lastMonth = taken with { ServiceDate = new DateOnly(2026, 5, 31) };
+        One(Context() with { ChronicBenefits = [Diabetes], PriorMedicines = [lastMonth] }, Line("NAPPI-1", 45m)).PaidQuantity.ShouldBe(30);
+    }
+
+    [Fact]
+    public void AMedicalLine_WithARegisteredDiagnosis_DrawsOnTheChronicCategory_AndOtherDiagnosesDoNot_F084()
+    {
+        var context = Context() with
+        {
+            ChronicBenefits = [Diabetes], Tariffs = new Dictionary<(string, string), TariffPrice> { [("REF", "0190")] = new(100m, null) }, CodeSystems = new Dictionary<string, string> { ["0190"] = "NRPL" },
+            Mappings = [new("NRPL", "0190", "0199", null, "GP")], Provider = new ProviderTerms("PH-1", "GP", true, null, null),
+        };
+        One(context, new ClaimLineInput(1, "0190", "E11", 1, 80m, [])).Category.ShouldBe("CHRONIC");
+        One(context, new ClaimLineInput(1, "0190", "K35", 1, 80m, [])).Category.ShouldBe("GP");
+        One(context, new ClaimLineInput(1, "0190", null, 1, 80m, [])).Category.ShouldBe("GP");
+    }
+
     [Fact]
     public void AMedicalLine_IsUnchangedByAFormulary()
     {

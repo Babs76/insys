@@ -67,6 +67,8 @@ public sealed class HealthDbContext(DbContextOptions<HealthDbContext> options, M
 
     public DbSet<ClinicalReferral> ClinicalReferrals => Set<ClinicalReferral>();
 
+    public DbSet<ChronicRegistration> ChronicRegistrations => Set<ChronicRegistration>();
+
     public DbSet<Domain.Providers.ProviderMeasureResult> ProviderMeasureResults => Set<Domain.Providers.ProviderMeasureResult>();
 
     public DbSet<Domain.Providers.ProviderQualityReview> ProviderQualityReviews => Set<Domain.Providers.ProviderQualityReview>();
@@ -303,6 +305,29 @@ public sealed class HealthDbContext(DbContextOptions<HealthDbContext> options, M
             note.Property(n => n.Note).HasMaxLength(2000);
             note.Property(n => n.SharedWithProviderId).HasMaxLength(15);
             note.Property(n => n.ConsentReference).HasMaxLength(120);
+        });
+
+        modelBuilder.Entity<ChronicRegistration>(registration =>
+        {
+            registration.ToTable("chronic_registration"); // Wave 5b §4.3, F083 to F085
+            Root(registration);
+            registration.Property(r => r.RegistrationNumber).HasMaxLength(25);
+            registration.Property(r => r.ConditionCode).HasMaxLength(15);
+            registration.Property(r => r.DiagnosisCode).HasMaxLength(10);
+            registration.Property(r => r.SupportingNote).HasMaxLength(2000);
+            registration.Property(r => r.RequestingProviderId).HasMaxLength(15);
+            registration.Property(r => r.Status).HasMaxLength(10);
+            registration.Property(r => r.DeclineReason).HasMaxLength(500);
+            registration.HasMany(r => r.Entitlements).WithOne().HasForeignKey(e => new { e.TenantId, e.RegistrationId });
+            registration.Navigation(r => r.Entitlements).UsePropertyAccessMode(PropertyAccessMode.Field);
+        });
+
+        modelBuilder.Entity<ChronicEntitlementItem>(entitlement =>
+        {
+            entitlement.ToTable("chronic_entitlement");
+            Child(entitlement);
+            entitlement.Property(e => e.ProductCode).HasMaxLength(20);
+            entitlement.Property(e => e.ActiveIngredient).HasMaxLength(100);
         });
 
         modelBuilder.Entity<ClinicalReferral>(referral =>

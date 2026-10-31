@@ -218887,6 +218887,12 @@
               "string"
             ]
           },
+          "benefitCategory": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "id": {
             "type": "string",
             "format": "uuid"
@@ -219094,6 +219100,12 @@
             }
           },
           "treatmentBasket": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "benefitCategory": {
             "type": [
               "null",
               "string"

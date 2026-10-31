@@ -1321,6 +1321,78 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
     }
 
     /// <summary>Phase 5 review, item 5: member reimbursement on the plan's REFERENCE_TARIFF basis, paid to the principal's verified account through a run.</summary>
+    /// <summary>Wave 5b §10: a chronic registration through to a claim drawing on it; the condition stays clinical; OQ-161 on the member portal.</summary>
+    [Fact]
+    public async Task AChronicRegistration_IsDecidedByTheClinicalFunction_AndAClaimDrawsOnIt_F083_F084_F085_OQ150_OQ161()
+    {
+        await _db.ExecuteAsOwner("""
+            INSERT INTO health.cfg_claim_format_definitions (tenant_id, code, version, effective_from, record_status, created_by, change_reason, format_code, field_mapping, transport, line_kind)
+            VALUES (@t, 'RX', 1, @from, 'EFFECTIVE', 'seed', 'seed', 'RX', '{}', 'API', 'PHARMACY')
+            """, ("t", Tenant), ("from", Today.AddYears(-2)));
+        await Seed("health.ref_medicine_formulary", "ACTIVE", "NAPPI-1", ("product_code", "NAPPI-1"), ("active_ingredient", "METFORMIN"), ("tier", "1"), ("benefit_category", "MEDICINES"));
+        await Seed("health.cfg_prescription_benefits", "EFFECTIVE", "RX-T1", ("benefit_code", "RX-T1"), ("tier", "1"), ("covered", true));
+        await Seed("health.cfg_chronic_condition_list", "EFFECTIVE", "DM2", ("condition_code", "DM2"), ("name", "Diabetes"), ("diagnosis_codes", new[] { "E11" }), ("benefit_category", "CHRONIC"));
+        await Provider();
+        var scheme = await Created("/api/v1/health/schemes", new { sponsorCode = "S-ACME", startDate = Today.AddYears(-1), renewalDate = Today.AddMonths(6), currency = "ZAR" });
+        var principal = await _maker.RegisterPerson("ChronicPrincipal");
+        var spouse = await _maker.RegisterPerson("ChronicSpouse");
+        var membership = await Created("/api/v1/health/memberships", new
+        {
+            principalPartyId = principal, schemeId = scheme, memberCategory = "ALL_STAFF", planCode = "HLT-CORE", optionCode = "A", startDate = Today.AddMonths(-6),
+            currency = "ZAR", collectionMethod = "DEBIT_ORDER", facts = new { employment_type = "PERMANENT" },
+        });
+        (await _maker.Send(HttpMethod.Post, $"/api/v1/health/memberships/{membership}/dependants", new { partyId = spouse, dependantType = "SPOUSE", student = false, startDate = Today.AddMonths(-6) }, idempotent: true))
+            .StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        string[] staff = [HealthPermissions.ChronicRead, HealthPermissions.ChronicCreate, HealthPermissions.ChronicDecide, HealthPermissions.ChronicUpdate];
+        await _db.UserWithPermissions(Tenant, "chronic-clerk", staff);
+        await _db.UserWithPermissions(Tenant, "chronic-doctor", [.. staff, HealthPermissions.ClinicalRead]);
+        await _db.AdoptFunctionCatalogue();
+        var clerk = _factory.ClientFor(Tenant, "chronic-clerk");
+        var doctor = _factory.ClientFor(Tenant, "chronic-doctor");
+
+        var requested = await clerk.Send(HttpMethod.Post, "/api/v1/health/chronic-registrations",
+            new { membershipId = membership, patientPartyId = spouse, conditionCode = "DM2", diagnosisCode = "E11", supportingNote = "HbA1c attached" }, idempotent: true);
+        requested.StatusCode.ShouldBe(HttpStatusCode.Created, await requested.Content.ReadAsStringAsync());
+        var view = await requested.Json();
+        var id = view.GetProperty("id").GetGuid();
+        view.TryGetProperty("conditionCode", out _).ShouldBeFalse("the ordinary view is not clinical");
+
+        // Without the clinical function, a holder of the decide function is refused.
+        var approval = new { validFrom = Today.AddMonths(-1), reviewOn = Today.AddMonths(6), entitlements = new[] { new { activeIngredient = "METFORMIN", monthlyQuantity = 40 } } };
+        (await clerk.Send(HttpMethod.Post, $"/api/v1/health/chronic-registrations/{id}/approve", approval)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        var approved = await doctor.Send(HttpMethod.Post, $"/api/v1/health/chronic-registrations/{id}/approve", approval);
+        approved.StatusCode.ShouldBe(HttpStatusCode.OK, await approved.Content.ReadAsStringAsync());
+        (await clerk.GetAsync($"/api/v1/health/chronic-registrations/{id}/clinical?purpose=review")).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await (await doctor.GetAsync($"/api/v1/health/chronic-registrations/{id}/clinical?purpose=review")).Json()).GetProperty("conditionCode").GetString().ShouldBe("DM2");
+
+        var claim = await Created("/api/v1/health/claims", new
+        {
+            source = "PROVIDER", providerId = "PR-1", membershipId = membership, patientPartyId = spouse, serviceDate = Today, formatCode = "RX", currency = "ZAR",
+            lines = new[] { new { tariffCode = "NAPPI-1", quantity = 60, claimedAmount = 120m, pharmacy = new { daysSupply = 30 } } },
+        });
+        (await _maker.PostAsync($"/api/v1/health/claims/{claim}/validate", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        var line = (await (await _maker.PostAsync($"/api/v1/health/claims/{claim}/adjudicate", null)).Json()).GetProperty("lines")[0];
+        (line.GetProperty("benefitCategory").GetString(), line.GetProperty("paidQuantity").GetInt32(), line.GetProperty("paidAmount").GetDecimal()).ShouldBe(("CHRONIC", 40, 80m));
+
+        // OQ-161: the adult sees their own and what remains; the principal doesn't see theirs.
+        foreach (var (subject, party) in new[] { ("chronic-principal", principal), ("chronic-spouse", spouse) })
+        {
+            var user = await _db.UserWithPermissions(Tenant, subject, HealthPermissions.ChronicRead);
+            await _db.ExecuteAsOwner("""
+                INSERT INTO iam.user_subject_link (tenant_id, id, row_version, created_at, created_by, updated_at, updated_by, user_id, kind, party_id, status, requested_by, decided_by, decided_at)
+                VALUES (@t, gen_random_uuid(), 1, now(), 'seed', now(), 'seed', @u, 'PARTY', @p, 'ACTIVE', gen_random_uuid(), gen_random_uuid(), now())
+                """, ("t", Tenant), ("u", user), ("p", party));
+        }
+
+        await Seed("channel.cfg_channel_definitions", "EFFECTIVE", "CH-MEM", ("channel_code", "MEM"), ("audience", "CUSTOMER"), ("name", "Member portal"), ("client_ids", new[] { "member-portal" }));
+        await _db.AdoptFunctionCatalogue();
+        var own = await (await _factory.ClientFor(Tenant, "chronic-spouse", "member-portal").GetAsync("/api/v1/portal/health/chronic-registrations")).Json();
+        own[0].GetProperty("conditionCode").GetString().ShouldBe("DM2");
+        own[0].GetProperty("entitlements")[0].GetProperty("remainingThisMonth").GetInt32().ShouldBe(0);
+        (await (await _factory.ClientFor(Tenant, "chronic-principal", "member-portal").GetAsync("/api/v1/portal/health/chronic-registrations")).Json()).GetArrayLength().ShouldBe(0);
+    }
+
     /// <summary>Wave 5b §10: a pharmacy claim from receipt through a payment run; what it dispensed is clinical; a reversal gives its limit back.</summary>
     [Fact]
     public async Task APharmacyClaim_RunsFromReceiptThroughAPaymentRun_AndWhatItDispensedIsClinical_F039_F045_HLT008()

@@ -2,6 +2,16 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
+## Wave 5b batch 5b.3 (branch `wave5b3`): chronic registration (addendum §4.3; F083 to F085)
+
+### New
+- **`POST`, `GET /health/chronic-registrations`, `GET /{id}`, `GET /{id}/clinical?purpose=`, `POST /{id}/approve`, `/decline`, `/end`.** The ordinary views show no condition. Approve and decline need `health_chronic.decide` and the clinical function, and aren't for the requester. They take If-Match.
+- **Portal:** `POST /portal/health/chronic-registrations` (provider), `GET /portal/health/chronic-registrations` (member: their own and minors', with `remainingThisMonth`; an adult dependant's isn't listed to the principal, OQ-161).
+- **Permissions** `health_chronic.read`, `.create`, `.decide`, `.update`.
+
+### Changed
+- **`health.cfg_chronic_condition_list`** gains `benefitCategory`.
+
 ## Wave 5b batch 5b.2 (branch `wave5b2`): medication controls (addendum §4.2; F046, F047, F092, F093)
 
 ### New

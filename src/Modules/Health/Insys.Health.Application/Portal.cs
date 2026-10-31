@@ -139,6 +139,9 @@ public sealed class DependantPrivacy(Party.Contracts.IPersonFacts persons, ITena
         return await persons.BirthDate(tenant.RequireTenantId(), patientPartyId, cancellationToken) is { } born && IsMinor(born, businessDate.Today);
     }
 
+    public async Task<bool> IsMinor(Guid partyId, CancellationToken cancellationToken) =>
+        await persons.BirthDate(tenant.RequireTenantId(), partyId, cancellationToken) is { } born && IsMinor(born, businessDate.Today);
+
     public static bool IsMinor(DateOnly born, DateOnly day) => born.AddYears(AgeOfMajority) > day;
 }
 

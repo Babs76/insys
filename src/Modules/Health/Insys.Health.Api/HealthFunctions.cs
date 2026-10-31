@@ -104,6 +104,12 @@ internal static class HealthFunctions
         .Action("HEALTH_ADD_CARE_NOTE", "HEALTH_COMPLEX_CASES", "HealthAddCareNote")
         .Action("HEALTH_READ_COMPLEX_CASE_CLINICAL", "HEALTH_COMPLEX_CASES", "HealthReadComplexCaseClinical")
         .Permission("HEALTH_CASE_MANAGER", "HEALTH_COMPLEX_CASES", HealthPermissions.ComplexCaseManage)
+        .Screen("HEALTH_CHRONIC_REGISTRATIONS", "HEALTH_ACCESS_TO_CARE", "Chronic registrations", "health/chronic-registrations", "HealthListChronicRegistrations", "HealthGetChronicRegistration")
+        .Action("HEALTH_REQUEST_CHRONIC_REGISTRATION", "HEALTH_CHRONIC_REGISTRATIONS", "HealthRequestChronicRegistration")
+        .Action("HEALTH_APPROVE_CHRONIC_REGISTRATION", "HEALTH_CHRONIC_REGISTRATIONS", "HealthApproveChronicRegistration")
+        .Action("HEALTH_DECLINE_CHRONIC_REGISTRATION", "HEALTH_CHRONIC_REGISTRATIONS", "HealthDeclineChronicRegistration")
+        .Action("HEALTH_END_CHRONIC_REGISTRATION", "HEALTH_CHRONIC_REGISTRATIONS", "HealthEndChronicRegistration")
+        .Action("HEALTH_READ_CHRONIC_CLINICAL", "HEALTH_CHRONIC_REGISTRATIONS", "HealthReadChronicRegistrationClinical")
         .Screen("HEALTH_REFERRALS", "HEALTH_ACCESS_TO_CARE", "Clinical referrals", "health/referrals", "HealthListReferrals", "HealthGetReferral")
         .Action("HEALTH_REQUEST_REFERRAL", "HEALTH_REFERRALS", "HealthRequestReferral")
         .Action("HEALTH_RECORD_REFERRAL_VISIT", "HEALTH_REFERRALS", "HealthRecordReferralVisit")
@@ -124,6 +130,7 @@ internal static class HealthFunctions
             .Functions,
         .. new FunctionMap([Audiences.Customer], Features.CustomerPortal)
         .Screen("CUSTOMER_PORTAL_HEALTH_MEMBERSHIPS", "CUSTOMER_PORTAL", "Membership", "portal/health/memberships", "PortalHealthListMemberships", "PortalHealthGetMembership")
+        .Screen("CUSTOMER_PORTAL_HEALTH_CHRONIC", "CUSTOMER_PORTAL", "Chronic registrations", "portal/health/chronic-registrations", "PortalHealthListChronicRegistrations")
         .Screen("CUSTOMER_PORTAL_HEALTH_CLAIMS", "CUSTOMER_PORTAL", "Claims", "portal/health/claims", "PortalHealthListClaims", "PortalHealthGetClaim")
             .Functions,
         .. new FunctionMap([Audiences.Provider], Features.ProviderPortal)
@@ -131,6 +138,7 @@ internal static class HealthFunctions
         .Action("PROVIDER_PORTAL_HEALTH_SUBMIT_CLAIM", "PROVIDER_PORTAL_HEALTH_CLAIMS", "PortalHealthSubmitClaim")
         .Screen("PROVIDER_PORTAL_HEALTH_PREAUTHORISATIONS", "PROVIDER_PORTAL", "Preauthorisations", "portal/health/preauthorisations", "PortalHealthGetPreauthorisation")
         .Action("PROVIDER_PORTAL_HEALTH_REQUEST_AUTHORISATION", "PROVIDER_PORTAL_HEALTH_PREAUTHORISATIONS", "PortalHealthRequestAuthorisation")
+        .Action("PROVIDER_PORTAL_HEALTH_REQUEST_CHRONIC", "PROVIDER_PORTAL_HEALTH_CLAIMS", "PortalHealthRequestChronicRegistration")
         .Screen("PROVIDER_PORTAL_HEALTH_REFERRALS", "PROVIDER_PORTAL", "Referrals", "portal/health/referrals", "PortalHealthListReferrals")
         .Action("PROVIDER_PORTAL_HEALTH_REQUEST_REFERRAL", "PROVIDER_PORTAL_HEALTH_REFERRALS", "PortalHealthRequestReferral")
         .Action("PROVIDER_PORTAL_HEALTH_READ_REFERRAL_CLINICAL", "PROVIDER_PORTAL_HEALTH_REFERRALS", "PortalHealthReadReferralClinical")
