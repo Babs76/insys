@@ -170,6 +170,12 @@ internal sealed class ClaimsRepository(ClaimsFrameworkDbContext db, IExecutionCo
 
     public void Add(ClaimRegistration registration) => db.Claims.Add(registration);
 
+    public async Task AddNow(ClaimRegistration registration, CancellationToken cancellationToken)
+    {
+        db.Claims.Add(registration);
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
     public void Add(FinancialMovement movement) => db.Movements.Add(movement);
 
     public void Add(ClaimPaymentInstruction instruction) => db.Instructions.Add(instruction);

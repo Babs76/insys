@@ -39,6 +39,7 @@ public static class GeneralPermissions
     public const string QuoteUnderwrite = "general_quote.underwrite";
     public const string PolicyRead = "general_policy.read";
     public const string PolicyCreate = "general_policy.create";
+    public const string PolicyMigrate = "general_policy.migrate";
     public const string PolicyUpdate = "general_policy.update";
     public const string PolicyCancel = "general_policy.cancel";
 
@@ -160,6 +161,10 @@ public sealed record GeneralQuoteDeclined(Guid QuoteId, string QuoteNumber, int 
 public sealed record GeneralQuoteExpired(Guid QuoteId, string QuoteNumber, int QuoteVersion) : IIntegrationEvent;
 
 /// <summary>A policy was issued: Billing opens the account (if new) and the premium schedule; Documents generates the schedule and certificate.</summary>
+[IntegrationEvent("general.GeneralPolicyMigrated")]
+public sealed record GeneralPolicyMigrated(Guid PolicyId, string PolicyNumber, string ProductCode, int ProductVersion, Guid PayerPartyId, Guid BillingAccountRef, string BillingFrequency, string CollectionMethod,
+    string Currency, decimal AnnualPremium, DateOnly PeriodStart, DateOnly PeriodEnd) : IIntegrationEvent;
+
 [IntegrationEvent("general.GeneralPolicyIssued")]
 public sealed record GeneralPolicyIssued(Guid PolicyId, string PolicyNumber, string ProductCode, int ProductVersion, Guid PolicyholderPartyId, Guid PayerPartyId,
     Guid BillingAccountRef, string BillingFrequency, string CollectionMethod, string Currency, decimal AnnualPremium, DateOnly PeriodStart, DateOnly PeriodEnd,

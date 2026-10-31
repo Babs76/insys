@@ -47,6 +47,7 @@ public static class BillingInfrastructure
         // Its dashboard figure codes, for the OpenAPI enum of DashboardFigure.code.
         BuildingBlocks.Application.DashboardFigureCodes.Declare(Insys.Billing.Application.BillingFigures.OpenArrears);
         const string schema = BillingDbContext.SchemaName;
+        services.AddSingleton<BuildingBlocks.Application.Context.IMigrationTotals, Persistence.BillingMigrationTotals>();
         services.AddModuleDbContext<BillingDbContext>(schema, "Billing");
         services.AddStaticData<BillingDbContext>(schema, BillingStaticData.Descriptors);
         services.AddModuleHandlers<BillingDbContext>(typeof(OpenAccount).Assembly);
@@ -65,6 +66,9 @@ public static class BillingInfrastructure
         services.AddIntegrationEventHandler<PaymentInitiated, BillingPolicies, BillingDbContext>(schema, "PaymentInitiated");
         services.AddIntegrationEventHandler<ApprovalGranted, BillingPolicies, BillingDbContext>(schema, "ApprovalGranted");
         services.AddIntegrationEventHandler<ApprovalRejected, BillingPolicies, BillingDbContext>(schema, "ApprovalRejected");
+        services.AddIntegrationEventHandler<Life.Contracts.LifePolicyMigrated, LifePolicyBilling, BillingDbContext>(schema, "LifePolicyMigrated");
+        services.AddIntegrationEventHandler<Health.Contracts.HealthMembershipMigrated, HealthContributionBilling, BillingDbContext>(schema, "HealthMembershipMigrated");
+        services.AddIntegrationEventHandler<GeneralPolicyMigrated, GeneralPolicyBilling, BillingDbContext>(schema, "GeneralPolicyMigrated");
         services.AddIntegrationEventHandler<GeneralPolicyIssued, GeneralPolicyBilling, BillingDbContext>(schema, "GeneralPolicyIssued");
         services.AddIntegrationEventHandler<GeneralPolicyEndorsed, GeneralPolicyBilling, BillingDbContext>(schema, "GeneralPolicyEndorsed");
         services.AddIntegrationEventHandler<GeneralCoverExtended, GeneralPolicyBilling, BillingDbContext>(schema, "GeneralCoverExtended"); // OQ-132 (b)

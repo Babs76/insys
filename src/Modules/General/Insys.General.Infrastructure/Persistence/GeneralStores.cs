@@ -61,6 +61,12 @@ internal sealed class GeneralRepository(GeneralDbContext db, IExecutionContext e
     public async Task<GeneralProposal?> ProposalForQuote(Guid quoteId, CancellationToken cancellationToken) =>
         await OfQuote(await db.Proposals.SingleOrDefaultAsync(p => p.QuoteId == quoteId, cancellationToken), cancellationToken);
 
+    public async Task<IReadOnlyList<string>> ClaimSourceReferencesKnown(IReadOnlyCollection<string> references, CancellationToken cancellationToken) =>
+        await db.Set<GeneralClaim>().AsNoTracking().Where(c => c.SourceReference != null && references.Contains(c.SourceReference)).Select(c => c.SourceReference!).ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<string>> SourceReferencesKnown(IReadOnlyCollection<string> references, CancellationToken cancellationToken) =>
+        await db.Set<GeneralPolicy>().AsNoTracking().Where(p => p.SourceReference != null && references.Contains(p.SourceReference)).Select(p => p.SourceReference!).ToListAsync(cancellationToken);
+
     public async Task<GeneralPolicy?> Policy(Guid id, CancellationToken cancellationToken) =>
         Scoped(await Policies().SingleOrDefaultAsync(p => p.Id == id, cancellationToken));
 
@@ -527,6 +533,8 @@ internal sealed class GeneralEventMapper : IDomainEventMapper
         GeneralQuoteReferralDecided e => new Contracts.GeneralQuoteReferralDecided(e.QuoteId, e.QuoteNumber, e.QuoteVersion, e.Approved, e.DecisionCode),
         GeneralQuotePricingRequested e => new Contracts.GeneralQuotePricingRequested(e.QuoteId, e.QuoteNumber, e.QuoteVersion, e.ProductCode, e.ProductVersion, e.Currency,
             QuotePricing.Frequency, e.RatingDate, System.Text.Json.JsonDocument.Parse(e.ValuesJson).RootElement.Clone()),
+        GeneralPolicyMigrated e => new Contracts.GeneralPolicyMigrated(e.PolicyId, e.PolicyNumber, e.ProductCode, e.ProductVersion, e.Billing.PayerPartyId, e.Billing.BillingAccountRef, e.Billing.Frequency,
+            e.Billing.CollectionMethod, e.Currency, e.AnnualPremium, e.PeriodStart, e.PeriodEnd),
         GeneralPolicyIssued e => new Contracts.GeneralPolicyIssued(e.PolicyId, e.PolicyNumber, e.ProductCode, e.ProductVersion, e.PolicyholderPartyId, e.Billing.PayerPartyId,
             e.Billing.BillingAccountRef, e.Billing.Frequency, e.Billing.CollectionMethod, e.Currency, e.AnnualPremium, e.PeriodStart, e.PeriodEnd, e.RenewalOfId,
             e.SumInsured, e.OrgNodeCode, e.InstalmentLoadingPct),
@@ -601,6 +609,7 @@ internal sealed class GeneralEventMapper : IDomainEventMapper
         EndorsementSubmitted e => new BuildingBlocks.Contracts.Approvals.ApprovalRequested(Contracts.GeneralApprovals.EndorsementBusinessRefType, e.EndorsementId,
             Contracts.GeneralApprovals.EndorsementApprovalType, e.RequestedBy, Math.Abs(e.PremiumDelta), e.Currency,
             e.ExceededLimit is null ? $"Endorsement {e.EndorsementNumber}" : $"Endorsement {e.EndorsementNumber}; exceeds aggregation limit {e.ExceededLimit} (F062)"),
+        GeneralClaimMigrated e => new ClaimsFramework.Contracts.ClaimMigrated(e.ClaimNumber, "GENERAL", e.ClaimId, e.PolicyId, e.ProductCode, e.OrgNodeCode, e.BatchCode, e.ReserveType, e.Reserve, e.Currency),
         GeneralClaimRegistered e => new Contracts.GeneralClaimRegistered(e.ClaimId, e.ClaimNumber, e.PolicyId, e.LossDate, e.PerilCode),
         AssessorAppointed e => new Contracts.AssessorAppointed(e.ClaimId, e.AssessorPartyId),
         SettlementRequested e => new BuildingBlocks.Contracts.Approvals.ApprovalRequested(Contracts.GeneralApprovals.SettlementBusinessRefType, e.ClaimId,

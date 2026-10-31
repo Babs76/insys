@@ -40,6 +40,7 @@ namespace Insys.Billing.Application;
 /// billing frequency code and the contribution of individual members (no scheme) are not specified (OQ-061).
 /// </summary>
 public sealed class HealthContributionBilling(IBillingRepository billing, IBillingCodes codes, IBusinessDate businessDate, IClock clock) :
+    IIntegrationEventHandler<HealthMembershipMigrated>,
     IIntegrationEventHandler<HealthMemberEnrolled>,
     IIntegrationEventHandler<DependantAdded>,
     IIntegrationEventHandler<HealthMemberStatusChanged>,
@@ -48,6 +49,24 @@ public sealed class HealthContributionBilling(IBillingRepository billing, IBilli
     public const string SourceDomain = HealthReferences.SourceDomain;
     public const string EmployerSourceDomain = HealthReferences.EmployerSourceDomain;
     public const string Monthly = "MONTHLY";
+
+    /// <summary>OQ-158: the member's and the employer's schedules, as on enrolment, with what fell due by today invoiced in the source system.</summary>
+    public async Task Handle(HealthMembershipMigrated migrated, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        var enrolled = new HealthMemberEnrolled(migrated.MembershipId, migrated.MemberNumber, migrated.PayerPartyId, null, migrated.PlanCode, migrated.OptionCode, migrated.StartDate, migrated.PayerPartyId, migrated.BillingAccountRef, migrated.CollectionMethod,
+            migrated.Currency, migrated.MonthlyContribution, migrated.EmployerContribution, migrated.SponsorPartyId, null, migrated.ProductCode);
+        if (migrated.MonthlyContribution > 0 && await billing.AccountForPolicy(SourceDomain, migrated.MembershipId, cancellationToken) is null)
+        {
+            var account = await Open(migrated.BillingAccountRef, migrated.PayerPartyId, enrolled, cancellationToken);
+            await Schedule(account, SourceDomain, enrolled, migrated.MonthlyContribution, cancellationToken, takenOver: true);
+        }
+
+        if (migrated is { EmployerContribution: > 0, SponsorPartyId: { } sponsor } && await billing.AccountForPolicy(EmployerSourceDomain, migrated.MembershipId, cancellationToken) is null)
+        {
+            var account = await billing.OpenAccountOf(sponsor, migrated.Currency, cancellationToken) ?? await Open(Guid.CreateVersion7(), sponsor, enrolled, cancellationToken);
+            await Schedule(account, EmployerSourceDomain, enrolled, migrated.EmployerContribution, cancellationToken, takenOver: true);
+        }
+    }
 
     public async Task Handle(HealthMemberEnrolled enrolled, EventEnvelope envelope, CancellationToken cancellationToken)
     {
@@ -113,7 +132,7 @@ public sealed class HealthContributionBilling(IBillingRepository billing, IBilli
         return account;
     }
 
-    private async Task Schedule(BillingAccount account, string sourceDomain, HealthMemberEnrolled enrolled, decimal amount, CancellationToken cancellationToken)
+    private async Task Schedule(BillingAccount account, string sourceDomain, HealthMemberEnrolled enrolled, decimal amount, CancellationToken cancellationToken, bool takenOver = false)
     {
         var schedule = account.CreateSchedule(sourceDomain, enrolled.MembershipId, $"{enrolled.PlanCode}/{enrolled.OptionCode}", await Frequency(enrolled.MemberNumber, cancellationToken),
             enrolled.StartDate, null, amount);
@@ -123,6 +142,11 @@ public sealed class HealthContributionBilling(IBillingRepository billing, IBilli
         }
 
         schedule.Value.ScopeTo(enrolled.ProductCode, enrolled.OrgNodeCode); // F103; the plan's product (addenda/health-plan-products.md)
+        if (takenOver)
+        {
+            schedule.Value.TakenOverOn(businessDate.Today);
+            return;
+        }
 
         await DueInvoices.Issue(account, businessDate.Today, billing, codes, clock, businessDate, cancellationToken, firstBilling: true);
     }

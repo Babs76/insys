@@ -740,6 +740,38 @@ public sealed class LifeProcessTests(PostgresServer server) : IAsyncLifetime
         return _factory.ClientFor(Tenant, subject, client, multiFactor: true);
     }
 
+    /// <summary>OQ-158: a policy in force in a source system, with no proposal: in force here, its remaining premiums scheduled, nothing invoiced or issued afresh.</summary>
+    [Fact]
+    public async Task AMigratedLifePolicy_IsInForce_WithNoInvoiceOrDocument_OQ158()
+    {
+        await _db.UserWithPermissions(Tenant, "life-migrator", LifePermissions.PolicyMigrate);
+        await _db.AdoptFunctionCatalogue();
+        var migrator = _factory.ClientFor(Tenant, "life-migrator");
+        var holder = await _maker.RegisterPerson("MigratedLife");
+        object File(decimal control) => new
+        {
+            batchCode = "L1", controlCount = 1, controlPremium = control,
+            rows = new[]
+            {
+                new
+                {
+                    sourceReference = "L-SRC-1", productCode = Product, productVersion = 1, policyholderPartyId = holder, inceptionDate = Today.AddYears(-2), termEndDate = Today.AddYears(8), currency = "ZAR", billingFrequency = "MONTHLY", collectionMethod = "DEBIT_ORDER",
+                    lives = new[] { new { partyId = holder, lifeRole = "MAIN", entryAge = 40, benefits = new[] { new { benefitCode = "DEATH", sumAssured = 500_000m, premium = 150m } } } },
+                },
+            },
+        };
+
+        (await (await migrator.Send(HttpMethod.Post, "/api/v1/life/migration/policies", File(1m), idempotent: true)).Json()).GetProperty("loaded").GetInt32().ShouldBe(0);
+        var loaded = await (await migrator.Send(HttpMethod.Post, "/api/v1/life/migration/policies", File(150m), idempotent: true)).Json();
+        loaded.GetProperty("loaded").GetInt32().ShouldBe(1, loaded.ToString());
+        var policy = await _db.ScalarAsOwner<Guid>("SELECT id FROM life.policy WHERE source_reference = 'L-SRC-1'");
+        (await _db.ScalarAsOwner<string>("SELECT status FROM life.policy WHERE id = @p", ("p", policy))).ShouldBe("IN_FORCE");
+        await _factory.DrainOutbox();
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM billing.invoice WHERE policy_ref = @p", ("p", policy))).ShouldBe(0);
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM billing.premium_schedule WHERE policy_ref = @p", ("p", policy))).ShouldBe(1);
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM document.document WHERE business_ref_id = @p", ("p", policy))).ShouldBe(0);
+    }
+
     private async Task<Guid> IssuedPolicy(Guid applicant, Guid spouse, DateOnly inception, string? orgNodeCode = null)
     {
         var proposal = await Underwritten(applicant, spouse, inception, orgNodeCode);

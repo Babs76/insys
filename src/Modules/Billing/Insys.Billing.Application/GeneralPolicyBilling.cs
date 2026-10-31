@@ -39,11 +39,42 @@ namespace Insys.Billing.Application;
 /// </summary>
 public sealed class GeneralPolicyBilling(IBillingRepository billing, IBillingCodes codes, IBusinessDate businessDate, IClock clock) :
     IIntegrationEventHandler<GeneralPolicyIssued>,
+    IIntegrationEventHandler<GeneralPolicyMigrated>,
     IIntegrationEventHandler<GeneralCoverExtended>,
     IIntegrationEventHandler<GeneralPolicyEndorsed>,
     IIntegrationEventHandler<GeneralPolicyCancelled>
 {
     public const string SourceDomain = "GENERAL";
+
+    /// <summary>
+    /// OQ-158: a migrated policy's account and schedule. What fell due by today was invoiced in the source system, so nothing is invoiced for it here;
+    /// what is still owed of it comes as an outstanding premium in the same migration batch.
+    /// </summary>
+    public async Task Handle(GeneralPolicyMigrated migrated, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (await billing.AccountForPolicy(SourceDomain, migrated.PolicyId, cancellationToken) is not null)
+        {
+            return;
+        }
+
+        if (!await codes.CollectionMethodExists(migrated.CollectionMethod, businessDate.Today, cancellationToken))
+        {
+            throw new PrerequisiteMissingException(PrerequisiteCodes.CollectionMethodNotInForce, migrated.CollectionMethod);
+        }
+
+        var account = BillingAccount.OpenAccount(migrated.BillingAccountRef, migrated.PayerPartyId, migrated.Currency, migrated.CollectionMethod, null, clock.UtcNow);
+        billing.Add(account);
+        var frequency = await Frequency(migrated.BillingFrequency, migrated.PolicyNumber, cancellationToken);
+        var schedule = account.CreateSchedule(SourceDomain, migrated.PolicyId, $"{migrated.ProductCode} v{migrated.ProductVersion}", frequency, migrated.PeriodStart, migrated.PeriodEnd,
+            Instalment(migrated.AnnualPremium, frequency), migrated.AnnualPremium);
+        if (schedule.IsFailure)
+        {
+            throw new InvalidOperationException($"Policy {migrated.PolicyNumber} cannot be scheduled: {schedule.Error.Message}");
+        }
+
+        schedule.Value.ScopeTo(migrated.ProductCode, null);
+        schedule.Value.TakenOverOn(businessDate.Today);
+    }
 
     /// <summary>
     /// OpenAccount (with the account reference the policy carries, or the payer's existing account) and CreateSchedule

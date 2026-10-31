@@ -87,6 +87,9 @@ public interface ILifeRepository
 
     Task<IReadOnlyList<Guid>> SchemesToActivate(DateOnly day, int limit, CancellationToken cancellationToken);
 
+    /// <summary>Which of these source references a migrated policy already has.</summary>
+    Task<IReadOnlyList<string>> SourceReferencesKnown(IReadOnlyCollection<string> references, CancellationToken cancellationToken);
+
     void Add(LifeProposal proposal);
 
     void Add(LifeUnderwritingCase underwritingCase);
@@ -96,6 +99,9 @@ public interface ILifeRepository
     void Add(LifePolicyLoan loan);
 
     void Add(LifeClaim claim);
+
+    /// <summary>Which of these source references a migrated claim already has.</summary>
+    Task<IReadOnlyList<string>> ClaimSourceReferencesKnown(IReadOnlyCollection<string> references, CancellationToken cancellationToken);
 
     void Add(GroupScheme scheme);
 }
@@ -230,7 +236,7 @@ public sealed record ScheduleView(string Frequency, decimal Premium, DateOnly Ne
 
 public sealed record LapseView(string EventType, DateOnly EffectiveDate, string Reason);
 
-public sealed record PolicyView(Guid Id, string PolicyNumber, Guid ProposalId, string ProductCode, int ProductVersion, int RatingVersion, int? RulesetVersion,
+public sealed record PolicyView(Guid Id, string PolicyNumber, Guid? ProposalId, string ProductCode, int ProductVersion, int RatingVersion, int? RulesetVersion,
     Guid PolicyholderPartyId, LifePolicyStatus Status, DateOnly InceptionDate, DateOnly? TermEndDate, string Currency, Guid BillingAccountRef, string? IntermediaryCode,
     IReadOnlyList<InsuredLifeView> Lives, IReadOnlyList<BenefitView> Benefits, IReadOnlyList<BeneficiaryView> Beneficiaries, ScheduleView Schedule,
     IReadOnlyList<LapseView> LapseHistory, long RowVersion,

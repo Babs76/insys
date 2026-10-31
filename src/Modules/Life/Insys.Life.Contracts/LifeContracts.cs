@@ -42,6 +42,7 @@ public static class LifePermissions
     public const string UnderwritingDecide = "life_underwriting.decide";
     public const string PolicyRead = "life_policy.read";
     public const string PolicyCreate = "life_policy.create";
+    public const string PolicyMigrate = "life_policy.migrate";
     public const string PolicyUpdate = "life_policy.update";
     public const string LoanRead = "life_loan.read";
     public const string LoanCreate = "life_loan.create";
@@ -104,6 +105,10 @@ public sealed record LifeUnderwritingDecided(Guid CaseId, Guid ProposalId, strin
 /// A policy was issued: Billing opens the account (if new) and the premium schedule at <paramref name="Premium"/> per
 /// instalment over the term; Documents generates the policy schedule.
 /// </summary>
+[IntegrationEvent("life.LifePolicyMigrated")]
+public sealed record LifePolicyMigrated(Guid PolicyId, string PolicyNumber, string ProductCode, int ProductVersion, Guid PayerPartyId, Guid BillingAccountRef, string BillingFrequency, string CollectionMethod, string Currency, decimal Premium,
+    DateOnly InceptionDate, DateOnly? TermEndDate) : IIntegrationEvent;
+
 [IntegrationEvent("life.LifePolicyIssued")]
 public sealed record LifePolicyIssued(Guid PolicyId, string PolicyNumber, Guid ProposalId, string ProductCode, int ProductVersion, Guid PolicyholderPartyId,
     Guid PayerPartyId, Guid BillingAccountRef, string BillingFrequency, string CollectionMethod, string Currency, decimal Premium, DateOnly InceptionDate,

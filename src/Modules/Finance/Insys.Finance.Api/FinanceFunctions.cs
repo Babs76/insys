@@ -43,6 +43,7 @@ internal static class FinanceFunctions
         .Action("FINANCE_ACKNOWLEDGE_GL_EXPORT", "FINANCE_GL_EXPORTS", "FinanceAcknowledgeGlExport")
         .Screen("FINANCE_JOURNALS", "FINANCE", "Journals", "finance/journals", "FinanceGetJournal", "FinanceListJournals", "FinanceTrialBalance")
         .Action("FINANCE_REVERSE_JOURNAL", "FINANCE_JOURNALS", "FinanceReverseJournal")
+        .Action("FINANCE_MIGRATE_OPENING_BALANCES", "FINANCE_JOURNALS", "FinanceMigrateOpeningBalances")
         .Screen("FINANCE_TAX_RETURNS", "FINANCE", "Tax returns", "finance/tax-returns", "FinanceListTaxReturns", "FinanceGetTaxReturn", "FinanceExportTaxReturn")
         .Action("FINANCE_PREPARE_TAX_RETURN", "FINANCE_TAX_RETURNS", "FinancePrepareTaxReturn")
         .Action("FINANCE_APPROVE_TAX_RETURN", "FINANCE_TAX_RETURNS", "FinanceApproveTaxReturn")

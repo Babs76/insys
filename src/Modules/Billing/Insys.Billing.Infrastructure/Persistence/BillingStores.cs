@@ -149,6 +149,9 @@ internal sealed class BillingRepository(BillingDbContext db, IExecutionContext e
         return await refunds.OrderBy(r => r.Id).Take(limit).ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<string>> InvoiceSourceReferencesKnown(IReadOnlyCollection<string> references, CancellationToken cancellationToken) =>
+        await db.Set<Invoice>().AsNoTracking().Where(i => i.SourceReference != null && references.Contains(i.SourceReference)).Select(i => i.SourceReference!).ToListAsync(cancellationToken);
+
     public async Task<BillingAccount?> AccountForPolicy(string sourceDomain, Guid policyRef, CancellationToken cancellationToken) =>
         await db.Set<PremiumSchedule>().AsNoTracking().Where(s => s.SourceDomain == sourceDomain && s.PolicyRef == policyRef).Select(s => (Guid?)s.BillingAccountId)
             .FirstOrDefaultAsync(cancellationToken) is { } id ? await Account(id, cancellationToken) : null;
