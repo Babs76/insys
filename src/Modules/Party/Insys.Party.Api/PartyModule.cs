@@ -427,7 +427,7 @@ public sealed class PartyModule : IModule
         var bulk = api.MapGroup("/party/bulk-jobs").WithTags(Name).ETagsFromRowVersion();
         bulk.MapPost("/imports", async (ImportParties r, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Send(r, ct)).ToHttp(v => Results.Created($"/api/v1/party/bulk-jobs/{v.Id}", v)))
             .Produces<BulkJobView>(StatusCodes.Status201Created).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
-            .WithName("PartyImportParties").WithSummary("Import individuals, all or nothing: one bad line rejects the import, and every bad line is named (F076)").RequirePermission(PartyPermissions.BulkJobCreate).RequireIdempotencyKey();
+            .WithName("PartyImportParties").WithSummary("Import individuals and organisations, all or nothing: one bad line rejects the import, and every bad line is named (F076)").RequirePermission(PartyPermissions.BulkJobCreate).RequireIdempotencyKey();
         bulk.MapPost("/exports", async (RequestPartyExport r, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Send(r, ct)).ToHttp(v => Results.Created($"/api/v1/party/bulk-jobs/{v.Id}", v)))
             .Produces<BulkJobView>(StatusCodes.Status201Created).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
             .WithName("PartyRequestExport").WithSummary("Ask for an export of parties; a second person approves it before it leaves").RequirePermission(PartyPermissions.BulkJobCreate).RequireIdempotencyKey();

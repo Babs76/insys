@@ -2227,6 +2227,15 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         var good = await (await first.Send(HttpMethod.Post, "/api/v1/party/bulk-jobs/imports", new { rows = new[] { Person("BulkOne"), Person("BulkTwo") } }, idempotent: true)).Json();
         (good.GetProperty("status").GetString(), good.GetProperty("acceptedCount").GetInt32()).ShouldBe(("DONE", 2));
 
+        // Organisations, and a control count that disagrees rejects the file.
+        object Company(string name) => new { legalName = name, legalFormCode = "COMPANY", registrationNumber = name + "-1" };
+        var miscounted = await (await first.Send(HttpMethod.Post, "/api/v1/party/bulk-jobs/imports", new { organisations = new[] { Company("BulkCo") }, controlCount = 2 }, idempotent: true)).Json();
+        (miscounted.GetProperty("status").GetString(), miscounted.GetProperty("rejectedLines")[0].GetProperty("line").GetInt32()).ShouldBe(("REJECTED", 0));
+        var companies = await (await first.Send(HttpMethod.Post, "/api/v1/party/bulk-jobs/imports", new { organisations = new[] { Company("BulkCo") }, controlCount = 1 }, idempotent: true)).Json();
+        companies.GetProperty("status").GetString().ShouldBe("DONE", companies.ToString());
+        (await (await first.Send(HttpMethod.Post, "/api/v1/party/bulk-jobs/imports", new { organisations = new[] { Company("BulkCo") } }, idempotent: true)).Json())
+            .GetProperty("status").GetString().ShouldBe("REJECTED", "the organisation exists");
+
         var requested = await first.Send(HttpMethod.Post, "/api/v1/party/bulk-jobs/exports", new { status = "ACTIVE" }, idempotent: true);
         requested.StatusCode.ShouldBe(HttpStatusCode.Created, await requested.Content.ReadAsStringAsync());
         var job = $"/api/v1/party/bulk-jobs/{(await requested.Json()).GetProperty("id").GetGuid()}";
@@ -2238,13 +2247,13 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         // BR-122: newest first, filtered, summary fields only, read permission needed.
         const string Jobs = "/api/v1/integration/bulk-jobs";
         var listed = (await (await first.GetAsync(Jobs)).Json()).GetProperty("items");
-        listed.EnumerateArray().Select(j => j.GetProperty("direction").GetString()).ShouldBe(["EXPORT", "IMPORT", "IMPORT"]);
+        listed.EnumerateArray().Select(j => j.GetProperty("direction").GetString()).ShouldBe(["EXPORT", "IMPORT", "IMPORT", "IMPORT", "IMPORT", "IMPORT"]);
         listed[0].TryGetProperty("rejectedLines", out _).ShouldBeFalse();
-        (await (await first.GetAsync($"{Jobs}?direction=IMPORT&status=REJECTED")).Json()).GetProperty("items").GetArrayLength().ShouldBe(1);
+        (await (await first.GetAsync($"{Jobs}?direction=IMPORT&status=REJECTED")).Json()).GetProperty("items").GetArrayLength().ShouldBe(3);
         (await (await first.GetAsync($"{Jobs}?type=PARTY_EXPORT&status=APPROVED")).Json()).GetProperty("items").GetArrayLength().ShouldBe(1);
         var page = await (await first.GetAsync($"{Jobs}?limit=1")).Json();
         var rest = await (await first.GetAsync($"{Jobs}?limit=5&cursor={page.GetProperty("nextCursor").GetString()}")).Json();
-        rest.GetProperty("items").GetArrayLength().ShouldBe(2);
+        rest.GetProperty("items").GetArrayLength().ShouldBe(5);
         (await (await first.GetAsync($"{Jobs}?from=2000-01-01&to=2000-01-02")).Json()).GetProperty("items").GetArrayLength().ShouldBe(0);
         (await first.GetAsync($"{Jobs}?status=NOPE")).StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
         (await _maker.GetAsync(Jobs)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);

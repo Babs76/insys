@@ -68,6 +68,9 @@ public interface IPartyRepository
 
     /// <summary>Existing parties matching a person by a close name and the same birth date (as Match), merged ones excluded.</summary>
     Task<IReadOnlyList<DuplicateCandidateView>> Candidates(IndividualData person, CancellationToken cancellationToken);
+
+    /// <summary>A live organisation with this registration number, or with this legal name when there is none to compare.</summary>
+    Task<bool> OrganisationExists(string legalName, string? registrationNumber, CancellationToken cancellationToken);
 }
 
 /// <summary>The Party module's static data in force that commands check codes against.</summary>

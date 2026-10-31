@@ -99,6 +99,10 @@ internal sealed class PartyRepository(PartyDbContext db) : IPartyRepository
         return found;
     }
 
+    public Task<bool> OrganisationExists(string legalName, string? registrationNumber, CancellationToken cancellationToken) =>
+        db.Parties.AsNoTracking().AnyAsync(p => p.Status != PartyStatus.Merged && p.Status != PartyStatus.Anonymised && p.Organisation != null
+            && (registrationNumber != null ? p.Organisation.RegistrationNumber == registrationNumber : p.Organisation.LegalName == legalName), cancellationToken);
+
     public Task<Domain.Parties.Party?> Get(Guid id, CancellationToken cancellationToken) =>
         db.Parties.Include(p => p.Individual).Include(p => p.Organisation).Include(p => p.Addresses).Include(p => p.ContactPoints).Include(p => p.Identifiers).Include(p => p.BankAccounts)
             .Include(p => p.Relationships).Include(p => p.Roles).AsSplitQuery().SingleOrDefaultAsync(p => p.Id == id, cancellationToken);

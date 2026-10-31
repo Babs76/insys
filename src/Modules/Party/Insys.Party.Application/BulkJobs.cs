@@ -38,7 +38,10 @@ namespace Insys.Party.Application;
 
 // F076 (addenda/finance-and-compliance.md §4.9, OQ-158): parties. Each row goes through RegisterParty's own validator and duplicate match.
 
-public sealed record ImportParties(IReadOnlyList<IndividualData> Rows) : ICommand<BulkJobView>;
+/// <param name="Rows">The individuals, numbered in the rejected lines from 1.</param>
+/// <param name="Organisations">The organisations, numbered after the individuals.</param>
+/// <param name="ControlCount">The source's count of rows: a file that disagrees is rejected whole (B-013).</param>
+public sealed record ImportParties(IReadOnlyList<IndividualData>? Rows, IReadOnlyList<OrganisationData>? Organisations = null, int? ControlCount = null) : ICommand<BulkJobView>;
 
 /// <param name="Status">Only parties with this status; null for all.</param>
 public sealed record RequestPartyExport([property: OneOf("ACTIVE", "DORMANT", "DECEASED")] string? Status) : ICommand<BulkJobView>;
@@ -87,7 +90,7 @@ public sealed class ImportPartiesValidator : AbstractValidator<ImportParties>
 {
     public const int MaxRows = 5000;
 
-    public ImportPartiesValidator() => RuleFor(c => c.Rows).NotEmpty().Must(r => r.Count <= MaxRows).WithMessage($"An import has at most {MaxRows} rows.");
+    public ImportPartiesValidator() => RuleFor(c => c).Must(c => (c.Rows?.Count ?? 0) + (c.Organisations?.Count ?? 0) is > 0 and <= MaxRows).WithMessage($"An import has from 1 to {MaxRows} rows.");
 }
 
 internal sealed class BulkJobHandlers(IBulkJobs jobs, IPartyRepository parties, IValidator<RegisterParty> rowValidator, IExecutionContext execution, IClock clock, IAuditTrail audit) :
@@ -108,11 +111,18 @@ internal sealed class BulkJobHandlers(IBulkJobs jobs, IPartyRepository parties, 
             return user.Error;
         }
 
+        var (people, organisations) = (command.Rows ?? [], command.Organisations ?? []);
+        var total = people.Count + organisations.Count;
         var rejected = new List<RejectedLine>();
-        var seen = new HashSet<(string, string, DateOnly)>();
-        for (var i = 0; i < command.Rows.Count; i++)
+        if (command.ControlCount is { } control && control != total)
         {
-            var row = command.Rows[i];
+            rejected.Add(new RejectedLine(0, $"The file has {total} rows; its control count says {control}."));
+        }
+
+        var seen = new HashSet<(string, string, DateOnly)>();
+        for (var i = 0; i < people.Count; i++)
+        {
+            var row = people[i];
             var valid = await rowValidator.ValidateAsync(new RegisterParty(row, null), cancellationToken);
             if (!valid.IsValid)
             {
@@ -128,20 +138,45 @@ internal sealed class BulkJobHandlers(IBulkJobs jobs, IPartyRepository parties, 
             }
         }
 
-        // All or nothing: one bad line changes nothing, and every bad line is named. No line's content is logged or audited.
-        if (rejected.Count == 0)
+        var seenOrganisations = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        for (var i = 0; i < organisations.Count; i++)
         {
-            foreach (var row in command.Rows)
+            var row = organisations[i];
+            var line = people.Count + i + 1;
+            var valid = await rowValidator.ValidateAsync(new RegisterParty(null, row), cancellationToken);
+            if (!valid.IsValid)
             {
-                parties.Add(Domain.Parties.Party.RegisterIndividual(Guid.CreateVersion7(), row, clock.UtcNow));
+                rejected.Add(new RejectedLine(line, string.Join("; ", valid.Errors.Select(e => e.ErrorMessage))));
+            }
+            else if (!seenOrganisations.Add(row.RegistrationNumber ?? row.LegalName))
+            {
+                rejected.Add(new RejectedLine(line, "The same organisation appears earlier in the file."));
+            }
+            else if (await parties.OrganisationExists(row.LegalName, row.RegistrationNumber, cancellationToken))
+            {
+                rejected.Add(new RejectedLine(line, "An existing party matches this organisation."));
             }
         }
 
-        var job = BulkJob.Imported(Guid.CreateVersion7(), command.Rows.Count, rejected.Count == 0 ? null : JsonSerializer.Serialize(rejected, JsonSerializerOptions.Web), rejected.Count, user.Value);
+        // All or nothing: one bad line changes nothing, and every bad line is named. No line's content is logged or audited.
+        if (rejected.Count == 0)
+        {
+            foreach (var row in people)
+            {
+                parties.Add(Domain.Parties.Party.RegisterIndividual(Guid.CreateVersion7(), row, clock.UtcNow));
+            }
+
+            foreach (var row in organisations)
+            {
+                parties.Add(Domain.Parties.Party.RegisterOrganisation(Guid.CreateVersion7(), row, clock.UtcNow));
+            }
+        }
+
+        var job = BulkJob.Imported(Guid.CreateVersion7(), total, rejected.Count == 0 ? null : JsonSerializer.Serialize(rejected, JsonSerializerOptions.Web), rejected.Count, user.Value);
         jobs.Add(job);
         audit.Record(new AuditEntry("PARTY", "ImportParties", nameof(BulkJob), job.Id.ToString(), new Dictionary<string, string?>
         {
-            ["rows"] = command.Rows.Count.ToString(CultureInfo.InvariantCulture), ["rejected"] = rejected.Count.ToString(CultureInfo.InvariantCulture),
+            ["rows"] = total.ToString(CultureInfo.InvariantCulture), ["rejected"] = rejected.Count.ToString(CultureInfo.InvariantCulture),
         }));
         return BulkJobView.From(job);
     }
