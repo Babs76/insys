@@ -134,7 +134,10 @@ public sealed class CaseTests(DatabaseFixture fixture) : IClassFixture<DatabaseF
         (await fixture.Database.ScalarAsOwner<string>("SELECT t.queue_code FROM workflow.task t JOIN workflow.service_case c ON c.process_instance_id = t.process_instance_id WHERE c.id = @id",
             ("id", id))).ShouldBe("CASES");
 
-        (await Act(_clerk, id, "acknowledge")).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        // The ETag a change returns takes the next change (a case's version, returned as a number).
+        var before = (await _clerk.GetAsync($"{Cases}/{id}")).ETag();
+        await (await _clerk.Send(HttpMethod.Post, $"{Cases}/{id}/acknowledge", new { }, ifMatch: before))
+            .ShouldChain(before, etag => _clerk.Send(HttpMethod.Post, $"{Cases}/{id}/start", new { }, ifMatch: etag));
         var acknowledged = await Get(_clerk, id);
         acknowledged.GetProperty("expectedBy").GetDateTimeOffset().ShouldBe(received.AddDays(30), "RESOLVE: 30 calendar days from receipt");
 

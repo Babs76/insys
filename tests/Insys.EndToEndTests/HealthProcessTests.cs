@@ -874,10 +874,9 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         (await (await _maker.Send(HttpMethod.Post, $"{url}/visits", ifMatch: (await _maker.GetAsync(url)).ETag())).Code()).ShouldBe("INVALID_STATE_TRANSITION", "not yet approved");
         (await _maker.Send(HttpMethod.Post, $"{url}/decide", new { approved = false }, ifMatch: (await _maker.GetAsync(url)).ETag())).StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity, "a decline needs a reason");
         (await _maker.Send(HttpMethod.Post, $"{url}/decide", new { approved = true }, ifMatch: (await _maker.GetAsync(url)).ETag())).StatusCode.ShouldBe(HttpStatusCode.OK);
-        for (var visit = 0; visit < 2; visit++)
-        {
-            (await _maker.Send(HttpMethod.Post, $"{url}/visits", ifMatch: (await _maker.GetAsync(url)).ETag())).StatusCode.ShouldBe(HttpStatusCode.OK);
-        }
+        // The ETag a change returns takes the next change (a view built in the handler).
+        var beforeVisit = (await _maker.GetAsync(url)).ETag();
+        await (await _maker.Send(HttpMethod.Post, $"{url}/visits", ifMatch: beforeVisit)).ShouldChain(beforeVisit, etag => _maker.Send(HttpMethod.Post, $"{url}/visits", ifMatch: etag));
 
         (await Get(url)).GetProperty("status").GetString().ShouldBe("USED");
 
