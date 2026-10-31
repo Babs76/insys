@@ -76,6 +76,7 @@ public static class AdjudicationReasons
     public const string PrescriptionNotValid = "PRESCRIPTION_NOT_VALID";
     public const string RepeatExceeded = "REPEAT_EXCEEDED";
     public const string QuantityCut = "QUANTITY_CUT";
+    public const string DuplicateTherapy = "DUPLICATE_THERAPY";
 }
 
 public static class AccumulatorScope
@@ -172,6 +173,18 @@ public static class FormularyTiers
 /// <summary>A medicine paid on another adjudicated claim for the patient, not rejected or reversed. What a limit has used is counted from these, so a reversal gives it back.</summary>
 public sealed record PriorMedicine(Guid ClaimId, string ProductCode, string? ActiveIngredient, string? Tier, DateOnly ServiceDate, int Quantity, int? DaysSupply, decimal Paid);
 
+/// <summary>A limit on a product or an active ingredient (health.cfg_medication_limits), on top of category limits; the most restrictive wins (F046).</summary>
+public sealed record MedicationLimit(string? PlanCode, string? ProductCode, string? ActiveIngredient, int? MaxQuantity, decimal? MaxAmount, string Period)
+{
+    public bool AppliesTo(string productCode, string? ingredient, string planCode) =>
+        (PlanCode is null || PlanCode == planCode) && (ProductCode == productCode || (ActiveIngredient is not null && ActiveIngredient == ingredient));
+
+    /// <summary>What it has counted: medicines of the same product or ingredient, served within the period before the day.</summary>
+    public IEnumerable<PriorMedicine> Counted(IEnumerable<PriorMedicine> medicines, DateOnly day) =>
+        medicines.Where(m => (ProductCode is not null ? m.ProductCode == ProductCode : m.ActiveIngredient == ActiveIngredient)
+                             && m.ServiceDate <= day && IsoDuration.Add(m.ServiceDate, Period) is { } ends && ends > day);
+}
+
 /// <summary>A pharmacy line's formulary entry (null when it isn't listed), the benefit for its tier and the benefit category it draws on.</summary>
 public sealed record PharmacyTerms(FormularyItem? Item, PrescriptionBenefit? Benefit, string? Category)
 {
@@ -197,6 +210,18 @@ public sealed record PharmacyTerms(FormularyItem? Item, PrescriptionBenefit? Ben
 
         return payable;
     }
+
+    /// <summary>
+    /// The same ingredient while the last days' supply hasn't run out, less the plan's early refill tolerance (OQ-151, default 10%), counted in whole days.
+    /// </summary>
+    public bool RefillTooEarly(IEnumerable<PriorMedicine> medicines, DateOnly day)
+    {
+        var tolerance = Benefit?.RefillTolerancePercent ?? DefaultRefillTolerancePercent;
+        return Item?.ActiveIngredient is { } ingredient && medicines.Any(m => m.ActiveIngredient == ingredient && m.DaysSupply is { } days && m.ServiceDate <= day
+            && day.DayNumber - m.ServiceDate.DayNumber < (int)Math.Ceiling(days * (100m - tolerance) / 100m));
+    }
+
+    public const decimal DefaultRefillTolerancePercent = 10m;
 }
 
 public sealed record AdjudicationContext
@@ -263,6 +288,8 @@ public sealed record AdjudicationContext
     public IReadOnlyList<PrescriptionBenefit> PrescriptionBenefits { get; init; } = [];
 
     public IReadOnlyList<PriorMedicine> PriorMedicines { get; init; } = [];
+
+    public IReadOnlyList<MedicationLimit> MedicationLimits { get; init; } = [];
 }
 
 public sealed record LineResult(int LineNo, LineOutcome Outcome, string? Reason, string? Category, NetworkStatus? NetworkStatus, decimal? Tariff, decimal Allowed,
@@ -484,6 +511,12 @@ public static class AdjudicationEngine
         }
 
         var payableQuantity = rx?.PayableQuantity(line.Quantity, line.Pharmacy!.DaysSupply);
+        var medicationLimits = rx is null ? [] : context.MedicationLimits.Where(l => l.AppliesTo(line.TariffCode, rx.Item?.ActiveIngredient, context.Plan.PlanCode)).ToList();
+        foreach (var limit in medicationLimits.Where(l => l.MaxQuantity is not null))
+        {
+            payableQuantity = Math.Min(payableQuantity!.Value, Math.Max(0, limit.MaxQuantity!.Value - limit.Counted(medicines, context.ServiceDate).Sum(m => m.Quantity)));
+        }
+
         var schedules = network == NetworkStatus.InNetwork
             ? new[] { context.Provider.ContractTariffSchedule, context.Provider.NetworkTariffSchedule, context.Plan.ReferenceTariffSchedule }
             : [context.Plan.ReferenceTariffSchedule];
@@ -558,6 +591,12 @@ public static class AdjudicationEngine
             }
         }
 
+        // The same ingredient before the last supply has run out pends, it isn't rejected (F047).
+        if (rx is not null && !accepted && rx.RefillTooEarly(medicines, context.ServiceDate))
+        {
+            return Stop(LineOutcome.Pend, AdjudicationReasons.DuplicateTherapy, category, network, tariff, allowed);
+        }
+
         // Duplicates (§11.1 H) and repeat services pend for a person.
         if (!accepted && context.Prior.Any(p => p.TariffCode == line.TariffCode && p.ServiceDate == context.ServiceDate && p.ProviderId == context.Provider.ProviderId
                                                 && p.ClaimId != context.ClaimId))
@@ -602,7 +641,7 @@ public static class AdjudicationEngine
         }
 
         if (match is null && !accepted
-            && context.PreauthRequired.Any(r => (r.Service == line.TariffCode || r.Service == category) && allowed > r.Threshold))
+            && (rx?.Item?.PriorAuthRequired == true || context.PreauthRequired.Any(r => (r.Service == line.TariffCode || r.Service == category) && allowed > r.Threshold)))
         {
             return Stop(LineOutcome.Pend, AdjudicationReasons.PreauthRequired, category, network, tariff, allowed);
         }
@@ -660,6 +699,11 @@ public static class AdjudicationEngine
             var benefitYear = BenefitPeriods.Year(context.Plan.BenefitYear, context.MembershipStart, context.ServiceDate);
             var tierUsed = medicines.Where(m => m.Tier == rx.Tier && m.ServiceDate >= benefitYear.Start && m.ServiceDate <= benefitYear.End).Sum(m => m.Paid);
             paid = Math.Min(paid, Math.Max(0, tierLimit - tierUsed));
+        }
+
+        foreach (var limit in medicationLimits.Where(l => l.MaxAmount is not null))
+        {
+            paid = Math.Min(paid, Math.Max(0, limit.MaxAmount!.Value - limit.Counted(medicines, context.ServiceDate).Sum(m => m.Paid)));
         }
 
         paid = Math.Max(0, paid);

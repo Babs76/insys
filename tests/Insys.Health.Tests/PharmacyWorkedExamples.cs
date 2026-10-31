@@ -182,9 +182,92 @@ public sealed class PharmacyWorkedExamples
         {
             PriorMedicines = [new PriorMedicine(Guid.CreateVersion7(), "NAPPI-1", "METFORMIN", "1", new DateOnly(2025, 12, 31), 30, 30, 500m)],
         };
-        var lines = AdjudicationEngine.Adjudicate(context, [Line("NAPPI-1", 45m), Line("NAPPI-1", 45m) with { LineNo = 2 }]).Lines;
+        var lines = AdjudicationEngine.Adjudicate(context, [Line("NAPPI-1", 45m, days: null), Line("NAPPI-1", 45m, days: null) with { LineNo = 2 }]).Lines;
         lines[0].Paid.ShouldBe(45m);
         lines[1].Paid.ShouldBe(15m);
+    }
+
+    private static PriorMedicine Taken(DateOnly on, int quantity = 30, int days = 30, decimal paid = 45m, string ingredient = "METFORMIN", string product = "NAPPI-1") =>
+        new(Guid.CreateVersion7(), product, ingredient, "1", on, quantity, days, paid);
+
+    [Theory]
+    [InlineData(2026, 5, 19, LineOutcome.Pay)] // 27 days on, of 30 with 10%: the first day allowed
+    [InlineData(2026, 5, 20, LineOutcome.Pend)]
+    [InlineData(2026, 6, 15, LineOutcome.Pend)] // a different product, the same ingredient, the same day
+    public void TheSameIngredient_BeforeTheSupplyHasRunOut_Pends_F047_OQ151(int year, int month, int day, LineOutcome outcome)
+    {
+        var context = Context() with { PriorMedicines = [Taken(new DateOnly(year, month, day), product: "NAPPI-7")] };
+        var line = One(context, Line("NAPPI-1", 45m));
+        line.Outcome.ShouldBe(outcome);
+        if (outcome == LineOutcome.Pend)
+        {
+            line.Reason.ShouldBe(AdjudicationReasons.DuplicateTherapy);
+        }
+    }
+
+    [Fact]
+    public void AnEarlyRefill_AcrossTheEndOfFebruary_CountsCalendarDays()
+    {
+        var context = Context() with { ServiceDate = new DateOnly(2028, 3, 27), PriorMedicines = [Taken(new DateOnly(2028, 2, 29))] }; // a leap year: 27 days on
+        One(context, Line("NAPPI-1", 45m)).Outcome.ShouldBe(LineOutcome.Pay);
+        One(context with { ServiceDate = new DateOnly(2028, 3, 26) }, Line("NAPPI-1", 45m)).Reason.ShouldBe(AdjudicationReasons.DuplicateTherapy);
+    }
+
+    [Fact]
+    public void ThePlansRefillTolerance_ReplacesTheDefault_OQ151()
+    {
+        var benefit = Tier("1") with { RefillTolerancePercent = 0m };
+        One(Context(benefit) with { PriorMedicines = [Taken(new DateOnly(2026, 5, 19))] }, Line("NAPPI-1", 45m)).Reason.ShouldBe(AdjudicationReasons.DuplicateTherapy);
+        One(Context(benefit) with { PriorMedicines = [Taken(new DateOnly(2026, 5, 16))] }, Line("NAPPI-1", 45m)).Outcome.ShouldBe(LineOutcome.Pay); // 30 days on
+    }
+
+    [Fact]
+    public void AnIngredientsQuantityLimit_CutsTheLine_AcrossProducts_F046()
+    {
+        var context = Context() with
+        {
+            MedicationLimits = [new MedicationLimit(null, null, "METFORMIN", 40, null, "P1M")],
+            PriorMedicines = [Taken(new DateOnly(2026, 6, 1), quantity: 20, days: 1, product: "NAPPI-7")],
+        };
+        var line = One(context, Line("NAPPI-1", 45m));
+        line.PaidQuantity.ShouldBe(20);
+        line.Paid.ShouldBe(30m);
+        line.Reason.ShouldBe(AdjudicationReasons.QuantityCut);
+    }
+
+    [Theory]
+    [InlineData(2026, 5, 15, 45)] // a month before: its period has just ended, so nothing is counted
+    [InlineData(2026, 5, 16, 15)] // within the month: 30 of 45 is used
+    public void AProductsAmountLimit_CountsWithinItsPeriod_F046(int year, int month, int day, int paid)
+    {
+        var context = Context() with
+        {
+            MedicationLimits = [new MedicationLimit(null, "NAPPI-1", null, null, 45m, "P1M")],
+            PriorMedicines = [Taken(new DateOnly(year, month, day), days: 1, paid: 30m)],
+        };
+        One(context, Line("NAPPI-1", 45m)).Paid.ShouldBe((decimal)paid);
+    }
+
+    [Fact]
+    public void AMedicationLimit_ForAnotherPlan_DoesNotApply() =>
+        One(Context() with { MedicationLimits = [new MedicationLimit("OTHER", "NAPPI-1", null, null, 1m, "P1Y")] }, Line("NAPPI-1", 45m)).Paid.ShouldBe(45m);
+
+    [Fact]
+    public void AMedicationLimit_OnTopOfACategoryLimit_TheMostRestrictiveWins_F046()
+    {
+        var context = Context() with { ScheduleLimits = [new ScheduleLimit("MEDICINES", 40m, "PER_EVENT")], MedicationLimits = [new MedicationLimit(null, "NAPPI-1", null, null, 25m, "P1Y")] };
+        One(context, Line("NAPPI-1", 45m)).Paid.ShouldBe(25m);
+        One(context with { MedicationLimits = [new MedicationLimit(null, "NAPPI-1", null, null, 44m, "P1Y")] }, Line("NAPPI-1", 45m)).Paid.ShouldBe(40m);
+    }
+
+    [Fact]
+    public void AMedicineNeedingAuthorisation_PendsWithoutOne_AndIsPaidWithOne_F093()
+    {
+        var restricted = Generic with { ProductCode = "NAPPI-R", PriorAuthRequired = true };
+        var context = Context() with { Formulary = new Dictionary<string, FormularyItem> { ["NAPPI-R"] = restricted } };
+        One(context, Line("NAPPI-R", 45m)).Reason.ShouldBe(AdjudicationReasons.PreauthRequired);
+        var authorised = context with { Authorised = [new AuthorisedLine(Guid.CreateVersion7(), Guid.CreateVersion7(), "NAPPI-R", 100m, 100m, 0m, "MEDICINES")] };
+        One(authorised, Line("NAPPI-R", 45m)).Outcome.ShouldBe(LineOutcome.Pay);
     }
 
     [Fact]

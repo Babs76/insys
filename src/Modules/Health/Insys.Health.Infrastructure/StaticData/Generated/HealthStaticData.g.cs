@@ -34,7 +34,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Insys.Health.Infrastructure.StaticData;
 
-/// <summary>The 46 static data tables owned by the Health module.</summary>
+/// <summary>The 47 static data tables owned by the Health module.</summary>
 public static class HealthStaticData
 {
     public static readonly IReadOnlyList<StaticDataDescriptor> Descriptors =
@@ -54,6 +54,7 @@ public static class HealthStaticData
         new("health", "cfg_health_waiting_period_rules", "cfg_health_waiting_period_rules", "Health waiting period rules", "health", "health-waiting-period-rules", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(HealthWaitingPeriodRules), typeof(HealthWaitingPeriodRulesInput), "A · Health Product and Plan"),
         new("health", "cfg_high_cost_thresholds", "cfg_high_cost_thresholds", "High-cost thresholds", "health", "high-cost-thresholds", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(HighCostThresholds), typeof(HighCostThresholdsInput), "I · Utilisation Management"),
         new("health", "cfg_limit_definitions", "cfg_limit_definitions", "Limit definitions", "health", "limit-definitions", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(LimitDefinitions), typeof(LimitDefinitionsInput), "E · Benefit Management"),
+        new("health", "cfg_medication_limits", "cfg_medication_limits", "Medication limits", "health", "medication-limits", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(MedicationLimits), typeof(MedicationLimitsInput), "Health claims"),
         new("health", "cfg_member_numbering_schemes", "cfg_member_numbering_schemes", "Member numbering schemes", "health", "member-numbering-schemes", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(MemberNumberingSchemes), typeof(MemberNumberingSchemesInput), "C · Member Administration"),
         new("health", "cfg_membership_card_templates", "cfg_membership_card_templates", "Membership card templates", "health", "membership-card-templates", StaticScope.T, 3, StaticLifecycle.Configuration, typeof(MembershipCardTemplates), typeof(MembershipCardTemplatesInput), "C · Member Administration"),
         new("health", "cfg_network_definitions", "cfg_network_definitions", "Network definitions", "health", "network-definitions", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(NetworkDefinitions), typeof(NetworkDefinitionsInput), "F · Provider Network Management"),
@@ -231,6 +232,18 @@ public static class HealthStaticData
             entity.Property(x => x.Amount).HasColumnName("amount").HasPrecision(18, 2);
             entity.Property(x => x.Basis).HasColumnName("basis").HasMaxLength(40);
             entity.Property(x => x.PlanCode).HasColumnName("plan_code").HasMaxLength(15);
+        });
+        modelBuilder.Entity<MedicationLimits>(entity =>
+        {
+            entity.ToTable("cfg_medication_limits", "health");
+            StaticModel.ConfigureCommon(entity);
+            entity.Property(x => x.LimitCode).HasColumnName("limit_code").HasMaxLength(15);
+            entity.Property(x => x.PlanCode).HasColumnName("plan_code").HasMaxLength(15);
+            entity.Property(x => x.ProductCode).HasColumnName("product_code").HasMaxLength(20);
+            entity.Property(x => x.ActiveIngredient).HasColumnName("active_ingredient").HasMaxLength(100);
+            entity.Property(x => x.MaxQuantity).HasColumnName("max_quantity");
+            entity.Property(x => x.MaxAmount).HasColumnName("max_amount").HasPrecision(18, 2);
+            entity.Property(x => x.Period).HasColumnName("period").HasMaxLength(10);
         });
         modelBuilder.Entity<MemberNumberingSchemes>(entity =>
         {

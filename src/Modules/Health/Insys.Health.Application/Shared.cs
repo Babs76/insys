@@ -327,6 +327,8 @@ public interface IHealthCodes
 
     Task<IReadOnlyDictionary<string, FormularyItem>> Formulary(IReadOnlyCollection<string> productCodes, DateOnly day, CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<MedicationLimit>> MedicationLimits(string planCode, DateOnly day, CancellationToken cancellationToken);
+
     /// <summary>The prescription benefits for the plan and for every plan.</summary>
     Task<IReadOnlyList<PrescriptionBenefit>> PrescriptionBenefits(string planCode, DateOnly day, CancellationToken cancellationToken);
 

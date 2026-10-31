@@ -181,6 +181,7 @@ public sealed class BenefitContexts(IHealthRepository health, IHealthCodes codes
                 Formulary = await codes.Formulary(lines.Where(l => l.Pharmacy is not null).Select(l => l.TariffCode).Distinct().ToList(), serviceDate, cancellationToken),
                 PrescriptionBenefits = await codes.PrescriptionBenefits(plan.Terms.PlanCode, serviceDate, cancellationToken),
                 PriorMedicines = await health.PriorMedicines(patientPartyId, serviceDate.AddYears(-2), claimId, cancellationToken),
+                MedicationLimits = await codes.MedicationLimits(plan.Terms.PlanCode, serviceDate, cancellationToken),
             };
         }
 

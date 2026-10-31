@@ -2,6 +2,12 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
+## Wave 5b batch 5b.2 (branch `wave5b2`): medication controls (addendum §4.2; F046, F047, F092, F093)
+
+### New
+- **`health.cfg_medication_limits`** (static data, tenant, Tier 2): `limitCode`, `planCode`, `productCode` or `activeIngredient`, `maxQuantity`, `maxAmount`, `period` (ISO 8601).
+- **Reason** `DUPLICATE_THERAPY`: the same ingredient before the last supply has run out; pends for a person. A medicine flagged `priorAuthRequired` pends with `PREAUTH_REQUIRED` without an authorisation.
+
 ## Wave 5b batch 5b.1 (branch `wave5b1`): pharmacy claims (addendum §4.1; F039 to F045) and OQ-161
 
 ### New

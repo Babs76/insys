@@ -1572,6 +1572,63 @@
      "sample": "10"
     }
    ]
+  },
+  {
+   "layer": "Domain",
+   "module": "Health claims",
+   "subModule": "Pharmacy benefits",
+   "entity": "Medication limits",
+   "table": "health.cfg_medication_limits",
+   "class": "CFG",
+   "scope": "T",
+   "tier": 2,
+   "proposedOwner": "Benefit Manager",
+   "provenance": "Wave 5b addendum (addenda/benefit-programmes.md), signed off by Ade, 31 October 2026",
+   "basis": "F046, F092",
+   "fields": [
+    {
+     "name": "limit_code",
+     "logicalType": "String(15)",
+     "mandatory": true,
+     "sample": "ML-METF"
+    },
+    {
+     "name": "plan_code",
+     "logicalType": "String(15)",
+     "mandatory": false,
+     "sample": "HLT-CORE"
+    },
+    {
+     "name": "product_code",
+     "logicalType": "String(20)",
+     "mandatory": false,
+     "sample": "NAPPI-1"
+    },
+    {
+     "name": "active_ingredient",
+     "logicalType": "String(100)",
+     "mandatory": false,
+     "sample": "METFORMIN"
+    },
+    {
+     "name": "max_quantity",
+     "logicalType": "Integer",
+     "mandatory": false,
+     "sample": "180"
+    },
+    {
+     "name": "max_amount",
+     "logicalType": "Decimal(18,2)",
+     "mandatory": false,
+     "sample": "1000"
+    },
+    {
+     "name": "period",
+     "logicalType": "String(10)",
+     "mandatory": true,
+     "sample": "P1M"
+    }
+   ]
   }
  ]
 }

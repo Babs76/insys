@@ -1375,6 +1375,19 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         var run = await Created("/api/v1/health/payment-runs", new { runCode = "PRV-WEEKLY", currency = "ZAR" });
         (await _maker.PostAsync($"/api/v1/health/payment-runs/{run}/cut-off", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
         (await (await _maker.PostAsync($"/api/v1/health/payment-runs/{run}/calculate", null)).Json()).GetProperty("totalAmount").GetDecimal().ShouldBe(50m);
+
+        // F046, F047: a monthly limit is read from its table, and the same medicine again before the supply runs out pends for a person, who can accept it.
+        await Seed("health.cfg_medication_limits", "EFFECTIVE", "ML-1", ("limit_code", "ML-1"), ("product_code", "NAPPI-1"), ("max_quantity", 35), ("period", "P1M"));
+        var refill = await Created("/api/v1/health/claims", new
+        {
+            source = "PROVIDER", providerId = "PR-1", membershipId = membership, patientPartyId = principal, serviceDate = Today.AddDays(1), formatCode = "RX", currency = "ZAR",
+            lines = new[] { new { tariffCode = "NAPPI-1", quantity = 30, claimedAmount = 60m, pharmacy = new { daysSupply = 30, prescriptionNumber = "S2" } } },
+        });
+        (await _maker.PostAsync($"/api/v1/health/claims/{refill}/validate", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        var pended = await (await _maker.PostAsync($"/api/v1/health/claims/{refill}/adjudicate", null)).Json();
+        pended.GetProperty("lines")[0].GetProperty("adjustmentReason").GetString().ShouldBe("DUPLICATE_THERAPY");
+        var accepted = await (await _maker.PostAsJsonAsync($"/api/v1/health/claims/{refill}/review", new { reviews = new[] { new { lineNo = 1, decision = "Accept" } } })).Json();
+        accepted.GetProperty("lines")[0].GetProperty("paidQuantity").GetInt32().ShouldBe(5); // 30 of the month's 35 were paid
     }
 
     [Fact]

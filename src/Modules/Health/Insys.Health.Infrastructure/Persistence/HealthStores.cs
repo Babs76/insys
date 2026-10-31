@@ -565,6 +565,10 @@ internal sealed class HealthCodes(HealthDbContext db) : IHealthCodes
         .GroupBy(f => f.ProductCode).ToDictionary(g => g.Key, g => g.Select(f => new FormularyItem(f.ProductCode, f.ActiveIngredient, f.Tier, f.ReferencePrice, f.BenefitCategory,
             f.PriorAuthRequired ?? false, f.MaxQuantity, f.MaxDaysSupply)).First());
 
+    public async Task<IReadOnlyList<MedicationLimit>> MedicationLimits(string planCode, DateOnly day, CancellationToken cancellationToken) =>
+        await InForce<StaticData.MedicationLimits>(day).Where(l => l.PlanCode == null || l.PlanCode == planCode)
+            .Select(l => new MedicationLimit(l.PlanCode, l.ProductCode, l.ActiveIngredient, l.MaxQuantity, l.MaxAmount, l.Period)).ToListAsync(cancellationToken);
+
     public async Task<IReadOnlyList<PrescriptionBenefit>> PrescriptionBenefits(string planCode, DateOnly day, CancellationToken cancellationToken) =>
         await InForce<PrescriptionBenefits>(day).Where(b => b.PlanCode == null || b.PlanCode == planCode)
             .Select(b => new PrescriptionBenefit(b.PlanCode, b.Tier, b.Covered, b.BenefitCategory, b.CopayType, b.CopayValue, b.LimitAmount, b.PrescriptionValidityDays, b.RefillTolerancePercent))
