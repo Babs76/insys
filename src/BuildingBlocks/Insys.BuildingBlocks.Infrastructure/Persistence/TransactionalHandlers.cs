@@ -228,23 +228,24 @@ internal static class SavedVersions
 {
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, (System.Reflection.PropertyInfo Version, System.Reflection.PropertyInfo? Id)?> Views = new();
 
-    /// <summary>What the command tracked, taken before the save, which marks everything unchanged: the records with a version, and the aggregates it changed.</summary>
-    public static (List<Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry> Tracked, List<Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry> Changed) Candidates(DbContext db)
+    /// <summary>What the command tracked, taken before the save, which marks everything unchanged: the records with a version, those it changed, and their versions as loaded.</summary>
+    public static SavedRecords Candidates(DbContext db)
     {
         var tracked = db.ChangeTracker.Entries().Where(e => e.Metadata.FindProperty("RowVersion") is not null && e.State != EntityState.Deleted).ToList();
-        return (tracked, tracked.Where(e => e.Entity is IAggregateRoot && e.State is EntityState.Modified or EntityState.Added).ToList());
+        var changed = tracked.Where(e => e.State is EntityState.Modified or EntityState.Added).ToList();
+        return new SavedRecords(tracked, changed, changed.ToDictionary(e => e, e => (long)e.Property("RowVersion").OriginalValue!));
     }
 
     public static async Task<Result<TResult>> Apply<TCommand, TResult>(TCommand command, Result<TResult> result,
-        (List<Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry> Tracked, List<Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry> Changed) saved, bool require, CancellationToken cancellationToken)
+        SavedRecords saved, bool require, CancellationToken cancellationToken)
         where TCommand : notnull
     {
-        if (result.Value is long && command is IVersionedCommand or IReturnsSavedVersion)
+        if (result.Value is long returned && command is IVersionedCommand or IReturnsSavedVersion)
         {
-            var target = TheAggregate(command, saved.Tracked, saved.Changed);
+            var target = TheRecord(command, returned, saved);
             if (target is null)
             {
-                return require ? throw new InvalidOperationException($"{typeof(TCommand).Name} returned a version, but {saved.Changed.Count} aggregates were saved and none is its target.") : result;
+                return require ? throw new InvalidOperationException($"{typeof(TCommand).Name} returned version {returned}, but its record can't be told among: {string.Join(", ", saved.Changed.Select(e => e.Metadata.ClrType.Name))}.") : result;
             }
 
             return (TResult)(object)await Read(target, cancellationToken);
@@ -257,7 +258,7 @@ internal static class SavedVersions
 
         var id = shape.Id?.GetValue(view);
         var record = id is null ? null : saved.Tracked.FirstOrDefault(e => e.Metadata.FindProperty("Id") is not null && Equals(e.Property("Id").CurrentValue, id));
-        record ??= saved.Changed.Count == 1 ? saved.Changed[0] : null;
+        record ??= saved.ChangedRoots.Count == 1 ? saved.ChangedRoots[0] : null;
         if (record is null)
         {
             // Nothing this command saved is the view's: it was read, so its version is current.
@@ -268,25 +269,24 @@ internal static class SavedVersions
         return result;
     }
 
-    /// <summary>The aggregate the command changed: the only one, or the one whose id the command carries, or with no change, the only one it loaded.</summary>
-    private static Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry? TheAggregate<TCommand>(TCommand command, List<Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry> tracked,
-        List<Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry> changed)
+    /// <summary>
+    /// The record a returned version is of. The handler returned that record's version as loaded, which with what the command changed, and the id it carries, tells it: the changed aggregate
+    /// (or with none, changed record) that fits; with no change at all, the aggregate the command names or the only one it loaded.
+    /// </summary>
+    private static Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry? TheRecord<TCommand>(TCommand command, long returned, SavedRecords saved)
         where TCommand : notnull
     {
-        if (changed.Count == 1)
-        {
-            return changed[0];
-        }
-
         var ids = typeof(TCommand).GetProperties().Where(p => p.PropertyType == typeof(Guid)).Select(p => p.GetValue(command)).ToHashSet();
-        var named = (changed.Count > 1 ? changed : tracked.Where(e => e.Entity is IAggregateRoot).ToList()).Where(e => ids.Contains(e.Property("Id").CurrentValue)).ToList();
-        if (named.Count == 1)
+        bool Named(Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry e) => e.Metadata.FindProperty("Id") is not null && ids.Contains(e.Property("Id").CurrentValue);
+        var pool = saved.ChangedRoots.Count > 0 ? saved.ChangedRoots : saved.Changed;
+        if (pool.Count > 0)
         {
-            return named[0];
+            var fits = pool.Count == 1 ? pool : pool.Where(e => saved.Loaded[e] == returned).ToList();
+            return fits.Count == 1 ? fits[0] : fits.Where(Named).ToList() is { Count: 1 } named ? named[0] : null;
         }
 
-        var roots = tracked.Where(e => e.Entity is IAggregateRoot).ToList();
-        return changed.Count == 0 && roots.Count == 1 ? roots[0] : null;
+        var roots = saved.Tracked.Where(e => e.Entity is IAggregateRoot).ToList();
+        return roots.Where(Named).ToList() is { Count: 1 } one ? one[0] : roots.Count == 1 ? roots[0] : saved.Tracked.Where(Named).FirstOrDefault();
     }
 
     private static async Task<long> Read(Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry entry, CancellationToken cancellationToken) =>
@@ -294,6 +294,12 @@ internal static class SavedVersions
 
     private static (System.Reflection.PropertyInfo, System.Reflection.PropertyInfo?)? Shape(Type type) =>
         type.GetProperty("RowVersion") is { CanWrite: true, PropertyType: var t } version && t == typeof(long) ? (version, type.GetProperty("Id")) : null;
+}
+
+internal sealed record SavedRecords(List<Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry> Tracked, List<Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry> Changed,
+    Dictionary<Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry, long> Loaded)
+{
+    public List<Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry> ChangedRoots { get; } = Changed.Where(e => e.Entity is IAggregateRoot).ToList();
 }
 
 /// <summary>How often a command marked <see cref="IRetryOnConflict"/> is attempted (configuration Commands:ConflictRetry).</summary>
