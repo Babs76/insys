@@ -34,6 +34,9 @@ using Insys.Integration.Infrastructure.Persistence;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 
+using Insys.ProductFactory.Contracts;
+using Insys.Tenancy.Contracts;
+
 namespace Insys.Integration.Infrastructure.Channels;
 
 /// <summary>F060: the texts in force (channel.cfg_disclosure_and_notice_texts) and who acknowledged them (channel.disclosure_acknowledgement). Runs on Integration's own connection.</summary>
@@ -95,17 +98,44 @@ internal sealed class Disclosures([FromKeyedServices(IntegrationDbContext.Schema
         }, cancellationToken);
 }
 
-/// <summary>Wave 6 §6, a warning: a mandatory point with no text in force isn't gated, so the tenant should know. Not a blocker: a text is what adopts the point (OQ-157, compliance to confirm).</summary>
-internal sealed class DisclosureReadiness([FromKeyedServices(IntegrationDbContext.SchemaName)] NpgsqlDataSource dataSource) : IReadinessCheck
+/// <summary>
+/// Readiness for disclosures (OQ-157, Ade, 31 October 2026). DISCLOSURE_MANDATORY_TEXTS blocks: every country a sellable product is sold in has a text in force at each mandatory point. A product
+/// whose availability rules name no country is sold in the tenant's own. DISCLOSURE_TEXTS warns of the other points with no text anywhere.
+/// </summary>
+internal sealed class DisclosureReadiness([FromKeyedServices(IntegrationDbContext.SchemaName)] NpgsqlDataSource dataSource, IPublishedProducts products, ITenantFormatting locale) : IReadinessCheck
 {
+    private static readonly string[] Mandatory = [DisclosurePoints.Quote, DisclosurePoints.Inception, DisclosurePoints.Renewal, DisclosurePoints.ClaimDecision];
+    private static readonly string[] Others = ["PROPOSAL"];
+
     public IReadOnlyCollection<string> Steps { get; } = ["INTEGRATION_AND_REPORTING"];
 
     public async Task<IReadOnlyList<ReadinessResult>> Check(ReadinessContext context, CancellationToken cancellationToken)
     {
         var present = await ReadinessSql.InTenant(dataSource, context.TenantId, (connection, transaction) => ReadinessSql.Strings(connection, transaction,
-            $"SELECT DISTINCT display_point FROM channel.cfg_disclosure_and_notice_texts WHERE (tenant_id = @t OR tenant_id IS NULL) AND {ReadinessSql.InForce}", cancellationToken,
+            $"SELECT DISTINCT jurisdiction || ' ' || display_point FROM channel.cfg_disclosure_and_notice_texts WHERE (tenant_id = @t OR tenant_id IS NULL) AND {ReadinessSql.InForce}", cancellationToken,
             ("t", context.TenantId), ("inForce", StaticLifecycle.Configuration.InForce), ("day", context.Day)), cancellationToken);
-        string[] mandatory = [DisclosurePoints.Quote, DisclosurePoints.Inception, DisclosurePoints.Renewal, DisclosurePoints.ClaimDecision];
-        return [ReadinessResult.Warning("INTEGRATION_AND_REPORTING", "DISCLOSURE_TEXTS", "A disclosure point with no text in force isn't enforced", mandatory.Except(present).ToList())];
+        var home = (await locale.Formatting(context.TenantId, context.Day, cancellationToken))?.Country;
+        var soldIn = new SortedDictionary<string, SortedSet<string>>(StringComparer.Ordinal);
+        foreach (var (product, _) in await products.Sellable(context.TenantId, context.Day, cancellationToken))
+        {
+            var countries = await products.SaleCountries(context.TenantId, product, context.Day, cancellationToken);
+            foreach (var country in countries.Count > 0 ? countries : home is null ? [] : [home])
+            {
+                if (!soldIn.TryGetValue(country, out var sold))
+                {
+                    soldIn[country] = sold = new SortedSet<string>(StringComparer.Ordinal);
+                }
+
+                sold.Add(product);
+            }
+        }
+
+        var missing = soldIn.SelectMany(c => Mandatory.Where(point => !present.Contains($"{c.Key} {point}")).Select(point => $"{c.Key} {point}: {string.Join(", ", c.Value)}")).ToList();
+        var points = present.Select(p => p[(p.IndexOf(' ', StringComparison.Ordinal) + 1)..]).ToHashSet(StringComparer.Ordinal);
+        return
+        [
+            ReadinessResult.Of("INTEGRATION_AND_REPORTING", "DISCLOSURE_MANDATORY_TEXTS", "A text in force at each mandatory disclosure point, for each country a product is sold in (OQ-157)", missing),
+            ReadinessResult.Warning("INTEGRATION_AND_REPORTING", "DISCLOSURE_TEXTS", "A disclosure point with no text in force isn't enforced", Others.Where(p => !points.Contains(p)).ToList()),
+        ];
     }
 }

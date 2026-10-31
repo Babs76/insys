@@ -431,6 +431,26 @@ public sealed class PartyModule : IModule
         bulk.MapPost("/exports", async (RequestPartyExport r, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Send(r, ct)).ToHttp(v => Results.Created($"/api/v1/party/bulk-jobs/{v.Id}", v)))
             .Produces<BulkJobView>(StatusCodes.Status201Created).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
             .WithName("PartyRequestExport").WithSummary("Ask for an export of parties; a second person approves it before it leaves").RequirePermission(PartyPermissions.BulkJobCreate).RequireIdempotencyKey();
+        // BR-122: the back office's list of every bulk job, on the route the front end asked for; the jobs stay Party's.
+        api.MapGet("/integration/bulk-jobs", async (string? type, string? direction, string? status, DateOnly? from, DateOnly? to, string? cursor, int? limit, IDispatcher dispatcher, CancellationToken ct) =>
+                {
+                    if (!Cursor.TryDecode(cursor, out var before))
+                    {
+                        return Problems.For(BuildingBlocks.Domain.ErrorCodes.ValidationFailed, "The cursor is not valid.", StatusCodes.Status422UnprocessableEntity);
+                    }
+
+                    if (type is not (null or BulkJob.Import or BulkJob.Export) || direction is not (null or "IMPORT" or "EXPORT")
+                        || status is not (null or BulkJobStatus.Done or BulkJobStatus.Rejected or BulkJobStatus.ToApprove or BulkJobStatus.Approved) || (from is not null && to is not null && from > to))
+                    {
+                        return Problems.For(BuildingBlocks.Domain.ErrorCodes.ValidationFailed, "A filter is not valid.", StatusCodes.Status422UnprocessableEntity);
+                    }
+
+                    var size = Cursor.ClampLimit(limit);
+                    return (await dispatcher.Query(new ListBulkJobs(type, direction, status, from, to, before, size), ct)).ToHttp(jobs =>
+                        Results.Ok(new CursorPage<BulkJobSummary>(jobs, jobs.Count == size ? Cursor.Encode(jobs[^1].Id) : null)));
+                })
+            .WithTags(Name).Produces<CursorPage<BulkJobSummary>>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("PartyListBulkJobs").WithSummary("The tenant's bulk jobs, newest first, by type, direction, status and UTC date range (BR-122)").RequirePermission(PartyPermissions.BulkJobRead);
         bulk.MapGet("/{id:guid}", async (Guid id, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Query(new GetBulkJob(id), ct)).ToHttp(Results.Ok))
             .Produces<BulkJobView>(StatusCodes.Status200OK).WithName("PartyGetBulkJob").WithSummary("A bulk job, its counts and rejected lines").RequirePermission(PartyPermissions.BulkJobRead);
         bulk.MapPost("/{id:guid}/approve", async (Guid id, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Send(new ApprovePartyExport(id), ct)).ToHttp(Results.Ok))

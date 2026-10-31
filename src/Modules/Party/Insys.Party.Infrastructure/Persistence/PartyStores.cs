@@ -27,6 +27,7 @@
 using Insys.BuildingBlocks.Application.Messaging;
 using Insys.BuildingBlocks.Contracts;
 using Insys.BuildingBlocks.Domain;
+using Insys.BuildingBlocks.Infrastructure.Persistence;
 using Insys.BuildingBlocks.Infrastructure.StaticData;
 using Insys.Party.Application;
 using Insys.Party.Domain.Parties;
@@ -45,6 +46,21 @@ internal sealed class BulkJobs(PartyDbContext db) : IBulkJobs
         return await db.Parties.AsNoTracking().Where(p => p.Status != PartyStatus.Merged && p.Status != PartyStatus.Anonymised && (wanted == null || p.Status == wanted)).OrderBy(p => p.Id)
             .Select(p => new { p.Id, p.PartyNumber, p.DisplayName, p.Status }).ToListAsync(cancellationToken)
             .ContinueWith(t => (IReadOnlyList<PartyExportRow>)t.Result.Select(p => new PartyExportRow(p.Id, p.PartyNumber, p.DisplayName, p.Status.ToString().ToUpperInvariant())).ToList(), TaskScheduler.Default);
+    }
+
+    public async Task<IReadOnlyList<BulkJobSummary>> List(ListBulkJobs query, CancellationToken cancellationToken)
+    {
+        var from = query.From?.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc) is { } start ? new DateTimeOffset(start) : (DateTimeOffset?)null;
+        var to = query.To?.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc) is { } end ? new DateTimeOffset(end) : (DateTimeOffset?)null;
+        var suffix = query.Direction is null ? null : "_" + query.Direction;
+        var rows = await db.Set<BulkJob>().AsNoTracking()
+            .Where(j => (query.JobType == null || j.JobType == query.JobType) && (suffix == null || j.JobType.EndsWith(suffix)) && (query.Status == null || j.Status == query.Status)
+                && (from == null || EF.Property<DateTimeOffset>(j, ModuleDbContext.CreatedAt) >= from) && (to == null || EF.Property<DateTimeOffset>(j, ModuleDbContext.CreatedAt) < to)
+                && (query.BeforeId == null || j.Id.CompareTo(query.BeforeId.Value) < 0))
+            .OrderByDescending(j => j.Id).Take(query.Limit)
+            .Select(j => new { j.Id, j.JobType, j.Status, j.TotalCount, j.AcceptedCount, j.RunBy, CreatedAt = EF.Property<DateTimeOffset>(j, ModuleDbContext.CreatedAt) })
+            .ToListAsync(cancellationToken);
+        return rows.Select(j => new BulkJobSummary(j.Id, j.JobType, j.JobType == BulkJob.Import ? "IMPORT" : "EXPORT", j.Status, j.TotalCount, j.AcceptedCount, j.RunBy, j.CreatedAt)).ToList();
     }
 
     public void Add(BulkJob job) => db.Set<BulkJob>().Add(job);
