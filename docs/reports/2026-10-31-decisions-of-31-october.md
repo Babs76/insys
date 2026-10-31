@@ -17,7 +17,7 @@ Everything on the list is on main, except the two items set aside: B-012 until a
 | B-011 | `account_kind`, `POST /identity/users/service-accounts` | A person's token is refused even holding the function |
 
 ## Decision 3: the list of commands
-**There are none in anything the suites run.** Every test host now fails a command that changes two or more aggregates and returns a view whose `Id` matches none of them. All the integration and end-to-end suites passed with that on. So there was nothing to fix and no shape to give a guard test; `AViewMatchingNoneOfTheAggregatesAChangeSaved_FailsInEveryTestHost` proves the guard itself fires. It can't speak for a path no test runs. A search of the code for handlers touching several stores found 18 candidates, and I read those; their views' `Id`s are records they save.
+**There are none in anything the suites run.** Every test host now fails a command that changes two or more aggregates and returns a view whose `Id` matches none of them. All the integration and end-to-end suites passed with that on. So there was nothing to fix and no shape to give a guard test; `AViewMatchingNoneOfTheAggregatesAChangeSaved_FailsInEveryTestHost` proves the guard itself fires. It can't speak for a path no test runs. A text search for handlers touching several stores listed 18 candidates. I went through that list by name and read only `RunDueDiligenceCheck` closely, so it is a pointer, not a proof: the guard is the evidence.
 
 ## The owed locked suite
 Main at 1339eae, one test project at a time: **2466 tests, 2454 passed, 10 skipped, 2 failed.** Both failures are (a), machine load: they passed alone, three runs out of three, in 33 to 38 seconds for the pair.
