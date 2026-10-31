@@ -277,6 +277,11 @@ internal static class SavedVersions
     {
         var ids = typeof(TCommand).GetProperties().Where(p => p.PropertyType == typeof(Guid)).Select(p => p.GetValue(command)).ToHashSet();
         bool Named(Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry e) => e.Metadata.FindProperty("Id") is not null && ids.Contains(e.Property("Id").CurrentValue);
+        if (System.Reflection.CustomAttributeExtensions.GetCustomAttribute<VersionOfAttribute>(typeof(TCommand)) is { } declared)
+        {
+            return saved.Tracked.Where(e => e.Metadata.ClrType == declared.Record).ToList() is { Count: 1 } only ? only[0] : null;
+        }
+
         if (saved.ChangedRoots.Count > 0)
         {
             var fits = saved.ChangedRoots.Count == 1 ? saved.ChangedRoots : saved.ChangedRoots.Where(e => saved.Loaded[e] == returned).ToList();

@@ -119,17 +119,22 @@ public sealed record CreateDraftVersion(string ProductCode, DateOnly EffectiveFr
 public sealed record EditConfiguration(string ProductCode, int Version, string Name, IReadOnlyList<string> Coverages, DateOnly EffectiveFrom, long ExpectedVersion,
     CoverStart? CoverStartsOn = null, string? EligibilityRulesetCode = null, ReinstatementArrears? ReinstatementArrears = null) : ICommand<long>, IVersionedCommand;
 
+[VersionOf(typeof(ProductVersion))]
 public sealed record ValidateVersion(string ProductCode, int Version, long ExpectedVersion) : ICommand<long>, IVersionedCommand;
 
 public sealed record RunSimulation(string ProductCode, int Version) : ICommand<SimulationRunView>;
 
+[VersionOf(typeof(ProductVersion))]
 public sealed record SubmitForApproval(string ProductCode, int Version, string? Reason, long ExpectedVersion) : ICommand<long>, IVersionedCommand;
 
+[VersionOf(typeof(ProductVersion))]
 public sealed record WithdrawVersion(string ProductCode, int Version, DateOnly EffectiveTo, long ExpectedVersion) : ICommand<long>, IVersionedCommand;
 
+[VersionOf(typeof(ProductVersion))]
 public sealed record RetireVersion(string ProductCode, int Version, long ExpectedVersion) : ICommand<long>, IVersionedCommand;
 
 /// <summary>Transition "Effective date reached", run by the product job as a service identity.</summary>
+[VersionOf(typeof(ProductVersion))]
 public sealed record MakeVersionEffective(Guid VersionId) : ICommand<long>, IReturnsSavedVersion;
 
 public sealed record GetProductVersion(string ProductCode, int Version) : IQuery<ProductVersionView>;
