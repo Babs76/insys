@@ -149,13 +149,18 @@ public sealed class RowVersionETagFilter : IEndpointFilter
     public async ValueTask<object?> InvokeAsync(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
     {
         var result = await next(context);
-        var response = context.HttpContext.Response;
+        Apply(context.HttpContext, result);
+        return result;
+    }
+
+    /// <summary>Gives a successful result's rowVersion as the ETag. The idempotency filter calls it too: it answers with what it kept, so this filter, outside it, no longer sees the record (BR-041).</summary>
+    public static void Apply(HttpContext http, object? result)
+    {
+        var response = http.Response;
         if (result is IValueHttpResult { Value: { } value } && result is IStatusCodeHttpResult { StatusCode: >= 200 and < 300 } && !response.Headers.ContainsKey("ETag")
             && RowVersions.GetOrAdd(value.GetType(), type => type.GetProperty("RowVersion") is { PropertyType: var t } property && t == typeof(long) ? property : null) is { } rowVersion)
         {
-            Concurrency.SetETag(context.HttpContext, (long)rowVersion.GetValue(value)!);
+            Concurrency.SetETag(http, (long)rowVersion.GetValue(value)!);
         }
-
-        return result;
     }
 }

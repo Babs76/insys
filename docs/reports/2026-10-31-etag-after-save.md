@@ -6,7 +6,7 @@
 - for a view with `rowVersion`: the tracked record with the view's `Id`, else the one aggregate the command changed;
 - for a version returned as a number: the one aggregate changed, or the one the command names.
 
-A response whose record the command didn't save keeps the version it read. Every write in the integration and end-to-end suites runs with `RequireSavedVersion`, which fails a number-returning command whose aggregate can't be told. Static data endpoints already read the entity after their own save, so they don't change.
+What changed is told after the save, by which versions moved, because a repository may copy to its rows during the save (product versions do). `[VersionOf(table)]` names the record where several of the same version change: a product version and its simulation runs. A response whose record the command didn't save keeps the version it read. Every write in the integration and end-to-end suites runs with `RequireSavedVersion`, which fails a number-returning command whose aggregate can't be told. Static data endpoints already read the entity after their own save, so they don't change.
 
 ## What changed
 - **Every command returning a view with `rowVersion`:** corrected centrally, no code change. This is what most of the 448 write endpoints carrying an ETag or `rowVersion` use.
@@ -68,3 +68,6 @@ Communications/Requests.cs:351
 
 ## Decisions for Ade
 **You asked for a chain test on each write endpoint. It isn't built for each.** There are 448, each needing its own prerequisites and a valid second action, which I estimate at 20 to 25 days, and the responses now all pass through one line of code. Four chains prove each way a response is built. *Recommendation: accept this; add a chain only when a new way of building a response appears.* The one gap this leaves: a view whose `Id` is not the record changed, where two aggregates changed in one command, keeps the version it was built with. None failed in the suites, and those wouldn't catch it if no test reads that response's version.
+
+## Also fixed: a create with an Idempotency-Key sent no ETag
+The contract declares an ETag on these, but the idempotency filter answered with what it kept, so the ETag filter outside it no longer saw the record. CI showed it as `No ETag` on Wave 6's creates (run 41178184548). The filter now sets the ETag before it keeps the response, and those tests use the create's ETag.

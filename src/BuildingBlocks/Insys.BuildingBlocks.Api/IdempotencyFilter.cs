@@ -82,6 +82,11 @@ public sealed class IdempotencyFilter : IEndpointFilter
         try
         {
             var result = await next(context);
+            if (http.GetEndpoint()?.Metadata.GetMetadata<ETagResponseMetadata>() is not null)
+            {
+                RowVersionETagFilter.Apply(http, result);
+            }
+
             response = await Capture(http, result);
         }
         catch
