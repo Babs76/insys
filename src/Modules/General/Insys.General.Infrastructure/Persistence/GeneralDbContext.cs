@@ -292,7 +292,7 @@ public sealed class GeneralDbContext(DbContextOptions<GeneralDbContext> options,
             Root(endorsement);
             endorsement.Property(x => x.Currency).HasColumnType("char(3)"); // BR-033
             endorsement.Property(e => e.EndorsementNumber).HasMaxLength(20);
-            endorsement.Property(e => e.EndorsementType).HasMaxLength(15);
+            endorsement.Property(e => e.EndorsementType).HasMaxLength(20);
             endorsement.Property(e => e.PremiumDelta).HasPrecision(18, 2);
             endorsement.Property(e => e.NewAnnualPremium).HasPrecision(18, 2);
             endorsement.Property(e => e.Status).HasConversion(new UpperCaseEnumConverter<EndorsementStatus>()).HasMaxLength(30);
