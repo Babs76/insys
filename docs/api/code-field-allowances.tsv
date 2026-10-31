@@ -439,7 +439,7 @@ core	IntegrationSourceTotal.kind	a total kind, some naming an account
 core	IntegrationMigrationReconciliationReport.batchCode	the batch name the file gives; no list
 core	GeneralMigrateGeneralClaims.batchCode	the batch name the file gives; no list
 core	GeneralMigratedClaim.coverageCode	a coverage key of the policy
-core	GeneralMigratedClaim.reserveType	a reserve type key, checked by the Claims Framework
 core	LifeMigrateLifeClaims.batchCode	the batch name the file gives; no list
 core	LifeMigratedLifeClaim.causeCode	a cause key, as a source system has it
 core	LifeMigratedLifeClaim.reserveType	a reserve type key, checked by the Claims Framework
+core	LifeMigratedLifeClaim.claimType	a claim type key, as a source system has it

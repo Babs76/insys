@@ -54052,7 +54052,9 @@
             ]
           },
           "reserveType": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "claims.ref_reserve_types",
+            "x-code-list-column": "code"
           },
           "reserve": {
             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",

@@ -35,7 +35,7 @@ using Insys.General.Domain.Claims;
 namespace Insys.General.Application;
 
 /// <param name="PolicyId">The policy's id here, as its migration returned it.</param>
-public sealed record MigratedClaim(string SourceReference, Guid PolicyId, Guid? RiskObjectId, string CoverageCode, DateOnly LossDate, [property: CodeList(CodeLists.LossCauses, "cause_code")] string CauseCode, [property: CodeList(CodeLists.Perils, "peril_code")] string PerilCode, string? Description, string ReserveType, decimal Reserve);
+public sealed record MigratedClaim(string SourceReference, Guid PolicyId, Guid? RiskObjectId, string CoverageCode, DateOnly LossDate, [property: CodeList(CodeLists.LossCauses, "cause_code")] string CauseCode, [property: CodeList(CodeLists.Perils, "peril_code")] string PerilCode, string? Description, [property: CodeList(CodeLists.ReserveTypes, "code")] string ReserveType, decimal Reserve);
 
 /// <summary>B-013: claims open in a source system, after the batch's policies. All or nothing, against the file's count and total reserve.</summary>
 public sealed record MigrateGeneralClaims(string BatchCode, int ControlCount, decimal ControlReserve, IReadOnlyList<MigratedClaim> Rows) : ICommand<PolicyMigrationResult>;

@@ -64,6 +64,9 @@ public interface IClaimsRepository
 
     void Add(ClaimRegistration registration);
 
+    /// <summary>Adds it and saves now, so a movement added next finds its register row.</summary>
+    Task AddNow(ClaimRegistration registration, CancellationToken cancellationToken);
+
     void Add(FinancialMovement movement);
 
     void Add(ClaimPaymentInstruction instruction);
@@ -861,7 +864,7 @@ public sealed class ClaimsPolicies(IClaimsRepository claims, IBankAccounts bankA
             return;
         }
 
-        claims.Add(ClaimRegistration.Migrated(Guid.CreateVersion7(), migrated.ClaimNumber, migrated.Domain, migrated.DomainClaimId, migrated.PolicyRef, migrated.BatchCode, clock.UtcNow, migrated.ProductCode, migrated.OrgNodeCode));
+        await claims.AddNow(ClaimRegistration.Migrated(Guid.CreateVersion7(), migrated.ClaimNumber, migrated.Domain, migrated.DomainClaimId, migrated.PolicyRef, migrated.BatchCode, clock.UtcNow, migrated.ProductCode, migrated.OrgNodeCode), cancellationToken);
         if (migrated.Reserve > 0)
         {
             claims.Add(FinancialMovement.OpeningReserve(migrated.ClaimNumber, migrated.ReserveType, migrated.Reserve, migrated.Currency, clock.UtcNow));

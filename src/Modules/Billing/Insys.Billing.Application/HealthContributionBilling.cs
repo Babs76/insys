@@ -55,13 +55,16 @@ public sealed class HealthContributionBilling(IBillingRepository billing, IBilli
     {
         var enrolled = new HealthMemberEnrolled(migrated.MembershipId, migrated.MemberNumber, migrated.PayerPartyId, null, migrated.PlanCode, migrated.OptionCode, migrated.StartDate, migrated.PayerPartyId, migrated.BillingAccountRef, migrated.CollectionMethod,
             migrated.Currency, migrated.MonthlyContribution, migrated.EmployerContribution, migrated.SponsorPartyId, null, migrated.ProductCode);
-        await Handle(enrolled, envelope, cancellationToken);
-        foreach (var domain in new[] { SourceDomain, EmployerSourceDomain })
+        if (migrated.MonthlyContribution > 0 && await billing.AccountForPolicy(SourceDomain, migrated.MembershipId, cancellationToken) is null)
         {
-            if (await billing.AccountForPolicy(domain, migrated.MembershipId, cancellationToken) is { } account)
-            {
-                account.ScheduleFor(domain, migrated.MembershipId)?.TakenOverOn(businessDate.Today);
-            }
+            var account = await Open(migrated.BillingAccountRef, migrated.PayerPartyId, enrolled, cancellationToken);
+            await Schedule(account, SourceDomain, enrolled, migrated.MonthlyContribution, cancellationToken, takenOver: true);
+        }
+
+        if (migrated is { EmployerContribution: > 0, SponsorPartyId: { } sponsor } && await billing.AccountForPolicy(EmployerSourceDomain, migrated.MembershipId, cancellationToken) is null)
+        {
+            var account = await billing.OpenAccountOf(sponsor, migrated.Currency, cancellationToken) ?? await Open(Guid.CreateVersion7(), sponsor, enrolled, cancellationToken);
+            await Schedule(account, EmployerSourceDomain, enrolled, migrated.EmployerContribution, cancellationToken, takenOver: true);
         }
     }
 
@@ -129,7 +132,7 @@ public sealed class HealthContributionBilling(IBillingRepository billing, IBilli
         return account;
     }
 
-    private async Task Schedule(BillingAccount account, string sourceDomain, HealthMemberEnrolled enrolled, decimal amount, CancellationToken cancellationToken)
+    private async Task Schedule(BillingAccount account, string sourceDomain, HealthMemberEnrolled enrolled, decimal amount, CancellationToken cancellationToken, bool takenOver = false)
     {
         var schedule = account.CreateSchedule(sourceDomain, enrolled.MembershipId, $"{enrolled.PlanCode}/{enrolled.OptionCode}", await Frequency(enrolled.MemberNumber, cancellationToken),
             enrolled.StartDate, null, amount);
@@ -139,6 +142,11 @@ public sealed class HealthContributionBilling(IBillingRepository billing, IBilli
         }
 
         schedule.Value.ScopeTo(enrolled.ProductCode, enrolled.OrgNodeCode); // F103; the plan's product (addenda/health-plan-products.md)
+        if (takenOver)
+        {
+            schedule.Value.TakenOverOn(businessDate.Today);
+            return;
+        }
 
         await DueInvoices.Issue(account, businessDate.Today, billing, codes, clock, businessDate, cancellationToken, firstBilling: true);
     }
