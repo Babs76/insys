@@ -58,7 +58,7 @@ public sealed record CancelRequest([property: BuildingBlocks.Domain.CodeList(Cod
 
 /// <param name="IntermediaryCode">B-001: for an INTERMEDIARY endorsement (a broker of record change, with no changes), the intermediary the policy moves to.</param>
 public sealed record EndorsementRequest([property: BuildingBlocks.Domain.CodeList(CodeLists.EndorsementTypes, "code")] string EndorsementType, DateOnly EffectiveDate,
-    IReadOnlyList<EndorsementChange> Changes, string? IntermediaryCode = null);
+    IReadOnlyList<EndorsementChange> Changes, string? IntermediaryCode = null, decimal? AdjustmentPct = null, [property: BuildingBlocks.Domain.CodeList(CodeLists.BillingFrequencies, "code")] string? BillingFrequency = null);
 
 /// <param name="DocumentId">The appointment letter, a document filed against the endorsement.</param>
 public sealed record AppointmentLetterRequest(Guid DocumentId);
@@ -266,7 +266,7 @@ public sealed class GeneralModule : IModule
             .WithDescription("Reinstated before its period starts (a policy cancelled from inception), it is Issued again; otherwise In force (BR-037).").RequirePermission(GeneralPermissions.PolicyCancel);
 
         general.MapPost("/policies/{id:guid}/endorsements", async (Guid id, EndorsementRequest r, IDispatcher d, CancellationToken ct) =>
-                (await d.Send(new DraftEndorsement(id, r.EndorsementType, r.EffectiveDate, r.Changes, r.IntermediaryCode), ct))
+                (await d.Send(new DraftEndorsement(id, r.EndorsementType, r.EffectiveDate, r.Changes, r.IntermediaryCode, r.AdjustmentPct, r.BillingFrequency), ct))
                 .ToHttp(v => Results.Created($"/api/v1/general/endorsements/{v.Id}", v)))
             .Produces<EndorsementView>(StatusCodes.Status201Created)
             .WithName("GeneralDraftEndorsement").WithSummary("Draft an endorsement effective within the policy period (GEN-003)")

@@ -53937,6 +53937,23 @@
               "null",
               "string"
             ]
+          },
+          "adjustmentPct": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "billingFrequency": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "x-code-list": "billing.ref_billing_frequencies",
+            "x-code-list-column": "code"
           }
         }
       },
