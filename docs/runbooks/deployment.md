@@ -267,6 +267,10 @@ Each module's daily transitions run on a timer in every API instance. The work i
   - To test a missed premium leading to a lapse, run it for the due date, then for a date past the grace period.
   - Enable it with `Testing:DailyJobRunner:Enabled`. The host refuses to start with it in any other environment.
 
+## Regenerating without a database
+
+`tools/regen.sh` rewrites the function catalogue seed, the role templates and the API documents (`docs/api/openapi-*.json`) from the code. It needs no database or container, so it needs no machine lock. It is the same result as `INSYS_UPDATE_SNAPSHOTS=1` on the tests, and the tests still check it. `python3 tools/regen-openapi.py check` says whether the committed API documents match the last build.
+
 ## Upgrades
 
 1. Read the new migrations (`db/migrations/V####__*.sql`) and the release's changes to `docs/api/`.
