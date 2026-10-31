@@ -103,9 +103,9 @@ public sealed class TransactionalCommandHandler<TCommand, TResult, TDbContext>(
                 {
                     var entries = auditTrail.TakeAll();
                     db.PublishAudit([.. entries, .. db.RecordChanges(typeof(TCommand).Name, entries)], AuditOutcome.Success);
-                    var candidates = SavedVersions.Candidates(db);
+                    var before = SavedVersions.Before(db);
                     await db.SaveChangesAsync(cancellationToken);
-                    result = await SavedVersions.Apply(command, result, candidates, retry.Value.RequireSavedVersion, cancellationToken);
+                    result = await SavedVersions.Apply(command, result, SavedVersions.After(db, before), retry.Value.RequireSavedVersion, cancellationToken);
                     await transaction.CommitAsync(cancellationToken);
                 }
             }
@@ -228,12 +228,16 @@ internal static class SavedVersions
 {
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, (System.Reflection.PropertyInfo Version, System.Reflection.PropertyInfo? Id)?> Views = new();
 
-    /// <summary>What the command tracked, taken before the save, which marks everything unchanged: the records with a version, those it changed, and their versions as loaded.</summary>
-    public static SavedRecords Candidates(DbContext db)
+    /// <summary>The versions as they stand before the save. What changed is told after it, by what moved: a repository may copy to its rows during the save.</summary>
+    public static Dictionary<object, long> Before(DbContext db) =>
+        db.ChangeTracker.Entries().Where(e => e.Metadata.FindProperty("RowVersion") is not null && e.State != EntityState.Added)
+            .ToDictionary(e => e.Entity, e => (long)e.Property("RowVersion").OriginalValue!, ReferenceEqualityComparer.Instance);
+
+    public static SavedRecords After(DbContext db, Dictionary<object, long> before)
     {
-        var tracked = db.ChangeTracker.Entries().Where(e => e.Metadata.FindProperty("RowVersion") is not null && e.State != EntityState.Deleted).ToList();
-        var changed = tracked.Where(e => e.State is EntityState.Modified or EntityState.Added).ToList();
-        return new SavedRecords(tracked, changed, changed.ToDictionary(e => e, e => (long)(e.State == EntityState.Added ? e.Property("RowVersion").CurrentValue : e.Property("RowVersion").OriginalValue)!));
+        var tracked = db.ChangeTracker.Entries().Where(e => e.Metadata.FindProperty("RowVersion") is not null && e.State != EntityState.Detached).ToList();
+        var changed = tracked.Where(e => !before.TryGetValue(e.Entity, out var loaded) || loaded != (long)e.Property("RowVersion").CurrentValue!).ToList();
+        return new SavedRecords(tracked, changed, before);
     }
 
     public static async Task<Result<TResult>> Apply<TCommand, TResult>(TCommand command, Result<TResult> result,
@@ -280,15 +284,15 @@ internal static class SavedVersions
         if (System.Reflection.CustomAttributeExtensions.GetCustomAttribute<VersionOfAttribute>(typeof(TCommand)) is { } declared)
         {
             // A family of versions may be loaded; the one that changed is meant, else the one named, else the only one.
-            var ofType = saved.Tracked.Where(e => e.Metadata.ClrType == declared.Record).ToList();
-            var moved = ofType.Where(saved.Changed.Contains).ToList();
+            var ofType = saved.Tracked.Where(e => e.Metadata.GetTableName() == declared.Table).ToList();
+            var moved = ofType.Where(e => saved.Changed.Any(c => ReferenceEquals(c.Entity, e.Entity))).ToList();
             var pool = moved.Count > 0 ? moved : ofType;
             return pool.Count == 1 ? pool[0] : pool.Where(Named).ToList() is { Count: 1 } theOne ? theOne[0] : null;
         }
 
         if (saved.ChangedRoots.Count > 0)
         {
-            var fits = saved.ChangedRoots.Count == 1 ? saved.ChangedRoots : saved.ChangedRoots.Where(e => saved.Loaded[e] == returned).ToList();
+            var fits = saved.ChangedRoots.Count == 1 ? saved.ChangedRoots : saved.ChangedRoots.Where(e => saved.Loaded.GetValueOrDefault(e.Entity, 1) == returned).ToList();
             return fits.Count == 1 ? fits[0] : fits.Where(Named).ToList() is { Count: 1 } named ? named[0] : null;
         }
 
@@ -315,7 +319,7 @@ internal static class SavedVersions
 }
 
 internal sealed record SavedRecords(List<Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry> Tracked, List<Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry> Changed,
-    Dictionary<Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry, long> Loaded)
+    Dictionary<object, long> Loaded)
 {
     public List<Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry> ChangedRoots { get; } = Changed.Where(e => e.Entity is IAggregateRoot).ToList();
 }
