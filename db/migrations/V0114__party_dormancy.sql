@@ -30,7 +30,7 @@
 -- =====================================================================
 -- OQ-054 (Ade, 31 October 2026): a party with no policy, membership, claim or case in force or open is dormant, and its retention counts from the last one ending.
 ALTER TABLE party.party ADD COLUMN dormancy_checked_on date;
-CREATE INDEX ix_party_dormancy_check ON party.party (tenant_id, dormancy_checked_on NULLS FIRST, id) WHERE status IN ('ACTIVE', 'DORMANT');
+CREATE INDEX ix_party_dormancy_check ON party.party (tenant_id, dormancy_checked_on NULLS FIRST, id) WHERE status_code IN ('ACTIVE', 'DORMANT');
 
 -- A case now keeps a party's data, so it needs a period: the same working default as the others, for compliance to confirm.
 ALTER TABLE party.cfg_record_retention_policies DROP CONSTRAINT cfg_record_retention_policies_ck1;
