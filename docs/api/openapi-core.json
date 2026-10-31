@@ -58826,10 +58826,14 @@
             ]
           },
           "planCode": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "health.cfg_plans_and_options",
+            "x-code-list-column": "plan_code"
           },
           "optionCode": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "health.cfg_plans_and_options",
+            "x-code-list-column": "option_code"
           },
           "startDate": {
             "type": "string",
@@ -58839,7 +58843,9 @@
             "type": "string"
           },
           "collectionMethod": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "billing.ref_collection_methods",
+            "x-code-list-column": "method_code"
           },
           "monthlyContribution": {
             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
@@ -65988,10 +65994,14 @@
             "type": "string"
           },
           "billingFrequency": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "billing.ref_billing_frequencies",
+            "x-code-list-column": "code"
           },
           "collectionMethod": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "billing.ref_collection_methods",
+            "x-code-list-column": "method_code"
           },
           "intermediaryCode": {
             "type": [

@@ -38,7 +38,7 @@ namespace Insys.Health.Application;
 
 public sealed record MigratedDependant(Guid PartyId, string DependantType);
 
-public sealed record MigratedMembership(string SourceReference, Guid PrincipalPartyId, Guid? PayerPartyId, Guid? SchemeId, string? MemberCategory, string PlanCode, string OptionCode, DateOnly StartDate, string Currency, string CollectionMethod,
+public sealed record MigratedMembership(string SourceReference, Guid PrincipalPartyId, Guid? PayerPartyId, Guid? SchemeId, string? MemberCategory, [property: CodeList(HealthCodeLists.PlansAndOptions, "plan_code")] string PlanCode, [property: CodeList(HealthCodeLists.PlansAndOptions, "option_code")] string OptionCode, DateOnly StartDate, string Currency, [property: CodeList(HealthCodeLists.CollectionMethods, "method_code")] string CollectionMethod,
     decimal MonthlyContribution, decimal EmployerContribution, Guid? SponsorPartyId, IReadOnlyList<MigratedDependant>? Dependants);
 
 /// <param name="ControlContribution">The source system's total monthly contribution, members' and employers'.</param>

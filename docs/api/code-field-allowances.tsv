@@ -425,3 +425,11 @@ core	PartyBulkJobView.jobType	to declare
 core	GeneralMigrateGeneralPolicies.batchCode	the batch name the file gives; no list
 core	GeneralMigratedPolicy.intermediaryCode	an intermediary register key, as on a quote
 core	GeneralMigratedPolicy.productCode	a product key, as on a quote
+core	HealthMigrateHealthMemberships.batchCode	the batch name the file gives; no list
+core	HealthMigratedDependant.dependantType	a dependant type key, checked by the membership
+core	HealthMigratedMembership.memberCategory	a scheme category key, as on enrolment
+core	LifeMigrateLifePolicies.batchCode	the batch name the file gives; no list
+core	LifeMigratedLifePolicy.productCode	a product key, as on a proposal
+core	LifeMigratedLifePolicy.intermediaryCode	an intermediary key, as on a proposal
+core	LifeMigratedBenefit.benefitCode	a benefit key of the product
+core	LifeMigratedLife.lifeRole	a role key, as on a proposal

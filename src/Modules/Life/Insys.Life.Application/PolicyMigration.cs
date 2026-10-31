@@ -41,7 +41,7 @@ public sealed record MigratedBenefit(string BenefitCode, decimal SumAssured, dec
 
 public sealed record MigratedLife(Guid PartyId, string LifeRole, int EntryAge, IReadOnlyList<MigratedBenefit> Benefits);
 
-public sealed record MigratedLifePolicy(string SourceReference, string ProductCode, int ProductVersion, Guid PolicyholderPartyId, Guid? PayerPartyId, DateOnly InceptionDate, DateOnly? TermEndDate, string Currency, string BillingFrequency, string CollectionMethod,
+public sealed record MigratedLifePolicy(string SourceReference, string ProductCode, int ProductVersion, Guid PolicyholderPartyId, Guid? PayerPartyId, DateOnly InceptionDate, DateOnly? TermEndDate, string Currency, [property: CodeList(LifeCodeLists.Frequencies, "code")] string BillingFrequency, [property: CodeList(LifeCodeLists.CollectionMethods, "method_code")] string CollectionMethod,
     string? IntermediaryCode, IReadOnlyList<MigratedLife> Lives, IReadOnlyList<BeneficiaryNomination>? Beneficiaries);
 
 /// <param name="ControlPremium">The source system's total premium per instalment.</param>
