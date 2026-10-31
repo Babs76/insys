@@ -924,6 +924,16 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         var memberNumber = (await Get($"/api/v1/health/memberships/{membership}")).GetProperty("memberNumber").GetString();
 
         // With channels in force, the writer refers on its portal and staff record consent through the back office.
+        var adult = await _maker.RegisterPerson("PortalSpouse");
+        var minor = await _maker.RegisterPerson("PortalChild", Today.AddYears(-10));
+        await PortalUser("member-adult", "PARTY", adult, null, HealthPermissions.MembershipRead, HealthPermissions.ClaimRead);
+        (await _maker.Send(HttpMethod.Post, $"/api/v1/health/memberships/{mine}/dependants", new { partyId = adult, dependantType = "SPOUSE", student = false, startDate = Today }, idempotent: true))
+            .StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await _maker.Send(HttpMethod.Post, $"/api/v1/health/memberships/{mine}/dependants", new { partyId = minor, dependantType = "CHILD", student = false, startDate = Today }, idempotent: true))
+            .StatusCode.ShouldBe(HttpStatusCode.OK);
+        var adultClaim = await Claim(mine, adult, 100m);
+        var minorClaim = await Claim(mine, minor, 100m);
+
         await Seed("channel.cfg_channel_definitions", "EFFECTIVE", "CH-PRV", ("channel_code", "PRV"), ("audience", "PROVIDER"), ("name", "Provider portal"), ("client_ids", new[] { "provider-portal" }));
         await Seed("channel.cfg_channel_definitions", "EFFECTIVE", "CH-STF", ("channel_code", "STF"), ("audience", "STAFF"), ("name", "Back office"), ("client_ids", new[] { "insys-web" }));
         var writerRole = (await _db.ScalarAsOwner<string>("""
@@ -1729,23 +1739,13 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         // A member sees their own claims, as patient or principal, and not another member's.
         var mineListed = await member.GetAsync("/api/v1/portal/health/claims");
         mineListed.StatusCode.ShouldBe(HttpStatusCode.OK, await mineListed.Content.ReadAsStringAsync());
-        (await mineListed.Json()).GetProperty("items").EnumerateArray().Select(c => c.GetProperty("id").GetGuid()).ShouldBe([claimId]);
+        (await mineListed.Json()).GetProperty("items").EnumerateArray().Select(c => c.GetProperty("id").GetGuid()).ShouldBe([claimId, adultClaim, minorClaim], ignoreOrder: true);
         (await member.GetAsync($"/api/v1/portal/health/claims/{claimId}")).StatusCode.ShouldBe(HttpStatusCode.OK);
         var other = _factory.ClientFor(Tenant, "member-2", "member-portal");
         (await other.GetAsync($"/api/v1/portal/health/claims/{claimId}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
         (await (await other.GetAsync("/api/v1/portal/health/claims")).Json()).GetProperty("items").GetArrayLength().ShouldBe(0);
 
         // OQ-161: the principal sees what was treated for themselves and a minor, not for an adult dependant; the adult sees their own.
-        var adult = await _maker.RegisterPerson("PortalSpouse");
-        var minor = await _maker.RegisterPerson("PortalChild", Today.AddYears(-10));
-        await PortalUser("member-adult", "PARTY", adult, null, HealthPermissions.MembershipRead, HealthPermissions.ClaimRead);
-        (await _maker.Send(HttpMethod.Post, $"/api/v1/health/memberships/{mine}/dependants", new { partyId = adult, dependantType = "SPOUSE", student = false, startDate = Today }, idempotent: true))
-            .StatusCode.ShouldBe(HttpStatusCode.OK);
-        (await _maker.Send(HttpMethod.Post, $"/api/v1/health/memberships/{mine}/dependants", new { partyId = minor, dependantType = "CHILD", student = false, startDate = Today }, idempotent: true))
-            .StatusCode.ShouldBe(HttpStatusCode.OK);
-        var adultClaim = await Claim(mine, adult, 100m);
-        var minorClaim = await Claim(mine, minor, 100m);
-        await _db.AdoptFunctionCatalogue();
         var hidden = await (await member.GetAsync($"/api/v1/portal/health/claims/{adultClaim}")).Json();
         hidden.GetProperty("lines")[0].GetProperty("tariffCode").ValueKind.ShouldBe(JsonValueKind.Null);
         hidden.GetProperty("totalClaimed").GetDecimal().ShouldBe(100m);
