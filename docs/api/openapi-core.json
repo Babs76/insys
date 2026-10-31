@@ -67777,10 +67777,7 @@
             "format": "uuid"
           },
           "proposalId": {
-            "type": [
-              "null",
-              "string"
-            ],
+            "type": "string",
             "format": "uuid"
           },
           "proposalNumber": {
