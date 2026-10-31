@@ -66933,6 +66933,10 @@
             "format": "uuid"
           },
           "jobType": {
+            "enum": [
+              "PARTY_IMPORT",
+              "PARTY_EXPORT"
+            ],
             "type": "string"
           },
           "direction": {
