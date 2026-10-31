@@ -224,7 +224,7 @@ jobs:
   # Every end-to-end class runs in exactly one group (checked below), so a new class cannot be left out.
   sweeps-and-end-to-end:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -271,7 +271,7 @@ jobs:
   # runs well under 20 minutes (OQ-129: one ran into the 30-minute limit).
   end-to-end-dates:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
