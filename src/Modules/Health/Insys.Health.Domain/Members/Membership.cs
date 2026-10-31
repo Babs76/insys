@@ -104,6 +104,10 @@ public sealed record HealthSchemeRenewed(Guid SchemeId, string SchemeNumber, Dat
 public sealed record HealthSchemeRenewalNoticeDue(Guid SchemeId, string SchemeNumber, Guid SponsorPartyId, DateOnly RenewalDate, string ReRatingBasis,
     DateTimeOffset OccurredAt) : IDomainEvent;
 
+/// <summary>A membership brought from a source system (OQ-158).</summary>
+public sealed record HealthMembershipMigrated(Guid MembershipId, string MemberNumber, string PlanCode, string OptionCode, DateOnly StartDate, Guid PayerPartyId, Guid BillingAccountRef, string CollectionMethod, string Currency, decimal MonthlyContribution,
+    decimal EmployerContribution, Guid? SponsorPartyId, string? ProductCode, DateTimeOffset OccurredAt) : IDomainEvent;
+
 public sealed record HealthMemberEnrolled(Guid MembershipId, string MemberNumber, Guid PrincipalPartyId, Guid? SchemeId, string PlanCode, string OptionCode,
     DateOnly StartDate, Guid PayerPartyId, Guid BillingAccountRef, string CollectionMethod, string Currency, decimal? MonthlyContribution, decimal? EmployerContribution,
     Guid? SponsorPartyId, DateTimeOffset OccurredAt, string? OrgNodeCode = null, string? ProductCode = null)
@@ -416,6 +420,36 @@ public sealed class HealthMembership : AggregateRoot<Guid>
     public Guid? PartyFor(string suffix) => suffix == PrincipalSuffix ? PrincipalPartyId : _dependants.FirstOrDefault(d => d.Suffix == suffix)?.PartyId;
 
     /// <summary>Command EnrolMember: the principal on a plan option, with the waiting periods in force now, fixed from here.</summary>
+    public string? MigrationBatch { get; private set; }
+
+    public string? SourceReference { get; private set; }
+
+    /// <summary>OQ-158: a membership already in force in the source system: its waiting periods were served there. Billing schedules what remains.</summary>
+    public static HealthMembership Migrate(Guid id, string memberNumber, string batch, string sourceReference, Guid principal, Guid? schemeId, string? category, PlanOption plan, DateOnly start, Guid payer, Guid billingAccountRef,
+        string collectionMethod, string currency, decimal memberContribution, decimal employerContribution, Guid? sponsor, IReadOnlyList<(Guid PartyId, string Type)> dependants, string? productCode, int? productVersion, DateOnly today, DateTimeOffset now)
+    {
+        var membership = new HealthMembership
+        {
+            ProductCode = productCode, ProductVersion = productCode is null ? null : productVersion, Id = id, MemberNumber = Guard.MaxLength(memberNumber, 12), PrincipalPartyId = principal, SchemeId = schemeId, MemberCategory = category,
+            PlanCode = Guard.MaxLength(plan.PlanCode, 15), OptionCode = Guard.MaxLength(plan.OptionCode, 10), PlanVersion = plan.PlanVersion, Status = MembershipStatus.Pending, StartDate = start, WaitingPeriods = [],
+            PayerPartyId = payer, BillingAccountRef = billingAccountRef, Currency = currency, MigrationBatch = Guard.MaxLength(batch, 30), SourceReference = Guard.MaxLength(sourceReference, 40),
+        };
+        membership._events.Add(MembershipEvent.Create(id, "ENROL", start, "MIGRATION"));
+        var suffix = 0;
+        foreach (var (party, type) in dependants)
+        {
+            membership._dependants.Add(Dependant.Create(id, party, type, (++suffix).ToString("D2", System.Globalization.CultureInfo.InvariantCulture), start));
+        }
+
+        membership.Raise(new HealthMembershipMigrated(id, membership.MemberNumber, plan.PlanCode, plan.OptionCode, start, payer, billingAccountRef, collectionMethod, currency, memberContribution, employerContribution, sponsor, productCode, now));
+        if (start <= today)
+        {
+            membership.Fire(MembershipTrigger.StartDateReached);
+        }
+
+        return membership;
+    }
+
     public static Result<HealthMembership> EnrolMember(Guid id, string memberNumber, Guid principalPartyId, Guid? schemeId, string? memberCategory, PlanOption plan,
         DateOnly startDate, IReadOnlyList<WaitingPeriod> waitingPeriods, ContributionBilling billing, string currency, DateOnly today, DateTimeOffset now,
         string? orgNodeCode = null, string? productCode = null, int? productVersion = null)

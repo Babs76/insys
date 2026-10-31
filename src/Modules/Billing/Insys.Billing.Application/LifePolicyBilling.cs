@@ -38,6 +38,7 @@ namespace Insys.Billing.Application;
 /// is reinstated. Obligations come only from these authorised transactions (BIL-001).
 /// </summary>
 public sealed class LifePolicyBilling(IBillingRepository billing, IBillingCodes codes, IBusinessDate businessDate, IClock clock) :
+    IIntegrationEventHandler<Life.Contracts.LifePolicyMigrated>,
     IIntegrationEventHandler<LifePolicyIssued>,
     IIntegrationEventHandler<LifePolicyLapsed>,
     IIntegrationEventHandler<LifePolicyReinstated>
@@ -45,6 +46,32 @@ public sealed class LifePolicyBilling(IBillingRepository billing, IBillingCodes 
     public const string SourceDomain = LifeSubjects.SourceDomain;
 
     /// <summary>The premium is per instalment at the policy's frequency (Rating prices it so), from inception to the end of the term.</summary>
+    /// <summary>OQ-158: as a General policy's migration; what fell due by today was invoiced in the source system.</summary>
+    public async Task Handle(Life.Contracts.LifePolicyMigrated migrated, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (await billing.AccountForPolicy(SourceDomain, migrated.PolicyId, cancellationToken) is not null)
+        {
+            return;
+        }
+
+        if (!await codes.CollectionMethodExists(migrated.CollectionMethod, businessDate.Today, cancellationToken))
+        {
+            throw new PrerequisiteMissingException(PrerequisiteCodes.CollectionMethodNotInForce, migrated.CollectionMethod);
+        }
+
+        var account = BillingAccount.OpenAccount(migrated.BillingAccountRef, migrated.PayerPartyId, migrated.Currency, migrated.CollectionMethod, null, clock.UtcNow);
+        billing.Add(account);
+        var schedule = account.CreateSchedule(SourceDomain, migrated.PolicyId, $"{migrated.ProductCode} v{migrated.ProductVersion}", await Frequency(migrated.BillingFrequency, migrated.PolicyNumber, cancellationToken), migrated.InceptionDate,
+            migrated.TermEndDate, migrated.Premium);
+        if (schedule.IsFailure)
+        {
+            throw new InvalidOperationException($"Policy {migrated.PolicyNumber} cannot be scheduled: {schedule.Error.Message}");
+        }
+
+        schedule.Value.ScopeTo(migrated.ProductCode, null);
+        schedule.Value.TakenOverOn(businessDate.Today);
+    }
+
     public async Task Handle(LifePolicyIssued issued, EventEnvelope envelope, CancellationToken cancellationToken)
     {
         if (await billing.AccountForPolicy(SourceDomain, issued.PolicyId, cancellationToken) is not null)

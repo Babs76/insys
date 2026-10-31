@@ -62,6 +62,9 @@ internal sealed class LifeRepository(LifeDbContext db, IExecutionContext executi
         db.ChangeTracker.Entries<LifeUnderwritingCase>().Select(e => e.Entity).FirstOrDefault(c => c.ProposalId == proposalId)
         ?? await OfProposal(await Cases().SingleOrDefaultAsync(c => c.ProposalId == proposalId, cancellationToken), cancellationToken);
 
+    public async Task<IReadOnlyList<string>> SourceReferencesKnown(IReadOnlyCollection<string> references, CancellationToken cancellationToken) =>
+        await db.Policies.AsNoTracking().Where(p => p.SourceReference != null && references.Contains(p.SourceReference)).Select(p => p.SourceReference!).ToListAsync(cancellationToken);
+
     public async Task<LifePolicy?> Policy(Guid id, CancellationToken cancellationToken) => Scoped(await Policies().SingleOrDefaultAsync(p => p.Id == id, cancellationToken));
 
     public async Task<LifePolicy?> PolicyForProposal(Guid proposalId, CancellationToken cancellationToken) =>
@@ -269,6 +272,8 @@ internal sealed class LifeEventMapper : IDomainEventMapper
             e.RequestedBy, e.SumAssured, e.Currency, $"Underwriting decision on proposal {e.ProposalId}", e.SubjectHash),
         Domain.Underwriting.LifeUnderwritingDecided e => new Contracts.LifeUnderwritingDecided(e.CaseId, e.ProposalId, e.Outcome.ToString().ToUpperInvariant(),
             e.DecisionCode, e.RulesetCode, e.RulesetVersion),
+        Domain.Policies.LifePolicyMigrated e => new Contracts.LifePolicyMigrated(e.PolicyId, e.PolicyNumber, e.ProductCode, e.ProductVersion, e.Billing.PayerPartyId, e.Billing.BillingAccountRef, e.Billing.Frequency, e.Billing.CollectionMethod,
+            e.Currency, e.Premium, e.InceptionDate, e.TermEndDate),
         Domain.Policies.LifePolicyIssued e => new Contracts.LifePolicyIssued(e.PolicyId, e.PolicyNumber, e.ProposalId, e.ProductCode, e.ProductVersion,
             e.PolicyholderPartyId, e.Billing.PayerPartyId, e.Billing.BillingAccountRef, e.Billing.Frequency, e.Billing.CollectionMethod, e.Currency, e.Premium,
             e.InceptionDate, e.TermEndDate, e.SumAssured, e.OrgNodeCode),

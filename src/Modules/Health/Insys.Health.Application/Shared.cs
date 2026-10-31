@@ -47,6 +47,9 @@ public interface IHealthRepository
 
     Task<HealthScheme?> Scheme(Guid id, CancellationToken cancellationToken);
 
+    /// <summary>Which of these source references a migrated membership already has.</summary>
+    Task<IReadOnlyList<string>> MembershipSourceReferencesKnown(IReadOnlyCollection<string> references, CancellationToken cancellationToken);
+
     Task<HealthMembership?> Membership(Guid id, CancellationToken cancellationToken);
 
     /// <summary>The membership's currency (BR-068), for records already read within the caller's scope.</summary>

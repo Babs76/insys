@@ -213,6 +213,10 @@ public sealed class LifeModule : IModule
 
     private static void MapPolicies(RouteGroupBuilder life)
     {
+        life.MapPost("/migration/policies", async (MigrateLifePolicies r, IDispatcher d, CancellationToken ct) => (await d.Send(r, ct)).ToHttp(Results.Ok))
+            .Produces<LifeMigrationResult>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("LifeMigratePolicies").WithSummary("Bring in-force policies from a source system, all or nothing, against the file's control totals; every bad line is named (OQ-158)")
+            .RequirePermission(LifePermissions.PolicyMigrate).RequireIdempotencyKey();
         life.MapPost("/policies", async (IssueLifePolicy r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(r, ct)).ToHttp(v => Results.Created($"/api/v1/life/policies/{v.Id}", v)))
             .Produces<PolicyView>(StatusCodes.Status201Created)

@@ -35,6 +35,7 @@ public static class HealthPermissions
     public const string SchemeUpdate = "health_scheme.update";
     public const string MembershipRead = "health_membership.read";
     public const string MembershipCreate = "health_membership.create";
+    public const string MembershipMigrate = "health_membership.migrate";
     public const string MembershipUpdate = "health_membership.update";
 
     /// <summary>Authorised eligibility enquiries (HLT-003), for providers and staff.</summary>
@@ -119,6 +120,10 @@ public sealed record HealthSchemeRenewed(Guid SchemeId, string SchemeNumber, Dat
 /// start date when the contribution is known (scheme members; health.cfg_contribution_rules). The employer's share is
 /// billed to the sponsor's party on a schedule of its own.
 /// </summary>
+[IntegrationEvent("health.HealthMembershipMigrated")]
+public sealed record HealthMembershipMigrated(Guid MembershipId, string MemberNumber, string PlanCode, string OptionCode, DateOnly StartDate, Guid PayerPartyId, Guid BillingAccountRef, string CollectionMethod, string Currency, decimal MonthlyContribution,
+    decimal EmployerContribution, Guid? SponsorPartyId, string? ProductCode) : IIntegrationEvent;
+
 [IntegrationEvent("health.HealthMemberEnrolled")]
 public sealed record HealthMemberEnrolled(Guid MembershipId, string MemberNumber, Guid PrincipalPartyId, Guid? SchemeId, string PlanCode, string OptionCode,
     DateOnly StartDate, Guid PayerPartyId, Guid BillingAccountRef, string CollectionMethod, string Currency, decimal? MonthlyContribution,

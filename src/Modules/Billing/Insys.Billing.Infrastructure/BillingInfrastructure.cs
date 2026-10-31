@@ -65,6 +65,8 @@ public static class BillingInfrastructure
         services.AddIntegrationEventHandler<PaymentInitiated, BillingPolicies, BillingDbContext>(schema, "PaymentInitiated");
         services.AddIntegrationEventHandler<ApprovalGranted, BillingPolicies, BillingDbContext>(schema, "ApprovalGranted");
         services.AddIntegrationEventHandler<ApprovalRejected, BillingPolicies, BillingDbContext>(schema, "ApprovalRejected");
+        services.AddIntegrationEventHandler<Life.Contracts.LifePolicyMigrated, LifePolicyBilling, BillingDbContext>(schema, "LifePolicyMigrated");
+        services.AddIntegrationEventHandler<Health.Contracts.HealthMembershipMigrated, HealthContributionBilling, BillingDbContext>(schema, "HealthMembershipMigrated");
         services.AddIntegrationEventHandler<GeneralPolicyMigrated, GeneralPolicyBilling, BillingDbContext>(schema, "GeneralPolicyMigrated");
         services.AddIntegrationEventHandler<GeneralPolicyIssued, GeneralPolicyBilling, BillingDbContext>(schema, "GeneralPolicyIssued");
         services.AddIntegrationEventHandler<GeneralPolicyEndorsed, GeneralPolicyBilling, BillingDbContext>(schema, "GeneralPolicyEndorsed");

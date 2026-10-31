@@ -57,6 +57,7 @@ internal static class LifeFunctions
         .Action("LIFE_REPAY_LOAN", "LIFE_LOANS", "LifeRepayLoan")
         .Screen("LIFE_POLICIES", "LIFE_POLICY_ADMIN", "Issue & in force", "life/policies", "LifeListPolicies", "LifeGetPolicy")
         .Action("LIFE_ISSUE_POLICY", "LIFE_POLICIES", "LifeIssuePolicy")
+        .Action("LIFE_MIGRATE_POLICIES", "LIFE_POLICIES", "LifeMigratePolicies")
         .Action("LIFE_CHANGE_BENEFICIARIES", "LIFE_POLICIES", "LifeChangeBeneficiaries")
         .Action("LIFE_ALTER_POLICY", "LIFE_POLICIES", "LifeAlterPolicy")
         .Action("LIFE_REINSTATE_POLICY", "LIFE_POLICIES", "LifeReinstatePolicy")

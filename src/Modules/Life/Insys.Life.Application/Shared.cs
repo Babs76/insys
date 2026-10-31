@@ -87,6 +87,9 @@ public interface ILifeRepository
 
     Task<IReadOnlyList<Guid>> SchemesToActivate(DateOnly day, int limit, CancellationToken cancellationToken);
 
+    /// <summary>Which of these source references a migrated policy already has.</summary>
+    Task<IReadOnlyList<string>> SourceReferencesKnown(IReadOnlyCollection<string> references, CancellationToken cancellationToken);
+
     void Add(LifeProposal proposal);
 
     void Add(LifeUnderwritingCase underwritingCase);

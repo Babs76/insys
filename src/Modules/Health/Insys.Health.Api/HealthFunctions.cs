@@ -53,6 +53,7 @@ internal static class HealthFunctions
         .Screen("HEALTH_MEMBERSHIPS", "HEALTH_MEMBERSHIP", "Enrolment", "health/memberships", "HealthListMemberships", "HealthSearchMemberships", "HealthGetMembership",
             "HealthListEligibilityDecisions")
         .Action("HEALTH_ENROL_MEMBER", "HEALTH_MEMBERSHIPS", "HealthEnrolMember")
+        .Action("HEALTH_MIGRATE_MEMBERSHIPS", "HEALTH_MEMBERSHIPS", "HealthMigrateMemberships")
         .Action("HEALTH_ADD_DEPENDANT", "HEALTH_MEMBERSHIPS", "HealthAddDependant")
         .Action("HEALTH_REMOVE_DEPENDANT", "HEALTH_MEMBERSHIPS", "HealthRemoveDependant")
         .Action("HEALTH_CHANGE_PLAN", "HEALTH_MEMBERSHIPS", "HealthChangePlan")

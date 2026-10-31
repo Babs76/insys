@@ -1404,6 +1404,39 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         (await (await _factory.ClientFor(Tenant, "chronic-principal", "member-portal").GetAsync("/api/v1/portal/health/chronic-registrations")).Json()).GetArrayLength().ShouldBe(0);
     }
 
+    /// <summary>OQ-158: a membership in force in a source system: active with its dependant, no waiting periods, its contributions scheduled and nothing invoiced.</summary>
+    [Fact]
+    public async Task AMigratedMembership_IsActive_WithNoWaitingPeriodOrInvoice_OQ158()
+    {
+        await _db.UserWithPermissions(Tenant, "health-migrator", HealthPermissions.MembershipMigrate);
+        await _db.AdoptFunctionCatalogue();
+        var migrator = _factory.ClientFor(Tenant, "health-migrator");
+        var principal = await _maker.RegisterPerson("MigratedHealth");
+        var spouse = await _maker.RegisterPerson("MigratedSpouse");
+        object File(decimal control) => new
+        {
+            batchCode = "H1", controlCount = 1, controlContribution = control,
+            rows = new[]
+            {
+                new
+                {
+                    sourceReference = "H-SRC-1", principalPartyId = principal, planCode = "HLT-CORE", optionCode = "A", startDate = Today.AddYears(-1), currency = "ZAR", collectionMethod = "DEBIT_ORDER", monthlyContribution = 900m, employerContribution = 0m,
+                    dependants = new[] { new { partyId = spouse, dependantType = "SPOUSE" } },
+                },
+            },
+        };
+
+        (await (await migrator.Send(HttpMethod.Post, "/api/v1/health/migration/memberships", File(1m), idempotent: true)).Json()).GetProperty("loaded").GetInt32().ShouldBe(0);
+        var loaded = await (await migrator.Send(HttpMethod.Post, "/api/v1/health/migration/memberships", File(900m), idempotent: true)).Json();
+        loaded.GetProperty("loaded").GetInt32().ShouldBe(1, loaded.ToString());
+        var membership = await _db.ScalarAsOwner<Guid>("SELECT id FROM health.membership WHERE source_reference = 'H-SRC-1'");
+        (await _db.ScalarAsOwner<string>("SELECT status FROM health.membership WHERE id = @m", ("m", membership))).ShouldBe("ACTIVE");
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM health.dependant WHERE membership_id = @m", ("m", membership))).ShouldBe(1);
+        await _factory.DrainOutbox();
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM billing.premium_schedule WHERE policy_ref = @m", ("m", membership))).ShouldBe(1);
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM billing.invoice WHERE policy_ref = @m", ("m", membership))).ShouldBe(0);
+    }
+
     /// <summary>Wave 5b §10: a pharmacy claim from receipt through a payment run; what it dispensed is clinical; a reversal gives its limit back.</summary>
     [Fact]
     public async Task APharmacyClaim_RunsFromReceiptThroughAPaymentRun_AndWhatItDispensedIsClinical_F039_F045_HLT008()

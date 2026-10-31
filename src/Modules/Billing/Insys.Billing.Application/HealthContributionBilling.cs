@@ -40,6 +40,7 @@ namespace Insys.Billing.Application;
 /// billing frequency code and the contribution of individual members (no scheme) are not specified (OQ-061).
 /// </summary>
 public sealed class HealthContributionBilling(IBillingRepository billing, IBillingCodes codes, IBusinessDate businessDate, IClock clock) :
+    IIntegrationEventHandler<HealthMembershipMigrated>,
     IIntegrationEventHandler<HealthMemberEnrolled>,
     IIntegrationEventHandler<DependantAdded>,
     IIntegrationEventHandler<HealthMemberStatusChanged>,
@@ -48,6 +49,21 @@ public sealed class HealthContributionBilling(IBillingRepository billing, IBilli
     public const string SourceDomain = HealthReferences.SourceDomain;
     public const string EmployerSourceDomain = HealthReferences.EmployerSourceDomain;
     public const string Monthly = "MONTHLY";
+
+    /// <summary>OQ-158: the member's and the employer's schedules, as on enrolment, with what fell due by today invoiced in the source system.</summary>
+    public async Task Handle(HealthMembershipMigrated migrated, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        var enrolled = new HealthMemberEnrolled(migrated.MembershipId, migrated.MemberNumber, migrated.PayerPartyId, null, migrated.PlanCode, migrated.OptionCode, migrated.StartDate, migrated.PayerPartyId, migrated.BillingAccountRef, migrated.CollectionMethod,
+            migrated.Currency, migrated.MonthlyContribution, migrated.EmployerContribution, migrated.SponsorPartyId, null, migrated.ProductCode);
+        await Handle(enrolled, envelope, cancellationToken);
+        foreach (var domain in new[] { SourceDomain, EmployerSourceDomain })
+        {
+            if (await billing.AccountForPolicy(domain, migrated.MembershipId, cancellationToken) is { } account)
+            {
+                account.ScheduleFor(domain, migrated.MembershipId)?.TakenOverOn(businessDate.Today);
+            }
+        }
+    }
 
     public async Task Handle(HealthMemberEnrolled enrolled, EventEnvelope envelope, CancellationToken cancellationToken)
     {

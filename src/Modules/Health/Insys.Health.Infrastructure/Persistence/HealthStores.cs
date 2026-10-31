@@ -54,6 +54,9 @@ internal sealed class HealthRepository(HealthDbContext db, IExecutionContext exe
 {
     public Task<HealthScheme?> Scheme(Guid id, CancellationToken cancellationToken) => db.Schemes.SingleOrDefaultAsync(s => s.Id == id, cancellationToken);
 
+    public async Task<IReadOnlyList<string>> MembershipSourceReferencesKnown(IReadOnlyCollection<string> references, CancellationToken cancellationToken) =>
+        await db.Set<HealthMembership>().AsNoTracking().Where(m => m.SourceReference != null && references.Contains(m.SourceReference)).Select(m => m.SourceReference!).ToListAsync(cancellationToken);
+
     public async Task<HealthMembership?> Membership(Guid id, CancellationToken cancellationToken) =>
         Scoped(await Memberships().SingleOrDefaultAsync(m => m.Id == id, cancellationToken));
 
@@ -673,6 +676,8 @@ internal sealed class HealthEventMapper : IDomainEventMapper
     public IIntegrationEvent? Map(IDomainEvent domainEvent) => domainEvent switch
     {
         Domain.Members.HealthSchemeRenewed e => new Contracts.HealthSchemeRenewed(e.SchemeId, e.SchemeNumber, e.RenewalDate),
+        Domain.Members.HealthMembershipMigrated e => new Contracts.HealthMembershipMigrated(e.MembershipId, e.MemberNumber, e.PlanCode, e.OptionCode, e.StartDate, e.PayerPartyId, e.BillingAccountRef, e.CollectionMethod, e.Currency, e.MonthlyContribution,
+            e.EmployerContribution, e.SponsorPartyId, e.ProductCode),
         Domain.Members.HealthMemberEnrolled e => new Contracts.HealthMemberEnrolled(e.MembershipId, e.MemberNumber, e.PrincipalPartyId, e.SchemeId, e.PlanCode, e.OptionCode,
             e.StartDate, e.PayerPartyId, e.BillingAccountRef, e.CollectionMethod, e.Currency, e.MonthlyContribution, e.EmployerContribution, e.SponsorPartyId,
             e.OrgNodeCode, e.ProductCode),

@@ -17949,6 +17949,77 @@
         "x-eventual-effects": "the Workflow approval appears (approvalId on the case); once it is granted the case is decided and the proposal reads Accepted, Declined or Postponed."
       }
     },
+    "/api/v1/life/migration/policies": {
+      "post": {
+        "tags": [
+          "Life"
+        ],
+        "summary": "Bring in-force policies from a source system, all or nothing, against the file\u0027s control totals; every bad line is named (OQ-158)",
+        "operationId": "LifeMigratePolicies",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LifeMigrateLifePolicies"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LifeMigrationResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          }
+        },
+        "x-permission": "life_policy.migrate",
+        "x-function": [
+          "LIFE_MIGRATE_POLICIES"
+        ]
+      }
+    },
     "/api/v1/life/policies/{id}": {
       "get": {
         "tags": [
@@ -28689,6 +28760,77 @@
         "x-permission": "health_scheme.update",
         "x-function": [
           "HEALTH_SCHEME_TERMINATE"
+        ]
+      }
+    },
+    "/api/v1/health/migration/memberships": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Bring in-force memberships from a source system, all or nothing, against the file\u0027s control totals; every bad line is named (OQ-158)",
+        "operationId": "HealthMigrateMemberships",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealthMigrateHealthMemberships"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthMigrationResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          }
+        },
+        "x-permission": "health_membership.migrate",
+        "x-function": [
+          "HEALTH_MIGRATE_MEMBERSHIPS"
         ]
       }
     },
@@ -58585,6 +58727,206 @@
           }
         }
       },
+      "HealthMigrateHealthMemberships": {
+        "required": [
+          "batchCode",
+          "controlCount",
+          "controlContribution",
+          "rows"
+        ],
+        "type": "object",
+        "properties": {
+          "batchCode": {
+            "type": "string"
+          },
+          "controlCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "controlContribution": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthMigratedMembership"
+            }
+          }
+        }
+      },
+      "HealthMigratedDependant": {
+        "required": [
+          "partyId",
+          "dependantType"
+        ],
+        "type": "object",
+        "properties": {
+          "partyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "dependantType": {
+            "type": "string"
+          }
+        }
+      },
+      "HealthMigratedMembership": {
+        "required": [
+          "sourceReference",
+          "principalPartyId",
+          "payerPartyId",
+          "schemeId",
+          "memberCategory",
+          "planCode",
+          "optionCode",
+          "startDate",
+          "currency",
+          "collectionMethod",
+          "monthlyContribution",
+          "employerContribution",
+          "sponsorPartyId",
+          "dependants"
+        ],
+        "type": "object",
+        "properties": {
+          "sourceReference": {
+            "type": "string"
+          },
+          "principalPartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "payerPartyId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "schemeId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "memberCategory": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "planCode": {
+            "type": "string"
+          },
+          "optionCode": {
+            "type": "string"
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "collectionMethod": {
+            "type": "string"
+          },
+          "monthlyContribution": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "employerContribution": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "sponsorPartyId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "dependants": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/HealthMigratedDependant"
+            }
+          }
+        }
+      },
+      "HealthMigrationRejectedLine": {
+        "required": [
+          "line",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "line": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "HealthMigrationResult": {
+        "required": [
+          "loaded",
+          "loadedContribution",
+          "rejectedLines"
+        ],
+        "type": "object",
+        "properties": {
+          "loaded": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "loadedContribution": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "rejectedLines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthMigrationRejectedLine"
+            }
+          }
+        }
+      },
       "HealthOpenComplexCase": {
         "required": [
           "membershipId",
@@ -65488,6 +65830,241 @@
               "string"
             ],
             "format": "double"
+          }
+        }
+      },
+      "LifeMigrateLifePolicies": {
+        "required": [
+          "batchCode",
+          "controlCount",
+          "controlPremium",
+          "rows"
+        ],
+        "type": "object",
+        "properties": {
+          "batchCode": {
+            "type": "string"
+          },
+          "controlCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "controlPremium": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LifeMigratedLifePolicy"
+            }
+          }
+        }
+      },
+      "LifeMigratedBenefit": {
+        "required": [
+          "benefitCode",
+          "sumAssured",
+          "premium"
+        ],
+        "type": "object",
+        "properties": {
+          "benefitCode": {
+            "type": "string"
+          },
+          "sumAssured": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "premium": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          }
+        }
+      },
+      "LifeMigratedLife": {
+        "required": [
+          "partyId",
+          "lifeRole",
+          "entryAge",
+          "benefits"
+        ],
+        "type": "object",
+        "properties": {
+          "partyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "lifeRole": {
+            "type": "string"
+          },
+          "entryAge": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "benefits": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LifeMigratedBenefit"
+            }
+          }
+        }
+      },
+      "LifeMigratedLifePolicy": {
+        "required": [
+          "sourceReference",
+          "productCode",
+          "productVersion",
+          "policyholderPartyId",
+          "payerPartyId",
+          "inceptionDate",
+          "termEndDate",
+          "currency",
+          "billingFrequency",
+          "collectionMethod",
+          "intermediaryCode",
+          "lives",
+          "beneficiaries"
+        ],
+        "type": "object",
+        "properties": {
+          "sourceReference": {
+            "type": "string"
+          },
+          "productCode": {
+            "type": "string"
+          },
+          "productVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "policyholderPartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "payerPartyId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "inceptionDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "termEndDate": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "billingFrequency": {
+            "type": "string"
+          },
+          "collectionMethod": {
+            "type": "string"
+          },
+          "intermediaryCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "lives": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LifeMigratedLife"
+            }
+          },
+          "beneficiaries": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/LifeBeneficiaryNomination"
+            }
+          }
+        }
+      },
+      "LifeMigrationRejectedLine": {
+        "required": [
+          "line",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "line": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "LifeMigrationResult": {
+        "required": [
+          "loaded",
+          "loadedPremium",
+          "rejectedLines"
+        ],
+        "type": "object",
+        "properties": {
+          "loaded": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "loadedPremium": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "rejectedLines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LifeMigrationRejectedLine"
+            }
           }
         }
       },

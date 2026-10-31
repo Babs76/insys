@@ -69,6 +69,10 @@ public sealed record LapseRule(int MissedPaymentsToLapse, string ReinstatementWi
 /// <summary>An alteration type (life.cfg_alteration_types): the policy states it is allowed in, and whether it needs re-underwriting.</summary>
 public sealed record AlterationType(string Code, IReadOnlyList<string> AllowedStates, bool ReUnderwriting, string AuthorityRole, string DocumentType);
 
+/// <summary>A policy brought from a source system (OQ-158): Billing schedules what remains; nothing is issued, ceded or commissioned afresh.</summary>
+public sealed record LifePolicyMigrated(Guid PolicyId, string PolicyNumber, string ProductCode, int ProductVersion, LifeBillingArrangement Billing, string Currency, decimal Premium, DateOnly InceptionDate, DateOnly? TermEndDate,
+    DateTimeOffset OccurredAt) : IDomainEvent;
+
 public sealed record LifePolicyIssued(Guid PolicyId, string PolicyNumber, Guid ProposalId, string ProductCode, int ProductVersion, int RatingVersion,
     Guid PolicyholderPartyId, LifeBillingArrangement Billing, string Currency, decimal Premium, DateOnly InceptionDate, DateOnly? TermEndDate, decimal SumAssured,
     DateTimeOffset OccurredAt, string? OrgNodeCode = null) : IDomainEvent;
@@ -118,6 +122,8 @@ public sealed class PolicyInsuredLife : Entity<Guid>, ITenantScoped
 
     public long RowVersion { get; private set; }
 
+    internal static PolicyInsuredLife Migrated(Guid policyId, Guid partyId, string role, int entryAge) => new() { Id = Guid.CreateVersion7(), PolicyId = policyId, PartyId = partyId, LifeRole = Guard.MaxLength(role, 15), EntryAge = entryAge };
+
     internal static PolicyInsuredLife Create(Guid policyId, ProposalInsuredLife life) => new()
     {
         Id = Guid.CreateVersion7(), PolicyId = policyId, PartyId = life.PartyId, LifeRole = life.LifeRole, EntryAge = life.AgeNext,
@@ -165,6 +171,11 @@ public sealed class LifeBenefit : Entity<Guid>, ITenantScoped
         Id = Guid.CreateVersion7(), PolicyId = policyId, InsuredLifeId = insuredLifeId, BenefitCode = cover.BenefitCode, SumAssured = cover.SumAssured,
         Premium = cover.Premium, ExclusionCodes = terms?.ExclusionCode is { } exclusion ? [exclusion] : null, StartDate = start,
         EndDate = start.AddYears(cover.TermYears).AddDays(-1),
+    };
+
+    internal static LifeBenefit Migrated(Guid policyId, Guid insuredLifeId, string code, decimal sumAssured, decimal premium, DateOnly start, DateOnly? end) => new()
+    {
+        Id = Guid.CreateVersion7(), PolicyId = policyId, InsuredLifeId = insuredLifeId, BenefitCode = Guard.MaxLength(code, 15), SumAssured = sumAssured, Premium = premium, StartDate = start, EndDate = end,
     };
 
     internal void MarkClaimed() => Status = ClaimedStatus;
@@ -402,6 +413,40 @@ public sealed class LifePolicy : AggregateRoot<Guid>
     /// A loading or postponement changes the premium, which needs rating rules actuarial has not defined (OQ-052), so
     /// such terms are refused.
     /// </summary>
+    public string? MigrationBatch { get; private set; }
+
+    public string? SourceReference { get; private set; }
+
+    /// <summary>OQ-158: a policy already in force in the source system. It has no proposal (an empty id) and rating and ruleset version 0, which say it was never decided here.</summary>
+    public static LifePolicy Migrate(Guid id, string policyNumber, string batch, string sourceReference, string productCode, int productVersion, Guid holder, Guid payer, Guid billingAccountRef, string frequency, string collectionMethod,
+        DateOnly inception, DateOnly? termEnd, string currency, string? intermediary, IReadOnlyList<(Guid PartyId, string Role, int EntryAge, IReadOnlyList<(string Code, decimal SumAssured, decimal Premium)> Benefits)> lives,
+        IReadOnlyList<BeneficiaryNomination> beneficiaries, DateOnly today, DateTimeOffset now)
+    {
+        var policy = new LifePolicy
+        {
+            Id = id, PolicyNumber = Guard.MaxLength(policyNumber, 15), ProposalId = Guid.Empty, ProductCode = productCode, ProductVersion = productVersion, RatingVersion = 0, RulesetVersion = 0, PolicyholderPartyId = holder,
+            Status = LifePolicyStatus.Issued, InceptionDate = inception, TermEndDate = termEnd, Currency = currency, PremiumFrequency = frequency, BillingAccountRef = billingAccountRef, PayerPartyId = payer, CollectionMethod = collectionMethod,
+            IntermediaryCode = intermediary, MigrationBatch = Guard.MaxLength(batch, 30), SourceReference = Guard.MaxLength(sourceReference, 40),
+        };
+        foreach (var life in lives)
+        {
+            var insured = PolicyInsuredLife.Migrated(id, life.PartyId, life.Role, life.EntryAge);
+            policy._lives.Add(insured);
+            policy._benefits.AddRange(life.Benefits.Select(b => LifeBenefit.Migrated(id, insured.Id, b.Code, b.SumAssured, b.Premium, inception, termEnd)));
+        }
+
+        policy._beneficiaries.AddRange(beneficiaries.Select(n => LifeBeneficiary.Create(id, n, inception)));
+        var premium = policy._benefits.Sum(b => b.Premium);
+        policy._schedules.Add(LifePremiumSchedule.Create(id, frequency, premium, inception));
+        policy.Raise(new LifePolicyMigrated(id, policy.PolicyNumber, productCode, productVersion, policy.Billing, currency, premium, inception, termEnd, now));
+        if (inception <= today)
+        {
+            policy.Fire(LifePolicyTrigger.InceptionDateReached);
+        }
+
+        return policy;
+    }
+
     public static Result<LifePolicy> IssuePolicy(Guid id, string policyNumber, LifeProposal proposal, LifeUnderwritingCase decided, Guid billingAccountRef, DateOnly today,
         DateTimeOffset now)
     {
