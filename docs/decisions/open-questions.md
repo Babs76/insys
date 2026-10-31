@@ -1278,7 +1278,7 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
 - **OQ-154:** an exposure limit alerts only.
 - **OQ-155:** payables stop at payouts and a report of what is due. F054 stays partial on purpose.
 - **OQ-156:** VAT per product through the tax rate records; finance to confirm each.
-- **OQ-157:** quote, inception, renewal and claim decision; compliance to confirm wording and points.
+- **OQ-157:** quote, inception, renewal and claim decision; compliance to confirm wording and points.  A missing text at one of these blocks readiness for each country a product is sold in; other points warn (Ade, 31 October 2026).
 - **OQ-158:** parties and policies. **Addition:** open claims and outstanding premiums later (B-013).
 - **OQ-159:** 30 days by default; compliance to confirm.
 - **OQ-160:** investigators and holders of a fraud function only, every read audited.

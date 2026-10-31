@@ -50,6 +50,17 @@ public sealed record DownloadPartyExport(Guid Id) : ICommand<string>;
 
 public sealed record GetBulkJob(Guid Id) : IQuery<BulkJobView>;
 
+/// <param name="JobType">Only this type: PARTY_IMPORT or PARTY_EXPORT.</param>
+/// <param name="Direction">Only imports or exports: IMPORT or EXPORT.</param>
+/// <param name="From">Created on or after this UTC date.</param>
+/// <param name="To">Created on or before this UTC date.</param>
+/// <param name="BeforeId">The last job of the page before: lists run newest first.</param>
+public sealed record ListBulkJobs(string? JobType, string? Direction, string? Status, DateOnly? From, DateOnly? To, Guid? BeforeId, int Limit) : IQuery<IReadOnlyList<BulkJobSummary>>;
+
+/// <summary>BR-122: what a list row shows; the rejected lines and the export's filter stay on the job itself.</summary>
+public sealed record BulkJobSummary(Guid Id, [property: OneOf(BulkJob.Import, BulkJob.Export)] string JobType, [property: OneOf("IMPORT", "EXPORT")] string Direction, [property: OneOf(BulkJobStatus.Done, BulkJobStatus.Rejected, BulkJobStatus.ToApprove, BulkJobStatus.Approved)] string Status,
+    int TotalCount, int AcceptedCount, Guid RunBy, DateTimeOffset CreatedAt);
+
 public sealed record RejectedLine(int Line, string Reason);
 
 public sealed record BulkJobView(Guid Id, string JobType, [property: OneOf(BulkJobStatus.Done, BulkJobStatus.Rejected, BulkJobStatus.ToApprove, BulkJobStatus.Approved)] string Status, string? Filter, int TotalCount, int AcceptedCount,
@@ -67,6 +78,8 @@ public interface IBulkJobs
 
     Task<IReadOnlyList<PartyExportRow>> ExportRows(string? status, CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<BulkJobSummary>> List(ListBulkJobs query, CancellationToken cancellationToken);
+
     void Add(BulkJob job);
 }
 
@@ -82,7 +95,8 @@ internal sealed class BulkJobHandlers(IBulkJobs jobs, IPartyRepository parties, 
     ICommandHandler<RequestPartyExport, BulkJobView>,
     ICommandHandler<ApprovePartyExport, BulkJobView>,
     ICommandHandler<DownloadPartyExport, string>,
-    IQueryHandler<GetBulkJob, BulkJobView>
+    IQueryHandler<GetBulkJob, BulkJobView>,
+    IQueryHandler<ListBulkJobs, IReadOnlyList<BulkJobSummary>>
 {
     private static Error NotFound => Error.NotFound(ErrorCodes.NotFound, "The job was not found.");
 
@@ -197,4 +211,7 @@ internal sealed class BulkJobHandlers(IBulkJobs jobs, IPartyRepository parties, 
 
     public async Task<Result<BulkJobView>> Handle(GetBulkJob query, CancellationToken cancellationToken) =>
         await jobs.Get(query.Id, cancellationToken) is { } job ? BulkJobView.From(job) : NotFound;
+
+    public async Task<Result<IReadOnlyList<BulkJobSummary>>> Handle(ListBulkJobs query, CancellationToken cancellationToken) =>
+        Result.Success(await jobs.List(query, cancellationToken));
 }

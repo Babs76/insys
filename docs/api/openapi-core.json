@@ -3883,6 +3883,107 @@
         ]
       }
     },
+    "/api/v1/integration/bulk-jobs": {
+      "get": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "The tenant\u0027s bulk jobs, newest first, by type, direction, status and UTC date range (BR-122)",
+        "operationId": "PartyListBulkJobs",
+        "parameters": [
+          {
+            "name": "type",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "direction",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfPartyBulkJobSummary"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "party_bulk_job.read",
+        "x-function": [
+          "PARTY_BULK_JOBS"
+        ]
+      }
+    },
     "/api/v1/party/merges": {
       "post": {
         "tags": [
@@ -49566,6 +49667,27 @@
           }
         }
       },
+      "CursorPageOfPartyBulkJobSummary": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PartyBulkJobSummary"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "CursorPageOfPartyDataSubjectRequestView": {
         "required": [
           "items",
@@ -66497,6 +66619,72 @@
             "format": "uuid"
           },
           "recordedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PartyBulkJobSummary": {
+        "required": [
+          "id",
+          "jobType",
+          "direction",
+          "status",
+          "totalCount",
+          "acceptedCount",
+          "runBy",
+          "createdAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "jobType": {
+            "enum": [
+              "PARTY_IMPORT",
+              "PARTY_EXPORT"
+            ],
+            "type": "string"
+          },
+          "direction": {
+            "enum": [
+              "IMPORT",
+              "EXPORT"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "DONE",
+              "REJECTED",
+              "TO_APPROVE",
+              "APPROVED"
+            ],
+            "type": "string"
+          },
+          "totalCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "acceptedCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "runBy": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "createdAt": {
             "type": "string",
             "format": "date-time"
           }

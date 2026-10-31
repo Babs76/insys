@@ -58,6 +58,24 @@ public sealed class OnboardingReadinessTests(DatabaseFixture fixture) : IClassFi
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
+    public async Task AMandatoryDisclosurePoint_BlocksInEachCountryAProductIsSoldIn_OtherPointsOnlyWarn_OQ157()
+    {
+        var (tenantId, url) = await Register("DISCL");
+        await fixture.Database.SeedReadyTenant(tenantId, From);
+        var ready = Check(await Readiness(url), "INTEGRATION_AND_REPORTING", "DISCLOSURE_MANDATORY_TEXTS");
+        ready.GetProperty("ready").GetBoolean().ShouldBeTrue("a product with no country is sold in the tenant's, whose four texts are seeded: " + ready);
+        var warning = Check(await Readiness(url), "INTEGRATION_AND_REPORTING", "DISCLOSURE_TEXTS");
+        warning.GetProperty("missing").EnumerateArray().Select(m => m.GetString()).ShouldBe(["PROPOSAL"]);
+
+        // Sold in Namibia too: South Africa's texts don't answer for it.
+        await fixture.Database.SeedStaticFilled(tenantId, "product.cfg_product_availability_rules", "EFFECTIVE", "AV-NA", From, ("product_code", "P-READY"), ("countries", new[] { "NA" }),
+            ("sale_from", From), ("sale_to", DBNull.Value));
+        var check = Check(await Readiness(url), "INTEGRATION_AND_REPORTING", "DISCLOSURE_MANDATORY_TEXTS");
+        check.GetProperty("ready").GetBoolean().ShouldBeFalse();
+        check.GetProperty("missing").EnumerateArray().Select(m => m.GetString()).ShouldBe(["NA QUOTE: P-READY", "NA ISSUE: P-READY", "NA RENEWAL: P-READY", "NA CLAIM: P-READY"]);
+    }
+
+    [Fact]
     public async Task AStep_CompletesOnlyWhenItsConfigurationIsInForce_ListingEveryFailingCheck_TEN008()
     {
         // It has stalled under CI load only (wave1-1 report): write what the database and thread pool are doing if it does again.

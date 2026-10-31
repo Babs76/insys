@@ -320,5 +320,10 @@ public static class OnboardingSeed
 
         // INTEGRATION_AND_REPORTING
         await database.SeedStaticFilled(tenantId, "finance.cfg_gl_export_layouts", "EFFECTIVE", "GL", from, ("format", "CSV"));
+        foreach (var point in new[] { "QUOTE", "ISSUE", "RENEWAL", "CLAIM" })
+        {
+            await database.SeedStaticFilled(tenantId, "channel.cfg_disclosure_and_notice_texts", "EFFECTIVE", $"DISC-{point}", from, ("notice_type", "POLICY_TERMS"), ("jurisdiction", "ZA"), ("language", "en"),
+                ("text", "Terms"), ("text_version", 1), ("display_point", point));
+        }
     }
 }

@@ -178,6 +178,15 @@ public sealed class OutboxAndInboxTests(DatabaseFixture fixture) : IClassFixture
         (await _services.Send(DatabaseFixture.TenantA, new RenameWidgetTwiceView(second))).Value.RowVersion.ShouldBe(4);
     }
 
+    /// <summary>Decision of 31 October 2026: the suites run with this on, so a command changing two aggregates with a view matching neither fails rather than returning a stale version.</summary>
+    [Fact]
+    public async Task AViewMatchingNoneOfTheAggregatesAChangeSaved_FailsInEveryTestHost()
+    {
+        var first = (await _services.Send(DatabaseFixture.TenantA, new CreateWidget("two-a"))).Value;
+        var second = (await _services.Send(DatabaseFixture.TenantA, new CreateWidget("two-b"))).Value;
+        (await Should.ThrowAsync<InvalidOperationException>(() => _services.Send(DatabaseFixture.TenantA, new RenameTwoWidgets(first, second)))).Message.ShouldContain("matches none");
+    }
+
     /// <summary>
     /// Record history (Wave 0): every command that changes a record leaves an audit entry for it. A handler's own entry
     /// stands for its record; a command with none gets a RECORD_CHANGED entry naming the command.
