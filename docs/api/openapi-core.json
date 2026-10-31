@@ -4451,6 +4451,12 @@
         "x-permission": "data_subject_request.approve",
         "x-function": [
           "PARTY_EXPORT_DATA_SUBJECT_REQUEST"
+        ],
+        "x-additional-permissions": [
+          {
+            "permission": "health_case.read_clinical",
+            "when": "health records are included only with the clinical function"
+          }
         ]
       }
     },
@@ -33729,6 +33735,12 @@
         "x-permission": "health_chronic.decide",
         "x-function": [
           "HEALTH_APPROVE_CHRONIC_REGISTRATION"
+        ],
+        "x-additional-permissions": [
+          {
+            "permission": "health_case.read_clinical",
+            "when": "the decider also needs the clinical function"
+          }
         ]
       }
     },
@@ -33825,6 +33837,12 @@
         "x-permission": "health_chronic.decide",
         "x-function": [
           "HEALTH_DECLINE_CHRONIC_REGISTRATION"
+        ],
+        "x-additional-permissions": [
+          {
+            "permission": "health_case.read_clinical",
+            "when": "the decider also needs the clinical function"
+          }
         ]
       }
     },
@@ -43276,6 +43294,7 @@
                 "DataSubjectRequest",
                 "DeadLetter",
                 "DeviceRegistration",
+                "DisclosureAcknowledgement",
                 "Document",
                 "DueDiligence",
                 "DueDiligenceCheck",
@@ -43747,6 +43766,7 @@
                 "DataSubjectRequest",
                 "DeadLetter",
                 "DeviceRegistration",
+                "DisclosureAcknowledgement",
                 "Document",
                 "DueDiligence",
                 "DueDiligenceCheck",
@@ -46589,6 +46609,10 @@
             "type": "string"
           },
           "domain": {
+            "enum": [
+              "LIFE",
+              "GENERAL"
+            ],
             "type": "string"
           },
           "claimNumber": {

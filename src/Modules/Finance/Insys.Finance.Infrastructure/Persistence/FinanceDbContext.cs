@@ -58,6 +58,8 @@ public sealed class FinanceDbContext(DbContextOptions<FinanceDbContext> options,
             taxReturn.ToTable("tax_return"); // Wave 6 §4.2, F094
             taxReturn.HasKey(r => new { r.TenantId, r.Id });
             taxReturn.HasAuditColumns();
+            taxReturn.Ignore(r => r.DomainEvents);
+            taxReturn.Ignore(r => r.HasChanges);
             taxReturn.Property(r => r.ReturnNumber).HasMaxLength(25);
             taxReturn.Property(r => r.TaxCode).HasMaxLength(15);
             taxReturn.Property(r => r.AccountCode).HasMaxLength(80);

@@ -415,7 +415,8 @@ public sealed class PartyModule : IModule
             .WithName("PartyRefuseDataSubjectRequest").WithSummary("Refuse with a reason: the answer to the data subject").RequirePermission(PartyPermissions.DataSubjectApprove);
         dsr.MapGet("/{id:guid}/export", async (Guid id, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Send(new ExportDataSubjectRequest(id), ct)).ToHttp(json => Results.Text(json, "application/json")))
             .Produces<string>(StatusCodes.Status200OK, "application/json").ProducesProblem(StatusCodes.Status409Conflict)
-            .WithName("PartyExportDataSubjectRequest").WithSummary("An approved access request's records; health records only for the clinical function; audited").RequirePermission(PartyPermissions.DataSubjectApprove);
+            .WithName("PartyExportDataSubjectRequest").WithSummary("An approved access request's records; health records only for the clinical function; audited").RequirePermission(PartyPermissions.DataSubjectApprove)
+            .AlsoChecks(PartyPermissions.ClinicalRead, "health records are included only with the clinical function");
         dsr.MapPost("/{id:guid}/complete-correction", async (Guid id, CompleteCorrectionBody r, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Send(new CompleteDataSubjectCorrection(id, r.Reference), ct)).ToHttp(Results.Ok))
             .Produces<DataSubjectRequestView>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status409Conflict).ProducesProblem(StatusCodes.Status422UnprocessableEntity).TakesIfMatch()
             .WithName("PartyCompleteDataSubjectCorrection").WithSummary("An approved correction, made through the party change that the reference names").RequirePermission(PartyPermissions.DataSubjectUpdate);

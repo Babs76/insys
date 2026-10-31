@@ -62,6 +62,8 @@ public sealed class PartyDbContext(DbContextOptions<PartyDbContext> options, Mod
             job.ToTable("bulk_job"); // Wave 6 §4.9, F076
             job.HasKey(j => new { j.TenantId, j.Id });
             job.HasAuditColumns();
+            job.Ignore(j => j.DomainEvents);
+            job.Ignore(j => j.HasChanges);
             job.Property(j => j.JobType).HasMaxLength(15);
             job.Property(j => j.Status).HasMaxLength(15);
             job.Property(j => j.Filter).HasMaxLength(200);
@@ -74,6 +76,8 @@ public sealed class PartyDbContext(DbContextOptions<PartyDbContext> options, Mod
             request.ToTable("data_subject_request"); // Wave 6 §4.5, F059
             request.HasKey(r => new { r.TenantId, r.Id });
             request.HasAuditColumns();
+            request.Ignore(r => r.DomainEvents);
+            request.Ignore(r => r.HasChanges);
             request.Property(r => r.RequestNumber).HasMaxLength(25);
             request.Property(r => r.RequestType).HasMaxLength(12);
             request.Property(r => r.Status).HasMaxLength(20);

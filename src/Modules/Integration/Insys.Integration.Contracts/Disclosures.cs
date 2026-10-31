@@ -30,9 +30,9 @@ namespace Insys.Integration.Contracts;
 public static class DisclosurePoints
 {
     public const string Quote = "QUOTE";
-    public const string Inception = "INCEPTION";
+    public const string Inception = "ISSUE";
     public const string Renewal = "RENEWAL";
-    public const string ClaimDecision = "CLAIM_DECISION";
+    public const string ClaimDecision = "CLAIM";
 }
 
 /// <summary>

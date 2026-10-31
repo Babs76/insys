@@ -75,6 +75,8 @@ public sealed record PartyRetentionEnded(Guid PartyId) : IIntegrationEvent;
 
 public static class PartyPermissions
 {
+    /// <summary>Health's clinical function, which an access export's health records need (Party doesn't reference Health).</summary>
+    public const string ClinicalRead = "health_case.read_clinical";
     public const string BulkJobRead = "party_bulk_job.read";
     public const string BulkJobCreate = "party_bulk_job.create";
 

@@ -13,7 +13,7 @@ What changed in the API contract, newest first, so the front end can sync. The O
 ### New
 - **`/party/data-subject-requests`:** `POST`, `GET`, `GET /{id}`, and `POST /{id}/confirm-identity`, `/approve`, `/refuse`, `/complete-correction`, `/execute-deletion`, `GET /{id}/export`. Portal: `POST`, `GET /portal/party/data-subject-requests`. Permissions `data_subject_request.read`, `.create`, `.update`, `.approve`. `party.cfg_data_subject_settings` holds the days.
 - **`GET /integration/disclosures`, `POST /integration/disclosure-acknowledgements`,** and on the portal `GET /portal/disclosures`, `POST /portal/disclosure-acknowledgements`. Permissions `disclosure.read`, `.create`.
-- **Error `DISCLOSURE_REQUIRED` (409)**, with `displayPoint` and `noticeTypes`: from accepting a General quote, issuing a General or Life policy, enrolling a Health member, accepting a General renewal, once a text is in force at that point. Acknowledge with the record named: `GENERAL_QUOTE`, `LIFE_PROPOSAL`, `GENERAL_RENEWAL`; Health names none.
+- **Error `DISCLOSURE_REQUIRED` (409)**, with `displayPoint` and `noticeTypes`: from accepting a General quote, issuing a General or Life policy, enrolling a Health member, accepting a General renewal, once a text is in force at that point: display points `QUOTE`, `ISSUE`, `RENEWAL`, `CLAIM`. Acknowledge with the record named: `GENERAL_QUOTE`, `LIFE_PROPOSAL`, `GENERAL_RENEWAL`; Health names none.
 - **Business references** `DATA_SUBJECT_REQUEST`, `PARTY_RETENTION`. **Readiness warnings** `DISCLOSURE_TEXTS`, `REGISTER_ENFORCEMENT`.
 
 ### Changed

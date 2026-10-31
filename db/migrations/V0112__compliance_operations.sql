@@ -32,6 +32,10 @@
 ALTER TABLE reporting.cfg_compliance_register_entries ADD COLUMN enforced_by text[];
 ALTER TABLE party.party ADD COLUMN retention_review_raised_on date;
 
+-- OQ-157 makes renewal a display point; the others were there: quote, issue (inception) and claim (its decision).
+ALTER TABLE channel.cfg_disclosure_and_notice_texts DROP CONSTRAINT cfg_disclosure_and_notice_texts_ck1;
+ALTER TABLE channel.cfg_disclosure_and_notice_texts ADD CONSTRAINT cfg_disclosure_and_notice_texts_ck1 CHECK (display_point IN ('QUOTE', 'PROPOSAL', 'ISSUE', 'CLAIM', 'RENEWAL'));
+
 CREATE TABLE party.cfg_data_subject_settings (
   id                             uuid NOT NULL DEFAULT gen_random_uuid(),
   tenant_id                      uuid NOT NULL,

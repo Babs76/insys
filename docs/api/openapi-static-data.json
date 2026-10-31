@@ -239752,7 +239752,8 @@
               "QUOTE",
               "PROPOSAL",
               "ISSUE",
-              "CLAIM"
+              "CLAIM",
+              "RENEWAL"
             ],
             "type": "string"
           },
@@ -239983,6 +239984,7 @@
               "PROPOSAL",
               "ISSUE",
               "CLAIM",
+              "RENEWAL",
               null
             ],
             "type": [

@@ -55,6 +55,8 @@ public sealed class ClaimsFrameworkDbContext(DbContextOptions<ClaimsFrameworkDbC
             fraud.ToTable("fraud_case"); // Wave 6 §4.8, F058
             fraud.HasKey(c => new { c.TenantId, c.Id });
             fraud.HasAuditColumns();
+            fraud.Ignore(c => c.DomainEvents);
+            fraud.Ignore(c => c.HasChanges);
             fraud.Property(c => c.CaseNumber).HasMaxLength(25);
             fraud.Property(c => c.Domain).HasMaxLength(10);
             fraud.Property(c => c.ClaimNumber).HasMaxLength(25);

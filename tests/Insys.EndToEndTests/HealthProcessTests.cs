@@ -1417,6 +1417,7 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
             ("benefit_category", "MEDICINES"), ("max_quantity", 30));
         await Seed("health.cfg_prescription_benefits", "EFFECTIVE", "RX-T1", ("benefit_code", "RX-T1"), ("tier", "1"), ("covered", true), ("copay_type", "FIXED"), ("copay_value", 10m));
         await Provider();
+        await _maker.AddVerifiedBankAccount(_checker, _factory, await _db.ScalarAsOwner<Guid>("SELECT party_id FROM health.mst_provider_register WHERE provider_id = 'PR-1'"), "7700889912");
         var scheme = await Created("/api/v1/health/schemes", new { sponsorCode = "S-ACME", startDate = Today.AddYears(-1), renewalDate = Today.AddMonths(6), currency = "ZAR" });
         var principal = await _maker.RegisterPerson("Pharmacy");
         var membership = await Created("/api/v1/health/memberships", new

@@ -124,9 +124,6 @@ internal sealed class DataSubjectRequestHandlers(IDataSubjectRequests requests, 
     IQueryHandler<ListDataSubjectRequests, IReadOnlyList<DataSubjectRequestView>>,
     IQueryHandler<ListPortalDataSubjectRequests, IReadOnlyList<DataSubjectRequestView>>
 {
-    /// <summary>The clinical function's permission (Health's constant; Party doesn't reference Health).</summary>
-    internal const string ClinicalRead = "health_case.read_clinical";
-
     private static Error NotFound => Error.NotFound(ErrorCodes.NotFound, "The request was not found.");
 
     private Guid? Person() => execution.ActorType == ActorType.User && Guid.TryParse(execution.ActorId, out var id) ? id : null;
@@ -215,7 +212,7 @@ internal sealed class DataSubjectRequestHandlers(IDataSubjectRequests requests, 
             records.AddRange(await source.For(tenantId, request.PartyId, businessDate.Zone.Id, cancellationToken));
         }
 
-        var clinical = execution.HasPermission(ClinicalRead);
+        var clinical = execution.HasPermission(PartyPermissions.ClinicalRead);
         var shown = records.Where(r => clinical || !DataSubjectDefaults.IsClinical(r.RecordType)).OrderBy(r => r.RecordType, StringComparer.Ordinal).ThenBy(r => r.RecordId).ToList();
         if (request.Status == DataSubjectRequestStatus.Approved)
         {

@@ -49,7 +49,7 @@ public sealed class DisclosureAndNoticeTexts : StaticRecord<DisclosureAndNoticeT
 
     public int TextVersion { get; set; }
 
-    [Insys.BuildingBlocks.Domain.OneOf("QUOTE", "PROPOSAL", "ISSUE", "CLAIM")]
+    [Insys.BuildingBlocks.Domain.OneOf("QUOTE", "PROPOSAL", "ISSUE", "CLAIM", "RENEWAL")]
     public string DisplayPoint { get; set; } = "";
 
     public override void ApplyFields(DisclosureAndNoticeTextsInput input, IFieldProtector protector)
@@ -81,7 +81,7 @@ public sealed record DisclosureAndNoticeTextsInput : StaticRecordInput
     [Insys.BuildingBlocks.Domain.RequiredField]
     public int? TextVersion { get; init; }
 
-    [Insys.BuildingBlocks.Domain.OneOf("QUOTE", "PROPOSAL", "ISSUE", "CLAIM")]
+    [Insys.BuildingBlocks.Domain.OneOf("QUOTE", "PROPOSAL", "ISSUE", "CLAIM", "RENEWAL")]
     [Insys.BuildingBlocks.Domain.RequiredField]
     public string? DisplayPoint { get; init; }
 
@@ -97,6 +97,6 @@ public sealed record DisclosureAndNoticeTextsInput : StaticRecordInput
         errors.Required("textVersion", TextVersion);
         errors.Required("displayPoint", DisplayPoint);
         errors.MaxLength("displayPoint", DisplayPoint, 40);
-        errors.OneOf("displayPoint", DisplayPoint, ["QUOTE", "PROPOSAL", "ISSUE", "CLAIM"]);
+        errors.OneOf("displayPoint", DisplayPoint, ["QUOTE", "PROPOSAL", "ISSUE", "CLAIM", "RENEWAL"]);
     }
 }

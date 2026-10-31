@@ -66,6 +66,7 @@ public sealed class IntegrationModule : IModule
         IntegrationStaticDataEndpoints.MapStaticData(api);
 
         const string member = BuildingBlocks.Application.Context.ExternalSubject.Party;
+        AuditTargetTypes.Register("DisclosureAcknowledgement");
         api.MapGet("/integration/disclosures", async (string displayPoint, string noticeType, string jurisdiction, string language, IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Query(new Application.GetDisclosureText(displayPoint, noticeType, jurisdiction, language), ct)).ToHttp(Results.Ok))
             .Produces<Application.DisclosureTextView>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status404NotFound).WithTags(Name)

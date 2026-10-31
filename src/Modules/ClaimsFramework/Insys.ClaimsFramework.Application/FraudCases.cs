@@ -45,7 +45,7 @@ public sealed record ReadFraudCase(Guid Id) : ICommand<FraudCaseView>;
 
 public sealed record ReadFraudCases(Guid? AfterId, int Limit) : ICommand<IReadOnlyList<FraudCaseView>>;
 
-public sealed record FraudCaseView(Guid Id, string CaseNumber, string Domain, string? ClaimNumber, Guid? PolicyRef, IReadOnlyList<string> IndicatorCodes,
+public sealed record FraudCaseView(Guid Id, string CaseNumber, [property: OneOf("LIFE", "GENERAL")] string Domain, string? ClaimNumber, Guid? PolicyRef, IReadOnlyList<string> IndicatorCodes,
     [property: OneOf(FraudCaseStatus.Opened, FraudCaseStatus.Investigating, FraudCaseStatus.Concluded)] string Status, Guid? InvestigatorId, string? Outcome, string? OutcomeReason, long RowVersion)
 {
     public static FraudCaseView From(FraudCase c) => new(c.Id, c.CaseNumber, c.Domain, c.ClaimNumber, c.PolicyRef, c.IndicatorCodes, c.Status, c.InvestigatorId, c.Outcome, c.OutcomeReason, c.RowVersion);

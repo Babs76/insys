@@ -210,11 +210,13 @@ public sealed class HealthModule : IModule
         health.MapPost("/chronic-registrations/{id:guid}/approve", async (Guid id, ApproveChronicRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new ApproveChronicRegistration(id, r.ValidFrom, r.ValidTo, r.ReviewOn, r.Entitlements), ct)).ToHttp(Results.Ok))
             .Produces<ChronicRegistrationView>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status403Forbidden).ProducesProblem(StatusCodes.Status422UnprocessableEntity).TakesIfMatch()
-            .WithName("HealthApproveChronicRegistration").WithSummary("Approve a registration with its dates and entitlements; needs the clinical function and isn't for its requester (OQ-150)").RequirePermission(HealthPermissions.ChronicDecide);
+            .WithName("HealthApproveChronicRegistration").WithSummary("Approve a registration with its dates and entitlements; needs the clinical function and isn't for its requester (OQ-150)").RequirePermission(HealthPermissions.ChronicDecide)
+            .AlsoChecks(HealthPermissions.ClinicalRead, "the decider also needs the clinical function");
         health.MapPost("/chronic-registrations/{id:guid}/decline", async (Guid id, DeclineChronicRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new DeclineChronicRegistration(id, r.Reason), ct)).ToHttp(Results.Ok))
             .Produces<ChronicRegistrationView>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status403Forbidden).ProducesProblem(StatusCodes.Status422UnprocessableEntity).TakesIfMatch()
-            .WithName("HealthDeclineChronicRegistration").WithSummary("Decline a registration with a reason; the member is sent their rights, naming no condition").RequirePermission(HealthPermissions.ChronicDecide);
+            .WithName("HealthDeclineChronicRegistration").WithSummary("Decline a registration with a reason; the member is sent their rights, naming no condition").RequirePermission(HealthPermissions.ChronicDecide)
+            .AlsoChecks(HealthPermissions.ClinicalRead, "the decider also needs the clinical function");
         health.MapPost("/chronic-registrations/{id:guid}/end", async (Guid id, EndChronicRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new EndChronicRegistration(id, r.LastDay), ct)).ToHttp(Results.Ok))
             .Produces<ChronicRegistrationView>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status409Conflict).TakesIfMatch()

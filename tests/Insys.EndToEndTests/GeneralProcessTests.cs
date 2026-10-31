@@ -2241,7 +2241,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
     {
         var proposer = await _maker.RegisterPerson("Disclosed");
         await Seed("channel.cfg_disclosure_and_notice_texts", "EFFECTIVE", "DISC-INC", ("notice_type", "POLICY_TERMS"), ("jurisdiction", "ZA"), ("language", "en"), ("text", "Your cover starts when issued."),
-            ("text_version", 3), ("display_point", "INCEPTION"));
+            ("text_version", 3), ("display_point", "ISSUE"));
         await _db.UserWithPermissions(Tenant, "disclosure-clerk", IntegrationPermissions.DisclosureRead, IntegrationPermissions.DisclosureCreate);
         await _db.UserWithPermissions(Tenant, "dsr-first", PartyPermissions.DataSubjectCreate, PartyPermissions.DataSubjectRead, PartyPermissions.DataSubjectUpdate);
         await _db.UserWithPermissions(Tenant, "dsr-second", PartyPermissions.DataSubjectRead, PartyPermissions.DataSubjectApprove);
@@ -2251,11 +2251,11 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         await IssuedPolicy(proposer: proposer, beforeIssue: async (quoted, body) =>
         {
             (await (await _maker.Send(HttpMethod.Post, "/api/v1/general/policies", body, idempotent: true)).Code()).ShouldBe("DISCLOSURE_REQUIRED");
-            var text = await (await clerk.GetAsync("/api/v1/integration/disclosures?displayPoint=INCEPTION&noticeType=POLICY_TERMS&jurisdiction=ZA&language=en")).Json();
+            var text = await (await clerk.GetAsync("/api/v1/integration/disclosures?displayPoint=ISSUE&noticeType=POLICY_TERMS&jurisdiction=ZA&language=en")).Json();
             text.GetProperty("textVersion").GetInt32().ShouldBe(3);
             var acknowledged = await clerk.Send(HttpMethod.Post, "/api/v1/integration/disclosure-acknowledgements", new
             {
-                partyId = proposer, displayPoint = "INCEPTION", noticeType = "POLICY_TERMS", jurisdiction = "ZA", language = "en", businessRefType = GeneralDocuments.QuoteRefType, businessRefId = quoted,
+                partyId = proposer, displayPoint = "ISSUE", noticeType = "POLICY_TERMS", jurisdiction = "ZA", language = "en", businessRefType = GeneralDocuments.QuoteRefType, businessRefId = quoted,
             }, idempotent: true);
             acknowledged.StatusCode.ShouldBe(HttpStatusCode.Created, await acknowledged.Content.ReadAsStringAsync());
         });
