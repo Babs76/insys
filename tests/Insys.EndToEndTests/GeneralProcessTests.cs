@@ -2213,7 +2213,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         (await fraud.GetAsync($"/api/v1/claims/fraud-cases/{id}")).StatusCode.ShouldBe(HttpStatusCode.OK);
         await _factory.DrainOutbox();
         (await _db.ScalarAsOwner<long>("SELECT count(*) FROM audit.audit_event WHERE target_id = @t AND operation = 'ReadFraudCase'", ("t", id.ToString()))).ShouldBe(1);
-        var assigned = await fraud.Send(HttpMethod.Post, $"/api/v1/claims/fraud-cases/{id}/assign", new { investigatorId = investigator }, ifMatch: opened.ETag());
+        var assigned = await fraud.Send(HttpMethod.Post, $"/api/v1/claims/fraud-cases/{id}/assign", new { investigatorId = investigator }, ifMatch: (await fraud.GetAsync($"/api/v1/claims/fraud-cases/{id}")).ETag());
         assigned.StatusCode.ShouldBe(HttpStatusCode.OK, await assigned.Content.ReadAsStringAsync());
         var concluded = await fraud.Send(HttpMethod.Post, $"/api/v1/claims/fraud-cases/{id}/conclude", new { outcome = "NOT_CONFIRMED", reason = "No evidence" }, ifMatch: assigned.ETag());
         concluded.StatusCode.ShouldBe(HttpStatusCode.OK, await concluded.Content.ReadAsStringAsync());
@@ -2231,7 +2231,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         requested.StatusCode.ShouldBe(HttpStatusCode.Created, await requested.Content.ReadAsStringAsync());
         var job = $"/api/v1/party/bulk-jobs/{(await requested.Json()).GetProperty("id").GetGuid()}";
         (await first.GetAsync($"{job}/content")).StatusCode.ShouldBe(HttpStatusCode.Conflict);
-        var approved = await second.Send(HttpMethod.Post, $"{job}/approve", ifMatch: requested.ETag());
+        var approved = await second.Send(HttpMethod.Post, $"{job}/approve", ifMatch: (await second.GetAsync(job)).ETag());
         approved.StatusCode.ShouldBe(HttpStatusCode.OK, await approved.Content.ReadAsStringAsync());
         (await (await first.GetAsync($"{job}/content")).Content.ReadAsStringAsync()).ShouldContain("BulkTwo");
     }
@@ -2267,7 +2267,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         var received = await first.Send(HttpMethod.Post, "/api/v1/party/data-subject-requests", new { partyId = proposer, requestType = "DELETION" }, idempotent: true);
         received.StatusCode.ShouldBe(HttpStatusCode.Created, await received.Content.ReadAsStringAsync());
         var url = $"/api/v1/party/data-subject-requests/{(await received.Json()).GetProperty("id").GetGuid()}";
-        var confirmed = await first.Send(HttpMethod.Post, $"{url}/confirm-identity", ifMatch: received.ETag());
+        var confirmed = await first.Send(HttpMethod.Post, $"{url}/confirm-identity", ifMatch: (await first.GetAsync(url)).ETag());
         confirmed.StatusCode.ShouldBe(HttpStatusCode.OK, await confirmed.Content.ReadAsStringAsync());
         var approved = await second.Send(HttpMethod.Post, $"{url}/approve", ifMatch: confirmed.ETag());
         approved.StatusCode.ShouldBe(HttpStatusCode.OK, await approved.Content.ReadAsStringAsync());
