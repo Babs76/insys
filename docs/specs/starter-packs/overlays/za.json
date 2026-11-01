@@ -1,0 +1,159 @@
+{
+  "pack": "ZA",
+  "kind": "COUNTRY",
+  "status": "DRAFT",
+  "purpose": "Reference only: today's South African values. Not a first target.",
+  "regulator": "FSCA and PA; CMS for medical schemes",
+  "rows": [
+    {
+      "table": "tenant.cfg_locale_defaults",
+      "code": "LOCALE",
+      "class": "FINANCE",
+      "values": {
+        "base_currency": "ZAR",
+        "languages": [
+          "en"
+        ],
+        "default_language": "en",
+        "time_zone": "Africa/Johannesburg",
+        "country": "ZA"
+      }
+    },
+    {
+      "table": "workflow.ref_business_calendars",
+      "code": "CAL",
+      "class": "OPERATIONAL",
+      "values": {
+        "holiday_calendar": "ZA",
+        "time_zone": "Africa/Johannesburg"
+      }
+    },
+    {
+      "table": "refdata.ref_public_holiday_calendars",
+      "code": "ZA",
+      "class": "OPERATIONAL",
+      "values": {
+        "country": "ZA"
+      },
+      "note": "No rows in the seed. Holiday dates must be loaded."
+    },
+    {
+      "table": "workflow.cfg_case_types",
+      "code": "COMPLAINT",
+      "class": "COMPLIANCE",
+      "values": {
+        "appeal_route": "PPR_NFO",
+        "ombud_scheme_codes": []
+      },
+      "note": "CMS for a medical scheme. Ombud schemes are empty in both sources."
+    },
+    {
+      "table": "workflow.cfg_case_timelines",
+      "code": "COMPLAINT_ACKNOWLEDGE, COMPLAINT_RESOLVE",
+      "class": "COMPLIANCE",
+      "values": {
+        "ACKNOWLEDGE": "P2D",
+        "RESOLVE": "P42D (seed, calendar days); P30D (live run, business days)"
+      },
+      "note": "THE TWO SOURCES DIFFER. Compliance must say which is right for ZA; nothing was resolved here."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "code": "APPROVER_*",
+      "class": "FINANCE",
+      "values": {
+        "limit_value": "1000000 (5000000 for LIFE_UNDERWRITING)",
+        "currency": "ZAR"
+      },
+      "note": "From the live run. The seed's 1000 is a test value."
+    },
+    {
+      "table": "payment.ref_payment_methods",
+      "code": "COLLECT, PAY",
+      "class": "FINANCE",
+      "values": {
+        "currencies": [
+          "ZAR"
+        ],
+        "countries": [
+          "ZA"
+        ]
+      }
+    },
+    {
+      "table": "billing.ref_collection_methods",
+      "code": "DEBIT_ORDER",
+      "class": "OPERATIONAL",
+      "values": {
+        "payment_method": "COLLECT",
+        "lead_time": "P2D",
+        "label": "Debit order"
+      }
+    },
+    {
+      "table": "payment.mst_tenant_bank_accounts",
+      "code": "BANK",
+      "class": "FINANCE",
+      "values": {
+        "currency": "ZAR",
+        "purpose": "COLLECTIONS"
+      },
+      "note": "Bank and account number are per tenant."
+    },
+    {
+      "table": "rating.cfg_rounding_and_currency_precision_rules",
+      "code": "ZAR-2DP",
+      "class": "FINANCE",
+      "values": {
+        "currency": "ZAR",
+        "step": 0.01,
+        "method": "HALF_UP",
+        "stage": "FINAL_PREMIUM"
+      }
+    },
+    {
+      "table": "party.ref_identity_document_types",
+      "code": "ZA-PASSPORT",
+      "class": "COMPLIANCE",
+      "values": {
+        "country": "ZA",
+        "doc_type": "PASSPORT",
+        "format_pattern": "[A-Z][A-Z0-9]{6,8}",
+        "check_digit_rule": "NONE",
+        "issuer": "DHA"
+      },
+      "note": "The live run's only row. A South African ID number row is needed for real use."
+    },
+    {
+      "table": "channel.cfg_disclosure_and_notice_texts",
+      "code": "DISC-QUOTE, -ISSUE, -RENEWAL, -CLAIM",
+      "class": "COMPLIANCE",
+      "values": {
+        "notice_type": "POLICY_TERMS",
+        "jurisdiction": "ZA",
+        "language": "en",
+        "text": "Terms"
+      },
+      "note": "PLACEHOLDER text from the seed."
+    },
+    {
+      "table": "party.cfg_due_diligence_settings",
+      "code": "GATES-ON",
+      "class": "COMPLIANCE",
+      "values": {
+        "gates_enabled": true,
+        "adverse_media_enabled": false
+      }
+    },
+    {
+      "table": "party.cfg_record_retention_policies",
+      "code": "(platform default)",
+      "class": "COMPLIANCE",
+      "values": {
+        "jurisdiction": "ZA",
+        "retention": "P7Y"
+      },
+      "note": "V0064 and V0114 working defaults (OQ-120, OQ-054), awaiting compliance."
+    }
+  ]
+}

@@ -1,0 +1,76 @@
+{
+  "pack": "GENERAL_MOTOR",
+  "kind": "LINE",
+  "status": "DRAFT",
+  "warning": "The only line in the sources. A line overlay holds structure; rates and limits are the tenant's.",
+  "rows": [
+    {
+      "table": "product.ref_product_taxonomy",
+      "code": "GEN-MOTOR",
+      "class": "OPERATIONAL",
+      "values": {
+        "line": "GENERAL",
+        "family_code": "GEN-MOTOR",
+        "family_name": "Motor insurance",
+        "class_code": "MOTOR",
+        "class_name": "Motor"
+      }
+    },
+    {
+      "table": "product.cfg_coverage_and_benefit_library",
+      "code": "OWN_DAMAGE",
+      "class": "OPERATIONAL",
+      "values": {
+        "type": "COVERAGE",
+        "name": "Own damage",
+        "basis": "INDEMNITY",
+        "measure": "SUM_INSURED",
+        "domain": "GENERAL"
+      }
+    },
+    {
+      "table": "rating.cfg_rating_factor_definitions",
+      "code": "VEHICLE_GROUP",
+      "class": "OPERATIONAL",
+      "values": {
+        "factor_code": "VEHICLE_GROUP",
+        "data_type": "CODE",
+        "source_attribute": "vehicle_group"
+      }
+    },
+    {
+      "table": "rating.cfg_rating_tables",
+      "code": "BASE",
+      "class": "FINANCE",
+      "values": {
+        "dimensions": [
+          "VEHICLE_GROUP"
+        ],
+        "values": [
+          {
+            "key": [
+              "G3"
+            ],
+            "value": 0.03
+          }
+        ],
+        "interpolation": "NONE"
+      },
+      "note": "TEST VALUE: 3% and a fee of 50 prove rating runs. They are not a rate."
+    },
+    {
+      "table": "rules.cfg_authority_matrices",
+      "code": "AM",
+      "class": "FINANCE",
+      "values": {
+        "role_code": null,
+        "decision_types": [
+          "ACCEPT",
+          "DECLINE"
+        ],
+        "max_sum_assured": null
+      },
+      "note": "max_sum_assured has no currency column, and its value depends on the currency, so it stays with the tenant."
+    }
+  ]
+}

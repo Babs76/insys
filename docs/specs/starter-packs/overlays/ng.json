@@ -1,0 +1,299 @@
+{
+  "pack": "NG",
+  "kind": "COUNTRY",
+  "status": "DRAFT",
+  "regulator": "NAICOM",
+  "warning": "A skeleton. Every regulated value is DRAFT-FOR-REVIEW. basis_to_check names what to check, from general knowledge, not checked against the law. Nothing here has been verified.",
+  "rows": [
+    {
+      "table": "tenant.cfg_locale_defaults",
+      "code": "LOCALE (non-regulated part)",
+      "class": "OPERATIONAL",
+      "values": {
+        "languages": [
+          "en"
+        ],
+        "default_language": "en",
+        "time_zone": "Africa/Lagos",
+        "country": "NG"
+      }
+    },
+    {
+      "table": "tenant.cfg_locale_defaults",
+      "code": "LOCALE (currency)",
+      "class": "FINANCE",
+      "values": {
+        "base_currency": "NGN"
+      },
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "ISO 4217: NGN, 2 minor units. Whether USD policies are in scope."
+    },
+    {
+      "table": "workflow.ref_business_calendars",
+      "code": "CAL",
+      "class": "OPERATIONAL",
+      "values": {
+        "holiday_calendar": "NG",
+        "time_zone": "Africa/Lagos"
+      }
+    },
+    {
+      "table": "refdata.ref_public_holiday_calendars",
+      "code": "NG",
+      "class": "OPERATIONAL",
+      "values": {
+        "country": "NG",
+        "dates": null
+      },
+      "note": "Load per year. Several depend on sighting of the moon, so dates are confirmed late."
+    },
+    {
+      "table": "workflow.cfg_case_types",
+      "code": "COMPLAINT",
+      "class": "COMPLIANCE",
+      "values": {
+        "appeal_route": null,
+        "ombud_scheme_codes": []
+      },
+      "note": "BLOCKED IN CODE: appeal_route accepts only PPR_NFO or CMS. See the survey, §3.",
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "NAICOM complaints process; any insurance ombudsman; FCCPC."
+    },
+    {
+      "table": "workflow.cfg_case_timelines",
+      "code": "COMPLAINT_ACKNOWLEDGE, COMPLAINT_RESOLVE",
+      "class": "COMPLIANCE",
+      "values": {
+        "ACKNOWLEDGE": null,
+        "RESOLVE": null
+      },
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "NAICOM guidelines on complaint handling."
+    },
+    {
+      "table": "channel.cfg_disclosure_and_notice_texts",
+      "code": "DISC-QUOTE, -ISSUE, -RENEWAL, -CLAIM",
+      "class": "COMPLIANCE",
+      "values": {
+        "notice_type": null,
+        "jurisdiction": "NG",
+        "language": "en",
+        "text": null
+      },
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "NAICOM market conduct rules; which disclosures, at which points."
+    },
+    {
+      "table": "communication.cfg_notification_templates",
+      "code": "CLAIM_DECISION_RIGHTS",
+      "class": "COMPLIANCE",
+      "values": {
+        "language": "en",
+        "body": null
+      },
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "What a decline must tell the customer in Nigeria."
+    },
+    {
+      "table": "party.ref_identity_document_types",
+      "code": "(rows)",
+      "class": "COMPLIANCE",
+      "values": {
+        "candidates": [
+          "NIN",
+          "BVN",
+          "INTERNATIONAL_PASSPORT",
+          "DRIVERS_LICENCE",
+          "VOTERS_CARD",
+          "CAC_NUMBER"
+        ],
+        "format_pattern": null,
+        "check_digit_rule": null,
+        "issuer": null
+      },
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "Which documents NAICOM and NFIU rules accept; formats."
+    },
+    {
+      "table": "party.cfg_due_diligence_settings",
+      "code": "GATES",
+      "class": "COMPLIANCE",
+      "values": {
+        "gates_enabled": null,
+        "adverse_media_enabled": null
+      },
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "Money Laundering (Prevention and Prohibition) Act; NAICOM AML/CFT rules; NFIU reporting."
+    },
+    {
+      "table": "party.cfg_consent_purposes",
+      "code": "(rows)",
+      "class": "COMPLIANCE",
+      "values": {
+        "jurisdiction": "NG",
+        "purposes": null
+      },
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "Nigeria Data Protection Act 2023; NDPC."
+    },
+    {
+      "table": "party.cfg_record_retention_policies",
+      "code": "(rows)",
+      "class": "COMPLIANCE",
+      "values": {
+        "jurisdiction": "NG",
+        "retention": null
+      },
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "Retention periods in insurance, AML, tax and data protection law. The platform default is the ZA working value: this row must replace it."
+    },
+    {
+      "table": "audit.cfg_audit_retention_policies",
+      "code": "(rows)",
+      "class": "COMPLIANCE",
+      "values": {
+        "jurisdiction": "NG",
+        "retention": null
+      },
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "As above."
+    },
+    {
+      "table": "document.cfg_retention_schedules",
+      "code": "(rows)",
+      "class": "COMPLIANCE",
+      "values": {
+        "jurisdiction": "NG",
+        "retention": null
+      },
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "As above."
+    },
+    {
+      "table": "reporting.cfg_compliance_register_entries",
+      "code": "(rows)",
+      "class": "COMPLIANCE",
+      "values": {
+        "jurisdiction": "NG",
+        "entries": null
+      },
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "NAICOM returns and their deadlines."
+    },
+    {
+      "table": "rating.cfg_premium_tax_and_levy_rates",
+      "code": "(rows)",
+      "class": "FINANCE",
+      "values": {
+        "tax_code": null,
+        "jurisdiction": "NG",
+        "rate": null,
+        "base": null,
+        "rounding": "NGN-2DP"
+      },
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "VAT treatment of each insurance class; NAICOM levy; any other levy."
+    },
+    {
+      "table": "finance.cfg_tax_codes_on_financial_transactions",
+      "code": "(rows)",
+      "class": "FINANCE",
+      "values": {
+        "tax_code": null,
+        "jurisdiction": "NG",
+        "rate": null,
+        "account": null
+      },
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "VAT and withholding on commission and on fees."
+    },
+    {
+      "table": "rating.cfg_rounding_and_currency_precision_rules",
+      "code": "NGN-2DP",
+      "class": "FINANCE",
+      "values": {
+        "currency": "NGN",
+        "step": 0.01,
+        "method": "HALF_UP",
+        "stage": "FINAL_PREMIUM"
+      },
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "Whether regulator or tax rules set a rounding method."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "code": "APPROVER_*",
+      "class": "FINANCE",
+      "values": {
+        "limit_value": null,
+        "currency": "NGN"
+      },
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "Tenant's board-approved limits. ZA figures must not carry over: the values differ by orders of magnitude."
+    },
+    {
+      "table": "payment.ref_payment_methods",
+      "code": "COLLECT, PAY",
+      "class": "FINANCE",
+      "values": {
+        "currencies": [
+          "NGN"
+        ],
+        "countries": [
+          "NG"
+        ]
+      },
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "Whether cash-before-cover (\"no premium, no cover\") rules out arrears-based cover."
+    },
+    {
+      "table": "billing.cfg_arrears_ageing_buckets",
+      "code": "B1, B2",
+      "class": "FINANCE",
+      "values": {
+        "note": "Replaces the base pack if premium must be paid before cover."
+      },
+      "note": "The base pack lets premium run in arrears. If the rule applies, General needs checking against it: grace, instalments, and cover before payment.",
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "NAICOM \"no premium, no cover\" rule."
+    },
+    {
+      "table": "billing.ref_collection_methods",
+      "code": "(rows)",
+      "class": "OPERATIONAL",
+      "values": {
+        "candidates": [
+          "DIRECT_DEBIT",
+          "BANK_TRANSFER",
+          "CARD",
+          "USSD"
+        ],
+        "lead_time": null
+      },
+      "note": "Depends on the chosen provider."
+    },
+    {
+      "table": "reinsurance.cfg_treaty_definitions",
+      "code": "(rows)",
+      "class": "FINANCE",
+      "values": {
+        "capacity": null,
+        "currency": null
+      },
+      "note": "capacity has no currency column.",
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "Local-content rules on placing reinsurance abroad."
+    },
+    {
+      "table": "general.cfg_settlement_authority_limits",
+      "code": "(rows)",
+      "class": "FINANCE",
+      "values": {
+        "limit_value": null
+      },
+      "note": "limit_value has no currency column.",
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "Tenant's limits."
+    }
+  ]
+}

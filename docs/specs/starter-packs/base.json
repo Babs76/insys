@@ -1,0 +1,347 @@
+{
+  "pack": "base",
+  "kind": "BASE",
+  "status": "DRAFT",
+  "sources": [
+    "tests/Insys.Testing/OnboardingSeed.cs (SeedReadyTenant)",
+    "insys-console e2e/live/readiness.ts (the live run)"
+  ],
+  "excluded": "The SIMULATOR provider, its callback endpoint, the test products and all test people.",
+  "rows": [
+    {
+      "table": "tenant.mst_organisation_structure",
+      "code": "ROOT",
+      "class": "OPERATIONAL",
+      "values": {
+        "node_code": "ROOT",
+        "type": "LEGAL_ENTITY",
+        "parent": null,
+        "name": "Head office",
+        "licences": []
+      }
+    },
+    {
+      "table": "iam.cfg_authentication_and_session_policies",
+      "code": "AUTH",
+      "class": "COMPLIANCE",
+      "values": {
+        "policy_code": "AUTH",
+        "session_timeout": "PT30M",
+        "lockout_attempts": 5,
+        "client_ids": [],
+        "mfa_required": true,
+        "mfa_required_roles": [
+          "TENANT_ADMIN"
+        ]
+      },
+      "note": "Seed and live run both turn MFA off for test sign-in. The pack turns it on: a proposed default, not extracted."
+    },
+    {
+      "table": "channel.cfg_channel_definitions",
+      "code": "CH-STF",
+      "class": "OPERATIONAL",
+      "values": {
+        "channel_code": "STF",
+        "audience": "STAFF",
+        "name": "Back office",
+        "client_ids": [
+          "insys-web"
+        ]
+      }
+    },
+    {
+      "table": "finance.mst_chart_of_accounts",
+      "code": "ACC-1100",
+      "class": "FINANCE",
+      "values": {
+        "account_code": "1100",
+        "name": "Premium debtors",
+        "type": "ASSET",
+        "status": "ACTIVE",
+        "gl_account": "GL-1100"
+      },
+      "note": "PLACEHOLDER: one account is what readiness needs. A tenant must supply its real chart."
+    },
+    {
+      "table": "finance.cfg_posting_rules",
+      "code": "PR-*",
+      "class": "FINANCE",
+      "values": {
+        "transaction_types": [
+          "PREMIUM_DUE",
+          "PAYMENT_RECEIVED",
+          "REFUND_PAID",
+          "CLAIM_RESERVE_UP",
+          "CLAIM_RESERVE_DOWN",
+          "CLAIM_PAID",
+          "CLAIM_PAID_REVERSED",
+          "RECOVERY_RAISED",
+          "RECOVERY_OFFSET",
+          "RECOVERY_REPAID",
+          "RECOVERY_WRITTEN_OFF",
+          "RECOVERY_REVERSED",
+          "RECOVERY_SETTLED"
+        ],
+        "debit_account": "1100",
+        "credit_account": "1100"
+      },
+      "note": "PLACEHOLDER: every rule debits and credits one account, so journals balance and mean nothing."
+    },
+    {
+      "table": "finance.cfg_gl_export_layouts",
+      "code": "GL",
+      "class": "FINANCE",
+      "values": {
+        "format": "CSV"
+      }
+    },
+    {
+      "table": "workflow.ref_business_calendars",
+      "code": "CAL",
+      "class": "OPERATIONAL",
+      "values": {
+        "calendar_code": "CAL",
+        "working_days": [
+          "MON",
+          "TUE",
+          "WED",
+          "THU",
+          "FRI"
+        ],
+        "hours": "08:00-17:00"
+      },
+      "note": "holiday_calendar and time_zone come from the country overlay."
+    },
+    {
+      "table": "workflow.cfg_task_types_and_work_queues",
+      "code": "TASKS",
+      "class": "OPERATIONAL",
+      "values": {
+        "queue_code": "TASKS",
+        "task_types": [],
+        "skills": [],
+        "assignment_rule": "MANUAL_PULL"
+      }
+    },
+    {
+      "table": "workflow.cfg_workflow_definitions",
+      "code": "COMPLAINT_HANDLING",
+      "class": "OPERATIONAL",
+      "values": {
+        "process_code": "COMPLAINT_HANDLING",
+        "states": [
+          "HANDLE",
+          "DONE"
+        ],
+        "transitions": [
+          {
+            "from": "HANDLE",
+            "to": "DONE"
+          }
+        ]
+      }
+    },
+    {
+      "table": "workflow.cfg_case_types",
+      "code": "COMPLAINT, COMPLAINT_REVIEW",
+      "class": "COMPLIANCE",
+      "values": {
+        "family": "COMPLAINT",
+        "process_code": "COMPLAINT_HANDLING",
+        "review_case_type_code": "COMPLAINT_REVIEW",
+        "notification_types": [
+          "CASE_ACKNOWLEDGED",
+          "CASE_UPDATE",
+          "CASE_DECISION"
+        ]
+      },
+      "note": "appeal_route, ombud_scheme_codes and the timelines come from the country overlay."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "code": "APPROVER_*",
+      "class": "FINANCE",
+      "values": {
+        "role_code": "APPROVER",
+        "types": "every type the tenant can raise",
+        "delegation_allowed": false
+      },
+      "note": "limit_value and currency come from the country overlay: a limit means nothing without its currency."
+    },
+    {
+      "table": "iam.cfg_roles_and_permission_sets",
+      "code": "APPROVER",
+      "class": "OPERATIONAL",
+      "values": {
+        "role_code": "APPROVER",
+        "functions": [
+          "approval.approve",
+          "static_data.approve",
+          "due_diligence.approve_enhanced",
+          "due_diligence.override_risk",
+          "due_diligence.unblock",
+          "general_policy.non_renew"
+        ]
+      },
+      "note": "Extracted from the seed's CLERK role, which combines duties. Split it by real role before use (OQ-111)."
+    },
+    {
+      "table": "communication.cfg_notification_types",
+      "code": "CASE_*",
+      "class": "OPERATIONAL",
+      "values": {
+        "types": [
+          "CASE_ACKNOWLEDGED",
+          "CASE_UPDATE",
+          "CASE_DECISION"
+        ],
+        "category": "SERVICE",
+        "channels": [
+          "EMAIL"
+        ],
+        "portal_visible": true
+      }
+    },
+    {
+      "table": "communication.cfg_notification_templates",
+      "code": "CASE_*_EN",
+      "class": "COMPLIANCE",
+      "values": {
+        "channel": "EMAIL",
+        "language": "en",
+        "subjects": {
+          "CASE_ACKNOWLEDGED": "We have received your case",
+          "CASE_UPDATE": "An update on your case",
+          "CASE_DECISION": "A decision on your case"
+        },
+        "body": "{subject}. Sign in to see it."
+      },
+      "note": "English neutral wording. Compliance reviews it per country; languages come from overlays."
+    },
+    {
+      "table": "document.ref_document_categories",
+      "code": "POLICY_SCHEDULE, REMITTANCE_ADVICE",
+      "class": "OPERATIONAL",
+      "values": {
+        "POLICY_SCHEDULE": {
+          "classification": "PERSONAL",
+          "domain": "ALL"
+        },
+        "REMITTANCE_ADVICE": {
+          "classification": "CONFIDENTIAL",
+          "domain": "HEALTH"
+        }
+      }
+    },
+    {
+      "table": "document.cfg_document_templates",
+      "code": "TPL-1, TPL-RA",
+      "class": "OPERATIONAL",
+      "values": {
+        "language": "en",
+        "TPL-1": {
+          "document_type": "POLICY_SCHEDULE",
+          "body_ref": "templates/policy-schedule"
+        },
+        "TPL-RA": {
+          "document_type": "REMITTANCE_ADVICE",
+          "body_ref": "templates/remittance-advice"
+        }
+      }
+    },
+    {
+      "table": "billing.ref_billing_frequencies",
+      "code": "MONTHLY, ANNUAL",
+      "class": "OPERATIONAL",
+      "values": {
+        "MONTHLY": {
+          "periods_per_year": 12
+        },
+        "ANNUAL": {
+          "periods_per_year": 1
+        }
+      }
+    },
+    {
+      "table": "billing.cfg_document_numbering_schemes",
+      "code": "INV",
+      "class": "OPERATIONAL",
+      "values": {
+        "document_type": "INVOICE",
+        "prefix": "INV",
+        "sequence_length": 8,
+        "reset_rule": "NEVER"
+      }
+    },
+    {
+      "table": "billing.cfg_arrears_ageing_buckets",
+      "code": "B1, B2",
+      "class": "OPERATIONAL",
+      "values": {
+        "B1": {
+          "days_from": 1,
+          "days_to": 30,
+          "action": "REMINDER"
+        },
+        "B2": {
+          "days_from": 31,
+          "days_to": 9999,
+          "action": "LAPSE"
+        }
+      },
+      "note": "A lapse has legal effect in some markets; each country overlay may replace B2."
+    },
+    {
+      "table": "payment.ref_payment_status_mappings",
+      "code": "(per provider)",
+      "class": "OPERATIONAL",
+      "values": {
+        "note": "One row per real provider status. The seed has only the simulator's."
+      }
+    },
+    {
+      "table": "claims.cfg_claim_numbering_schemes",
+      "code": "CLM, LIF",
+      "class": "OPERATIONAL",
+      "values": {
+        "CLM": {
+          "domain": "GENERAL",
+          "prefix": "CLM",
+          "sequence_length": 8,
+          "check_digit": "NONE"
+        },
+        "LIF": {
+          "domain": "LIFE",
+          "prefix": "LIF",
+          "sequence_length": 8,
+          "check_digit": "NONE"
+        }
+      }
+    },
+    {
+      "table": "claims.ref_claim_decision_reason_codes",
+      "code": "SETTLE, PART-EXCL",
+      "class": "COMPLIANCE",
+      "values": {
+        "SETTLE": {
+          "decision_type": "APPROVE",
+          "customer_wording": "Your claim is approved and will be paid."
+        },
+        "PART-EXCL": {
+          "decision_type": "PARTIAL",
+          "customer_wording": "Part of the claim is excluded under the policy."
+        }
+      },
+      "note": "customer_wording has one language per row: see the survey, §4."
+    },
+    {
+      "table": "claims.ref_reserve_types",
+      "code": "INDEMNITY",
+      "class": "FINANCE",
+      "values": {
+        "category": "INDEMNITY",
+        "posting_rule": "PR-4"
+      }
+    }
+  ]
+}
