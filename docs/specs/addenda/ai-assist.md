@@ -1,6 +1,6 @@
 # Wave 7 addendum: AI Assist
 
-**Status: signed, 1 November 2026, as SRS revision 65 records. Nothing here is built, and the build starts only after Wave 6.** Written from [the AI Assist SRS, revision 65](../../srs/INSYS_AI_Assist_SRS.md), and checked against the code on main. Ships off, per tenant (D-6).
+**Status: signed by Ade, with option C, 1 November 2026. Nothing here is built, and the build starts only after Wave 6.** Written from [the AI Assist SRS, revision 79](../../srs/INSYS_AI_Assist_SRS.md), and checked against the code on main. Ships off, per tenant (D-6).
 
 ## 1. What it is
 Three features. In all three the AI prepares and a person decides; it never approves, publishes, pays or refuses, and INSYS works unchanged without it.

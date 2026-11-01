@@ -4,9 +4,9 @@ Nov 1, 2026 · @AB
 
 ## 1. Purpose, scope and status
 
-INSYS AI Assist adds two narrow AI features to INSYS Core: a **Product Setup Assistant** (AI-1) that drafts product configuration from product documents, and **plain-language explanations** (AI-2) of refusals and premium calculations, and a tenant configuration wizard (AI-3) that drafts a new tenant's setup from reviewed starter packs and the tenant's own answers. In both, the AI prepares material and a person decides; the AI never approves, publishes, pays or refuses anything.
+INSYS AI Assist adds three AI features to INSYS Core: a **Product Setup Assistant** (AI-1) that drafts product configuration from product documents, **plain-language explanations** (AI-2) of refusals and premium calculations, and a tenant configuration wizard (AI-3) that drafts a new tenant's setup from reviewed starter packs and the tenant's own answers. In all three, the AI prepares material and a person decides; the AI never approves, publishes, pays or refuses anything.
 
-**Status: proposed, for review.** Nothing here is built. The back end's Wave 7 addendum, signed on 1 November 2026, turns this specification into a build plan after Wave 6. It is written so the product owner can decide whether to proceed, and with which hosting option (section 10).
+**Status: the basis of back-end Wave 7.** Nothing here is built. The back end's Wave 7 addendum turns this specification into a build plan after Wave 6. Open decisions are listed in section 10.2.
 
 **Reviewed 30 October 2026.** Ade accepted the recommendations for D-1, D-2, D-3, D-4 and D-6 (section 10.2); D-5 and D-7 stay open. On 31 October Ade chose Claude as the AI provider (D-1). On 1 November Ade added AI-3, the tenant configuration wizard (section 5A), and set the country order for its starter packs (D-9). The review also changed how refusals are explained (AIA-031, AIA-039), added number-checking rules (AIA-033a), aligned function names with the catalogue, set the build window and added build safeguards (section 9.2).
 
@@ -201,7 +201,7 @@ AI-3 drafts a new tenant's whole configuration, its static data and base environ
 
 The hard constraint is where model inference runs: each tenant's data is governed by its own jurisdiction's law, and an AI call may send it elsewhere. Section 6.1 sets the rules; the choice of option is decision D-1.
 
-### 6.1 Privacy, POPIA and data residency
+### 6.1 Privacy, data protection law and data residency
 
 What POPIA says (verified from the published section text; legal interpretation for compliance to confirm):
 
@@ -215,6 +215,8 @@ What this means for AI Assist (inference, for compliance to confirm):
 - AI-2 premium explanations use rating factors (for example age, smoker status or health loadings) that can be personal or special personal information. They shall be sent without names, identifiers or policy numbers.
 
 Requirements:
+
+POPIA is the South African case. Each target market has its own data protection law with its own rules on sending personal data abroad (for example, Nigeria's Data Protection Act 2023). The legal basis for each jurisdiction is confirmed by compliance with that country's overlay (D-10, D-13), and nothing in this specification assumes that INSYS is hosted in South Africa.
 
 - AIA-050: Each tenant setting shall record the tenant's jurisdiction, where inference runs, and the legal basis the tenant relies on under that jurisdiction's data protection law (POPIA in South Africa, the Nigeria Data Protection Act 2023 in Nigeria, and so on); AI-2 shall not run outside the tenant's jurisdiction without that basis recorded. Nothing assumes South African hosting; where Nigerian tenants are hosted is still to be decided (decided 1 November 2026).
 - AIA-051: Before any call, a minimisation step shall remove or mask names, ID numbers, contact details, bank details and policy, claim or member numbers; the payload actually sent shall be stored with the run record.
@@ -285,7 +287,7 @@ New error codes (proposed): `ASSIST_UNAVAILABLE` (retryable), `ASSIST_CAP_REACHE
 
 ## 8. Step-by-step guide: how the AI automation runs
 
-In both features the automated part is short and boxed in: INSYS prepares minimised data, the model returns text, INSYS checks it, and a person uses or discards it.
+In all three features the automated part is short and boxed in: INSYS prepares minimised data, the model returns text, INSYS checks it, and a person uses or discards it.
 
 ### 8.1 AI-1 Product Setup Assistant
 
@@ -314,7 +316,19 @@ The model appears in one lane only; everything it produces passes INSYS's checks
 7. **The user sees the explanation** with a "Based on" link to the recorded data and the AI label, and can mark it helpful or wrong.
 8. **INSYS records the run** (model, prompt version, payload, output, verifier result, feedback) for audit and evaluation.
 
-### 8.3 When something goes wrong
+### 8.3 AI-3 tenant configuration wizard, step by step
+
+1. The tenant administrator, holding ASSIST\_TENANT\_SETUP\_RUN, starts a setup run for a tenant that is still onboarding and answers the questionnaire.
+2. INSYS assembles the base pack with the chosen country and line overlays, and flags those values Pack. This step needs no AI (AIA-090).
+3. If AI Assist is switched on, the AI tailors the values a pack marks as tailorable and maps the tenant's uploaded documents onto INSYS, citing each source, and flags them Tailored or Mapped. Uploads are scanned for malware first. Regulated values come only from an approved overlay; anything else stays Missing.
+4. The verifier checks that every value traces to a pack or a cited tenant input, and drops and lists any that do not.
+5. A completeness check confirms that nothing is Missing and that every regulated value comes from an approved overlay.
+6. The administrator reviews the draft and submits it as one SETUP change set.
+7. A second person approves it, bound to a hash of every batch. Whoever ran the wizard cannot approve it.
+8. INSYS applies the set to the tenant in dependency order, resuming if interrupted. Onboarding readiness then runs, including any steps completed before the set was applied, and blockers are explained in plain language.
+9. The tenant can be activated only when readiness passes and no SETUP set is waiting or partly applied.
+
+### 8.4 When something goes wrong
 
 | Situation | What happens |
 | --- | --- |
@@ -363,7 +377,7 @@ The design already isolates AI Assist (its own module and schema, read-only hook
 
 ## 10. Risks, open decisions and sources
 
-Hosting is decided (31 October 2026): Claude is the AI provider (D-1). Its inference runs globally or in the US, not in South Africa, so AI-2 waits for compliance to confirm the POPIA s72 basis, while AI-1 holds no personal data and can use it once built. INSYS is cloud-neutral (ADR-027, proposed 30 October 2026), and Claude is reachable from every target cloud; the provider stays swappable behind the adapter (P7).
+Hosting is decided (31 October 2026): Claude is the AI provider (D-1). Its inference runs globally or in the US, not in South Africa, so AI-2 waits for compliance to confirm the legal basis in each tenant's jurisdiction (POPIA s72 in South Africa), while AI-1 holds no personal data and can use it once built. INSYS is cloud-neutral (ADR-027, proposed 30 October 2026), and Claude is reachable from every target cloud; the provider stays swappable behind the adapter (P7).
 
 ### 10.1 Risks
 
@@ -371,7 +385,7 @@ Hosting is decided (31 October 2026): Claude is the AI provider (D-1). Its infer
 | --- | --- | --- |
 | AI misreads a product document | Wrong value in a draft product | Citations on every value; Found / Interpreted / Missing flags; validate, simulate and second-person approval unchanged |
 | AI states a wrong number in an explanation | Staff or customer misled | Deterministic number verifier (AIA-033); fall back to the structured breakdown |
-| Personal data leaves South Africa without a basis | POPIA s72 breach | Minimisation (AIA-051); per-tenant residency setting and legal basis (AIA-050); AI-2 off until recorded |
+| Personal data leaves the tenant's jurisdiction without a basis | Breach of that jurisdiction's transfer rules (POPIA s72 in South Africa) | Minimisation (AIA-051); per-tenant residency setting and legal basis (AIA-050); AI-2 off until recorded |
 | Prompt injection in an uploaded document | Manipulated draft | Data-only handling, no write tools, injection tests (AIA-021, AIA-060, AIA-061) |
 | Provider price or model change | Cost rise or quality drop | Adapter (P7); evaluation before any model change (AIA-074); per-tenant caps (AIA-073) |
 | Distraction from the core build | Core waves slip | Separate small track, started only after D-6; no change to existing modules beyond hooks |
@@ -381,7 +395,7 @@ Hosting is decided (31 October 2026): Claude is the AI provider (D-1). Its infer
 
 | ID | Decision | Options | Recommendation |
 | --- | --- | --- | --- |
-| D-1 | Where inference runs | (a) a model service hosted in South Africa, if one with adequate quality exists on the cloud a deployment runs on (Huawei, Alibaba Cloud through BCX, AWS, Azure or Google) or elsewhere; (b) an offshore provider under a binding agreement (POPIA s72(1)(a)) with minimised data; (c) a self-hosted open-weight model in South Africa | Decided 31 Oct 2026 (Ade): Claude, through the Claude API or the deployment's cloud (Amazon Bedrock, Google Cloud or Microsoft Foundry), behind the provider adapter. AI-1 uses it once built, since product documents hold no personal data. AI-2 uses it once compliance confirms the POPIA s72 basis (Anthropic's data processing agreement, with the minimisation in AIA-051) and the contract sets zero data retention and no training (AIA-052). Claude inference runs globally or in the US, not in South Africa (section 10.3), so an in-country model (option a or c) stays a swappable fallback for any customer or regulator that requires South African processing. |
+| D-1 | Where inference runs | (a) a model service hosted in South Africa, if one with adequate quality exists on the cloud a deployment runs on (Huawei, Alibaba Cloud through BCX, AWS, Azure or Google) or elsewhere; (b) an offshore provider under a binding agreement (POPIA s72(1)(a)) with minimised data; (c) a self-hosted open-weight model in South Africa | Decided 31 Oct 2026 (Ade): Claude, through the Claude API or the deployment's cloud (Amazon Bedrock, Google Cloud or Microsoft Foundry), behind the provider adapter. AI-1 uses it once built, since product documents hold no personal data. AI-2 uses it once compliance confirms the legal basis in each tenant's jurisdiction (POPIA s72 in South Africa) (Anthropic's data processing agreement, with the minimisation in AIA-051) and the contract sets zero data retention and no training (AIA-052). Claude inference runs globally or in the US, not in South Africa (section 10.3), so an in-country model (option a or c) stays a swappable fallback for any customer or regulator that requires in-country processing. |
 | D-2 | Which feature first | AI-1 first; AI-2 first; both together | Agreed 30 Oct 2026: AI-2 for staff first; smaller, uses recorded data only, quick to evaluate |
 | D-3 | Portal explanations | With staff release; later release | Agreed 30 Oct 2026: later, after staff feedback and legal review |
 | D-4 | Languages | English only; English plus others | Agreed 30 Oct 2026: English only for the first release |
