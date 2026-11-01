@@ -2281,6 +2281,17 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         await _db.AdoptFunctionCatalogue();
         var clerk = _factory.ClientFor(Tenant, "disclosure-clerk");
 
+        // Ade, 1 November 2026: another country's text doesn't hold this party, but holds one who lives there.
+        await Seed("channel.cfg_disclosure_and_notice_texts", "EFFECTIVE", "DISC-NA", ("notice_type", "NA_TERMS"), ("jurisdiction", "NA"), ("language", "en"), ("text", "Namibian terms."), ("text_version", 1), ("display_point", "ISSUE"));
+        var gate = _factory.Services.GetRequiredService<Insys.Integration.Contracts.IDisclosureGate>();
+        (await gate.Outstanding(Tenant, proposer, "ISSUE", null, null, Today, CancellationToken.None)).ShouldBe(["POLICY_TERMS"]);
+        var namibian = await _maker.RegisterPerson("Namibian");
+        await _db.ExecuteAsOwner("""
+            INSERT INTO party.address (tenant_id, id, row_version, created_at, created_by, updated_at, updated_by, party_id, address_type, line1, city, country, valid_from)
+            VALUES (@t, gen_random_uuid(), 1, now(), 'seed', now(), 'seed', @p, 'RESIDENTIAL', '1 Main', 'Windhoek', 'NA', @f)
+            """, ("t", Tenant), ("p", namibian), ("f", Today.AddYears(-1)));
+        (await gate.Outstanding(Tenant, namibian, "ISSUE", null, null, Today, CancellationToken.None)).ShouldBe(["NA_TERMS"]);
+
         await IssuedPolicy(proposer: proposer, beforeIssue: async (quoted, body) =>
         {
             (await (await _maker.Send(HttpMethod.Post, "/api/v1/general/policies", body, idempotent: true)).Code()).ShouldBe("DISCLOSURE_REQUIRED");

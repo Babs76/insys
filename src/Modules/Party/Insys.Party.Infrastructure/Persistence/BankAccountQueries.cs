@@ -65,6 +65,12 @@ internal sealed class BankAccountQueries([FromKeyedServices(PartyDbContext.Schem
         await Query(tenantId, "SELECT id FROM party.party WHERE tenant_id = @t AND id = @id AND merged_into_id IS NULL", partyId, r => (object)r.GetGuid(0),
             cancellationToken) is not null;
 
+    public async Task<string?> CountryOf(Guid tenantId, Guid partyId, CancellationToken cancellationToken) =>
+        (await Query(tenantId, """
+            SELECT coalesce((SELECT a.country FROM party.address a WHERE a.tenant_id = @t AND a.party_id = @id AND a.valid_to IS NULL ORDER BY a.valid_from DESC, a.id DESC LIMIT 1),
+                            (SELECT i.nationality FROM party.individual i WHERE i.tenant_id = @t AND i.party_id = @id))
+            """, partyId, r => r.IsDBNull(0) ? null : r.GetString(0).Trim(), cancellationToken)) is { Length: > 0 } country ? country : null;
+
     public async Task<string?> RegisteredBy(Guid tenantId, Guid partyId, CancellationToken cancellationToken) =>
         await Query(tenantId, "SELECT registered_by FROM party.party WHERE tenant_id = @t AND id = @id", partyId, r => r.IsDBNull(0) ? null : r.GetString(0),
             cancellationToken);

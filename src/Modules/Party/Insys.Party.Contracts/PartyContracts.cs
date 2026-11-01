@@ -211,6 +211,9 @@ public interface IPartyDirectory
 {
     Task<bool> Exists(Guid tenantId, Guid partyId, CancellationToken cancellationToken);
 
+    /// <summary>The party's country: of its latest open-ended address, else its nationality; null with neither.</summary>
+    Task<string?> CountryOf(Guid tenantId, Guid partyId, CancellationToken cancellationToken);
+
     /// <summary>Who registered the party through a portal ("INTERMEDIARY:BRK-1"), if anyone (external-user access §3).</summary>
     Task<string?> RegisteredBy(Guid tenantId, Guid partyId, CancellationToken cancellationToken);
 
