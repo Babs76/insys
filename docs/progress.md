@@ -55,7 +55,7 @@
 | 10 Wave 3 batch 4 | Group A: the clinical read audited with its purpose (HLT-008), refused sensitive reads audited as denied, and a guard that no query records an audit; BR-105 part 1: code lists name their value column, checked against the database; reviewed allowance list for undeclared code fields; Health service types for eligibility (V0094) | Branch `wave3-4` |
 | 10 Wave 3 batch 3 | The API descriptions: the committed documents, signed-in only outside development and test; B-005 on the backlog | Branch `wave3-3` |
 | 10 Wave 3 batch 2 | Due diligence: KYC requirement sets (F002), screening, hit review, enhanced due diligence and FIC reports (F003), risk classes and reviews (F077), the gates with held payouts (OQ-123), readiness | Branch `wave3-2` |
-| 9 Waves 2 to 6 | Later batches are recorded in `docs/reports/`. Wave 6 was finished by 1 November 2026, with five functions deferred (F063, F079, F089–F091); the current position is in `docs/traceability/functional-coverage.md` | Done (UTC+14 sweep at `91cb494`: 605 of 607, both failures passed on rerun) |
+| 10 Waves 3 to 6 | Later batches are recorded in `docs/reports/`. Wave 6 was finished by 1 November 2026, with five functions deferred (F063, F079, F089–F091); the current position is in `docs/traceability/functional-coverage.md` | Done (UTC+14 sweep at `91cb494`: 605 of 607, both failures passed on rerun) |
 
 ## Phase 1 review items
 
