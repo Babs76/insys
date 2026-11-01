@@ -210,14 +210,14 @@ public static class OnboardingSeed
         }
 
         // APPROVAL_AUTHORITY: the clerk decides every approval type a tenant can raise (with static_data.approve for the static data types),
-        // with the due diligence types' own permissions, and its back-office channel rows (CHANNELS).
+        // with the due diligence types' and the non-renewal's own permissions (BR-114), and its back-office channel rows (CHANNELS).
         foreach (var type in BuildingBlocks.Contracts.Approvals.ApprovalKinds.ApprovalTypes)
         {
             await database.SeedStaticFilled(tenantId, "workflow.cfg_delegation_and_approval_authority", "EFFECTIVE", $"AUTH-{type}", from, ("role_code", "CLERK"),
                 ("transaction_type", type), ("limit_value", 1_000m), ("delegation_allowed", false));
         }
 
-        string[] approving = ["approval.approve", "static_data.approve", "due_diligence.approve_enhanced", "due_diligence.override_risk", "due_diligence.unblock"];
+        string[] approving = ["approval.approve", "static_data.approve", "due_diligence.approve_enhanced", "due_diligence.override_risk", "due_diligence.unblock", "general_policy.non_renew"];
         await database.GrantFunctionsWithin(tenantId, "CLERK", from, approving);
         await database.ExecuteAsOwner("""
             INSERT INTO channel.cfg_channel_transaction_permissions (tenant_id, code, version, effective_from, record_status, created_by, change_reason,

@@ -405,6 +405,22 @@ public sealed class OnboardingReadinessTests(DatabaseFixture fixture) : IClassFi
         Check(await Readiness(url), "SHARED_OPERATIONAL_SETUP", "APPROVAL_AUTHORITY").GetProperty("ready").GetBoolean().ShouldBeTrue();
     }
 
+    [Fact]
+    public async Task ANonRenewalApproval_WithADelegationRowButNoRoleHoldingNonRenew_IsListed_BR114()
+    {
+        const string nonRenewal = General.Contracts.GeneralApprovals.NonRenewalApprovalType;
+        var (tenantId, url) = await Register("NONRENEW");
+        await fixture.Database.SeedReadyTenant(tenantId, From);
+        Check(await Readiness(url), "SHARED_OPERATIONAL_SETUP", "APPROVAL_AUTHORITY").GetProperty("ready").GetBoolean().ShouldBeTrue();
+
+        await fixture.Database.ExecuteAsOwner("""
+            UPDATE iam.cfg_role_function_assignments SET record_status = 'RETIRED'
+            WHERE tenant_id = @t AND role_code = 'CLERK' AND function_code IN (SELECT iam.functions_within(ARRAY['general_policy.non_renew']))
+            """, ("t", tenantId));
+        Check(await Readiness(url), "SHARED_OPERATIONAL_SETUP", "APPROVAL_AUTHORITY").GetProperty("missing").EnumerateArray().Select(m => m.GetString())
+            .ShouldBe([nonRenewal]);
+    }
+
     private async Task<(Guid TenantId, string Url)> Register(string code)
     {
         var registered = await _operator.Send(HttpMethod.Post, "/api/v1/tenancy/tenants",
