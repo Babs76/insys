@@ -16,7 +16,7 @@ INSYS AI Assist adds three AI features to INSYS Core: a **Product Setup Assistan
 | Owner | Product owner, OpenFactor Technology Group |
 | Relates to | INSYS Core SRS v1.0; Product Factory, Rating, Rules, Workflow, Audit and Identity modules |
 | Requirement IDs | AIA-001 onwards (proposed; not yet in the INSYS SRS or function catalogue) |
-| Decision needed | Go / no-go, hosting option, rollout order (section 10) |
+| Decision needed | Hosting for Nigerian tenants (D-13); engaging the Nigerian compliance partner (D-10); the line's evaluation documents (D-7) |
 
 ### In scope
 
@@ -30,7 +30,7 @@ INSYS AI Assist adds three AI features to INSYS Core: a **Product Setup Assistan
 - Any AI decision: underwriting, claims, payment, fraud scoring or pricing. These stay deterministic and human-approved.
 - AI that writes to records other than a Draft product version (AI-1) or a draft configuration change set for a tenant that isn't live yet (AI-3), each applied only after a second person approves.
 - Customer-facing chat, voice or free-form question answering.
-- Languages other than English in the first release (open decision D-4).
+- Languages other than English in the first release (D-4, decided: English first; French texts in a country overlay are pack data, AIA-091).
 - Training or fine-tuning a model on tenant data.
 
 ## 2. Design principles
@@ -63,7 +63,7 @@ AI Assist adds five functions to the function catalogue and no new roles; tenant
 | Platform operator | Chooses the provider, sets platform caps, monitors cost and quality | Operator-only configuration |
 | Auditor | Reads AI run records | Existing audit roles |
 
-- AIA-001: AI-1 and AI-2 shall each require their own function **and** the tenant's `AI_ASSIST` feature entitlement; either missing refuses the request with the standard codes (`FUNCTION_NOT_GRANTED`, `FEATURE_NOT_ENTITLED`).
+- AIA-001: AI-1, AI-2 and the AI steps of AI-3 (whose pack-only path needs only its function, AIA-090) shall each require their own function **and** the tenant's `AI_ASSIST` feature entitlement; either missing refuses the request with the standard codes (`FUNCTION_NOT_GRANTED`, `FEATURE_NOT_ENTITLED`).
 - AIA-002: Segregation-of-duties rules shall treat the person who ran AI-1 for a product version as its maker, so they cannot approve that version.
 - AIA-003: Explanations shall respect the caller's existing scopes (product, branch, relationship); a user who cannot read a record cannot get an explanation of it.
 
@@ -340,7 +340,7 @@ The model appears in one lane only; everything it produces passes INSYS's checks
 
 ## 9. Delivery roadmap
 
-Delivery is six phases, each closed by a gate with a measurable test. AI-2 goes first because it uses only recorded data and is the quickest to evaluate; the back end has sized the build in its Wave 7 addendum (table below), and AI-3 adds phase 3A, placed by D-8.
+Delivery is seven phases, each closed by a gate with a measurable test. AI-2 goes first because it uses only recorded data and is the quickest to evaluate; the back end has sized the build in its Wave 7 addendum (table below), and AI-3 adds phase 3A, split by D-8: its pack-only path builds after AI-2 and before AI-1, and its AI tailoring comes last.
 
 &#91;embedded content: Delivery roadmap · 7 phases, 6 gates, not to scale\]
 
@@ -350,9 +350,9 @@ No code is written before the hosting decision, and each feature reaches users o
 
 | When | What | Effect on the core build |
 | --- | --- | --- |
-| Now | D-1 provider check, evaluation documents for one line (D-7), sign-off of this SRS | None |
-| While Waves 5b and 6 build | Back end turns this SRS into the Wave 7 addendum for sign-off | None |
-| After Wave 6 | Back-end Wave 7: AI-2, then AI-1; AI-3 placed by D-8 | Sized by the back end at 62 to 82 person-days for one engineer (AI-2 and AI-1 alone: 40 to 52); calendar time re-estimated after batch 7.1. The earlier figure of 2 to 4 days was wrong. |
+| Now | Done: provider chosen (D-1, 31 October). Still to do: evaluation documents for one line (D-7) | None |
+| While Waves 5b and 6 build | Back end turned this SRS into the Wave 7 addendum, signed by Ade with option C on 1 November 2026 | None |
+| After Wave 6 | Back-end Wave 7 (D-8): AI-2; AI-3's pack-only path and SETUP change set; AI-1; then AI-3's AI tailoring | Sized by the back end at 62 to 82 person-days for one engineer (AI-2 and AI-1 alone: 40 to 52); calendar time re-estimated after batch 7.1. The earlier figure of 2 to 4 days was wrong. |
 | Before front-end Phase 13 | Front-end AI Assist screens | To be sized by the front end (the earlier 1 to 2 days was not measured) |
 | Go-live | Shipped off; switched on per tenant after evaluation | None |
 
@@ -361,7 +361,7 @@ No code is written before the hosting decision, and each feature reaches users o
 - **Instructions to the sessions** would come only after this SRS is approved: the back end builds phases 1 to 3 as its own small batches with the usual contract updates; the front end adds the Explain action, the AI draft review screen and the settings page against the pinned contract.
 - **Evaluation sets** are built before the features they test: about 100 recorded refusals and premium calculations across lines for AI-2, and real product documents for one line for AI-1 (D-7). Each item has an expert-checked expected result. The sizes are proposals.
 - **Tests in CI** use the provider stub, so builds never call a paid model; evaluation runs against the real provider are a separate, manually started job.
-- **The decisions log** records D-1 to D-7 and any change to the targets.
+- **The decisions log** records D-1 to D-14 and any change to the targets.
 
 ### 9.2 Build safeguards: adding AI Assist without breaking the core
 
@@ -399,12 +399,12 @@ Hosting is decided (31 October 2026): Claude is the AI provider (D-1). Its infer
 | D-2 | Which feature first | AI-1 first; AI-2 first; both together | Agreed 30 Oct 2026: AI-2 for staff first; smaller, uses recorded data only, quick to evaluate |
 | D-3 | Portal explanations | With staff release; later release | Agreed 30 Oct 2026: later, after staff feedback and legal review |
 | D-4 | Languages | English only; English plus others | Agreed 30 Oct 2026: English only for the first release |
-| D-5 | Commercial model | Included in subscription; priced add-on; pass-through usage | Open: a product decision; usage metering (AIA-073) supports any option |
+| D-5 | Commercial model | Included in subscription; priced add-on; pass-through usage | Decided 1 Nov 2026 (Ade): AI-2 included in the subscription with a per-tenant fair-use cap; AI-1 and AI-3 charged within onboarding or implementation fees; usage above the cap billed. The cap and any overage rate are set from the cost measured in batch 7.3, not before; metering (AIA-073) supports this |
 | D-6 | Timing | Now in parallel; after core waves | Agreed 30 Oct 2026: build as back-end Wave 7 after Wave 6, front-end screens before Phase 13, shipped off (section 9) |
-| D-7 | Product lines for the AI-1 evaluation set | Life, General, Health | Open: start with one line where real documents are available; Ade to name the line |
-| D-8 | Build order of AI-3 | Before AI-1; after AI-1 | Open. Recommended: AI-2, then AI-1, then AI-3, because AI-3 needs approved starter packs and their compliance review takes time. The pack-only path (AIA-090) can ship earlier if a first customer needs it. |
+| D-7 | Product lines for the AI-1 evaluation set | Life, General, Health | Decided 1 Nov 2026 (Ade): the line the first customer launches with; if there is none by the time the documents are collected, a simple Life product (funeral or term) with age-band rate tables. The insurer's written permission to use its documents is obtained first. Documents are collected early; the line is fixed before batch 7.5 |
+| D-8 | Build order of AI-3 | Before AI-1; after AI-1 | Decided 1 Nov 2026 (Ade): AI-3 is split. Order: foundations and AI-2 (batches 7.1 to 7.3); AI-3's pack-only path and the SETUP change set (7.6, 7.7); AI-1 (7.4, 7.5); AI-3's AI tailoring and mapping (7.8). The pack-only path needs no model, no transfer basis and no evaluation documents, and speeds the first customer's onboarding; it pays off only once an overlay is approved (D-10). |
 | D-9 | Country order for starter packs | Any order of target markets | Decided 1 Nov 2026 (Ade): Nigeria, Rwanda, Ghana, Senegal, Kenya, DRC, Côte d'Ivoire; a CIMA overlay shared by Senegal and Côte d'Ivoire; South Africa kept as a reference overlay. |
-| D-10 | Who approves each country overlay | A local compliance partner per country; OpenFactor's own compliance lead | Open. Recommended: a local compliance partner per country, engaged before that country's first customer. |
+| D-10 | Who approves each country overlay | A local compliance partner per country; OpenFactor's own compliance lead | Decided 1 Nov 2026 (Ade): two keys. A local compliance partner in each country reviews the overlay's content, and a named OpenFactor compliance lead approves it in INSYS. Each insurer's compliance officer confirms its own tenant's values at onboarding, since the insurer stays responsible to its regulator. Nigeria first, engaged now; the Nigerian partner is also asked about the transfer basis and hosting (D-13). If no partner is engaged before the first customer, that customer's compliance team approves an overlay for its own tenant only. |
 | D-11 | How AI-3's setup is applied | (a) one table at a time under BR-016; (b) one SETUP change set over all the tables | Decided 1 Nov 2026 (Ade): (b), only for a tenant still onboarding (AIA-086). |
 | D-12 | How AI-3's draft is checked for readiness | (a) load it into a temporary shadow tenant before approval; (c) a completeness check before approval, then full readiness on the tenant after applying, with go-live blocked until it passes | Decided 1 Nov 2026 (Ade): (c) (AIA-085). |
 | D-13 | Data protection outside South Africa | A South Africa-only setting, or each tenant's own jurisdiction and legal basis | Decided 1 Nov 2026 (Ade): each tenant's jurisdiction, inference location and legal basis (AIA-050). Hosting for Nigerian tenants is still open. |

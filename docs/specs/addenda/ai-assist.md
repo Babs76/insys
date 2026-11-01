@@ -1,6 +1,6 @@
 # Wave 7 addendum: AI Assist
 
-**Status: signed by Ade, with option C, 1 November 2026. Nothing here is built, and the build starts only after Wave 6.** Written from [the AI Assist SRS, revision 79](../../srs/INSYS_AI_Assist_SRS.md), and checked against the code on main. Ships off, per tenant (D-6).
+**Status: signed by Ade, with option C, 1 November 2026; D-5, D-7, D-8 and D-10 added the same day. Nothing here is built, and the build starts only after Wave 6.** Written from [the AI Assist SRS, revision 93](../../srs/INSYS_AI_Assist_SRS.md), and checked against the code on main. Ships off, per tenant (D-6).
 
 ## 1. What it is
 Three features. In all three the AI prepares and a person decides; it never approves, publishes, pays or refuses, and INSYS works unchanged without it.
@@ -23,10 +23,10 @@ The SRS's principles P1 to P8 and its requirements AIA-001 to AIA-091 stand as w
 | D-12 | How AI-3's draft is checked for readiness | **Decided, 1 Nov:** a completeness check before approval, then readiness on the tenant after applying, with go-live blocked until it passes (AIA-085) |
 | D-13 | Data protection outside South Africa | **Decided, 1 Nov:** each tenant's jurisdiction, where inference runs and the legal basis (AIA-050). Hosting for Nigerian tenants is still open |
 | D-14 | Malware scanning | **Decided, 1 Nov:** a scanner port, for all uploads, failing closed (AIA-010) |
-| D-5 | Commercial model | **Open.** Metering (AIA-073) supports any answer. Needed before any customer is charged |
-| D-7 | Line for AI-1's evaluation set | **Open.** Needed before batch 7.5 |
-| D-8 | AI-3's build order | **Open.** The SRS recommends AI-2, AI-1, then AI-3. §6 is drawn that way and can move. The pack-only path (AIA-090) can ship earlier |
-| D-10 | Who approves each country overlay | **Open.** The SRS recommends a local compliance partner per country. **No overlay can be approved until this is answered,** so AI-3 can't reach a live tenant, even pack-only |
+| D-5 | Commercial model | **Decided, 1 Nov:** AI-2 included with a per-tenant fair-use cap; AI-1 and AI-3 within onboarding or implementation fees; usage above the cap billed. The cap and rates come from the cost measured in batch 7.3 (§6) |
+| D-7 | Line for AI-1's evaluation set | **Decided, 1 Nov:** the first customer's launch line; otherwise a simple Life funeral or term product with age-band rate tables. The insurer's written permission comes first. Fixed before batch 7.5 |
+| D-8 | AI-3's build order | **Decided, 1 Nov:** AI-3 is split: 7.1 to 7.3, then 7.6 and 7.7, then 7.4 and 7.5, then 7.8 (§6) |
+| D-10 | Who approves each country overlay | **Decided, 1 Nov:** two keys, a local compliance partner reviewing and a named OpenFactor compliance lead approving in INSYS; each insurer's compliance officer confirms its own tenant's values. Fallback without a partner: the first customer's compliance team approves for its own tenant only (§5.3) |
 
 **What D-1 means for AI-2:** Claude runs globally or in the US, not in South Africa. AI-2 can be built first, but for each jurisdiction it waits to be switched on until compliance confirms the legal basis (POPIA s72 in South Africa) and the contract sets zero retention and no training (AIA-052). The route is a per-deployment setting of the adapter.
 
@@ -137,28 +137,53 @@ The SRS requires these fixed before build. Numbers compare after normalising:
 
 These belong to the core product, not to Wave 7, and aren't in §6's figures.
 
-## 6. Batches
-Working days for one engineer, with moderate confidence, excluding provider contracts, evaluation documents and overlay reviews. **This is the sizing in SRS §9; calendar time is re-estimated after 7.1.** Order as D-2 and the SRS's D-8 recommendation; D-8 is still open. **The build starts only after Wave 6.**
-| Batch | What | Days |
-|---|---|---|
-| 7.1 | Module, settings with jurisdiction, feature and functions, adapter with stub, minimiser, verifier, run records, metering and caps | 8 to 10 |
-| 7.2 | AI-2 refusals, then premiums, with cache, feedback and fallback | 6 to 8 |
-| 7.3 | Claude adapter, prompt templates, the AI-2 evaluation set and run | 4 to 6 |
-| 7.4 | Scanner port and quarantine, AI-1 extraction, field list from the model, background job acting for the user (security review before merge), citations, flags, rate table check, injection tests | 14 to 18 |
-| 7.5 | AI-1 review, provenance on approval, simulation cases, evaluation (needs D-7) | 8 to 10 |
-| 7.6 | AI-3 pack storage and versions, questionnaire, deterministic assembly, flags, loading a real pack (pack-only path, AIA-090) | 8 to 10 |
-| 7.7 | `SETUP` change set, completeness check, activation guard (option C) | 8 to 11 |
-| 7.8 | AI-3 tailoring and document mapping, evaluation | 6 to 9 |
-| **Total** | | **62 to 82; AI-2 and AI-1 alone are 40 to 52** |
+### 5.3 Overlay approval (D-10)
+An overlay version moves `DRAFT`, `REVIEWED`, `APPROVED`. Only an approved version can supply a regulated value, or else the wizard refuses with `ASSIST_PACK_NOT_APPROVED`, and every approval below names a person and is audited.
 
-**Roadmap phases and gates (SRS §9):**
+**The normal route has two keys and a confirmation:**
+| Step | Who | Recorded in INSYS | Effect |
+|---|---|---|---|
+| Review | The local compliance partner, outside INSYS | Partner, reviewer's name, date and the signed review document, entered by the compliance lead | `REVIEWED`. Approval is refused without it |
+| Approve | The named OpenFactor compliance lead, in INSYS | Approval bound to a hash of the overlay version | `APPROVED`, scope `ALL_TENANTS`. Global rows then load once, by the platform |
+| Confirm | The insurer's compliance officer, at onboarding | Confirmation of the tenant's FINANCE and COMPLIANCE values, bound to the setup's hash | Needed before the `SETUP` set can be approved. The insurer stays responsible to its regulator |
+
+**The fallback, with no partner engaged before the first customer:**
+- The customer's compliance team approves the overlay in its own tenant, with no partner review and no lead's approval.
+- The version's scope is then `TENANT_ONLY`, naming that tenant. **Only that tenant can use it,** and the wizard refuses it for any other (`ASSIST_PACK_NOT_APPROVED`).
+- It becomes available to others only through the normal route, as a new version.
+- Whoever ran the wizard can't approve in either route, and in the fallback the approval and the confirmation may be the same act.
+
+**Two points this design settles, which Ade may want to look at:**
+1. **Global rows in the fallback.** The fallback tenant can't write global tables, and one customer's approval shouldn't change them for everyone. *Proposal:* the platform loads only what is plain reference data (a currency, a holiday calendar) on the compliance lead's approval of those rows alone. Regulated values stay in tenant rows.
+2. **A sixth function.** Approving an overlay is a platform act, not one of the SRS's five tenant functions. *Proposal:* `ASSIST_OVERLAY_APPROVE`, in the operator tenant, for the named lead, with no role template. The fallback uses a tenant-side grant of the same action, limited to `TENANT_ONLY`.
+
+## 6. Batches
+Working days for one engineer, with moderate confidence, excluding provider contracts, evaluation documents and overlay reviews. **This is the sizing in SRS §9, plus overlay approval (§5.3) in 7.6; calendar time is re-estimated after 7.1. The build starts only after Wave 6.** Batch numbers stay as they were; the table is in build order (D-8).
+| Order | Batch | What | Days |
+|---|---|---|---|
+| 1 | 7.1 | Module, settings with jurisdiction, feature and functions, adapter with stub, minimiser, verifier, run records, metering and caps | 8 to 10 |
+| 2 | 7.2 | AI-2 refusals, then premiums, with cache, feedback and fallback | 6 to 8 |
+| 3 | 7.3 | Claude adapter, prompt templates, the AI-2 evaluation set and run. **Reports cost per explanation (D-5)** | 4 to 6 |
+| 4 | 7.6 | AI-3 pack storage and versions, overlay approval (§5.3), questionnaire, deterministic assembly, flags, loading a real pack (pack-only path, AIA-090) | 10 to 13 |
+| 5 | 7.7 | `SETUP` change set, completeness check, activation guard (option C) | 8 to 11 |
+| 6 | 7.4 | Scanner port and quarantine, AI-1 extraction, field list from the model, background job acting for the user (security review before merge), citations, flags, rate table check, injection tests | 14 to 18 |
+| 7 | 7.5 | AI-1 review, provenance on approval, simulation cases, evaluation (D-7's line fixed before it starts) | 8 to 10 |
+| 8 | 7.8 | AI-3 tailoring and document mapping, evaluation | 6 to 9 |
+| | **Total** | | **64 to 85; AI-2 and AI-1 alone are 40 to 52** |
+
+**The D-8 order holds up against the dependencies.** 7.6 and 7.7 use no model and no uploads. 7.8 maps uploaded documents, so it needs the scanner from 7.4, which it follows.
+
+**What batch 7.3 reports for D-5:** cost per explanation, in tokens and money, split by refusal and premium, with the cache hit rate, the model and the prompt version, and the price list used. It comes from the evaluation run, so it's a measured figure on test data, to be read as such. From it Ade sets the fair-use cap and the rate above it. Until then the cap (AIA-073) is the operator's, set low. **INSYS meters and reports usage per tenant; raising the invoice for overage is outside INSYS.** AI-1 and AI-3 are metered too, so onboarding fees can be checked against cost.
+
+**Roadmap phases and gates (SRS §9), in build order:**
 | Phase | What | Batches | Gate |
 |---|---|---|---|
 | 0 | Decide | | Go decision, provider chosen, SRS approved |
 | 1 | Foundations | 7.1 | Security tests pass: isolation, injection, no write tools |
-| 2 | AI-2 for staff | 7.2, 7.3 | SRS §5.3 targets met |
+| 2 | AI-2 for staff | 7.2, 7.3 | SRS §5.3 targets met; cost per explanation reported |
+| 3A, pack-only | AI-3's pack-only path and `SETUP` | 7.6, 7.7 | SRS §5A.4 targets that apply without AI, and first overlay approved (D-10). Usable only from then |
 | 3 | AI-1 drafts | 7.4, 7.5 | SRS §4.3 targets met, product team sign-off |
-| 3A | AI-3 wizard; placed by D-8 (open) | 7.6, 7.7, 7.8 | SRS §5A.4 targets met, first overlay approved (D-10) |
+| 3A, AI | AI-3's tailoring and mapping | 7.8 | The rest of SRS §5A.4: mapped values |
 | 4 | Pilot, one tenant | | Pilot review accepted by Ade |
 | 5 | Rollout | | |
 
@@ -170,4 +195,4 @@ From SRS §9.1 and §9.2:
 - **Evaluation sets are built before their features:** about 100 refusals and calculations for AI-2; one line's real documents for AI-1 (D-7); standard questionnaires and sample tenant documents for AI-3. Targets are SRS §4.3, §5.3 and §5A.4: proposals, none measured.
 
 ## 8. Still open
-D-5, D-7, D-8 and D-10. D-10 holds up AI-3 in practice, since no overlay can go live without an approver. Where Nigerian tenants are hosted is also undecided (D-13).
+Where Nigerian tenants are hosted (D-13), which the Nigerian compliance partner is also being asked about. Engaging that partner, and collecting the evaluation documents with the insurer's written permission (D-7), are the actions that come first. An overlay's approval is what makes AI-3's pack-only path useful.
