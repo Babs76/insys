@@ -143,7 +143,7 @@ An overlay version moves `DRAFT`, `REVIEWED`, `APPROVED`. Only an approved versi
 **The normal route has two keys and a confirmation:**
 | Step | Who | Recorded in INSYS | Effect |
 |---|---|---|---|
-| Review | The local compliance partner, outside INSYS | Partner, reviewer's name, date and the signed review document, entered by the compliance lead | `REVIEWED`. Approval is refused without it |
+| Review | The local compliance partner, outside INSYS | Partner, reviewer's name, date and the signed review document, kept as evidence on the version. Whoever marks it `REVIEWED` can't approve it | `REVIEWED`. Approval is refused without it |
 | Approve | The named OpenFactor compliance lead, in INSYS | Approval bound to a hash of the overlay version | `APPROVED`, scope `ALL_TENANTS`. Global rows then load once, by the platform |
 | Confirm | The insurer's compliance officer, at onboarding | Confirmation of the tenant's FINANCE and COMPLIANCE values, bound to the setup's hash | Needed before the `SETUP` set can be approved. The insurer stays responsible to its regulator |
 
@@ -153,12 +153,12 @@ An overlay version moves `DRAFT`, `REVIEWED`, `APPROVED`. Only an approved versi
 - It becomes available to others only through the normal route, as a new version.
 - Whoever ran the wizard can't approve in either route, and in the fallback the approval and the confirmation may be the same act.
 
-**Two points this design settles, which Ade may want to look at:**
-1. **Global rows in the fallback.** The fallback tenant can't write global tables, and one customer's approval shouldn't change them for everyone. *Proposal:* the platform loads only what is plain reference data (a currency, a holiday calendar) on the compliance lead's approval of those rows alone. Regulated values stay in tenant rows.
-2. **A sixth function.** Approving an overlay is a platform act, not one of the SRS's five tenant functions. *Proposal:* `ASSIST_OVERLAY_APPROVE`, in the operator tenant, for the named lead, with no role template. The fallback uses a tenant-side grant of the same action, limited to `TENANT_ONLY`.
+**Decided by Ade, 1 November:**
+1. **Global rows in the fallback.** The fallback tenant can't write global tables, and one customer's approval shouldn't change them for everyone. The platform loads only what is plain reference data (a currency, a holiday calendar) on the compliance lead's approval of those rows alone. Regulated values stay in tenant rows.
+2. **A sixth function.** Approving an overlay is a platform act, not one of the SRS's five tenant functions. `ASSIST_OVERLAY_APPROVE`, in the operator tenant, is privileged, for the named lead, with no role template. It is refused to whoever prepared the version or marked it `REVIEWED`. The SRS picks this up in its next revision. The fallback uses a tenant-side grant of the same action, limited to `TENANT_ONLY`.
 
 ## 6. Batches
-Working days for one engineer, with moderate confidence, excluding provider contracts, evaluation documents and overlay reviews. **This is the sizing in SRS §9, plus overlay approval (§5.3) in 7.6; calendar time is re-estimated after 7.1. The build starts only after Wave 6.** Batch numbers stay as they were; the table is in build order (D-8).
+Working days for one engineer, with moderate confidence, excluding provider contracts, evaluation documents and overlay reviews. **This is the sizing in SRS §9, plus overlay approval (§5.3) in 7.6, accepted by Ade at 10 to 13 days for 64 to 85 in total, which the SRS picks up in its next revision; calendar time is re-estimated after 7.1. The build starts only after Wave 6.** Batch numbers stay as they were; the table is in build order (D-8).
 | Order | Batch | What | Days |
 |---|---|---|---|
 | 1 | 7.1 | Module, settings with jurisdiction, feature and functions, adapter with stub, minimiser, verifier, run records, metering and caps | 8 to 10 |
@@ -173,7 +173,7 @@ Working days for one engineer, with moderate confidence, excluding provider cont
 
 **The D-8 order holds up against the dependencies.** 7.6 and 7.7 use no model and no uploads. 7.8 maps uploaded documents, so it needs the scanner from 7.4, which it follows.
 
-**What batch 7.3 reports for D-5:** cost per explanation, in tokens and money, split by refusal and premium, with the cache hit rate, the model and the prompt version, and the price list used. It comes from the evaluation run, so it's a measured figure on test data, to be read as such. From it Ade sets the fair-use cap and the rate above it. Until then the cap (AIA-073) is the operator's, set low. **INSYS meters and reports usage per tenant; raising the invoice for overage is outside INSYS.** AI-1 and AI-3 are metered too, so onboarding fees can be checked against cost.
+**What batch 7.3 reports for D-5:** cost per explanation, in tokens and money, split by refusal and premium, with the cache hit rate, the model and the prompt version, and the price list used. It comes from the evaluation run, so it's a measured figure on test data, to be read as such. From it Ade sets the fair-use cap and the rate above it. Until then the cap (AIA-073) is the operator's, set low. **INSYS meters usage and gives a monthly usage report per tenant; billing is outside INSYS (Ade, 1 November).** AI-1 and AI-3 are metered too, so onboarding fees can be checked against cost.
 
 **Roadmap phases and gates (SRS §9), in build order:**
 | Phase | What | Batches | Gate |
