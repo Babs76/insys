@@ -311,6 +311,17 @@ public sealed class MedicalClaim : AggregateRoot<Guid>
     public IReadOnlyList<MedicalClaimLine> Lines => _lines;
 
     /// <summary>Command SubmitClaim.</summary>
+    public string? MigrationBatch { get; private set; }
+
+    public string? SourceReference { get; private set; }
+
+    /// <summary>A claim open in a source system, resubmitted at cut-over and adjudicated by the same rules; these tie it to the batch's reconciliation.</summary>
+    public void FromMigration(string batch, string sourceReference)
+    {
+        MigrationBatch = Guard.MaxLength(batch, 30);
+        SourceReference = Guard.MaxLength(sourceReference, 40);
+    }
+
     public static Result<MedicalClaim> SubmitClaim(Guid id, string claimNumber, string source, string? providerId, Guid membershipId, Guid patientPartyId,
         DateOnly serviceDate, string formatCode, string currency, Guid? preauthId, IReadOnlyList<ClaimLineRequest> lines, DateTimeOffset now)
     {

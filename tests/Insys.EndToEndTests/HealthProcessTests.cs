@@ -1437,6 +1437,46 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         (await _db.ScalarAsOwner<long>("SELECT count(*) FROM billing.invoice WHERE policy_ref = @m", ("m", membership))).ShouldBe(0);
     }
 
+    /// <summary>Ade, 1 November 2026: benefit use to date comes across on the key adjudication looks for, so a migrated member can't claim it twice; a resubmitted open claim is tied to the batch's reconciliation.</summary>
+    [Fact]
+    public async Task AMigratedMembersUseToDate_CountsAgainstTheirLimit_AndAResubmittedClaimReconciles()
+    {
+        await Provider();
+        await _db.UserWithPermissions(Tenant, "accum-migrator", HealthPermissions.MembershipMigrate, IntegrationPermissions.MigrationReconcile);
+        await _db.AdoptFunctionCatalogue();
+        var migrator = _factory.ClientFor(Tenant, "accum-migrator");
+        var principal = await _maker.RegisterPerson("MigratedUse");
+        var loaded = await (await migrator.Send(HttpMethod.Post, "/api/v1/health/migration/memberships", new
+        {
+            batchCode = "HB1", controlCount = 1, controlContribution = 900m,
+            rows = new[] { new { sourceReference = "HB-M1", principalPartyId = principal, planCode = "HLT-CORE", optionCode = "A", startDate = Today.AddYears(-1), currency = "ZAR", collectionMethod = "DEBIT_ORDER", monthlyContribution = 900m, employerContribution = 0m } },
+        }, idempotent: true)).Json();
+        var membership = loaded.GetProperty("memberships").GetProperty("HB-M1").GetGuid();
+        await _factory.DrainOutbox();
+
+        object Use(decimal used, Guid who) => new
+        {
+            batchCode = "HB1", controlCount = 1, controlUsed = used,
+            rows = new[] { new { sourceReference = "HB-A1", membershipId = membership, beneficiaryPartyId = who, benefitCategory = "SPECIALIST", scope = "MEMBER", lifetime = false, limit = (decimal?)20_000m, used, deductibleMet = 0m, copayTaken = 0m } },
+        };
+        (await (await migrator.Send(HttpMethod.Post, "/api/v1/health/migration/accumulators", Use(19_950m, Guid.CreateVersion7()), idempotent: true)).Json()).GetProperty("loaded").GetInt32().ShouldBe(0, "not on the membership");
+        var opened = await (await migrator.Send(HttpMethod.Post, "/api/v1/health/migration/accumulators", Use(19_950m, principal), idempotent: true)).Json();
+        opened.GetProperty("loaded").GetInt32().ShouldBe(1, opened.ToString());
+
+        // Only 50 is left of the year's specialist limit, so a claim the plan would otherwise pay in part takes only that.
+        var claim = await Claim(membership, principal, 1_200m);
+        (await _maker.PostAsync($"/api/v1/health/claims/{claim}/validate", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        var adjudicated = await (await _maker.PostAsync($"/api/v1/health/claims/{claim}/adjudicate", null)).Json();
+        adjudicated.GetProperty("lines")[0].GetProperty("paidAmount").GetDecimal().ShouldBeLessThanOrEqualTo(50m, adjudicated.ToString());
+
+        await _db.ExecuteAsOwner("UPDATE health.medical_claim SET migration_batch = 'HB1', source_reference = 'HB-C1' WHERE id = @c", ("c", claim));
+        var report = await (await migrator.Send(HttpMethod.Post, "/api/v1/integration/migration-batches/HB1/reconciliation", new[]
+        {
+            new { kind = "HEALTH_MEMBERSHIP", count = 1L, amount = (decimal?)null }, new { kind = "HEALTH_ACCUMULATOR", count = 1L, amount = (decimal?)19_950m }, new { kind = "HEALTH_OPEN_CLAIM", count = 1L, amount = (decimal?)1_200m },
+        })).Json();
+        report.GetProperty("reconciled").GetBoolean().ShouldBeTrue(report.ToString());
+    }
+
     /// <summary>Owed from Wave 5b: a provider asks through its portal, as itself; the member's unknown number is refused; the request reaches staff with the provider named from its link, not the body.</summary>
     [Fact]
     public async Task AProvider_RequestsAChronicRegistrationThroughItsPortal_AsItself_F083()

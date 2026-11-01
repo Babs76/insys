@@ -69,7 +69,7 @@ public sealed record GetAuthorisation(Guid PreauthorisationId) : IQuery<Preautho
 public sealed record ReadAuthorisationClinical(Guid PreauthorisationId, string? Purpose) : ICommand<PreauthorisationClinicalView>;
 
 public sealed record SubmitMedicalClaim(string Source, string? ProviderId, Guid MembershipId, Guid PatientPartyId, DateOnly ServiceDate, string FormatCode, string Currency,
-    Guid? PreauthorisationId, IReadOnlyList<ClaimLineRequest> Lines, Guid? ReplacesClaimId = null) : ICommand<MedicalClaimView>;
+    Guid? PreauthorisationId, IReadOnlyList<ClaimLineRequest> Lines, Guid? ReplacesClaimId = null, string? MigrationBatch = null, string? SourceReference = null) : ICommand<MedicalClaimView>;
 
 public sealed record ValidateMedicalClaim(Guid ClaimId) : ICommand<MedicalClaimView>;
 
@@ -499,6 +499,16 @@ internal sealed class SubmitMedicalClaimHandler(IHealthRepository health, IHealt
             {
                 return replacing.Error;
             }
+        }
+
+        if (command.MigrationBatch is { Length: > 0 } batch)
+        {
+            if (command.SourceReference is not { Length: > 0 } reference)
+            {
+                return Error.Validation(ErrorCodes.ValidationFailed, "A migrated claim names its source reference.");
+            }
+
+            claim.Value.FromMigration(batch, reference);
         }
 
         health.Add(claim.Value);

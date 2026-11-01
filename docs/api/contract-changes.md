@@ -19,6 +19,11 @@ What changed in the API contract, newest first, so the front end can sync. The O
 - **`EndorsementView`** gains `adjustmentPct`, `newBillingFrequency`.
 - **An accepted mid-term discount offer** drafts a `PREMIUM_ADJUST` endorsement for the case's owner to submit.
 
+## Health migration (branch `health-migration-accumulators`, Ade's decisions of 1 November 2026)
+
+- **New `POST /health/migration/accumulators`:** a member's benefit use to date. Permission `health_membership.migrate`.
+- **`POST /health/claims`** takes optional `migrationBatch` and `sourceReference`, for a claim open in a source system.
+
 ## Commission recovery (branch `commission-recovery`, B-009)
 
 - **New `GET /distribution/commission-recoveries`:** `intermediaryCode`, `owedOnly` (default true), `cursor`, `limit`. What brokers owe of commission already paid. Permission `commission.read`.
