@@ -364,7 +364,7 @@ public sealed class PartyAnonymisationTests(DatabaseFixture fixture) : IClassFix
     {
         var tenant = DatabaseFixture.TenantA;
         var party = await _today.ClientFor(tenant, Officer).RegisterPerson("DormantFour");
-        var quote = await Insert(tenant, "general.quote", ("status", "RATED"), ("proposer_party_id", party));
+        var quote = await Insert(tenant, "general.quote", ("status", "DRAFT"), ("proposer_party_id", party));
         await ReviewDormancy(tenant);
         (await StatusOf(tenant, party)).ShouldBe("ACTIVE", "a quote is open");
 
