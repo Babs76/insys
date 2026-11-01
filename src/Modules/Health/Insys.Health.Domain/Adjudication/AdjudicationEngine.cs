@@ -368,7 +368,7 @@ public static class BenefitCategories
 {
     public static string? Of(string code, string? codeSystem, string? providerType, IReadOnlyList<CategoryMapping> mappings) =>
         mappings.Where(m => m.CodeSystem is not null && m.CodeSystem == codeSystem && m.CodeFrom is not null && m.CodeTo is not null
-                            && CodeRanges.Contains($"{m.CodeFrom}-{m.CodeTo}", code))
+                            && CodeRanges.Between(m.CodeFrom, m.CodeTo, code))
             .OrderBy(m => CodeRanges.Specificity(m.CodeFrom!, m.CodeTo!)).ThenBy(m => m.Category, StringComparer.Ordinal)
             .Select(m => m.Category).FirstOrDefault()
         ?? mappings.Where(m => m.CodeSystem is null && providerType is not null && m.ProviderType == providerType).Select(m => m.Category).FirstOrDefault();

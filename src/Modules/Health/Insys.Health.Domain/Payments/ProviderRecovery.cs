@@ -375,6 +375,11 @@ public sealed class ProviderRecovery : AggregateRoot<Guid>
     /// <summary>A person's decision: the balance is invoiced through Billing (§4.7, OQ-145).</summary>
     public Result Invoice(DateOnly today, string? collectionMethod, DateTimeOffset now)
     {
+        if (WriteOffRequestedBy is not null)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, $"Recovery {RecoveryNumber} has a write-off waiting for a second person (BR-120).");
+        }
+
         if (Status != RecoveryStatuses.Open || Balance <= 0 || HeldByCaseId is not null)
         {
             return Error.Conflict(ErrorCodes.InvalidStateTransition, $"Recovery {RecoveryNumber} is {Status}{(HeldByCaseId is null ? "" : ", held by a dispute")}.");
@@ -477,6 +482,11 @@ public sealed class ProviderRecovery : AggregateRoot<Guid>
         if (string.IsNullOrWhiteSpace(reason))
         {
             return Error.Validation(HealthErrorCodes.ReasonRequired, "Reversing a recovery needs a reason.");
+        }
+
+        if (WriteOffRequestedBy is not null)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, $"Recovery {RecoveryNumber} has a write-off waiting for a second person (BR-120).");
         }
 
         if (Status is not (RecoveryStatuses.Open or RecoveryStatuses.Recovered) || InvoiceId is not null || _offsets.Any(o => o.Status == OffsetStatuses.Reserved))

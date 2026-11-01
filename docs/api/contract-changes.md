@@ -23,6 +23,14 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 - **`general.cfg_retention_offers`** gains `billingFrequency`, required for a `PAYMENT_TERMS` offer. Accepting one mid-term drafts a `BILLING_FREQ` endorsement for the case's owner.
 
+## Back-end requests (branch `be-requests`)
+
+- **BR-099, new `GET /portal/cases/options`:** the case types this portal may raise (`code`, `family`, `label`, `linkTypes`, `requiresCategory`) and the categories in force.
+- **BR-107:** `partyName` and `partyNumber` on the due diligence view and work list.
+- **BR-118:** `CR-`, `IB-`, `PAY-`, `PB-`, `SIM-` and `JNL-` numbers keep their length, and now end with the ID's random digits instead of starting with its clock. Don't sort by them.
+- **BR-120:** invoicing or reversing a recovery with a write-off waiting answers 409 `INVALID_STATE_TRANSITION`.
+- **BR-123:** approving an authorisation for a medicine on the formulary takes the formulary's category. A benefit category mapping's code may hold a hyphen.
+
 ## Health migration (branch `health-migration-accumulators`, Ade's decisions of 1 November 2026)
 
 - **New `POST /health/migration/accumulators`:** a member's benefit use to date. Permission `health_membership.migrate`.

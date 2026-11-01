@@ -24,6 +24,7 @@
  * UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
  * ============================================================================
  */
+using Insys.BuildingBlocks.Domain;
 using Insys.Health.Domain;
 using Insys.Health.Domain.Payments;
 using Shouldly;
@@ -35,6 +36,15 @@ public sealed class ProviderRecoveryTests
 {
     private static readonly DateTimeOffset Now = new(2026, 11, 1, 10, 0, 0, TimeSpan.Zero);
     private static readonly DateOnly Today = new(2026, 11, 1);
+
+    [Fact]
+    public void AWaitingWriteOff_RefusesAnInvoiceAndAReversal_BR120()
+    {
+        var recovery = Recovery();
+        recovery.RequestWriteOff("Not worth pursuing", Guid.CreateVersion7(), DateTimeOffset.UtcNow).IsSuccess.ShouldBeTrue();
+        recovery.Invoice(new DateOnly(2026, 11, 1), null, DateTimeOffset.UtcNow).Error!.Code.ShouldBe(ErrorCodes.InvalidStateTransition);
+        recovery.Reverse("A mistake", new DateOnly(2026, 11, 1), DateTimeOffset.UtcNow).Error!.Code.ShouldBe(ErrorCodes.InvalidStateTransition);
+    }
 
     private static ProviderRecovery Recovery(decimal amount = 500m, bool offset = true, string debtor = RecoveryDebtors.Provider) =>
         ProviderRecovery.Raise(Guid.CreateVersion7(), "RC1", debtor, debtor == RecoveryDebtors.Provider ? "PR-1" : null, Guid.CreateVersion7(), RecoverySources.Reversal, Guid.CreateVersion7(),

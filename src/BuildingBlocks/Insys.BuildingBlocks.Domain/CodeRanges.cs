@@ -40,8 +40,12 @@ public static class CodeRanges
     {
         var dash = entry.IndexOf('-', 1);
         var (from, to) = dash < 0 ? (entry.Trim(), entry.Trim()) : (entry[..dash].Trim(), entry[(dash + 1)..].Trim());
-        return string.CompareOrdinal(code, from) >= 0 && string.CompareOrdinal(code.Length > to.Length ? code[..to.Length] : code, to) <= 0;
+        return Between(from, to, code);
     }
+
+    /// <summary>A range given as its two ends, so a code holding a hyphen is one code (BR-123).</summary>
+    public static bool Between(string from, string to, string code) =>
+        string.CompareOrdinal(code, from) >= 0 && string.CompareOrdinal(code.Length > to.Length ? code[..to.Length] : code, to) <= 0;
 
     /// <summary>How narrow a range is, so a more specific mapping wins: an exact code before a range, a shorter range before a longer one.</summary>
     public static (int Exact, int Width) Specificity(string from, string to) =>

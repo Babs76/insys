@@ -378,7 +378,9 @@ internal sealed class AuthorisationHandlers(IHealthRepository health, IHealthCod
             foreach (var amount in command.Lines)
             {
                 var line = preauth.Lines.SingleOrDefault(l => l.Id == amount.LineId);
-                var category = line is null ? null : BenefitCategories.Of(line.ProcedureCode, context.Value.CodeSystems.GetValueOrDefault(line.ProcedureCode),
+                // BR-123: a medicine on the formulary takes its category from there, with no second listing on the service list.
+                var medicine = line is null ? null : (await codes.Formulary([line.ProcedureCode], command.ValidFrom, cancellationToken)).GetValueOrDefault(line.ProcedureCode);
+                var category = line is null ? null : medicine?.Category ?? BenefitCategories.Of(line.ProcedureCode, context.Value.CodeSystems.GetValueOrDefault(line.ProcedureCode),
                     context.Value.Provider.ProviderType, context.Value.Mappings);
                 if (category is null)
                 {

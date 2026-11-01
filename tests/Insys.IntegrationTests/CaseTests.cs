@@ -262,6 +262,11 @@ public sealed class CaseTests(DatabaseFixture fixture) : IClassFixture<DatabaseF
         (await (await member.Send(HttpMethod.Post, Portal, new { caseTypeCode = "DISPUTE_P", summary = "A provider type" }, idempotent: true)).Code())
             .ShouldBe("CASE_TYPE_NOT_IN_FORCE");
 
+        // BR-099: the form offers what this portal may raise, not a provider's type.
+        var options = await (await member.GetAsync($"{Portal}/options")).Json();
+        options.GetProperty("types").EnumerateArray().Select(t => t.GetProperty("code").GetString()).ShouldContain("COMPLAINT_T");
+        options.GetProperty("types").EnumerateArray().Select(t => t.GetProperty("code").GetString()).ShouldNotContain("DISPUTE_P");
+        options.GetProperty("categories").EnumerateArray().Select(c => c.GetProperty("code").GetString()).ShouldContain("SERVICE");
         var raised = await member.Send(HttpMethod.Post, Portal, new { caseTypeCode = "COMPLAINT_T", categoryCode = "SERVICE", summary = "Slow service" }, idempotent: true);
         raised.StatusCode.ShouldBe(HttpStatusCode.Created, await raised.Content.ReadAsStringAsync());
         var id = (await raised.Json()).GetProperty("id").GetGuid();

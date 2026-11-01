@@ -286,7 +286,7 @@ public sealed class Payment : AggregateRoot<Guid>
         var payment = new Payment
         {
             Id = Guard.NotEmpty(id),
-            PaymentRef = "PAY-" + id.ToString("N")[..16].ToUpperInvariant(),
+            PaymentRef = References.Of("PAY-", id, 20),
             IdempotencyKey = Guard.MaxLength(Guard.NotNullOrWhiteSpace(idempotencyKey), 80),
             Direction = direction,
             Purpose = Guard.MaxLength(purpose, 15),

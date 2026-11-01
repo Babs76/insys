@@ -42,6 +42,9 @@ public interface IDueDiligenceStore
 {
     Task<DueDiligence?> ForParty(Guid partyId, CancellationToken cancellationToken);
 
+    /// <summary>BR-107: each party's display name and number, to say whose a record is.</summary>
+    Task<IReadOnlyDictionary<Guid, (string Name, string Number)>> PartyNames(IReadOnlyCollection<Guid> partyIds, CancellationToken cancellationToken);
+
     Task<IReadOnlyList<BeneficialOwner>> Owners(Guid partyId, CancellationToken cancellationToken);
 
     /// <summary>GET /party/due-diligence: newest first by ID, filtered.</summary>
@@ -312,7 +315,8 @@ public sealed class DueDiligenceService(IPartyRepository parties, IDueDiligenceS
 public sealed record GetDueDiligence(Guid PartyId) : ICommand<DueDiligenceView>;
 
 /// <param name="CheckType">SCREENING (sanctions, PEP and, where on, adverse media, by the provider), IDENTITY with an identifier (by the provider), or ADDRESS, BENEFICIAL_OWNERSHIP or SOURCE_OF_FUNDS recorded by the caller against a document.</param>
-public sealed record RunDueDiligenceCheck(Guid PartyId, string CheckType, Guid? IdentifierId, Guid? DocumentId, string? Reference) : ICommand<DueDiligenceView>;
+/// <summary>BR-115: IRetryOnConflict, as the first check can race the screening on registration to open the record.</summary>
+public sealed record RunDueDiligenceCheck(Guid PartyId, string CheckType, Guid? IdentifierId, Guid? DocumentId, string? Reference) : ICommand<DueDiligenceView>, IRetryOnConflict;
 
 public sealed record ReviewScreeningHit(Guid PartyId, Guid HitId, string Outcome, string Reason, long ExpectedVersion) : ICommand<DueDiligenceView>, IVersionedCommand;
 
@@ -364,7 +368,7 @@ public sealed record DueDiligenceView(Guid Id, Guid PartyId, [property: OneOf("N
     [property: OneOf("LOW", "MEDIUM", "HIGH")] string? PendingOverrideClass, bool UnblockPending, IReadOnlyList<DueDiligenceCheckView> Checks,
     IReadOnlyList<BeneficialOwnerView> BeneficialOwners, IReadOnlyList<ScreeningHitView>? Hits, long RowVersion,
     [property: BuildingBlocks.Contracts.AlwaysPresent] bool ReviewDue = false, [property: BuildingBlocks.Contracts.AlwaysPresent] DateTimeOffset? ReviewedAt = null,
-    [property: BuildingBlocks.Contracts.AlwaysPresent] Guid? ReviewedBy = null)
+    [property: BuildingBlocks.Contracts.AlwaysPresent] Guid? ReviewedBy = null, string? PartyName = null, string? PartyNumber = null)
 {
     /// <summary>OQ-138: the review ended with no person (an AUTOMATIC class): ReviewedBy is the system requester.</summary>
     public bool ReviewedBySystem => ReviewedBy is { } by && MakerChecker.IsSystem(by);
@@ -378,9 +382,9 @@ public sealed record DueDiligenceView(Guid Id, Guid PartyId, [property: OneOf("N
 /// <summary>A row of the compliance work list (§9): no hit detail, only how many wait.</summary>
 public sealed record DueDiligenceSummary(Guid Id, Guid PartyId, [property: OneOf("NOT_STARTED", "IN_PROGRESS", "CLEARED", "REFERRED", "BLOCKED", "EXPIRED")] string Status,
     [property: OneOf("LOW", "MEDIUM", "HIGH")] string? RiskClass, [property: OneOf("SIMPLIFIED", "STANDARD", "ENHANCED")] string Level, DateOnly? NextReviewOn,
-    DateTimeOffset? LastScreenedAt, int OpenHits)
+    DateTimeOffset? LastScreenedAt, int OpenHits, string? PartyName = null, string? PartyNumber = null)
 {
-    public static DueDiligenceSummary From(DueDiligence d) => new(d.Id, d.PartyId, d.Status, d.RiskClass, d.Level, d.NextReviewOn, d.LastScreenedAt, d.Hits.Count(h => h.Open));
+    public static DueDiligenceSummary From(DueDiligence d, (string Name, string Number)? party = null) => new(d.Id, d.PartyId, d.Status, d.RiskClass, d.Level, d.NextReviewOn, d.LastScreenedAt, d.Hits.Count(h => h.Open), party?.Name, party?.Number);
 }
 
 public sealed class RunDueDiligenceCheckValidator : AbstractValidator<RunDueDiligenceCheck>
@@ -664,8 +668,12 @@ internal sealed class DueDiligenceHandlers(IPartyRepository parties, IDueDiligen
         return await View(party.Id, dueDiligence, cancellationToken, owners: [owner.Value]);
     }
 
-    public async Task<Result<IReadOnlyList<DueDiligenceSummary>>> Handle(ListDueDiligence query, CancellationToken cancellationToken) =>
-        (await store.List(query.Filter, query.BeforeId, query.Limit, cancellationToken)).Select(DueDiligenceSummary.From).ToList();
+    public async Task<Result<IReadOnlyList<DueDiligenceSummary>>> Handle(ListDueDiligence query, CancellationToken cancellationToken)
+    {
+        var rows = await store.List(query.Filter, query.BeforeId, query.Limit, cancellationToken);
+        var names = await store.PartyNames(rows.Select(r => r.PartyId).ToList(), cancellationToken);
+        return rows.Select(r => DueDiligenceSummary.From(r, names.TryGetValue(r.PartyId, out var party) ? party : null)).ToList();
+    }
 
     private async Task<Result<(Domain.Parties.Party Party, DueDiligence DueDiligence)>> Load(Guid partyId, long? expected, CancellationToken cancellationToken)
     {
@@ -702,10 +710,13 @@ internal sealed class DueDiligenceHandlers(IPartyRepository parties, IDueDiligen
     }
 
     private async Task<DueDiligenceView> View(Guid partyId, DueDiligence dueDiligence, CancellationToken cancellationToken, IReadOnlyCollection<DueDiligenceCheck>? added = null,
-        IReadOnlyCollection<BeneficialOwner>? owners = null) =>
-        DueDiligenceView.From(dueDiligence, (await parties.Checks(partyId, cancellationToken)).Concat(added ?? []).DistinctBy(c => c.Id).OrderBy(c => c.CheckedAt),
+        IReadOnlyCollection<BeneficialOwner>? owners = null)
+    {
+        var named = (await store.PartyNames([partyId], cancellationToken)).TryGetValue(partyId, out var party) ? party : default;
+        return DueDiligenceView.From(dueDiligence, (await parties.Checks(partyId, cancellationToken)).Concat(added ?? []).DistinctBy(c => c.Id).OrderBy(c => c.CheckedAt),
             (await store.Owners(partyId, cancellationToken)).Concat(owners ?? []).DistinctBy(o => o.Id),
-            execution.HasPermission(PartyPermissions.DueDiligenceReviewHit), service.SavedVersion(dueDiligence));
+            execution.HasPermission(PartyPermissions.DueDiligenceReviewHit), service.SavedVersion(dueDiligence)) with { PartyName = named.Name, PartyNumber = named.Number };
+    }
 }
 
 /// <summary>

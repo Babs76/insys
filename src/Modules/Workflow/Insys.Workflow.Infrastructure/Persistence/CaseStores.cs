@@ -131,6 +131,14 @@ internal sealed class CaseConfiguration(WorkflowDbContext db) : ICaseConfigurati
             .OrderBy(s => Array.IndexOf(codes, s.SchemeCode)).Select(s => new OmbudSchemeInfo(s.SchemeCode, s.Name, s.Contact, s.ReferralInformation)).ToList();
     }
 
+    public async Task<PortalCaseOptions> PortalOptions(string audience, DateOnly day, CancellationToken cancellationToken)
+    {
+        var types = (await InForce<CaseTypes>(day).OrderBy(t => t.CaseTypeCode).ToListAsync(cancellationToken)).Where(t => (t.PortalAudiences ?? []).Contains(audience))
+            .Select(t => new PortalCaseTypeOption(t.CaseTypeCode, t.Family, t.Description, t.LinkTypes, t.RequiresCategory)).ToList();
+        var categories = await InForce<CaseCategories>(day).OrderBy(c => c.CategoryCode).Select(c => new PortalCaseCategoryOption(c.CategoryCode, c.Family, c.Name)).ToListAsync(cancellationToken);
+        return new PortalCaseOptions(types, categories);
+    }
+
     public Task<bool> CategoryExists(string categoryCode, DateOnly day, CancellationToken cancellationToken) =>
         InForce<CaseCategories>(day).AnyAsync(c => c.CategoryCode == categoryCode, cancellationToken);
 

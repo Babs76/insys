@@ -255,7 +255,7 @@ public sealed class Journal : AggregateRoot<Guid>
         var journal = new Journal
         {
             Id = Guard.NotEmpty(id),
-            JournalNumber = "JNL-" + id.ToString("N")[..16].ToUpperInvariant(),
+            JournalNumber = References.Of("JNL-", id, 20),
             AccountingDate = accountingDate,
             PeriodCode = periodCode,
             SourceEventId = Guard.NotEmpty(sourceEventId),

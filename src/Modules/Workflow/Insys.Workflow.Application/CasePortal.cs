@@ -75,6 +75,15 @@ public sealed record AddPortalCaseMessage(Guid CaseId, string Body) : ICommand<b
 /// <summary>An appeal of the user's own decided case, as its type's review type (PPR 18.6).</summary>
 public sealed record AppealPortalCase(Guid CaseId, string Summary) : ICommand<Guid>;
 
+/// <summary>BR-099: what the portal user may raise.</summary>
+public sealed record GetPortalCaseOptions : IQuery<PortalCaseOptions>;
+
+public sealed record PortalCaseTypeOption(string Code, string Family, string? Label, IReadOnlyList<string> LinkTypes, bool RequiresCategory);
+
+public sealed record PortalCaseCategoryOption(string Code, string Family, string Name);
+
+public sealed record PortalCaseOptions(IReadOnlyList<PortalCaseTypeOption> Types, IReadOnlyList<PortalCaseCategoryOption> Categories);
+
 public sealed record ListPortalCases(Guid? AfterId, int Limit) : IQuery<IReadOnlyList<PortalCaseSummaryView>>;
 
 public sealed record GetPortalCase(Guid CaseId) : IQuery<PortalCaseView>;
@@ -160,12 +169,16 @@ internal sealed class CasePortalHandlers(ICaseRepository cases, ICasePortalQueri
     IEnumerable<IPortalRecordRelations> relations, IEnumerable<IPortalCaseLinks> caseLinks, IEnumerable<IBrokeredPolicies> brokered, IExecutionContext execution, ITenantContext tenant, IBusinessDate businessDate,
     IClock clock) :
     IQueryHandler<ListPortalCases, IReadOnlyList<PortalCaseSummaryView>>,
+    IQueryHandler<GetPortalCaseOptions, PortalCaseOptions>,
     IQueryHandler<GetPortalCase, PortalCaseView>,
     ICommandHandler<RaisePortalCase, Guid>,
     ICommandHandler<AddPortalCaseMessage, bool>,
     ICommandHandler<AppealPortalCase, Guid>
 {
     private static readonly Error NotFound = Error.NotFound(ErrorCodes.NotFound, "The case was not found.");
+
+    public async Task<Result<PortalCaseOptions>> Handle(GetPortalCaseOptions query, CancellationToken cancellationToken) =>
+        await configuration.PortalOptions(Who.ChannelAudience, businessDate.Today, cancellationToken);
 
     private ExternalSubject Who => execution.External ?? throw new InvalidOperationException("A portal endpoint is used by external users only.");
 

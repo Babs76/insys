@@ -290,6 +290,12 @@ internal static class CaseEndpoints
             .WithSummary("The portal user's cases: a member's own, a provider's own, a broker's raised or shared with it (OQ-108)")
             .RequirePermission(CasePermissions.Read).ForPortal(all);
 
+        portal.MapGet("/options", async (IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Query(new GetPortalCaseOptions(), ct)).ToHttp(Results.Ok))
+            .Produces<PortalCaseOptions>(StatusCodes.Status200OK)
+            .WithName("PortalGetCaseOptions")
+            .WithSummary("The case types this portal may raise, and the categories in force (BR-099)")
+            .RequirePermission(CasePermissions.Read).ForPortal(all);
+
         portal.MapGet("/{id:guid}", async (Guid id, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Query(new GetPortalCase(id), ct)).ToHttp(Results.Ok))
             .Produces<PortalCaseView>(StatusCodes.Status200OK)
             .WithName("PortalGetCase")

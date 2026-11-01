@@ -10219,6 +10219,48 @@
         "x-eventual-effects": "workflow.CaseOpened reaches Communications."
       }
     },
+    "/api/v1/portal/cases/options": {
+      "get": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "The case types this portal may raise, and the categories in force (BR-099)",
+        "operationId": "PortalGetCaseOptions",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowPortalCaseOptions"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "case.read",
+        "x-function": [
+          "CUSTOMER_PORTAL_CASES",
+          "BROKER_PORTAL_CASES",
+          "PROVIDER_PORTAL_DISPUTES"
+        ]
+      }
+    },
     "/api/v1/portal/cases/{id}": {
       "get": {
         "tags": [
@@ -69592,6 +69634,18 @@
               "string"
             ],
             "format": "int32"
+          },
+          "partyName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "partyNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -69771,6 +69825,18 @@
               "string"
             ],
             "format": "uuid"
+          },
+          "partyName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "partyNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "reviewedBySystem": {
             "type": "boolean"
@@ -75295,6 +75361,25 @@
           }
         }
       },
+      "WorkflowPortalCaseCategoryOption": {
+        "required": [
+          "code",
+          "family",
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "family": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
       "WorkflowPortalCaseLinkView": {
         "required": [
           "linkType",
@@ -75349,6 +75434,27 @@
           "sentAt": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "WorkflowPortalCaseOptions": {
+        "required": [
+          "types",
+          "categories"
+        ],
+        "type": "object",
+        "properties": {
+          "types": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowPortalCaseTypeOption"
+            }
+          },
+          "categories": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowPortalCaseCategoryOption"
+            }
           }
         }
       },
@@ -75450,6 +75556,39 @@
               "string"
             ],
             "format": "date-time"
+          }
+        }
+      },
+      "WorkflowPortalCaseTypeOption": {
+        "required": [
+          "code",
+          "family",
+          "label",
+          "linkTypes",
+          "requiresCategory"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "family": {
+            "type": "string"
+          },
+          "label": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "linkTypes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "requiresCategory": {
+            "type": "boolean"
           }
         }
       },

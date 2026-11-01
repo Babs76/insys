@@ -121,7 +121,7 @@ public sealed class StaticDataChange : AggregateRoot<Guid>
         var change = new StaticDataChange
         {
             Id = Guard.NotEmpty(id),
-            RequestNumber = "CR-" + id.ToString("N")[..16].ToUpperInvariant(),
+            RequestNumber = References.Of("CR-", id, 19),
             EntityCode = Guard.MaxLength(Guard.NotNullOrWhiteSpace(entityCode), 40),
             RecordKey = Guard.MaxLength(Guard.NotNullOrWhiteSpace(recordKey), 120),
             Action = action,
@@ -155,7 +155,7 @@ public sealed class StaticDataChange : AggregateRoot<Guid>
     public static StaticDataChange SubmitImport(Guid id, string entityCode, Guid batchId, string hash, string after, Guid makerId, DateOnly effectiveFrom,
         string reason, bool requiresChecker, string approvalType, DateTimeOffset now)
     {
-        var change = SubmitChange(id, entityCode, "IB-" + batchId.ToString("N")[..16].ToUpperInvariant(), ImportAction, after, makerId, effectiveFrom, reason,
+        var change = SubmitChange(id, entityCode, References.Of("IB-", batchId, 19), ImportAction, after, makerId, effectiveFrom, reason,
             requiresChecker, approvalType, now);
         change.ImportBatchId = batchId;
         change.ImportHash = Guard.MaxLength(Guard.NotNullOrWhiteSpace(hash), 64);
@@ -317,7 +317,7 @@ public sealed class ImportBatch : AggregateRoot<Guid>
         var batch = new ImportBatch
         {
             Id = id,
-            BatchNumber = "IB-" + id.ToString("N")[..16].ToUpperInvariant(),
+            BatchNumber = References.Of("IB-", id, 19),
             EntityCode = entityCode,
             FileRef = fileRef.Length <= 200 ? fileRef : fileRef[..200],
             RowCount = rowCount,

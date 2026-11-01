@@ -444,3 +444,5 @@ core	LifeMigratedLifeClaim.claimType	a claim type key, as a source system has it
 core	DistributionCommissionRecoveryView.intermediaryCode	an intermediary key, as on an entitlement
 core	IdentityProvisionServiceAccount.idpCode	an identity provider key, as on provisioning a user
 core	HealthMigrateHealthAccumulators.batchCode	the batch name the file gives; no list
+core	WorkflowPortalCaseTypeOption.code	a case type key, in the list itself
+core	WorkflowPortalCaseCategoryOption.code	a category key, in the list itself

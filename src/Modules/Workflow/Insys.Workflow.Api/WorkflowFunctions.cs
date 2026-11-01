@@ -92,19 +92,19 @@ internal static class WorkflowFunctions
         CaseScreen("PROVIDER_DISPUTES", "HEALTH_PROVIDER_MANAGEMENT", "Provider disputes", "workflow/cases/provider-disputes", Features.Health),
 
         .. new FunctionMap([Audiences.Customer], Features.CustomerPortal)
-        .Screen("CUSTOMER_PORTAL_CASES", "CUSTOMER_PORTAL", "Complaints & enquiries", "portal/cases", "PortalListCases", "PortalGetCase")
+        .Screen("CUSTOMER_PORTAL_CASES", "CUSTOMER_PORTAL", "Complaints & enquiries", "portal/cases", "PortalListCases", "PortalGetCase", "PortalGetCaseOptions")
         .Action("CUSTOMER_PORTAL_RAISE_CASE", "CUSTOMER_PORTAL_CASES", "PortalRaiseCase")
         .Action("CUSTOMER_PORTAL_CASE_MESSAGE", "CUSTOMER_PORTAL_CASES", "PortalAddCaseMessage")
         .Action("CUSTOMER_PORTAL_APPEAL_CASE", "CUSTOMER_PORTAL_CASES", "PortalAppealCase")
             .Functions,
         .. new FunctionMap([Audiences.Broker], Features.BrokerPortal)
-        .Screen("BROKER_PORTAL_CASES", "BROKER_PORTAL", "Complaints & enquiries", "portal/cases", "PortalListCases", "PortalGetCase")
+        .Screen("BROKER_PORTAL_CASES", "BROKER_PORTAL", "Complaints & enquiries", "portal/cases", "PortalListCases", "PortalGetCase", "PortalGetCaseOptions")
         .Action("BROKER_PORTAL_RAISE_CASE", "BROKER_PORTAL_CASES", "PortalRaiseCase")
         .Action("BROKER_PORTAL_CASE_MESSAGE", "BROKER_PORTAL_CASES", "PortalAddCaseMessage")
         .Action("BROKER_PORTAL_APPEAL_CASE", "BROKER_PORTAL_CASES", "PortalAppealCase")
             .Functions,
         .. new FunctionMap([Audiences.Provider], Features.ProviderPortal)
-        .Screen("PROVIDER_PORTAL_DISPUTES", "PROVIDER_PORTAL", "Disputes", "portal/cases", "PortalListCases", "PortalGetCase")
+        .Screen("PROVIDER_PORTAL_DISPUTES", "PROVIDER_PORTAL", "Disputes", "portal/cases", "PortalListCases", "PortalGetCase", "PortalGetCaseOptions")
         .Action("PROVIDER_PORTAL_RAISE_DISPUTE", "PROVIDER_PORTAL_DISPUTES", "PortalRaiseCase")
         .Action("PROVIDER_PORTAL_DISPUTE_MESSAGE", "PROVIDER_PORTAL_DISPUTES", "PortalAddCaseMessage")
         .Action("PROVIDER_PORTAL_APPEAL_DISPUTE", "PROVIDER_PORTAL_DISPUTES", "PortalAppealCase")

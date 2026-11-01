@@ -113,7 +113,7 @@ public sealed class PayoutBatch : AggregateRoot<Guid>
         var batch = new PayoutBatch
         {
             Id = Guard.NotEmpty(id),
-            BatchRef = "PB-" + id.ToString("N")[..16].ToUpperInvariant(),
+            BatchRef = References.Of("PB-", id, 19),
             Purpose = purpose,
             Currency = currency,
             PaymentCount = payments.Count,

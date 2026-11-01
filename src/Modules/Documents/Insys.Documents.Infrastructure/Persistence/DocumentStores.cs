@@ -242,7 +242,7 @@ internal sealed class StubDocumentDelivery(ILogger<StubDocumentDelivery> logger)
     public Task<DeliveryReceipt> Send(string channel, string recipient, Guid documentId, string mimeType, byte[] content, CancellationToken cancellationToken)
     {
         logger.LogInformation("Stub delivery of document {DocumentId} by {Channel}", documentId, channel);
-        return Task.FromResult(new DeliveryReceipt(true, "STUB-" + Guid.CreateVersion7().ToString("N")[..16].ToUpperInvariant()));
+        return Task.FromResult(new DeliveryReceipt(true, BuildingBlocks.Domain.References.Of("STUB-", Guid.CreateVersion7(), 21)));
     }
 }
 

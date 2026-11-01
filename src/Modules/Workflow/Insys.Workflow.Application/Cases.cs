@@ -98,6 +98,9 @@ public interface ICaseConfiguration
 
     /// <summary>Whether the category is in force for the tenant (global or its own).</summary>
     Task<bool> CategoryExists(string categoryCode, DateOnly day, CancellationToken cancellationToken);
+
+    /// <summary>BR-099: the case types a portal's audience may raise, with their wording, and the categories in force.</summary>
+    Task<PortalCaseOptions> PortalOptions(string audience, DateOnly day, CancellationToken cancellationToken);
 }
 
 public interface ICaseRepository

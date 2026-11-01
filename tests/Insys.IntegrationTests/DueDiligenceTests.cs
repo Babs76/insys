@@ -105,6 +105,7 @@ public sealed class DueDiligenceTests(DatabaseFixture fixture) : IClassFixture<D
         view = await DueDiligence(w.Clerk, party);
         (view.GetProperty("status").GetString(), view.GetProperty("riskClass").GetString(), view.GetProperty("level").GetString()).ShouldBe(("CLEARED", "LOW", "STANDARD"));
         view.GetProperty("nextReviewOn").GetString().ShouldBe(Today.AddYears(5).ToString("yyyy-MM-dd"), "OQ-124: LOW is reviewed every 5 years");
+        view.GetProperty("partyNumber").GetString().ShouldNotBeNullOrEmpty("BR-107: it says whose it is");
         (await Gate(w, party, DueDiligenceSteps.Issue, "LIFE")).Cleared.ShouldBeTrue();
         (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM party.outbox_event WHERE event_type = 'party.DueDiligenceCleared' AND aggregate_id = @p",
             ("p", party))).ShouldBeGreaterThanOrEqualTo(0L);

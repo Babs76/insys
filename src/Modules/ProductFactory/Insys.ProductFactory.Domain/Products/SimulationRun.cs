@@ -106,7 +106,7 @@ public sealed class SimulationRun : AggregateRoot<Guid>
         var run = new SimulationRun
         {
             Id = Guard.NotEmpty(id),
-            RunNumber = "SIM-" + id.ToString("N")[..16].ToUpperInvariant(),
+            RunNumber = References.Of("SIM-", id, 20),
             ProductCode = version.ProductCode,
             ProductVersion = version.Version,
             StartedBy = startedBy,

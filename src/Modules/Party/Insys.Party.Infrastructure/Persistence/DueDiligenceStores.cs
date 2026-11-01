@@ -36,6 +36,10 @@ namespace Insys.Party.Infrastructure.Persistence;
 
 internal sealed class DueDiligenceStore(PartyDbContext db) : IDueDiligenceStore
 {
+    public async Task<IReadOnlyDictionary<Guid, (string Name, string Number)>> PartyNames(IReadOnlyCollection<Guid> partyIds, CancellationToken cancellationToken) =>
+        (await db.Parties.AsNoTracking().Where(p => partyIds.Contains(p.Id)).Select(p => new { p.Id, p.DisplayName, p.PartyNumber }).ToListAsync(cancellationToken))
+        .ToDictionary(p => p.Id, p => (p.DisplayName, p.PartyNumber));
+
     public Task<DueDiligence?> ForParty(Guid partyId, CancellationToken cancellationToken) =>
         db.DueDiligences.Include(d => d.Hits).SingleOrDefaultAsync(d => d.PartyId == partyId, cancellationToken);
 
