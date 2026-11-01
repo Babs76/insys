@@ -8,7 +8,7 @@ INSYS AI Assist adds three AI features to INSYS Core: a **Product Setup Assistan
 
 **Status: the basis of back-end Wave 7.** Nothing here is built. The back end's Wave 7 addendum turns this specification into a build plan after Wave 6. Open decisions are listed in section 10.2.
 
-**Reviewed 30 October 2026.** Ade accepted the recommendations for D-1, D-2, D-3, D-4 and D-6 (section 10.2); D-5 and D-7 stay open. On 31 October Ade chose Claude as the AI provider (D-1). On 1 November Ade added AI-3, the tenant configuration wizard (section 5A), and set the country order for its starter packs (D-9). The review also changed how refusals are explained (AIA-031, AIA-039), added number-checking rules (AIA-033a), aligned function names with the catalogue, set the build window and added build safeguards (section 9.2).
+**Reviewed 30 October 2026.** Ade accepted the recommendations for D-1, D-2, D-3, D-4 and D-6 (section 10.2). On 31 October Ade chose Claude as the AI provider (D-1). On 1 November Ade added AI-3, the tenant configuration wizard (section 5A), and set the country order for its starter packs (D-9), signed the back end's Wave 7 addendum with option C (D-12), and decided D-5, D-7, D-8, D-10, D-11, D-13 and D-14. The review also changed how refusals are explained (AIA-031, AIA-039), added number-checking rules (AIA-033a), aligned function names with the catalogue, set the build window and added build safeguards (section 9.2).
 
 | Item | Detail |
 | --- | --- |
@@ -50,7 +50,7 @@ Eight principles bind every requirement below; a requirement that breaks one is 
 
 ## 3. Actors, roles and functions
 
-AI Assist adds five functions to the function catalogue and no new roles; tenant administrators grant the functions to existing roles. Function codes follow the catalogue's convention: an upper-case function code that grants a lower-case permission, for example ASSIST\_EXPLAIN\_REFUSAL granting assist\_explain.refusal.
+AI Assist adds six functions to the function catalogue and no new roles: five that tenant administrators grant to existing roles, and ASSIST\_OVERLAY\_APPROVE, a privileged function held only in the operator tenant for approving country overlays. Function codes follow the catalogue's convention: an upper-case function code that grants a lower-case permission, for example ASSIST\_EXPLAIN\_REFUSAL granting assist\_explain.refusal.
 
 | Actor | Uses | Proposed function |
 | --- | --- | --- |
@@ -60,6 +60,7 @@ AI Assist adds five functions to the function catalogue and no new roles; tenant
 | Portal users (customers, brokers) | The same explanations on their own records, in a later release | Same functions, behind a separate portal switch (D-3) |
 | Tenant administrator | Switches features on, sets limits, grants functions | `ASSIST_SETTINGS_MANAGE` |
 | Tenant administrator (onboarding) | Runs the tenant configuration wizard (AI-3) while the tenant is onboarding; cannot approve a setup they ran | `ASSIST_TENANT_SETUP_RUN` |
+| OpenFactor compliance lead (operator tenant) | Approves a country overlay version after the local partner's review, which is kept as evidence on the version (D-10); cannot approve a version they prepared or marked Reviewed | `ASSIST_OVERLAY_APPROVE` (privileged) |
 | Platform operator | Chooses the provider, sets platform caps, monitors cost and quality | Operator-only configuration |
 | Auditor | Reads AI run records | Existing audit roles |
 
@@ -155,7 +156,7 @@ AI-3 drafts a new tenant's whole configuration, its static data and base environ
 | Line overlay | Life, General or Health specifics: grace periods, claim rules, benefit structures | One per line, varied by country where the law differs |
 
 - **Country order (D-9):** Nigeria, Rwanda, Ghana, Senegal, Kenya, DRC, Côte d'Ivoire. Senegal and Côte d'Ivoire share a CIMA regional overlay with a thin national layer; the DRC, outside CIMA, has its own. The current South African values are kept as a reference overlay.
-- **Regulated values come only from an approved overlay.** The AI never invents a tax rate, disclosure text, retention period or AML setting for a live tenant. A draft overlay value is marked for review until a local compliance partner (D-10) approves the overlay's version.
+- **Regulated values come only from an approved overlay.** The AI never invents a tax rate, disclosure text, retention period or AML setting for a live tenant. A draft overlay value is marked for review until the overlay's version is reviewed by a local compliance partner and approved by OpenFactor's compliance lead (D-10).
 
 ### 5A.2 Inputs and output
 
@@ -257,7 +258,7 @@ The model never touches the database or another module directly: the Assist modu
 | Minimiser | Removes or masks personal data before any call (AIA-051) |
 | Prompt templates | Versioned text templates held as configuration (AIA-074) |
 | Verifier | Deterministic checks: numbers present in input, citations resolve to real text, rate tables match cell for cell |
-| Feature `AI_ASSIST` and five functions | Entitlement and access, using the existing request checks |
+| Feature `AI_ASSIST` and six functions | Entitlement and access, using the existing request checks |
 
 ### 7.2 Data (proposed tables in schema `assist`)
 
@@ -346,13 +347,13 @@ Delivery is seven phases, each closed by a gate with a measurable test. AI-2 goe
 
 No code is written before the hosting decision, and each feature reaches users only after its acceptance targets are met on an evaluation set.
 
-**Build window (D-6, agreed 30 October 2026).** AI Assist is built as back-end Wave 7, after Wave 6, with AI-2 first and AI-1 second. The front-end screens (the Explain action, the AI draft review and the settings page) come before front-end Phase 13, so the final security, accessibility and performance review covers them. It ships switched off and is turned on per tenant once its acceptance targets are met.
+**Build window (D-6, agreed 30 October 2026).** AI Assist is built as back-end Wave 7, after Wave 6, with AI-2 first, then AI-3's pack-only path and SETUP change set, then AI-1, then AI-3's AI tailoring and mapping (D-8). The front-end screens (the Explain action, the AI draft review and the settings page) come before front-end Phase 13, so the final security, accessibility and performance review covers them. It ships switched off and is turned on per tenant once its acceptance targets are met.
 
 | When | What | Effect on the core build |
 | --- | --- | --- |
 | Now | Done: provider chosen (D-1, 31 October). Still to do: evaluation documents for one line (D-7) | None |
 | While Waves 5b and 6 build | Back end turned this SRS into the Wave 7 addendum, signed by Ade with option C on 1 November 2026 | None |
-| After Wave 6 | Back-end Wave 7 (D-8): AI-2; AI-3's pack-only path and SETUP change set; AI-1; then AI-3's AI tailoring | Sized by the back end at 62 to 82 person-days for one engineer (AI-2 and AI-1 alone: 40 to 52); calendar time re-estimated after batch 7.1. The earlier figure of 2 to 4 days was wrong. |
+| After Wave 6 | Back-end Wave 7 (D-8): AI-2; AI-3's pack-only path and SETUP change set; AI-1; then AI-3's AI tailoring | Sized by the back end at 64 to 85 person-days, including overlay approval, for one engineer (AI-2 and AI-1 alone: 40 to 52); calendar time re-estimated after batch 7.1. The earlier figure of 2 to 4 days was wrong. |
 | Before front-end Phase 13 | Front-end AI Assist screens | To be sized by the front end (the earlier 1 to 2 days was not measured) |
 | Go-live | Shipped off; switched on per tenant after evaluation | None |
 
@@ -391,7 +392,7 @@ Hosting is decided (31 October 2026): Claude is the AI provider (D-1). Its infer
 | Distraction from the core build | Core waves slip | Separate small track, started only after D-6; no change to existing modules beyond hooks |
 | Over-trust by users | People stop checking drafts | Approver sees the provenance report; Interpreted values need explicit acceptance |
 
-### 10.2 Open decisions for Ade
+### 10.2 Decisions
 
 | ID | Decision | Options | Recommendation |
 | --- | --- | --- | --- |
