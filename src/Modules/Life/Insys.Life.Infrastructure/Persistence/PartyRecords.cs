@@ -55,3 +55,10 @@ internal sealed class LifePartyRecords([FromKeyedServices(LifeDbContext.SchemaNa
            OR EXISTS (SELECT 1 FROM life.claim_payee y WHERE y.tenant_id = c.tenant_id AND y.claim_id = c.id AND y.party_id = @party)
         """, cancellationToken);
 }
+
+/// <summary>OQ-054: a quote or proposal not yet ended keeps its party active. An accepted quote ends when its policy is issued.</summary>
+internal sealed class LifeOpenBusiness([FromKeyedServices(LifeDbContext.SchemaName)] NpgsqlDataSource dataSource) : IPartyOpenBusiness
+{
+    public Task<bool> HasOpen(Guid tenantId, Guid partyId, CancellationToken cancellationToken) =>
+        PartyOpenBusinessReader.Read(dataSource, tenantId, partyId, "SELECT EXISTS (SELECT 1 FROM life.proposal WHERE applicant_party_id = @party AND status IN ('DRAFT', 'QUOTED', 'SUBMITTED', 'IN_UNDERWRITING', 'ACCEPTED'))", cancellationToken);
+}

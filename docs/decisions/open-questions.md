@@ -394,7 +394,8 @@ Also pending business sign-off, though built as accepted: ADR-012 (Health adjudi
 - **Decided (Ade, 31 October 2026):** a party with no policy, membership, claim or case in force or open is dormant; its retention period counts from the last one ending. Built:
   - The daily job looks at up to 1,000 parties per tenant, those looked at longest ago first, in both directions. The look doesn't move the party's `rowVersion`; a change of status does.
   - Cases are now records of a party (`CASE`, 7 years, working default, compliance to confirm), so an open case also blocks anonymisation. OQ-120's "not covered" no longer includes them.
-  - A party with no such record ever is dormant too, and counts from its registration, under the `POLICY` period.
+  - **Open quotes and proposals count as activity (Ade, 1 November 2026),** though they don't keep a party's data, so they don't block anonymisation by themselves. An accepted quote ends when its policy is issued.
+  - A party with nothing at all is dormant too, and counts from its registration, under the `POLICY` period (confirmed, 1 November 2026).
   - A payment doesn't count towards dormancy, and keeps its own period from its own outcome.
   - A dormant party's death is recorded through Active, as the lifecycle in the domain model has no direct step.
 

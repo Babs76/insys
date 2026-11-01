@@ -78,7 +78,7 @@ public static class AnonymisationBlockReasons
 /// longest audit class from its latest event. A legal hold in force on any of them blocks too. With no period in force
 /// for a kind, its records block: nothing is anonymised early.
 /// </summary>
-public sealed class AnonymisationCheck(IEnumerable<IPartyLinkedRecords> sources, IPartyRepository parties, IRecordRetentionPolicies policies, IRecordHolds holds,
+public sealed class AnonymisationCheck(IEnumerable<IPartyLinkedRecords> sources, IEnumerable<IPartyOpenBusiness> openBusiness, IPartyRepository parties, IRecordRetentionPolicies policies, IRecordHolds holds,
     IAuditRetention auditRetention, IAuditedTargets audited, ITenantContext tenant, IBusinessDate businessDate)
 {
     public const string AuditEvidence = "AUDIT_EVIDENCE";
@@ -163,9 +163,30 @@ public sealed class AnonymisationCheck(IEnumerable<IPartyLinkedRecords> sources,
         return blocks;
     }
 
-    /// <summary>OQ-054: whether a policy, membership, claim or case of the party, or of one merged into it, is in force or open. A payment doesn't count.</summary>
-    public async Task<bool> HasActivity(Guid partyId, CancellationToken cancellationToken) =>
-        (await Records([partyId, .. await parties.MergedInto(partyId, cancellationToken)], cancellationToken)).Any(r => Counts(r) && r.ClosedOn is null);
+    /// <summary>OQ-054: whether a policy, membership, claim, case, quote or proposal of the party, or of one merged into it, is in force or open. A payment doesn't count.</summary>
+    public async Task<bool> HasActivity(Guid partyId, CancellationToken cancellationToken)
+    {
+        var partyIds = new List<Guid> { partyId };
+        partyIds.AddRange(await parties.MergedInto(partyId, cancellationToken));
+        if ((await Records(partyIds, cancellationToken)).Any(r => Counts(r) && r.ClosedOn is null))
+        {
+            return true;
+        }
+
+        var tenantId = tenant.TenantId ?? throw new InvalidOperationException("A party's records are read in a tenant.");
+        foreach (var source in openBusiness)
+        {
+            foreach (var id in partyIds)
+            {
+                if (await source.HasOpen(tenantId, id, cancellationToken))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
 
     private static bool Counts(PartyLinkedRecord record) => record.Retention != PartyRecordRetention.Payment;
 

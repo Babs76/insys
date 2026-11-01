@@ -1,6 +1,9 @@
 # ADR-027: Cloud-neutral deployment
 
-- **Status:** **Amendment DRAFT for Ade's sign-off, 31 October 2026.** Phase 1 was signed and is built. Nothing below is built until this is signed.
+- **Status:** **Amendment signed (Ade, 1 November 2026).** Phase 1 is built. Phase 2 is scheduled before the first customer, not now.
+  - **Provider name:** `Kms:Provider` accepts `openbao`, with `vault` as the same adapter.
+  - **Production object storage:** each cloud's own S3-compatible service; an on-premises store is chosen per customer.
+  - **Security lead's three questions:** still to be answered.
 - **Supersedes:** ADR-016 (Huawei Cloud as the host), which becomes optional deployment notes. Amends ADR-018: envelope encryption stays, and DEW becomes one optional key adapter.
 - **Requirements:** NFR-005, NFR-006, NFR-014; DBA-002; SRS §30.
 
@@ -26,7 +29,7 @@ INSYS is not tied to any cloud provider. **It needs only Kubernetes and PostgreS
 Neutral settings (`Kms:*`, `ObjectStore:*`), the old names working one release with a warning, and the SDK guard. On main at 1339eae.
 
 ### Phase 2: before the first customer
-- **The OpenBao Transit adapter** behind `IKeyManagementService`, tested against a real OpenBao server, not a stub. The provider keeps the signed name `vault`.
+- **The OpenBao Transit adapter** behind `IKeyManagementService`, tested against a real OpenBao server, not a stub. The provider is `openbao`, and `vault` names the same adapter.
 - **A cloud-neutral Helm chart:** INSYS with one API instance (ADR-006), no provider-specific annotations, and PostgreSQL, the object store, OpenBao and Keycloak either in-cluster or pointed at existing ones.
 - **A CI job that is the proof of cloud neutrality:** it deploys the full stack (INSYS, PostgreSQL 18, an S3-compatible store, OpenBao, Keycloak) from that chart to a throwaway cluster (kind or k3d) and runs a smoke test.
 - **A generic runbook,** including running OpenBao: high availability, backup and restore, and unsealing.
@@ -71,11 +74,6 @@ The default moves custody of the master keys from a provider's service to the op
 1. Is software custody with Shamir unsealing acceptable for a licensed insurer's identity and medical fields, or is an HSM root of trust required? *Recommendation: Shamir by default; an HSM wherever a customer or its regulator asks.*
 2. Who holds the unseal keys, how many are needed, and where are they kept? The runbook needs the answer. *Recommendation: three of five, each with a different named person, none with Kubernetes administrator access.*
 3. Does a customer's regulator accept self-run key management? No regulator has been asked yet.
-
-## Questions for Ade
-1. **Sign this amendment?** It replaces the signed phase 2.
-2. **The provider name.** You signed `vault`, tested against OpenBao. OpenBao is now the default, so the setting will read `Kms:Provider=vault` on a stack with no Vault in it. *Recommendation: keep `vault`, since the same adapter serves both, and accept `openbao` as a second name for it (a few minutes' work).*
-3. **The self-run object store.** MinIO is what our contract tests use today, but I haven't reviewed its current licence or terms for running it in production. *Recommendation: the chart takes any S3 endpoint, and an in-cluster store is for CI and small installs only; check the licence before naming one for production.*
 
 ## Appendix A: optional deployment notes
 None of this is part of the decision. It is here for when a customer names a provider. Checked 31 October 2026 and not re-checked for this amendment.

@@ -108,6 +108,7 @@ public static class LifeInfrastructure
             services.AddHostedService<LifeJobsService>();
         }
 
+        services.AddSingleton<BuildingBlocks.Application.Context.IPartyOpenBusiness, Persistence.LifeOpenBusiness>();
         services.AddSingleton<BuildingBlocks.Application.Context.IPartyLinkedRecords, Persistence.LifePartyRecords>(); // D-34: the anonymisation check
         services.AddSingleton<LifePortalRelations>(); // external-user access §2: other modules' portal reads
         services.AddSingleton<BuildingBlocks.Application.Context.IPortalRecordRelations>(sp => sp.GetRequiredService<LifePortalRelations>());
