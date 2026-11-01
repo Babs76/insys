@@ -21,7 +21,7 @@ Each wave's batch report has the front-end readiness checklist and the independe
 | 63 (BR-004) | A filter for approvals the user can decide now (not their own, within authority and limit) | Wave 2 batch 1 | Done (`wave2-2`) | `GET /workflow/approvals?decidable=true` |
 | 64 (BR-005) | `approvalType` and `businessRefType` as enums in the contract; the screen each reference type opens | Wave 2 batch 1 | Done (`wave2-2`) | `approvalType` and `businessRefType` enums (18 each); `ApprovalView.screen` (the SCREEN function code) |
 | 65 (BR-008) | How to ask Keycloak for MFA step-up per client; what a member without a one-time code sees | Wave 2 batch 1 | Answered (`wave2-2`); tested (`wave2-4`) | Integration guide §5. `RealmMfaTests` holds the realm to it: the broker and provider portals always ask for a one-time code, the member portal once one is set up, staff use the realm's browser flow, and no step-up is configured |
-| 66 (BR-009) | Catalogue labels written for people, with the names in `INSYS_NAVIGATION.md`, not generated from codes | Wave 2 batch 1 | Deferred: pre-go-live (OQ-100) | Ade, 27 October 2026: the 25 October decision stands. Labels are written once, in the business wording review before go-live, and BR-009 is scheduled with it |
+| 66 (BR-009) | Catalogue labels written for people, with the names in `INSYS_NAVIGATION.md`, not generated from codes | Wave 2 batch 1 | Done (`bae3303`); wording reviewed before go-live (OQ-100) | Labels are written per function in the catalogue seed, without "static data" on the table labels. The business's review of the wording stays under OQ-100. |
 | 67 (BR-010) | A user's external-subject link (kind, key, status, the approval ID while pending) on the user's view | Wave 2 batch 1 | Done (`wave2-2`) | `externalSubjectLink {id, kind, key, status, approvalId}` on the user view |
 | 68 (BR-013) | Defect: a new tenant gets stuck, because its only administrator holds a privileged role that no one else in the tenant can approve | Wave 2 batch 2 | Done (`wave2-3`) | The first-administrator request names two people (`administrators`, exactly 2) and its approval is decided by a second platform administrator, never inside the tenant. `FIRST_ADMINISTRATOR` readiness needs two active administrators: identity linked and at least one successful signed-in request each (OQ-119). `POST /identity/tenant-administrators/additional` asks for one more administrator of an existing tenant, approved the same way. The 20 privileged flags and `LEGAL_HOLD_RELEASE` are on. End-to-end test: a tenant created, configured and activated with only its own people, flags on |
 | 69 (BR-016) | Approve a static data import as one change, not one approval per row | Wave 2 batch 2 | Done (`wave2-4`) | An import is submitted (`…/imports/{batchId}/submit`), approved or rejected as a whole and activated together, under one `IMPORT` change request and one approval of the table's tier. The checker reads every line (`GET …/imports/{batchId}`); the approval is bound to the SHA-256 of the complete import. `contract-changes.md`, Wave 2 batch 4 |
@@ -124,3 +124,45 @@ Each wave's batch report has the front-end readiness checklist and the independe
 | 166 (Wave 4 batch 4.3a) | Renewal acceptance and insurer non-renewal | Wave 4 addendum | Built (`wave4-3a`) | No request: new for the front end. Staff accept/decline on the renewal screen; propose non-renewal on the policy (`GENERAL_PROPOSE_NON_RENEWAL`, approval `GENERAL_NON_RENEWAL`); the portal renewals screens for members and brokers; the renewal view's `answer` and `nonRenewal`; the policy's `expiryReason`; static data `acceptance` and `cfg_non_renewal_reasons`; notification type `NON_RENEWAL_NOTICE`. |
 | 167 (Wave 4 batch 4.3b) | Retention and renewal figures | Wave 4 addendum | Built (`wave4-3b`) | No request: new for the front end. The retention cases screen (`GENERAL_RETENTION_CASES`) with offers, answers and outcome; the `GENERAL_RETENTION` task; static data `cfg_retention_offers` and `lapseRiskDays`; the twelve renewal figures on the Analytics summary, and `DashboardFigure.rate`. |
 | 168 (Wave 4 batch 4.3c) | Broker of record change (B-001) | Wave 4 addendum | Built (`wave4-3c`) | No request: new for the front end. The INTERMEDIARY endorsement with `intermediaryCode`; the appointment letter upload and `POST /general/endorsements/{id}/appointment-letter`; error `APPOINTMENT_LETTER_REQUIRED`; the endorsement view's `newIntermediaryCode` and `appointmentLetterId`. |
+| 169 (BR-118, group A) | A change request's number can collide on UUIDv7 time, and its row then sticks for good | Front end, triage of 1 November | Done (`3436b1b`) | Numbers made from an ID take its random end (`References.Of`), for change requests and for the CR-, IB-, PAY-, PB-, SIM-, JNL- and STUB- numbers; an architecture test refuses the old form. |
+| 170 (BR-120, group A) | An invoice or reversal is accepted while a write-off waits for a second person | Front end, triage of 1 November | Done (`3436b1b`) | Refused while the write-off waits. |
+| 171 (BR-099, group B) | A portal user can't read the case types and categories they may raise | Front end, triage of 1 November | Done (`3436b1b`, `9e3fbe5`, `6145e5e`) | `GET /portal/cases/options`. |
+| 172 (BR-107, group B) | Name the party on its due diligence summary and view | Front end, triage of 1 November | Done (`3436b1b`) | `partyName` and `partyNumber`. |
+| 173 (BR-114, group B) | Readiness passes the non-renewal approval on a delegation row alone | Front end, triage of 1 November | Done (`3436b1b`, `11c4a3e`) | `APPROVAL_AUTHORITY` also needs a role holding `general_policy.non_renew`. A tenant's setup may need that grant. |
+| 174 (BR-115, group B) | A party's first due diligence check racing the screening on registration is refused `DUPLICATE_RECORD` | Front end, triage of 1 November | Done (`3436b1b`) | The check retries on the conflict. |
+| 175 (BR-122, group B) | No list of bulk jobs | Front end, triage of 1 November | Done (`a0a6155`, `804e7fa`) | The list of bulk jobs, with `jobType` declaring its values. |
+| 176 (BR-123, group B) | Authorising a medicine needs a second listing on the service list; a code with a hyphen can't be mapped | Front end, triage of 1 November | Done (`3436b1b`) | The medicine's category comes from the formulary, and a range accepts a hyphen. A claim dated after the business date, also seen in this report, is with Ade to decide. |
+| 177 (BR-082, BR-083, group B) | Policy loans need a cash value; surrender, paid-up and maturity values | Front end, triage of 1 November | Blocked by OQ-052 | Ade decided that the actuary defines the basis, and INSYS refuses meanwhile: `LIFE_VALUE_NOT_CONFIGURED`. |
+
+## Groups A and B of the front end's triage, 1 November 2026
+For the front end to close its gaps. Commits are on main. A commit named for a request that was only confirmed holds its test; the entry above says what was answered.
+
+**Group A, 13, blocking go-live: all done.** The business's wording review of BR-009 stays under OQ-100.
+| Request | Commit | | Request | Commit |
+|---|---|---|---|---|
+| BR-008 | `3683519` (tests), answered in the guide §5 | | BR-040 | `8df4ac7` |
+| BR-009 | `bae3303` | | BR-042 | `4508572` |
+| BR-013 | `b4eeacd`, `e218db0` | | BR-057 | `c4a2474` |
+| BR-016 | `fc6c8ed` | | BR-061 | `c4e828c` |
+| BR-017 | `3683519` (tests) | | BR-118 | `3436b1b` |
+| BR-018 | `b4eeacd` | | BR-120 | `3436b1b` |
+| BR-031 | `c4a2474` | | | |
+
+**Group B, 26: 23 done, 2 blocked, 1 not planned.**
+| Request | Commit | | Request | Commit |
+|---|---|---|---|---|
+| BR-001 | `c054a5a` | | BR-063 | `ced62de` |
+| BR-002 | `c054a5a` | | BR-065 | `ced62de` |
+| BR-004 | `c054a5a` | | BR-068 | `1345717` |
+| BR-005 | `6203a43` | | BR-076 | `1345717` |
+| BR-010 | `8a1a895` | | BR-079 | `1345717`, `54443ab` |
+| BR-011 | `56aa0b2` | | BR-099 | `3436b1b` |
+| BR-012 | `d90cb79` | | BR-107 | `3436b1b` |
+| BR-015 | `7c80dd8` | | BR-114 | `3436b1b`, `11c4a3e` |
+| BR-019 | `d90cb79` | | BR-115 | `3436b1b` |
+| BR-020 | `e218db0` | | BR-122 | `a0a6155`, `804e7fa` |
+| BR-022 | `70e45e9` | | BR-123 | `3436b1b` |
+| BR-062 | `ced62de` | | | |
+
+- **Blocked:** BR-082 and BR-083, by OQ-052.
+- **Not planned:** BR-003, OQ-114.
