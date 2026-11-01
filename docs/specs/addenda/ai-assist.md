@@ -1,6 +1,6 @@
 # Wave 7 addendum: AI Assist
 
-**Status: for Ade's sign-off. Nothing here is built.** Written from [the AI Assist SRS of 1 November 2026](../../srs/INSYS_AI_Assist_SRS.md), which supersedes the copies of 28 and 30 October, and checked against the code on main. Ships off, per tenant, after Wave 6 (D-6).
+**Status: for Ade's signature, with Ade's decisions of 1 November included. Nothing here is built.** Written from [the AI Assist SRS of 1 November 2026](../../srs/INSYS_AI_Assist_SRS.md), which supersedes the copies of 28 and 30 October, and checked against the code on main. Ships off, per tenant, after Wave 6 (D-6).
 
 ## 1. What it is
 Three features. In all three the AI prepares and a person decides; it never approves, publishes, pays or refuses, and INSYS works unchanged without it.
@@ -32,27 +32,58 @@ The SRS's principles P1 to P8 and its requirements AIA-001 to AIA-091 stand as w
 The cache key (AIA-036) is the code, the field errors, the record's reference and row version, and the prompt version. The catalogue's "remedy" wording (AIA-031) needs checking per code; gaps are filled in batch 7.2.
 
 ## 4. Where the SRS and the code differ
-Read against main. The first three change the build or its size, and are for Ade to decide.
+Read against main.
 
-### For decision
-1. **AIA-086: one change set doesn't exist yet.** BR-016 approves one import of **one table,** at that table's tier, bound to its SHA-256. A tenant's setup spans up to 295 tables (`cfg_`, `ref_`, `mst_`; the SRS says about 280), several tiers and several modules' databases. *Proposal:* a new `SETUP` change set grouping one import batch per table, with one approval bound to a hash of all of them, activated in dependency order, and resumable, because no single transaction spans the modules. It reuses the import path per table. New approval type, and the highest-risk part of AI-3.
-2. **AIA-085: readiness can't check a draft "before anything is saved".** The checks read in-force rows directly from each module (10 check classes; `ReadinessSql` is used in 27 files). *Proposal:* load the draft into a temporary shadow tenant, run the unchanged checks, then purge it. That gives "the same checks as live onboarding" with no rewrite. The alternative, rewriting every check to read a draft, is larger and could drift. Purge and isolation need a security review.
-3. **AIA-050 and §6.1 are written for South Africa, and the first market is Nigeria.** The setting is "in South Africa / outside South Africa", the legal basis is POPIA s72, and SRS §6 assumes INSYS is hosted in South Africa. A Nigerian tenant answers to Nigerian data protection law, with its own transfer rules, and may need hosting elsewhere. *Proposal:* the setting records the tenant's jurisdiction, where inference runs and the basis, and AI-2 refuses when inference is outside that jurisdiction with no basis recorded. The basis for each country goes through compliance with its overlay. **Where Nigerian tenants are hosted is a question for Ade.**
+### Decided by Ade, 1 November
+1. **`SETUP` change set (AIA-086): approved in principle, for a tenant that isn't live.**
+   - BR-016 approves an import of one table at a time. `SETUP` groups one import batch per table across a tenant's setup: up to 295 tables, several tiers and several modules' databases.
+   - One approval, bound to a hash of every batch. Whoever ran the wizard can't approve it.
+   - Applied in dependency order and resumable, because no single transaction spans the modules.
+   - Refused unless the tenant is in `Onboarding`. Live tenants keep per-table BR-016 imports.
+   - The tenant can't go live while a set is partly applied.
+2. **Data protection (AIA-050): approved.** The setting records the tenant's jurisdiction, where inference runs and the legal basis. AI-2 refuses when inference is outside the jurisdiction with no basis recorded. Hosting for Nigerian tenants isn't decided, and **nothing may assume South African hosting.**
+3. **Malware scanning (AIA-010): build a scanner port.** ClamAV runs as a separate service and is never linked, because it is GPL-2.0. Check its maintenance and current version at build. Uploads stay quarantined until clean, and if the scanner is down, uploads wait rather than pass.
+4. **The AI-1 job acts for the recorded user (AIA-017),** with permissions checked at the start and on writing. Jobs run as a service identity today (`ExecutionScope.InitialiseForService`), so this is a new pattern. **Security review before batch 7.4 merges.**
+5. **The tenant administrator runs the wizard first (AIA-080).** ADR-024 refuses business routes to the operator tenant, so an operator path follows only if onboarding needs it, as its own audited platform route.
+6. **Global rows load once, by the platform, when an overlay is approved.** Currencies, countries, languages and holidays are global tables, so a tenant's wizard can't write them.
 
-### For the SRS's next edit
-4. **§1's out-of-scope line** says the AI writes to nothing but a Draft product version. AI-3 writes a draft change set; the line should say so. AIA-021 and AIA-060 follow.
-5. **§3 and §7.1 say four functions.** AIA-080 makes it five, with `ASSIST_TENANT_SETUP_RUN`. AIA-001 should cover AI-3's AI steps.
-6. **§9's estimate covers AI-2 and AI-1 only,** at "about 2 to 4 days". See §6.
-7. **§8 and §9 have diagrams missing from the Markdown,** including the six phases and five gates of the roadmap. §7 below uses the text only. Please check I'm not missing a gate.
+### Readiness before go-live (AIA-085): option C holds
+**Recommendation: option C, not the shadow tenant.** If signed, the SRS wording becomes "before the tenant can go live". The shadow tenant isn't needed.
+
+**How C works:**
+- **Before approval,** a deterministic completeness check: no value Missing, and every regulated value from an approved overlay.
+- **After approval,** the set is applied to the target tenant, and the unchanged readiness checks run there.
+- **Go-live stays blocked until they pass.**
+
+**Why it holds, from the code:** a tenant stays in `Onboarding` until `ActivateTenant`, which needs every onboarding step complete, and a step completes only when its readiness passes (`Tenant.cs`, `Tenants.cs`). A tenant in `Onboarding` already takes governed static data: that's how the live run sets one up.
+
+**What C needs that isn't there:**
+- **A guard in activation.** `ActivateTenant` looks only at whether the steps were completed, so a step completed before the set was applied wouldn't be looked at again. Activation must refuse while a set is submitted or partly applied, and steps finished before the set must be run again.
+- **A blocking readiness check** for a partly applied set, in the existing `IReadinessCheck` form.
+- **The completeness check** itself.
+
+| | Option C | Shadow tenant |
+|---|---|---|
+| `SETUP` change set, both need it | 7 to 9 days | 7 to 9 days |
+| Readiness | 1 to 2 days | 4 to 6 days: creating, loading, purging, isolation, security review |
+| **Batch 7.7** | **8 to 11 days** | **11 to 15 days** |
+| Readiness result seen | After approval | Before approval |
+
+**The two costs of C:**
+1. **The checker approves before seeing some blockers.** Completeness can't catch what only live checks find, such as a rating test case that fails, or a transaction type with no posting rule. A blocker found then is fixed by a further change, and no customer is affected, because the tenant isn't live.
+2. **Same-day corrections are awkward.** A new version must start after the one in force (`RETROACTIVE_CHANGE`), so a correction to a set applied today takes effect tomorrow, and readiness passes then. It delays onboarding by a day, and it's acceptable. If onboarding teams find it too slow, the fix is a rule letting a `SETUP` follow-up replace rows on a tenant that isn't live.
+
+### For the SRS's next edit (Ade is updating the SRS)
+- **§1's out-of-scope line:** AI-3 writes a draft change set as well as a Draft product version. AIA-021 and AIA-060 follow.
+- **§3 and §7.1:** five functions, with `ASSIST_TENANT_SETUP_RUN`. AIA-001 should cover AI-3's AI steps.
+- **§6 and AIA-050:** the decision above, with no assumption of South African hosting.
+- **§9:** the estimate, and the roadmap with AI-3 (§7 below).
+- **AIA-085:** "before the tenant can go live", if option C is signed.
 
 ### Handled in this addendum
-8. **AIA-010, "scanned before use":** INSYS has no malware scanning. **Question for Ade:** build a scanner port (ClamAV, say), which would serve Documents generally, or accept uploads from tenant staff without one at first. AI-1 and AI-3's document mapping both depend on it. *Recommendation: build the port.*
-9. **AIA-017 and §9.2's "maker-checker needs no new code":** the AI-1 job runs in the background, and jobs run as a service identity (`ExecutionScope.InitialiseForService`). To make the user the maker, the job acts for the recorded user, with permissions checked at the start and on writing. This is a new pattern and **needs a security review,** so it is some new code.
-10. **AIA-080, the operator's onboarding team:** ADR-024 refuses business routes to the operator tenant. *Proposal:* the tenant administrator runs the wizard first. An operator path follows as its own platform route, audited, if onboarding needs it.
-11. **Global rows:** currencies, countries, languages and holidays are global tables, so a tenant's wizard can't write them. A country overlay's global rows load once, by the platform, when the overlay is approved.
-12. **AIA-011:** PDF, DOCX and XLSX extraction needs new packages, OSI licences only, checked at build.
-13. **"Base environment settings" (§5A):** only static data can go through a change set. I've read these as the settings held in static data (`tenant.cfg_locale_defaults`, for example). Deployment configuration stays out.
-14. **The premium's "recorded steps":** these are `CalculationView.Inputs` and `Lines` (`GET /rating/calculations/{id}`). No change needed.
+- **AIA-011:** PDF, DOCX and XLSX extraction needs new packages, OSI licences only, checked at build.
+- **"Base environment settings" (§5A):** only static data can go through a change set. I've read these as the settings held in static data (`tenant.cfg_locale_defaults`, for example). Deployment configuration stays out.
+- **The premium's "recorded steps":** these are `CalculationView.Inputs` and `Lines` (`GET /rating/calculations/{id}`). No change needed.
 
 ## 5. What gets built
 **Module `Assist`:** own schema and role, forced row-level security, tenant from the token (AIA-062). Tables as SRS §7.2 and §5A.5.
@@ -70,7 +101,9 @@ Read against main. The first three change the build or its size, and are for Ade
 **Touching existing modules, read hooks only (§9.2), except:**
 - **Product Factory:** the provenance report on a version.
 - **Rating:** a public query for a recorded calculation, through Contracts.
-- **Static data:** the `SETUP` change set (§4.1).
+- **Static data:** the `SETUP` change set (§4).
+- **Tenancy:** the activation guard and the readiness check for a partly applied set (§4).
+- **Documents:** the scanner port and quarantine, for all uploads (§4).
 
 ### 5.1 Number verifier rules (AIA-033a)
 The SRS requires these fixed before build. Numbers compare after normalising:
@@ -108,20 +141,29 @@ The SRS requires these fixed before build. Numbers compare after normalising:
 These belong to the core product, not to Wave 7, and aren't in §6's figures.
 
 ## 6. Batches
-Working days for one engineer, with moderate confidence, excluding provider contracts, evaluation documents and overlay reviews. **Order as D-2 and the SRS's D-8 recommendation.**
+Working days for one engineer, with moderate confidence, excluding provider contracts, evaluation documents and overlay reviews. **Ade, 1 November: the SRS's "2 to 4 days" was wrong; use this sizing and re-estimate after 7.1.** Order as D-2 and the SRS's D-8 recommendation; D-8 is still open. **The build starts only after Wave 6.**
 | Batch | What | Days |
 |---|---|---|
-| 7.1 | Module, settings, feature and functions, adapter with stub, minimiser, verifier, run records, metering and caps | 8 to 10 |
+| 7.1 | Module, settings with jurisdiction, feature and functions, adapter with stub, minimiser, verifier, run records, metering and caps | 8 to 10 |
 | 7.2 | AI-2 refusals, then premiums, with cache, feedback and fallback | 6 to 8 |
 | 7.3 | Claude adapter, prompt templates, the AI-2 evaluation set and run | 4 to 6 |
-| 7.4 | AI-1 extraction, field list from the model, background job, citations, flags, rate table check, injection tests | 12 to 15 |
+| 7.4 | Scanner port and quarantine, AI-1 extraction, field list from the model, background job acting for the user (security review before merge), citations, flags, rate table check, injection tests | 14 to 18 |
 | 7.5 | AI-1 review, provenance on approval, simulation cases, evaluation (needs D-7) | 8 to 10 |
 | 7.6 | AI-3 pack storage and versions, questionnaire, deterministic assembly, flags, loading a real pack (pack-only path, AIA-090) | 8 to 10 |
-| 7.7 | `SETUP` change set and shadow-tenant readiness | 10 to 14 |
+| 7.7 | `SETUP` change set, completeness check, activation guard (option C) | 8 to 11 |
 | 7.8 | AI-3 tailoring and document mapping, evaluation | 6 to 9 |
-| **Total** | | **62 to 82; AI-2 and AI-1 alone are 38 to 49** |
+| **Total** | | **62 to 82; AI-2 and AI-1 alone are 40 to 52** |
 
-**The SRS says about 2 to 4 days for AI-2 and AI-1,** "at the current pace, not measured". I can't reconcile that with this list from what I've measured: mine are person-days, and work here has moved faster than person-days suggest. **I'd plan on the size above being the relative weight, and re-estimate after 7.1.**
+**Roadmap phases and gates (the SRS's diagram, from Ade), with AI-3 added:**
+| Phase | What | Batches | Gate |
+|---|---|---|---|
+| 0 | Decide | | Go decision, provider chosen, SRS approved |
+| 1 | Foundations | 7.1 | Security tests pass: isolation, injection, no write tools |
+| 2 | AI-2 for staff | 7.2, 7.3 | SRS §5.3 targets met |
+| 3 | AI-1 drafts | 7.4, 7.5 | SRS §4.3 targets met, product team sign-off |
+| 3A | AI-3 wizard, new; placed by D-8 (open) | 7.6, 7.7, 7.8 | SRS §5A.4 targets met, first overlay approved (D-10) |
+| 4 | Pilot, one tenant | | Pilot review accepted by Ade |
+| 5 | Rollout | | |
 
 ## 7. Testing and proof
 From SRS §9.1 and §9.2:
@@ -132,8 +174,6 @@ From SRS §9.1 and §9.2:
 
 ## 8. For Ade to sign
 1. This addendum as the Wave 7 scope.
-2. **The three decisions in §4:** the `SETUP` change set, shadow-tenant readiness, and data protection by the tenant's jurisdiction, with where Nigerian tenants are hosted.
-3. **Malware scanning** (§4, item 8).
-4. **SRS edits** (§4, items 4 to 7).
+2. **Option C** for readiness (§4), with the SRS wording "before the tenant can go live".
 
-D-5, D-7, D-8 and D-10 stay open. D-10 is the one that holds up AI-3 in practice, since no overlay can go live without an approver.
+D-5, D-7, D-8 and D-10 stay open. D-10 holds up AI-3 in practice, since no overlay can go live without an approver.
