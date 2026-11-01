@@ -40,19 +40,23 @@ using Insys.Tenancy.Contracts;
 namespace Insys.Integration.Infrastructure.Channels;
 
 /// <summary>F060: the texts in force (channel.cfg_disclosure_and_notice_texts) and who acknowledged them (channel.disclosure_acknowledgement). Runs on Integration's own connection.</summary>
-internal sealed class Disclosures([FromKeyedServices(IntegrationDbContext.SchemaName)] NpgsqlDataSource dataSource) : IDisclosureGate, IDisclosures
+internal sealed class Disclosures([FromKeyedServices(IntegrationDbContext.SchemaName)] NpgsqlDataSource dataSource, Party.Contracts.IPartyDirectory parties, ITenantFormatting locale) : IDisclosureGate, IDisclosures
 {
     private const string InForce = "(tenant_id = @t OR tenant_id IS NULL) AND display_point = @point AND " + ReadinessSql.InForce;
 
-    public Task<IReadOnlyList<string>> Outstanding(Guid tenantId, Guid partyId, string displayPoint, string? businessRefType, Guid? businessRefId, DateOnly day, CancellationToken cancellationToken) =>
-        ReadinessSql.InTenant<IReadOnlyList<string>>(dataSource, tenantId, (connection, transaction) => ReadinessSql.Strings(connection, transaction,
+    /// <summary>The texts of the party's country: its address's, else its nationality's, else the tenant's. With none of those, every country's.</summary>
+    public async Task<IReadOnlyList<string>> Outstanding(Guid tenantId, Guid partyId, string displayPoint, string? businessRefType, Guid? businessRefId, DateOnly day, CancellationToken cancellationToken)
+    {
+        var country = await parties.CountryOf(tenantId, partyId, cancellationToken) ?? (await locale.Formatting(tenantId, day, cancellationToken))?.Country;
+        return await ReadinessSql.InTenant<IReadOnlyList<string>>(dataSource, tenantId, (connection, transaction) => ReadinessSql.Strings(connection, transaction,
             $"""
-            SELECT DISTINCT notice_type FROM channel.cfg_disclosure_and_notice_texts t WHERE {InForce}
+            SELECT DISTINCT notice_type FROM channel.cfg_disclosure_and_notice_texts t WHERE {InForce} AND (@country::text IS NULL OR t.jurisdiction = @country)
               AND NOT EXISTS (SELECT 1 FROM channel.disclosure_acknowledgement a WHERE a.tenant_id = @t AND a.party_id = @party AND a.notice_type = t.notice_type AND a.display_point = t.display_point
-                AND a.text_version = t.text_version AND (@refId::uuid IS NULL OR (a.business_ref_type = @refType AND a.business_ref_id = @refId)))
+                AND a.text_version = t.text_version AND (a.jurisdiction IS NULL OR a.jurisdiction = t.jurisdiction) AND (@refId::uuid IS NULL OR (a.business_ref_type = @refType AND a.business_ref_id = @refId)))
             ORDER BY 1
-            """, cancellationToken, ("t", tenantId), ("point", displayPoint), ("inForce", StaticLifecycle.Configuration.InForce), ("day", day), ("party", partyId),
+            """, cancellationToken, ("t", tenantId), ("point", displayPoint), ("inForce", StaticLifecycle.Configuration.InForce), ("day", day), ("party", partyId), ("country", (object?)country ?? DBNull.Value),
             ("refId", (object?)businessRefId ?? DBNull.Value), ("refType", (object?)businessRefType ?? DBNull.Value)), cancellationToken);
+    }
 
     public Task<DisclosureTextView?> Text(Guid tenantId, string displayPoint, string noticeType, string jurisdiction, string language, DateOnly day, CancellationToken cancellationToken) =>
         ReadinessSql.InTenant(dataSource, tenantId, async (connection, transaction) =>
@@ -78,8 +82,8 @@ internal sealed class Disclosures([FromKeyedServices(IntegrationDbContext.Schema
         {
             await using var command = new NpgsqlCommand(
                 """
-                INSERT INTO channel.disclosure_acknowledgement (tenant_id, id, party_id, notice_type, display_point, text_version, language, business_ref_type, business_ref_id, acknowledged_at, channel_code, recorded_by)
-                VALUES (@t, @id, @party, @notice, @point, @version, @language, @refType, @refId, @at, @channel, @by)
+                INSERT INTO channel.disclosure_acknowledgement (tenant_id, id, party_id, notice_type, display_point, text_version, language, jurisdiction, business_ref_type, business_ref_id, acknowledged_at, channel_code, recorded_by)
+                VALUES (@t, @id, @party, @notice, @point, @version, @language, @jurisdiction, @refType, @refId, @at, @channel, @by)
                 """, connection, transaction);
             command.Parameters.AddWithValue("t", tenantId);
             command.Parameters.AddWithValue("id", id);
@@ -88,6 +92,7 @@ internal sealed class Disclosures([FromKeyedServices(IntegrationDbContext.Schema
             command.Parameters.AddWithValue("point", text.DisplayPoint);
             command.Parameters.AddWithValue("version", text.TextVersion);
             command.Parameters.AddWithValue("language", text.Language);
+            command.Parameters.AddWithValue("jurisdiction", text.Jurisdiction);
             command.Parameters.AddWithValue("refType", (object?)businessRefType ?? DBNull.Value);
             command.Parameters.AddWithValue("refId", (object?)businessRefId ?? DBNull.Value);
             command.Parameters.AddWithValue("at", at);
