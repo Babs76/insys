@@ -91,8 +91,7 @@ public sealed class FunctionCatalogueTests(DatabaseFixture fixture) : IClassFixt
                 """, ("code", code)))!);
         }
 
-        labels.ShouldBe(["Billing and premium receivables static data", "Maintain billing and premium receivables static data",
-            "Approve integration and API management static data"]);
+        labels.ShouldBe(["Billing and premium receivables", "Maintain billing and premium receivables", "Approve integration and API management"]);
     }
 
     [Fact]

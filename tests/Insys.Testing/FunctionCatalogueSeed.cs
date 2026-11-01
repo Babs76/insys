@@ -120,14 +120,15 @@ public static class FunctionCatalogueSeed
     }
 
     /// <summary>
-    /// The English label of a function: a static data function's from its catalogue module ("Billing and premium receivables
-    /// static data", BR-020), any other's from its code (LIFE_POLICY_VIEW: "Life policy view"); other languages come through labels.
+    /// The English label of a function, written for people, as the navigation names it (BR-009, OQ-100). A static data function's comes from its catalogue module ("Beneficiary management",
+    /// "Approve beneficiary management"). Any other's comes from its code, without the portal and module it already sits under, and a verb comes first (PARTY_BANK_ACCOUNT_VERIFY: "Verify bank account").
+    /// Other languages come through labels. The business reviews the wording before go-live.
     /// </summary>
     public static string Label(FunctionDeclaration function)
     {
         if (function.Code.StartsWith("SD_", StringComparison.Ordinal))
         {
-            var module = SentenceCase(function.ProcessArea) + " static data";
+            var module = SentenceCase(function.ProcessArea);
             if (function.Code.EndsWith("_VIEW", StringComparison.Ordinal))
             {
                 return module;
@@ -144,7 +145,7 @@ public static class FunctionCatalogueSeed
             }
         }
 
-        return Label(function.Code);
+        return Label(function.Code, function.Kind == FunctionKind.Screen);
     }
 
     /// <summary>Words after the first in lower case, except acronyms (API, UI): "Integration and API Management" is "Integration and API management".</summary>
@@ -158,9 +159,40 @@ public static class FunctionCatalogueSeed
 
     private static bool IsAcronym(string word) => word.Length > 1 && word.All(c => !char.IsLetter(c) || char.IsUpper(c));
 
-    public static string Label(string code)
+    private static readonly string[] Prefixes = ["PROVIDER_PORTAL_", "BROKER_PORTAL_", "CUSTOMER_PORTAL_", "PORTAL_"];
+
+    private static readonly HashSet<string> Modules = new(StringComparer.Ordinal)
     {
-        var words = code.Split('_', StringSplitOptions.RemoveEmptyEntries).Select(w => w.ToLowerInvariant()).ToList();
+        "HEALTH", "GENERAL", "LIFE", "PARTY", "CASE", "CASES", "FINANCE", "PAYMENTS", "CLAIMS", "WORKFLOW", "BILLING", "COMPLIANCE", "PRODUCT", "DOCUMENTS", "REINSURANCE", "COMMUNICATIONS", "DISTRIBUTION",
+        "COMMISSION", "IDENTITY", "RATING", "INTEGRATION", "ANALYTICS", "TENANCY", "PLATFORM",
+    };
+
+    private static readonly HashSet<string> TrailingVerbs = new(StringComparer.Ordinal)
+    {
+        "APPROVE", "REJECT", "VERIFY", "UPDATE", "CREATE", "DELETE", "CLOSE", "REOPEN", "RENEW", "WITHDRAW", "CANCEL", "GENERATE", "DELIVER", "SUBMIT", "REVIEW", "READ", "VIEW", "EDIT", "ACTIVATE", "SUSPEND", "RETRY", "DISCARD", "RELEASE", "REVERSE",
+        "ASSIGN", "ACKNOWLEDGE", "PUBLISH", "RETIRE", "LINK", "END", "ESCALATE", "RESOLVE",
+    };
+
+    private static readonly Dictionary<string, string> Acronyms = new(StringComparer.Ordinal) { ["gl"] = "GL", ["fic"] = "FIC", ["pep"] = "PEP", ["api"] = "API", ["kyc"] = "KYC", ["mfa"] = "MFA", ["sla"] = "SLA", ["ifrs"] = "IFRS", ["vat"] = "VAT" };
+
+    /// <param name="screen">A portal's screen keeps its module word: a portal has General, Life and Health claims side by side.</param>
+    public static string Label(string code, bool screen = false)
+    {
+        var portal = Prefixes.FirstOrDefault(p => code.StartsWith(p, StringComparison.Ordinal));
+        var plain = portal is null ? code : code[portal.Length..];
+        var tokens = plain.Split('_', StringSplitOptions.RemoveEmptyEntries).ToList();
+        if (tokens.Count > 1 && Modules.Contains(tokens[0]) && !(screen && portal is not null))
+        {
+            tokens.RemoveAt(0);
+        }
+
+        if (tokens.Count > 1 && TrailingVerbs.Contains(tokens[^1]) && tokens[0] is not ("COMPLETE" or "REQUEST" or "RECORD" or "RUN" or "PREPARE"))
+        {
+            tokens.Insert(0, tokens[^1]);
+            tokens.RemoveAt(tokens.Count - 1);
+        }
+
+        var words = tokens.Select(w => w.ToLowerInvariant()).Select(w => Acronyms.GetValueOrDefault(w, w)).ToList();
         words[0] = char.ToUpperInvariant(words[0][0]) + words[0][1..];
         return string.Join(' ', words);
     }
