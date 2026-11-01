@@ -1293,3 +1293,9 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
 
 ### 5a.3 decisions (Ade, 31 October 2026)
 All eight in `docs/reports/2026-10-30-wave5a-batch3.md` accepted as recommended, including the credit note posting (debit `1300`).
+
+### OQ-162 Disposed test hosts stay in memory (UTC+14 sweep, 1 November 2026)
+- **Seen:** a full integration run in one process failed 2 of 607: a Postgres connection timeout in `WorkflowTests…BR096`, and a 30-second consumer timeout that left no approval in `ApprovalEndingsHoldTests…SEARCH_LOG_HOLD`. Router builds climbed from 63 to about 1,100 seconds across the run. Not a date bug: both passed in that zone straight afterwards.
+- **Cause:** a disposed host is never freed. 14 hosts in a row all stayed alive; the heap went from 330 MB to 1.7 GB and builds from 11 to 15 seconds. Heap dumps show what holds them: EF Core's static `ServiceProviderCache`, ASP.NET's rate limiter timers (never stopped, and holding the middleware), and Npgsql's static metrics reporters.
+- **Decided:** full local runs use `tools/full-sweep.sh`, a process per CI shard: 607 of 607 in UTC+14, in 28 minutes against 101. No retries or longer timeouts. Freeing the hosts themselves would need reflection into private framework fields, so it was tried and dropped.
+- **Still open:** the retention stays. Production has one host, so it doesn't build up there. It may be part of OQ-129's stalls on CI, which isn't shown.

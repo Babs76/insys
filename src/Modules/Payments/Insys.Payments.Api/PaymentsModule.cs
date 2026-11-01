@@ -299,6 +299,8 @@ public sealed class PaymentsModule : IModule
                     CallbackResult.Replayed => Problems.For(BuildingBlocks.Domain.ErrorCodes.CallbackReplayed, "This callback ID was already received.", StatusCodes.Status409Conflict),
                     CallbackResult.Invalid => Problems.For(BuildingBlocks.Domain.ErrorCodes.ValidationFailed, "The callback needs externalRef and status.",
                         StatusCodes.Status422UnprocessableEntity),
+                    CallbackResult.ProviderNotAllowed => Problems.For(PaymentErrorCodes.ProviderNotAllowed, "This provider is not allowed in this environment; the callback was recorded and not applied.",
+                        StatusCodes.Status422UnprocessableEntity),
                     CallbackResult.NoPayment => Problems.For(BuildingBlocks.Domain.ErrorCodes.NotFound, "No payment has this provider reference; the callback was recorded.",
                         StatusCodes.Status404NotFound),
                     _ => refused,

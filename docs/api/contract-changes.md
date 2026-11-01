@@ -2,6 +2,10 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
+
+## Simulator guard (branch `simulator-guard`, 1 November 2026)
+- **New error code** `PAYMENT_PROVIDER_NOT_ALLOWED` (422): on the provider register's static data, `POST /payments/callback-endpoints` and a provider callback, for `SIMULATOR` outside Development and Testing or a deployment declared non-production.
+
 ## BR-124: a claim dated after the business date is refused
 
 ### Breaking

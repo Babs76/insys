@@ -212,11 +212,12 @@ internal sealed class PaymentCodes(PaymentsDbContext db) : IPaymentCodes
 /// callback address (ADR-023); an amount ending in .13 is rejected and one ending in .99 gets no answer (an unknown outcome).
 /// TODO(spec): real provider integrations are not specified (OQ-058).
 /// </summary>
-internal sealed class SimulatorGateway : IPaymentGateway
+internal sealed class SimulatorGateway(IPaymentProviderPolicy policy) : IPaymentGateway
 {
     public const string Code = "SIMULATOR";
 
-    public bool Handles(string providerCode) => providerCode == Code;
+    /// <summary>Where it isn't allowed nothing handles it, so a payment on it has an unknown outcome, never a pending one.</summary>
+    public bool Handles(string providerCode) => providerCode == Code && policy.Allows(providerCode);
 
     /// <summary>The simulator does not use the payee's account details; a real adapter would send them to its provider, and nowhere else.</summary>
     public Task<(ProviderOutcome Outcome, string? ExternalRef, string? Reason)> Send(Payment payment, PayeeAccountDetails? payee, CancellationToken cancellationToken)

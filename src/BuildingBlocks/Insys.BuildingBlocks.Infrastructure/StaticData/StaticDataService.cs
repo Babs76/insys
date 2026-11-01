@@ -770,12 +770,14 @@ public sealed class StaticDataService<TDbContext>(
         where TInput : StaticRecordInput
     {
         var errors = input.Validate();
+        var code = ErrorCodes.ValidationFailed;
         if (errors.Count == 0)
         {
             errors = ValidateRecord<TEntity, TInput>(descriptor, input);
+            code = validators.FirstOrDefault(v => v.Schema == descriptor.Schema && v.Table == descriptor.Table)?.RefusalCode ?? code;
         }
 
-        return errors.Count > 0 ? Error.Validation(ErrorCodes.ValidationFailed, "The static data record is not valid.", errors) : null;
+        return errors.Count > 0 ? Error.Validation(code, "The static data record is not valid.", errors) : null;
     }
 
     /// <summary>A module's own rules across a table's fields (IStaticRecordValidator), checked on a probe built from the input.</summary>

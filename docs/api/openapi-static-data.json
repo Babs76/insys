@@ -59834,7 +59834,7 @@
           "Payments static data"
         ],
         "summary": "Create a tenant Payment provider and bank register draft",
-        "description": "Creates version 1 of a new code, or the next version of an existing one. The caller is the maker.",
+        "description": "Creates version 1 of a new code, or the next version of an existing one. The caller is the maker. Rules (422 with field errors otherwise): SIMULATOR moves no money, and is refused outside Development and Testing unless the deployment is declared non-production.",
         "operationId": "CreatePaymentsPaymentProviderAndBankRegisterDraft",
         "parameters": [
           {
@@ -60046,7 +60046,7 @@
           "Payments static data"
         ],
         "summary": "Edit a tenant Payment provider and bank register draft",
-        "description": "Only the maker edits a draft; approved versions are immutable (SDM-002).",
+        "description": "Only the maker edits a draft; approved versions are immutable (SDM-002). Rules (422 with field errors otherwise): SIMULATOR moves no money, and is refused outside Development and Testing unless the deployment is declared non-production.",
         "operationId": "EditPaymentsPaymentProviderAndBankRegisterDraft",
         "parameters": [
           {

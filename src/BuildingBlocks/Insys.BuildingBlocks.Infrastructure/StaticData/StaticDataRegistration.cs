@@ -70,6 +70,9 @@ public interface IStaticRecordValidator
     /// <summary>Errors by JSON field name; empty when the record is valid.</summary>
     IReadOnlyDictionary<string, string[]> Validate(StaticRecord record);
 
+    /// <summary>The catalogued error code of a refusal, when the rule has its own; otherwise VALIDATION_FAILED.</summary>
+    string? RefusalCode => null;
+
     /// <summary>The rule in words, added to the create and edit operations' descriptions so the contract states it.</summary>
     string? Rules => null;
 }
