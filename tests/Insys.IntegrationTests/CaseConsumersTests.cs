@@ -102,7 +102,7 @@ public sealed class CaseConsumersTests(DatabaseFixture fixture) : IClassFixture<
     {
         var complainant = Guid.CreateVersion7();
         var caseId = Guid.CreateVersion7();
-        var expected = new DateTimeOffset(2026, 11, 20, 10, 0, 0, TimeSpan.Zero);
+        var expected = new DateTimeOffset(2026, 11, 20, 2, 0, 0, TimeSpan.Zero); // the same date from UTC to UTC+14
         Notices.Cases[caseId] = new CaseNoticeData("CS-0001", "CUSTOMER_COMPLAINT", CaseFamilies.Complaint, expected, "We found the premium was correct.",
             "Ask for an internal review within 30 days.", "National Financial Ombud, 0860 800 900", null, complainant, null, null);
 

@@ -175,6 +175,13 @@ public sealed class KeycloakRealmTests(DatabaseFixture fixture, KeycloakRealmTes
     [Fact]
     public async Task ARefreshedBrokerToken_StillCarriesTheOneTimeCode_AndIsAccepted_BR094()
     {
+        // Before the token: an access token lasts five minutes, and a host can take longer to start on a busy machine.
+        var factory = await fixture.Host(new Dictionary<string, string?>
+        {
+            ["Authentication:Authority"] = $"{Base}/realms/insys", ["Authentication:Issuer"] = null, ["Authentication:Audience"] = "insys-core-api",
+            ["Authentication:RequireHttpsMetadata"] = "false", ["Authentication:DevelopmentSigningKey"] = "",
+        });
+
         var tenant = DatabaseFixture.TenantA;
         var subject = Guid.NewGuid().ToString();
         var password = $"pw-{Guid.NewGuid():N}";
@@ -250,11 +257,6 @@ public sealed class KeycloakRealmTests(DatabaseFixture fixture, KeycloakRealmTes
         var access = refreshed.GetProperty("access_token").GetString()!;
         Methods(access).ShouldContain("otp", "a refreshed broker token keeps its second factor");
 
-        var factory = await fixture.Host(new Dictionary<string, string?>
-        {
-            ["Authentication:Authority"] = $"{Base}/realms/insys", ["Authentication:Issuer"] = null, ["Authentication:Audience"] = "insys-core-api",
-            ["Authentication:RequireHttpsMetadata"] = "false", ["Authentication:DevelopmentSigningKey"] = "",
-        });
         var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", access);
         var response = await client.GetAsync("/api/v1/portal/general/policies");

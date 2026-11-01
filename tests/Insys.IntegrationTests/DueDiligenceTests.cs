@@ -426,8 +426,8 @@ public sealed class DueDiligenceTests(DatabaseFixture fixture) : IClassFixture<D
         var party = await w.Clerk.RegisterPerson("Hourly");
         await w.Factory.DrainOutbox();
 
-        // The host's business date is 2 November (Johannesburg): noon on 1 November is a day ago, noon on 31 October two.
-        foreach (var (screened, fresh) in new[] { (new DateTimeOffset(2026, 11, 1, 10, 0, 0, TimeSpan.Zero), true), (new DateTimeOffset(2026, 10, 31, 10, 0, 0, TimeSpan.Zero), false) })
+        // The host's business date is 2 November: 1 November is a day ago and 31 October two, in the tenant's zone (these instants keep their date from UTC to UTC+14).
+        foreach (var (screened, fresh) in new[] { (new DateTimeOffset(2026, 11, 1, 2, 0, 0, TimeSpan.Zero), true), (new DateTimeOffset(2026, 10, 31, 2, 0, 0, TimeSpan.Zero), false) })
         {
             await fixture.Database.ExecuteAsOwner("UPDATE party.due_diligence SET last_screened_at = @s WHERE party_id = @p", ("s", screened), ("p", party));
             var gate = await Gate(w, party, DueDiligenceSteps.Payout, "GENERAL");
