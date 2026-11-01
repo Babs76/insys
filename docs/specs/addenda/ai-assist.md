@@ -1,6 +1,6 @@
 # Wave 7 addendum: AI Assist
 
-**Status: for Ade's signature, with Ade's decisions of 1 November included. Nothing here is built.** Written from [the AI Assist SRS of 1 November 2026](../../srs/INSYS_AI_Assist_SRS.md), which supersedes the copies of 28 and 30 October, and checked against the code on main. Ships off, per tenant, after Wave 6 (D-6).
+**Status: signed, 1 November 2026, as SRS revision 65 records. Nothing here is built, and the build starts only after Wave 6.** Written from [the AI Assist SRS, revision 65](../../srs/INSYS_AI_Assist_SRS.md), and checked against the code on main. Ships off, per tenant (D-6).
 
 ## 1. What it is
 Three features. In all three the AI prepares and a person decides; it never approves, publishes, pays or refuses, and INSYS works unchanged without it.
@@ -8,7 +8,7 @@ Three features. In all three the AI prepares and a person decides; it never appr
 - **AI-1, Product Setup Assistant:** drafts a Draft product version from product documents, with a citation for every value.
 - **AI-3, tenant configuration wizard:** drafts a new tenant's setup from reviewed starter packs and the tenant's answers, applied only after a second person approves.
 
-The SRS's principles P1 to P8 and its requirements AIA-001 to AIA-091 stand as written, except where §4 says otherwise.
+The SRS's principles P1 to P8 and its requirements AIA-001 to AIA-091 stand as written; this addendum adds how to build them.
 
 ## 2. Decisions
 | ID | Decision | State |
@@ -19,12 +19,16 @@ The SRS's principles P1 to P8 and its requirements AIA-001 to AIA-091 stand as w
 | D-4 | Languages | **Decided, 30 Oct:** English first |
 | D-6 | Timing | **Decided, 30 Oct:** back-end Wave 7 after Wave 6; front-end screens before Phase 13; shipped off |
 | D-9 | Starter pack order | **Decided, 1 Nov:** Nigeria, Rwanda, Ghana, Senegal, Kenya, DRC, Côte d'Ivoire. Senegal and Côte d'Ivoire share a CIMA overlay with a thin national layer. South Africa stays as a reference overlay |
+| D-11 | How AI-3's setup is applied | **Decided, 1 Nov:** one `SETUP` change set, only for a tenant still onboarding (AIA-086) |
+| D-12 | How AI-3's draft is checked for readiness | **Decided, 1 Nov:** a completeness check before approval, then readiness on the tenant after applying, with go-live blocked until it passes (AIA-085) |
+| D-13 | Data protection outside South Africa | **Decided, 1 Nov:** each tenant's jurisdiction, where inference runs and the legal basis (AIA-050). Hosting for Nigerian tenants is still open |
+| D-14 | Malware scanning | **Decided, 1 Nov:** a scanner port, for all uploads, failing closed (AIA-010) |
 | D-5 | Commercial model | **Open.** Metering (AIA-073) supports any answer. Needed before any customer is charged |
 | D-7 | Line for AI-1's evaluation set | **Open.** Needed before batch 7.5 |
 | D-8 | AI-3's build order | **Open.** The SRS recommends AI-2, AI-1, then AI-3. §6 is drawn that way and can move. The pack-only path (AIA-090) can ship earlier |
 | D-10 | Who approves each country overlay | **Open.** The SRS recommends a local compliance partner per country. **No overlay can be approved until this is answered,** so AI-3 can't reach a live tenant, even pack-only |
 
-**What D-1 means for AI-2:** Claude runs globally or in the US, not in South Africa. AI-2 can be built first, but waits to be switched on until compliance confirms the POPIA s72 basis and the contract sets zero retention and no training (AIA-052). The route is a per-deployment setting of the adapter.
+**What D-1 means for AI-2:** Claude runs globally or in the US, not in South Africa. AI-2 can be built first, but for each jurisdiction it waits to be switched on until compliance confirms the legal basis (POPIA s72 in South Africa) and the contract sets zero retention and no training (AIA-052). The route is a per-deployment setting of the adapter.
 
 ## 3. Refusal explanations (AIA-039)
 **As proposed in the earlier draft, and now what the SRS says.** The console sends the refusal it received: code, field errors, record reference and correlation ID. INSYS rebuilds the context from the error catalogue and from the record as that user may read it (AIA-003), and never trusts record data sent by the screen. The correlation ID is kept for audit and isn't used for lookup. No new store of refusals, and nothing added to the request pipeline.
@@ -34,7 +38,7 @@ The cache key (AIA-036) is the code, the field errors, the record's reference an
 ## 4. Where the SRS and the code differ
 Read against main.
 
-### Decided by Ade, 1 November
+### Decided by Ade, 1 November, and now in the SRS
 1. **`SETUP` change set (AIA-086): approved in principle, for a tenant that isn't live.**
    - BR-016 approves an import of one table at a time. `SETUP` groups one import batch per table across a tenant's setup: up to 295 tables, several tiers and several modules' databases.
    - One approval, bound to a hash of every batch. Whoever ran the wizard can't approve it.
@@ -47,8 +51,8 @@ Read against main.
 5. **The tenant administrator runs the wizard first (AIA-080).** ADR-024 refuses business routes to the operator tenant, so an operator path follows only if onboarding needs it, as its own audited platform route.
 6. **Global rows load once, by the platform, when an overlay is approved.** Currencies, countries, languages and holidays are global tables, so a tenant's wizard can't write them.
 
-### Readiness before go-live (AIA-085): option C holds
-**Recommendation: option C, not the shadow tenant.** If signed, the SRS wording becomes "before the tenant can go live". The shadow tenant isn't needed.
+### Readiness before go-live (AIA-085, D-12): option C
+**Decided: option C, not the shadow tenant,** which isn't needed.
 
 **How C works:**
 - **Before approval,** a deterministic completeness check: no value Missing, and every regulated value from an approved overlay.
@@ -72,13 +76,6 @@ Read against main.
 **The two costs of C:**
 1. **The checker approves before seeing some blockers.** Completeness can't catch what only live checks find, such as a rating test case that fails, or a transaction type with no posting rule. A blocker found then is fixed by a further change, and no customer is affected, because the tenant isn't live.
 2. **Same-day corrections are awkward.** A new version must start after the one in force (`RETROACTIVE_CHANGE`), so a correction to a set applied today takes effect tomorrow, and readiness passes then. It delays onboarding by a day, and it's acceptable. If onboarding teams find it too slow, the fix is a rule letting a `SETUP` follow-up replace rows on a tenant that isn't live.
-
-### For the SRS's next edit (Ade is updating the SRS)
-- **§1's out-of-scope line:** AI-3 writes a draft change set as well as a Draft product version. AIA-021 and AIA-060 follow.
-- **§3 and §7.1:** five functions, with `ASSIST_TENANT_SETUP_RUN`. AIA-001 should cover AI-3's AI steps.
-- **§6 and AIA-050:** the decision above, with no assumption of South African hosting.
-- **§9:** the estimate, and the roadmap with AI-3 (§7 below).
-- **AIA-085:** "before the tenant can go live", if option C is signed.
 
 ### Handled in this addendum
 - **AIA-011:** PDF, DOCX and XLSX extraction needs new packages, OSI licences only, checked at build.
@@ -141,7 +138,7 @@ The SRS requires these fixed before build. Numbers compare after normalising:
 These belong to the core product, not to Wave 7, and aren't in §6's figures.
 
 ## 6. Batches
-Working days for one engineer, with moderate confidence, excluding provider contracts, evaluation documents and overlay reviews. **Ade, 1 November: the SRS's "2 to 4 days" was wrong; use this sizing and re-estimate after 7.1.** Order as D-2 and the SRS's D-8 recommendation; D-8 is still open. **The build starts only after Wave 6.**
+Working days for one engineer, with moderate confidence, excluding provider contracts, evaluation documents and overlay reviews. **This is the sizing in SRS §9; calendar time is re-estimated after 7.1.** Order as D-2 and the SRS's D-8 recommendation; D-8 is still open. **The build starts only after Wave 6.**
 | Batch | What | Days |
 |---|---|---|
 | 7.1 | Module, settings with jurisdiction, feature and functions, adapter with stub, minimiser, verifier, run records, metering and caps | 8 to 10 |
@@ -154,14 +151,14 @@ Working days for one engineer, with moderate confidence, excluding provider cont
 | 7.8 | AI-3 tailoring and document mapping, evaluation | 6 to 9 |
 | **Total** | | **62 to 82; AI-2 and AI-1 alone are 40 to 52** |
 
-**Roadmap phases and gates (the SRS's diagram, from Ade), with AI-3 added:**
+**Roadmap phases and gates (SRS §9):**
 | Phase | What | Batches | Gate |
 |---|---|---|---|
 | 0 | Decide | | Go decision, provider chosen, SRS approved |
 | 1 | Foundations | 7.1 | Security tests pass: isolation, injection, no write tools |
 | 2 | AI-2 for staff | 7.2, 7.3 | SRS §5.3 targets met |
 | 3 | AI-1 drafts | 7.4, 7.5 | SRS §4.3 targets met, product team sign-off |
-| 3A | AI-3 wizard, new; placed by D-8 (open) | 7.6, 7.7, 7.8 | SRS §5A.4 targets met, first overlay approved (D-10) |
+| 3A | AI-3 wizard; placed by D-8 (open) | 7.6, 7.7, 7.8 | SRS §5A.4 targets met, first overlay approved (D-10) |
 | 4 | Pilot, one tenant | | Pilot review accepted by Ade |
 | 5 | Rollout | | |
 
@@ -172,8 +169,5 @@ From SRS §9.1 and §9.2:
 - **Guards:** the model has no tool that writes (AIA-060); an AI-1 draft can't skip validation, simulation or a second person; a setup can't be approved by whoever ran it (AIA-086); AI-3 can't place a regulated value from outside an approved overlay (AIA-082, AIA-087); a user can't get an explanation of a record they can't read; Health explanations hold no clinical detail.
 - **Evaluation sets are built before their features:** about 100 refusals and calculations for AI-2; one line's real documents for AI-1 (D-7); standard questionnaires and sample tenant documents for AI-3. Targets are SRS §4.3, §5.3 and §5A.4: proposals, none measured.
 
-## 8. For Ade to sign
-1. This addendum as the Wave 7 scope.
-2. **Option C** for readiness (§4), with the SRS wording "before the tenant can go live".
-
-D-5, D-7, D-8 and D-10 stay open. D-10 holds up AI-3 in practice, since no overlay can go live without an approver.
+## 8. Still open
+D-5, D-7, D-8 and D-10. D-10 holds up AI-3 in practice, since no overlay can go live without an approver. Where Nigerian tenants are hosted is also undecided (D-13).

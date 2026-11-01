@@ -6,7 +6,7 @@ Nov 1, 2026 · @AB
 
 INSYS AI Assist adds two narrow AI features to INSYS Core: a **Product Setup Assistant** (AI-1) that drafts product configuration from product documents, and **plain-language explanations** (AI-2) of refusals and premium calculations, and a tenant configuration wizard (AI-3) that drafts a new tenant's setup from reviewed starter packs and the tenant's own answers. In both, the AI prepares material and a person decides; the AI never approves, publishes, pays or refuses anything.
 
-**Status: proposed, for review.** Nothing here is approved, scheduled or built. It is written so the product owner can decide whether to proceed, and with which hosting option (section 10).
+**Status: proposed, for review.** Nothing here is built. The back end's Wave 7 addendum, signed on 1 November 2026, turns this specification into a build plan after Wave 6. It is written so the product owner can decide whether to proceed, and with which hosting option (section 10).
 
 **Reviewed 30 October 2026.** Ade accepted the recommendations for D-1, D-2, D-3, D-4 and D-6 (section 10.2); D-5 and D-7 stay open. On 31 October Ade chose Claude as the AI provider (D-1). On 1 November Ade added AI-3, the tenant configuration wizard (section 5A), and set the country order for its starter packs (D-9). The review also changed how refusals are explained (AIA-031, AIA-039), added number-checking rules (AIA-033a), aligned function names with the catalogue, set the build window and added build safeguards (section 9.2).
 
@@ -28,7 +28,7 @@ INSYS AI Assist adds two narrow AI features to INSYS Core: a **Product Setup Ass
 ### Out of scope
 
 - Any AI decision: underwriting, claims, payment, fraud scoring or pricing. These stay deterministic and human-approved.
-- AI that writes to records other than a Draft product version.
+- AI that writes to records other than a Draft product version (AI-1) or a draft configuration change set for a tenant that isn't live yet (AI-3), each applied only after a second person approves.
 - Customer-facing chat, voice or free-form question answering.
 - Languages other than English in the first release (open decision D-4).
 - Training or fine-tuning a model on tenant data.
@@ -50,7 +50,7 @@ Eight principles bind every requirement below; a requirement that breaks one is 
 
 ## 3. Actors, roles and functions
 
-AI Assist adds four functions to the function catalogue and no new roles; tenant administrators grant the functions to existing roles. Function codes follow the catalogue's convention: an upper-case function code that grants a lower-case permission, for example ASSIST\_EXPLAIN\_REFUSAL granting assist\_explain.refusal.
+AI Assist adds five functions to the function catalogue and no new roles; tenant administrators grant the functions to existing roles. Function codes follow the catalogue's convention: an upper-case function code that grants a lower-case permission, for example ASSIST\_EXPLAIN\_REFUSAL granting assist\_explain.refusal.
 
 | Actor | Uses | Proposed function |
 | --- | --- | --- |
@@ -59,6 +59,7 @@ AI Assist adds four functions to the function catalogue and no new roles; tenant
 | Operations, underwriting, claims and service staff | Ask "why was this refused?" and "how was this premium calculated?" | `ASSIST_EXPLAIN_REFUSAL`, `ASSIST_EXPLAIN_PREMIUM` |
 | Portal users (customers, brokers) | The same explanations on their own records, in a later release | Same functions, behind a separate portal switch (D-3) |
 | Tenant administrator | Switches features on, sets limits, grants functions | `ASSIST_SETTINGS_MANAGE` |
+| Tenant administrator (onboarding) | Runs the tenant configuration wizard (AI-3) while the tenant is onboarding; cannot approve a setup they ran | `ASSIST_TENANT_SETUP_RUN` |
 | Platform operator | Chooses the provider, sets platform caps, monitors cost and quality | Operator-only configuration |
 | Auditor | Reads AI run records | Existing audit roles |
 
@@ -80,14 +81,14 @@ AI-1 turns product documents into a Draft product version that a configurator fi
 
 ### 4.2 Functional requirements
 
-- AIA-010: The user shall upload one or more documents to a new AI draft run for a chosen product; files are stored through the Documents module and scanned before use.
+- AIA-010: The user shall upload one or more documents to a new AI draft run for a chosen product; files are stored through the Documents module and scanned for malware before use. A scanner port (ClamAV, run as a separate service) holds each upload in quarantine until it is clean; if the scanner is unavailable, uploads wait rather than pass (decided 1 November 2026).
 - AIA-011: The system shall extract text and tables from the files; scanned images without a text layer shall be reported as "not readable", not guessed.
 - AIA-012: The AI shall propose values only for fields that exist in the Product Factory version model for that product line (for example covers or benefits, eligibility ages, waiting periods, sums assured or limits, excesses, premium frequencies, rate tables). The exact field list shall be generated from the model, not hand-written in the prompt.
 - AIA-013: Every proposed value shall carry a citation: file, page and the quoted source text. A value without a citation shall be dropped.
 - AIA-014: Each value shall be flagged **Found** (quoted directly), **Interpreted** (derived from wording, needs review) or **Missing** (required by the model, not found in the documents).
 - AIA-015: Rate tables shall be copied cell for cell; a deterministic check shall compare row and column counts and every value against the extracted source table and reject the table on any mismatch.
 - AIA-016: The AI shall not write rule expressions directly. It may propose a rule in plain words with its citation; the configurator writes the expression in the rules language (ADR-008).
-- AIA-017: The Draft version shall be created through the same Product Factory API a person uses, under the identity of the user who ran it, so all existing validations, idempotency and audit apply.
+- AIA-017: The Draft version shall be created through the same Product Factory API a person uses, under the identity of the user who ran it, so all existing validations, idempotency and audit apply. Because AI-1 runs as a background job, the job acts for the recorded user, with that user's permissions checked when it starts and again when it writes; this is a new pattern and is security-reviewed before it merges.
 - AIA-018: The AI shall propose simulation cases (for example youngest and oldest eligible age, each premium frequency, boundary sums assured) with the expected outcome cited from the documents where the documents state one.
 - AIA-019: The configurator shall be able to accept, edit or reject each value; edits shall be recorded against the AI's proposal.
 - AIA-020: The provenance report (value, flag, citation, accepted / edited / rejected, by whom) shall be attached to the version and shown to the approver at submission.
@@ -143,7 +144,7 @@ AI-2 rewrites what INSYS has already recorded into a short explanation a person 
 
 ## 5A. AI-3 Tenant configuration wizard
 
-AI-3 drafts a new tenant's whole configuration, its static data and base environment settings, from reviewed starter packs and a short questionnaire. Onboarding then starts from a near-complete, readiness-checked draft instead of about 280 empty tables. People review it and a second person approves it as one change; nothing goes live without that.
+AI-3 drafts a new tenant's whole configuration, its static data and base environment settings, from reviewed starter packs and a short questionnaire. Onboarding then starts from a near-complete draft instead of nearly 300 empty tables. People review it, a second person approves it as one change, and the tenant can't go live until onboarding readiness passes.
 
 ### 5A.1 Starter packs: templates first, AI second
 
@@ -171,8 +172,8 @@ AI-3 drafts a new tenant's whole configuration, its static data and base environ
 - AIA-082: The draft is assembled deterministically from the base pack and the selected overlays. The AI chooses and tailors only values a pack marks as tailorable. A regulated value with no approved overlay is left Missing and flagged, never filled by the AI.
 - AIA-083: The AI maps the tenant's uploaded documents (chart of accounts, approval matrix, role list) onto INSYS tables, citing the document, page and text for each mapped value, and lists what it couldn't map.
 - AIA-084: Every value is flagged Pack, Tailored (AI, cited to the answer), Mapped (AI, cited to the document) or Missing.
-- AIA-085: Onboarding readiness runs against the draft before anything is saved, using the same checks as live onboarding. Blockers and warnings are explained in plain language under AI-2's verifier rules.
-- AIA-086: The approved draft is applied as one static data change set through the existing import path, approved by a second person and bound to its content hash (BR-016). The person who ran the wizard can't approve it.
+- AIA-085: Before approval, a deterministic completeness check shows that no value is Missing and that every regulated value comes from an approved overlay. After approval, the set is applied and onboarding readiness runs on the tenant with the same checks as live onboarding; the tenant can't go live until they pass, and onboarding steps completed before the set was applied run again (decided 1 November 2026). Blockers and warnings are explained in plain language under AI-2's verifier rules.
+- AIA-086: The approved draft is applied as one SETUP change set: one import batch per table through the existing import path (BR-016), with one approval by a second person bound to a hash of every batch, applied in dependency order and resumable. It is refused unless the tenant is still onboarding; live tenants keep per-table imports, and the tenant can't go live while a set is partly applied (decided 1 November 2026). The person who ran the wizard can't approve it.
 - AIA-087: Numbers and codes are copied, never computed: every rate, limit and amount comes from a pack or a cited tenant input, and a deterministic check rejects anything else.
 - AIA-088: The questionnaire and documents are business configuration. Any personal data found in an upload is masked before a model call (AIA-051).
 - AIA-089: The pack versions used are recorded with the tenant. A later pack version is offered as a reviewable change, never applied automatically.
@@ -188,7 +189,7 @@ AI-3 drafts a new tenant's whole configuration, its static data and base environ
 | Mapped values correct on the evaluation set | 95% or more |
 | Readiness blockers left, other than facts only the tenant can give | 0 for a standard questionnaire |
 | Drafts applied without a second person's approval | 0 (by design; tested) |
-| Questionnaire to readiness-checked draft | Under 30 minutes |
+| Questionnaire to a complete draft ready for approval | Under 30 minutes |
 
 ### 5A.5 Data and API (summary)
 
@@ -198,7 +199,7 @@ AI-3 drafts a new tenant's whole configuration, its static data and base environ
 
 ## 6. Non-functional requirements
 
-The hard constraint is where model inference runs: INSYS is hosted in South Africa, and an AI call may send data elsewhere. Section 6.1 sets the rules; the choice of option is decision D-1.
+The hard constraint is where model inference runs: each tenant's data is governed by its own jurisdiction's law, and an AI call may send it elsewhere. Section 6.1 sets the rules; the choice of option is decision D-1.
 
 ### 6.1 Privacy, POPIA and data residency
 
@@ -215,7 +216,7 @@ What this means for AI Assist (inference, for compliance to confirm):
 
 Requirements:
 
-- AIA-050: Each tenant setting shall record where inference runs (in South Africa / outside South Africa) and the legal basis the tenant relies on; AI-2 shall not run outside South Africa for a tenant without that basis recorded.
+- AIA-050: Each tenant setting shall record the tenant's jurisdiction, where inference runs, and the legal basis the tenant relies on under that jurisdiction's data protection law (POPIA in South Africa, the Nigeria Data Protection Act 2023 in Nigeria, and so on); AI-2 shall not run outside the tenant's jurisdiction without that basis recorded. Nothing assumes South African hosting; where Nigerian tenants are hosted is still to be decided (decided 1 November 2026).
 - AIA-051: Before any call, a minimisation step shall remove or mask names, ID numbers, contact details, bank details and policy, claim or member numbers; the payload actually sent shall be stored with the run record.
 - AIA-052: The provider contract shall exclude use of INSYS data for model training and set a retention limit for prompts and outputs at the provider.
 - AIA-053: Provider credentials shall be held in the platform's secret store, never in tenant configuration or logs.
@@ -254,7 +255,7 @@ The model never touches the database or another module directly: the Assist modu
 | Minimiser | Removes or masks personal data before any call (AIA-051) |
 | Prompt templates | Versioned text templates held as configuration (AIA-074) |
 | Verifier | Deterministic checks: numbers present in input, citations resolve to real text, rate tables match cell for cell |
-| Feature `AI_ASSIST` and four functions | Entitlement and access, using the existing request checks |
+| Feature `AI_ASSIST` and five functions | Entitlement and access, using the existing request checks |
 
 ### 7.2 Data (proposed tables in schema `assist`)
 
@@ -325,9 +326,9 @@ The model appears in one lane only; everything it produces passes INSYS's checks
 
 ## 9. Delivery roadmap
 
-Delivery is six phases, each closed by a gate with a measurable test. AI-2 goes first because it uses only recorded data and is the quickest to evaluate; durations are not estimated here and would be sized by the back-end session once D-1 and D-6 are settled.
+Delivery is six phases, each closed by a gate with a measurable test. AI-2 goes first because it uses only recorded data and is the quickest to evaluate; the back end has sized the build in its Wave 7 addendum (table below), and AI-3 adds phase 3A, placed by D-8.
 
-&#91;embedded content: Delivery roadmap · 6 phases, 5 gates, not to scale\]
+&#91;embedded content: Delivery roadmap · 7 phases, 6 gates, not to scale\]
 
 No code is written before the hosting decision, and each feature reaches users only after its acceptance targets are met on an evaluation set.
 
@@ -337,8 +338,8 @@ No code is written before the hosting decision, and each feature reaches users o
 | --- | --- | --- |
 | Now | D-1 provider check, evaluation documents for one line (D-7), sign-off of this SRS | None |
 | While Waves 5b and 6 build | Back end turns this SRS into the Wave 7 addendum for sign-off | None |
-| After Wave 6 | Back-end Wave 7: AI-2, then AI-1 | About 2 to 4 days (estimate at the current pace, not measured) |
-| Before front-end Phase 13 | Front-end AI Assist screens | About 1 to 2 days (estimate) |
+| After Wave 6 | Back-end Wave 7: AI-2, then AI-1; AI-3 placed by D-8 | Sized by the back end at 62 to 82 person-days for one engineer (AI-2 and AI-1 alone: 40 to 52); calendar time re-estimated after batch 7.1. The earlier figure of 2 to 4 days was wrong. |
+| Before front-end Phase 13 | Front-end AI Assist screens | To be sized by the front end (the earlier 1 to 2 days was not measured) |
 | Go-live | Shipped off; switched on per tenant after evaluation | None |
 
 ### 9.1 How the build would be run
@@ -356,7 +357,7 @@ The design already isolates AI Assist (its own module and schema, read-only hook
 - **The existing suites run with the feature off.** A separate suite runs with it on, against the stub.
 - **No behaviour change to existing modules.** Existing modules gain read hooks only; the module-boundary architecture tests enforce this.
 - **The existing guards apply automatically.** Every permission checked is granted by a function, every portal route declares its actors, and every channel-checked command declares its function; the new module is checked like any other.
-- **Maker-checker needs no new code.** The Draft is created under the user's identity (AIA-017), so Product Factory already treats that user as the maker and refuses them as approver (AIA-002).
+- **Maker-checker needs little new code.** The Draft is created under the user's identity (AIA-017), so Product Factory already treats that user as the maker and refuses them as approver (AIA-002). The one new piece is the background job acting for the recorded user, which is security-reviewed (AIA-017).
 - **Refusal explanations stay out of the request pipeline.** The screen sends the refusal it received (AIA-039), so no change is needed to the code every request passes through.
 - **Merged like any batch.** Wave 7 merges only on green CI of the exact commit, with its own locked end-to-end run.
 
@@ -390,6 +391,10 @@ Hosting is decided (31 October 2026): Claude is the AI provider (D-1). Its infer
 | D-8 | Build order of AI-3 | Before AI-1; after AI-1 | Open. Recommended: AI-2, then AI-1, then AI-3, because AI-3 needs approved starter packs and their compliance review takes time. The pack-only path (AIA-090) can ship earlier if a first customer needs it. |
 | D-9 | Country order for starter packs | Any order of target markets | Decided 1 Nov 2026 (Ade): Nigeria, Rwanda, Ghana, Senegal, Kenya, DRC, Côte d'Ivoire; a CIMA overlay shared by Senegal and Côte d'Ivoire; South Africa kept as a reference overlay. |
 | D-10 | Who approves each country overlay | A local compliance partner per country; OpenFactor's own compliance lead | Open. Recommended: a local compliance partner per country, engaged before that country's first customer. |
+| D-11 | How AI-3's setup is applied | (a) one table at a time under BR-016; (b) one SETUP change set over all the tables | Decided 1 Nov 2026 (Ade): (b), only for a tenant still onboarding (AIA-086). |
+| D-12 | How AI-3's draft is checked for readiness | (a) load it into a temporary shadow tenant before approval; (c) a completeness check before approval, then full readiness on the tenant after applying, with go-live blocked until it passes | Decided 1 Nov 2026 (Ade): (c) (AIA-085). |
+| D-13 | Data protection outside South Africa | A South Africa-only setting, or each tenant's own jurisdiction and legal basis | Decided 1 Nov 2026 (Ade): each tenant's jurisdiction, inference location and legal basis (AIA-050). Hosting for Nigerian tenants is still open. |
+| D-14 | Malware scanning of uploads | (a) build a scanner port; (b) accept staff uploads unscanned at first | Decided 1 Nov 2026 (Ade): (a), for all uploads, failing closed (AIA-010). |
 
 ### 10.3 What was checked, and what was not
 
