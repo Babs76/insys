@@ -1,81 +1,114 @@
 # Wave 7 addendum: AI Assist
 
-**Status: DRAFT for Ade's sign-off. Nothing here is built.** Written from *INSYS AI Assist: Software Requirements Specification (Draft for Review)*, draft 0.1 (AIA-001 onwards), which is itself not yet signed.
+**Status: for Ade's sign-off. Nothing here is built.** Written from [the AI Assist SRS of 1 November 2026](../../srs/INSYS_AI_Assist_SRS.md), which supersedes the copies of 28 and 30 October, and checked against the code on main. Ships off, per tenant, after Wave 6 (D-6).
 
 ## 1. What it is
-Two narrow features, off unless a tenant switches them on:
-- **AI-1, Product Setup Assistant:** reads uploaded product documents and drafts a Draft product version, with a citation for every value.
-- **AI-2, plain-language explanations:** explains why INSYS refused a request, and how a recorded premium was calculated.
+Three features. In all three the AI prepares and a person decides; it never approves, publishes, pays or refuses, and INSYS works unchanged without it.
+- **AI-2, plain-language explanations:** why INSYS refused a request, and how a recorded premium was calculated.
+- **AI-1, Product Setup Assistant:** drafts a Draft product version from product documents, with a citation for every value.
+- **AI-3, tenant configuration wizard:** drafts a new tenant's setup from reviewed starter packs and the tenant's answers, applied only after a second person approves.
 
-In both, the AI prepares and a person decides. It never approves, publishes, pays or refuses, and INSYS works unchanged without it. The SRS's eight principles (P1 to P8) and its out-of-scope list stand as written: no AI decision, no writes beyond a Draft version, no customer chat, no training on tenant data.
-
-**AI-3 (Ade, 1 November) is a third feature, building on the starter pack structure.** Neither SRS defines it, and I haven't seen the starter-pack brief that may, so §5a holds only what the structure already fixes.
+The SRS's principles P1 to P8 and its requirements AIA-001 to AIA-091 stand as written, except where §4 says otherwise.
 
 ## 2. Decisions
 | ID | Decision | State |
 |---|---|---|
-| **D-1** | Provider | **Decided (Ade): Claude, behind the provider adapter.** See §3 for what this leaves open on where it runs |
-| **D-5** | Commercial model | **Open.** Metering (AIA-073) supports any answer |
-| **D-7** | Product lines for AI-1's evaluation set | **Open.** It decides which documents we need before AI-1 can be measured |
-| D-2 | Which feature first | *Proposed, as the SRS recommends:* AI-2 for staff first |
-| D-3 | Portal explanations | *Proposed:* a later release, after staff feedback and legal review |
-| D-4 | Languages | *Proposed:* English only in the first release |
-| D-6 | Timing | *Proposed:* after the core waves reach release candidate, unless a pilot customer needs it sooner |
+| D-1 | Provider | **Decided, 31 Oct:** Claude, through the Claude API or the deployment's cloud, behind the adapter |
+| D-2 | First feature | **Decided, 30 Oct:** AI-2 for staff first |
+| D-3 | Portal explanations | **Decided, 30 Oct:** a later release, after staff feedback and legal review |
+| D-4 | Languages | **Decided, 30 Oct:** English first |
+| D-6 | Timing | **Decided, 30 Oct:** back-end Wave 7 after Wave 6; front-end screens before Phase 13; shipped off |
+| D-9 | Starter pack order | **Decided, 1 Nov:** Nigeria, Rwanda, Ghana, Senegal, Kenya, DRC, Côte d'Ivoire. Senegal and Côte d'Ivoire share a CIMA overlay with a thin national layer. South Africa stays as a reference overlay |
+| D-5 | Commercial model | **Open.** Metering (AIA-073) supports any answer. Needed before any customer is charged |
+| D-7 | Line for AI-1's evaluation set | **Open.** Needed before batch 7.5 |
+| D-8 | AI-3's build order | **Open.** The SRS recommends AI-2, AI-1, then AI-3. §6 is drawn that way and can move. The pack-only path (AIA-090) can ship earlier |
+| D-10 | Who approves each country overlay | **Open.** The SRS recommends a local compliance partner per country. **No overlay can be approved until this is answered,** so AI-3 can't reach a live tenant, even pack-only |
 
-**For sign-off:** D-2, D-3, D-4 and D-6, which you didn't mention. This draft assumes the SRS's recommendations.
+**What D-1 means for AI-2:** Claude runs globally or in the US, not in South Africa. AI-2 can be built first, but waits to be switched on until compliance confirms the POPIA s72 basis and the contract sets zero retention and no training (AIA-052). The route is a per-deployment setting of the adapter.
 
-## 3. What D-1 settles, and what it doesn't
-It settles the provider, and that all calls go through one adapter (P7). It doesn't settle **where inference runs,** which the SRS treats as the same decision:
-- **POPIA s72:** AI-2's premium explanations use rating factors, such as age, smoker status and health loadings, which can be personal or special personal information, even with names removed. Unless Claude can be used in South Africa, that is a transfer abroad needing a recorded basis.
-- **What the SRS found:** AWS's Bedrock cross-Region inference from Cape Town may process requests in other Regions. No in-country route was confirmed. I haven't re-checked this for this draft.
-- **What this draft does:** AIA-050 as written: each tenant records where inference runs and its legal basis, and AI-2 refuses to run offshore without one (`ASSIST_RESIDENCY_NOT_SET`). AI-1 handles product documents, which normally hold no personal data, and is still checked for it.
+## 3. Refusal explanations (AIA-039)
+**As proposed in the earlier draft, and now what the SRS says.** The console sends the refusal it received: code, field errors, record reference and correlation ID. INSYS rebuilds the context from the error catalogue and from the record as that user may read it (AIA-003), and never trusts record data sent by the screen. The correlation ID is kept for audit and isn't used for lookup. No new store of refusals, and nothing added to the request pipeline.
 
-**Question for Ade:** which route to Claude: Anthropic's API directly, or a cloud's hosting of it? It decides the contract terms AIA-052 needs (no training on INSYS data, a retention limit) and the adapter's first implementation. *Recommendation: settle it with compliance before AI-2 is piloted on real data. The adapter can start against a stub either way, and AI-2 on refusals alone carries the least data.*
+The cache key (AIA-036) is the code, the field errors, the record's reference and row version, and the prompt version. The catalogue's "remedy" wording (AIA-031) needs checking per code; gaps are filled in batch 7.2.
 
-**Tension with D-2 worth a look:** the SRS recommends AI-2 first as the smaller feature, and AI-1 first on the offshore route because it has no personal data. *Recommendation: start AI-2 with refusals, whose payload holds no rating factors, then premiums once the basis is recorded, then AI-1.*
+## 4. Where the SRS and the code differ
+Read against main. The first three change the build or its size, and are for Ade to decide.
 
-## 4. Where the SRS assumes something INSYS doesn't have
-Read against main; these change the build or its estimate.
-| SRS says | What's there | Proposal |
-|---|---|---|
-| AIA-010: uploaded files are "scanned before use" | No malware scanning anywhere in INSYS | A question for Ade: build a scanner port (with ClamAV, say), or accept tenant-staff uploads without one for AI-1. It would serve Documents generally |
-| AIA-031: explain a refusal "by its correlation ID" (§7.3) | Refusals aren't stored. A ProblemDetails goes back to the caller, and only some refusals are audited | **The request carries the code, field errors and record it got back,** and INSYS checks the code against the catalogue and the caller's access to the record. No new store of refusals. It differs from the SRS's API |
-| AIA-031: the catalogue's "description and remedy" | `integration.ref_error_code_catalogue` exists; the remedy wording needs checking per code | Fill the gaps as part of AI-2 |
-| AIA-017: the Draft is created "under the identity of the user who ran it" from a background job | Jobs run as a service identity (`ExecutionScope.InitialiseForService`) | The job acts for the recorded user, with their permissions checked when it starts and again on writing. This is a new pattern and needs care: **a security review item** |
-| AIA-011: extract PDF, DOCX and XLSX | No extraction libraries | New packages, OSI licences only, checked at build. Scanned pages are "not readable", as the SRS says |
-| §9, the evaluation and rollout section | **Missing from the PDF I have:** it goes from section 8 to section 10, though §4.3 refers to it | Please check. §7 below is my proposal in its place |
+### For decision
+1. **AIA-086: one change set doesn't exist yet.** BR-016 approves one import of **one table,** at that table's tier, bound to its SHA-256. A tenant's setup spans up to 295 tables (`cfg_`, `ref_`, `mst_`; the SRS says about 280), several tiers and several modules' databases. *Proposal:* a new `SETUP` change set grouping one import batch per table, with one approval bound to a hash of all of them, activated in dependency order, and resumable, because no single transaction spans the modules. It reuses the import path per table. New approval type, and the highest-risk part of AI-3.
+2. **AIA-085: readiness can't check a draft "before anything is saved".** The checks read in-force rows directly from each module (10 check classes; `ReadinessSql` is used in 27 files). *Proposal:* load the draft into a temporary shadow tenant, run the unchanged checks, then purge it. That gives "the same checks as live onboarding" with no rewrite. The alternative, rewriting every check to read a draft, is larger and could drift. Purge and isolation need a security review.
+3. **AIA-050 and §6.1 are written for South Africa, and the first market is Nigeria.** The setting is "in South Africa / outside South Africa", the legal basis is POPIA s72, and SRS §6 assumes INSYS is hosted in South Africa. A Nigerian tenant answers to Nigerian data protection law, with its own transfer rules, and may need hosting elsewhere. *Proposal:* the setting records the tenant's jurisdiction, where inference runs and the basis, and AI-2 refuses when inference is outside that jurisdiction with no basis recorded. The basis for each country goes through compliance with its overlay. **Where Nigerian tenants are hosted is a question for Ade.**
 
-The SRS also came in two versions. A file from 28 October describes different features (a setup assistant and onboarding data mapping, with PSA and ODM requirements and nine decisions). I used the one saved on 30 October, whose D-1, D-5 and D-7 match your message. **Please confirm that's the right one.**
+### For the SRS's next edit
+4. **§1's out-of-scope line** says the AI writes to nothing but a Draft product version. AI-3 writes a draft change set; the line should say so. AIA-021 and AIA-060 follow.
+5. **§3 and §7.1 say four functions.** AIA-080 makes it five, with `ASSIST_TENANT_SETUP_RUN`. AIA-001 should cover AI-3's AI steps.
+6. **§9's estimate covers AI-2 and AI-1 only,** at "about 2 to 4 days". See §6.
+7. **§8 and §9 have diagrams missing from the Markdown,** including the six phases and five gates of the roadmap. §7 below uses the text only. Please check I'm not missing a gate.
+
+### Handled in this addendum
+8. **AIA-010, "scanned before use":** INSYS has no malware scanning. **Question for Ade:** build a scanner port (ClamAV, say), which would serve Documents generally, or accept uploads from tenant staff without one at first. AI-1 and AI-3's document mapping both depend on it. *Recommendation: build the port.*
+9. **AIA-017 and §9.2's "maker-checker needs no new code":** the AI-1 job runs in the background, and jobs run as a service identity (`ExecutionScope.InitialiseForService`). To make the user the maker, the job acts for the recorded user, with permissions checked at the start and on writing. This is a new pattern and **needs a security review,** so it is some new code.
+10. **AIA-080, the operator's onboarding team:** ADR-024 refuses business routes to the operator tenant. *Proposal:* the tenant administrator runs the wizard first. An operator path follows as its own platform route, audited, if onboarding needs it.
+11. **Global rows:** currencies, countries, languages and holidays are global tables, so a tenant's wizard can't write them. A country overlay's global rows load once, by the platform, when the overlay is approved.
+12. **AIA-011:** PDF, DOCX and XLSX extraction needs new packages, OSI licences only, checked at build.
+13. **"Base environment settings" (§5A):** only static data can go through a change set. I've read these as the settings held in static data (`tenant.cfg_locale_defaults`, for example). Deployment configuration stays out.
+14. **The premium's "recorded steps":** these are `CalculationView.Inputs` and `Lines` (`GET /rating/calculations/{id}`). No change needed.
 
 ## 5. What gets built
-**Module `Assist`:** own schema and role, forced row-level security, tenant from the token (AIA-062). Tables `run`, `run_payload`, `draft_item`, `explanation`, `tenant_setting` as SRS §7.2.
+**Module `Assist`:** own schema and role, forced row-level security, tenant from the token (AIA-062). Tables as SRS §7.2 and §5A.5.
 
-**Adapter:** `IAiModelProvider`, with a stub for tests and a Claude implementation in the Cloud adapter project, so the SDK guard from ADR-027 holds. Add its SDK to the guard's list. Anthropic's C# SDK is listed as Apache-2.0 on GitHub; check the package at build. The model and prompt template versions are configuration (AIA-074), changed only after the evaluation set passes.
+**Adapter:** `IAiModelProvider`, with a stub for tests and a Claude implementation in the Cloud adapter project, so ADR-027's SDK guard holds. Its SDK joins the guard's list. Check the package's licence at build. Model and prompt versions are configuration (AIA-074).
 
 **Deterministic checks, which are what makes this safe:**
 - **Minimiser (AIA-051):** removes names, identifiers, contact and bank details, and policy, claim and member numbers. The payload actually sent is stored.
-- **Verifier:** every number in an explanation is in its source (AIA-033); every citation resolves to real text (AIA-013); rate tables match cell for cell (AIA-015). A failure drops the value, or shows the structured breakdown instead.
+- **Verifier:** numbers (§5.1), citations resolving to real text (AIA-013, AIA-083), rate tables cell for cell (AIA-015), and for AI-3, each value traced to a pack or a cited tenant input (AIA-087).
 
-**API,** as SRS §7.3 except for refusals (§4 above). Five new error codes: `ASSIST_UNAVAILABLE`, `ASSIST_CAP_REACHED`, `ASSIST_RESIDENCY_NOT_SET`, `ASSIST_SOURCE_UNREADABLE`, `ASSIST_OUTPUT_REJECTED`.
+**API and error codes:** as SRS §7.3 and §5A.5.
 
-**Functions:** the SRS's `assist.*` names become the catalogue's convention: `ASSIST_PRODUCT_DRAFT_RUN`, `ASSIST_EXPLAIN_REFUSAL`, `ASSIST_EXPLAIN_PREMIUM`, `ASSIST_SETTINGS_MANAGE`, under feature `AI_ASSIST`, off by default. Permission `assist_*` names follow. All four are in no role template until a tenant grants them.
+**Functions:** `ASSIST_PRODUCT_DRAFT_RUN`, `ASSIST_EXPLAIN_REFUSAL`, `ASSIST_EXPLAIN_PREMIUM`, `ASSIST_SETTINGS_MANAGE`, `ASSIST_TENANT_SETUP_RUN`, under feature `AI_ASSIST`, off by default, in no role template. The pack-only path needs the function but not the entitlement (AIA-080, AIA-090).
 
-**Touching existing modules:** read hooks only, except:
-- **Product Factory:** the provenance report on a version, shown to the approver; whoever ran AI-1 counts as the version's maker (AIA-002).
+**Touching existing modules, read hooks only (§9.2), except:**
+- **Product Factory:** the provenance report on a version.
 - **Rating:** a public query for a recorded calculation, through Contracts.
+- **Static data:** the `SETUP` change set (§4.1).
 
-## 5a. AI-3 and the starter packs
-**Not specified: Ade to give its scope.** My working assumption is that AI-3 helps draft a country or line overlay from regulations and source documents. Whatever its scope, it builds on [`starter-packs`](../starter-packs/README.md), and these hold under the same principles as AI-1:
-- **It drafts overlay rows only,** in the existing format, each marked `DRAFT-FOR-REVIEW` with a citation to its source. It never changes the base pack, or a row in force.
-- **FINANCE and COMPLIANCE rows go to the review sheet,** for a named person to answer. Nothing it drafts is loaded without that, and the second person static data already requires.
-- **It adds no regulated value on its own authority:** an uncited value stays empty, as in the Nigeria skeleton.
-- **Same verifier as AI-1:** each citation resolves to real source text, and each number is in it.
-- **Regulatory text is mostly public, so residency matters less** than in AI-2. A tenant's own documents would be treated as AI-1's are.
+### 5.1 Number verifier rules (AIA-033a)
+The SRS requires these fixed before build. Numbers compare after normalising:
+| Rule | Same number |
+|---|---|
+| Currency sign or code removed | `R1,240` = `1240` = `NGN 1240` |
+| Thousands separators: comma or space | `1,240` = `1 240` = `1240` |
+| Decimal places | `1240.00` = `1240` |
+| Percentages either way | `15%` = `0.15` = `15 percent` |
+| Dates as dates | `1 November 2026` = `2026-11-01` |
 
-It needs a pack loader, which doesn't exist, and French sources for Senegal, DRC and Côte d'Ivoire. **It isn't in the estimate below.**
+**Don't trigger a rejection when they're in the source:** list numbers, step numbers, years. **Always rejected:**
+- A number not in the source, including a correct sum or a rounded figure: `R1,240.50` written as `about R1,240`.
+- An amount in the source written in another currency: `1240 USD` from `1240 NGN`. The sign is removed to compare, but a stated currency must match.
+- A rate or percentage matching only an unrelated amount, such as `15%` when the source's only 15 is an amount of 15. Percentages match percentages or their fractions.
+
+**Fixed for the first release, English only (D-4):** a comma before exactly three digits is a separator, and any other comma isn't read as a number. French formats, such as `1 234,50`, come with the later language work.
+
+**Test cases:** each row and each rejection above, in both directions, plus RWF with no decimals, zero, negative amounts and an empty source.
+
+### 5.2 AI-3 and the starter packs
+- **Format:** [`docs/specs/starter-packs`](../starter-packs/README.md) has the structure, drafted: base, country and line overlays. It needs a `tailorable` mark per value (AIA-082). In the build, packs become versioned static data (`starter_pack`, `starter_pack_value`).
+- **Line overlays** are Life, General and Health, varied by country where the law differs (§5A.1).
+- **Regulated values come only from an approved overlay;** otherwise they are Missing, and the AI can't fill them (AIA-082).
+- **Language (AIA-091):** overlays carry their own texts, so French texts in a CIMA overlay are pack data, not AI output, and sit alongside D-4.
+
+**Each country also needs code that isn't there yet,** from [the country survey](../../reports/2026-11-01-country-readiness-survey.md):
+| Needed | Before |
+|---|---|
+| Appeal routes as static data, not `PPR_NFO` or `CMS` only | Nigeria, so every market |
+| Rounding by currency, about 40 places fixed at 2 decimals | Rwanda, Senegal, Côte d'Ivoire |
+| French: text in code, merged values, one-language wording fields | Senegal, DRC, Côte d'Ivoire; Rwanda in part |
+| Limits with a currency | DRC |
+
+These belong to the core product, not to Wave 7, and aren't in §6's figures.
 
 ## 6. Batches
-Working days for one engineer, with moderate confidence, excluding the provider contract and the evaluation documents.
+Working days for one engineer, with moderate confidence, excluding provider contracts, evaluation documents and overlay reviews. **Order as D-2 and the SRS's D-8 recommendation.**
 | Batch | What | Days |
 |---|---|---|
 | 7.1 | Module, settings, feature and functions, adapter with stub, minimiser, verifier, run records, metering and caps | 8 to 10 |
@@ -83,20 +116,24 @@ Working days for one engineer, with moderate confidence, excluding the provider 
 | 7.3 | Claude adapter, prompt templates, the AI-2 evaluation set and run | 4 to 6 |
 | 7.4 | AI-1 extraction, field list from the model, background job, citations, flags, rate table check, injection tests | 12 to 15 |
 | 7.5 | AI-1 review, provenance on approval, simulation cases, evaluation (needs D-7) | 8 to 10 |
-| **Total** | | **38 to 49, so about 8 to 11 weeks with review** |
+| 7.6 | AI-3 pack storage and versions, questionnaire, deterministic assembly, flags, loading a real pack (pack-only path, AIA-090) | 8 to 10 |
+| 7.7 | `SETUP` change set and shadow-tenant readiness | 10 to 14 |
+| 7.8 | AI-3 tailoring and document mapping, evaluation | 6 to 9 |
+| **Total** | | **62 to 82; AI-2 and AI-1 alone are 38 to 49** |
+
+**The SRS says about 2 to 4 days for AI-2 and AI-1,** "at the current pace, not measured". I can't reconcile that with this list from what I've measured: mine are person-days, and work here has moved faster than person-days suggest. **I'd plan on the size above being the relative weight, and re-estimate after 7.1.**
 
 ## 7. Testing and proof
-- **No real provider in CI:** the stub gives fixed outputs, including wrong numbers, bad citations and an injected instruction's effect, to prove the verifier and fallback.
-- **Guards:** the model has no tools that write (AIA-060); an AI-1 draft can't skip validation, simulation or a second person (tested end to end); a user can't get an explanation of a record they can't read (AIA-003); Health explanations hold no clinical detail (AIA-038).
-- **Evaluation set, proposed in place of the missing §9:** real or realistic documents per line (D-7), and refusals and calculations a domain expert marks. It runs by hand against the real model before a pilot and before any model or template change, measured against SRS §4.3 and §5.3. Those targets are proposals, and nothing has been measured.
-- **Rollout, proposed:** one pilot tenant, staff only, with a low cap; then wider; portals only after D-3.
+From SRS §9.1 and §9.2:
+- **No real model in CI:** the stub gives fixed outputs, including wrong numbers, bad citations and an injected instruction's effect. Evaluation against the real model is a separate, manually started job.
+- **Existing suites run with the feature off,** and a separate suite with it on, against the stub. Merged only on green CI of the exact commit, with its own locked end-to-end run.
+- **Guards:** the model has no tool that writes (AIA-060); an AI-1 draft can't skip validation, simulation or a second person; a setup can't be approved by whoever ran it (AIA-086); AI-3 can't place a regulated value from outside an approved overlay (AIA-082, AIA-087); a user can't get an explanation of a record they can't read; Health explanations hold no clinical detail.
+- **Evaluation sets are built before their features:** about 100 refusals and calculations for AI-2; one line's real documents for AI-1 (D-7); standard questionnaires and sample tenant documents for AI-3. Targets are SRS §4.3, §5.3 and §5A.4: proposals, none measured.
 
-## 8. What I need from Ade to sign
-1. The route to Claude (§3), with compliance.
-2. D-2, D-3, D-4 and D-6 as proposed, or otherwise; D-5 and D-7 stay open.
-3. Malware scanning (§4).
-4. The refusal API's change from the SRS (§4).
-5. Which SRS is current, and the missing §9.
-6. The scope of AI-3, and the starter-pack brief (§5a).
+## 8. For Ade to sign
+1. This addendum as the Wave 7 scope.
+2. **The three decisions in §4:** the `SETUP` change set, shadow-tenant readiness, and data protection by the tenant's jurisdiction, with where Nigerian tenants are hosted.
+3. **Malware scanning** (§4, item 8).
+4. **SRS edits** (§4, items 4 to 7).
 
-D-7 must be answered before batch 7.5, and D-5 before any customer is charged.
+D-5, D-7, D-8 and D-10 stay open. D-10 is the one that holds up AI-3 in practice, since no overlay can go live without an approver.
