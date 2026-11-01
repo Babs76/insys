@@ -60,3 +60,9 @@ public interface IPartyLinkedRecords
 {
     Task<IReadOnlyList<PartyLinkedRecord>> For(Guid tenantId, Guid partyId, string timeZone, CancellationToken cancellationToken);
 }
+
+/// <summary>Public query interface, implemented by each module with business before a policy (OQ-054): whether the party has an open quote or proposal. It keeps the party active, and isn't a record that keeps its data.</summary>
+public interface IPartyOpenBusiness
+{
+    Task<bool> HasOpen(Guid tenantId, Guid partyId, CancellationToken cancellationToken);
+}

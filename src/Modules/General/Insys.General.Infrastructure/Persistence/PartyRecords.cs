@@ -53,3 +53,10 @@ internal sealed class GeneralPartyRecords([FromKeyedServices(GeneralDbContext.Sc
         WHERE EXISTS (SELECT 1 FROM general.claim_party x WHERE x.tenant_id = c.tenant_id AND x.claim_id = c.id AND x.party_id = @party)
         """, cancellationToken);
 }
+
+/// <summary>OQ-054: a quote or proposal not yet ended keeps its party active. An accepted quote ends when its policy is issued.</summary>
+internal sealed class GeneralOpenBusiness([FromKeyedServices(GeneralDbContext.SchemaName)] NpgsqlDataSource dataSource) : IPartyOpenBusiness
+{
+    public Task<bool> HasOpen(Guid tenantId, Guid partyId, CancellationToken cancellationToken) =>
+        PartyOpenBusinessReader.Read(dataSource, tenantId, partyId, "SELECT EXISTS (SELECT 1 FROM general.quote q WHERE q.proposer_party_id = @party AND q.status IN ('DRAFT', 'RATED', 'REFERRED', 'ISSUED', 'ACCEPTED') AND NOT EXISTS (SELECT 1 FROM general.policy p WHERE p.tenant_id = q.tenant_id AND p.quote_id = q.id))", cancellationToken);
+}

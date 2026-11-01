@@ -102,3 +102,9 @@ Estimates are working days for one developer, including unit, integration and en
 - **What:** import of open claims and outstanding premiums, added to the Wave 6 bulk import of parties and policies, with reconciliation rules: control totals per file, agreement with the source system's trial balance, opening balances posted through Finance, and a report of every difference.
 - **Estimate:** 10 to 15 days, of which the reconciliation rules are about half.
 - **Until then:** bulk import covers parties and policies only.
+
+### B-014: make service account clients through Keycloak's admin API
+- **Decided:** 1 November 2026, by Ade, on the B-011 report.
+- **What:** registering a service account for a tenant and provider also makes its client-credentials client in Keycloak, through the admin API, instead of by hand.
+- **Estimate:** 2 to 3 days.
+- **Until then:** the client is made by hand, then registered with `POST /identity/users/service-accounts`.

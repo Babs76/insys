@@ -360,6 +360,25 @@ public sealed class PartyAnonymisationTests(DatabaseFixture fixture) : IClassFix
     }
 
     [Fact]
+    public async Task AnOpenQuoteOrProposal_KeepsAPartyActive_UntilItEnds_OQ054()
+    {
+        var tenant = DatabaseFixture.TenantA;
+        var party = await _today.ClientFor(tenant, Officer).RegisterPerson("DormantFour");
+        var quote = await Insert(tenant, "general.quote", ("status", "RATED"), ("proposer_party_id", party));
+        await ReviewDormancy(tenant);
+        (await StatusOf(tenant, party)).ShouldBe("ACTIVE", "a quote is open");
+
+        await fixture.Database.ExecuteAsOwner("UPDATE general.quote SET status = 'EXPIRED' WHERE id = @q", ("q", quote));
+        var proposal = await Insert(tenant, "life.proposal", ("status", "SUBMITTED"), ("applicant_party_id", party));
+        await ReviewDormancy(tenant);
+        (await StatusOf(tenant, party)).ShouldBe("ACTIVE", "a proposal is open");
+
+        await fixture.Database.ExecuteAsOwner("UPDATE life.proposal SET status = 'DECLINED' WHERE id = @p", ("p", proposal));
+        await ReviewDormancy(tenant);
+        (await StatusOf(tenant, party)).ShouldBe("DORMANT");
+    }
+
+    [Fact]
     public async Task ADormantPartysPeriods_CountFromTheLastRecordEnding_OQ054()
     {
         var tenant = DatabaseFixture.TenantA;

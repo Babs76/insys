@@ -58,3 +58,19 @@ public static class PartyRecordReader
         return records;
     }
 }
+
+/// <summary>Runs a module's open business query (OQ-054) in the tenant. It gets <c>@party</c> and returns a boolean.</summary>
+public static class PartyOpenBusinessReader
+{
+    public static async Task<bool> Read(NpgsqlDataSource dataSource, Guid tenantId, Guid partyId, string sql, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await TenantSession.SetTenant(connection, transaction, tenantId, cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection, transaction);
+        command.Parameters.AddWithValue("party", partyId);
+        var open = (bool)(await command.ExecuteScalarAsync(cancellationToken))!;
+        await transaction.CommitAsync(cancellationToken);
+        return open;
+    }
+}
