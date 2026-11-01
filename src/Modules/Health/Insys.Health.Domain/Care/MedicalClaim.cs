@@ -323,8 +323,13 @@ public sealed class MedicalClaim : AggregateRoot<Guid>
     }
 
     public static Result<MedicalClaim> SubmitClaim(Guid id, string claimNumber, string source, string? providerId, Guid membershipId, Guid patientPartyId,
-        DateOnly serviceDate, string formatCode, string currency, Guid? preauthId, IReadOnlyList<ClaimLineRequest> lines, DateTimeOffset now)
+        DateOnly serviceDate, string formatCode, string currency, Guid? preauthId, IReadOnlyList<ClaimLineRequest> lines, DateOnly today, DateTimeOffset now)
     {
+        if (serviceDate > today)
+        {
+            return Error.Validation(ErrorCodes.ClaimEventDateInFuture, "The date of service is after today's business date.");
+        }
+
         if (lines.Count == 0 || lines.Any(l => l.Quantity <= 0 || l.ClaimedAmount <= 0) || (source == ClaimSources.Provider && providerId is null))
         {
             return Error.Validation(HealthErrorCodes.ClaimInvalid, "A claim has lines with a quantity and amount above zero; a provider claim names the provider.");

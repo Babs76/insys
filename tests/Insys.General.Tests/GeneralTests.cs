@@ -453,7 +453,7 @@ public sealed class GeneralTests
         Notify(Start.AddDays(-1)).RegisterClaim(policy, "GEN-1", Now).Error!.Code.ShouldBe(GeneralErrorCodes.NotCovered);
         Notify(Today, "FLOOD").RegisterClaim(policy, "GEN-1", Now).Error!.Code.ShouldBe(GeneralErrorCodes.NotCovered);
         Notify(Today, risk: Guid.CreateVersion7()).RegisterClaim(policy, "GEN-1", Now).Error!.Code.ShouldBe(GeneralErrorCodes.NotCovered);
-        GeneralClaim.NotifyLoss(Guid.CreateVersion7(), policy.Id, Vehicle, "OWN_DAMAGE", Today.AddDays(1), "C", "P", null, null, Today, Now).IsFailure.ShouldBeTrue();
+        GeneralClaim.NotifyLoss(Guid.CreateVersion7(), policy.Id, Vehicle, "OWN_DAMAGE", Today.AddDays(1), "C", "P", null, null, Today, Now).Error!.Code.ShouldBe(ErrorCodes.ClaimEventDateInFuture); // BR-124
 
         policy.CancelPolicy(new CancellationRule("INS_REQUEST", "INSURED", "NONE", 0), Today, Guid.CreateVersion7(), Now);
         Notify(Today).RegisterClaim(policy, "GEN-1", Now).Error!.Code.ShouldBe(GeneralErrorCodes.NotCovered);

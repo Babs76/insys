@@ -1546,7 +1546,7 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         });
         Task<Guid> Dispensed(int quantity, decimal claimed, object pharmacy, string format = "RX") => Created("/api/v1/health/claims", new
         {
-            source = "PROVIDER", providerId = "PR-1", membershipId = membership, patientPartyId = principal, serviceDate = Today, formatCode = format, currency = "ZAR",
+            source = "PROVIDER", providerId = "PR-1", membershipId = membership, patientPartyId = principal, serviceDate = Today.AddDays(-1), formatCode = format, currency = "ZAR",
             lines = new[] { new { tariffCode = "NAPPI-1", quantity, claimedAmount = claimed, pharmacy } },
         });
 
@@ -1584,7 +1584,7 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         await Seed("health.cfg_medication_limits", "EFFECTIVE", "ML-1", ("limit_code", "ML-1"), ("product_code", "NAPPI-1"), ("max_quantity", 35), ("period", "P1M"));
         var refill = await Created("/api/v1/health/claims", new
         {
-            source = "PROVIDER", providerId = "PR-1", membershipId = membership, patientPartyId = principal, serviceDate = Today.AddDays(1), formatCode = "RX", currency = "ZAR",
+            source = "PROVIDER", providerId = "PR-1", membershipId = membership, patientPartyId = principal, serviceDate = Today, formatCode = "RX", currency = "ZAR",
             lines = new[] { new { tariffCode = "NAPPI-1", quantity = 30, claimedAmount = 60m, pharmacy = new { daysSupply = 30, prescriptionNumber = "S2" } } },
         });
         (await _maker.PostAsync($"/api/v1/health/claims/{refill}/validate", null)).StatusCode.ShouldBe(HttpStatusCode.OK);

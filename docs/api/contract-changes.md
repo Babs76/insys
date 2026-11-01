@@ -2,6 +2,12 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
+## BR-124: a claim dated after the business date is refused
+
+### Breaking
+- **`POST /health/claims` and the portal's claim route:** a `serviceDate` after the tenant's business date is refused, 422 `CLAIM_EVENT_DATE_IN_FUTURE`. It was accepted and could be paid. Pre-authorisations for future treatment are unaffected.
+- **`POST /general/claims` and `POST /life/claims`:** a future `lossDate` or `eventDate` was already refused; the code changes from `VALIDATION_FAILED` to `CLAIM_EVENT_DATE_IN_FUTURE`.
+
 ## Dormant parties (branch `dormant-parties`, OQ-054)
 
 - **`party.status` can now become `DORMANT` by itself** (daily), and return to `ACTIVE`. Its `rowVersion` moves when it does.

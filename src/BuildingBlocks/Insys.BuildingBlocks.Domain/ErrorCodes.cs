@@ -165,6 +165,10 @@ public static class ErrorCodes
     [ErrorCode(409, "error.idempotency.response_not_kept")]
     public const string IdempotencyResponseNotKept = "IDEMPOTENCY_RESPONSE_NOT_KEPT";
 
+    /// <summary>BR-124: a claim's event date (Health: date of service) is after the tenant's business date (ADR-025).</summary>
+    [ErrorCode(422, "error.claims.event_date_in_future")]
+    public const string ClaimEventDateInFuture = "CLAIM_EVENT_DATE_IN_FUTURE";
+
     [ErrorCode(422, "error.money.currency_mismatch")]
     public const string CurrencyMismatch = "CURRENCY_MISMATCH";
 

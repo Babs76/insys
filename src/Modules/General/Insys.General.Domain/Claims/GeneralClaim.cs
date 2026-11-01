@@ -336,7 +336,7 @@ public sealed class GeneralClaim : AggregateRoot<Guid>
     {
         if (lossDate > today)
         {
-            return Error.Validation(ErrorCodes.ValidationFailed, "A loss date is not in the future.");
+            return Error.Validation(ErrorCodes.ClaimEventDateInFuture, "The loss date is after today's business date.");
         }
 
         var claim = new GeneralClaim

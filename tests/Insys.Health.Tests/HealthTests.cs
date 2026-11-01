@@ -211,10 +211,19 @@ public sealed class HealthTests
     }
 
     [Fact]
+    public void AClaim_WithAServiceDateAfterTheBusinessDate_IsRefused_ButTodayIsAccepted_BR124()
+    {
+        Result<MedicalClaim> Dated(DateOnly day) => MedicalClaim.SubmitClaim(Guid.CreateVersion7(), "MC-F", ClaimSources.Provider, "PR-1", Guid.CreateVersion7(), Principal, day, "API", "ZAR", null,
+            [new ClaimLineRequest("0300", null, 1, 900m, null)], Today, Now);
+        Dated(Today.AddDays(1)).Error!.Code.ShouldBe(ErrorCodes.ClaimEventDateInFuture);
+        Dated(Today).IsSuccess.ShouldBeTrue();
+    }
+
+    [Fact]
     public void Claim_ValidationFailure_RejectsIt_AndAPendedLinePendsTheWholeClaim_HLT007()
     {
         var rejected = MedicalClaim.SubmitClaim(Guid.CreateVersion7(), "MC1", ClaimSources.Provider, "PR-1", Guid.CreateVersion7(), Principal, Today, "API", "ZAR", null,
-            [new ClaimLineRequest("0300", null, 1, 900m, null)], Now).Value;
+            [new ClaimLineRequest("0300", null, 1, 900m, null)], Today, Now).Value;
         rejected.ValidateClaim("NOT_COVERED", Now).IsSuccess.ShouldBeTrue();
         (rejected.Status, rejected.PendReason).ShouldBe((MedicalClaimStatus.Rejected, "NOT_COVERED"));
 
@@ -225,7 +234,7 @@ public sealed class HealthTests
             e => e.DecisionReasons.ShouldBe("Your plan does not cover this service."), e => e.TotalPaid.ShouldBe(0m));
 
         var claim = MedicalClaim.SubmitClaim(Guid.CreateVersion7(), "MC2", ClaimSources.Provider, "PR-1", Guid.CreateVersion7(), Principal, Today, "API", "ZAR", null,
-            [new ClaimLineRequest("0300", null, 1, 900m, null), new ClaimLineRequest("0190", null, 1, 400m, null)], Now).Value;
+            [new ClaimLineRequest("0300", null, 1, 900m, null), new ClaimLineRequest("0190", null, 1, 400m, null)], Today, Now).Value;
         claim.ValidateClaim(null, Now);
         var pended = new AdjudicationResult([
             new LineResult(1, LineOutcome.Pay, null, "SPECIALIST", NetworkStatus.InNetwork, 900m, 900m, 0, 0, 900m, 0, null, null),
@@ -256,7 +265,7 @@ public sealed class HealthTests
     public void AFullDeclineByStaff_SendsTheDecisionRights_WithTheReasonsCustomerWording_OQ102()
     {
         var claim = MedicalClaim.SubmitClaim(Guid.CreateVersion7(), "MC-D", ClaimSources.Provider, "PR-1", Guid.CreateVersion7(), Principal, Today, "API", "ZAR", null,
-            [new ClaimLineRequest("0300", null, 1, 900m, null)], Now).Value;
+            [new ClaimLineRequest("0300", null, 1, 900m, null)], Today, Now).Value;
         claim.ValidateClaim(null, Now).IsSuccess.ShouldBeTrue();
         var member = Guid.CreateVersion7();
         claim.NoticeDecisionRights(member, "HLT-CORE", null, Today, Now).IsFailure.ShouldBeTrue("not decided yet");
@@ -273,7 +282,7 @@ public sealed class HealthTests
     public void AClaimHeldForUnpaidContributions_IsDeclinedForArrears_F006()
     {
         var claim = MedicalClaim.SubmitClaim(Guid.CreateVersion7(), "MC-H", ClaimSources.Provider, "PR-1", Guid.CreateVersion7(), Principal, Today, "API", "ZAR", null,
-            [new ClaimLineRequest("0300", null, 1, 900m, null)], Now).Value;
+            [new ClaimLineRequest("0300", null, 1, 900m, null)], Today, Now).Value;
         claim.ValidateClaim(null, Now).IsSuccess.ShouldBeTrue();
         claim.AdjudicateClaim(new AdjudicationResult([new LineResult(1, LineOutcome.Pend, AdjudicationEngine.HeldForArrearsReason, "SPECIALIST", NetworkStatus.InNetwork,
             900m, 900m, 0, 0, 0, 900m, null, null)], [], []), Now).IsSuccess.ShouldBeTrue();
@@ -289,7 +298,7 @@ public sealed class HealthTests
     public void UpheldAppeal_SendsARejectedClaimBackToValidation_OQ103()
     {
         var claim = MedicalClaim.SubmitClaim(Guid.CreateVersion7(), "MC-R", ClaimSources.Provider, "PR-1", Guid.CreateVersion7(), Principal, Today, "API", "ZAR", null,
-            [new ClaimLineRequest("0300", null, 1, 900m, null)], Now).Value;
+            [new ClaimLineRequest("0300", null, 1, 900m, null)], Today, Now).Value;
         claim.ReopenForCase("CASE-1").ShouldBeFalse("a received claim is not rejected");
         claim.ValidateClaim("NOT_COVERED", Now).IsSuccess.ShouldBeTrue();
         claim.Status.ShouldBe(MedicalClaimStatus.Rejected);
@@ -317,7 +326,7 @@ public sealed class HealthTests
             [b] = new("HM-B", "HLT-PROD", "BR-B"),
         };
         MedicalClaim Claim(string source, string? provider, Guid membership) =>
-            MedicalClaim.SubmitClaim(Guid.CreateVersion7(), "MC", source, provider, membership, Principal, Today, "API", "ZAR", null, [new ClaimLineRequest("0300", null, 1, 100m, null)], Now).Value;
+            MedicalClaim.SubmitClaim(Guid.CreateVersion7(), "MC", source, provider, membership, Principal, Today, "API", "ZAR", null, [new ClaimLineRequest("0300", null, 1, 100m, null)], Today, Now).Value;
         var claims = new[]
         {
             Claim(ClaimSources.Provider, "PR-1", a), Claim(ClaimSources.Provider, "PR-2", b), Claim(ClaimSources.Provider, "PR-3", a), Claim(ClaimSources.Provider, "PR-3", b),
@@ -384,7 +393,7 @@ public sealed class HealthTests
     private static MedicalClaim ApprovedForPayment()
     {
         var claim = MedicalClaim.SubmitClaim(Guid.CreateVersion7(), "MC3", ClaimSources.Provider, "PR-1", Guid.CreateVersion7(), Principal, Today, "API", "ZAR", null,
-            [new ClaimLineRequest("0300", null, 1, 900m, null)], Now).Value;
+            [new ClaimLineRequest("0300", null, 1, 900m, null)], Today, Now).Value;
         claim.ValidateClaim(null, Now);
         claim.AdjudicateClaim(new AdjudicationResult([new LineResult(1, LineOutcome.Pay, null, "SPECIALIST", NetworkStatus.InNetwork, 900m, 900m, 0, 0, 900m, 0, null, null)],
             [], []), Now).IsSuccess.ShouldBeTrue();

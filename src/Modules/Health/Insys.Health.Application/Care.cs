@@ -488,7 +488,7 @@ internal sealed class SubmitMedicalClaimHandler(IHealthRepository health, IHealt
     {
         var id = Guid.CreateVersion7();
         var claim = MedicalClaim.SubmitClaim(id, Numbers.Of("MC", id, 25), command.Source, command.ProviderId, command.MembershipId, command.PatientPartyId,
-            command.ServiceDate, command.FormatCode, command.Currency, command.PreauthorisationId, command.Lines, clock.UtcNow);
+            command.ServiceDate, command.FormatCode, command.Currency, command.PreauthorisationId, command.Lines, businessDate.Today, clock.UtcNow);
         if (claim.IsFailure)
         {
             return claim.Error;

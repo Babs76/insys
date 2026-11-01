@@ -341,6 +341,7 @@ public sealed class LifeTests
     public void ApprovalBelowTheAmountClaimed_IsAPartialApproval_WithAPartialReason_AndARightsNotice_OQ102()
     {
         var policy = Policy(Today.AddMonths(-3));
+        LifeClaim.NotifyClaim(Guid.CreateVersion7(), policy, "DEATH", Today.AddDays(1), "I21", Spouse, policy.Lives.Single().Id, Today, Now).Error!.Code.ShouldBe(ErrorCodes.ClaimEventDateInFuture); // BR-124
         var claim = LifeClaim.NotifyClaim(Guid.CreateVersion7(), policy, "DEATH", Today, "I21", Spouse, policy.Lives.Single().Id, Today, Now).Value;
         claim.RegisterClaim("CLM-LIFE-P", Now);
         var death = policy.Benefits.Single(b => b.BenefitCode == "DEATH");

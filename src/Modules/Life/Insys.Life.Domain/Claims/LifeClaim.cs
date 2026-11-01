@@ -283,7 +283,7 @@ public sealed class LifeClaim : AggregateRoot<Guid>
 
         if (eventDate > today)
         {
-            return Error.Validation(ErrorCodes.ValidationFailed, "The event date is not in the future.");
+            return Error.Validation(ErrorCodes.ClaimEventDateInFuture, "The event date is after today's business date.");
         }
 
         return new LifeClaim
