@@ -23,6 +23,11 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 - **`general.cfg_retention_offers`** gains `billingFrequency`, required for a `PAYMENT_TERMS` offer. Accepting one mid-term drafts a `BILLING_FREQ` endorsement for the case's owner.
 
+## Health migration (branch `health-migration-accumulators`, Ade's decisions of 1 November 2026)
+
+- **New `POST /health/migration/accumulators`:** a member's benefit use to date. Permission `health_membership.migrate`.
+- **`POST /health/claims`** takes optional `migrationBatch` and `sourceReference`, for a claim open in a source system.
+
 ## Commission recovery (branch `commission-recovery`, B-009)
 
 - **New `GET /distribution/commission-recoveries`:** `intermediaryCode`, `owedOnly` (default true), `cursor`, `limit`. What brokers owe of commission already paid. Permission `commission.read`.

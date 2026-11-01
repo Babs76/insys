@@ -30,6 +30,7 @@ using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Messaging;
 using Insys.BuildingBlocks.Domain;
 using Insys.Health.Domain;
+using Insys.Health.Domain.Adjudication;
 using Insys.Health.Domain.Members;
 
 namespace Insys.Health.Application;
@@ -147,5 +148,108 @@ internal sealed class MigrateHealthMembershipsHandler(IHealthRepository health, 
         }
 
         return new HealthMigrationResult(command.Rows.Count, total, [], ids);
+    }
+}
+
+/// <param name="MembershipId">The membership's id here, as its migration returned it.</param>
+/// <param name="BeneficiaryPartyId">The member; for a FAMILY limit, the principal.</param>
+/// <param name="Lifetime">Otherwise the benefit year holding today, by the plan's benefit year: the period adjudication will look for.</param>
+/// <param name="Limit">The limit of the period, as the plan's limit for that scope; null for a member's own running total with none.</param>
+public sealed record OpeningAccumulator(string SourceReference, Guid MembershipId, Guid BeneficiaryPartyId, string BenefitCategory, [property: OneOf(AccumulatorScope.Member, AccumulatorScope.Family)] string Scope, bool Lifetime, decimal? Limit, decimal Used,
+    decimal DeductibleMet, decimal CopayTaken);
+
+/// <summary>Ade, 1 November 2026: a member's benefit use to date, so a migrated member can't claim the period's benefit twice. Before any claim on the membership, after the batch's memberships.</summary>
+public sealed record MigrateHealthAccumulators(string BatchCode, int ControlCount, decimal ControlUsed, IReadOnlyList<OpeningAccumulator> Rows) : ICommand<HealthMigrationResult>;
+
+public sealed class MigrateHealthAccumulatorsValidator : AbstractValidator<MigrateHealthAccumulators>
+{
+    public MigrateHealthAccumulatorsValidator()
+    {
+        RuleFor(c => c.BatchCode).NotEmpty().MaximumLength(30);
+        RuleFor(c => c.Rows).NotEmpty().Must(r => r.Count <= 2000).WithMessage("A file has at most 2000 rows.");
+    }
+}
+
+internal sealed class MigrateHealthAccumulatorsHandler(IHealthRepository health, IHealthCodes codes, IBusinessDate businessDate, IAuditTrail audit) : ICommandHandler<MigrateHealthAccumulators, HealthMigrationResult>
+{
+    public async Task<Result<HealthMigrationResult>> Handle(MigrateHealthAccumulators command, CancellationToken cancellationToken)
+    {
+        var today = businessDate.Today;
+        var total = command.Rows.Sum(r => r.Used);
+        var rejected = new List<HealthMigrationRejectedLine>();
+        if (command.ControlCount != command.Rows.Count)
+        {
+            rejected.Add(new HealthMigrationRejectedLine(0, $"The file has {command.Rows.Count} rows; its control count says {command.ControlCount}."));
+        }
+
+        if (command.ControlUsed != total)
+        {
+            rejected.Add(new HealthMigrationRejectedLine(0, $"The file's use is {total}; its control total says {command.ControlUsed}."));
+        }
+
+        var seen = new HashSet<(Guid, AccumulatorKey)>();
+        var ready = new List<(OpeningAccumulator Row, AccumulatorKey Key)>();
+        for (var i = 0; i < command.Rows.Count; i++)
+        {
+            var row = command.Rows[i];
+            var reasons = new List<string>();
+            if (string.IsNullOrWhiteSpace(row.SourceReference) || row.SourceReference.Length > 40 || string.IsNullOrWhiteSpace(row.BenefitCategory) || row.BenefitCategory.Length > 15)
+            {
+                reasons.Add("A row has a source reference of at most 40 characters and a benefit category of at most 15.");
+            }
+
+            if (row.Used < 0 || row.DeductibleMet < 0 || row.CopayTaken < 0 || (row.Limit is { } limit && (limit < 0 || row.Used > limit)))
+            {
+                reasons.Add("Amounts aren't negative, and what's used is within the limit.");
+            }
+
+            var membership = await health.Membership(row.MembershipId, cancellationToken);
+            if (membership?.MigrationBatch is null)
+            {
+                reasons.Add("That isn't a migrated membership: load the batch's memberships first.");
+            }
+            else if (row.BeneficiaryPartyId != membership.PrincipalPartyId && membership.Dependants.All(d => d.PartyId != row.BeneficiaryPartyId))
+            {
+                reasons.Add("The beneficiary isn't on the membership.");
+            }
+            else if (await codes.Plan(membership.PlanCode, membership.OptionCode, today, cancellationToken) is not { } plan)
+            {
+                reasons.Add($"{membership.PlanCode}/{membership.OptionCode} isn't a plan option in force.");
+            }
+            else
+            {
+                var (start, end) = row.Lifetime ? BenefitPeriods.Lifetime(membership.StartDate) : BenefitPeriods.Year(plan.Terms.BenefitYear, membership.StartDate, today);
+                var key = new AccumulatorKey(row.Scope, row.BeneficiaryPartyId, row.BenefitCategory, start, end);
+                if (!seen.Add((row.MembershipId, key)) || (await health.Accumulators(row.MembershipId, [key], cancellationToken)).Count > 0)
+                {
+                    reasons.Add("This accumulator is already loaded, or appears earlier in the file.");
+                }
+                else
+                {
+                    ready.Add((row, key));
+                }
+            }
+
+            if (reasons.Count > 0)
+            {
+                rejected.Add(new HealthMigrationRejectedLine(i + 1, string.Join("; ", reasons)));
+            }
+        }
+
+        audit.Record(new AuditEntry("HEALTH", "MigrateHealthAccumulators", nameof(Domain.Benefits.BenefitAccumulator), command.BatchCode, new Dictionary<string, string?>
+        {
+            ["rows"] = command.Rows.Count.ToString(System.Globalization.CultureInfo.InvariantCulture), ["rejected"] = rejected.Count.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        }));
+        if (rejected.Count > 0)
+        {
+            return new HealthMigrationResult(0, 0, rejected);
+        }
+
+        foreach (var (row, key) in ready)
+        {
+            health.Add(Domain.Benefits.BenefitAccumulator.Opening(Guid.CreateVersion7(), row.MembershipId, key, row.Limit, row.Used, row.DeductibleMet, row.CopayTaken, command.BatchCode, row.SourceReference));
+        }
+
+        return new HealthMigrationResult(command.Rows.Count, total, []);
     }
 }

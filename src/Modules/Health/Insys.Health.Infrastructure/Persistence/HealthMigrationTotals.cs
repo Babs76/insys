@@ -37,6 +37,8 @@ internal sealed class HealthMigrationTotals([FromKeyedServices(HealthDbContext.S
     public Task<IReadOnlyList<MigrationTotal>> For(Guid tenantId, string batchCode, CancellationToken cancellationToken) =>
         MigrationTotalsReader.Read(dataSource, tenantId, batchCode, """
         SELECT 'HEALTH_MEMBERSHIP', count(*), NULL::numeric FROM health.membership WHERE migration_batch = @batch HAVING count(*) > 0
+        UNION ALL SELECT 'HEALTH_ACCUMULATOR', count(*), sum(used_amount) FROM health.benefit_accumulator WHERE migration_batch = @batch HAVING count(*) > 0
+        UNION ALL SELECT 'HEALTH_OPEN_CLAIM', count(*), sum(total_claimed) FROM health.medical_claim WHERE migration_batch = @batch HAVING count(*) > 0
         """, cancellationToken);
 }
 

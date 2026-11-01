@@ -29130,6 +29130,77 @@
         ]
       }
     },
+    "/api/v1/health/migration/accumulators": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Bring members\u0027 benefit use to date from a source system, all or nothing, against the file\u0027s control totals, so a benefit isn\u0027t claimed twice",
+        "operationId": "HealthMigrateAccumulators",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealthMigrateHealthAccumulators"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthMigrationResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          }
+        },
+        "x-permission": "health_membership.migrate",
+        "x-function": [
+          "HEALTH_MIGRATE_MEMBERSHIPS"
+        ]
+      }
+    },
     "/api/v1/health/migration/memberships": {
       "post": {
         "tags": [
@@ -59801,6 +59872,42 @@
           }
         }
       },
+      "HealthMigrateHealthAccumulators": {
+        "required": [
+          "batchCode",
+          "controlCount",
+          "controlUsed",
+          "rows"
+        ],
+        "type": "object",
+        "properties": {
+          "batchCode": {
+            "type": "string"
+          },
+          "controlCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "controlUsed": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthOpeningAccumulator"
+            }
+          }
+        }
+      },
       "HealthMigrateHealthMemberships": {
         "required": [
           "batchCode",
@@ -60091,6 +60198,80 @@
               "string"
             ],
             "format": "uuid"
+          }
+        }
+      },
+      "HealthOpeningAccumulator": {
+        "required": [
+          "sourceReference",
+          "membershipId",
+          "beneficiaryPartyId",
+          "benefitCategory",
+          "scope",
+          "lifetime",
+          "limit",
+          "used",
+          "deductibleMet",
+          "copayTaken"
+        ],
+        "type": "object",
+        "properties": {
+          "sourceReference": {
+            "type": "string"
+          },
+          "membershipId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "beneficiaryPartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "benefitCategory": {
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "MEMBER",
+              "FAMILY"
+            ],
+            "type": "string"
+          },
+          "lifetime": {
+            "type": "boolean"
+          },
+          "limit": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "used": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "deductibleMet": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "copayTaken": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
           }
         }
       },
@@ -62966,6 +63147,18 @@
               "string"
             ],
             "format": "uuid"
+          },
+          "migrationBatch": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sourceReference": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },

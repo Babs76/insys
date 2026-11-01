@@ -325,6 +325,10 @@ public sealed class HealthModule : IModule
                 .WithName($"HealthScheme{action}").WithSummary($"{action} the scheme").RequirePermission(HealthPermissions.SchemeUpdate);
         }
 
+        health.MapPost("/migration/accumulators", async (MigrateHealthAccumulators r, IDispatcher d, CancellationToken ct) => (await d.Send(r, ct)).ToHttp(Results.Ok))
+            .Produces<HealthMigrationResult>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("HealthMigrateAccumulators").WithSummary("Bring members' benefit use to date from a source system, all or nothing, against the file's control totals, so a benefit isn't claimed twice")
+            .RequirePermission(HealthPermissions.MembershipMigrate).RequireIdempotencyKey();
         health.MapPost("/migration/memberships", async (MigrateHealthMemberships r, IDispatcher d, CancellationToken ct) => (await d.Send(r, ct)).ToHttp(Results.Ok))
             .Produces<HealthMigrationResult>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
             .WithName("HealthMigrateMemberships").WithSummary("Bring in-force memberships from a source system, all or nothing, against the file's control totals; every bad line is named (OQ-158)")

@@ -82,6 +82,23 @@ public sealed class BenefitAccumulator : AggregateRoot<Guid>
         PeriodStart = key.PeriodStart, PeriodEnd = key.PeriodEnd, LimitAmount = limit,
     };
 
+    public string? MigrationBatch { get; private set; }
+
+    public string? SourceReference { get; private set; }
+
+    /// <summary>A member's use of the period so far in a source system: what adjudication finds on the same key, so a benefit isn't claimed twice.</summary>
+    public static BenefitAccumulator Opening(Guid id, Guid membershipId, AccumulatorKey key, decimal? limit, decimal used, decimal deductibleMet, decimal copayTaken, string batch, string sourceReference)
+    {
+        var accumulator = OpenNewPeriod(id, membershipId, key, limit);
+        accumulator.UsedAmount = used;
+        accumulator.DeductibleMet = deductibleMet;
+        accumulator.CopayTaken = copayTaken;
+        accumulator.MigrationBatch = Guard.MaxLength(batch, 30);
+        accumulator.SourceReference = Guard.MaxLength(sourceReference, 40);
+        accumulator.MarkChanged();
+        return accumulator;
+    }
+
     /// <summary>Command ReserveBenefit, for an approved preauthorisation.</summary>
     public Result ReserveBenefit(decimal amount, DateTimeOffset now)
     {
