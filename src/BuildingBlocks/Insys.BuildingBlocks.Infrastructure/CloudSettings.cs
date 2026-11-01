@@ -39,7 +39,7 @@ public static class CloudSettings
     public const string S3Compatible = "s3-compatible";
 
     /// <summary>Named by ADR-027 and built in its phase 3, when a customer chooses the cloud. Naming one now fails at start-up rather than running without it.</summary>
-    private static readonly string[] Unbuilt = ["aws", "azure", "alibaba", "vault", "azure-blob"];
+    private static readonly string[] Unbuilt = ["aws", "azure", "alibaba", "vault", "openbao", "azure-blob"];
 
     /// <summary>The key service for envelope encryption.</summary>
     public static string KmsProvider(IConfiguration configuration) =>

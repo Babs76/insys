@@ -60,7 +60,7 @@ public static class RetentionOfferOutcomes
 }
 
 /// <summary>A retention offer the tenant allows (general.cfg_retention_offers).</summary>
-public sealed record RetentionOfferTerms(string OfferCode, string? ProductCode, string Kind, decimal? Value, int MaxUsesPerPolicy, string? AuthorityRole);
+public sealed record RetentionOfferTerms(string OfferCode, string? ProductCode, string Kind, decimal? Value, int MaxUsesPerPolicy, string? AuthorityRole, string? BillingFrequency = null);
 
 public sealed record RetentionCaseOpened(Guid CaseId, Guid PolicyId, string PolicyNumber, string ProductCode, string Trigger, Guid? RenewalId, DateTimeOffset OccurredAt)
     : IDomainEvent;
@@ -69,7 +69,7 @@ public sealed record RetentionOfferMade(Guid CaseId, Guid OfferId, Guid PolicyId
 
 /// <summary>The customer accepted an offer: a discount on a renewal changes its terms; any other change is made by staff (an endorsement, or the renewal's terms).</summary>
 public sealed record RetentionOfferAccepted(Guid CaseId, Guid OfferId, Guid PolicyId, string ProductCode, string Kind, decimal? Value, Guid? RenewalId, Guid DecidedBy,
-    DateTimeOffset OccurredAt) : IDomainEvent;
+    DateTimeOffset OccurredAt, string? BillingFrequency = null) : IDomainEvent;
 
 public sealed record RetentionCaseClosed(Guid CaseId, Guid PolicyId, string ProductCode, string Outcome, DateTimeOffset OccurredAt) : IDomainEvent;
 
@@ -90,6 +90,9 @@ public sealed class RetentionOffer : Entity<Guid>, ITenantScoped
 
     public decimal? Value { get; private set; }
 
+    /// <summary>For a payment-terms offer, the frequency offered.</summary>
+    public string? BillingFrequency { get; private set; }
+
     public Guid MadeBy { get; private set; }
 
     public DateTimeOffset MadeAt { get; private set; }
@@ -100,7 +103,7 @@ public sealed class RetentionOffer : Entity<Guid>, ITenantScoped
 
     internal static RetentionOffer Create(Guid caseId, RetentionOfferTerms terms, Guid madeBy, DateTimeOffset now) => new()
     {
-        Id = Guid.CreateVersion7(), RetentionCaseId = caseId, OfferCode = Guard.MaxLength(terms.OfferCode, 20), Kind = terms.Kind, Value = terms.Value,
+        Id = Guid.CreateVersion7(), RetentionCaseId = caseId, OfferCode = Guard.MaxLength(terms.OfferCode, 20), Kind = terms.Kind, Value = terms.Value, BillingFrequency = terms.BillingFrequency,
         MadeBy = Guard.NotEmpty(madeBy), MadeAt = now,
     };
 
@@ -211,7 +214,7 @@ public sealed class RetentionCase : AggregateRoot<Guid>
         offer.Decide(accepted, now);
         if (accepted)
         {
-            Raise(new RetentionOfferAccepted(Id, offer.Id, PolicyId, ProductCode, offer.Kind, offer.Value, RenewalId, by, now));
+            Raise(new RetentionOfferAccepted(Id, offer.Id, PolicyId, ProductCode, offer.Kind, offer.Value, RenewalId, by, now, offer.BillingFrequency));
         }
 
         MarkChanged();

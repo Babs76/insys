@@ -1327,6 +1327,12 @@
      "logicalType": "Code(80)",
      "mandatory": false,
      "sample": "RETENTION_LEAD"
+    },
+    {
+     "name": "billing_frequency",
+     "logicalType": "Code(15)",
+     "mandatory": false,
+     "sample": "ANNUAL"
     }
    ]
   },

@@ -52,6 +52,8 @@ public sealed class RetentionOffers : StaticRecord<RetentionOffersInput>
 
     public string? AuthorityRole { get; set; }
 
+    public string? BillingFrequency { get; set; }
+
     public override void ApplyFields(RetentionOffersInput input, IFieldProtector protector)
     {
         OfferCode = input.OfferCode!;
@@ -60,6 +62,7 @@ public sealed class RetentionOffers : StaticRecord<RetentionOffersInput>
         Value = input.Value;
         MaxUsesPerPolicy = input.MaxUsesPerPolicy.GetValueOrDefault();
         AuthorityRole = input.AuthorityRole;
+        BillingFrequency = input.BillingFrequency;
     }
 }
 
@@ -82,6 +85,8 @@ public sealed record RetentionOffersInput : StaticRecordInput
 
     public string? AuthorityRole { get; init; }
 
+    public string? BillingFrequency { get; init; }
+
     protected override void ValidateFields(StaticFieldErrors errors)
     {
         errors.Required("offerCode", OfferCode);
@@ -93,5 +98,6 @@ public sealed record RetentionOffersInput : StaticRecordInput
         errors.Required("maxUsesPerPolicy", MaxUsesPerPolicy);
         if (MaxUsesPerPolicy is < 1 or > 99) { errors.Add("maxUsesPerPolicy", "maxUsesPerPolicy must be between 1 and 99."); }
         errors.MaxLength("authorityRole", AuthorityRole, 80);
+        errors.MaxLength("billingFrequency", BillingFrequency, 15);
     }
 }

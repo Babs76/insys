@@ -267,6 +267,7 @@ public static class GeneralStaticData
             entity.Property(x => x.Value).HasColumnName("value").HasPrecision(18, 2);
             entity.Property(x => x.MaxUsesPerPolicy).HasColumnName("max_uses_per_policy");
             entity.Property(x => x.AuthorityRole).HasColumnName("authority_role").HasMaxLength(80);
+            entity.Property(x => x.BillingFrequency).HasColumnName("billing_frequency").HasMaxLength(15);
         });
         modelBuilder.Entity<RiskObjectTypesAndAttributeSchemas>(entity =>
         {

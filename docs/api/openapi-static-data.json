@@ -216803,6 +216803,12 @@
               "string"
             ]
           },
+          "billingFrequency": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "id": {
             "type": "string",
             "format": "uuid"
@@ -217032,6 +217038,12 @@
             "format": "int32"
           },
           "authorityRole": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "billingFrequency": {
             "type": [
               "null",
               "string"

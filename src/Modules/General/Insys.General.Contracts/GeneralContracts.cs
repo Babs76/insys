@@ -329,7 +329,7 @@ public sealed record GeneralRetentionOfferMade(Guid CaseId, Guid OfferId, Guid P
 /// <summary>F026: the customer accepted a retention offer: a discount on the case's renewal changes its terms.</summary>
 [IntegrationEvent("general.GeneralRetentionOfferAccepted")]
 public sealed record GeneralRetentionOfferAccepted(Guid CaseId, Guid OfferId, Guid PolicyId, string ProductCode, string Kind, decimal? Value, Guid? RenewalId,
-    Guid DecidedBy) : IIntegrationEvent;
+    Guid DecidedBy, string? BillingFrequency = null) : IIntegrationEvent;
 
 /// <summary>F026: the retention case closed RETAINED, LOST or WITHDRAWN; its Workflow task closes.</summary>
 [IntegrationEvent("general.GeneralRetentionCaseClosed")]

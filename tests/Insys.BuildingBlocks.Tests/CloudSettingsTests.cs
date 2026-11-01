@@ -95,6 +95,7 @@ public sealed class CloudSettingsTests
     [Theory]
     [InlineData("Kms:Provider", "aws", "no adapter yet")]
     [InlineData("Kms:Provider", "vault", "no adapter yet")]
+    [InlineData("Kms:Provider", "openbao", "no adapter yet")]
     [InlineData("ObjectStore:Provider", "azure-blob", "no adapter yet")]
     [InlineData("Kms:Provider", "nonsense", "isn't known")]
     public void AProviderWithNoAdapter_FailsAtStartUp(string setting, string value, string message)

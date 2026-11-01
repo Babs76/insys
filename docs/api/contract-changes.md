@@ -19,6 +19,10 @@ What changed in the API contract, newest first, so the front end can sync. The O
 - **`EndorsementView`** gains `adjustmentPct`, `newBillingFrequency`.
 - **An accepted mid-term discount offer** drafts a `PREMIUM_ADJUST` endorsement for the case's owner to submit.
 
+## Retention offers (branch `retention-payment-terms`, Ade's decision of 1 November 2026)
+
+- **`general.cfg_retention_offers`** gains `billingFrequency`, required for a `PAYMENT_TERMS` offer. Accepting one mid-term drafts a `BILLING_FREQ` endorsement for the case's owner.
+
 ## Commission recovery (branch `commission-recovery`, B-009)
 
 - **New `GET /distribution/commission-recoveries`:** `intermediaryCode`, `owedOnly` (default true), `cursor`, `limit`. What brokers owe of commission already paid. Permission `commission.read`.

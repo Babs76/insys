@@ -457,7 +457,7 @@ internal sealed class GeneralCodes(GeneralDbContext db) : IGeneralCodes
 
     public async Task<Domain.Retention.RetentionOfferTerms?> RetentionOffer(string offerCode, DateOnly day, CancellationToken cancellationToken) =>
         await InForce<RetentionOffers>(day).Where(o => o.OfferCode == offerCode)
-            .Select(o => new Domain.Retention.RetentionOfferTerms(o.OfferCode, o.ProductCode, o.Kind, o.Value, o.MaxUsesPerPolicy, o.AuthorityRole))
+            .Select(o => new Domain.Retention.RetentionOfferTerms(o.OfferCode, o.ProductCode, o.Kind, o.Value, o.MaxUsesPerPolicy, o.AuthorityRole, o.BillingFrequency))
             .FirstOrDefaultAsync(cancellationToken);
 
     public async Task<Application.NonRenewalReason?> NonRenewalReason(string reasonCode, DateOnly day, CancellationToken cancellationToken) =>
@@ -570,7 +570,7 @@ internal sealed class GeneralEventMapper : IDomainEventMapper
         Domain.Retention.RetentionCaseOpened e => new Contracts.GeneralRetentionCaseOpened(e.CaseId, e.PolicyId, e.PolicyNumber, e.ProductCode, e.Trigger, e.RenewalId),
         Domain.Retention.RetentionOfferMade e => new Contracts.GeneralRetentionOfferMade(e.CaseId, e.OfferId, e.PolicyId, e.ProductCode, e.Kind),
         Domain.Retention.RetentionOfferAccepted e => new Contracts.GeneralRetentionOfferAccepted(e.CaseId, e.OfferId, e.PolicyId, e.ProductCode, e.Kind, e.Value, e.RenewalId,
-            e.DecidedBy),
+            e.DecidedBy, e.BillingFrequency),
         Domain.Retention.RetentionCaseClosed e => new Contracts.GeneralRetentionCaseClosed(e.CaseId, e.PolicyId, e.ProductCode, e.Outcome),
         Domain.Renewals.GeneralNonRenewalRequested e => new BuildingBlocks.Contracts.Approvals.ApprovalRequested(Contracts.GeneralApprovals.NonRenewalBusinessRefType,
             e.RenewalId, Contracts.GeneralApprovals.NonRenewalApprovalType, e.RequestedBy, null, null, $"Do not renew policy {e.PolicyNumber} ({e.ReasonCode})", null,

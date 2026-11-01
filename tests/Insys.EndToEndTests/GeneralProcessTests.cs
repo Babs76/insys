@@ -2494,6 +2494,38 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         (await prepared.Json()).GetProperty("outputTotal").GetDecimal().ShouldBe(tax - noteTax);
     }
 
+    /// <summary>Ade, 1 November 2026: mid-term, an accepted discount drafts a premium adjustment, and accepted payment terms draft a frequency change, for the case's owner to submit.</summary>
+    [Fact]
+    public async Task AnAcceptedMidTermOffer_DraftsItsEndorsement_B007_B008()
+    {
+        await Seed("general.cfg_endorsement_types", "EFFECTIVE", "PREMIUM_ADJUST", ("premium_method", "PRO_RATA"), ("documents", Array.Empty<string>()), ("requires_underwriting", false));
+        await Seed("general.cfg_endorsement_types", "EFFECTIVE", "BILLING_FREQ", ("premium_method", "PRO_RATA"), ("documents", Array.Empty<string>()), ("requires_underwriting", false));
+        await Seed("billing.ref_billing_frequencies", "ACTIVE", "QUARTERLY", ("label", "Quarterly"), ("periods_per_year", 4));
+        await Seed("general.cfg_product_billing_frequencies", "EFFECTIVE", $"{Product}-QUARTERLY", ("product_code", Product), ("frequency", "QUARTERLY"));
+        await Seed("general.cfg_retention_offers", "EFFECTIVE", "TERMS-Q", ("offer_code", "TERMS-Q"), ("kind", "PAYMENT_TERMS"), ("billing_frequency", "QUARTERLY"), ("max_uses_per_policy", 1));
+        await Seed("general.cfg_retention_offers", "EFFECTIVE", "MID-10", ("offer_code", "MID-10"), ("kind", "DISCOUNT_PERCENT"), ("value", 10m), ("max_uses_per_policy", 1));
+
+        async Task<JsonElement> Accepted(string offer)
+        {
+            var (policy, _) = await IssuedPolicy();
+            var opened = await _maker.Send(HttpMethod.Post, "/api/v1/general/retention-cases", new { policyId = policy, trigger = "CANCELLATION_REQUESTED" }, idempotent: true);
+            opened.StatusCode.ShouldBe(HttpStatusCode.Created, await opened.Content.ReadAsStringAsync());
+            var caseId = (await opened.Json()).GetProperty("id").GetGuid();
+            async Task<string> Version() => $"\"{(await (await _maker.GetAsync($"/api/v1/general/retention-cases/{caseId}")).Json()).GetProperty("rowVersion").GetInt64()}\"";
+            var offered = await (await _maker.Send(HttpMethod.Post, $"/api/v1/general/retention-cases/{caseId}/offers", new { offerCode = offer }, ifMatch: await Version())).Json();
+            var offerId = offered.GetProperty("offers").EnumerateArray().Single().GetProperty("id").GetGuid();
+            (await _maker.Send(HttpMethod.Post, $"/api/v1/general/retention-cases/{caseId}/offers/{offerId}/answer", new { accepted = true }, ifMatch: await Version())).StatusCode.ShouldBe(HttpStatusCode.OK);
+            await _factory.DrainOutbox();
+            var id = await _db.ScalarAsOwner<Guid>("SELECT id FROM general.endorsement WHERE policy_id = @p", ("p", policy));
+            return await (await _maker.GetAsync($"/api/v1/general/endorsements/{id}")).Json();
+        }
+
+        var terms = await Accepted("TERMS-Q");
+        (terms.GetProperty("endorsementType").GetString(), terms.GetProperty("status").GetString(), terms.GetProperty("newBillingFrequency").GetString()).ShouldBe(("BILLING_FREQ", "Rated", "QUARTERLY"));
+        var discount = await Accepted("MID-10");
+        (discount.GetProperty("endorsementType").GetString(), discount.GetProperty("adjustmentPct").GetDecimal()).ShouldBe(("PREMIUM_ADJUST", -10m));
+    }
+
     /// <summary>B-007, B-008: neither is re-rated, both are approved like any endorsement, and Billing changes only what isn't invoiced.</summary>
     [Fact]
     public async Task APremiumAdjustmentAndAFrequencyChange_AreApproved_AndBillingFollows_B007_B008()

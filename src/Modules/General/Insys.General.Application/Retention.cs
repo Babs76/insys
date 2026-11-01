@@ -225,6 +225,12 @@ public sealed class RetentionPolicies(IGeneralRepository general, IGeneralCodes 
 
     public async Task Handle(GeneralRetentionOfferAccepted accepted, EventEnvelope envelope, CancellationToken cancellationToken)
     {
+        if (accepted.Kind == RetentionOfferKinds.PaymentTerms && accepted.BillingFrequency is { } frequency && accepted.RenewalId is null)
+        {
+            await DraftFrequencyChange(accepted, frequency, cancellationToken);
+            return;
+        }
+
         if (accepted.Kind != RetentionOfferKinds.DiscountPercent || accepted.Value is not { } percent)
         {
             return;
@@ -254,5 +260,23 @@ public sealed class RetentionPolicies(IGeneralRepository general, IGeneralCodes 
 
         // A renewal that moved on (renewed, lapsed, not renewed) is not changed: the case's owner sees the offer accepted and settles it by hand.
         renewal.ApplyRetentionDiscount(percent, accepted.DecidedBy, clock.UtcNow);
+    }
+
+    /// <summary>Mid-term, a frequency change is drafted for the case's owner to submit. If the product no longer allows it, or the policy moved on, they settle it by hand.</summary>
+    private async Task DraftFrequencyChange(GeneralRetentionOfferAccepted accepted, string frequency, CancellationToken cancellationToken)
+    {
+        var today = businessDate.Today;
+        if (await general.Policy(accepted.PolicyId, cancellationToken) is not { } policy || await codes.EndorsementType(GeneralEndorsement.BillingFrequencyType, today, cancellationToken) is not { } type
+            || await codes.FrequencyLoading(policy.ProductCode, frequency, today, cancellationToken) is not { } loading)
+        {
+            return;
+        }
+
+        var number = $"{policy.PolicyNumber}-E{await general.EndorsementCount(policy.Id, cancellationToken) + 1:D3}";
+        var drafted = GeneralEndorsement.DraftFrequencyChange(Guid.CreateVersion7(), number, policy, type, today < policy.PeriodStart ? policy.PeriodStart : today, frequency, loading, accepted.DecidedBy);
+        if (drafted.IsSuccess)
+        {
+            general.Add(drafted.Value);
+        }
     }
 }
