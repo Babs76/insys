@@ -6,6 +6,25 @@ Baseline assessment of the 103 required functions against the SRS v1.0, the comp
 - **Partly**: partly specified or partly built.
 - **Not specified**: not in the SRS or companion specifications; new scope.
 
+## Status at 1 November 2026
+
+This replaces the verified counts below as the current position; the rows further down are the 23 October baseline and are kept as history. It was checked by function number against the wave reports, the code, the tests and the commit log at `91cb494`, not by a new test of each function.
+
+| Wave | Functions | Now | Where |
+|---|---|---|---|
+| 0, 0b | F005, F009, F023, F055, F062, F103 | Built | Wave 0 reports; F055's general ledger adapter is a stub |
+| 1 | F021, F031, F078, F095–F102 | Built | Wave 1 reports. Email, SMS, push and WhatsApp senders are stubs (OQ-088), so a real provider is needed before go-live |
+| 2 | F010–F013, F032, F033, F050, F061, F066, F068–F073 | Built | Wave 2 reports: one `ServiceCase` for enquiries, complaints, disputes and appeals, which is why most of these carry no function number in the code |
+| 3 | F001–F003, F077 | Built | Wave 3 reports |
+| 4 | F006, F007, F015–F019, F022, F025–F027 | Built | Wave 4 reports |
+| 5a | F028–F030, F034–F038, F048–F050 | Built | Wave 5a reports |
+| 5b | F039–F047, F083–F088, F092, F093 | Built | Wave 5b reports; a live pharmacy switch is B-012 |
+| 6 | F052, F054, F057–F060, F064, F076, F094 | Built | Wave 6 reports. F052 and F054 needed nothing new, by design. Policy import, policy exports and organisation import were added after batch 6.3 |
+| Deferred | F063, F079, F089–F091 | Not built, deferred | Waves 3 to 6 plan, accepted 29 October 2026 (B-002 to B-004) |
+| Before the waves | F004, F008, F014, F020, F024, F051, F053, F056, F065, F067, F074, F075, F080–F082 | Implemented and tested | The verification below; not rechecked |
+
+Of the 103 functions, 98 are built and 5 are deferred. No function planned for a wave is unbuilt.
+
 ## Verification (Phase 8, Workstream A, 23 October 2026)
 
 Each row was checked against the code at commit `e7a474e` and against the passing tests of the last clean full run (858 total, 850 passed, 8 skipped). **Implemented and tested** means a named test passes. Test names are given as `Class.Method`.
