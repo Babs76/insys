@@ -9,6 +9,8 @@ Two narrow features, off unless a tenant switches them on:
 
 In both, the AI prepares and a person decides. It never approves, publishes, pays or refuses, and INSYS works unchanged without it. The SRS's eight principles (P1 to P8) and its out-of-scope list stand as written: no AI decision, no writes beyond a Draft version, no customer chat, no training on tenant data.
 
+**AI-3 (Ade, 1 November) is a third feature, building on the starter pack structure.** Neither SRS defines it, and I haven't seen the starter-pack brief that may, so §5a holds only what the structure already fixes.
+
 ## 2. Decisions
 | ID | Decision | State |
 |---|---|---|
@@ -62,6 +64,16 @@ The SRS also came in two versions. A file from 28 October describes different fe
 - **Product Factory:** the provenance report on a version, shown to the approver; whoever ran AI-1 counts as the version's maker (AIA-002).
 - **Rating:** a public query for a recorded calculation, through Contracts.
 
+## 5a. AI-3 and the starter packs
+**Not specified: Ade to give its scope.** My working assumption is that AI-3 helps draft a country or line overlay from regulations and source documents. Whatever its scope, it builds on [`starter-packs`](../starter-packs/README.md), and these hold under the same principles as AI-1:
+- **It drafts overlay rows only,** in the existing format, each marked `DRAFT-FOR-REVIEW` with a citation to its source. It never changes the base pack, or a row in force.
+- **FINANCE and COMPLIANCE rows go to the review sheet,** for a named person to answer. Nothing it drafts is loaded without that, and the second person static data already requires.
+- **It adds no regulated value on its own authority:** an uncited value stays empty, as in the Nigeria skeleton.
+- **Same verifier as AI-1:** each citation resolves to real source text, and each number is in it.
+- **Regulatory text is mostly public, so residency matters less** than in AI-2. A tenant's own documents would be treated as AI-1's are.
+
+It needs a pack loader, which doesn't exist, and French sources for Senegal, DRC and Côte d'Ivoire. **It isn't in the estimate below.**
+
 ## 6. Batches
 Working days for one engineer, with moderate confidence, excluding the provider contract and the evaluation documents.
 | Batch | What | Days |
@@ -85,5 +97,6 @@ Working days for one engineer, with moderate confidence, excluding the provider 
 3. Malware scanning (§4).
 4. The refusal API's change from the SRS (§4).
 5. Which SRS is current, and the missing §9.
+6. The scope of AI-3, and the starter-pack brief (§5a).
 
 D-7 must be answered before batch 7.5, and D-5 before any customer is charged.
