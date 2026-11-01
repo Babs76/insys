@@ -1,6 +1,6 @@
 # Production readiness
 
-> **Superseded by ADR-027 (`docs/decisions/adr-027-cloud-neutral-deployment.md`), 2 November 2026. Do not follow the Huawei Cloud steps below** (RDS, CCE, DEW, OBS, Cloud Eye, af-south-1): no provider is assumed now. This page is kept until its rewrite, which is tracked in rows 1 and 2 of the go-live register (`docs/handover-backend.md`).
+> **Superseded by ADR-027 (`docs/decisions/adr-027-cloud-neutral-deployment.md`), 1 November 2026. Do not follow the Huawei Cloud steps below** (RDS, CCE, DEW, OBS, Cloud Eye, af-south-1): no provider is assumed now. This page is kept until its rewrite, which is tracked in rows 1 and 2 of the go-live register (`docs/handover-backend.md`).
 
 What must be in place before the first production go-live. Each item names the decision or work it depends on. The list is kept current as items are done: strike nothing out, mark it done with its date and where it was done.
 
