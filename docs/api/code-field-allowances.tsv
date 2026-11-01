@@ -446,3 +446,4 @@ core	IdentityProvisionServiceAccount.idpCode	an identity provider key, as on pro
 core	HealthMigrateHealthAccumulators.batchCode	the batch name the file gives; no list
 core	WorkflowPortalCaseTypeOption.code	a case type key, in the list itself
 core	WorkflowPortalCaseCategoryOption.code	a category key, in the list itself
+core	WorkflowPortalCaseTypeOption.linkTypes	to declare: the kinds of record a case type links to (workflow.cfg_case_types.link_types), set per tenant
