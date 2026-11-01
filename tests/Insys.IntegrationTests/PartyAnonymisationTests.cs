@@ -369,11 +369,11 @@ public sealed class PartyAnonymisationTests(DatabaseFixture fixture) : IClassFix
         (await StatusOf(tenant, party)).ShouldBe("ACTIVE", "a quote is open");
 
         await fixture.Database.ExecuteAsOwner("UPDATE general.quote SET status = 'EXPIRED', rating_request_id = gen_random_uuid(), premium = 100, rating_version = 1 WHERE id = @q", ("q", quote));
-        var proposal = await Insert(tenant, "life.proposal", ("status", "SUBMITTED"), ("applicant_party_id", party));
+        var proposal = await Insert(tenant, "life.proposal", ("status", "DRAFT"), ("applicant_party_id", party));
         await ReviewDormancy(tenant);
         (await StatusOf(tenant, party)).ShouldBe("ACTIVE", "a proposal is open");
 
-        await fixture.Database.ExecuteAsOwner("UPDATE life.proposal SET status = 'DECLINED' WHERE id = @p", ("p", proposal));
+        await fixture.Database.ExecuteAsOwner("DELETE FROM life.proposal WHERE id = @p", ("p", proposal));
         await ReviewDormancy(tenant);
         (await StatusOf(tenant, party)).ShouldBe("DORMANT");
     }
