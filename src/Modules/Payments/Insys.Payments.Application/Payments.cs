@@ -114,6 +114,12 @@ public interface IPaymentCodes
     Task<decimal> MatchingTolerance(DateOnly day, CancellationToken cancellationToken);
 }
 
+/// <summary>Whether this deployment may use a payment provider. The simulator moves no money, so anything it reports must never count where money is real.</summary>
+public interface IPaymentProviderPolicy
+{
+    bool Allows(string providerCode);
+}
+
 /// <summary>A payment provider or bank. The platform sends with the payment's idempotency key, so a retry never pays twice (PAY-001).</summary>
 public interface IPaymentGateway
 {

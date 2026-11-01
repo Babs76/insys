@@ -82,6 +82,7 @@ public enum CallbackResult
     Replayed,
     Invalid,
     NoPayment,
+    ProviderNotAllowed,
 }
 
 public sealed record CallbackHandled(CallbackResult Result, PaymentView? Payment = null);
@@ -99,7 +100,7 @@ public sealed class IssueCallbackEndpointValidator : AbstractValidator<IssueCall
 }
 
 internal sealed class CallbackEndpointHandlers(ICallbackEndpoints endpoints, IFieldProtector protector, IExecutionContext execution, IClock clock,
-    IOptions<PaymentCallbackOptions> options, IAuditTrail audit)
+    IOptions<PaymentCallbackOptions> options, IAuditTrail audit, IPaymentProviderPolicy providers)
     : ICommandHandler<IssueCallbackEndpoint, IssuedCallbackEndpoint>,
       ICommandHandler<RevokeCallbackEndpoint, CallbackEndpointView>,
       IQueryHandler<ListCallbackEndpoints, IReadOnlyList<CallbackEndpointView>>,
@@ -112,6 +113,11 @@ internal sealed class CallbackEndpointHandlers(ICallbackEndpoints endpoints, IFi
 
     public async Task<Result<IssuedCallbackEndpoint>> Handle(IssueCallbackEndpoint command, CancellationToken cancellationToken)
     {
+        if (!providers.Allows(command.ProviderCode))
+        {
+            return Error.Validation(PaymentErrorCodes.ProviderNotAllowed, $"{command.ProviderCode} is not allowed in this environment.");
+        }
+
         var issued = await CallbackEndpoints.Issue(endpoints, protector, command.ProviderCode, command.RequireClientToken, execution.ActorId, clock.UtcNow,
             options.Value, cancellationToken);
 
@@ -140,7 +146,7 @@ internal sealed class CallbackEndpointHandlers(ICallbackEndpoints endpoints, IFi
 }
 
 internal sealed class ReceiveCallbackHandler(ICallbackEndpoints endpoints, IPaymentRepository payments, IPaymentCodes codes, IFieldProtector protector, IBusinessDate businessDate, IClock clock,
-    IOptions<PaymentCallbackOptions> options, ILogger<ReceiveCallbackHandler> logger) : ICommandHandler<ReceiveCallback, CallbackHandled>
+    IOptions<PaymentCallbackOptions> options, ILogger<ReceiveCallbackHandler> logger, IPaymentProviderPolicy providers) : ICommandHandler<ReceiveCallback, CallbackHandled>
 {
     public async Task<Result<CallbackHandled>> Handle(ReceiveCallback command, CancellationToken cancellationToken)
     {
@@ -165,6 +171,14 @@ internal sealed class ReceiveCallbackHandler(ICallbackEndpoints endpoints, IPaym
         {
             logger.LogWarning("Callback replay refused at endpoint {EndpointId} ({Provider})", endpoint.Id, endpoint.ProviderCode);
             return new CallbackHandled(CallbackResult.Replayed);
+        }
+
+        // A valid signature proves who sent it, not that money moved: this provider moves none here.
+        if (!providers.Allows(endpoint.ProviderCode))
+        {
+            payments.RecordCallback(endpoint.ProviderCode, Truncate(externalRef ?? "", 80), BodyJson(command.Body), signatureValid: true, now, processed: false);
+            logger.LogWarning("Callback refused at endpoint {EndpointId} ({Provider}): provider not allowed in this environment", endpoint.Id, endpoint.ProviderCode);
+            return new CallbackHandled(CallbackResult.ProviderNotAllowed);
         }
 
         if (externalRef is null || status is null)

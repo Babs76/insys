@@ -588,6 +588,10 @@ public static class PaymentErrorCodes
     [ErrorCode(422, "error.payment.over_allocated")]
     public const string OverAllocated = "PAYMENT_OVER_ALLOCATED";
 
+    /// <summary>The simulator stands in for a provider only in Development, Testing or a deployment declared non-production: no money moves through it.</summary>
+    [ErrorCode(422, "error.payment.provider_not_allowed")]
+    public const string ProviderNotAllowed = "PAYMENT_PROVIDER_NOT_ALLOWED";
+
     [ErrorCode(422, "error.payment.no_provider")]
     public const string NoProvider = "PAYMENT_NO_PROVIDER";
 

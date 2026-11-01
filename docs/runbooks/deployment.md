@@ -308,3 +308,13 @@ They run inside the host and can be switched off per instance:
 | Webhooks | `Integration:Webhooks:JobEnabled` | on, every 30 s |
 | Payments | `Payments:Jobs:Enabled` | on, every 15 min |
 | Billing, General, Life, Health, Product Factory | `<Module>:Jobs:Enabled` | on, every 1 h |
+
+## The payment simulator
+`SIMULATOR` stands in for a payment provider and moves no money. It's allowed in Development and Testing only. A demo environment that needs it declares itself in its deployment configuration, `Payments__Simulator__DeclaredNonProduction=true`; nothing sets this by default.
+
+Everywhere else:
+- the service refuses to start if a tenant's provider register or callback endpoints name it, and always if Production sets the declaration;
+- setting a provider to it, or issuing a callback endpoint for it, is refused with `PAYMENT_PROVIDER_NOT_ALLOWED`;
+- a signed callback for it is recorded and not applied, and a payment on it has an unknown outcome.
+
+The start-up check reads active tenants; a tenant reactivated later is still covered by the other two.

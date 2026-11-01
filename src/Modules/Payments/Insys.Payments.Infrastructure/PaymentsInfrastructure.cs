@@ -60,6 +60,14 @@ public static class PaymentsInfrastructure
         services.AddOptions<PaymentCallbackOptions>().BindConfiguration("Payments:Callbacks");
         services.AddScoped<IPaymentCodes, PaymentCodes>();
         services.AddScoped<PaymentStarter>();
+        services.AddSingleton<IPaymentProviderPolicy, PaymentProviderPolicy>();
+        services.AddSingleton<IStaticRecordValidator, PaymentProviderValidator>();
+        // The build-time OpenAPI tool starts the host, in Production, with no database.
+        if (!BuildingBlocks.Infrastructure.InfrastructureRegistration.IsBuildTimeDocumentGeneration)
+        {
+            services.AddHostedService<SimulatorGuard>();
+        }
+
         services.AddSingleton<IPaymentGateway, SimulatorGateway>();
         services.AddIntegrationEventHandler<InvoiceIssued, PaymentPolicies, PaymentsDbContext>(schema, "InvoiceIssued");
         services.AddIntegrationEventHandler<RefundApproved, PaymentPolicies, PaymentsDbContext>(schema, "RefundApproved");
