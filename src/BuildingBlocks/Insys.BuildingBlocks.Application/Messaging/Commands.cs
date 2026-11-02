@@ -37,6 +37,12 @@ public interface ICommand<TResult>;
 /// </summary>
 public interface IRetryOnConflict;
 
+/// <summary>
+/// A command with If-Match whose conflict can be on another row than the versioned one, such as a duplicate key opening a record (BR-115).
+/// It is retried too; each attempt checks If-Match again, so a changed version is still refused.
+/// </summary>
+public interface IRetryOnConflictWithIfMatch : IRetryOnConflict;
+
 /// <summary>A command on an existing aggregate that carries the version from If-Match (DBA-011).</summary>
 public interface IVersionedCommand
 {

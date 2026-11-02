@@ -291,6 +291,68 @@ public sealed class CaseConsumersTests(DatabaseFixture fixture) : IClassFixture<
         return claim;
     }
 
+    [Fact]
+    public async Task AHealthDecline_TakesOnlyADeclineReasonInForce_AndItsNoticeCarriesTheWording_BR127()
+    {
+        await fixture.Database.SeedStatic(Tenant, "claims.ref_claim_decision_reason_codes", "ACTIVE", "BR127_DECLINE", From, ("decision_type", "DECLINE"),
+            ("customer_wording", "This treatment is not covered by your plan."));
+        await fixture.Database.SeedStatic(Tenant, "claims.ref_claim_decision_reason_codes", "ACTIVE", "BR127_PARTIAL", From, ("decision_type", "PARTIAL"),
+            ("customer_wording", "Part of the claim is above your benefit limit."));
+        await fixture.Database.UserWithPermissions(Tenant, "case-health-rejecter", HealthPermissions.ClaimApprove, HealthPermissions.ClaimRead);
+        var rejecter = _host.CreateDefaultClient(new TestPreconditionsHandler());
+        rejecter.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", TestTokens.For(Tenant, "case-health-rejecter", DateTime.UtcNow));
+        var claim = await HealthClaim("VALIDATED", 1_000m, 0m);
+        var url = $"/api/v1/health/claims/{claim}/reject";
+
+        foreach (var (reason, why) in new[] { ("free text from a clerk", "not a code"), ("BR127_PARTIAL", "a reason for another kind of decision") })
+        {
+            var refused = await rejecter.Send(HttpMethod.Post, url, new { reason });
+            refused.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity, why);
+            (await refused.Code()).ShouldBe("CLAIM_DECLINE_REASON_INVALID", why);
+        }
+
+        (await Status("health.medical_claim", claim)).ShouldBe("VALIDATED", "a refused reason declines nothing");
+        await Drain();
+        (await Notifications(claim)).ShouldBeEmpty();
+
+        var rejected = await rejecter.Send(HttpMethod.Post, url, new { reason = "BR127_DECLINE" });
+        rejected.StatusCode.ShouldBe(HttpStatusCode.OK, await rejected.Content.ReadAsStringAsync());
+        await Drain();
+        (await Notifications(claim)).Single(r => r.Type == NotificationTypes.ClaimDecisionRights).Merge.GetProperty("decision_reasons").GetString()
+            .ShouldBe("This treatment is not covered by your plan.");
+    }
+
+    [Fact]
+    public async Task ADeclineTheSystemMakes_WaitsForItsReasonInForce_RatherThanSendAnEmptyNotice_BR127()
+    {
+        await fixture.Database.UserWithPermissions(Tenant, "case-health-validator", HealthPermissions.ClaimUpdate, HealthPermissions.ClaimRead);
+        var validator = _host.CreateDefaultClient(new TestPreconditionsHandler());
+        validator.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", TestTokens.For(Tenant, "case-health-validator", DateTime.UtcNow));
+        var claim = await HealthClaim("RECEIVED", 1_000m, 0m);
+        var url = $"/api/v1/health/claims/{claim}/validate";
+
+        // The claim's format isn't in force, so validation declines it, and this tenant has no UNKNOWN_FORMAT reason yet.
+        var refused = await validator.Send(HttpMethod.Post, url);
+        refused.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity, await refused.Content.ReadAsStringAsync());
+        (await refused.Code()).ShouldBe("CLAIM_DECLINE_REASON_INVALID");
+        (await Status("health.medical_claim", claim)).ShouldBe("RECEIVED");
+        await Drain();
+        (await Notifications(claim)).ShouldBeEmpty();
+
+        await fixture.Database.SeedStatic(Tenant, "claims.ref_claim_decision_reason_codes", "ACTIVE", "UNKNOWN_FORMAT", From, ("decision_type", "DECLINE"),
+            ("customer_wording", "The claim's format could not be read."));
+        var declined = await validator.Send(HttpMethod.Post, url);
+        declined.StatusCode.ShouldBe(HttpStatusCode.OK, await declined.Content.ReadAsStringAsync());
+        (await declined.Json()).GetProperty("status").GetString().ShouldBe("Rejected");
+        await Drain();
+        (await Notifications(claim)).Single(r => r.Type == NotificationTypes.ClaimDecisionRights).Merge.GetProperty("decision_reasons").GetString()
+            .ShouldBe("The claim's format could not be read.");
+
+        // The longest reason the system uses fits the code column (V0127).
+        await fixture.Database.SeedStatic(Tenant, "claims.ref_claim_decision_reason_codes", "ACTIVE", "PHARMACY_LINE_NOT_IN_FORMAT", From, ("decision_type", "DECLINE"),
+            ("customer_wording", "A medicine was claimed on the wrong form."));
+    }
+
     private async Task<Guid> HealthClaim(string status, decimal claimed, decimal paid)
     {
         var (membership, claim, principal) = (Guid.CreateVersion7(), Guid.CreateVersion7(), Guid.CreateVersion7());

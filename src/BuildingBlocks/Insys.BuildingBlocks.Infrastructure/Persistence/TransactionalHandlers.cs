@@ -64,7 +64,7 @@ public sealed class TransactionalCommandHandler<TCommand, TResult, TDbContext>(
         }
 
         var expected = preconditions.Take();
-        var attempts = command is IRetryOnConflict && expected is null ? Math.Max(1, retry.Value.MaxAttempts) : 1;
+        var attempts = command is IRetryOnConflict && (expected is null || command is IRetryOnConflictWithIfMatch) ? Math.Max(1, retry.Value.MaxAttempts) : 1;
         for (var attempt = 1; ; attempt++)
         {
             var (result, conflicted) = await Attempt(command, expected, retryable: attempt < attempts, cancellationToken);
