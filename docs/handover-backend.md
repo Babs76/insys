@@ -14,7 +14,7 @@ Everything found between INSYS and a first live customer, at `91cb494` plus the 
 | # | Item | Size (days) | Waits on | Blocks go-live |
 |---|---|---|---|---|
 | **Deployment and assurance** | | | | |
-| 1 | ADR-027 phase 2: OpenBao adapter, Helm chart and container images, and the CI deployment job are merged; runbooks are left, including that database-owner credentials are held under dual control (`docs/runbooks/deployment.md`) | 17–21 (Doc), plus 2–3 (Est) for serving the console (BR-132, proposed in ADR-027: the chart serves it by default) | Ade's choice on BR-132; scheduled before the first customer | **Yes** |
+| 1 | ADR-027 phase 2: OpenBao adapter, Helm chart and container images, and the CI deployment job are merged; runbooks are left, including that database-owner credentials are held under dual control (`docs/runbooks/deployment.md`) | 17–21 (Doc), plus 2–3 (Est) for serving the console (BR-132, decided in ADR-027: the chart serves it by default) | Scheduled before the first customer | **Yes** |
 | 2 | Hosting and production set-up: provider, production Keycloak with MFA, keys, monitoring (`docs/production-readiness.md`, which still assumes Huawei and needs rewriting after ADR-027) | 5–8 (Est) | The customer's or Ade's choice of host; item 1 | **Yes** |
 | 3 | Load, penetration, backup and recovery tests (ADR-020) | 10–18 (Est), fixes not included | A production-like environment (items 1, 2); an external tester | **Yes** |
 | 4 | More than one API instance: shared permission evictions (ADR-006) | 3–5 (Est) | The load test's result | **If** the load test shows one instance isn't enough |
