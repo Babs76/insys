@@ -80,6 +80,7 @@ public sealed partial class TimeSourceTests
                 "Provisioning runs before any host exists, so there is no application clock yet; the hosts then keep the partitions by theirs (Ade, 29 October 2026)"),
             (new Regex(@"'bootstrap'|admin_id|'ACTIVE', now\(\)\)$"), "Stamps the rows provisioning inserts (created, approved, effective from); nothing is decided by the time"),
         ],
+        ["deploy/smoke/seed.sql"] = [(new Regex(@"now\(\)"), "Stamps a throwaway cluster's own test rows")],
         ["db/migrations/R__error_code_catalogue.sql"] = [(new Regex(@"'migration', now\(\), 'migration'"), "Stamps the seeded rows' created_at at release")],
         ["db/migrations/R__function_catalogue.sql"] =
         [

@@ -71,4 +71,4 @@ Wave 1 notifications use the same chain to choose a template version.
 
 ## 8. Sample translations
 
-Workstream F's OFT-ZA tenant supports English (the default), Afrikaans, isiZulu and isiXhosa. Every non-English string it loads is marked **"sample translation, requires professional review"** in the record's `description`, and none is presented as final.
+Workstream F's OFTZA tenant supports English (the default), Afrikaans, isiZulu and isiXhosa. Every non-English string it loads is marked **"sample translation, requires professional review"** in the record's `description`, and none is presented as final.

@@ -92,10 +92,10 @@ Order: Workstreams B, C and D, then Wave 0, then Waves 1 to 6. After each wave, 
 | GAP-032 | Lists for General records (request 20) | Wave 0 batch 2: built. Quotes by proposer or number, policies by policyholder or number, claims by policy or number, with cursor paging. |
 | GAP-033 | Document business reference types in the contract (request 21) | Wave 0 batch 2: built as `x-known-values` on the documents list. Not an enum, because stored documents may carry other types. |
 | GAP-034 | Event prerequisites; readiness (request 22) | Wave 0 batch 2: readiness built (outbox lag only on `/health`), and prerequisites documented in the dead-letters runbook. Parking a delivery whose configuration is missing: ADR-022, proposed. |
-| GAP-001 | Keycloak users per persona and tenant (request 23) | Deferred to the OFT-ZA seed (Workstream F, GAP-004), where personas, IAM users and roles are defined together. Meanwhile the deployment runbook shows how a test creates users through the Keycloak admin API. |
+| GAP-001 | Keycloak users per persona and tenant (request 23) | Deferred to the OFTZA seed (Workstream F, GAP-004), where personas, IAM users and roles are defined together. Meanwhile the deployment runbook shows how a test creates users through the Keycloak admin API. |
 | (none) | A General product's line in the contract (request 24) | Wave 0 batch 2: built. The quote and product list descriptions say it is the class code, or the family code when the product has no class. |
 | GAP-001 | Keycloak in `docker-compose.yml` with a public client `insys-web`: Authorization Code with PKCE, redirect URIs for `http://localhost:5173`, no secret, and the `tenant_id` mapper (ADR-017) | Workstream D |
-| GAP-004 | The OFT-ZA seed. A minimal seed (the tenant, its users per role, static data) comes first if the full one is further away | Workstream F, minimal seed early |
+| GAP-004 | The OFTZA seed. A minimal seed (the tenant, its users per role, static data) comes first if the full one is further away | Workstream F, minimal seed early |
 | GAP-006 | `Retry-After` on every 429 | Wave 0: done 23 October 2026 |
 | GAP-007 | The correlation ID in every error response, 500 included, both as the `X-Correlation-Id` header and in the ProblemDetails body | Wave 0: done 23 October 2026 |
 | GAP-005 | The ProblemDetails extensions (`code`, `errors`, `correlationId`, `detailLanguage` and others) declared in the OpenAPI schemas | Wave 0: done 23 October 2026 |

@@ -122,7 +122,7 @@ Each front-end app signs in through its own public client, and each environment 
 
 ### Users for tests and personas (front-end request 23)
 
-The realm ships one user, `insys-admin`. Persona users per tenant (a maker, a checker, an administrator) come with the OFT-ZA seed (Workstream F, GAP-004), together with their IAM users and roles. Until then, a test creates its own users through the Keycloak admin REST API. For example, locally:
+The realm ships one user, `insys-admin`. Persona users per tenant (a maker, a checker, an administrator) come with the OFTZA seed (Workstream F, GAP-004), together with their IAM users and roles. Until then, a test creates its own users through the Keycloak admin REST API. For example, locally:
 
 ```bash
 TOKEN=$(curl -s -d grant_type=password -d client_id=admin-cli -d username=admin -d "password=$KC_BOOTSTRAP_ADMIN_PASSWORD" \
@@ -240,7 +240,7 @@ Also alarm on the load balancer's backend health (`/health/ready`): unhealthy ba
 
 ### Parked deliveries: what the alarm says, and the log alarm
 - **`/health`**, check `parked-deliveries`:
-  - `description` names up to five kinds as `<tenant code> <code> <item> xN (<consumer>)`, for example `OFT-ZA BILLING_FREQUENCY_NOT_IN_FORCE MONTHLY x3 (billing.GeneralPolicyBilling.GeneralPolicyIssued)`;
+  - `description` names up to five kinds as `<tenant code> <code> <item> xN (<consumer>)`, for example `OFTZA BILLING_FREQUENCY_NOT_IN_FORCE MONTHLY x3 (billing.GeneralPolicyBilling.GeneralPolicyIssued)`;
   - `data.tenants` lists every tenant code with all of its kinds, marked `escalated level N` once escalated.
 
   The probe copies `description` into the alarm notification, so the SMN message names the tenant and the missing configuration.
