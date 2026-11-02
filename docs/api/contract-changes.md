@@ -3,6 +3,14 @@
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
 
+## The front end's reconciled requests (2 November 2026)
+- **`GeneralPolicyView.expiryReason` (BR-116):** now returned and declared: `NOT_RENEWED_BY_INSURER`, `DECLINED_BY_CUSTOMER` or `LAPSED`, on an expired policy. The earlier note promised it before the view carried it.
+- **`CessionView.periodCode` (BR-125):** the `yyyy-MM` value `GET /reinsurance/cessions?periodCode=` finds the cession under.
+- **`PartyDueDiligenceView.partyKind` (BR-108):** `INDIVIDUAL` or `ORGANISATION`.
+- **Now in the error catalogue (BR-119):** `NOT_A_CASE_MANAGER` (422), `NOT_THE_CASE_MANAGER` (403), `CARE_CONSENT_REQUIRED` (422 on a note; 403 where a referral lacks it).
+- **Descriptions and known values only:** `receivedChannel`, `outstanding`, `pendReason`, `PartyRecordFicReport`, notification `sourceType`, and `PARTY` among the documents' `businessRefType`.
+- **Corrected note (BR-111):** the renewal decision's authority error is `GENERAL_UW_AUTHORITY_EXCEEDED`.
+
 ## Activating a tenant with the simulator (2 November 2026)
 - **`POST /tenancy/tenants/{id}/activate`:** refused for an onboarding tenant, 422 `PAYMENT_PROVIDER_NOT_ALLOWED`, on the same condition as reactivation.
 
@@ -315,7 +323,7 @@ What changed in the API contract, newest first, so the front end can sync. The O
   - asks Rules to evaluate the eligibility rule set (`INELIGIBLE` or `REFER`) and the product's underwriting rules (`DECLINE` or `REFER`). The inputs are `renewal`, `claims_count`, `claims_paid`, `loss_ratio`, `endorsements`, `fraud_referred_claims`, `sum_insured` and `premium`;
   - for a product that re-rates, creates a renewal quote (`renewalId`) priced through Rating, times the claims experience factor (`general.cfg_claims_experience_factors`; 1.0 when no band applies).
 - **`GET /general/renewals`** (`GeneralListRenewals`; `status`, `policyId`) and **`GET /general/renewals/{id}`** (`GeneralGetRenewal`): status `Reviewing`, `Referred`, `NotEligible`, `Offered`, `Renewed` or `NotRenewed`, plus the figures read, each check and its result, the re-rating, `loadingPct`, `offeredPremium` and `changedTerms`. Screen `GENERAL_RENEWALS`.
-- **`POST /general/renewals/{id}/decision`** (`GeneralDecideRenewal`, `general_quote.underwrite`): `{ offer, decisionCode, loadingPct? }` on a referred or ineligible renewal. It needs underwriting authority covering the product and the sum insured; otherwise 403 `UNDERWRITING_AUTHORITY_EXCEEDED`. A referred or ineligible renewal opens a Workflow task on `GENERAL_RENEWAL_REVIEW` (reference `GENERAL_RENEWAL`), routed by authority, and the decision closes it.
+- **`POST /general/renewals/{id}/decision`** (`GeneralDecideRenewal`, `general_quote.underwrite`): `{ offer, decisionCode, loadingPct? }` on a referred or ineligible renewal. It needs underwriting authority covering the product and the sum insured; otherwise 403 `GENERAL_UW_AUTHORITY_EXCEEDED`. A referred or ineligible renewal opens a Workflow task on `GENERAL_RENEWAL_REVIEW` (reference `GENERAL_RENEWAL`), routed by authority, and the decision closes it.
 - **Invitation.** A reviewed renewal is invited once offered, with merge fields `renewal_premium` and `currency`. With changed terms it is invited at least the tenant's notice before the renewal date (`general.cfg_renewal_settings.changedTermsNoticeDays`, default 31); otherwise with the rule's `noticeDays`.
 - **Renewal.** At the period's end the policy renews on the offered premium. Renewing a reviewed product before its review is offered is 409 `GENERAL_RENEWAL_NOT_OFFERED`.
 - **Readiness `DOMAIN_CODES`:**
