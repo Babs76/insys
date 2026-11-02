@@ -66,11 +66,11 @@ public static class IdentitySeed
         var role = "R_" + Guid.NewGuid().ToString("N")[..20].ToUpperInvariant();
         await database.ExecuteAsOwner("""
             INSERT INTO iam.cfg_roles_and_permission_sets (tenant_id, code, version, effective_from, record_status, created_by, change_reason, role_code)
-            VALUES (@t, @role, 1, current_date - 1, 'EFFECTIVE', 'seed', 'test seed', @role)
+            VALUES (@t, @role, 1, DATE '2026-01-01', 'EFFECTIVE', 'seed', 'test seed', @role)
             """, ("t", tenantId), ("role", role));
         await database.ExecuteAsOwner("""
             INSERT INTO iam.cfg_role_function_assignments (tenant_id, code, version, effective_from, record_status, created_by, change_reason, role_code, function_code)
-            SELECT @t, @role || ':' || f, 1, current_date - 1, 'EFFECTIVE', 'seed', 'test seed', @role, f FROM iam.functions_within(@permissions) AS f
+            SELECT @t, @role || ':' || f, 1, DATE '2026-01-01', 'EFFECTIVE', 'seed', 'test seed', @role, f FROM iam.functions_within(@permissions) AS f
             """, ("t", tenantId), ("role", role), ("permissions", permissions));
         var missing = await database.ScalarAsOwner<string>("""
             SELECT string_agg(p, ', ') FROM unnest(@permissions::text[]) AS p
@@ -89,11 +89,11 @@ public static class IdentitySeed
         var role = "R_" + Guid.NewGuid().ToString("N")[..20].ToUpperInvariant();
         await database.ExecuteAsOwner("""
             INSERT INTO iam.cfg_roles_and_permission_sets (tenant_id, code, version, effective_from, record_status, created_by, change_reason, role_code)
-            VALUES (@t, @role, 1, current_date - 1, 'EFFECTIVE', 'seed', 'test seed', @role)
+            VALUES (@t, @role, 1, DATE '2026-01-01', 'EFFECTIVE', 'seed', 'test seed', @role)
             """, ("t", tenantId), ("role", role));
         await database.ExecuteAsOwner("""
             INSERT INTO iam.cfg_role_function_assignments (tenant_id, code, version, effective_from, record_status, created_by, change_reason, role_code, function_code)
-            SELECT @t, @role || ':' || f, 1, current_date - 1, 'EFFECTIVE', 'seed', 'test seed', @role, f FROM unnest(@functions::text[]) AS f
+            SELECT @t, @role || ':' || f, 1, DATE '2026-01-01', 'EFFECTIVE', 'seed', 'test seed', @role, f FROM unnest(@functions::text[]) AS f
             """, ("t", tenantId), ("role", role), ("functions", functions));
         return role;
     }
@@ -124,6 +124,6 @@ public static class IdentitySeed
         database.ExecuteAsOwner("""
             INSERT INTO iam.user_role_assignment (tenant_id, id, row_version, created_at, created_by, updated_at, updated_by,
                                                   user_id, role_code, valid_from, assigned_by, status)
-            VALUES (@t, gen_random_uuid(), 1, now(), 'seed', now(), 'seed', @u, @role, current_date - 1, @u, 'ACTIVE')
+            VALUES (@t, gen_random_uuid(), 1, now(), 'seed', now(), 'seed', @u, @role, DATE '2026-01-01', @u, 'ACTIVE')
             """, ("t", tenantId), ("u", userId), ("role", role));
 }
