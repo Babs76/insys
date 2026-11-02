@@ -40,11 +40,11 @@ namespace Insys.Finance.Application;
 public sealed record OpeningBalanceLine(string AccountCode, decimal Debit, decimal Credit);
 
 /// <summary>B-013: the source system's trial balance on cut-over, as one balanced journal in the tenant's base currency. A batch has one.</summary>
-public sealed record MigrateOpeningBalances(string BatchCode, DateOnly AccountingDate, decimal ControlDebit, decimal ControlCredit, IReadOnlyList<OpeningBalanceLine> Lines) : ICommand<OpeningBalancesResult>;
+public sealed record MigrateOpeningBalances(string BatchCode, DateOnly AccountingDate, decimal ControlDebit, decimal ControlCredit, string Currency, IReadOnlyList<OpeningBalanceLine> Lines) : ICommand<OpeningBalancesResult>;
 
 public sealed record OpeningBalanceRejectedLine(int Line, string Reason);
 
-public sealed record OpeningBalancesResult(Guid? JournalId, IReadOnlyList<OpeningBalanceRejectedLine> RejectedLines);
+public sealed record OpeningBalancesResult(Guid? JournalId, IReadOnlyList<OpeningBalanceRejectedLine> RejectedLines, string? Currency = null);
 
 public sealed class MigrateOpeningBalancesValidator : AbstractValidator<MigrateOpeningBalances>
 {
@@ -68,6 +68,11 @@ internal sealed class MigrateOpeningBalancesHandler(IJournalRepository journals,
         }
 
         var rejected = new List<OpeningBalanceRejectedLine>();
+        if (!string.Equals(currency, command.Currency, StringComparison.OrdinalIgnoreCase))
+        {
+            rejected.Add(new OpeningBalanceRejectedLine(0, $"An opening balance is in the tenant's base currency, {currency}, not {command.Currency}."));
+        }
+
         if (command.ControlDebit != command.Lines.Sum(l => l.Debit) || command.ControlCredit != command.Lines.Sum(l => l.Credit))
         {
             rejected.Add(new OpeningBalanceRejectedLine(0, $"The lines total {command.Lines.Sum(l => l.Debit)} debit and {command.Lines.Sum(l => l.Credit)} credit; the control totals say {command.ControlDebit} and {command.ControlCredit}."));
@@ -95,7 +100,7 @@ internal sealed class MigrateOpeningBalancesHandler(IJournalRepository journals,
         }));
         if (rejected.Count > 0)
         {
-            return new OpeningBalancesResult(null, rejected);
+            return new OpeningBalancesResult(null, rejected, currency);
         }
 
         if (await periods.Covering(day, cancellationToken) is not { } period)
@@ -110,6 +115,6 @@ internal sealed class MigrateOpeningBalancesHandler(IJournalRepository journals,
         }
 
         journals.Add(journal.Value);
-        return new OpeningBalancesResult(id, []);
+        return new OpeningBalancesResult(id, [], currency);
     }
 }

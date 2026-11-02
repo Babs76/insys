@@ -2378,12 +2378,12 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
             },
         };
 
-        var wrong = await migrator.Send(HttpMethod.Post, "/api/v1/general/migration/policies", new { batchCode = "B1", controlCount = 1, controlPremium = 999m, rows = new[] { Row("SRC-1") } }, idempotent: true);
+        var wrong = await migrator.Send(HttpMethod.Post, "/api/v1/general/migration/policies", new { batchCode = "B1", currency = "ZAR", controlCount = 1, controlPremium = 999m, rows = new[] { Row("SRC-1") } }, idempotent: true);
         wrong.StatusCode.ShouldBe(HttpStatusCode.OK, await wrong.Content.ReadAsStringAsync());
         (await wrong.Json()).GetProperty("loaded").GetInt32().ShouldBe(0);
         (await _db.ScalarAsOwner<long>("SELECT count(*) FROM general.policy WHERE source_reference = 'SRC-1'")).ShouldBe(0);
 
-        var loaded = await (await migrator.Send(HttpMethod.Post, "/api/v1/general/migration/policies", new { batchCode = "B1", controlCount = 1, controlPremium = 1200m, rows = new[] { Row("SRC-1") } }, idempotent: true)).Json();
+        var loaded = await (await migrator.Send(HttpMethod.Post, "/api/v1/general/migration/policies", new { batchCode = "B1", currency = "ZAR", controlCount = 1, controlPremium = 1200m, rows = new[] { Row("SRC-1") } }, idempotent: true)).Json();
         (loaded.GetProperty("loaded").GetInt32(), loaded.GetProperty("rejectedLines").GetArrayLength()).ShouldBe((1, 0), loaded.ToString());
         var policy = await _db.ScalarAsOwner<Guid>("SELECT id FROM general.policy WHERE source_reference = 'SRC-1'");
         (await _db.ScalarAsOwner<string>("SELECT status FROM general.policy WHERE id = @p", ("p", policy))).ShouldBe("IN_FORCE");
@@ -2392,7 +2392,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         (await _db.ScalarAsOwner<long>("SELECT count(*) FROM billing.invoice WHERE policy_ref = @p", ("p", policy))).ShouldBe(0);
         (await _db.ScalarAsOwner<long>("SELECT count(*) FROM billing.premium_instalment i JOIN billing.premium_schedule s ON s.tenant_id = i.tenant_id AND s.id = i.schedule_id WHERE s.policy_ref = @p AND i.status = 'SCHEDULED'", ("p", policy))).ShouldBeGreaterThan(0);
         (await _db.ScalarAsOwner<long>("SELECT count(*) FROM document.document WHERE business_ref_id = @p", ("p", policy))).ShouldBe(0, "nothing is issued afresh");
-        (await (await migrator.Send(HttpMethod.Post, "/api/v1/general/migration/policies", new { batchCode = "B1", controlCount = 1, controlPremium = 1200m, rows = new[] { Row("SRC-1") } }, idempotent: true)).Json())
+        (await (await migrator.Send(HttpMethod.Post, "/api/v1/general/migration/policies", new { batchCode = "B1", currency = "ZAR", controlCount = 1, controlPremium = 1200m, rows = new[] { Row("SRC-1") } }, idempotent: true)).Json())
             .GetProperty("loaded").GetInt32().ShouldBe(0, "a source reference loads once");
     }
 
@@ -2406,7 +2406,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         var holder = await _maker.RegisterPerson("BatchHolder");
         var loaded = await (await migrator.Send(HttpMethod.Post, "/api/v1/general/migration/policies", new
         {
-            batchCode = "RB1", controlCount = 1, controlPremium = 1200m,
+            batchCode = "RB1", currency = "ZAR", controlCount = 1, controlPremium = 1200m,
             rows = new[]
             {
                 new
@@ -2425,7 +2425,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
             },
         }, idempotent: true)).Json();
         var policy = loaded.GetProperty("policies").GetProperty("RB-P1").GetGuid();
-        object Premiums(Guid policyRef) => new { batchCode = "RB1", controlCount = 1, controlAmount = 100m, rows = new[] { new { sourceReference = "RB-I1", sourceDomain = "GENERAL", policyRef, amount = 100m, dueDate = Today.AddDays(-20) } } };
+        object Premiums(Guid policyRef) => new { batchCode = "RB1", currency = "ZAR", controlCount = 1, controlAmount = 100m, rows = new[] { new { sourceReference = "RB-I1", sourceDomain = "GENERAL", policyRef, amount = 100m, dueDate = Today.AddDays(-20) } } };
 
         (await (await migrator.Send(HttpMethod.Post, "/api/v1/billing/migration/outstanding-premiums", Premiums(Guid.CreateVersion7()), idempotent: true)).Json()).GetProperty("loaded").GetInt32().ShouldBe(0, "no account for it");
         await _factory.DrainOutbox();
@@ -2435,7 +2435,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
 
         var claims = await (await migrator.Send(HttpMethod.Post, "/api/v1/general/migration/claims", new
         {
-            batchCode = "RB1", controlCount = 1, controlReserve = 5000m,
+            batchCode = "RB1", currency = "ZAR", controlCount = 1, controlReserve = 5000m,
             rows = new[] { new { sourceReference = "RB-C1", policyId = policy, coverageCode = "OWN_DAMAGE", lossDate = Today.AddDays(-30), causeCode = "COLLISION", perilCode = "COLLISION", reserveType = "INDEMNITY", reserve = 5000m } },
         }, idempotent: true)).Json();
         claims.GetProperty("loaded").GetInt32().ShouldBe(1, claims.ToString());
@@ -2447,7 +2447,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
 
         object Balances(decimal debit) => new
         {
-            batchCode = "RB1", accountingDate = Today, controlDebit = debit, controlCredit = 100m,
+            batchCode = "RB1", currency = "ZAR", accountingDate = Today, controlDebit = debit, controlCredit = 100m,
             lines = new[] { new { accountCode = "1100", debit = 100m, credit = 0m }, new { accountCode = "4000", debit = 0m, credit = 100m } },
         };
         (await (await migrator.Send(HttpMethod.Post, "/api/v1/finance/migration/opening-balances", Balances(99m), idempotent: true)).Json()).GetProperty("rejectedLines").GetArrayLength().ShouldBe(1);
@@ -2458,8 +2458,8 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
 
         object Source(decimal premium) => new[]
         {
-            new { kind = "GENERAL_POLICY", count = 1L, amount = (decimal?)premium }, new { kind = "OUTSTANDING_PREMIUM", count = 1L, amount = (decimal?)100m }, new { kind = "GENERAL_CLAIM", count = 1L, amount = (decimal?)null }, new { kind = "CLAIM_RESERVE", count = 1L, amount = (decimal?)5000m },
-            new { kind = "OPENING_BALANCE:1100", count = 1L, amount = (decimal?)100m }, new { kind = "OPENING_BALANCE:4000", count = 1L, amount = (decimal?)-100m },
+            new { kind = "GENERAL_POLICY", count = 1L, amount = (decimal?)premium, currency = (string?)"ZAR" }, new { kind = "OUTSTANDING_PREMIUM", count = 1L, amount = (decimal?)100m, currency = (string?)"ZAR" }, new { kind = "GENERAL_CLAIM", count = 1L, amount = (decimal?)null, currency = (string?)null }, new { kind = "CLAIM_RESERVE", count = 1L, amount = (decimal?)5000m, currency = (string?)"ZAR" },
+            new { kind = "OPENING_BALANCE:1100", count = 1L, amount = (decimal?)100m, currency = (string?)"ZAR" }, new { kind = "OPENING_BALANCE:4000", count = 1L, amount = (decimal?)-100m, currency = (string?)"ZAR" },
         };
         var agrees = await (await migrator.Send(HttpMethod.Post, "/api/v1/integration/migration-batches/RB1/reconciliation", Source(1200m))).Json();
         agrees.GetProperty("reconciled").GetBoolean().ShouldBeTrue(agrees.ToString());

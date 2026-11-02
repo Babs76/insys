@@ -36,7 +36,7 @@ internal sealed class ClaimsMigrationTotals([FromKeyedServices(ClaimsFrameworkDb
 {
     public Task<IReadOnlyList<MigrationTotal>> For(Guid tenantId, string batchCode, CancellationToken cancellationToken) =>
         MigrationTotalsReader.Read(dataSource, tenantId, batchCode, """
-        SELECT 'CLAIM_RESERVE', count(*), sum(m.amount) FROM claims.claim_financial_movement m JOIN claims.claim_register r ON r.tenant_id = m.tenant_id AND r.claim_number = m.claim_number
-        WHERE r.migration_batch = @batch HAVING count(*) > 0
+        SELECT 'CLAIM_RESERVE', count(*), sum(m.amount), m.currency FROM claims.claim_financial_movement m JOIN claims.claim_register r ON r.tenant_id = m.tenant_id AND r.claim_number = m.claim_number
+        WHERE r.migration_batch = @batch GROUP BY m.currency
         """, cancellationToken);
 }

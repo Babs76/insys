@@ -46,14 +46,15 @@ public sealed record MigratedPolicy(string SourceReference, string ProductCode, 
 
 /// <param name="BatchCode">The migration batch; its reconciliation reports what this file loaded.</param>
 /// <param name="ControlCount">The source system's count of policies.</param>
+/// <param name="Currency">The currency of this file's amounts and of every row: one file, one currency, and a batch may hold several (BR-128).</param>
 /// <param name="ControlPremium">The source system's total annual premium.</param>
-public sealed record MigrateGeneralPolicies(string BatchCode, int ControlCount, decimal ControlPremium, IReadOnlyList<MigratedPolicy> Rows) : ICommand<PolicyMigrationResult>;
+public sealed record MigrateGeneralPolicies(string BatchCode, int ControlCount, decimal ControlPremium, string Currency, IReadOnlyList<MigratedPolicy> Rows) : ICommand<PolicyMigrationResult>;
 
 public sealed record MigrationRejectedLine(int Line, string Reason);
 
 /// <param name="Loaded">The policies loaded: all of the file, or none.</param>
 /// <param name="Policies">Each loaded policy's id here, to name in the batch's outstanding premiums.</param>
-public sealed record PolicyMigrationResult(int Loaded, decimal LoadedPremium, IReadOnlyList<MigrationRejectedLine> RejectedLines, IReadOnlyDictionary<string, Guid>? Policies = null);
+public sealed record PolicyMigrationResult(int Loaded, decimal LoadedPremium, IReadOnlyList<MigrationRejectedLine> RejectedLines, IReadOnlyDictionary<string, Guid>? Policies = null, string? Currency = null);
 
 public sealed class MigrateGeneralPoliciesValidator : AbstractValidator<MigrateGeneralPolicies>
 {
@@ -104,6 +105,11 @@ internal sealed class MigrateGeneralPoliciesHandler(IGeneralRepository general, 
             if (row.PeriodEnd < today || row.PeriodEnd < row.PeriodStart)
             {
                 reasons.Add("Only a policy whose period hasn't ended is migrated.");
+            }
+
+            if (!string.Equals(row.Currency, command.Currency, StringComparison.OrdinalIgnoreCase))
+            {
+                reasons.Add($"The row's currency isn't the file's, {command.Currency}.");
             }
 
             if (row.AnnualPremium <= 0 || row.Currency.Length != 3)
@@ -166,7 +172,7 @@ internal sealed class MigrateGeneralPoliciesHandler(IGeneralRepository general, 
         }));
         if (rejected.Count > 0)
         {
-            return new PolicyMigrationResult(0, 0, rejected);
+            return new PolicyMigrationResult(0, 0, rejected, null, command.Currency);
         }
 
         var ids = new Dictionary<string, Guid>(StringComparer.Ordinal);
@@ -189,6 +195,6 @@ internal sealed class MigrateGeneralPoliciesHandler(IGeneralRepository general, 
                 risks.Select(r => new RiskRequest(r.Object.Id, r.Risk.SumInsured, r.Risk.Coverages)).ToList(), row.AnnualPremium, today, clock.UtcNow));
         }
 
-        return new PolicyMigrationResult(command.Rows.Count, total, [], ids);
+        return new PolicyMigrationResult(command.Rows.Count, total, [], ids, command.Currency.ToUpperInvariant());
     }
 }

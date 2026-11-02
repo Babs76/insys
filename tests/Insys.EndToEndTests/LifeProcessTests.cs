@@ -750,7 +750,7 @@ public sealed class LifeProcessTests(PostgresServer server) : IAsyncLifetime
         var holder = await _maker.RegisterPerson("MigratedLife");
         object File(decimal control) => new
         {
-            batchCode = "L1", controlCount = 1, controlPremium = control,
+            batchCode = "L1", currency = "ZAR", controlCount = 1, controlPremium = control,
             rows = new[]
             {
                 new

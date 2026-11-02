@@ -1420,7 +1420,7 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         var spouse = await _maker.RegisterPerson("MigratedSpouse");
         object File(decimal control) => new
         {
-            batchCode = "H1", controlCount = 1, controlContribution = control,
+            batchCode = "H1", currency = "ZAR", controlCount = 1, controlContribution = control,
             rows = new[]
             {
                 new
@@ -1453,7 +1453,7 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         var principal = await _maker.RegisterPerson("MigratedUse");
         var loaded = await (await migrator.Send(HttpMethod.Post, "/api/v1/health/migration/memberships", new
         {
-            batchCode = "HB1", controlCount = 1, controlContribution = 900m,
+            batchCode = "HB1", currency = "ZAR", controlCount = 1, controlContribution = 900m,
             rows = new[] { new { sourceReference = "HB-M1", principalPartyId = principal, planCode = "HLT-CORE", optionCode = "A", startDate = Today.AddYears(-1), currency = "ZAR", collectionMethod = "DEBIT_ORDER", monthlyContribution = 900m, employerContribution = 0m } },
         }, idempotent: true)).Json();
         var membership = loaded.GetProperty("memberships").GetProperty("HB-M1").GetGuid();
@@ -1461,7 +1461,7 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
 
         object Use(decimal used, Guid who) => new
         {
-            batchCode = "HB1", controlCount = 1, controlUsed = used,
+            batchCode = "HB1", currency = "ZAR", controlCount = 1, controlUsed = used,
             rows = new[] { new { sourceReference = "HB-A1", membershipId = membership, beneficiaryPartyId = who, benefitCategory = "SPECIALIST", scope = "MEMBER", lifetime = false, limit = (decimal?)20_000m, used, deductibleMet = 0m, copayTaken = 0m } },
         };
         (await (await migrator.Send(HttpMethod.Post, "/api/v1/health/migration/accumulators", Use(19_950m, Guid.CreateVersion7()), idempotent: true)).Json()).GetProperty("loaded").GetInt32().ShouldBe(0, "not on the membership");
@@ -1477,7 +1477,7 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         await _db.ExecuteAsOwner("UPDATE health.medical_claim SET migration_batch = 'HB1', source_reference = 'HB-C1' WHERE id = @c", ("c", claim));
         var report = await (await migrator.Send(HttpMethod.Post, "/api/v1/integration/migration-batches/HB1/reconciliation", new[]
         {
-            new { kind = "HEALTH_MEMBERSHIP", count = 1L, amount = (decimal?)null }, new { kind = "HEALTH_ACCUMULATOR", count = 1L, amount = (decimal?)19_950m }, new { kind = "HEALTH_OPEN_CLAIM", count = 1L, amount = (decimal?)1_200m },
+            new { kind = "HEALTH_MEMBERSHIP", count = 1L, amount = (decimal?)null, currency = (string?)null }, new { kind = "HEALTH_ACCUMULATOR", count = 1L, amount = (decimal?)19_950m, currency = (string?)"ZAR" }, new { kind = "HEALTH_OPEN_CLAIM", count = 1L, amount = (decimal?)1_200m, currency = (string?)"ZAR" },
         })).Json();
         report.GetProperty("reconciled").GetBoolean().ShouldBeTrue(report.ToString());
     }

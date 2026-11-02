@@ -44,12 +44,13 @@ public sealed record MigratedLife(Guid PartyId, string LifeRole, int EntryAge, I
 public sealed record MigratedLifePolicy(string SourceReference, string ProductCode, int ProductVersion, Guid PolicyholderPartyId, Guid? PayerPartyId, DateOnly InceptionDate, DateOnly? TermEndDate, string Currency, [property: CodeList(LifeCodeLists.Frequencies, "code")] string BillingFrequency, [property: CodeList(LifeCodeLists.CollectionMethods, "method_code")] string CollectionMethod,
     string? IntermediaryCode, IReadOnlyList<MigratedLife> Lives, IReadOnlyList<BeneficiaryNomination>? Beneficiaries);
 
+/// <param name="Currency">The currency of this file's amounts and of every row: one file, one currency, and a batch may hold several (BR-128).</param>
 /// <param name="ControlPremium">The source system's total premium per instalment.</param>
-public sealed record MigrateLifePolicies(string BatchCode, int ControlCount, decimal ControlPremium, IReadOnlyList<MigratedLifePolicy> Rows) : ICommand<LifeMigrationResult>;
+public sealed record MigrateLifePolicies(string BatchCode, int ControlCount, decimal ControlPremium, string Currency, IReadOnlyList<MigratedLifePolicy> Rows) : ICommand<LifeMigrationResult>;
 
 public sealed record LifeMigrationRejectedLine(int Line, string Reason);
 
-public sealed record LifeMigrationResult(int Loaded, decimal LoadedPremium, IReadOnlyList<LifeMigrationRejectedLine> RejectedLines, IReadOnlyDictionary<string, Guid>? Policies = null);
+public sealed record LifeMigrationResult(int Loaded, decimal LoadedPremium, IReadOnlyList<LifeMigrationRejectedLine> RejectedLines, IReadOnlyDictionary<string, Guid>? Policies = null, string? Currency = null);
 
 public sealed class MigrateLifePoliciesValidator : AbstractValidator<MigrateLifePolicies>
 {
@@ -100,6 +101,11 @@ internal sealed class MigrateLifePoliciesHandler(ILifeRepository life, ILifeCode
                 reasons.Add("Only a policy whose term hasn't ended is migrated.");
             }
 
+            if (!string.Equals(row.Currency, command.Currency, StringComparison.OrdinalIgnoreCase))
+            {
+                reasons.Add($"The row's currency isn't the file's, {command.Currency}.");
+            }
+
             if (row.Currency.Length != 3 || Premium(row) <= 0 || row.Lives.Count == 0 || row.Lives.Any(l => l.Benefits.Count == 0 || l.Benefits.Any(b => b.SumAssured <= 0 || b.Premium < 0)))
             {
                 reasons.Add("A policy has a currency, a positive premium, and at least one life, each with a benefit and a sum assured.");
@@ -131,7 +137,7 @@ internal sealed class MigrateLifePoliciesHandler(ILifeRepository life, ILifeCode
         }));
         if (rejected.Count > 0)
         {
-            return new LifeMigrationResult(0, 0, rejected);
+            return new LifeMigrationResult(0, 0, rejected, null, command.Currency);
         }
 
         var ids = new Dictionary<string, Guid>(StringComparer.Ordinal);
@@ -149,6 +155,6 @@ internal sealed class MigrateLifePoliciesHandler(ILifeRepository life, ILifeCode
                 row.Lives.Select(l => (l.PartyId, l.LifeRole, l.EntryAge, (IReadOnlyList<(string, decimal, decimal)>)l.Benefits.Select(b => (b.BenefitCode, b.SumAssured, b.Premium)).ToList())).ToList(), row.Beneficiaries ?? [], today, clock.UtcNow));
         }
 
-        return new LifeMigrationResult(command.Rows.Count, total, [], ids);
+        return new LifeMigrationResult(command.Rows.Count, total, [], ids, command.Currency.ToUpperInvariant());
     }
 }

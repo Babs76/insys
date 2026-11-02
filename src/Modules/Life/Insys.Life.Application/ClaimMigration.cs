@@ -40,7 +40,7 @@ namespace Insys.Life.Application;
 public sealed record MigratedLifeClaim(string SourceReference, Guid PolicyId, Guid InsuredPartyId, Guid ClaimantPartyId, string ClaimType, DateOnly EventDate, string? CauseCode, string ReserveType, decimal Reserve);
 
 /// <summary>B-013: claims open in a source system, after the batch's policies. All or nothing, against the file's count and total reserve.</summary>
-public sealed record MigrateLifeClaims(string BatchCode, int ControlCount, decimal ControlReserve, IReadOnlyList<MigratedLifeClaim> Rows) : ICommand<LifeMigrationResult>;
+public sealed record MigrateLifeClaims(string BatchCode, int ControlCount, decimal ControlReserve, string Currency, IReadOnlyList<MigratedLifeClaim> Rows) : ICommand<LifeMigrationResult>;
 
 public sealed class MigrateLifeClaimsValidator : AbstractValidator<MigrateLifeClaims>
 {
@@ -89,6 +89,11 @@ internal sealed class MigrateLifeClaimsHandler(ILifeRepository life, IBusinessDa
             }
 
             var policy = await life.Policy(row.PolicyId, cancellationToken);
+            if (policy is not null && !string.Equals(policy.Currency, command.Currency, StringComparison.OrdinalIgnoreCase))
+            {
+                reasons.Add($"The policy's currency isn't the file's, {command.Currency}.");
+            }
+
             if (policy?.Lives.FirstOrDefault(l => l.PartyId == row.InsuredPartyId) is { } insured)
             {
                 ready.Add((row, policy, insured.Id));
@@ -110,7 +115,7 @@ internal sealed class MigrateLifeClaimsHandler(ILifeRepository life, IBusinessDa
         }));
         if (rejected.Count > 0)
         {
-            return new LifeMigrationResult(0, 0, rejected);
+            return new LifeMigrationResult(0, 0, rejected, null, command.Currency);
         }
 
         var ids = new Dictionary<string, Guid>(StringComparer.Ordinal);
@@ -120,6 +125,6 @@ internal sealed class MigrateLifeClaimsHandler(ILifeRepository life, IBusinessDa
             life.Add(LifeClaim.Migrate(id, command.BatchCode, row.SourceReference, policy, row.ClaimType, row.EventDate, row.CauseCode, row.ClaimantPartyId, insuredLife, row.ReserveType, row.Reserve, clock.UtcNow));
         }
 
-        return new LifeMigrationResult(command.Rows.Count, total, [], ids);
+        return new LifeMigrationResult(command.Rows.Count, total, [], ids, command.Currency.ToUpperInvariant());
     }
 }

@@ -23,6 +23,12 @@ What changed in the API contract, newest first, so the front end can sync. The O
 - **BR-127, readiness:** new check `HEALTH_DECLINE_REASONS` (step `DOMAIN_REFERENCE_DATA`), for a tenant with health plans: `NOT_COVERED`, `UNKNOWN_FORMAT`, `PHARMACY_LINE_NOT_IN_FORMAT`, `PHARMACY_FIELDS_MISSING`, `PROVIDER_NOT_ACTIVE`, `UNKNOWN_TARIFF_CODE`, `UNKNOWN_DIAGNOSIS`, `CONTRIBUTIONS_ARREARS`.
 - **BR-127, static data:** a claim decision reason's `code` may be up to 30 characters (V0127).
 
+## BR-128: currency on migration amounts (2 November 2026)
+**One batch may hold several currencies; one load file holds one.** A batch reconciles per currency.
+- **`POST /integration/migration-batches/{code}/reconciliation`:** a source total with an `amount` needs its `currency`, or 422 `VALIDATION_FAILED`, and the same kind and currency twice is refused. Each line now has `currency`, one line per kind and currency. A kind with no amount has none. A source total that names no currency doesn't agree with a loaded amount that has one.
+- **Every load** (`general/migration/policies` and `claims`, `life/migration/policies` and `claims`, `health/migration/memberships` and `accumulators`, `billing/migration/outstanding-premiums`, `finance/migration/opening-balances`): the request needs `currency`, the currency of its control total and of every row. A row in another currency is a rejected line, and the file loads all or nothing. The result returns `currency` beside its amount.
+- **Opening balances** are in the tenant's base currency; another is a rejected line.
+
 ## Appeal routes as static data, and reactivation with the simulator (2 November 2026)
 - **New static data** `workflow/static/appeal-routes`: `routeCode`, `name`, `preferredLines` (`LIFE`, `GENERAL`, `HEALTH`). `PPR_NFO` and `CMS` are global rows. A tenant's own row wins over a global one with the same code.
 - **Case types:** `appealRoute` is no longer limited to `PPR_NFO` or `CMS`. It takes capitals, digits and underscores, starting with a capital, up to 20 characters. Existing values are unchanged. Whether the route is in force is checked by readiness (`CASE_APPEAL_ROUTES`), not when the case type is written.

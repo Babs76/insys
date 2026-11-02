@@ -39,11 +39,11 @@ namespace Insys.Billing.Application;
 public sealed record OutstandingPremium(string SourceReference, [property: OneOf("GENERAL", "LIFE", "HEALTH")] string SourceDomain, Guid PolicyRef, decimal Amount, DateOnly DueDate);
 
 /// <summary>B-013: premiums invoiced in the source system and unpaid, after the batch's policies have been loaded and Billing has opened their accounts.</summary>
-public sealed record MigrateOutstandingPremiums(string BatchCode, int ControlCount, decimal ControlAmount, IReadOnlyList<OutstandingPremium> Rows) : ICommand<PremiumMigrationResult>;
+public sealed record MigrateOutstandingPremiums(string BatchCode, int ControlCount, decimal ControlAmount, string Currency, IReadOnlyList<OutstandingPremium> Rows) : ICommand<PremiumMigrationResult>;
 
 public sealed record PremiumMigrationRejectedLine(int Line, string Reason);
 
-public sealed record PremiumMigrationResult(int Loaded, decimal LoadedAmount, IReadOnlyList<PremiumMigrationRejectedLine> RejectedLines);
+public sealed record PremiumMigrationResult(int Loaded, decimal LoadedAmount, IReadOnlyList<PremiumMigrationRejectedLine> RejectedLines, string? Currency = null);
 
 public sealed class MigrateOutstandingPremiumsValidator : AbstractValidator<MigrateOutstandingPremiums>
 {
@@ -94,6 +94,10 @@ internal sealed class MigrateOutstandingPremiumsHandler(IBillingRepository billi
             if (await billing.AccountForPolicy(row.SourceDomain, row.PolicyRef, cancellationToken) is { } account && account.ScheduleFor(row.SourceDomain, row.PolicyRef) is { } schedule)
             {
                 ready.Add((row, account, schedule));
+                if (!string.Equals(account.Currency, command.Currency, StringComparison.OrdinalIgnoreCase))
+                {
+                    reasons.Add($"The billing account's currency isn't the file's, {command.Currency}.");
+                }
             }
             else
             {
@@ -112,7 +116,7 @@ internal sealed class MigrateOutstandingPremiumsHandler(IBillingRepository billi
         }));
         if (rejected.Count > 0)
         {
-            return new PremiumMigrationResult(0, 0, rejected);
+            return new PremiumMigrationResult(0, 0, rejected, command.Currency);
         }
 
         var prefix = await codes.NumberPrefix("INVOICE", businessDate.Today, cancellationToken);
@@ -121,6 +125,6 @@ internal sealed class MigrateOutstandingPremiumsHandler(IBillingRepository billi
             billing.Add(Invoice.Migrated(Guid.CreateVersion7(), prefix, account, schedule, row.Amount, row.DueDate, businessDate.Today, command.BatchCode, row.SourceReference));
         }
 
-        return new PremiumMigrationResult(command.Rows.Count, total, []);
+        return new PremiumMigrationResult(command.Rows.Count, total, [], command.Currency.ToUpperInvariant());
     }
 }
