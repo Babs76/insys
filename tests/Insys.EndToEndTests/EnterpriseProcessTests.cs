@@ -282,6 +282,7 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
         // BR-048: the cession is found by treaty and by the month it was calculated in.
         (await Get($"/api/v1/reinsurance/cessions?treatyCode=QS-1&limit=200")).GetProperty("items").EnumerateArray().Select(c => c.GetProperty("id").GetGuid())
             .ShouldContain(cession.GetProperty("id").GetGuid());
+        (await Get($"/api/v1/reinsurance/cessions?periodCode={Month}&limit=200")).GetProperty("items").EnumerateArray().Single(c => c.GetProperty("id").GetGuid() == cession.GetProperty("id").GetGuid()).GetProperty("periodCode").GetString().ShouldBe(Month, "BR-125");
         (await Get($"/api/v1/reinsurance/cessions?periodCode={Month}&limit=200")).GetProperty("items").EnumerateArray().Select(c => c.GetProperty("id").GetGuid())
             .ShouldContain(cession.GetProperty("id").GetGuid());
         (await (await _maker.GetAsync($"/api/v1/reinsurance/cessions?sourceDomain=GENERAL")).Code()).ShouldBe("VALIDATION_FAILED");

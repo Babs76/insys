@@ -89,12 +89,15 @@ public static class HealthErrorCodes
     public const string ProviderStatementDuplicate = "PROVIDER_STATEMENT_DUPLICATE";
 
     /// <summary>The person named does not hold the case manager function (F035).</summary>
+    [ErrorCode(422, "error.health.not_a_case_manager")]
     public const string NotACaseManager = "NOT_A_CASE_MANAGER";
 
     /// <summary>Only a complex case's current manager, or a holder of the clinical function, reads or writes its clinical detail (OQ-143).</summary>
+    [ErrorCode(403, "error.health.not_the_case_manager")]
     public const string NotTheCaseManager = "NOT_THE_CASE_MANAGER";
 
     /// <summary>A coordination note shared with another provider names the member's consent (addendum §4.4).</summary>
+    [ErrorCode(422, "error.health.care_consent_required")]
     public const string CareConsentRequired = "CARE_CONSENT_REQUIRED";
 
     [ErrorCode(422, "error.health.rationale_required")]

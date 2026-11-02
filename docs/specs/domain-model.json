@@ -2765,6 +2765,161 @@
       "workflow.approval"
      ],
      "note": null
+    },
+    {
+     "name": "ServiceCase",
+     "provenance": "D",
+     "entities": [
+      "CaseMessage",
+      "CaseLink"
+     ],
+     "valueObjects": [
+      "Complainant",
+      "CaseRaiser"
+     ],
+     "invariants": [
+      {
+       "rule": "Statuses and transitions as addenda/cases.md §4, as ServiceCase's state machine holds them",
+       "requirements": "addenda/cases.md"
+      }
+     ],
+     "commands": [
+      "Open",
+      "Acknowledge",
+      "Start",
+      "AwaitComplainant",
+      "Resume",
+      "Decide",
+      "Close",
+      "CloseAnswered",
+      "Withdraw",
+      "Reopen"
+     ],
+     "events": [
+      {
+       "name": "CaseOpened",
+       "provenance": "D"
+      },
+      {
+       "name": "CaseDecided",
+       "provenance": "D"
+      }
+     ],
+     "stateTransitions": [
+      {
+       "from": "Received",
+       "to": "Acknowledged",
+       "trigger": "Acknowledge"
+      },
+      {
+       "from": "Acknowledged",
+       "to": "InProgress",
+       "trigger": "Start"
+      },
+      {
+       "from": "Reopened",
+       "to": "InProgress",
+       "trigger": "Start"
+      },
+      {
+       "from": "InProgress",
+       "to": "AwaitingComplainant",
+       "trigger": "AwaitComplainant"
+      },
+      {
+       "from": "AwaitingComplainant",
+       "to": "InProgress",
+       "trigger": "Resume"
+      },
+      {
+       "from": "InProgress",
+       "to": "Decided",
+       "trigger": "Decide"
+      },
+      {
+       "from": "Decided",
+       "to": "Closed",
+       "trigger": "Close"
+      },
+      {
+       "from": "Received",
+       "to": "Closed",
+       "trigger": "CloseAnswered"
+      },
+      {
+       "from": "Received",
+       "to": "Withdrawn",
+       "trigger": "Withdraw"
+      },
+      {
+       "from": "Acknowledged",
+       "to": "Withdrawn",
+       "trigger": "Withdraw"
+      },
+      {
+       "from": "InProgress",
+       "to": "Withdrawn",
+       "trigger": "Withdraw"
+      },
+      {
+       "from": "AwaitingComplainant",
+       "to": "Withdrawn",
+       "trigger": "Withdraw"
+      },
+      {
+       "from": "Reopened",
+       "to": "Withdrawn",
+       "trigger": "Withdraw"
+      },
+      {
+       "from": "Closed",
+       "to": "Reopened",
+       "trigger": "Reopen"
+      }
+     ],
+     "tables": [
+      "workflow.service_case"
+     ],
+     "note": "Added for BR-098 from the built state machine."
+    },
+    {
+     "name": "CaseRedress",
+     "provenance": "D",
+     "entities": [],
+     "valueObjects": [],
+     "invariants": [
+      {
+       "rule": "Redress by type and amount, approved by a second person before it is paid",
+       "requirements": "addenda/cases.md"
+      }
+     ],
+     "commands": [
+      "Approve",
+      "Reject",
+      "Pay"
+     ],
+     "events": [],
+     "stateTransitions": [
+      {
+       "from": "Requested",
+       "to": "Approved",
+       "trigger": "Approve"
+      },
+      {
+       "from": "Requested",
+       "to": "Rejected",
+       "trigger": "Reject"
+      },
+      {
+       "from": "Approved",
+       "to": "Paid",
+       "trigger": "Pay"
+      }
+     ],
+     "tables": [
+      "workflow.case_redress"
+     ],
+     "note": "Added for BR-098 from the built state machine."
     }
    ],
    "consumes": [

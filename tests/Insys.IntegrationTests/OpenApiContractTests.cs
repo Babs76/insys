@@ -338,7 +338,7 @@ public sealed partial class OpenApiContractTests(DatabaseFixture fixture) : ICla
             .EnumerateArray().Single(p => p.GetProperty("name").GetString() == "businessRefType");
 
         parameter.GetProperty("x-known-values").EnumerateArray().Select(v => v.GetString())
-            .ShouldBe(["GENERAL_POLICY", "GENERAL_ENDORSEMENT", "LIFE_POLICY", "HEALTH_REMITTANCE"]);
+            .ShouldBe(["PARTY", "GENERAL_POLICY", "GENERAL_ENDORSEMENT", "LIFE_POLICY", "HEALTH_REMITTANCE"]);
     }
 
     [Fact]

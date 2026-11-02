@@ -845,6 +845,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         (await RenewalOf(lapsing)).GetProperty("status").GetString().ShouldBe("Lapsed");
         (await _db.ScalarAsOwner<long>("SELECT count(*) FROM general.policy WHERE renewal_of_id = @p", ("p", lapsing))).ShouldBe(0);
         (await _db.ScalarAsOwner<string>("SELECT status || ':' || expiry_reason FROM general.policy WHERE id = @p", ("p", lapsing))).ShouldBe("EXPIRED:LAPSED");
+        (await (await _maker.GetAsync($"/api/v1/general/policies/{lapsing}")).Json()).GetProperty("expiryReason").GetString().ShouldBe("LAPSED", "BR-116: the view says why");
     }
 
     /// <summary>

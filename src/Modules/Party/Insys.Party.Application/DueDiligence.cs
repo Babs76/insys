@@ -364,11 +364,12 @@ public sealed record BeneficialOwnerView(Guid Id, Guid OwnerPartyId, [property: 
 /// </summary>
 public sealed record DueDiligenceView(Guid Id, Guid PartyId, [property: OneOf("NOT_STARTED", "IN_PROGRESS", "CLEARED", "REFERRED", "BLOCKED", "EXPIRED")] string Status,
     [property: OneOf("LOW", "MEDIUM", "HIGH")] string? RiskClass, int? RiskScore, bool RiskClassOverridden, [property: OneOf("SIMPLIFIED", "STANDARD", "ENHANCED")] string Level,
+    [property: System.ComponentModel.Description("What is outstanding: a check type (IDENTITY, ADDRESS, SANCTIONS, PEP, ADVERSE_MEDIA, BENEFICIAL_OWNERSHIP, SOURCE_OF_FUNDS), HIT_REVIEW, PERIODIC_REVIEW or ENHANCED_APPROVAL.")]
     IReadOnlyList<string> Outstanding, DateTimeOffset? ClearedAt, Guid? ClearedBy, DateOnly? NextReviewOn, DateTimeOffset? LastScreenedAt, bool Blocked,
     [property: OneOf("LOW", "MEDIUM", "HIGH")] string? PendingOverrideClass, bool UnblockPending, IReadOnlyList<DueDiligenceCheckView> Checks,
     IReadOnlyList<BeneficialOwnerView> BeneficialOwners, IReadOnlyList<ScreeningHitView>? Hits, long RowVersion,
     [property: BuildingBlocks.Contracts.AlwaysPresent] bool ReviewDue = false, [property: BuildingBlocks.Contracts.AlwaysPresent] DateTimeOffset? ReviewedAt = null,
-    [property: BuildingBlocks.Contracts.AlwaysPresent] Guid? ReviewedBy = null, string? PartyName = null, string? PartyNumber = null)
+    [property: BuildingBlocks.Contracts.AlwaysPresent] Guid? ReviewedBy = null, string? PartyName = null, string? PartyNumber = null, [property: OneOf("INDIVIDUAL", "ORGANISATION")] string? PartyKind = null)
 {
     /// <summary>OQ-138: the review ended with no person (an AUTOMATIC class): ReviewedBy is the system requester.</summary>
     public bool ReviewedBySystem => ReviewedBy is { } by && MakerChecker.IsSystem(by);
@@ -715,7 +716,8 @@ internal sealed class DueDiligenceHandlers(IPartyRepository parties, IDueDiligen
         var named = (await store.PartyNames([partyId], cancellationToken)).TryGetValue(partyId, out var party) ? party : default;
         return DueDiligenceView.From(dueDiligence, (await parties.Checks(partyId, cancellationToken)).Concat(added ?? []).DistinctBy(c => c.Id).OrderBy(c => c.CheckedAt),
             (await store.Owners(partyId, cancellationToken)).Concat(owners ?? []).DistinctBy(o => o.Id),
-            execution.HasPermission(PartyPermissions.DueDiligenceReviewHit), service.SavedVersion(dueDiligence)) with { PartyName = named.Name, PartyNumber = named.Number };
+            execution.HasPermission(PartyPermissions.DueDiligenceReviewHit), service.SavedVersion(dueDiligence)) with { PartyName = named.Name, PartyNumber = named.Number,
+            PartyKind = await parties.Get(partyId, cancellationToken) is { } party2 ? (party2.Kind == PartyKind.Organisation ? "ORGANISATION" : "INDIVIDUAL") : null };
     }
 }
 

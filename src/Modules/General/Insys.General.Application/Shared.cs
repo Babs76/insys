@@ -433,7 +433,8 @@ public sealed record PolicyView(Guid Id, string PolicyNumber, string ProductCode
     [property: CodeList(CodeLists.BillingFrequencies, "code")] string? BillingFrequency, [property: CodeList(CodeLists.CollectionMethods, "method_code")] string? CollectionMethod,
     Guid? RenewalOfId, [property: OneOf("ISSUE", "FIRST_PAYMENT")] string CoverStartsOn, DateOnly? FirstPaidOn, IReadOnlyList<RiskView> Risks,
     IReadOnlyList<CancellationView> Cancellations, long RowVersion,
-    Guid? QuoteId = null, Guid? ProposalId = null, PolicyEffectsView? Effects = null, decimal? InstalmentLoadingPct = null, PolicyGraceView? Grace = null)
+    Guid? QuoteId = null, Guid? ProposalId = null, PolicyEffectsView? Effects = null, decimal? InstalmentLoadingPct = null, PolicyGraceView? Grace = null,
+    [property: OneOf(PolicyExpiryReasons.NotRenewedByInsurer, PolicyExpiryReasons.DeclinedByCustomer, PolicyExpiryReasons.Lapsed)] string? ExpiryReason = null)
 {
     public static PolicyView From(GeneralPolicy p) => new(p.Id, p.PolicyNumber, p.ProductCode, p.ProductVersion, p.RatingVersion, p.PolicyholderPartyId, p.Status,
         p.PeriodStart, p.PeriodEnd, p.Currency, p.AnnualPremium, p.BillingAccountRef, p.BillingFrequency, p.CollectionMethod, p.RenewalOfId, p.CoverStartsOn, p.FirstPaidOn,
@@ -441,7 +442,7 @@ public sealed record PolicyView(Guid Id, string PolicyNumber, string ProductCode
             r.Coverages.Select(c => new CoverageView(c.CoverageCode, c.SumInsured, c.ExcessScheduleCode, c.Premium)).ToList())).ToList(),
         p.Cancellations.Select(c => new CancellationView(c.ReasonCode, c.EffectiveDate, c.RefundAmount, c.RefundBasis, c.Fee, c.CancelledAt, c.ReinstatedAt)).ToList(),
         p.RowVersion, p.QuoteId, InstalmentLoadingPct: p.InstalmentLoadingPct,
-        Grace: p.ArrearsSince is { } since ? new PolicyGraceView(since, p.ArrearsCount, p.GraceUntil!.Value, p.CoverDuringGrace ?? false) : null);
+        Grace: p.ArrearsSince is { } since ? new PolicyGraceView(since, p.ArrearsCount, p.GraceUntil!.Value, p.CoverDuringGrace ?? false) : null, ExpiryReason: p.ExpiryReason);
 }
 
 public sealed record EndorsementView(Guid Id, string EndorsementNumber, Guid PolicyId, [property: CodeList(CodeLists.EndorsementTypes, "code")] string EndorsementType,

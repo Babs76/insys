@@ -43,7 +43,8 @@ namespace Insys.Workflow.Api;
 /// <param name="CategoryCode">workflow/static/case-categories; required when the case type requires a category (PPR 18.5.3).</param>
 /// <param name="UpheldAtReceipt">Upheld at once by the person who received it (PPR 18.1): such a complaint is not reportable.</param>
 /// <param name="ParentCaseId">For an appeal: the decided case it appeals; the type is that case type's review type.</param>
-public sealed record OpenCaseRequest(string CaseTypeCode, string ReceivedChannel, DateTimeOffset? ReceivedAt, Guid? ComplainantPartyId, string? ComplainantName,
+public sealed record OpenCaseRequest(string CaseTypeCode,
+    [property: System.ComponentModel.Description(CaseChannels.Description)] string ReceivedChannel, DateTimeOffset? ReceivedAt, Guid? ComplainantPartyId, string? ComplainantName,
     string? ComplainantContact, Guid? OnBehalfOfPartyId, string? CategoryCode, string Summary, bool? UpheldAtReceipt, Guid? ParentCaseId,
     IReadOnlyList<CaseLinkInput>? Links = null);
 
