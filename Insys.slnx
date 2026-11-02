@@ -235,6 +235,7 @@
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/Insys.DbMigrator/Insys.DbMigrator.csproj" />
+    <Project Path="tools/Insys.Seed/Insys.Seed.csproj" />
     <Project Path="tools/Insys.Regen/Insys.Regen.csproj" />
     <Project Path="tools/Insys.StaticData.Generator/Insys.StaticData.Generator.csproj" />
   </Folder>

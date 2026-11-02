@@ -32,6 +32,7 @@
     <ProjectReference Include="..\..\src\Host\Insys.Api\Insys.Api.csproj" />
     <ProjectReference Include="..\..\src\Modules\Assist\Insys.Assist.Application\Insys.Assist.Application.csproj" />
     <ProjectReference Include="..\..\tools\Insys.DbMigrator\Insys.DbMigrator.csproj" />
+    <ProjectReference Include="..\..\tools\Insys.Seed\Insys.Seed.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="xunit.v3.extensibility.core" />
