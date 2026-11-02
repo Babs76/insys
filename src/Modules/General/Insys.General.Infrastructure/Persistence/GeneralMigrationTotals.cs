@@ -36,8 +36,8 @@ internal sealed class GeneralMigrationTotals([FromKeyedServices(GeneralDbContext
 {
     public Task<IReadOnlyList<MigrationTotal>> For(Guid tenantId, string batchCode, CancellationToken cancellationToken) =>
         MigrationTotalsReader.Read(dataSource, tenantId, batchCode, """
-        SELECT 'GENERAL_POLICY', count(*), sum(annual_premium) FROM general.policy WHERE migration_batch = @batch HAVING count(*) > 0
-        UNION ALL SELECT 'GENERAL_CLAIM', count(*), NULL::numeric FROM general.claim WHERE migration_batch = @batch HAVING count(*) > 0
+        SELECT 'GENERAL_POLICY', count(*), sum(annual_premium), currency::text FROM general.policy WHERE migration_batch = @batch GROUP BY currency
+        UNION ALL SELECT 'GENERAL_CLAIM', count(*), NULL::numeric, NULL::text FROM general.claim WHERE migration_batch = @batch HAVING count(*) > 0
         """, cancellationToken);
 }
 

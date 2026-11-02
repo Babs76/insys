@@ -36,6 +36,6 @@ internal sealed class BillingMigrationTotals([FromKeyedServices(BillingDbContext
 {
     public Task<IReadOnlyList<MigrationTotal>> For(Guid tenantId, string batchCode, CancellationToken cancellationToken) =>
         MigrationTotalsReader.Read(dataSource, tenantId, batchCode, """
-        SELECT 'OUTSTANDING_PREMIUM', count(*), sum(total_amount) FROM billing.invoice WHERE migration_batch = @batch HAVING count(*) > 0
+        SELECT 'OUTSTANDING_PREMIUM', count(*), sum(total_amount), currency FROM billing.invoice WHERE migration_batch = @batch GROUP BY currency
         """, cancellationToken);
 }

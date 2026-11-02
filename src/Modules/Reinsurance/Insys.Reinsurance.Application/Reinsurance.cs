@@ -94,7 +94,7 @@ public sealed record CessionSearch(string? SourceDomain, Guid? PolicyRef, string
 public sealed record CessionView(Guid Id, string TreatyCode, int? TreatyVersion, string? ArrangementCode,
     [property: OneOf("GENERAL_POLICY", "LIFE_POLICY", "HEALTH_POLICY")] string SourceType, Guid PolicyRef, string ProductCode,
     DateOnly PeriodStart, DateOnly PeriodEnd, decimal GrossSumInsured, decimal GrossPremium, decimal CededShare, decimal CededSumInsured, decimal CededPremium,
-    string Currency, string RuleCode, int RuleVersion, DateTimeOffset CalculatedAt, Guid? SupersedesId)
+    string Currency, string RuleCode, int RuleVersion, DateTimeOffset CalculatedAt, Guid? SupersedesId, string? PeriodCode = null)
 {
     public static CessionView From(Cession c) => new(c.Id, c.TreatyCode, c.TreatyVersion, c.ArrangementCode, c.SourceType, c.SourceId, c.ProductCode, c.PeriodStart,
         c.PeriodEnd, c.GrossSumInsured, c.GrossPremium, c.CededShare, c.CededSumInsured, c.CededPremium, c.Currency, c.RuleCode, c.RuleVersion, c.CalculatedAt,
@@ -169,7 +169,7 @@ public sealed class PrepareBordereauValidator : AbstractValidator<PrepareBordere
     }
 }
 
-internal sealed class ReinsuranceQueries(IReinsuranceRepository repository) :
+internal sealed class ReinsuranceQueries(IReinsuranceRepository repository, IBusinessDate businessDate) :
     IQueryHandler<ListCessions, IReadOnlyList<CessionView>>,
     IQueryHandler<GetRecovery, RecoveryView>,
     IQueryHandler<ListRecoveries, IReadOnlyList<RecoveryView>>,
@@ -177,7 +177,9 @@ internal sealed class ReinsuranceQueries(IReinsuranceRepository repository) :
     IQueryHandler<ListBordereaux, IReadOnlyList<BordereauView>>
 {
     public async Task<Result<IReadOnlyList<CessionView>>> Handle(ListCessions query, CancellationToken cancellationToken) =>
-        (await repository.Cessions(query.Search, query.AfterId, query.Limit, cancellationToken)).Select(CessionView.From).ToList();
+        (await repository.Cessions(query.Search, query.AfterId, query.Limit, cancellationToken))
+            // BR-125: the month the periodCode filter finds it in: calculatedAt's, in the tenant's time zone.
+            .Select(c => CessionView.From(c) with { PeriodCode = businessDate.DateOf(c.CalculatedAt).ToString("yyyy-MM", System.Globalization.CultureInfo.InvariantCulture) }).ToList();
 
     public async Task<Result<IReadOnlyList<BordereauView>>> Handle(ListBordereaux query, CancellationToken cancellationToken) =>
         (await repository.Bordereaux(query.TreatyCode, query.PeriodCode, query.Status, query.AfterId, query.Limit, cancellationToken)).Select(BordereauView.From).ToList();

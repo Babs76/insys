@@ -79,7 +79,7 @@ public sealed class CommunicationsModule : IModule
             .WithName("CommunicationsListNotifications")
             .WithSummary("Notifications, by recipient party, type, status or source record, oldest first (§5)")
             .WithDescription("Within the caller's scope (F103): a notification is in scope when the product and organisation node of the record it is about are. "
-                + "from/to filter on requestedAt. sourceType is GENERAL_CLAIM, LIFE_CLAIM, HEALTH_CLAIM, HEALTH_PREAUTH, GENERAL_POLICY or BILLING_ACCOUNT; "
+                + "from/to filter on requestedAt. sourceType is GENERAL_CLAIM, LIFE_CLAIM, HEALTH_CLAIM, HEALTH_PREAUTH, HEALTH_MEMBERSHIP, HEALTH_SCHEME, HEALTH_CHRONIC, HEALTH_RECOVERY, GENERAL_POLICY, BILLING_ACCOUNT or CASE; "
                 + "sourceReference is that record's own number. sourceId needs sourceType (BR-090): sourceId alone is refused with 422 "
                 + "VALIDATION_FAILED, since record IDs are unique only within a source type.")
             .ProducesProblem(StatusCodes.Status422UnprocessableEntity)

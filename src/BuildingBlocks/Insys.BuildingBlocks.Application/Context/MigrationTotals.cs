@@ -27,7 +27,7 @@
 namespace Insys.BuildingBlocks.Application.Context;
 
 /// <summary>What a module loaded of a migration batch, of one kind (B-013). <see cref="Amount"/> is null where the module holds no amount to compare.</summary>
-public sealed record MigrationTotal(string Kind, long Count, decimal? Amount);
+public sealed record MigrationTotal(string Kind, long Count, decimal? Amount, string? Currency = null);
 
 /// <summary>Public query interface, implemented by each module that loads a migration batch.</summary>
 public interface IMigrationTotals

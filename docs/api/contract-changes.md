@@ -3,6 +3,14 @@
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
 
+## The front end's reconciled requests (2 November 2026)
+- **`GeneralPolicyView.expiryReason` (BR-116):** now returned and declared: `NOT_RENEWED_BY_INSURER`, `DECLINED_BY_CUSTOMER` or `LAPSED`, on an expired policy. The earlier note promised it before the view carried it.
+- **`CessionView.periodCode` (BR-125):** the `yyyy-MM` value `GET /reinsurance/cessions?periodCode=` finds the cession under.
+- **`PartyDueDiligenceView.partyKind` (BR-108):** `INDIVIDUAL` or `ORGANISATION`.
+- **Now in the error catalogue (BR-119):** `NOT_A_CASE_MANAGER` (422), `NOT_THE_CASE_MANAGER` (403), `CARE_CONSENT_REQUIRED` (422 on a note; 403 where a referral lacks it).
+- **Descriptions and known values only:** `receivedChannel`, `outstanding`, `pendReason`, `PartyRecordFicReport`, notification `sourceType`, and `PARTY` among the documents' `businessRefType`.
+- **Corrected note (BR-111):** the renewal decision's authority error is `GENERAL_UW_AUTHORITY_EXCEEDED`.
+
 ## Activating a tenant with the simulator (2 November 2026)
 - **`POST /tenancy/tenants/{id}/activate`:** refused for an onboarding tenant, 422 `PAYMENT_PROVIDER_NOT_ALLOWED`, on the same condition as reactivation.
 
@@ -14,6 +22,12 @@ What changed in the API contract, newest first, so the front end can sync. The O
 - **BR-127, `POST /health/claims/{id}/validate`:** when validation would decline the claim and that reason isn't a `DECLINE` reason in force, it answers 422 `CLAIM_DECLINE_REASON_INVALID` and the claim stays `Received`. The arrears job leaves such a claim `Pended` and tries again on its next run.
 - **BR-127, readiness:** new check `HEALTH_DECLINE_REASONS` (step `DOMAIN_REFERENCE_DATA`), for a tenant with health plans: `NOT_COVERED`, `UNKNOWN_FORMAT`, `PHARMACY_LINE_NOT_IN_FORMAT`, `PHARMACY_FIELDS_MISSING`, `PROVIDER_NOT_ACTIVE`, `UNKNOWN_TARIFF_CODE`, `UNKNOWN_DIAGNOSIS`, `CONTRIBUTIONS_ARREARS`.
 - **BR-127, static data:** a claim decision reason's `code` may be up to 30 characters (V0127).
+
+## BR-128: currency on migration amounts (2 November 2026)
+**One batch may hold several currencies; one load file holds one.** A batch reconciles per currency.
+- **`POST /integration/migration-batches/{code}/reconciliation`:** a source total with an `amount` needs its `currency`, or 422 `VALIDATION_FAILED`, and the same kind and currency twice is refused. Each line now has `currency`, one line per kind and currency. A kind with no amount has none. A source total that names no currency doesn't agree with a loaded amount that has one.
+- **Every load** (`general/migration/policies` and `claims`, `life/migration/policies` and `claims`, `health/migration/memberships` and `accumulators`, `billing/migration/outstanding-premiums`, `finance/migration/opening-balances`): the request needs `currency`, the currency of its control total and of every row. A row in another currency is a rejected line, and the file loads all or nothing. The result returns `currency` beside its amount.
+- **Opening balances** are in the tenant's base currency; another is a rejected line.
 
 ## Appeal routes as static data, and reactivation with the simulator (2 November 2026)
 - **New static data** `workflow/static/appeal-routes`: `routeCode`, `name`, `preferredLines` (`LIFE`, `GENERAL`, `HEALTH`). `PPR_NFO` and `CMS` are global rows. A tenant's own row wins over a global one with the same code.
@@ -309,7 +323,7 @@ What changed in the API contract, newest first, so the front end can sync. The O
   - asks Rules to evaluate the eligibility rule set (`INELIGIBLE` or `REFER`) and the product's underwriting rules (`DECLINE` or `REFER`). The inputs are `renewal`, `claims_count`, `claims_paid`, `loss_ratio`, `endorsements`, `fraud_referred_claims`, `sum_insured` and `premium`;
   - for a product that re-rates, creates a renewal quote (`renewalId`) priced through Rating, times the claims experience factor (`general.cfg_claims_experience_factors`; 1.0 when no band applies).
 - **`GET /general/renewals`** (`GeneralListRenewals`; `status`, `policyId`) and **`GET /general/renewals/{id}`** (`GeneralGetRenewal`): status `Reviewing`, `Referred`, `NotEligible`, `Offered`, `Renewed` or `NotRenewed`, plus the figures read, each check and its result, the re-rating, `loadingPct`, `offeredPremium` and `changedTerms`. Screen `GENERAL_RENEWALS`.
-- **`POST /general/renewals/{id}/decision`** (`GeneralDecideRenewal`, `general_quote.underwrite`): `{ offer, decisionCode, loadingPct? }` on a referred or ineligible renewal. It needs underwriting authority covering the product and the sum insured; otherwise 403 `UNDERWRITING_AUTHORITY_EXCEEDED`. A referred or ineligible renewal opens a Workflow task on `GENERAL_RENEWAL_REVIEW` (reference `GENERAL_RENEWAL`), routed by authority, and the decision closes it.
+- **`POST /general/renewals/{id}/decision`** (`GeneralDecideRenewal`, `general_quote.underwrite`): `{ offer, decisionCode, loadingPct? }` on a referred or ineligible renewal. It needs underwriting authority covering the product and the sum insured; otherwise 403 `GENERAL_UW_AUTHORITY_EXCEEDED`. A referred or ineligible renewal opens a Workflow task on `GENERAL_RENEWAL_REVIEW` (reference `GENERAL_RENEWAL`), routed by authority, and the decision closes it.
 - **Invitation.** A reviewed renewal is invited once offered, with merge fields `renewal_premium` and `currency`. With changed terms it is invited at least the tenant's notice before the renewal date (`general.cfg_renewal_settings.changedTermsNoticeDays`, default 31); otherwise with the rule's `noticeDays`.
 - **Renewal.** At the period's end the policy renews on the offered premium. Renewing a reviewed product before its review is offered is 409 `GENERAL_RENEWAL_NOT_OFFERED`.
 - **Readiness `DOMAIN_CODES`:**

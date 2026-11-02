@@ -44,7 +44,7 @@ public static class MigrationTotalsReader
         {
             while (await reader.ReadAsync(cancellationToken))
             {
-                totals.Add(new MigrationTotal(reader.GetString(0), reader.GetInt64(1), reader.IsDBNull(2) ? null : reader.GetDecimal(2)));
+                totals.Add(new MigrationTotal(reader.GetString(0), reader.GetInt64(1), reader.IsDBNull(2) ? null : reader.GetDecimal(2), reader.IsDBNull(3) ? null : reader.GetString(3).Trim()));
             }
         }
 

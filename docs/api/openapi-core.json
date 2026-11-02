@@ -2918,6 +2918,7 @@
           "Party"
         ],
         "summary": "Record the FIC reference of a report made for a true match (s28A or s29); the report itself goes through the FIC\u0027s own system",
+        "description": "Allowed once for a hit reviewed as a TRUE_MATCH; otherwise 409 INVALID_STATE_TRANSITION. It records the reference only; nothing is sent to the FIC.",
         "operationId": "PartyRecordFicReport",
         "parameters": [
           {
@@ -10644,6 +10645,7 @@
               "type": "string"
             },
             "x-known-values": [
+              "PARTY",
               "GENERAL_POLICY",
               "GENERAL_ENDORSEMENT",
               "LIFE_POLICY",
@@ -45516,7 +45518,7 @@
           "Communications"
         ],
         "summary": "Notifications, by recipient party, type, status or source record, oldest first (\u00A75)",
-        "description": "Within the caller\u0027s scope (F103): a notification is in scope when the product and organisation node of the record it is about are. from/to filter on requestedAt. sourceType is GENERAL_CLAIM, LIFE_CLAIM, HEALTH_CLAIM, HEALTH_PREAUTH, GENERAL_POLICY or BILLING_ACCOUNT; sourceReference is that record\u0027s own number. sourceId needs sourceType (BR-090): sourceId alone is refused with 422 VALIDATION_FAILED, since record IDs are unique only within a source type.",
+        "description": "Within the caller\u0027s scope (F103): a notification is in scope when the product and organisation node of the record it is about are. from/to filter on requestedAt. sourceType is GENERAL_CLAIM, LIFE_CLAIM, HEALTH_CLAIM, HEALTH_PREAUTH, HEALTH_MEMBERSHIP, HEALTH_SCHEME, HEALTH_CHRONIC, HEALTH_RECOVERY, GENERAL_POLICY, BILLING_ACCOUNT or CASE; sourceReference is that record\u0027s own number. sourceId needs sourceType (BR-090): sourceId alone is refused with 422 VALIDATION_FAILED, since record IDs are unique only within a source type.",
         "operationId": "CommunicationsListNotifications",
         "parameters": [
           {
@@ -47370,6 +47372,7 @@
           "batchCode",
           "controlCount",
           "controlAmount",
+          "currency",
           "rows"
         ],
         "type": "object",
@@ -47392,6 +47395,9 @@
               "string"
             ],
             "format": "double"
+          },
+          "currency": {
+            "type": "string"
           },
           "rows": {
             "type": "array",
@@ -47584,6 +47590,12 @@
             "items": {
               "$ref": "#/components/schemas/BillingPremiumMigrationRejectedLine"
             }
+          },
+          "currency": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -52999,6 +53011,7 @@
           "accountingDate",
           "controlDebit",
           "controlCredit",
+          "currency",
           "lines"
         ],
         "type": "object",
@@ -53025,6 +53038,9 @@
               "string"
             ],
             "format": "double"
+          },
+          "currency": {
+            "type": "string"
           },
           "lines": {
             "type": "array",
@@ -53102,6 +53118,12 @@
             "items": {
               "$ref": "#/components/schemas/FinanceOpeningBalanceRejectedLine"
             }
+          },
+          "currency": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -54643,6 +54665,7 @@
           "batchCode",
           "controlCount",
           "controlReserve",
+          "currency",
           "rows"
         ],
         "type": "object",
@@ -54666,6 +54689,9 @@
             ],
             "format": "double"
           },
+          "currency": {
+            "type": "string"
+          },
           "rows": {
             "type": "array",
             "items": {
@@ -54679,6 +54705,7 @@
           "batchCode",
           "controlCount",
           "controlPremium",
+          "currency",
           "rows"
         ],
         "type": "object",
@@ -54701,6 +54728,9 @@
               "string"
             ],
             "format": "double"
+          },
+          "currency": {
+            "type": "string"
           },
           "rows": {
             "type": "array",
@@ -55205,6 +55235,12 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          "currency": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -55448,6 +55484,18 @@
               {
                 "$ref": "#/components/schemas/GeneralPolicyGraceView"
               }
+            ]
+          },
+          "expiryReason": {
+            "enum": [
+              "NOT_RENEWED_BY_INSURER",
+              "DECLINED_BY_CUSTOMER",
+              "LAPSED",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
             ]
           }
         }
@@ -59861,7 +59909,8 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "description": "Why it is held or declined: an adjudication reason (the adjudication edit\u0027s reason code, or NOT_COVERED, WAITING_PERIOD, PREAUTH_REQUIRED and the like), CONTRIBUTIONS_UNPAID while held for arrears, or the claim decline reason (CONTRIBUTIONS_ARREARS and the others of claims.ref_claim_decision_reason_codes)."
           },
           "paymentRunId": {
             "type": [
@@ -60235,6 +60284,7 @@
           "batchCode",
           "controlCount",
           "controlUsed",
+          "currency",
           "rows"
         ],
         "type": "object",
@@ -60258,6 +60308,9 @@
             ],
             "format": "double"
           },
+          "currency": {
+            "type": "string"
+          },
           "rows": {
             "type": "array",
             "items": {
@@ -60271,6 +60324,7 @@
           "batchCode",
           "controlCount",
           "controlContribution",
+          "currency",
           "rows"
         ],
         "type": "object",
@@ -60293,6 +60347,9 @@
               "string"
             ],
             "format": "double"
+          },
+          "currency": {
+            "type": "string"
           },
           "rows": {
             "type": "array",
@@ -60479,6 +60536,12 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          "currency": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -65847,6 +65910,7 @@
       "IntegrationReconciliationLine": {
         "required": [
           "kind",
+          "currency",
           "sourceCount",
           "loadedCount",
           "sourceAmount",
@@ -65857,6 +65921,12 @@
         "properties": {
           "kind": {
             "type": "string"
+          },
+          "currency": {
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "sourceCount": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
@@ -65926,6 +65996,12 @@
               "string"
             ],
             "format": "double"
+          },
+          "currency": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -67624,6 +67700,7 @@
           "batchCode",
           "controlCount",
           "controlReserve",
+          "currency",
           "rows"
         ],
         "type": "object",
@@ -67647,6 +67724,9 @@
             ],
             "format": "double"
           },
+          "currency": {
+            "type": "string"
+          },
           "rows": {
             "type": "array",
             "items": {
@@ -67660,6 +67740,7 @@
           "batchCode",
           "controlCount",
           "controlPremium",
+          "currency",
           "rows"
         ],
         "type": "object",
@@ -67682,6 +67763,9 @@
               "string"
             ],
             "format": "double"
+          },
+          "currency": {
+            "type": "string"
           },
           "rows": {
             "type": "array",
@@ -67956,6 +68040,12 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          "currency": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -70062,7 +70152,8 @@
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "description": "What is outstanding: a check type (IDENTITY, ADDRESS, SANCTIONS, PEP, ADVERSE_MEDIA, BENEFICIAL_OWNERSHIP, SOURCE_OF_FUNDS), HIT_REVIEW, PERIODIC_REVIEW or ENHANCED_APPROVAL."
           },
           "clearedAt": {
             "type": [
@@ -70164,6 +70255,17 @@
             ]
           },
           "partyNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "partyKind": {
+            "enum": [
+              "INDIVIDUAL",
+              "ORGANISATION",
+              null
+            ],
             "type": [
               "null",
               "string"
@@ -73588,6 +73690,12 @@
               "string"
             ],
             "format": "uuid"
+          },
+          "periodCode": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -74958,7 +75066,8 @@
             "format": "date-time"
           },
           "receivedChannel": {
-            "type": "string"
+            "type": "string",
+            "description": "How it came in: a communication.ref_channels code, or PORTAL, PHONE, WALK_IN, LETTER or OMBUD."
           },
           "complainantPartyId": {
             "type": [
@@ -75597,7 +75706,8 @@
             "type": "string"
           },
           "receivedChannel": {
-            "type": "string"
+            "type": "string",
+            "description": "How it came in: a communication.ref_channels code, or PORTAL, PHONE, WALK_IN, LETTER or OMBUD."
           },
           "receivedAt": {
             "type": [

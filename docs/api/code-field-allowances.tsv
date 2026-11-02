@@ -447,3 +447,4 @@ core	DistributionCommissionRecoveryView.intermediaryCode	an intermediary key, as
 core	IdentityProvisionServiceAccount.idpCode	an identity provider key, as on provisioning a user
 core	HealthMigrateHealthAccumulators.batchCode	the batch name the file gives; no list
 core	WorkflowPortalCaseTypeOption.linkTypes	to declare: the kinds of record a case type links to (workflow.cfg_case_types.link_types), set per tenant
+core	ReinsuranceCessionView.periodCode	a month as yyyy-MM, not a code from a list

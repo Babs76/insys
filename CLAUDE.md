@@ -55,6 +55,17 @@ dotnet run --project tools/Insys.StaticData.Generator   # regenerates static dat
 - Name tests after the rule and include the requirement ID where one exists.
 - Integration tests use Testcontainers `postgres:18` with the real migrations, connecting as a non-owner role so row-level security applies.
 - Never report tests as passing without running them. Paste the real counts.
+- In a Claude Code cloud session, Docker isn't running at start. Start it before any integration test with `nohup dockerd >/tmp/dockerd.log 2>&1 &`, then check `docker info`.
+
+## Git and merge rules
+These apply in every session, on any machine.
+- **Never force-push a shared branch.** To bring a branch up to date, merge main into it.
+- **Merge only on green CI of the exact head,** by fast-forward: `git push origin "<full sha>:refs/heads/main"`. Any commit moves the head and needs CI again, so never commit CI results to a branch about to merge.
+- **Report merges and other state only after checking them** (`git ls-remote origin main`, the run's conclusion and head), never in the same message as the command that makes them true.
+- **If a head Ade approved fails, and the fix is more than tests** (code, contract, migration), report to Ade before merging, even once it is green.
+- **Merge without asking** only when everything is built with its test, CI is green on the exact head and nothing needs Ade's decision. A green branch that needs no unmerged branch isn't held for another; a listed order is priority, not dependency.
+- **Chain build, test, commit and push with `&&`,** so a failed step stops the rest.
+- **CI is the gate.** Locally, run only the affected test classes: see `docs/handover-backend.md`.
 
 ## Working style
 - Work phase by phase as `PROMPT.md` describes. Stop after each phase with the report format given there.

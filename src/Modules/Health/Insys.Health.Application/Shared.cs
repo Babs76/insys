@@ -464,7 +464,8 @@ public sealed record MedicalClaimClinicalView(Guid ClaimId, string ClaimNumber, 
 
 /// <summary>The claim without diagnosis codes: medical information is shown only to roles with a clinical purpose (HLT-008).</summary>
 public sealed record MedicalClaimView(Guid Id, string ClaimNumber, string Source, string? ProviderId, Guid MembershipId, Guid PatientPartyId, DateOnly ServiceDate,
-    MedicalClaimStatus Status, string Currency, decimal TotalClaimed, decimal? TotalPaid, string? PendReason, Guid? PaymentRunId, IReadOnlyList<ClaimLineView> Lines, long RowVersion,
+    MedicalClaimStatus Status, string Currency, decimal TotalClaimed, decimal? TotalPaid,
+    [property: System.ComponentModel.Description("Why it is held or declined: an adjudication reason (the adjudication edit's reason code, or NOT_COVERED, WAITING_PERIOD, PREAUTH_REQUIRED and the like), CONTRIBUTIONS_UNPAID while held for arrears, or the claim decline reason (CONTRIBUTIONS_ARREARS and the others of claims.ref_claim_decision_reason_codes).")] string? PendReason, Guid? PaymentRunId, IReadOnlyList<ClaimLineView> Lines, long RowVersion,
     [property: BuildingBlocks.Domain.OneOf(MedicalClaimOutcomes.Approved, MedicalClaimOutcomes.PartlyApproved), BuildingBlocks.Contracts.AlwaysPresent] string? Outcome = null,
     [property: BuildingBlocks.Contracts.AlwaysPresent] string? DecisionReasonCode = null, [property: BuildingBlocks.Contracts.AlwaysPresent] Guid? ApprovedBy = null, [property: BuildingBlocks.Contracts.AlwaysPresent] DateTimeOffset? ApprovedAt = null,
     [property: BuildingBlocks.Contracts.AlwaysPresent] Guid? ReplacesClaimId = null, [property: BuildingBlocks.Contracts.AlwaysPresent] Guid? ReplacedByClaimId = null)
