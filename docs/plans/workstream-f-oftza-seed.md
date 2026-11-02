@@ -31,7 +31,7 @@ A checksum-valid South African ID number can't be guaranteed to belong to nobody
 This reduces the risk and doesn't remove it. The block below is what stops anything reaching a person.
 
 ## OFTZA can't reach real channels or real money
-**A tenant-level block, built and tested in the first slice.** A tenant marked as a sample tenant has its notifications and payments sent only to stubs, even if a real SMS, email or payment provider is connected to that environment later. It fails closed: a stub missing means refused, never sent for real. The mark can't be changed through the tenant's own API. Tests prove it with a real provider registered beside the stub: nothing reaches it for `OFTZA`, and another tenant's notifications and payments still do.
+**A tenant-level block, built and tested in the first slice.** A tenant marked as a sample tenant has its notifications and payments sent only to stubs, even if a real SMS, email or payment provider is connected to that environment later. It fails closed: a stub missing means refused, never sent for real. **The mark can't be removed by anyone, the operator included (Ade, 2 November).** It's set when the tenant is created and stays for the tenant's life, and a real customer always gets a new tenant. No API sets or clears it afterwards; any route that would is refused with a catalogued error, and a test proves it. Tests prove it with a real provider registered beside the stub: nothing reaches it for `OFTZA`, and another tenant's notifications and payments still do.
 
 ## How it loads
 **Only through the governed API, never by writing to the database.**
