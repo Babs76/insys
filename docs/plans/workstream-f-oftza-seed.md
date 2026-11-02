@@ -58,7 +58,7 @@ Each slice merges on green by itself, so the minimal seed can reach the front en
 
 ## State
 - **Built:** the sample tenant block; the tool, with the tenant, its entitlements, two administrators, every tenant role template with its functions, a persona per template, and most of the onboarding configuration. It signs tokens with the development key, so it runs only against Development and Testing.
-- **Choice to check:** the two seed administrators hold `TENANT_ADMIN`'s functions plus every module's non-privileged static data functions, to load the configuration.
+- **Loading (Ade, 2 November):** the two administrators hold exactly `TENANT_ADMIN`'s template. Two loader users, a maker and its checker, hold the other modules' non-privileged static data functions, and end disabled with their roles revoked. A persona's privileged role gets its second approval from the second administrator; nothing bypasses it.
 - **Next:** posting rules, approval authority, the remaining readiness rows and activation with products; parties, policies and claims; Keycloak sign-in; the fake details scheme.
 
 ## Decisions, by Ade

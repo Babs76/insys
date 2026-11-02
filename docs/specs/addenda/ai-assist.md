@@ -27,6 +27,7 @@ The SRS's principles P1 to P8 and its requirements AIA-001 to AIA-091 stand as w
 | D-7 | Line for AI-1's evaluation set | **Decided, 1 Nov:** the first customer's launch line; otherwise a simple Life funeral or term product with age-band rate tables. The insurer's written permission comes first. Fixed before batch 7.5 |
 | D-8 | AI-3's build order | **Decided, 1 Nov:** AI-3 is split: 7.1 to 7.3, then 7.6 and 7.7, then 7.4 and 7.5, then 7.8 (§6) |
 | D-15 | Free text and prompts (AIA-051) | **Decided, 2 Nov:** no free text goes to a model until real name detection exists. AI-2's prompts are built only from allowed structured fields: the code, the catalogue entry, field errors, the record's permitted fields, and the rating calculation's recorded inputs and lines. Any free-text field is excluded, not masked (§5.4) |
+| D-16 | Documents for AI-1 and AI-3 | **Open, for Ade, needed before 7.4 and 7.8.** Recommended: a document is allowed when the uploader confirms it holds no customer personal data, with the confirmation recorded on the run, after the malware scan, and with the minimiser as a backstop. For AI-3's tenant documents, the template asks for role titles, not people's names |
 | D-10 | Who approves each country overlay | **Decided, 1 Nov:** two keys, a local compliance partner reviewing and a named OpenFactor compliance lead approving in INSYS; each insurer's compliance officer confirms its own tenant's values. Fallback without a partner: the first customer's compliance team approves for its own tenant only (§5.3) |
 
 **What D-1 means for AI-2:** Claude runs globally or in the US, not in South Africa. AI-2 can be built first, but for each jurisdiction it waits to be switched on until compliance confirms the legal basis (POPIA s72 in South Africa) and the contract sets zero retention and no training (AIA-052). The route is a per-deployment setting of the adapter.
@@ -130,7 +131,7 @@ No pattern finds a name it wasn't told, so masking can't meet AIA-051 for free t
 - excludes every free-text field, such as notes, reasons, descriptions and document words;
 - removes `UntrustedText` and `MinimiseFreeText` from the runner, which were built in 7.1 before this decision.
 
-The minimiser stays as a second layer. AI-1 and AI-3 read documents, so they need this question answered before their batches: real name detection, or documents checked to hold no personal data.
+The minimiser stays as a second layer. AI-1 and AI-3 read documents, so D-16 must be decided before their batches.
 
 ### 5.2 AI-3 and the starter packs
 - **Format:** [`docs/specs/starter-packs`](../starter-packs/README.md) has the structure, drafted: base, country and line overlays. It needs a `tailorable` mark per value (AIA-082). In the build, packs become versioned static data (`starter_pack`, `starter_pack_value`).
