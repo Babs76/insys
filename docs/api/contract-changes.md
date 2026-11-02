@@ -23,6 +23,9 @@ What changed in the API contract, newest first, so the front end can sync. The O
 - **BR-127, readiness:** new check `HEALTH_DECLINE_REASONS` (step `DOMAIN_REFERENCE_DATA`), for a tenant with health plans: `NOT_COVERED`, `UNKNOWN_FORMAT`, `PHARMACY_LINE_NOT_IN_FORMAT`, `PHARMACY_FIELDS_MISSING`, `PROVIDER_NOT_ACTIVE`, `UNKNOWN_TARIFF_CODE`, `UNKNOWN_DIAGNOSIS`, `CONTRIBUTIONS_ARREARS`.
 - **BR-127, static data:** a claim decision reason's `code` may be up to 30 characters (V0127).
 
+## BR-129: labels (2 November 2026)
+- A reconciliation line has `kindLabel`, and a bulk job, in the list and alone, has `jobTypeLabel`. English only for now (D-4); a kind with no label shows its code.
+
 ## BR-128: currency on migration amounts (2 November 2026)
 **One batch may hold several currencies; one load file holds one.** A batch reconciles per currency.
 - **`POST /integration/migration-batches/{code}/reconciliation`:** a source total with an `amount` needs its `currency`, or 422 `VALIDATION_FAILED`, and the same kind and currency twice is refused. Each line now has `currency`, one line per kind and currency. A kind with no amount has none. A source total that names no currency doesn't agree with a loaded amount that has one.

@@ -70,6 +70,7 @@ public sealed class MigrationReconciliationTests(DatabaseFixture fixture) : ICla
         var agrees = await answered.Json();
         agrees.GetProperty("reconciled").GetBoolean().ShouldBeTrue(agrees.ToString());
         agrees.GetProperty("lines").GetArrayLength().ShouldBe(3);
+        agrees.GetProperty("lines").EnumerateArray().Select(l => l.GetProperty("kindLabel").GetString()).ShouldBe(["General claims", "General policies", "General policies"], "BR-129");
 
         // The right total, in one currency: both lines differ, though a sum across them would agree.
         var swapped = await (await client.Send(HttpMethod.Post, Url, new object[]

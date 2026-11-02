@@ -39,7 +39,23 @@ public sealed record SourceTotal(string Kind, long Count, decimal? Amount, strin
 /// <summary>B-013: what a batch loaded against what the source system says it held. Every difference is reported; nothing is changed.</summary>
 public sealed record ReconcileMigrationBatch(string BatchCode, IReadOnlyList<SourceTotal> SourceTotals) : ICommand<MigrationReconciliationReport>;
 
-public sealed record ReconciliationLine(string Kind, string? Currency, long? SourceCount, long? LoadedCount, decimal? SourceAmount, decimal? LoadedAmount, bool Agrees);
+public sealed record ReconciliationLine(string Kind, string? Currency, long? SourceCount, long? LoadedCount, decimal? SourceAmount, decimal? LoadedAmount, bool Agrees)
+{
+    /// <summary>BR-129: what a line's kind is called on a screen. A kind this list doesn't know shows its code.</summary>
+    public string KindLabel => Kind.StartsWith("OPENING_BALANCE:", StringComparison.Ordinal) ? $"Opening balance, account {Kind["OPENING_BALANCE:".Length..]}" : Kind switch
+    {
+        "GENERAL_POLICY" => "General policies",
+        "GENERAL_CLAIM" => "General claims",
+        "LIFE_POLICY" => "Life policies",
+        "LIFE_CLAIM" => "Life claims",
+        "HEALTH_MEMBERSHIP" => "Health memberships",
+        "HEALTH_ACCUMULATOR" => "Health benefit use",
+        "HEALTH_OPEN_CLAIM" => "Open Health claims",
+        "OUTSTANDING_PREMIUM" => "Outstanding premium",
+        "CLAIM_RESERVE" => "Claim reserves",
+        _ => Kind,
+    };
+}
 
 public sealed record MigrationReconciliationReport(string BatchCode, bool Reconciled, IReadOnlyList<ReconciliationLine> Lines);
 

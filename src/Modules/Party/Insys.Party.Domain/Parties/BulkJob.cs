@@ -43,6 +43,15 @@ public sealed class BulkJob : AggregateRoot<Guid>
     public const string Export = "PARTY_EXPORT";
     public const string PolicyExport = "POLICY_EXPORT";
 
+    /// <summary>BR-129: what a job's type is called on a screen.</summary>
+    public static string Label(string jobType) => jobType switch
+    {
+        Import => "Party import",
+        Export => "Party export",
+        PolicyExport => "Policy export",
+        _ => jobType,
+    };
+
     private BulkJob()
     {
     }

@@ -65962,6 +65962,12 @@
           },
           "agrees": {
             "type": "boolean"
+          },
+          "kindLabel": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -69547,6 +69553,12 @@
           "createdAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "jobTypeLabel": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -69614,6 +69626,12 @@
               "string"
             ],
             "format": "int64"
+          },
+          "jobTypeLabel": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },

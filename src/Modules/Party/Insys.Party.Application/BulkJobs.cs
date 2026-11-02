@@ -65,13 +65,18 @@ public sealed record ListBulkJobs(string? JobType, string? Direction, string? St
 
 /// <summary>BR-122: what a list row shows; the rejected lines and the export's filter stay on the job itself.</summary>
 public sealed record BulkJobSummary(Guid Id, [property: OneOf(BulkJob.Import, BulkJob.Export, BulkJob.PolicyExport)] string JobType, [property: OneOf("IMPORT", "EXPORT")] string Direction, [property: OneOf(BulkJobStatus.Done, BulkJobStatus.Rejected, BulkJobStatus.ToApprove, BulkJobStatus.Approved)] string Status,
-    int TotalCount, int AcceptedCount, Guid RunBy, DateTimeOffset CreatedAt);
+    int TotalCount, int AcceptedCount, Guid RunBy, DateTimeOffset CreatedAt)
+{
+    public string JobTypeLabel => BulkJob.Label(JobType);
+}
 
 public sealed record RejectedLine(int Line, string Reason);
 
 public sealed record BulkJobView(Guid Id, string JobType, [property: OneOf(BulkJobStatus.Done, BulkJobStatus.Rejected, BulkJobStatus.ToApprove, BulkJobStatus.Approved)] string Status, string? Filter, int TotalCount, int AcceptedCount,
     IReadOnlyList<RejectedLine> RejectedLines, long RowVersion)
 {
+    public string JobTypeLabel => BulkJob.Label(JobType);
+
     public static BulkJobView From(BulkJob j) => new(j.Id, j.JobType, j.Status, j.Filter, j.TotalCount, j.AcceptedCount,
         j.RejectedLines is { } lines ? JsonSerializer.Deserialize<List<RejectedLine>>(lines, JsonSerializerOptions.Web) ?? [] : [], j.RowVersion);
 }
