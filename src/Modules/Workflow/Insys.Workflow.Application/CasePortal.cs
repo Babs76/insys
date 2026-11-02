@@ -293,7 +293,7 @@ internal sealed class CasePortalHandlers(ICaseRepository cases, ICasePortalQueri
             parent.ComplainantPartyId is null ? parent.ComplainantContact : null, parent.OnBehalfOfPartyId);
         var links = parent.Links.Where(l => reviewType.LinkTypes.Contains(l.LinkType)).Select(l => new CaseLinkInput(l.LinkType, l.RecordId, l.Reference)).ToList();
         var opened = await opening.Open(reviewType, "PORTAL", null, complainant, raiser, parent.CategoryCode, command.Summary, false, parent.Id, links, execution.ActorId,
-            raisedFromEvent: false, cancellationToken);
+            raisedFromEvent: false, cancellationToken, parent.CategoryCode);
         return opened.IsFailure ? opened.Error : opened.Value.Id;
     }
 

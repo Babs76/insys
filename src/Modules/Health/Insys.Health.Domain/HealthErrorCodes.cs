@@ -64,6 +64,9 @@ public static class HealthErrorCodes
     [ErrorCode(422, "error.health.reason_required")]
     public const string ReasonRequired = "HEALTH_REASON_REQUIRED";
 
+    [ErrorCode(422, "error.health.claim_decline_reason_invalid")]
+    public const string ClaimDeclineReasonInvalid = "CLAIM_DECLINE_REASON_INVALID";
+
     [ErrorCode(422, "error.health.credit_note_invalid")]
     public const string CreditNoteInvalid = "CREDIT_NOTE_INVALID";
 

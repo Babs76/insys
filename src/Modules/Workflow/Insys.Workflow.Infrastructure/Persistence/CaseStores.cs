@@ -143,8 +143,8 @@ internal sealed class CaseConfiguration(WorkflowDbContext db) : ICaseConfigurati
         return new PortalCaseOptions(types, categories);
     }
 
-    public Task<bool> CategoryExists(string categoryCode, DateOnly day, CancellationToken cancellationToken) =>
-        InForce<CaseCategories>(day).AnyAsync(c => c.CategoryCode == categoryCode, cancellationToken);
+    public Task<string?> CategoryFamily(string categoryCode, DateOnly day, CancellationToken cancellationToken) =>
+        InForce<CaseCategories>(day).Where(c => c.CategoryCode == categoryCode).OrderByDescending(c => c.TenantId != null).Select(c => c.Family).FirstOrDefaultAsync(cancellationToken);
 
     /// <summary>The PPR category of each category code in force (a tenant's own first).</summary>
     public async Task<Dictionary<string, string>> PprCategories(DateOnly day, CancellationToken cancellationToken) =>

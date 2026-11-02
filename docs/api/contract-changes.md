@@ -5,6 +5,14 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 ## Activating a tenant with the simulator (2 November 2026)
 - **`POST /tenancy/tenants/{id}/activate`:** refused for an onboarding tenant, 422 `PAYMENT_PROVIDER_NOT_ALLOWED`, on the same condition as reactivation.
+## BR-126 and BR-127: case categories and Health decline reasons (2 November 2026)
+- **BR-126, `POST /workflow/cases` and `POST /portal/cases`:** a category from another family than the case type's is refused, 422 `CASE_CATEGORY_NOT_ALLOWED`. A category not in force stays `VALIDATION_FAILED`.
+- **BR-126, appeals:** an appeal keeps its parent's category, including one no longer in force. On the staff route, an appeal with no `categoryCode` now takes the parent's; another category must be of the appeal type's family.
+- **BR-126, `linkTypes`:** no change. Staff opening, staff appeal, the links route and portal raise refuse with `CASE_LINK_NOT_ALLOWED`; a portal appeal leaves behind a parent's link its type doesn't allow. A record that isn't the portal caller's own still answers 404 or 403 first.
+- **BR-127, `POST /health/claims/{id}/reject`:** `reason` is a code, `x-code-list` `claims.ref_claim_decision_reason_codes`, filter `decision_type=DECLINE`, at most 30 characters. An unknown code or one of another decision type answers 422 `CLAIM_DECLINE_REASON_INVALID`, and the claim doesn't change.
+- **BR-127, `POST /health/claims/{id}/validate`:** when validation would decline the claim and that reason isn't a `DECLINE` reason in force, it answers 422 `CLAIM_DECLINE_REASON_INVALID` and the claim stays `Received`. The arrears job leaves such a claim `Pended` and tries again on its next run.
+- **BR-127, readiness:** new check `HEALTH_DECLINE_REASONS` (step `DOMAIN_REFERENCE_DATA`), for a tenant with health plans: `NOT_COVERED`, `UNKNOWN_FORMAT`, `PHARMACY_LINE_NOT_IN_FORMAT`, `PHARMACY_FIELDS_MISSING`, `PROVIDER_NOT_ACTIVE`, `UNKNOWN_TARIFF_CODE`, `UNKNOWN_DIAGNOSIS`, `CONTRIBUTIONS_ARREARS`.
+- **BR-127, static data:** a claim decision reason's `code` may be up to 30 characters (V0127).
 
 ## Appeal routes as static data, and reactivation with the simulator (2 November 2026)
 - **New static data** `workflow/static/appeal-routes`: `routeCode`, `name`, `preferredLines` (`LIFE`, `GENERAL`, `HEALTH`). `PPR_NFO` and `CMS` are global rows. A tenant's own row wins over a global one with the same code.

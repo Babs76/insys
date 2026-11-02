@@ -548,21 +548,31 @@ internal sealed class SubmitMedicalClaimHandler(IHealthRepository health, IHealt
 
 /// <summary>
 /// OQ-102 (Ade, 29 October 2026): any decision that declines all or part of a Health claim sends CLAIM_DECISION_RIGHTS to the
-/// claim's notice recipient, with the reason's configured customer wording when the reason is a decision reason in force.
+/// claim's notice recipient, with the reason's configured customer wording. BR-127: the reason must be a DECLINE reason in force,
+/// or the decline is refused, so no notice goes without its wording.
 /// </summary>
 public sealed class HealthDeclineRights(Contracts.IHealthNoticeRecipients recipients, ClaimsFramework.Contracts.IClaimDecisionReasons reasons, ITenantContext tenant,
     IBusinessDate businessDate, IClock clock)
 {
-    public async Task<Result> Notice(MedicalClaim claim, string? reasonCode, CancellationToken cancellationToken)
+    /// <summary>The reasons the system declines a claim with by itself: each needs a DECLINE reason in force (readiness HEALTH_DECLINE_REASONS).</summary>
+    public static readonly string[] AutomaticReasons =
+    [
+        "NOT_COVERED", "UNKNOWN_FORMAT", "PHARMACY_LINE_NOT_IN_FORMAT", "PHARMACY_FIELDS_MISSING", "PROVIDER_NOT_ACTIVE", "UNKNOWN_TARIFF_CODE", "UNKNOWN_DIAGNOSIS",
+        RunHealthDueHandler.ArrearsDeclineReason,
+    ];
+
+    public async Task<Result> Notice(MedicalClaim claim, string reasonCode, CancellationToken cancellationToken)
     {
         var tenantId = tenant.RequireTenantId();
-        if (await recipients.ForClaim(tenantId, claim.Id, cancellationToken) is not { } to)
+        var reason = await reasons.InForce(tenantId, reasonCode, businessDate.Today, cancellationToken);
+        if (reason is null || reason.DecisionType != ClaimsFramework.Contracts.ClaimDecisionTypes.Decline || string.IsNullOrWhiteSpace(reason.CustomerWording))
         {
-            return Result.Success();
+            return Error.Validation(Domain.HealthErrorCodes.ClaimDeclineReasonInvalid, $"{reasonCode} is not a claim decline reason in force, with wording for the member.");
         }
 
-        var wording = reasonCode is { Length: > 0 } code ? (await reasons.InForce(tenantId, code, businessDate.Today, cancellationToken))?.CustomerWording : null;
-        return claim.NoticeDecisionRights(to.PartyId, to.ProductCode, to.OrgNodeCode, businessDate.Today, clock.UtcNow, wording);
+        return await recipients.ForClaim(tenantId, claim.Id, cancellationToken) is { } to
+            ? claim.NoticeDecisionRights(to.PartyId, to.ProductCode, to.OrgNodeCode, businessDate.Today, clock.UtcNow, reason.CustomerWording)
+            : Result.Success();
     }
 }
 
@@ -610,7 +620,7 @@ internal sealed class ValidateMedicalClaimHandler(IHealthRepository health, IHea
         var result = claim.ValidateClaim(problem, clock.UtcNow);
         if (result.IsSuccess && claim.Status == MedicalClaimStatus.Rejected)
         {
-            result = await rights.Notice(claim, problem, cancellationToken); // OQ-102: a rejection declines the claim in full
+            result = await rights.Notice(claim, problem!, cancellationToken); // OQ-102: a rejection declines the claim in full
         }
 
         return result.IsFailure ? result.Error : MedicalClaimView.From(claim);
