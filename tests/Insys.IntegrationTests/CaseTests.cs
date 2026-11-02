@@ -565,6 +565,76 @@ public sealed class CaseTests(DatabaseFixture fixture) : IClassFixture<DatabaseF
             idempotent: true)).Code()).ShouldBe("CASE_CATEGORY_REQUIRED");
     }
 
+    [Fact]
+    public async Task ACategoryOfAnotherFamily_IsRefusedOnBothRoutes_AndAnAppealInheritsItsParents_BR126()
+    {
+        await Reference(fixture.Database, "workflow.ref_case_categories", "BR126_D", ("category_code", "BR126_D"), ("family", "DISPUTE"), ("ppr_category", "OTHER"), ("name", "A dispute's category"));
+        (await (await _clerk.Send(HttpMethod.Post, Cases, new { caseTypeCode = "COMPLAINT_T", receivedChannel = "PHONE", complainantName = "X", categoryCode = "BR126_D", summary = "S" }, idempotent: true)).Code())
+            .ShouldBe("CASE_CATEGORY_NOT_ALLOWED");
+        (await (await _clerk.Send(HttpMethod.Post, Cases, new { caseTypeCode = "COMPLAINT_T", receivedChannel = "PHONE", complainantName = "X", categoryCode = "NO_SUCH", summary = "S" }, idempotent: true)).Code())
+            .ShouldBe("VALIDATION_FAILED");
+
+        await PortalChannels();
+        var party = Guid.CreateVersion7();
+        await PortalUser("member-br126", "PARTY", party, null, null);
+        var member = _factory.ClientFor(T, "member-br126", "member-portal");
+        (await (await member.Send(HttpMethod.Post, Portal, new { caseTypeCode = "COMPLAINT_T", categoryCode = "BR126_D", summary = "S" }, idempotent: true)).Code())
+            .ShouldBe("CASE_CATEGORY_NOT_ALLOWED");
+
+        // An appeal is another family than its parent, and takes the parent's category on both routes.
+        var raised = await member.Send(HttpMethod.Post, Portal, new { caseTypeCode = "COMPLAINT_T", categoryCode = "SERVICE", summary = "S" }, idempotent: true);
+        raised.StatusCode.ShouldBe(HttpStatusCode.Created, await raised.Content.ReadAsStringAsync());
+        var id = (await raised.Json()).GetProperty("id").GetGuid();
+        (await Act(_clerk, id, "acknowledge")).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        (await Act(_clerk, id, "decide", new { outcome = "REJECTED", reasons = "R" })).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        var portalAppeal = await member.Send(HttpMethod.Post, $"{Portal}/{id}/appeal", new { summary = "Review" }, idempotent: true);
+        portalAppeal.StatusCode.ShouldBe(HttpStatusCode.Created, await portalAppeal.Content.ReadAsStringAsync());
+        (await Get(_clerk, (await portalAppeal.Json()).GetProperty("id").GetGuid())).GetProperty("categoryCode").GetString().ShouldBe("SERVICE");
+
+        var parent = await ClosedComplaint();
+        (await Open(_clerk, new { caseTypeCode = "REVIEW_T", receivedChannel = "LETTER", complainantName = "X", summary = "Review", parentCaseId = parent })).GetProperty("categoryCode").GetString()
+            .ShouldBe("SERVICE", "with none given, the parent's");
+        var other = await ClosedComplaint();
+        (await Open(_clerk, new { caseTypeCode = "REVIEW_T", receivedChannel = "LETTER", complainantName = "X", categoryCode = "SERVICE", summary = "Review", parentCaseId = other })).GetProperty("categoryCode").GetString()
+            .ShouldBe("SERVICE", "named, the parent's");
+        var third = await ClosedComplaint();
+        (await (await _clerk.Send(HttpMethod.Post, Cases, new { caseTypeCode = "REVIEW_T", receivedChannel = "LETTER", complainantName = "X", categoryCode = "BR126_D", summary = "Review", parentCaseId = third }, idempotent: true)).Code())
+            .ShouldBe("CASE_CATEGORY_NOT_ALLOWED", "any other family's is still refused");
+    }
+
+    [Fact]
+    public async Task LinkTypes_AreEnforcedOnEveryRouteThatOpensACase_BR126()
+    {
+        var invoice = new[] { new { linkType = "INVOICE", recordId = Guid.CreateVersion7(), reference = "INV-1" } };
+        (await (await _clerk.Send(HttpMethod.Post, Cases, new { caseTypeCode = "ENQUIRY_T", receivedChannel = "PHONE", complainantName = "X", summary = "S", links = invoice }, idempotent: true)).Code())
+            .ShouldBe("CASE_LINK_NOT_ALLOWED", "staff, opening");
+        var parent = await ClosedComplaint();
+        (await (await _clerk.Send(HttpMethod.Post, Cases, new { caseTypeCode = "REVIEW_T", receivedChannel = "LETTER", complainantName = "X", summary = "S", parentCaseId = parent, links = invoice }, idempotent: true)).Code())
+            .ShouldBe("CASE_LINK_NOT_ALLOWED", "staff, appealing");
+
+        await PortalChannels();
+        var party = Guid.CreateVersion7();
+        var claim = await MemberGeneralClaim(party);
+        await PortalUser("member-links", "PARTY", party, null, null);
+        await fixture.Database.UserWithPermissions(T, "member-links", General.Contracts.GeneralPermissions.ClaimRead);
+        var member = _factory.ClientFor(T, "member-links", "member-portal");
+        var own = new[] { new { linkType = "CLAIM", recordId = claim, reference = "GC-MINE" } };
+        (await (await member.Send(HttpMethod.Post, Portal, new { caseTypeCode = "ENQUIRY_T", summary = "S", links = own }, idempotent: true)).Code())
+            .ShouldBe("CASE_LINK_NOT_ALLOWED", "portal: their own claim, on a type that doesn't take claims");
+        (await (await member.GetAsync(Portal)).Json()).GetProperty("items").GetArrayLength().ShouldBe(0, "no case is raised");
+
+        // A portal appeal takes the parent's links; one its own type doesn't allow is left behind.
+        var raised = await member.Send(HttpMethod.Post, Portal, new { caseTypeCode = "COMPLAINT_T", categoryCode = "SERVICE", summary = "S", links = own }, idempotent: true);
+        raised.StatusCode.ShouldBe(HttpStatusCode.Created, await raised.Content.ReadAsStringAsync());
+        var id = (await raised.Json()).GetProperty("id").GetGuid();
+        (await Act(_clerk, id, "links", invoice[0])).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        (await Act(_clerk, id, "acknowledge")).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        (await Act(_clerk, id, "decide", new { outcome = "REJECTED", reasons = "R" })).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        var appealed = await member.Send(HttpMethod.Post, $"{Portal}/{id}/appeal", new { summary = "Review" }, idempotent: true);
+        appealed.StatusCode.ShouldBe(HttpStatusCode.Created, await appealed.Content.ReadAsStringAsync());
+        (await Get(_clerk, (await appealed.Json()).GetProperty("id").GetGuid())).GetProperty("links").EnumerateArray().Select(l => l.GetProperty("linkType").GetString()).ShouldBe(["CLAIM"]);
+    }
+
     private async Task<Guid> OpenComplaint() =>
         (await Open(_clerk, new { caseTypeCode = "COMPLAINT_T", receivedChannel = "PHONE", complainantPartyId = Guid.CreateVersion7(), categoryCode = "SERVICE", summary = "S" }))
         .GetProperty("id").GetGuid();

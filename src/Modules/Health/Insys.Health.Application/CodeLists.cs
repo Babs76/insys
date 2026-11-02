@@ -33,6 +33,7 @@ namespace Insys.Health.Application;
 public static class HealthCodeLists
 {
     public const string PlansAndOptions = "health.cfg_plans_and_options";
+    public const string ClaimDecisionReasons = "claims.ref_claim_decision_reason_codes";
     public const string DependantTypes = "health.cfg_dependant_types_and_age_limits";
     /// <summary>Every service a member may ask eligibility for, maintained by the tenant (V0094).</summary>
     public const string ServiceTypes = "health.cfg_service_types";
