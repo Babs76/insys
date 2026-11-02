@@ -91,23 +91,39 @@ dotnet test --project tests/Insys.IntegrationTests --no-build --filter-class '*D
 - End-to-end hosts run on `WindowClock` (22:30 UTC, no TestDate); new hosts and time-signed seeds must use it. Tests seed with fixed dates, never yesterday.
 
 ### The order of remaining work
-1. `br-reconcile`: run CI, merge. It holds BR-115's beneficial owner test, nine of the front end's reconciled requests, this handover and the rules in `CLAUDE.md`.
-2. `adr-027-smoke`: get `deployment-smoke` green, **remove `adr-027-smoke` from the workflow's `push` branches**, merge main in, run CI, merge.
-3. Wave 7, batch 7.1, per `docs/specs/addenda/ai-assist.md` and `docs/srs/INSYS_AI_Assist_SRS.md`: see Wave 7 below. Phase 1's gate is its exit: security tests for tenant isolation, prompt injection and no write tools.
-4. After 7.1: the rest of ADR-027 phase 2, which stays blocking go-live in the register: the runbook, generic deployment and running OpenBao (high availability, backup and restore, unsealing). BR-100, and the items under Open below.
+1. `wave7-1-fixes`: batch 7.1. CI, merge.
+2. BR-129: labels for a reconciliation line's kind and a bulk job's `jobType`.
+3. Workstream F, signed by Ade, slice by slice, the sample tenant block first: `docs/plans/workstream-f-oftza-seed.md`. Before 7.2.
+4. Batch 7.2, then the D-8 order: 7.3, 7.6, 7.7, 7.4, 7.5, 7.8.
+5. The rest of ADR-027 phase 2 after 7.1, blocking go-live in the register: the runbook, generic deployment and running OpenBao (high availability, backup and restore, unsealing). BR-100, and the items under Open below.
 
 ### Wave 7, batch 7.1
 **State slice by slice; this table is kept current at each merge.** Merge each slice on green on its own.
 
 | Slice | What | State |
 |---|---|---|
-| 1 | Assist module: schema and role, forced row-level security; settings with the tenant's jurisdiction, residency and legal basis, monthly cap (AIA-050, AIA-062) | Not started |
-| 2 | Feature `AI_ASSIST` and the six functions: off by default, in no role template; `ASSIST_OVERLAY_APPROVE` privileged, operator tenant only | Not started |
-| 3 | `IAiModelProvider` with the test stub only | Not started |
-| 4 | Minimiser (AIA-051) | Not started |
-| 5 | Verifier with the §5.1 number rules and all their test cases (AIA-033a) | Not started |
-| 6 | Run records, metering and caps (AIA-073) | Not started |
-| 7 | Phase 1's gate: security tests for tenant isolation, prompt injection, no write tools | Not started |
+| 1 | Assist module: schema and role, forced row-level security; settings with the tenant's jurisdiction, residency and legal basis, monthly cap (AIA-050, AIA-062) | Built |
+| 2 | Feature `AI_ASSIST` and the six functions: off by default, in no role template; `ASSIST_OVERLAY_APPROVE` privileged, operator tenant only | Built |
+| 3 | `IAiModelProvider`: `NoAiModelProvider` in a deployment, the stub only in `Insys.Testing` | Built |
+| 4 | Minimiser (AIA-051) | Built |
+| 5 | Verifier with the §5.1 number rules and all their test cases (AIA-033a) | Built |
+| 6 | Run records, metering and caps (AIA-073) | Built |
+| 7 | Phase 1's gate: security tests for tenant isolation, prompt injection, no write tools | Built, and proven by mutation |
+
+All on `wave7-1-fixes`, as one head, as the review's fixes touch every slice. Check `git log origin/main` for whether it has merged.
+
+**What batch 7.2 must do, from the review:**
+- Put the currency next to each amount in the source: a stated `USD 1240` passes against a plain `1240`, as §5.1's table says it may.
+- Build `SourceData` from allowed fields, and never interpolate record data into `Instructions`. Field errors from the screen (AIA-039) are `UntrustedText`, or are rebuilt.
+- Weigh the transaction held open across the model call (`RunAssist`) against AIA-072.
+
+**Deferred from the review, not must-fix:**
+- `inference_region` is the tenant's own statement; before 7.3 compare it with the adapter's real route (D-1).
+- The operator has no route to set a tenant's cap: the column and `Assist:DefaultMonthlyTokenCap` exist.
+- The residency check applies to every feature, while AIA-050 names AI-2. It will wrongly block AI-1 at 7.4.
+- The Assist routes refuse the operator tenant (`HoldsBusinessData`), so 7.6's overlay route can't live in that group as it stands. The §5.3 fallback needs its own narrow grant, not `ASSIST_OVERLAY_APPROVE`.
+- Over-masking fails safe but costs use: amounts of 8 digits or more are masked, and so explanations of them fall back to the plain breakdown. The verifier's space grouping can join `Step 1 240` into 1240.
+- `run_payload` can still be updated and deleted by the module role; a retention job should have its own path.
 
 ### Open items
 - **BR-100:** the function registry refuses one endpoint under two functions for one audience, so the case reads declare only `SERVICE_COMPLAINTS`. From reading the code, not a test, a role holding only another case screen is refused those reads. It needs a change to the registry (ADR-026).
@@ -118,12 +134,11 @@ dotnet test --project tests/Insys.IntegrationTests --no-build --filter-class '*D
 
 ## State at the stop
 
-**Interim, 2 November 2026.** Completed by the Tuesday stop. Heads and CI change quickly: check them with `gh run list` before relying on this table. On main (`e6ca9a4`): BR-126, BR-127, the small items, BR-115's first tests, the OpenBao Transit adapter, the images and the Helm chart.
+**Interim, 2 November 2026.** Completed by the Tuesday stop. Heads and CI change quickly: check them with `gh run list` before relying on this table. On main: BR-115, 126, 127, 128, the reconciled requests, the small items, the OpenBao Transit adapter, the images, the Helm chart and the smoke job, which also passed on main.
 
 | Branch | State | What's left |
 |---|---|---|
-| `br-reconcile` | Holds this handover | CI on its head, then merge |
-| `adr-027-smoke` | Smoke runs in progress; deploys and signs in, but hasn't passed end to end | Green, remove the temporary trigger, merge main in, CI, merge |
-| Wave 7 | Not started | See the table above |
+| `wave7-1-fixes` | Batch 7.1 with the review's fixes | CI on its head, then merge |
+| Next | Workstream F, then 7.2 | BR-129; see the order of work |
 
 Nigeria: appeal routes (V0126) are merged; the rest of row 24 is descoped and wasn't started.
