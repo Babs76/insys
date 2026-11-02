@@ -168,6 +168,7 @@ Keycloak runs on CCE in af-south-1 (ADR-016), with the realm imported once and t
 - **One API instance, and not a value** (ADR-006). An upgrade stops it before starting the new one.
 - **Each dependency is in the cluster or pointed at.** The in-cluster PostgreSQL, OpenBao (development mode, in memory), SeaweedFS and Keycloak (`start-dev`) are for evaluation and the smoke test. A restart of that OpenBao loses every encrypted field. For real data, point the chart at ones you run.
 - **Secrets:** name your own in `existingSecret`, with the keys under `secrets` in `values.yaml`. Don't keep real values in a values file.
+- **Database-owner credentials in production** can bypass the sample-tenant trigger (`tenant.tenant.sample`), so they're held by operations under dual control and never used by the application. The API uses only its module roles.
 - **Migrations** run as a job per release revision, which retries until the database answers. The API restarts until they are in. `migrations.createRoles` is off: production creates its roles outside the chart.
 
 ## Document storage: OBS (ADR-016)
