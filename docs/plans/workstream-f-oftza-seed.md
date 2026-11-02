@@ -1,11 +1,11 @@
 # Workstream F: the OFT Insurance South Africa sample data
 
-**Plan for Ade's sign-off, 2 November 2026. Nothing is built.** Answers front-end request BR-131. Order: after batch 7.1 merges, before 7.2. Needed for demos and the front end's Phase 13 exit; it doesn't block go-live. The sizes are my estimates, made without building it, so low confidence.
+**Signed by Ade as written, with all five proposals accepted, 2 November 2026. Nothing is built.** Answers front-end request BR-131. Order: after batch 7.1 merges, before 7.2. Needed for demos and the front end's Phase 13 exit; it doesn't block go-live. The sizes are my estimates, made without building it, so low confidence.
 
 **Tenant code `OFTZA`.** The validator takes capitals, digits and underscores, so `OFT-ZA` is refused.
 
 ## What it contains
-All of it is invented. Names come from a fixed list of made-up people and companies; identity numbers are generated to pass format checks and belong to nobody; addresses are fictional; emails use `example.test`.
+All of it is invented. Names come from a fixed list of made-up people and companies, and addresses are fictional. How identity numbers, phones and bank accounts avoid real people is under Fake personal details.
 
 | Area | Contents |
 |---|---|
@@ -20,6 +20,18 @@ All of it is invented. Names come from a fixed list of made-up people and compan
 | Billing and payments | Invoices with collections through the simulator, one failed and one unknown outcome, a payout batch with second-person release, a refund, and a statement import |
 | Finance | Chart of accounts, posting rules, 12 periods with last month closed and the current one open, journals from the above, and one VAT return prepared |
 | Also | Commission statements, one quota share treaty with cessions, cases of each family, notification templates, document templates |
+
+## Fake personal details
+A checksum-valid South African ID number can't be guaranteed to belong to nobody, so the scheme makes a match with a real person as unlikely as it can:
+- **Identity numbers** are 13 digits with a valid checksum, built so Home Affairs wouldn't issue them: an impossible date in the first six digits (the 31st of a 30-day month or 30 February), and a citizenship digit that isn't one in use. This assumes INSYS checks format and checksum and doesn't parse the date; the build confirms it. If something does parse it, the fallback is a birth date before 1906, more than 120 years ago. A party's `birthDate` field is separate, and stays plausible so that rating works.
+- **Phone numbers:** I don't know of a published range reserved for fiction in South Africa, so the build checks. Unless it finds one, numbers use a prefix not allocated to any network, and the build records which and why.
+- **Bank accounts:** likewise, unless a reserved range exists, an invented bank code that matches no South African bank.
+- **Email** stays on `example.test`.
+
+This reduces the risk and doesn't remove it. The block below is what stops anything reaching a person.
+
+## OFTZA can't reach real channels or real money
+**A tenant-level block, built and tested in the first slice.** A tenant marked as a sample tenant has its notifications and payments sent only to stubs, even if a real SMS, email or payment provider is connected to that environment later. It fails closed: a stub missing means refused, never sent for real. The mark can't be changed through the tenant's own API. Tests prove it with a real provider registered beside the stub: nothing reaches it for `OFTZA`, and another tenant's notifications and payments still do.
 
 ## How it loads
 **Only through the governed API, never by writing to the database.**
@@ -36,17 +48,17 @@ All of it is invented. Names come from a fixed list of made-up people and compan
 ## Size
 | Slice | Days (Est) |
 |---|---|
-| Minimal: tool, tenant, personas, static data (GAP-004), usable on its own | 2 to 3 |
+| Minimal: tool, tenant, personas, static data (GAP-004), the sample tenant block, usable on its own | 3 to 4 |
 | Parties, products, policies | 2 to 3 |
 | Claims, billing, payments, finance | 2 to 3 |
 | Commission, treaty, cases, the CI job | 1 to 2 |
-| **Total** | **7 to 11** |
+| **Total** | **8 to 12** |
 
 Each slice merges on green by itself, so the minimal seed can reach the front end first. Batch 7.1's measured time will say how far to trust these.
 
-## Decisions needed from Ade
-1. **Role templates (OQ-111):** I propose loading all the signed-off templates as they stand. They're optional starting points for other tenants, so this doesn't change that.
-2. **Authority bands (OQ-112):** I propose the samples in `frontend-integration-guide.md` §3, marked as samples for the business to confirm. Limits are in ZAR.
-3. **Privileged functions:** I propose the seed gives no one a privileged function, except where a template names it.
-4. **Which demos come first:** I've assumed all three lines. If one matters most, the seed can load it first.
-5. **Real-looking South African terms:** product wordings will be invented samples, not legal text, and say so. Tell me if a demo needs reviewed wording.
+## Decisions, by Ade
+1. **Role templates (OQ-111):** all the signed-off templates as they stand.
+2. **Authority bands (OQ-112):** the samples in `frontend-integration-guide.md` §3, in ZAR, marked for the business to confirm.
+3. **Privileged functions:** none, except where a template names one.
+4. **Lines:** all three.
+5. **Product wording:** invented, and labelled as such.
