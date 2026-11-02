@@ -217,7 +217,7 @@ public sealed class OftzaSeed(SeedContext context)
         var clerk = context.Tenant(TenantId, "oftza-general-underwriter");
         foreach (var person in SampleParties.People)
         {
-            var id = await Party(clerk, $"{person.FirstNames} {person.Surname}", person.IdNumber, new
+            var id = await Party(clerk, $"{person.FirstNames} {person.Surname}", person.IdNumber, person.IdNumber, new
             {
                 individual = new { firstNames = person.FirstNames, surname = person.Surname, birthDate = person.BirthDate }, confirmNew = true, reason = "Sample party (invented)",
             });
@@ -238,19 +238,30 @@ public sealed class OftzaSeed(SeedContext context)
 
         foreach (var name in SampleParties.Companies)
         {
-            await Party(clerk, name, name, new { organisation = new { legalName = name, legalFormCode = "PTY" }, confirmNew = true, reason = "Sample party (invented)" });
+            await Party(clerk, name, name, null, new { organisation = new { legalName = name, legalFormCode = "PTY" }, confirmNew = true, reason = "Sample party (invented)" });
         }
 
         await context.Settle();
     }
 
-    /// <summary>The party, by its deterministic key; past the API's 24-hour idempotency window, the search by name finds what an earlier run made.</summary>
-    private static async Task<Guid> Party(Persona clerk, string name, string businessKey, object body)
+    /// <summary>The party, found if an earlier run made it, by its identifier, then by its exact name for one stopped before its identifier went on. The key returns the original within the API's 24 hours; the search covers past them.</summary>
+    private static async Task<Guid> Party(Persona clerk, string name, string businessKey, string? idNumber, object body)
     {
-        var found = (await clerk.Send(HttpMethod.Post, "/api/v1/party/parties/search", new { name, limit = 2 }, idempotent: false)).GetProperty("items");
-        return found.GetArrayLength() > 0
-            ? found[0].GetProperty("id").GetGuid()
-            : (await clerk.Send(HttpMethod.Post, "/api/v1/party/parties", body, key: $"{TenantCode}:party:{businessKey}")).GetProperty("id").GetGuid();
+        const string search = "/api/v1/party/parties/search";
+        if (idNumber is not null && (await clerk.Send(HttpMethod.Post, search, new { identifier = new { docType = "NATIONAL_ID", country = "ZA", number = idNumber }, limit = 2 }, idempotent: false)).GetProperty("items") is { } byNumber && byNumber.GetArrayLength() > 0)
+        {
+            return byNumber[0].GetProperty("id").GetGuid();
+        }
+
+        foreach (var party in (await clerk.Send(HttpMethod.Post, search, new { name, limit = 50 }, idempotent: false)).GetProperty("items").EnumerateArray())
+        {
+            if (party.GetProperty("displayName").GetString() == name)
+            {
+                return party.GetProperty("id").GetGuid();
+            }
+        }
+
+        return (await clerk.Send(HttpMethod.Post, "/api/v1/party/parties", body, key: $"{TenantCode}:party:{businessKey}")).GetProperty("id").GetGuid();
     }
 
     private static async Task<string> PartyVersion(Persona persona, string url) => $"\"{(await persona.Send(HttpMethod.Get, url)).GetProperty("rowVersion").GetInt64()}\"";
