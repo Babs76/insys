@@ -108,6 +108,7 @@ public static class BusinessTaxonomy
         new("WORKFLOW", "OPERATIONS", "Workflow", "workflow", 47),
         new("ANALYTICS", "OPERATIONS", "Analytics", "line-chart", 48),
         new("INTEGRATION_OPERATIONS", "OPERATIONS", "Integration Operations", "plug", 49),
+        new("AI_ASSIST", "PLATFORM", "AI Assist", "sparkles", 49),
         new("TENANTS", "PLATFORM", "Tenants", "building-2", 50),
         new("IDENTITY_ACCESS", "PLATFORM", "Identity & Access", "key-round", 51),
         new("STATIC_DATA", "PLATFORM", "Static Data", "database", 52),

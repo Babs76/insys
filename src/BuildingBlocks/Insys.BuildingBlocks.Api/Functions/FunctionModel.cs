@@ -68,7 +68,10 @@ public static class Features
     public const string ProviderPortal = "PROVIDER_PORTAL";
     public const string CustomerPortal = "CUSTOMER_PORTAL";
 
-    public static readonly IReadOnlyList<string> All = [Life, General, Health, Reinsurance, BrokerPortal, ProviderPortal, CustomerPortal];
+    /// <summary>AI Assist: off by default (D-6).</summary>
+    public const string AiAssist = "AI_ASSIST";
+
+    public static readonly IReadOnlyList<string> All = [Life, General, Health, Reinsurance, BrokerPortal, ProviderPortal, CustomerPortal, AiAssist];
 }
 
 /// <summary>

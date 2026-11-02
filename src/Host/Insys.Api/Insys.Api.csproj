@@ -54,6 +54,7 @@
     <ProjectReference Include="..\..\Modules\Finance\Insys.Finance.Api\Insys.Finance.Api.csproj" />
     <ProjectReference Include="..\..\Modules\Distribution\Insys.Distribution.Api\Insys.Distribution.Api.csproj" />
     <ProjectReference Include="..\..\Modules\Reinsurance\Insys.Reinsurance.Api\Insys.Reinsurance.Api.csproj" />
+    <ProjectReference Include="..\..\Modules\Assist\Insys.Assist.Api\Insys.Assist.Api.csproj" />
     <ProjectReference Include="..\..\Modules\Compliance\Insys.Compliance.Api\Insys.Compliance.Api.csproj" />
     <ProjectReference Include="..\..\Modules\Communications\Insys.Communications.Api\Insys.Communications.Api.csproj" />
     <ProjectReference Include="..\..\Modules\Analytics\Insys.Analytics.Api\Insys.Analytics.Api.csproj" />

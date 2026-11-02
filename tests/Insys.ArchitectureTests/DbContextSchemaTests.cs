@@ -52,7 +52,7 @@ public sealed class DbContextSchemaTests
         .Where(t => t is { IsAbstract: false } && t.IsSubclassOf(typeof(ModuleDbContext)));
 
     [Fact]
-    public void EveryModule_HasADbContext() => ContextTypes.Count().ShouldBe(23);
+    public void EveryModule_HasADbContext() => ContextTypes.Count().ShouldBe(24);
 
     [Fact]
     public void OwnedSchemas_MatchTheModuleRoles_AndNoSchemaHasTwoOwners_DBA004()

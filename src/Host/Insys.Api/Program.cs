@@ -52,6 +52,7 @@ IModule[] modules =
     new Insys.Distribution.Api.DistributionModule(),
     new Insys.Reinsurance.Api.ReinsuranceModule(),
     new Insys.Compliance.Api.ComplianceModule(),
+    new Insys.Assist.Api.AssistModule(),
     new Insys.Analytics.Api.AnalyticsModule(),
     new Insys.Tenancy.Api.TenancyModule(),
     new Insys.Identity.Api.IdentityModule(),

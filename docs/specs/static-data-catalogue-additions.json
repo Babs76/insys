@@ -364,7 +364,7 @@
     },
     {
      "name": "required_feature",
-     "logicalType": "Enum{LIFE,GENERAL,HEALTH,REINSURANCE,BROKER_PORTAL,PROVIDER_PORTAL,CUSTOMER_PORTAL}",
+     "logicalType": "Enum{LIFE,GENERAL,HEALTH,REINSURANCE,BROKER_PORTAL,PROVIDER_PORTAL,CUSTOMER_PORTAL,AI_ASSIST}",
      "mandatory": false,
      "sample": "GENERAL"
     },

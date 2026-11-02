@@ -58206,6 +58206,7 @@
               "BROKER_PORTAL",
               "PROVIDER_PORTAL",
               "CUSTOMER_PORTAL",
+              "AI_ASSIST",
               null
             ],
             "type": [
@@ -58495,6 +58496,7 @@
               "BROKER_PORTAL",
               "PROVIDER_PORTAL",
               "CUSTOMER_PORTAL",
+              "AI_ASSIST",
               null
             ],
             "type": [
@@ -75179,7 +75181,8 @@
               "REINSURANCE",
               "BROKER_PORTAL",
               "PROVIDER_PORTAL",
-              "CUSTOMER_PORTAL"
+              "CUSTOMER_PORTAL",
+              "AI_ASSIST"
             ],
             "type": "string"
           },
@@ -75395,6 +75398,7 @@
               "BROKER_PORTAL",
               "PROVIDER_PORTAL",
               "CUSTOMER_PORTAL",
+              "AI_ASSIST",
               null
             ],
             "type": [

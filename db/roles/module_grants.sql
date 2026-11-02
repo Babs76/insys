@@ -59,6 +59,7 @@ BEGIN
     ('insys_general',     ARRAY['general']),
     ('insys_health',      ARRAY['health']),
     ('insys_finance',     ARRAY['finance']),
+    ('insys_assist',      ARRAY['assist']),
     ('insys_commission',  ARRAY['commission']),
     ('insys_reinsurance', ARRAY['reinsurance']),
     ('insys_reporting',   ARRAY['reporting']),

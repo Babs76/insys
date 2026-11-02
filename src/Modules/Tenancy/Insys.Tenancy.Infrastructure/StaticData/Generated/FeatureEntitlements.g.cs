@@ -41,7 +41,7 @@ public sealed class FeatureEntitlements : StaticRecord<FeatureEntitlementsInput>
 {
     public string Tenant { get; set; } = "";
 
-    [Insys.BuildingBlocks.Domain.OneOf("LIFE", "GENERAL", "HEALTH", "REINSURANCE", "BROKER_PORTAL", "PROVIDER_PORTAL", "CUSTOMER_PORTAL")]
+    [Insys.BuildingBlocks.Domain.OneOf("LIFE", "GENERAL", "HEALTH", "REINSURANCE", "BROKER_PORTAL", "PROVIDER_PORTAL", "CUSTOMER_PORTAL", "AI_ASSIST")]
     public string Feature { get; set; } = "";
 
     public bool Enabled { get; set; }
@@ -63,7 +63,7 @@ public sealed record FeatureEntitlementsInput : StaticRecordInput
     [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Tenant { get; init; }
 
-    [Insys.BuildingBlocks.Domain.OneOf("LIFE", "GENERAL", "HEALTH", "REINSURANCE", "BROKER_PORTAL", "PROVIDER_PORTAL", "CUSTOMER_PORTAL")]
+    [Insys.BuildingBlocks.Domain.OneOf("LIFE", "GENERAL", "HEALTH", "REINSURANCE", "BROKER_PORTAL", "PROVIDER_PORTAL", "CUSTOMER_PORTAL", "AI_ASSIST")]
     [Insys.BuildingBlocks.Domain.RequiredField]
     public string? Feature { get; init; }
 
@@ -78,7 +78,7 @@ public sealed record FeatureEntitlementsInput : StaticRecordInput
         errors.MaxLength("tenant", Tenant, 80);
         errors.Required("feature", Feature);
         errors.MaxLength("feature", Feature, 30);
-        errors.OneOf("feature", Feature, ["LIFE", "GENERAL", "HEALTH", "REINSURANCE", "BROKER_PORTAL", "PROVIDER_PORTAL", "CUSTOMER_PORTAL"]);
+        errors.OneOf("feature", Feature, ["LIFE", "GENERAL", "HEALTH", "REINSURANCE", "BROKER_PORTAL", "PROVIDER_PORTAL", "CUSTOMER_PORTAL", "AI_ASSIST"]);
         errors.Required("enabled", Enabled);
     }
 }

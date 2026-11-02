@@ -60,7 +60,7 @@ public sealed class FunctionCatalogue : StaticRecord<FunctionCatalogueInput>
 
     public string[] RequiredPermissions { get; set; } = [];
 
-    [Insys.BuildingBlocks.Domain.OneOf("LIFE", "GENERAL", "HEALTH", "REINSURANCE", "BROKER_PORTAL", "PROVIDER_PORTAL", "CUSTOMER_PORTAL")]
+    [Insys.BuildingBlocks.Domain.OneOf("LIFE", "GENERAL", "HEALTH", "REINSURANCE", "BROKER_PORTAL", "PROVIDER_PORTAL", "CUSTOMER_PORTAL", "AI_ASSIST")]
     public string? RequiredFeature { get; set; }
 
     public bool Privileged { get; set; }
@@ -115,7 +115,7 @@ public sealed record FunctionCatalogueInput : StaticRecordInput
     [Insys.BuildingBlocks.Domain.RequiredField]
     public string[]? RequiredPermissions { get; init; }
 
-    [Insys.BuildingBlocks.Domain.OneOf("LIFE", "GENERAL", "HEALTH", "REINSURANCE", "BROKER_PORTAL", "PROVIDER_PORTAL", "CUSTOMER_PORTAL")]
+    [Insys.BuildingBlocks.Domain.OneOf("LIFE", "GENERAL", "HEALTH", "REINSURANCE", "BROKER_PORTAL", "PROVIDER_PORTAL", "CUSTOMER_PORTAL", "AI_ASSIST")]
     public string? RequiredFeature { get; init; }
 
     [Insys.BuildingBlocks.Domain.RequiredField]
@@ -144,7 +144,7 @@ public sealed record FunctionCatalogueInput : StaticRecordInput
         errors.MaxLength("routeKey", RouteKey, 120);
         errors.Required("requiredPermissions", RequiredPermissions);
         errors.MaxLength("requiredFeature", RequiredFeature, 30);
-        errors.OneOf("requiredFeature", RequiredFeature, ["LIFE", "GENERAL", "HEALTH", "REINSURANCE", "BROKER_PORTAL", "PROVIDER_PORTAL", "CUSTOMER_PORTAL"]);
+        errors.OneOf("requiredFeature", RequiredFeature, ["LIFE", "GENERAL", "HEALTH", "REINSURANCE", "BROKER_PORTAL", "PROVIDER_PORTAL", "CUSTOMER_PORTAL", "AI_ASSIST"]);
         errors.Required("privileged", Privileged);
         errors.Required("allowedWhileOnboarding", AllowedWhileOnboarding);
     }

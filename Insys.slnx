@@ -71,6 +71,13 @@
     <Project Path="src/Modules/Communications/Insys.Communications.Domain/Insys.Communications.Domain.csproj" />
     <Project Path="src/Modules/Communications/Insys.Communications.Infrastructure/Insys.Communications.Infrastructure.csproj" />
   </Folder>
+  <Folder Name="/src/Modules/Assist/">
+    <Project Path="src/Modules/Assist/Insys.Assist.Api/Insys.Assist.Api.csproj" />
+    <Project Path="src/Modules/Assist/Insys.Assist.Application/Insys.Assist.Application.csproj" />
+    <Project Path="src/Modules/Assist/Insys.Assist.Contracts/Insys.Assist.Contracts.csproj" />
+    <Project Path="src/Modules/Assist/Insys.Assist.Domain/Insys.Assist.Domain.csproj" />
+    <Project Path="src/Modules/Assist/Insys.Assist.Infrastructure/Insys.Assist.Infrastructure.csproj" />
+  </Folder>
   <Folder Name="/src/Modules/Compliance/">
     <Project Path="src/Modules/Compliance/Insys.Compliance.Api/Insys.Compliance.Api.csproj" />
     <Project Path="src/Modules/Compliance/Insys.Compliance.Application/Insys.Compliance.Application.csproj" />
