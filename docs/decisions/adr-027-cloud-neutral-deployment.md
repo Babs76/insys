@@ -46,19 +46,16 @@ That cloud's adapter when a customer requires it, and re-wrapping a tenant's dat
 
 - **In the chart:** an optional `console` deployment, on by default: a small unprivileged web server image holding the four builds (back office at `/`, broker at `/broker/`, member at `/member/`, provider at `/provider/`). The front end's pipeline builds it once and it's promoted unchanged, with its tag as a chart value. It can run as many copies as wanted; the one-instance limit is only the API's.
 - **`config.json`:** one per app, per environment, from a ConfigMap mounted over the image's file, so nothing is rebuilt.
-- **CSP origins:** the front end's image builds `connect-src` when its container starts, from the API's and Keycloak's origins. The chart's ConfigMap supplies them per environment, with each app's `config.json`, under the keys the front end's `docs/deployment.md` gives once pushed. The container refuses to start if an origin is missing or isn't a plain https origin, so the chart's defaults are empty or valid, **never a wildcard**, and an empty one should fail the install rather than start a broken console.
+- **CSP origins:** the image is to build `connect-src` at start from exact https origins, and refuse to start on a bad value (Ade, 2 November). The chart's ConfigMap supplies them per environment, with each app's `config.json`, and its defaults are empty or valid, **never a wildcard**, with an empty one failing the install. **The key names are open:** `deployment.md` at `8486455` doesn't give them, and says the console has no image yet.
 - **Routing:** the chart's ingress sends only `/api/` to the API, and everything else to the console, as the front end's `docs/deployment.md` requires: its Health screens live under `/health/`, so the API's health endpoints must not be routed from that origin.
-- **What the server must do,** taken from that document: compress text assets with gzip (Brotli only if a measurement later shows it's worth a custom server build); `immutable`, one year, for `/assets/*`; `no-store` for `index.html` and `config.json`; deep links serve the app's `index.html`; no dotfiles or `.vite/manifest.json`; and its security headers.
-- **With `console.enabled: false`:** the runbook lists the same requirements for the customer's host, and the check below proves them.
-- **The check,** in the smoke job and in the runbook, for either host:
+- **What the server must do:** the front end's `docs/deployment.md`, Headers set at the gateway, is the one statement of these rules (read at `8486455`): gzip for `.js`, `.css`, `.json`, `.html` and `.svg`, with `Vary: Accept-Encoding`, its cache headers, deep links, no dotfiles, and its security headers. Brotli only if a measurement later shows it's worth a custom server build.
+- **With `console.enabled: false`:** the runbook points to the same rules for the customer's host.
+- **The chart's Ingress:** today it sends every path under `/` to the API. With the console on the host it sends only `/api/` to the API and the rest to the console. With `console.enabled: false`, the API's path is a value, defaulting to what it is now, as BR-132 asks, and a host shared with the console uses `/api/`.
+- **The check** is the one in that document, in the smoke job and in the runbook, for either host. **One addition,** as the document states the rule but gives no check for it: a deep link under `/health/` must reach the app, not the API:
 
   ```bash
-  curl -sI -H 'Accept-Encoding: gzip' "$BASE/assets/$FILE" | grep -iE 'content-encoding|cache-control'
-  curl -sI "$BASE/config.json" | grep -i cache-control
   curl -s -o /dev/null -w '%{http_code} %{content_type}\n' "$BASE/health/schemes"
   ```
-
-  The first shows a compressed, immutable asset; the second `no-store`; the third 200 and `text/html`, so a deep link under `/health/` reaches the app, not the API.
 - **Size: 2 to 3 days (Est, low confidence),** on top of phase 2's figures, for the chart, the image's server configuration and the smoke checks. The front end owns building and publishing the image. Waits on: the front end publishing an image the smoke job can pull. **Align the check below with the front end's deployment notes when they land.**
 
 ## Phase 2 estimate

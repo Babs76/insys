@@ -26,6 +26,8 @@
  */
 using System.Net;
 using System.Net.Http.Json;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 
 namespace Insys.Seed;
@@ -34,30 +36,39 @@ namespace Insys.Seed;
 public sealed class SeedRefusedException(string what, HttpStatusCode status, string body) : Exception($"{what}: {(int)status} {body}");
 
 /// <summary>Calls the API as one persona. The seed only ever goes through the API, as any user would (never the database).</summary>
-public sealed class Persona(HttpClient http)
+public sealed class Persona(HttpClient http, Action<string>? afterCall = null)
 {
     public HttpClient Http { get; } = http;
 
-    public async Task<JsonElement> Send(HttpMethod method, string path, object? body = null, string? ifMatch = null, bool idempotent = true)
+    /// <param name="key">The Idempotency-Key, deterministic so a rerun gets the original record back: the tenant code, the record's type and its business key. By default, a hash of the call itself.</param>
+    public async Task<JsonElement> Send(HttpMethod method, string path, object? body = null, string? ifMatch = null, bool idempotent = true, string? key = null)
     {
-        using var request = new HttpRequestMessage(method, path);
-        if (body is not null)
+        HttpRequestMessage Request()
         {
-            request.Content = JsonContent.Create(body, options: JsonSerializerOptions.Web);
+            var request = new HttpRequestMessage(method, path);
+            if (body is not null)
+            {
+                request.Content = JsonContent.Create(body, options: JsonSerializerOptions.Web);
+            }
+
+            if (idempotent && method == HttpMethod.Post)
+            {
+                // The API takes at most 80 characters, so a long business key goes in as its hash.
+                var source = key ?? path + "|" + JsonSerializer.Serialize(body, JsonSerializerOptions.Web);
+                request.Headers.Add("Idempotency-Key", key is { Length: <= 80 } ? key : $"seed:{Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(source)))[..40]}");
+            }
+
+            if (ifMatch is not null)
+            {
+                request.Headers.TryAddWithoutValidation("If-Match", ifMatch);
+            }
+
+            return request;
         }
 
-        if (idempotent && method == HttpMethod.Post)
-        {
-            request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
-        }
-
-        if (ifMatch is not null)
-        {
-            request.Headers.TryAddWithoutValidation("If-Match", ifMatch);
-        }
-
-        using var response = await Http.SendAsync(request);
+        using var response = await Paced(Request);
         var text = await response.Content.ReadAsStringAsync();
+        afterCall?.Invoke($"{method} {path}");
         if (!response.IsSuccessStatusCode)
         {
             throw new SeedRefusedException($"{method} {path}", response.StatusCode, text);
@@ -68,8 +79,27 @@ public sealed class Persona(HttpClient http)
 
     public async Task<bool> Exists(string path)
     {
-        using var response = await Http.GetAsync(path);
+        using var response = await Paced(() => new HttpRequestMessage(HttpMethod.Get, path));
+        afterCall?.Invoke($"GET {path}");
         return response.IsSuccessStatusCode;
+    }
+
+    /// <summary>The seed keeps to the API's rate limit as any client should: told to slow down, it waits and asks again.</summary>
+    private async Task<HttpResponseMessage> Paced(Func<HttpRequestMessage> request)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            using var message = request();
+            var response = await Http.SendAsync(message);
+            if (response.StatusCode != HttpStatusCode.TooManyRequests || attempt == 30)
+            {
+                return response;
+            }
+
+            var wait = response.Headers.RetryAfter?.Delta ?? TimeSpan.FromSeconds(5);
+            response.Dispose();
+            await Task.Delay(wait);
+        }
     }
 }
 

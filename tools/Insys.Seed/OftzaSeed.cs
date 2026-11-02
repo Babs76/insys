@@ -116,8 +116,17 @@ public sealed class OftzaSeed(SeedContext context)
             await Static("finance/static/accounting-calendar-and-periods", $"CAL-{start:yyyy-MM}", new { periodCode = $"{start:yyyy-MM}", startDate = start, endDate = start.AddMonths(1).AddDays(-1) });
         }
 
-        await finance.Send(HttpMethod.Post, $"/api/v1/finance/periods/{first:yyyy-MM}/open", idempotent: false);
-        await context.Tenant(TenantId, "oftza-integration-administrator").Send(HttpMethod.Post, "/api/v1/payments/callback-endpoints", new { providerCode = "SIMULATOR" });
+        if ((await finance.Send(HttpMethod.Get, $"/api/v1/finance/periods/{first:yyyy-MM}")).GetProperty("status").GetString() == "Future")
+        {
+            await finance.Send(HttpMethod.Post, $"/api/v1/finance/periods/{first:yyyy-MM}/open", idempotent: false);
+        }
+
+        var integration = context.Tenant(TenantId, "oftza-integration-administrator");
+        var endpoints = await integration.Send(HttpMethod.Get, "/api/v1/payments/callback-endpoints");
+        if ((endpoints.ValueKind == JsonValueKind.Array ? endpoints : endpoints.GetProperty("items")).GetArrayLength() == 0)
+        {
+            await integration.Send(HttpMethod.Post, "/api/v1/payments/callback-endpoints", new { providerCode = "SIMULATOR" }, key: $"{TenantCode}:callback-endpoint:SIMULATOR");
+        }
     }
 
     /// <summary>Every staff role's functions on the back-office channel, as readiness lists what is uncovered.</summary>
@@ -168,10 +177,18 @@ public sealed class OftzaSeed(SeedContext context)
             tenant = await context.PlatformMaker.Send(HttpMethod.Get, url);
             if (step == "END_TO_END_TESTS")
             {
-                await context.PlatformMaker.Send(HttpMethod.Post, $"{url}/smoke-run", new { runReference = "OFTZA-SEED", runDate = DateTime.UtcNow.ToString("yyyy-MM-dd"), outcome = "PASSED", ranBy = "Seed" }, Etag(tenant));
-                tenant = await context.PlatformMaker.Send(HttpMethod.Get, url);
-                await context.PlatformChecker.Send(HttpMethod.Post, $"{url}/smoke-run/approve", ifMatch: Etag(tenant));
-                tenant = await context.PlatformMaker.Send(HttpMethod.Get, url);
+                var run = (await Checks()).Single(c => c.GetProperty("code").GetString() == "SMOKE_RUN");
+                if (!run.GetProperty("ready").GetBoolean())
+                {
+                    if (!run.TryGetProperty("attestation", out var recorded) || recorded.ValueKind != JsonValueKind.Object)
+                    {
+                        await context.PlatformMaker.Send(HttpMethod.Post, $"{url}/smoke-run", new { runReference = "OFTZA-SEED", runDate = DateTime.UtcNow.ToString("yyyy-MM-dd"), outcome = "PASSED", ranBy = "Seed" }, Etag(tenant), idempotent: false);
+                        tenant = await context.PlatformMaker.Send(HttpMethod.Get, url);
+                    }
+
+                    await context.PlatformChecker.Send(HttpMethod.Post, $"{url}/smoke-run/approve", ifMatch: Etag(tenant), idempotent: false);
+                    tenant = await context.PlatformMaker.Send(HttpMethod.Get, url);
+                }
             }
 
             object body = step switch
@@ -180,11 +197,11 @@ public sealed class OftzaSeed(SeedContext context)
                 "INTEGRATION_AND_REPORTING" => new { step, attestations = new[] { new { check = "WEBHOOKS_OR_NONE", note = "Sample tenant: no partners" } } },
                 _ => new { step },
             };
-            await context.PlatformMaker.Send(HttpMethod.Post, $"{url}/complete-onboarding-step", body, Etag(tenant));
+            await context.PlatformMaker.Send(HttpMethod.Post, $"{url}/complete-onboarding-step", body, Etag(tenant), idempotent: false);
         }
 
         tenant = await context.PlatformMaker.Send(HttpMethod.Get, url);
-        await context.PlatformMaker.Send(HttpMethod.Post, $"{url}/activate", new { reason = "OFTZA sample tenant" }, Etag(tenant));
+        await context.PlatformMaker.Send(HttpMethod.Post, $"{url}/activate", new { reason = "OFTZA sample tenant" }, Etag(tenant), idempotent: false);
     }
 
     /// <summary>About 30 invented parties, with details that reach no one (docs/plans/workstream-f-oftza-seed.md, Fake personal details), by a persona who registers parties.</summary>
@@ -200,22 +217,40 @@ public sealed class OftzaSeed(SeedContext context)
         var clerk = context.Tenant(TenantId, "oftza-general-underwriter");
         foreach (var person in SampleParties.People)
         {
-            var id = (await clerk.Send(HttpMethod.Post, "/api/v1/party/parties", new
+            var id = await Party(clerk, $"{person.FirstNames} {person.Surname}", person.IdNumber, new
             {
                 individual = new { firstNames = person.FirstNames, surname = person.Surname, birthDate = person.BirthDate }, confirmNew = true, reason = "Sample party (invented)",
-            })).GetProperty("id").GetGuid();
+            });
             var url = $"/api/v1/party/parties/{id}";
-            await clerk.Send(HttpMethod.Post, $"{url}/identifiers", new { docType = "NATIONAL_ID", country = "ZA", number = person.IdNumber }, await PartyVersion(clerk, url));
-            await clerk.Send(HttpMethod.Post, $"{url}/contact-points", new { channelType = "EMAIL", value = person.Email, isPrimary = true }, await PartyVersion(clerk, url));
-            await clerk.Send(HttpMethod.Post, $"{url}/contact-points", new { channelType = "MOBILE", value = person.Mobile, isPrimary = false }, await PartyVersion(clerk, url));
+            if ((await clerk.Send(HttpMethod.Get, url)).GetProperty("identifiers").GetArrayLength() == 0)
+            {
+                await clerk.Send(HttpMethod.Post, $"{url}/identifiers", new { docType = "NATIONAL_ID", country = "ZA", number = person.IdNumber }, await PartyVersion(clerk, url), key: $"{TenantCode}:identifier:{person.IdNumber}");
+            }
+
+            foreach (var (type, value, primary) in new[] { ("EMAIL", person.Email, true), ("MOBILE", person.Mobile, false) })
+            {
+                if (!(await clerk.Send(HttpMethod.Get, url)).GetProperty("contactPoints").EnumerateArray().Any(c => c.GetProperty("channelType").GetString() == type))
+                {
+                    await clerk.Send(HttpMethod.Post, $"{url}/contact-points", new { channelType = type, value, isPrimary = primary }, await PartyVersion(clerk, url), key: $"{TenantCode}:contact:{person.IdNumber}:{type}");
+                }
+            }
         }
 
         foreach (var name in SampleParties.Companies)
         {
-            await clerk.Send(HttpMethod.Post, "/api/v1/party/parties", new { organisation = new { legalName = name, legalFormCode = "PTY" }, confirmNew = true, reason = "Sample party (invented)" });
+            await Party(clerk, name, name, new { organisation = new { legalName = name, legalFormCode = "PTY" }, confirmNew = true, reason = "Sample party (invented)" });
         }
 
         await context.Settle();
+    }
+
+    /// <summary>The party, by its deterministic key; past the API's 24-hour idempotency window, the search by name finds what an earlier run made.</summary>
+    private static async Task<Guid> Party(Persona clerk, string name, string businessKey, object body)
+    {
+        var found = (await clerk.Send(HttpMethod.Post, "/api/v1/party/parties/search", new { name, limit = 2 }, idempotent: false)).GetProperty("items");
+        return found.GetArrayLength() > 0
+            ? found[0].GetProperty("id").GetGuid()
+            : (await clerk.Send(HttpMethod.Post, "/api/v1/party/parties", body, key: $"{TenantCode}:party:{businessKey}")).GetProperty("id").GetGuid();
     }
 
     private static async Task<string> PartyVersion(Persona persona, string url) => $"\"{(await persona.Send(HttpMethod.Get, url)).GetProperty("rowVersion").GetInt64()}\"";
@@ -245,23 +280,38 @@ public sealed class OftzaSeed(SeedContext context)
         await Static("workflow/static/delegation-and-approval-authority", "AUTH-PRODUCT_PUBLICATION", new { roleCode = "TENANT_ADMIN", transactionType = "PRODUCT_PUBLICATION", limitValue = 0m, delegationAllowed = false });
         var manager = context.Tenant(TenantId, "oftza-product-manager");
         var v1 = $"/api/v1/product-factory/products/{product}/versions/1";
-        if (await manager.Exists(v1))
+        var today = DateTime.UtcNow.ToString("yyyy-MM-dd");
+        if (!await manager.Exists(v1))
         {
-            return;
+            await manager.Send(HttpMethod.Post, "/api/v1/product-factory/products", new { productCode = product, domain = "General", familyCode = "GEN-MOTOR", name = "Motor comprehensive (invented sample)", coverages = new[] { "OWN_DAMAGE" }, effectiveFrom = today }, key: $"{TenantCode}:product:{product}");
         }
 
-        var today = DateTime.UtcNow.ToString("yyyy-MM-dd");
-        await manager.Send(HttpMethod.Post, "/api/v1/product-factory/products", new { productCode = product, domain = "General", familyCode = "GEN-MOTOR", name = "Motor comprehensive (invented sample)", coverages = new[] { "OWN_DAMAGE" }, effectiveFrom = today });
-        await manager.Send(HttpMethod.Post, $"{v1}/validate", ifMatch: "\"1\"");
-        await context.Settle();
-        await manager.Send(HttpMethod.Post, $"{v1}/simulations");
-        await manager.Send(HttpMethod.Post, $"{v1}/submit", new { reason = "Sample product" }, ifMatch: "\"2\"");
-        await context.Settle();
-        // PRODUCT_MANAGER's template names this approval but holds no approve function, so a second administrator gives it.
-        var checker = _adminChecker!;
-        var approval = (await checker.Send(HttpMethod.Get, "/api/v1/workflow/approvals?status=Requested")).GetProperty("items")[0];
-        await checker.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval.GetProperty("id").GetGuid()}/approve", ifMatch: $"\"{approval.GetProperty("rowVersion").GetInt64()}\"");
-        await context.Settle();
+        for (var pass = 0; pass < 6; pass++)
+        {
+            await context.Settle();
+            var version = await manager.Send(HttpMethod.Get, v1);
+            var etag = $"\"{version.GetProperty("rowVersion").GetInt64()}\"";
+            switch (version.GetProperty("status").GetString())
+            {
+                case "Draft":
+                    await manager.Send(HttpMethod.Post, $"{v1}/validate", ifMatch: etag, idempotent: false);
+                    break;
+                case "Validated":
+                    await manager.Send(HttpMethod.Post, $"{v1}/simulations", key: $"{TenantCode}:simulation:{product}");
+                    await manager.Send(HttpMethod.Post, $"{v1}/submit", new { reason = "Sample product" }, ifMatch: etag, idempotent: false);
+                    break;
+                case "Submitted" or "PendingApproval":
+                    // PRODUCT_MANAGER's template names this approval but holds no approve function, so a second administrator gives it.
+                    foreach (var approval in (await _adminChecker!.Send(HttpMethod.Get, "/api/v1/workflow/approvals?status=Requested")).GetProperty("items").EnumerateArray())
+                    {
+                        await _adminChecker.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval.GetProperty("id").GetGuid()}/approve", ifMatch: $"\"{approval.GetProperty("rowVersion").GetInt64()}\"", idempotent: false);
+                    }
+
+                    break;
+                default:
+                    return;
+            }
+        }
     }
 
     /// <summary>
@@ -270,10 +320,17 @@ public sealed class OftzaSeed(SeedContext context)
     /// </summary>
     private async Task Loaders()
     {
-        if (await User(LoaderMaker) is { } done && done.GetProperty("status").GetString() == "Disabled")
+        _adminMaker = _maker;
+        _adminChecker = _checker;
+        // Loading is over once the first loader has begun to be ended, even if a run stopped before it finished: EndLoaders picks it up from there.
+        if (await User(LoaderMaker) is { } done)
         {
-            _loadersDone = true;
-            return;
+            var roles = (await _maker.Send(HttpMethod.Get, $"/api/v1/identity/users/{done.GetProperty("id").GetGuid()}")).GetProperty("roleAssignments").EnumerateArray().ToList();
+            if (done.GetProperty("status").GetString() == "Disabled" || (roles.Count > 0 && roles.All(r => r.GetProperty("status").GetString() is not ("Active" or "PendingApproval"))))
+            {
+                _loadersDone = true;
+                return;
+            }
         }
 
         var functions = new HashSet<string>(StringComparer.Ordinal);
@@ -320,16 +377,19 @@ public sealed class OftzaSeed(SeedContext context)
 
     private async Task EndLoaders()
     {
-        if (_loadersDone)
-        {
-            return;
-        }
-
         foreach (var name in new[] { LoaderMaker, LoaderChecker })
         {
             var id = (await User(name))!.Value.GetProperty("id").GetGuid();
-            await _adminMaker!.Send(HttpMethod.Post, $"/api/v1/identity/users/{id}/revoke-role", new { roleCode = LoaderRole }, await Version(id));
-            await _adminMaker.Send(HttpMethod.Post, $"/api/v1/identity/users/{id}/disable", new { reason = "The seed has finished loading." }, await Version(id));
+            var user = await _adminMaker!.Send(HttpMethod.Get, $"/api/v1/identity/users/{id}");
+            if (user.GetProperty("roleAssignments").EnumerateArray().Any(a => a.GetProperty("status").GetString() == "Active"))
+            {
+                await _adminMaker.Send(HttpMethod.Post, $"/api/v1/identity/users/{id}/revoke-role", new { roleCode = LoaderRole }, await Version(id), idempotent: false);
+            }
+
+            if ((await _adminMaker.Send(HttpMethod.Get, $"/api/v1/identity/users/{id}")).GetProperty("status").GetString() != "Disabled")
+            {
+                await _adminMaker.Send(HttpMethod.Post, $"/api/v1/identity/users/{id}/disable", new { reason = "The seed has finished loading." }, await Version(id), idempotent: false);
+            }
         }
     }
 
@@ -348,23 +408,26 @@ public sealed class OftzaSeed(SeedContext context)
 
     private async Task<string> Version(Guid user) => $"\"{(await (_adminMaker ?? _maker).Send(HttpMethod.Get, $"/api/v1/identity/users/{user}")).GetProperty("rowVersion").GetInt64()}\"";
 
-    /// <summary>A user with one role. A privileged role waits for a second person, as in real use: the second administrator approves it.</summary>
+    /// <summary>A user with one role, picked up from wherever an earlier run stopped. A privileged role waits for a second person, as in real use: the second administrator approves it.</summary>
     private async Task EnsureUser(string name, string role)
     {
         var admin = _adminMaker ?? _maker;
-        if (await User(name) is not null)
+        var checker = _adminChecker ?? _checker;
+        var user = (await User(name))?.GetProperty("id").GetGuid()
+            ?? (await admin.Send(HttpMethod.Post, "/api/v1/identity/users", new { username = name, displayName = $"Sample {role}", idpCode = "OIDC", externalSubject = name, mfaEnrolled = true }, key: $"{TenantCode}:user:{name}")).GetProperty("id").GetGuid();
+        async Task<List<JsonElement>> Assignments() => (await admin.Send(HttpMethod.Get, $"/api/v1/identity/users/{user}")).GetProperty("roleAssignments").EnumerateArray().Where(a => a.GetProperty("roleCode").GetString() == role).ToList();
+        var assignments = await Assignments();
+        if (assignments.Count == 0)
         {
-            return;
+            await admin.Send(HttpMethod.Post, $"/api/v1/identity/users/{user}/assign-role", new { roleCode = role }, await Version(user), idempotent: false);
+            await context.Settle();
+            assignments = await Assignments();
         }
 
-        var user = (await admin.Send(HttpMethod.Post, "/api/v1/identity/users", new { username = name, displayName = $"Sample {role}", idpCode = "OIDC", externalSubject = name, mfaEnrolled = true })).GetProperty("id").GetGuid();
-        await admin.Send(HttpMethod.Post, $"/api/v1/identity/users/{user}/assign-role", new { roleCode = role }, await Version(user));
-        await context.Settle();
-        var checker = _adminChecker ?? _checker;
-        foreach (var assignment in (await admin.Send(HttpMethod.Get, $"/api/v1/identity/users/{user}")).GetProperty("roleAssignments").EnumerateArray().Where(a => a.GetProperty("status").GetString() == "PendingApproval"))
+        foreach (var assignment in assignments.Where(a => a.GetProperty("status").GetString() == "PendingApproval"))
         {
-            var approval = (await checker.Send(HttpMethod.Get, $"/api/v1/workflow/approvals?status=Requested&businessRefId={assignment.GetProperty("id").GetGuid()}")).GetProperty("items")[0];
-            await checker.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval.GetProperty("id").GetGuid()}/approve", ifMatch: $"\"{approval.GetProperty("rowVersion").GetInt64()}\"");
+            await context.Settle();
+            await Approve(checker, assignment.GetProperty("id").GetGuid());
             await context.Settle();
         }
     }
@@ -383,7 +446,7 @@ public sealed class OftzaSeed(SeedContext context)
         var created = await context.PlatformMaker.Send(HttpMethod.Post, "/api/v1/tenancy/tenants", new
         {
             tenantCode = TenantCode, legalName = "OFT Insurance South Africa (sample)", isolationProfile = "A", timeZone = "Africa/Johannesburg", sample = true,
-        });
+        }, key: $"{TenantCode}:tenant");
         return created.GetProperty("id").GetGuid();
     }
 
@@ -391,18 +454,26 @@ public sealed class OftzaSeed(SeedContext context)
     private async Task FirstAdministrators()
     {
         var requests = await context.PlatformMaker.Send(HttpMethod.Get, $"/api/v1/identity/tenant-administrators?tenantId={TenantId}");
-        if ((requests.ValueKind == JsonValueKind.Array ? requests : requests.GetProperty("items")).GetArrayLength() > 0)
+        var existing = (requests.ValueKind == JsonValueKind.Array ? requests : requests.GetProperty("items")).EnumerateArray().FirstOrDefault();
+        Guid request;
+        if (existing.ValueKind != JsonValueKind.Undefined)
         {
-            return;
+            if (existing.GetProperty("status").GetString() == "Provisioned")
+            {
+                return;
+            }
+
+            request = existing.GetProperty("id").GetGuid();
+        }
+        else
+        {
+            object Person(string name) => new { username = name, displayName = name, idpCode = "OIDC", externalSubject = name, mfaEnrolled = true };
+            request = (await context.PlatformMaker.Send(HttpMethod.Post, "/api/v1/identity/tenant-administrators",
+                new { tenantId = TenantId, administrators = new[] { Person(FirstAdministrator), Person(SecondAdministrator) }, functions = await AdministratorFunctions() }, key: $"{TenantCode}:first-administrators")).GetProperty("id").GetGuid();
         }
 
-        object Person(string name) => new { username = name, displayName = name, idpCode = "OIDC", externalSubject = name, mfaEnrolled = true };
-        var request = await context.PlatformMaker.Send(HttpMethod.Post, "/api/v1/identity/tenant-administrators",
-            new { tenantId = TenantId, administrators = new[] { Person(FirstAdministrator), Person(SecondAdministrator) }, functions = await AdministratorFunctions() });
         await context.Settle();
-        var approvals = await context.PlatformChecker.Send(HttpMethod.Get, $"/api/v1/workflow/approvals?businessRefId={request.GetProperty("id").GetGuid()}");
-        var approval = approvals.GetProperty("items")[0];
-        await context.PlatformChecker.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval.GetProperty("id").GetGuid()}/approve", ifMatch: $"\"{approval.GetProperty("rowVersion").GetInt64()}\"");
+        await Approve(context.PlatformChecker, request);
         await context.Settle();
     }
 
@@ -442,19 +513,41 @@ public sealed class OftzaSeed(SeedContext context)
     private async Task Import(string route, string firstCode, IReadOnlyList<object> lines)
     {
         var path = $"/api/v1/{route}";
-        if ((await _maker.Send(HttpMethod.Get, $"{path}/{Uri.EscapeDataString(firstCode)}/versions")).GetArrayLength() > 0)
+        var first = $"{path}/{Uri.EscapeDataString(firstCode)}/versions";
+        if ((await _maker.Send(HttpMethod.Get, first)).GetArrayLength() == 0)
         {
-            return;
+            await _maker.Send(HttpMethod.Post, $"{path}/imports", new { fileRef = "oftza-seed", lines }, key: $"{TenantCode}:{route}:import:{firstCode}");
         }
 
-        var batch = (await _maker.Send(HttpMethod.Post, $"{path}/imports", new { fileRef = "oftza-seed", lines })).GetProperty("batchId").GetGuid();
-        var change = (await _maker.Send(HttpMethod.Post, $"{path}/imports/{batch}/submit")).GetProperty("changeRequestId").GetGuid();
-        await context.Settle();
-        var approval = (await _checker.Send(HttpMethod.Get, $"/api/v1/workflow/approvals?businessRefId={change}")).GetProperty("items")[0];
-        await _checker.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval.GetProperty("id").GetGuid()}/approve", ifMatch: $"\"{approval.GetProperty("rowVersion").GetInt64()}\"");
-        await context.Settle();
-        await _maker.Send(HttpMethod.Post, $"{path}/imports/{batch}/activate");
-        await context.Settle();
+        for (var pass = 0; pass < 6; pass++)
+        {
+            await context.Settle();
+            var state = (await _maker.Send(HttpMethod.Get, first))[0];
+            var batch = state.GetProperty("importBatchId").GetGuid();
+            switch (state.GetProperty("recordStatus").GetString())
+            {
+                case "DRAFT":
+                    await _maker.Send(HttpMethod.Post, $"{path}/imports/{batch}/submit", idempotent: false);
+                    break;
+                case "SUBMITTED" or "PENDING_APPROVAL":
+                    await Approve(_checker, state.GetProperty("changeRequestId").GetGuid());
+                    break;
+                case "APPROVED" or "VALIDATED":
+                    await _maker.Send(HttpMethod.Post, $"{path}/imports/{batch}/activate", idempotent: false);
+                    break;
+                default:
+                    return;
+            }
+        }
+    }
+
+    /// <summary>Approves what waits on this record, if anything still does.</summary>
+    private static async Task Approve(Persona checker, Guid businessRef)
+    {
+        foreach (var approval in (await checker.Send(HttpMethod.Get, $"/api/v1/workflow/approvals?status=Requested&businessRefId={businessRef}")).GetProperty("items").EnumerateArray())
+        {
+            await checker.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval.GetProperty("id").GetGuid()}/approve", ifMatch: $"\"{approval.GetProperty("rowVersion").GetInt64()}\"", idempotent: false);
+        }
     }
 
     /// <summary>One user per role template, named for it, so a demo can sign in as any role.</summary>
@@ -543,27 +636,36 @@ public sealed class OftzaSeed(SeedContext context)
     private async Task Static(Persona maker, Persona checker, string route, string code, object fields)
     {
         var path = $"/api/v1/{route}";
-        if (await maker.Exists($"{path}/{Uri.EscapeDataString(code)}/versions") && (await maker.Send(HttpMethod.Get, $"{path}/{Uri.EscapeDataString(code)}/versions")).GetArrayLength() > 0)
+        var row = $"{path}/{Uri.EscapeDataString(code)}/versions";
+        if (!await maker.Exists(row) || (await maker.Send(HttpMethod.Get, row)).GetArrayLength() == 0)
         {
-            return;
+            var body = JsonSerializer.SerializeToElement(fields, JsonSerializerOptions.Web).EnumerateObject().ToDictionary(p => p.Name, p => (object)p.Value);
+            body["code"] = code;
+            body["changeReason"] = Reason;
+            await maker.Send(HttpMethod.Post, path, body, key: $"{TenantCode}:{route}:{code}");
         }
 
-        var body = JsonSerializer.SerializeToElement(fields, JsonSerializerOptions.Web).EnumerateObject().ToDictionary(p => p.Name, p => (object)p.Value);
-        body["code"] = code;
-        body["changeReason"] = Reason;
-        var draft = await maker.Send(HttpMethod.Post, path, body);
-        var version = $"{path}/{Uri.EscapeDataString(code)}/versions/{draft.GetProperty("version").GetInt32()}";
-        await maker.Send(HttpMethod.Post, $"{version}/submit", ifMatch: $"\"{draft.GetProperty("rowVersion").GetInt64()}\"");
-        await context.Settle();
-        var state = (await maker.Send(HttpMethod.Get, $"{path}/{Uri.EscapeDataString(code)}/versions"))[0];
-        if (state.GetProperty("recordStatus").GetString() is "SUBMITTED" or "PENDING_APPROVAL")
+        // Each pass moves the newest version on from wherever an earlier run left it: draft, submitted, approved. A tier 3 row moves on by itself.
+        for (var pass = 0; pass < 6; pass++)
         {
-            await checker.Send(HttpMethod.Post, $"{version}/approve");
             await context.Settle();
-            state = (await maker.Send(HttpMethod.Get, $"{path}/{Uri.EscapeDataString(code)}/versions"))[0];
+            var state = (await maker.Send(HttpMethod.Get, row))[0];
+            var version = $"{row}/{state.GetProperty("version").GetInt32()}";
+            var etag = $"\"{state.GetProperty("rowVersion").GetInt64()}\"";
+            switch (state.GetProperty("recordStatus").GetString())
+            {
+                case "DRAFT":
+                    await maker.Send(HttpMethod.Post, $"{version}/submit", ifMatch: etag, idempotent: false);
+                    break;
+                case "SUBMITTED" or "PENDING_APPROVAL":
+                    await checker.Send(HttpMethod.Post, $"{version}/approve", idempotent: false);
+                    break;
+                case "APPROVED" or "VALIDATED":
+                    await maker.Send(HttpMethod.Post, $"{version}/activate", ifMatch: etag, idempotent: false);
+                    break;
+                default:
+                    return;
+            }
         }
-
-        await maker.Send(HttpMethod.Post, $"{version}/activate", ifMatch: $"\"{state.GetProperty("rowVersion").GetInt64()}\"");
-        await context.Settle();
     }
 }
