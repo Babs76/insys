@@ -35,6 +35,7 @@ kc=http://insys-keycloak:8080
 fail() { echo "SMOKE FAILED: $*" >&2; exit 1; }
 diagnose() {
   kubectl get pods -o wide || true
+  kubectl describe pod -l app.kubernetes.io/name=api | tail -25 || true
   kubectl logs deploy/insys-api --tail=60 || true
   kubectl logs job/insys-migrate-1 --tail=30 || true
 }
