@@ -56,6 +56,11 @@ This reduces the risk and doesn't remove it. The block below is what stops anyth
 
 Each slice merges on green by itself, so the minimal seed can reach the front end first. Batch 7.1's measured time will say how far to trust these.
 
+## State
+- **Built:** the sample tenant block; the tool, with the tenant, its entitlements, two administrators, every tenant role template with its functions, a persona per template, and most of the onboarding configuration. It signs tokens with the development key, so it runs only against Development and Testing.
+- **Choice to check:** the two seed administrators hold `TENANT_ADMIN`'s functions plus every module's non-privileged static data functions, to load the configuration.
+- **Next:** posting rules, approval authority, the remaining readiness rows and activation with products; parties, policies and claims; Keycloak sign-in; the fake details scheme.
+
 ## Decisions, by Ade
 1. **Role templates (OQ-111):** all the signed-off templates as they stand.
 2. **Authority bands (OQ-112):** the samples in `frontend-integration-guide.md` §3, in ZAR, marked for the business to confirm.
