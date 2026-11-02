@@ -1,6 +1,6 @@
 # Workstream F: the OFT Insurance South Africa sample data
 
-**Signed by Ade as written, with all five proposals accepted, 2 November 2026. Nothing is built.** Answers front-end request BR-131. Order: after batch 7.1 merges, before 7.2. Needed for demos and the front end's Phase 13 exit; it doesn't block go-live. The sizes are my estimates, made without building it, so low confidence.
+**Signed by Ade as written, with all five proposals accepted, 2 November 2026. Partly built: see State.** Answers front-end request BR-131. Order: before the INSYS Preview (`docs/plans/insys-preview.md`), which uses this data, and so before 7.2. Needed for demos and the front end's Phase 13 exit; it doesn't block go-live. The sizes are my estimates, made without building it, so low confidence.
 
 **Tenant code `OFTZA`.** The validator takes capitals, digits and underscores, so `OFT-ZA` is refused.
 

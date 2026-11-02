@@ -1,6 +1,6 @@
 # Wave 7 addendum: AI Assist
 
-**Status: signed by Ade, with option C, 1 November 2026; D-5, D-7, D-8 and D-10 added the same day. Nothing here is built, and the build starts only after Wave 6.** Written from [the AI Assist SRS, revision 93](../../srs/INSYS_AI_Assist_SRS.md), and checked against the code on main. Ships off, per tenant (D-6).
+**Status: paused after batch 7.1, which is merged, until the INSYS Preview is live (Ade, 2 November 2026; `docs/plans/insys-preview.md`). Batch 7.2 starts after that, in the D-8 order.** Signed by Ade, with option C, 1 November 2026; D-5, D-7, D-8 and D-10 added the same day. Written from [the AI Assist SRS, revision 93](../../srs/INSYS_AI_Assist_SRS.md), and checked against the code on main. Ships off, per tenant (D-6).
 
 ## 1. What it is
 Three features. In all three the AI prepares and a person decides; it never approves, publishes, pays or refuses, and INSYS works unchanged without it.

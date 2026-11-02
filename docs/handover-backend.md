@@ -2,6 +2,14 @@
 
 **Draft, 2 November 2026.** The go-live register is written, and so is how to continue. The state of branches is final at the Tuesday 3 November stop.
 
+## First: the INSYS Preview milestone
+**Decided by Ade, 2 November 2026; it comes before everything else.** A hosted environment for OpenFactor's functional team, with all built functionality, sample data only, and every external integration stubbed and clearly labelled. Not production.
+
+- **Order:** finish Workstream F's remaining slices, then stand up the Preview.
+- **Wave 7 is paused after 7.1** until the Preview is live. Batch 7.2 doesn't start before then.
+- **The plan is [`docs/plans/insys-preview.md`](plans/insys-preview.md): one Hetzner server, k3s, the ADR-027 chart. Check there whether Ade has signed it. Build nothing for the Preview until Ade has.** Workstream F carries on regardless.
+- **Never handle Ade's secrets.** The Hetzner API token goes in GitHub, set by Ade, never in a file, chat or session. Generated passwords are only ever written encrypted to Ade's key, as this repository is public.
+
 ## Go-live register
 
 Everything found between INSYS and a first live customer, at `91cb494` plus the docs on `next-batch`. Ade decides the first customer, its country and its lines after his trip; the conditional rows wait on that.
@@ -51,7 +59,7 @@ Everything found between INSYS and a first live customer, at `91cb494` plus the 
 | **Demos** | | | | |
 | 30 | Workstream F: OFT Insurance South Africa sample data, tenant `OFTZA` (`docs/plans/workstream-f-oftza-seed.md`). Needed for demos and the front end's Phase 13 exit | 8–12 (Est), with the sample tenant block | Batch 7.1 merged; signed by Ade, 2 November | No |
 | **AI Assist** | | | | |
-| 29 | Wave 7: AI Assist. Started by Ade's decision of 2 November | 64–85 (Doc) | Provider contract; evaluation documents (D-7) | **No**: it ships switched off and INSYS works without it. A tenant set up through AI-3 must pass readiness first (AIA-085) |
+| 29 | Wave 7: AI Assist. Started by Ade's decision of 2 November; paused after 7.1 until the Preview is live | 64–85 (Doc) | Provider contract; evaluation documents (D-7) | **No**: it ships switched off and INSYS works without it. A tenant set up through AI-3 must pass readiness first (AIA-085) |
 
 The front end's own go-live work isn't in this register.
 
@@ -70,7 +78,7 @@ They are also in `CLAUDE.md`.
 - Merge without asking only when it's built with its test, green on the exact head, and needs no decision from Ade.
 - Decisions for Ade go in reports. **Ade decides the first customer after his trip,** and coordinates remotely.
 - **Only one back-end session works at a time.** The Mac session stops before a cloud one starts.
-- **Wave 7 is under way (Ade, 2 November),** in the D-8 order: 7.1, 7.2, 7.3, 7.6, 7.7, 7.4, 7.5, 7.8. Report at the end of 7.1 with the measured days. No real model, provider SDK or customer data in 7.1. Nigeria's row 24 stays deferred until a first Nigerian customer is chosen.
+- **Wave 7 is paused after 7.1 until the INSYS Preview is live (Ade, 2 November).** It then resumes in the D-8 order: 7.2, 7.3, 7.6, 7.7, 7.4, 7.5, 7.8. Nigeria's row 24 stays deferred until a first Nigerian customer is chosen.
 - No new work after 18:00 on Tuesday 3 November 2026; handover written and stopped by 21:00. What isn't green by 18:00 stays on its branch and goes in the table below.
 
 ### Running tests
@@ -92,11 +100,10 @@ dotnet test --project tests/Insys.IntegrationTests --no-build --filter-class '*D
 - End-to-end hosts run on `WindowClock` (22:30 UTC, no TestDate); new hosts and time-signed seeds must use it. Tests seed with fixed dates, never yesterday.
 
 ### The order of remaining work
-1. `wave7-1-fixes`: batch 7.1. CI, merge.
-2. BR-129: labels for a reconciliation line's kind and a bulk job's `jobType`.
-3. Workstream F, signed by Ade, slice by slice, the sample tenant block first: `docs/plans/workstream-f-oftza-seed.md`. Before 7.2.
-4. Batch 7.2, then the D-8 order: 7.3, 7.6, 7.7, 7.4, 7.5, 7.8.
-5. The rest of ADR-027 phase 2 after 7.1, blocking go-live in the register: the runbook, generic deployment and running OpenBao (high availability, backup and restore, unsealing). BR-100, and the items under Open below.
+1. Workstream F's remaining slices: `docs/plans/workstream-f-oftza-seed.md`.
+2. The INSYS Preview, once Ade has signed its plan: `docs/plans/insys-preview.md`.
+3. Batch 7.2, once the Preview is live, then the D-8 order: 7.3, 7.6, 7.7, 7.4, 7.5, 7.8.
+4. The rest of ADR-027 phase 2, blocking go-live in the register: the runbook, generic deployment and running OpenBao (high availability, backup and restore, unsealing). The Preview's chart work covers the console deployment. BR-100, and the items under Open below.
 
 ### Wave 7, batch 7.1
 **State slice by slice; this table is kept current at each merge.** Merge each slice on green on its own.
@@ -139,7 +146,6 @@ All on `wave7-1-fixes`, as one head, as the review's fixes touch every slice. Ch
 
 | Branch | State | What's left |
 |---|---|---|
-| `wave7-1-fixes` | Batch 7.1 with the review's fixes | CI on its head, then merge |
-| Next | Workstream F, then 7.2 | BR-129; see the order of work |
+| Next | Workstream F's remaining slices, then the Preview | See the order of work |
 
 Nigeria: appeal routes (V0126) are merged; the rest of row 24 is descoped and wasn't started.
