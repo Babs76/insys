@@ -444,6 +444,9 @@ public sealed class OnboardingReadinessTests(DatabaseFixture fixture) : IClassFi
 
         await fixture.Database.SeedStatic(tenantId, "workflow.ref_appeal_routes", "ACTIVE", "NAICOM", From, ("route_code", "NAICOM"), ("name", "NAICOM"), ("preferred_lines", new[] { "GENERAL" }));
         (await Missing()).ShouldBeEmpty();
+    }
+
+    [Fact]
     public async Task ATenantWithHealthPlans_NeedsTheReasonsTheSystemDeclinesWith_BR127()
     {
         var (tenantId, url) = await Register("BR127");
