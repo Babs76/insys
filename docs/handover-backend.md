@@ -48,7 +48,7 @@ Everything found between INSYS and a first live customer, at `91cb494` plus the 
 | 27 | Limits with a currency and two-currency journeys (DRC) | 6–9 (Doc) | Ade on revaluation | **If** the first customer is in DRC or takes a second currency |
 | 28 | French wording (Senegal, DRC, Côte d'Ivoire, partly Rwanda) | 5–7 (Doc) | Professional translation | **If** the first customer is in one of those |
 | **AI Assist** | | | | |
-| 29 | Wave 7: AI Assist | 64–85 (Doc) | Ade's return; provider contract; evaluation documents (D-7) | **No**: it ships switched off and INSYS works without it. A tenant set up through AI-3 must pass readiness first (AIA-085) |
+| 29 | Wave 7: AI Assist. Started by Ade's decision of 2 November | 64–85 (Doc) | Provider contract; evaluation documents (D-7) | **No**: it ships switched off and INSYS works without it. A tenant set up through AI-3 must pass readiness first (AIA-085) |
 
 The front end's own go-live work isn't in this register.
 
@@ -65,8 +65,9 @@ They are also in `CLAUDE.md`.
 - Never commit CI results to a branch about to merge: it moves the head.
 - If an approved head fails and the fix is more than tests, report to Ade before merging, even once it is green.
 - Merge without asking only when it's built with its test, green on the exact head, and needs no decision from Ade.
-- Decisions for Ade go in reports. **Ade decides the first customer after his trip.**
-- **Wave 7 doesn't start until Ade is back.** Nigeria's row 24 stays deferred until a first Nigerian customer is chosen.
+- Decisions for Ade go in reports. **Ade decides the first customer after his trip,** and coordinates remotely.
+- **Only one back-end session works at a time.** The Mac session stops before a cloud one starts.
+- **Wave 7 is under way (Ade, 2 November),** in the D-8 order: 7.1, 7.2, 7.3, 7.6, 7.7, 7.4, 7.5, 7.8. Report at the end of 7.1 with the measured days. No real model, provider SDK or customer data in 7.1. Nigeria's row 24 stays deferred until a first Nigerian customer is chosen.
 - No new work after 18:00 on Tuesday 3 November 2026; handover written and stopped by 21:00. What isn't green by 18:00 stays on its branch and goes in the table below.
 
 ### Running tests
@@ -91,8 +92,21 @@ dotnet test --project tests/Insys.IntegrationTests --no-build --filter-class '*D
 1. Merge `br-115-test`, `adr-027-transit` and `adr-027-helm` as each goes green. They are stacked in that order, so each fast-forwards main with no rerun. A failure holds up those above it.
 2. `br-reconcile`: merge main in, run CI, merge. It holds BR-115's beneficial owner test, nine of the front end's reconciled requests, this handover and the rules in `CLAUDE.md`.
 3. `adr-027-smoke`: get `deployment-smoke` green, **remove `adr-027-smoke` from the workflow's `push` branches**, merge main in, run CI, merge.
-4. ADR-027's runbook: generic deployment, and running OpenBao (high availability, backup and restore, unsealing).
-5. After the stop, for Ade or the next session: BR-100, and the items under Open below.
+4. Wave 7, batch 7.1, per `docs/specs/addenda/ai-assist.md` and `docs/srs/INSYS_AI_Assist_SRS.md`: see Wave 7 below. Phase 1's gate is its exit: security tests for tenant isolation, prompt injection and no write tools.
+5. After 7.1: the rest of ADR-027 phase 2, which stays blocking go-live in the register: the runbook, generic deployment and running OpenBao (high availability, backup and restore, unsealing). BR-100, and the items under Open below.
+
+### Wave 7, batch 7.1
+**State slice by slice; this table is kept current at each merge.** Merge each slice on green on its own.
+
+| Slice | What | State |
+|---|---|---|
+| 1 | Assist module: schema and role, forced row-level security; settings with the tenant's jurisdiction, residency and legal basis, monthly cap (AIA-050, AIA-062) | Not started |
+| 2 | Feature `AI_ASSIST` and the six functions: off by default, in no role template; `ASSIST_OVERLAY_APPROVE` privileged, operator tenant only | Not started |
+| 3 | `IAiModelProvider` with the test stub only | Not started |
+| 4 | Minimiser (AIA-051) | Not started |
+| 5 | Verifier with the §5.1 number rules and all their test cases (AIA-033a) | Not started |
+| 6 | Run records, metering and caps (AIA-073) | Not started |
+| 7 | Phase 1's gate: security tests for tenant isolation, prompt injection, no write tools | Not started |
 
 ### Open items
 - **BR-100:** the function registry refuses one endpoint under two functions for one audience, so the case reads declare only `SERVICE_COMPLAINTS`. From reading the code, not a test, a role holding only another case screen is refused those reads. It needs a change to the registry (ADR-026).
