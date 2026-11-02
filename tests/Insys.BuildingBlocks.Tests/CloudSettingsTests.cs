@@ -76,6 +76,23 @@ public sealed class CloudSettingsTests
         CloudSettings.OldNamesUsed(configuration).Count.ShouldBe(4);
     }
 
+    [Theory]
+    [InlineData("openbao")]
+    [InlineData("vault")]
+    public void OpenBaoAndVault_NameTheSameAdapter(string provider)
+    {
+        var services = Registered(Config(("FieldProtection:Provider", "envelope"), ("Kms:Provider", provider), ("Kms:Address", "http://bao:8200"), ("Kms:Token", "t"), ("Kms:KeyName", "insys")));
+        using var built = services.BuildServiceProvider();
+        built.GetRequiredService<IKeyManagementService>().ShouldBeOfType<OpenBaoKeyManagementService>().MasterKeyRef.ShouldBe("openbao:transit:insys");
+    }
+
+    [Fact]
+    public void OpenBao_WithoutItsAddress_StopsTheStart()
+    {
+        Should.Throw<InvalidOperationException>(() => Registered(Config(("FieldProtection:Provider", "envelope"), ("Kms:Provider", "openbao"), ("Kms:Token", "t"), ("Kms:KeyName", "insys"))))
+            .Message.ShouldContain("Kms:Address");
+    }
+
     [Fact]
     public void WhereBothAreSet_TheNeutralNameWins()
     {
@@ -94,8 +111,6 @@ public sealed class CloudSettingsTests
 
     [Theory]
     [InlineData("Kms:Provider", "aws", "no adapter yet")]
-    [InlineData("Kms:Provider", "vault", "no adapter yet")]
-    [InlineData("Kms:Provider", "openbao", "no adapter yet")]
     [InlineData("ObjectStore:Provider", "azure-blob", "no adapter yet")]
     [InlineData("Kms:Provider", "nonsense", "isn't known")]
     public void AProviderWithNoAdapter_FailsAtStartUp(string setting, string value, string message)

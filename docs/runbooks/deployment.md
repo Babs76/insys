@@ -147,7 +147,8 @@ Keycloak runs on CCE in af-south-1 (ADR-016), with the realm imported once and t
 ## Field encryption keys: DEW KMS (ADR-018)
 
 - `FieldProtection:Provider` is `local` by default: keys from configuration, for development and CI.
-- Production uses `envelope`, with `Kms:Provider=dew`, and needs:
+- **OpenBao (ADR-027), `Kms:Provider=openbao`** (`vault` names the same adapter), needs `Kms:Address`, `Kms:KeyName` and `Kms:Token`, from the secret store; `Kms:Mount` defaults to `transit`. Start-up stops if one is missing. The token's policy needs `update` on `<mount>/datakey/plaintext/<key>` and `<mount>/decrypt/<key>`, and nothing else. A rotated Transit key still decrypts what it protected. **Never delete the Transit key.** Running OpenBao is in its own runbook, ADR-027's next slices.
+- With Huawei DEW, `envelope` uses `Kms:Provider=dew`, and needs:
   - `Kms:Region` (`af-south-1`);
   - `ProjectId`;
   - `MasterKeyId`, the CMK's ID;
@@ -163,7 +164,7 @@ Keycloak runs on CCE in af-south-1 (ADR-016), with the realm imported once and t
 ## Document storage: OBS (ADR-016)
 
 - Documents stay on the file system by default, for development. `ObjectStore:Provider=s3-compatible` keeps them in an object store.
-- The old names (`FieldProtection:Envelope:Kms`, `Huawei:Kms:*`, `Huawei:Obs:*`, `Documents:Storage:Provider=object-store`) work for one more release and log a warning at start-up (ADR-027). The neutral name wins where both are set. A provider with no adapter yet (`aws`, `azure`, `alibaba`, `vault`, `azure-blob`) stops the start.
+- The old names (`FieldProtection:Envelope:Kms`, `Huawei:Kms:*`, `Huawei:Obs:*`, `Documents:Storage:Provider=object-store`) work for one more release and log a warning at start-up (ADR-027). The neutral name wins where both are set. A provider with no adapter yet (`aws`, `azure`, `alibaba`, `azure-blob`) stops the start.
 - Production uses `ObjectStore:Provider=s3-compatible`, with:
   - `ObjectStore:ServiceUrl` (`https://obs.af-south-1.myhuaweicloud.com`);
   - `Bucket`;
