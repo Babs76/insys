@@ -72,13 +72,13 @@ token() { in_cluster "curl -sf -d grant_type=password -d client_id=insys-web -d 
 user=$(token)
 [ -n "$user" ] && [ "$user" != null ] || fail "no token from Keycloak"
 call() { # method path body [extra header]; prints the body, fails on anything but 2xx
-  in_cluster "curl -sS -f-with-body -X $1 -H 'Authorization: Bearer $user' -H 'Content-Type: application/json' -H 'Idempotency-Key: smoke-$RANDOM$RANDOM' ${4:+-H '$4'} ${3:+-d '$3'} $api$2"
+  in_cluster "curl -sS --fail-with-body -X $1 -H 'Authorization: Bearer $user' -H 'Content-Type: application/json' -H 'Idempotency-Key: smoke-$RANDOM$RANDOM' ${4:+-H '$4'} ${3:+-d '$3'} $api$2"
 }
 [ "$(in_cluster "curl -s -o /dev/null -w '%{http_code}' $api/party/parties")" = 401 ] || fail "the API answers without a token"
 
 echo "== A protected field through OpenBao"
 party=$(call POST /party/parties '{"individual":{"firstNames":"Smoke","surname":"Test","birthDate":"1980-01-01"},"confirmNew":true,"reason":"Smoke test"}' | jq -r .id)
-etag=$(in_cluster "curl -si -H 'Authorization: Bearer $user' $api/party/parties/$party | tr -d '\r' | sed -n 's/^[Ee][Tt]ag: //p'" | sed 's/"/\\"/g')
+etag=$(in_cluster "curl -si -H 'Authorization: Bearer $user' $api/party/parties/$party | tr -d '\r' | sed -n 's/^[Ee][Tt]ag: //p'")
 call POST "/party/parties/$party/identifiers" '{"docType":"NATIONAL_ID","country":"ZA","number":"8001015009087"}' "If-Match: $etag" > /dev/null
 [ "$(query "SELECT count(*) FROM integration.field_data_key WHERE master_key_ref = 'openbao:transit:insys'")" -gt 0 ] || fail "no data key is protected by OpenBao"
 # Nothing else holds the number or its data key once the API restarts: reading it needs Transit to decrypt the data key.
