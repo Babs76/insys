@@ -28,7 +28,7 @@ name: deployment-smoke
 on:
   workflow_dispatch:
   push:
-    branches: [main, adr-027-smoke]
+    branches: [main]
     paths:
       - deploy/**
       - db/**
