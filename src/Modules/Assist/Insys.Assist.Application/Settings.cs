@@ -26,8 +26,10 @@
  */
 using FluentValidation;
 using Insys.Assist.Domain;
+using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Messaging;
 using Insys.BuildingBlocks.Domain;
+using Microsoft.Extensions.Options;
 
 namespace Insys.Assist.Application;
 
@@ -36,6 +38,12 @@ public interface IAssistRepository
     Task<AssistTenantSetting?> Setting(CancellationToken cancellationToken);
 
     void Add(AssistTenantSetting setting);
+
+    void Add(AssistRun run);
+
+    void Add(AssistRunPayload payload);
+
+    Task<AssistUsage> Usage(DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken);
 }
 
 /// <summary>A tenant's settings. Before any are made, the tenant has none, and Assist refuses.</summary>
@@ -49,6 +57,12 @@ public sealed record AssistSettingsView(Guid? Id, string? Jurisdiction, string? 
 }
 
 public sealed record GetAssistSettings : IQuery<AssistSettingsView>;
+
+/// <summary>A tenant's use in a month, for the monthly usage report (addendum §6). Billing is outside INSYS.</summary>
+public sealed record AssistUsageView(string Month, long Tokens, long Runs, long Rejected, long Unavailable, long MonthlyTokenCap);
+
+/// <param name="Month">yyyy-MM, in the tenant's time zone; this month when not given.</param>
+public sealed record GetAssistUsage(string? Month) : IQuery<AssistUsageView>;
 
 /// <param name="ExpectedVersion">From If-Match; none for the first time they are made.</param>
 public sealed record SetAssistSettings(string Jurisdiction, string InferenceRegion, string? LegalBasis, bool ExplanationsEnabled, long? ExpectedVersion = null)
@@ -64,8 +78,23 @@ public sealed class SetAssistSettingsValidator : AbstractValidator<SetAssistSett
     }
 }
 
-internal sealed class AssistSettingsHandlers(IAssistRepository assist) : IQueryHandler<GetAssistSettings, AssistSettingsView>, ICommandHandler<SetAssistSettings, AssistSettingsView>
+internal sealed class AssistSettingsHandlers(IAssistRepository assist, IBusinessDate businessDate, IOptions<AssistOptions> options)
+    : IQueryHandler<GetAssistSettings, AssistSettingsView>, IQueryHandler<GetAssistUsage, AssistUsageView>, ICommandHandler<SetAssistSettings, AssistSettingsView>
 {
+    public async Task<Result<AssistUsageView>> Handle(GetAssistUsage query, CancellationToken cancellationToken)
+    {
+        var today = businessDate.Today;
+        var first = new DateOnly(today.Year, today.Month, 1);
+        if (query.Month is { } month && !DateOnly.TryParseExact(month + "-01", "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out first))
+        {
+            return Error.Validation(ErrorCodes.ValidationFailed, "month is yyyy-MM.");
+        }
+
+        var usage = await assist.Usage(businessDate.StartOf(first), businessDate.StartOf(first.AddMonths(1)), cancellationToken);
+        return new AssistUsageView(first.ToString("yyyy-MM", System.Globalization.CultureInfo.InvariantCulture), usage.Tokens, usage.Runs, usage.Rejected, usage.Unavailable,
+            (await assist.Setting(cancellationToken))?.MonthlyTokenCap ?? options.Value.DefaultMonthlyTokenCap);
+    }
+
     public async Task<Result<AssistSettingsView>> Handle(GetAssistSettings query, CancellationToken cancellationToken) =>
         await assist.Setting(cancellationToken) is { } setting ? AssistSettingsView.From(setting) : AssistSettingsView.None;
 

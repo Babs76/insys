@@ -67,7 +67,7 @@ public sealed class MigrationTests(DatabaseFixture fixture) : IClassFixture<Data
               AND n.nspname NOT IN ('pg_catalog', 'information_schema', 'public', 'test_mod')
             """);
         // V0126: workflow.ref_appeal_routes.
-        tables.ShouldBe(154 + 252 + 23 + 3 + 2 + 1 + 3 + 1 + 1 + 1 + 1 + 1 + 2 + 1 + 2 + 1 + 1 + 12 + 5 + 1 + 1 - 1 + 12 + 1 + 7 + 1 + 1 + 1 + 1 + 1 + 1 + 8 + 1 + 3 + 5 + 1 + 4 + 5 + 6 + 4 + 1 + 1 + 2 + 3 + 1 + 3 + 2 + 2 + 1 + 3);
+        tables.ShouldBe(154 + 252 + 23 + 3 + 2 + 1 + 3 + 1 + 1 + 1 + 1 + 1 + 2 + 1 + 2 + 1 + 1 + 12 + 5 + 1 + 1 - 1 + 12 + 1 + 7 + 1 + 1 + 1 + 1 + 1 + 1 + 8 + 1 + 3 + 5 + 1 + 4 + 5 + 6 + 4 + 1 + 1 + 2 + 3 + 1 + 3 + 2 + 2 + 1 + 3 + 2);
     }
 
     [Fact]

@@ -38,7 +38,7 @@ internal static class AssistFunctions
     public static readonly IReadOnlyList<FunctionDeclaration> All =
     [
         new FunctionDeclaration("ASSIST_SETTINGS_MANAGE", FunctionKind.Screen, "AI_ASSIST", "Settings", null, [Audiences.Staff], "assist/settings", Features.AiAssist, false,
-            ["AssistGetSettings", "AssistSetSettings"], []),
+            ["AssistGetSettings", "AssistGetUsage", "AssistSetSettings"], []),
         Action("ASSIST_EXPLAIN_REFUSAL", Features.AiAssist, AssistPermissions.ExplainRefusal),
         Action("ASSIST_EXPLAIN_PREMIUM", Features.AiAssist, AssistPermissions.ExplainPremium),
         Action("ASSIST_PRODUCT_DRAFT_RUN", Features.AiAssist, AssistPermissions.ProductDraftRun),

@@ -35,7 +35,7 @@ public static class AssistErrorCodes
     public const string Unavailable = "ASSIST_UNAVAILABLE";
 
     /// <summary>The tenant's monthly cap is reached (AIA-073).</summary>
-    [ErrorCode(429, "error.assist.cap_reached")]
+    [ErrorCode(422, "error.assist.cap_reached")]
     public const string CapReached = "ASSIST_CAP_REACHED";
 
     /// <summary>Inference runs outside the tenant's jurisdiction with no legal basis recorded, or the setting isn't made (AIA-050).</summary>

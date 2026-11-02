@@ -42138,6 +42138,55 @@
         ]
       }
     },
+    "/api/v1/assist/usage": {
+      "get": {
+        "tags": [
+          "Assist"
+        ],
+        "summary": "A month\u0027s use against the cap: tokens and runs (addendum \u00A76). Billing is outside INSYS",
+        "operationId": "AssistGetUsage",
+        "parameters": [
+          {
+            "name": "month",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistUsageView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "assist_settings.manage",
+        "x-function": [
+          "ASSIST_SETTINGS_MANAGE"
+        ]
+      }
+    },
     "/api/v1/analytics/written-premium": {
       "get": {
         "tags": [
@@ -44521,6 +44570,8 @@
                 "AccessReview",
                 "AccountingPeriod",
                 "Approval",
+                "AssistRun",
+                "AssistRunPayload",
                 "AssistTenantSetting",
                 "BankAccount",
                 "BankStatementLine",
@@ -44998,6 +45049,8 @@
                 "AccessReview",
                 "AccountingPeriod",
                 "Approval",
+                "AssistRun",
+                "AssistRunPayload",
                 "AssistTenantSetting",
                 "BankAccount",
                 "BankStatementLine",
@@ -46689,6 +46742,62 @@
             "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": [
               "null",
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "AssistUsageView": {
+        "required": [
+          "month",
+          "tokens",
+          "runs",
+          "rejected",
+          "unavailable",
+          "monthlyTokenCap"
+        ],
+        "type": "object",
+        "properties": {
+          "month": {
+            "type": "string"
+          },
+          "tokens": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "runs": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "rejected": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "unavailable": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "monthlyTokenCap": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
               "integer",
               "string"
             ],

@@ -40,7 +40,12 @@ public sealed class AssistDbContext(DbContextOptions<AssistDbContext> options, M
 
     public DbSet<AssistTenantSetting> Settings => Set<AssistTenantSetting>();
 
-    protected override void ConfigureModel(ModelBuilder modelBuilder) =>
+    public DbSet<AssistRun> Runs => Set<AssistRun>();
+
+    public DbSet<AssistRunPayload> Payloads => Set<AssistRunPayload>();
+
+    protected override void ConfigureModel(ModelBuilder modelBuilder)
+    {
         modelBuilder.Entity<AssistTenantSetting>(setting =>
         {
             setting.ToTable("tenant_setting");
@@ -53,6 +58,26 @@ public sealed class AssistDbContext(DbContextOptions<AssistDbContext> options, M
             setting.Property(s => s.InferenceRegion).HasMaxLength(20);
             setting.Property(s => s.LegalBasis).HasMaxLength(500);
         });
+        modelBuilder.Entity<AssistRun>(run =>
+        {
+            run.ToTable("run");
+            run.HasKey(r => new { r.TenantId, r.Id });
+            run.HasAuditColumns(updatable: false);
+            run.Ignore(r => r.DomainEvents);
+            run.Ignore(r => r.HasChanges);
+            run.Ignore(r => r.RowVersion);
+        });
+        modelBuilder.Entity<AssistRunPayload>(payload =>
+        {
+            payload.ToTable("run_payload");
+            payload.HasKey(p => new { p.TenantId, p.Id });
+            payload.HasAuditColumns(updatable: false);
+            payload.Ignore(p => p.DomainEvents);
+            payload.Ignore(p => p.HasChanges);
+            payload.Ignore(p => p.RowVersion);
+            payload.Property(p => p.Masked).HasColumnType("jsonb");
+        });
+    }
 }
 
 internal sealed class AssistRepository(AssistDbContext db) : Application.IAssistRepository
@@ -60,4 +85,15 @@ internal sealed class AssistRepository(AssistDbContext db) : Application.IAssist
     public Task<AssistTenantSetting?> Setting(CancellationToken cancellationToken) => db.Settings.SingleOrDefaultAsync(cancellationToken);
 
     public void Add(AssistTenantSetting setting) => db.Settings.Add(setting);
+
+    public void Add(AssistRun run) => db.Runs.Add(run);
+
+    public void Add(AssistRunPayload payload) => db.Payloads.Add(payload);
+
+    public async Task<Application.AssistUsage> Usage(DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken)
+    {
+        var runs = await db.Runs.AsNoTracking().Where(r => r.StartedAt >= from && r.StartedAt < to).Select(r => new { r.Status, r.InputTokens, r.OutputTokens }).ToListAsync(cancellationToken);
+        return new Application.AssistUsage(runs.Sum(r => r.InputTokens + r.OutputTokens), runs.Count, runs.Count(r => r.Status == AssistRunStatuses.Rejected),
+            runs.Count(r => r.Status == AssistRunStatuses.Unavailable));
+    }
 }

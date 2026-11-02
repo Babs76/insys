@@ -83,7 +83,7 @@ BEGIN
   -- A trigger (V0014) also refuses UPDATE and DELETE, for partitions created later with the schema's default grants.
   FOR t IN
     SELECT n.nspname, c.relname, r.role_name FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-    JOIN (VALUES ('finance', 'journal', 'insys_finance'), ('finance', 'subledger_entry', 'insys_finance'),
+    JOIN (VALUES ('assist', 'run', 'insys_assist'), ('finance', 'journal', 'insys_finance'), ('finance', 'subledger_entry', 'insys_finance'),
                  ('claims', 'claim_financial_movement', 'insys_claims'), ('payment', 'payment_status_history', 'insys_payment'),
                  ('life', 'policy_status_history', 'insys_life'), ('life', 'claim_status_history', 'insys_life'),
                  ('general', 'policy_status_history', 'insys_general'), ('general', 'claim_status_history', 'insys_general'),

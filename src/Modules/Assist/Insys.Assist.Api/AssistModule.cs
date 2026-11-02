@@ -64,6 +64,10 @@ public sealed class AssistModule : IModule
             .ReturnsETag()
             .WithName("AssistGetSettings").WithSummary("The tenant's AI Assist settings: jurisdiction, where inference runs, legal basis (AIA-050)")
             .RequirePermission(AssistPermissions.SettingsManage);
+        assist.MapGet("/usage", async (string? month, IDispatcher d, CancellationToken ct) => (await d.Query(new GetAssistUsage(month), ct)).ToHttp(Results.Ok))
+            .Produces<AssistUsageView>(StatusCodes.Status200OK)
+            .WithName("AssistGetUsage").WithSummary("A month's use against the cap: tokens and runs (addendum §6). Billing is outside INSYS")
+            .RequirePermission(AssistPermissions.SettingsManage);
         assist.MapPut("/settings", async (AssistSettingsRequest r, IDispatcher d, HttpContext http, CancellationToken ct) =>
                 Concurrency.OptionalExpectedVersion(http.Request) is { IsSuccess: true } expected
                     ? (await d.Send(new SetAssistSettings(r.Jurisdiction, r.InferenceRegion, r.LegalBasis, r.ExplanationsEnabled, expected.Value), ct)).ToHttp(view =>
