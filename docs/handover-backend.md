@@ -7,8 +7,8 @@
 
 - **Order:** finish Workstream F's remaining slices, then stand up the Preview.
 - **Wave 7 is paused after 7.1** until the Preview is live. Batch 7.2 doesn't start before then.
-- **The plan is [`docs/plans/insys-preview.md`](plans/insys-preview.md): one Hetzner server, k3s, the ADR-027 chart. Check there whether Ade has signed it. Build nothing for the Preview until Ade has.** Workstream F carries on regardless.
-- **Never handle Ade's secrets.** The Hetzner API token goes in GitHub, set by Ade, never in a file, chat or session. Generated passwords are only ever written encrypted to Ade's key, as this repository is public.
+- **The plan is [`docs/plans/insys-preview.md`](plans/insys-preview.md): one Hetzner server, k3s, the ADR-027 chart. Signed by Ade, 2 November, with decisions recorded at its top.** It starts after Workstream F. The restore rehearsal comes before the team gets access.
+- **Never handle Ade's secrets.** The Hetzner API token goes in GitHub, set by Ade, never in a file, chat or session. Generated passwords, and OpenBao's unseal keys and root token, are only ever written encrypted to Ade's key, as this repository is public; the unseal keys and root token are never stored on the server or in GitHub. Nothing sensitive goes in logs or artifacts.
 
 ## Go-live register
 
@@ -22,7 +22,7 @@ Everything found between INSYS and a first live customer, at `91cb494` plus the 
 | # | Item | Size (days) | Waits on | Blocks go-live |
 |---|---|---|---|---|
 | **Deployment and assurance** | | | | |
-| 1 | ADR-027 phase 2: OpenBao adapter, Helm chart and container images, and the CI deployment job are merged; runbooks are left, including that database-owner credentials are held under dual control (`docs/runbooks/deployment.md`) | 17–21 (Doc), plus 2–3 (Est) for serving the console (BR-132, decided in ADR-027: the chart serves it by default) | Scheduled before the first customer | **Yes** |
+| 1 | ADR-027 phase 2: OpenBao adapter, Helm chart and container images, and the CI deployment job are merged; runbooks are left, including that database-owner credentials are held under dual control (`docs/runbooks/deployment.md`). **Defect, Ade, 2 November: the chart's OpenBao and Keycloak lose everything on a restart;** both get persistent storage in the chart, with a test that a pod restart keeps keys and accounts | 17–21 (Doc), plus 2–3 (Est) for serving the console (BR-132, decided in ADR-027: the chart serves it by default), plus 1–2 (Est) for that defect | Scheduled before the first customer | **Yes** |
 | 2 | Hosting and production set-up: provider, production Keycloak with MFA, keys, monitoring (`docs/production-readiness.md`, which still assumes Huawei and needs rewriting after ADR-027) | 5–8 (Est) | The customer's or Ade's choice of host; item 1 | **Yes** |
 | 3 | Load, penetration, backup and recovery tests (ADR-020) | 10–18 (Est), fixes not included | A production-like environment (items 1, 2); an external tester | **Yes** |
 | 4 | More than one API instance: shared permission evictions (ADR-006) | 3–5 (Est) | The load test's result | **If** the load test shows one instance isn't enough |
@@ -101,7 +101,7 @@ dotnet test --project tests/Insys.IntegrationTests --no-build --filter-class '*D
 
 ### The order of remaining work
 1. Workstream F's remaining slices: `docs/plans/workstream-f-oftza-seed.md`.
-2. The INSYS Preview, once Ade has signed its plan: `docs/plans/insys-preview.md`.
+2. The INSYS Preview, signed by Ade: `docs/plans/insys-preview.md`.
 3. Batch 7.2, once the Preview is live, then the D-8 order: 7.3, 7.6, 7.7, 7.4, 7.5, 7.8.
 4. The rest of ADR-027 phase 2, blocking go-live in the register: the runbook, generic deployment and running OpenBao (high availability, backup and restore, unsealing). The Preview's chart work covers the console deployment. BR-100, and the items under Open below.
 
@@ -134,6 +134,7 @@ All on `wave7-1-fixes`, as one head, as the review's fixes touch every slice. Ch
 - `run_payload` can still be updated and deleted by the module role; a retention job should have its own path.
 
 ### Open items
+- **A product manager can't approve a publication:** for the business review. `PRODUCT_MANAGER` names `PRODUCT_PUBLICATION` but holds no approve function, so in the seed an administrator approves it, with `TENANT_ADMIN` holding the authority. No extra grant was made; the Preview's quick-start says so.
 - **BR-100:** the function registry refuses one endpoint under two functions for one audience, so the case reads declare only `SERVICE_COMPLAINTS`. From reading the code, not a test, a role holding only another case screen is refused those reads. It needs a change to the registry (ADR-026).
 - **The same decline gap in Life and General:** their decline handlers take `reason?.CustomerWording`, so an unknown reason sends a notice with no wording, as Health did before BR-127. General's lapse job does too. Not asked for and not fixed.
 - **A Health decline with no notice recipient** still goes without a notice, silently.
