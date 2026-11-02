@@ -38,6 +38,8 @@ namespace Insys.Communications.Infrastructure.Channels;
 /// </summary>
 internal abstract class StubNotificationChannel(StubChannelOutbox outbox, StubChannelSwitches switches, ILogger logger) : INotificationChannel
 {
+    public bool IsStub => true;
+
     public const string ProviderRefPrefix = "STUB-";
 
     public abstract string Channel { get; }

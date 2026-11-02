@@ -61,7 +61,7 @@ public interface ITenantQueries
 // history, outbox and audit rows belong to that tenant (TEN-007).
 
 /// <param name="TimeZone">An IANA time zone such as Africa/Johannesburg: the tenant's business dates follow it (ADR-025).</param>
-public sealed record RegisterTenant(Guid TenantId, string TenantCode, string LegalName, IsolationProfile IsolationProfile, string TimeZone) : ICommand<Guid>, ITargetTenantRequest
+public sealed record RegisterTenant(Guid TenantId, string TenantCode, string LegalName, IsolationProfile IsolationProfile, string TimeZone, bool Sample = false) : ICommand<Guid>, ITargetTenantRequest
 {
     public Guid TargetTenantId => TenantId;
 }
@@ -182,7 +182,7 @@ internal sealed class RegisterTenantHandler(ITenantRepository tenants, IExecutio
             return Error.Conflict(TenancyErrorCodes.TenantCodeTaken, "Another tenant already uses this tenant code.");
         }
 
-        var tenant = Tenant.RegisterTenant(command.TenantId, command.TenantCode, command.LegalName, command.IsolationProfile, command.TimeZone, clock.UtcNow);
+        var tenant = Tenant.RegisterTenant(command.TenantId, command.TenantCode, command.LegalName, command.IsolationProfile, command.TimeZone, clock.UtcNow, command.Sample);
         if (tenant.IsFailure)
         {
             return tenant.Error;

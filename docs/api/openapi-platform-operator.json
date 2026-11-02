@@ -76302,6 +76302,10 @@
           },
           "timeZone": {
             "type": "string"
+          },
+          "sample": {
+            "type": "boolean",
+            "default": false
           }
         }
       },

@@ -216,6 +216,8 @@ internal sealed class SimulatorGateway(IPaymentProviderPolicy policy) : IPayment
 {
     public const string Code = "SIMULATOR";
 
+    public bool IsStub => true;
+
     /// <summary>Where it isn't allowed nothing handles it, so a payment on it has an unknown outcome, never a pending one.</summary>
     public bool Handles(string providerCode) => providerCode == Code && policy.Allows(providerCode);
 

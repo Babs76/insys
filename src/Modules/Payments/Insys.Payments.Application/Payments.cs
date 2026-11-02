@@ -125,6 +125,9 @@ public interface IPaymentGateway
 {
     bool Handles(string providerCode);
 
+    /// <summary>A stub moves no money. Only a stub may serve a sample tenant.</summary>
+    bool IsStub => false;
+
     /// <summary>Sends the payment. <paramref name="payee"/> is the payee's bank account, decrypted, for a payout to one; the gateway never logs or stores it.</summary>
     Task<(ProviderOutcome Outcome, string? ExternalRef, string? Reason)> Send(Payment payment, PayeeAccountDetails? payee, CancellationToken cancellationToken);
 }
@@ -302,7 +305,7 @@ internal static class Users
 }
 
 /// <summary>Starts payments: one per idempotency key (PAY-001); inbound collections are sent at once, payouts wait for a batch.</summary>
-public sealed class PaymentStarter(IPaymentRepository payments, IPaymentCodes codes, IEnumerable<IPaymentGateway> gateways, IBankAccounts bankAccounts,
+public sealed class PaymentStarter(BuildingBlocks.Application.Context.ISampleTenants sampleTenants, IPaymentRepository payments, IPaymentCodes codes, IEnumerable<IPaymentGateway> gateways, IBankAccounts bankAccounts,
     IBankAccountDetails bankAccountDetails, ITenantContext tenant, IAuditTrail audit, IBusinessDate businessDate, IClock clock)
 {
     public async Task<Result<Payment>> Start(InitiatePayment command, CancellationToken cancellationToken)
@@ -362,7 +365,10 @@ public sealed class PaymentStarter(IPaymentRepository payments, IPaymentCodes co
                 new Dictionary<string, string?> { ["payment"] = payment.Id.ToString() }));
         }
 
-        var gateway = gateways.FirstOrDefault(g => g.Handles(payment.ProviderCode));
+        // Whatever provider the tenant names, a sample tenant's payment reaches only a stub, and with none allowed here its outcome is unknown (Workstream F).
+        var gateway = await sampleTenants.IsSample(tenant.RequireTenantId(), cancellationToken)
+            ? gateways.FirstOrDefault(g => g.IsStub && g.Handles("SIMULATOR"))
+            : gateways.FirstOrDefault(g => g.Handles(payment.ProviderCode));
         (ProviderOutcome Outcome, string? ExternalRef, string? Reason) answer;
         try
         {

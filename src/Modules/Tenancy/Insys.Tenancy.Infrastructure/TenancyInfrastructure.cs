@@ -55,6 +55,7 @@ public static class TenancyInfrastructure
         services.AddHealthChecks().AddCheck<TenantTimeZonesHealthCheck>("tenant-time-zones");
         services.AddSingleton<IOrganisationStructure, OrganisationStructureQuery>();
         services.AddSingleton<ITenantProfiles, TenantProfiles>();
+        services.AddSingleton<BuildingBlocks.Application.Context.ISampleTenants, SampleTenants>();
         services.AddSingleton<ITenantFunctionSettings, TenantFunctionSettingsQuery>();
         services.AddScoped<IStaticChangeGuard, MoneyJobSwitchGuard>();
         services.AddSingleton<IStaticRecordValidator, MoneyJobSwitchRule>();

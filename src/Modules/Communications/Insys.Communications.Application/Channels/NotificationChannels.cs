@@ -36,6 +36,9 @@ public interface INotificationChannel
     /// <summary>The channel code (Contracts.Channels).</summary>
     string Channel { get; }
 
+    /// <summary>A stub reaches no one. Only a stub may serve a sample tenant.</summary>
+    bool IsStub => false;
+
     Task<ChannelReceipt> Send(OutboundMessage message, CancellationToken cancellationToken);
 }
 
@@ -80,5 +83,9 @@ public static class ChannelFailures
 /// <summary>The channels registered for this process, by code.</summary>
 public interface INotificationChannels
 {
+    /// <summary>The real channel where one is connected, otherwise the stub.</summary>
     INotificationChannel? For(string channel);
+
+    /// <summary>The stub for a sample tenant, or null: never a real channel.</summary>
+    INotificationChannel? StubFor(string channel);
 }

@@ -56,7 +56,7 @@ internal sealed class FindDueNotificationsHandler(INotificationRepository notifi
 /// identity, portal link and opt-out contact are added to the merge values. No address uses the channel up; a refusal
 /// is retried or moves on, as the notification decides.
 /// </summary>
-internal sealed class SendNotificationHandler(INotificationRepository notifications, ICommunicationCodes codes, INotificationChannels channels, IPartyContacts contacts,
+internal sealed class SendNotificationHandler(BuildingBlocks.Application.Context.ISampleTenants sampleTenants, INotificationRepository notifications, ICommunicationCodes codes, INotificationChannels channels, IPartyContacts contacts,
     IPartyConsent consent, IPartyLanguage languages, ILanguageSettings settings, IFieldProtector protector, ITenantContext tenant, IBusinessDate businessDate,
     IClock clock, IOptions<CommunicationOptions> options, ILogger<SendNotificationHandler> logger) : ICommandHandler<SendNotification, NotificationStatus?>
 {
@@ -88,7 +88,7 @@ internal sealed class SendNotificationHandler(INotificationRepository notificati
 
         var day = businessDate.Today;
         var provider = (await codes.Providers(day, cancellationToken)).FirstOrDefault(p => p.Channel == channelCode);
-        var channel = channels.For(channelCode);
+        var channel = await sampleTenants.IsSample(tenantId, cancellationToken) ? channels.StubFor(channelCode) : channels.For(channelCode);
         if (provider is null || channel is null)
         {
             notification.Refused(channelCode, provider?.ProviderCode ?? "NONE", "", "PROVIDER_NOT_CONFIGURED", retryable: false, now);

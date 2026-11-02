@@ -31,18 +31,23 @@ namespace Insys.Communications.Infrastructure.Channels;
 /// <summary>The registered channels by code (addenda/communications.md §3); an unknown code answers null.</summary>
 public sealed class NotificationChannelRegistry : INotificationChannels
 {
-    private readonly Dictionary<string, INotificationChannel> _channels = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, INotificationChannel> _real = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, INotificationChannel> _stubs = new(StringComparer.Ordinal);
 
     public NotificationChannelRegistry(IEnumerable<INotificationChannel> channels)
     {
         ArgumentNullException.ThrowIfNull(channels);
         foreach (var channel in channels)
         {
-            if (!_channels.TryAdd(channel.Channel, channel))
+            if (!(channel.IsStub ? _stubs : _real).TryAdd(channel.Channel, channel))
+            {
                 throw new InvalidOperationException($"More than one notification channel is registered for {channel.Channel}.");
+            }
         }
     }
 
     public INotificationChannel? For(string channel) =>
-        channel is not null && _channels.TryGetValue(channel, out var found) ? found : null;
+        channel is not null && (_real.TryGetValue(channel, out var found) || _stubs.TryGetValue(channel, out found)) ? found : null;
+
+    public INotificationChannel? StubFor(string channel) => channel is not null && _stubs.TryGetValue(channel, out var found) ? found : null;
 }

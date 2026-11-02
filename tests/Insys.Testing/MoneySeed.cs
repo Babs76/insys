@@ -38,7 +38,7 @@ namespace Insys.Testing;
 /// <summary>The Billing and Payments static data a money flow needs: monthly billing by debit order, collected by the simulator provider.</summary>
 public static class MoneySeed
 {
-    public static async Task SeedBillingAndPayments(this TestDatabase database, Guid tenantId, DateOnly from)
+    public static async Task SeedBillingAndPayments(this TestDatabase database, Guid tenantId, DateOnly from, string provider = "SIMULATOR")
     {
         await database.SeedStatic(tenantId, "billing.ref_billing_frequencies", "ACTIVE", "MONTHLY", from, ("label", "Monthly"), ("periods_per_year", 12));
         await database.SeedStatic(tenantId, "billing.ref_collection_methods", "ACTIVE", "DEBIT_ORDER", from, ("method_code", "DEBIT_ORDER"), ("payment_method", "DEBIT_ORDER"),
@@ -47,11 +47,11 @@ public static class MoneySeed
             ("accounting_impact", "CREDIT"));
         await database.SeedStatic(tenantId, "payment.ref_payment_methods", "ACTIVE", "DEBIT_ORDER", from, ("method_code", "DEBIT_ORDER"), ("direction", "COLLECT"),
             ("currencies", new[] { "ZAR" }), ("countries", new[] { "ZA" }));
-        await database.SeedStatic(tenantId, "payment.mst_payment_provider_and_bank_register", "ACTIVE", "SIMULATOR", from, ("provider_code", "SIMULATOR"),
+        await database.SeedStatic(tenantId, "payment.mst_payment_provider_and_bank_register", "ACTIVE", provider, from, ("provider_code", provider),
             ("type", "PAYMENT_GATEWAY"), ("supported_methods", new[] { "DEBIT_ORDER", "EFT" }), ("credential_ref", "vault:simulator"));
         foreach (var (status, platform) in new[] { ("PAID", "SUCCEEDED"), ("BOUNCED", "FAILED") })
         {
-            await database.SeedStatic(tenantId, "payment.ref_payment_status_mappings", "ACTIVE", $"SIM-{status}", from, ("provider_code", "SIMULATOR"),
+            await database.SeedStatic(tenantId, "payment.ref_payment_status_mappings", "ACTIVE", $"SIM-{status}", from, ("provider_code", provider),
                 ("provider_status", status), ("platform_status", platform), ("final", true));
         }
     }

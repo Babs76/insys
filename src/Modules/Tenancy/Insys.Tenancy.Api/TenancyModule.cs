@@ -39,7 +39,8 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Insys.Tenancy.Api;
 
-public sealed record RegisterTenantRequest(string TenantCode, string LegalName, IsolationProfile IsolationProfile, string TimeZone);
+/// <param name="Sample">A sample tenant, whose notifications and payments go only to stubs. It can't be changed later, by anyone.</param>
+public sealed record RegisterTenantRequest(string TenantCode, string LegalName, IsolationProfile IsolationProfile, string TimeZone, bool Sample = false);
 
 public sealed record TenantStatusRequest(string Reason);
 
@@ -83,7 +84,7 @@ public sealed class TenancyModule : IModule
         tenants.MapPost("/", async (RegisterTenantRequest request, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
             {
                 var tenantId = Guid.CreateVersion7();
-                var result = await dispatcher.Send(new RegisterTenant(tenantId, request.TenantCode, request.LegalName, request.IsolationProfile, request.TimeZone), ct);
+                var result = await dispatcher.Send(new RegisterTenant(tenantId, request.TenantCode, request.LegalName, request.IsolationProfile, request.TimeZone, request.Sample), ct);
                 return result.ToHttp(id =>
                 {
                     Concurrency.SetETag(http, 1);

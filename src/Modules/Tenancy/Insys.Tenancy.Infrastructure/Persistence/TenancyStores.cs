@@ -271,6 +271,16 @@ internal sealed class LocaleDefaultsValidator : IStaticRecordValidator
             : new Dictionary<string, string[]>();
 }
 
+internal sealed class SampleTenants([FromKeyedServices(TenancyDbContext.SchemaName)] NpgsqlDataSource dataSource) : BuildingBlocks.Application.Context.ISampleTenants
+{
+    public async Task<bool> IsSample(Guid tenantId, CancellationToken cancellationToken)
+    {
+        await using var command = dataSource.CreateCommand("SELECT sample FROM tenant.tenant WHERE id = @id");
+        command.Parameters.AddWithValue("id", tenantId);
+        return await command.ExecuteScalarAsync(cancellationToken) is not false;
+    }
+}
+
 internal sealed class TenantProfiles([FromKeyedServices(TenancyDbContext.SchemaName)] NpgsqlDataSource dataSource) : ITenantProfiles
 {
     public async Task<TenantProfile?> Get(Guid tenantId, CancellationToken cancellationToken)
