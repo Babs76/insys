@@ -65,6 +65,9 @@ public sealed record PendReviewRequest(IReadOnlyList<LineReview> Reviews);
 
 public sealed record ReasonRequest(string Reason);
 
+/// <param name="Reason">BR-127: a claim decision reason of type DECLINE; its customer wording goes in the member's notice.</param>
+public sealed record RejectClaimRequest([property: BuildingBlocks.Domain.CodeList(HealthCodeLists.ClaimDecisionReasons, "code", Filter = "decision_type=DECLINE"), System.ComponentModel.DataAnnotations.MaxLength(30)] string Reason);
+
 /// <param name="ReasonCode">A partial approval's reason (OQ-102): a claim decision reason of type PARTIAL, required when some lines were declined.</param>
 /// <param name="ReasonCode">Required only for a partial approval (OQ-102): a claim adjudicated with some lines rejected while the rest are
 /// paid. A decision reason of type PARTIAL from claims/static/claim-decision-reason-codes; 422 HEALTH_RATIONALE_REQUIRED without one.</param>
@@ -469,7 +472,7 @@ public sealed class HealthModule : IModule
                 + "outcome is then PARTLY_APPROVED and the member is sent CLAIM_DECISION_RIGHTS. Paying at the tariff, or less a co-payment, is the plan's terms "
                 + "and is not partial.")
             .RequirePermission(HealthPermissions.ClaimApprove);
-        health.MapPost("/claims/{id:guid}/reject", async (Guid id, ReasonRequest r, IDispatcher d, CancellationToken ct) =>
+        health.MapPost("/claims/{id:guid}/reject", async (Guid id, RejectClaimRequest r, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new RejectMedicalClaim(id, r.Reason), ct)).ToHttp(Results.Ok))
             .Produces<MedicalClaimView>(StatusCodes.Status200OK)
             .TakesIfMatch()

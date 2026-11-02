@@ -216,7 +216,7 @@ public sealed class ProductPublicationTests(PostgresServer server) : IAsyncLifet
     private Task Static(string table, string code, string columns, string values, bool reference = false) =>
         _db.ExecuteAsOwner($"""
             INSERT INTO {table} (tenant_id, code, version, effective_from, record_status, created_by, change_reason, {columns})
-            VALUES (@t, @code, 1, current_date - 1, '{(reference ? "ACTIVE" : "EFFECTIVE")}', 'seed', 'test seed', {values})
+            VALUES (@t, @code, 1, DATE '2026-01-01', '{(reference ? "ACTIVE" : "EFFECTIVE")}', 'seed', 'test seed', {values})
             """, ("t", Tenant), ("code", code));
 
     /// <summary>The product in the product list (GAP-023), checked against its documented schema; Undefined when not listed.</summary>

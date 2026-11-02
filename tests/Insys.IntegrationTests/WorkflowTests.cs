@@ -348,7 +348,7 @@ public sealed class WorkflowTests(DatabaseFixture fixture) : IClassFixture<Datab
         {
             await db.ExecuteAsOwner("""
                 INSERT INTO life.cfg_claims_authority_limits (tenant_id, code, version, effective_from, record_status, created_by, change_reason, role, claim_type, limit_value)
-                VALUES (@t, @code, 1, current_date - 1, 'EFFECTIVE', 'seed', 'test seed', @role, @type, @limit)
+                VALUES (@t, @code, 1, DATE '2026-01-01', 'EFFECTIVE', 'seed', 'test seed', @role, @type, @limit)
                 """, ("t", t), ("code", $"CAL-{claimsRole}-{type}"), ("role", claimsRole), ("type", type), ("limit", limit));
         }
 
@@ -429,7 +429,7 @@ public sealed class WorkflowTests(DatabaseFixture fixture) : IClassFixture<Datab
     private Task Static(string table, string code, string columns, string values) =>
         fixture.Database.ExecuteAsOwner($"""
             INSERT INTO workflow.{table} (tenant_id, code, version, effective_from, record_status, created_by, change_reason, {columns})
-            VALUES (@t, @code, 1, current_date - 1, 'EFFECTIVE', 'seed', 'test seed', {values})
+            VALUES (@t, @code, 1, DATE '2026-01-01', 'EFFECTIVE', 'seed', 'test seed', {values})
             ON CONFLICT DO NOTHING
             """, ("t", DatabaseFixture.TenantA), ("code", code));
 }

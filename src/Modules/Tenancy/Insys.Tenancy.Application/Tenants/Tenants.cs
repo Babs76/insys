@@ -258,8 +258,9 @@ internal sealed class ChangeTenantStatusHandler(ITenantRepository tenants, IExec
             return tenant.Error;
         }
 
-        // The start-up check reads active tenants only, so a tenant naming a refused provider can't become active again.
-        if (command.Action == TenantStatusAction.Reactivate && tenant.Value.Status == TenantStatus.Suspended
+        // The start-up check reads active tenants only, so a tenant naming a refused provider can't become active, for the first time or again.
+        if (((command.Action == TenantStatusAction.Reactivate && tenant.Value.Status == TenantStatus.Suspended)
+                || (command.Action == TenantStatusAction.Activate && tenant.Value.Status == TenantStatus.Onboarding))
             && await providers.NamesARefusedProvider(command.TenantId, cancellationToken))
         {
             return Error.Validation(Payments.Contracts.ITenantPaymentProviders.ProviderNotAllowed,

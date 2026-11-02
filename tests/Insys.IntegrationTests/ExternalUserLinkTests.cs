@@ -59,7 +59,7 @@ public sealed class ExternalUserLinkTests(DatabaseFixture fixture) : IClassFixtu
         await db.ExecuteAsOwner("""
             INSERT INTO workflow.cfg_delegation_and_approval_authority (tenant_id, code, version, effective_from, record_status, created_by, change_reason,
                                                                          role_code, transaction_type, limit_value, delegation_allowed)
-            VALUES (@t, 'AUTH-LINK', 1, current_date - 1, 'EFFECTIVE', 'seed', 'test seed', @r, @type, 0, false)
+            VALUES (@t, 'AUTH-LINK', 1, DATE '2026-01-01', 'EFFECTIVE', 'seed', 'test seed', @r, @type, 0, false)
             """, ("t", Tenant), ("r", authority), ("type", IdentityApprovals.SubjectLinkApprovalType));
         var admin = _factory.ClientFor(Tenant, "link-admin");
         var party = await admin.RegisterPerson("Linked");

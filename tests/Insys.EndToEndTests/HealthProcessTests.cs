@@ -111,6 +111,11 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         await Seed("health.cfg_dependant_types_and_age_limits", "EFFECTIVE", "SPOUSE", ("type_code", "SPOUSE"), ("max_age", 120), ("evidence", "MARRIAGE_CERTIFICATE"));
         await Seed("health.cfg_health_waiting_period_rules", "EFFECTIVE", "WP-GEN", ("rule_code", "WP-GEN"), ("type", "GENERAL"), ("duration", TimeSpan.FromDays(90)),
             ("exceptions", new[] { "EMERGENCY" }));
+        foreach (var reason in Insys.Health.Application.HealthDeclineRights.AutomaticReasons)
+        {
+            await Seed("claims.ref_claim_decision_reason_codes", "ACTIVE", reason, ("decision_type", "DECLINE"), ("customer_wording", "Your claim could not be paid."));
+        }
+
         await Seed("health.cfg_plans_and_options", "EFFECTIVE", "HLT-CORE-A", ("plan_code", "HLT-CORE"), ("option_code", "A"), ("benefit_schedule", "BS-CORE"),
             ("network", "NET-A"), ("reference_tariff_schedule_code", "REF"), ("benefit_year", "CALENDAR"));
 

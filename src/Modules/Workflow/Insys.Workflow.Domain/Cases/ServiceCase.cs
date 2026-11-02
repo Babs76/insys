@@ -885,6 +885,9 @@ public static class CaseErrorCodes
     [ErrorCode(422, "error.workflow.case_category_required")]
     public const string CategoryRequired = "CASE_CATEGORY_REQUIRED";
 
+    [ErrorCode(422, "error.workflow.case_category_not_allowed")]
+    public const string CategoryNotAllowed = "CASE_CATEGORY_NOT_ALLOWED";
+
     /// <summary>A rejection or partial upholding needs its reasons (PPR 18.7.2).</summary>
     [ErrorCode(422, "error.workflow.case_reasons_required")]
     public const string ReasonsRequired = "CASE_REASONS_REQUIRED";

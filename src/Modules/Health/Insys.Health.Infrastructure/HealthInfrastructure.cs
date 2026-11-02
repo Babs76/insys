@@ -102,6 +102,7 @@ public static class HealthInfrastructure
         services.AddScoped<BenefitContexts>();
         services.AddScoped<DependantPrivacy>(); // OQ-161
         services.AddSingleton<BuildingBlocks.Application.IReadinessCheck, ChronicReviewerReadiness>();
+        services.AddSingleton<BuildingBlocks.Application.IReadinessCheck, DeclineReasonReadiness>();
         // Wave 5b §6: a plan with no preventive schedule is a warning, not a blocker.
         BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddSqlReadiness(services, Persistence.HealthDbContext.SchemaName, ["DOMAIN_REFERENCE_DATA"], async (context, connection, transaction, ct) =>
         {
