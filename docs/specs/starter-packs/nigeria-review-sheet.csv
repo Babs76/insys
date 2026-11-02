@@ -1,5 +1,5 @@
 class,table,code,field_value_draft,check_against,note,status,reviewer_answer,reviewer,date
-COMPLIANCE,workflow.cfg_case_types,COMPLAINT,"{""appeal_route"": null, ""ombud_scheme_codes"": []}",NAICOM complaints process; any insurance ombudsman; FCCPC.,"BLOCKED IN CODE: appeal_route accepts only PPR_NFO or CMS. See the survey, §3.",DRAFT-FOR-REVIEW,,,
+COMPLIANCE,workflow.cfg_case_types,COMPLAINT,"{""appeal_route"": null, ""ombud_scheme_codes"": []}",NAICOM complaints process; any insurance ombudsman; FCCPC.,"The route list is static data since V0126: add a row to workflow.ref_appeal_routes when the partner names the route, then set it here.",DRAFT-FOR-REVIEW,,,
 COMPLIANCE,workflow.cfg_case_timelines,"COMPLAINT_ACKNOWLEDGE, COMPLAINT_RESOLVE","{""ACKNOWLEDGE"": null, ""RESOLVE"": null}",NAICOM guidelines on complaint handling.,,DRAFT-FOR-REVIEW,,,
 COMPLIANCE,channel.cfg_disclosure_and_notice_texts,"DISC-QUOTE, -ISSUE, -RENEWAL, -CLAIM","{""notice_type"": null, ""jurisdiction"": ""NG"", ""language"": ""en"", ""text"": null}","NAICOM market conduct rules; which disclosures, at which points.",,DRAFT-FOR-REVIEW,,,
 COMPLIANCE,communication.cfg_notification_templates,CLAIM_DECISION_RIGHTS,"{""language"": ""en"", ""body"": null}",What a decline must tell the customer in Nigeria.,,DRAFT-FOR-REVIEW,,,

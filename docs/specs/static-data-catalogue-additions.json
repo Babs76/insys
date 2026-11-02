@@ -532,7 +532,7 @@
     },
     {
      "name": "appeal_route",
-     "logicalType": "Enum",
+     "logicalType": "Ref Appeal route",
      "mandatory": true,
      "sample": "PPR_NFO"
     },
@@ -709,6 +709,39 @@
      "logicalType": "Enum[]",
      "mandatory": true,
      "sample": "COMPLAINT"
+    }
+   ]
+  },
+  {
+   "layer": "Platform",
+   "module": "Workflow and Case Management",
+   "subModule": "Cases",
+   "entity": "Appeal routes",
+   "table": "workflow.ref_appeal_routes",
+   "class": "REF",
+   "scope": "GT",
+   "tier": 2,
+   "proposedOwner": "Compliance Officer",
+   "provenance": "Nigeria blocker (country readiness survey, 1 November 2026)",
+   "basis": "docs/reports/2026-11-01-country-readiness-survey.md \u00a73",
+   "fields": [
+    {
+     "name": "route_code",
+     "logicalType": "Code",
+     "mandatory": true,
+     "sample": "PPR_NFO"
+    },
+    {
+     "name": "name",
+     "logicalType": "Text",
+     "mandatory": true,
+     "sample": "Policyholder Protection Rules and the National Financial Ombud Scheme"
+    },
+    {
+     "name": "preferred_lines",
+     "logicalType": "Enum[]",
+     "mandatory": true,
+     "sample": "LIFE"
     }
    ]
   },

@@ -86,6 +86,9 @@ public interface ICaseConfiguration
     /// <summary>The dispute case types in force that a claim may be linked to (family DISPUTE, link type CLAIM).</summary>
     Task<IReadOnlyList<CaseTypeConfig>> ClaimDisputeTypes(DateOnly day, CancellationToken cancellationToken);
 
+    /// <summary>The routes in force that claims on this line prefer (workflow.ref_appeal_routes); a tenant's own row before a global one.</summary>
+    Task<IReadOnlyList<string>> PreferredAppealRoutes(string line, DateOnly day, CancellationToken cancellationToken);
+
     Task<IReadOnlyList<CaseTimeline>> Timelines(string caseTypeCode, DateOnly day, CancellationToken cancellationToken);
 
     /// <summary>The case type's query window (workflow.cfg_case_reportability), or null.</summary>

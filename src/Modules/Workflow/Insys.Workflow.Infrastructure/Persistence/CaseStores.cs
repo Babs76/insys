@@ -107,6 +107,10 @@ internal sealed class CaseConfiguration(WorkflowDbContext db) : ICaseConfigurati
         .Select(t => new CaseTypeConfig(t.CaseTypeCode, t.Family, t.ProcessCode, t.DefaultQueueCode, t.LinkTypes, t.PortalAudiences ?? [], t.RequiresCategory,
             t.ReviewCaseTypeCode, t.AppealRoute, t.OmbudSchemeCodes ?? [])).ToList();
 
+    public async Task<IReadOnlyList<string>> PreferredAppealRoutes(string line, DateOnly day, CancellationToken cancellationToken) =>
+        (await InForce<AppealRoutes>(day).ToListAsync(cancellationToken)).GroupBy(r => r.RouteCode).Select(g => g.OrderByDescending(r => r.TenantId != null).First())
+        .Where(r => r.PreferredLines.Contains(line)).Select(r => r.RouteCode).ToList();
+
     public async Task<IReadOnlyList<CaseTimeline>> Timelines(string caseTypeCode, DateOnly day, CancellationToken cancellationToken) =>
         (await InForce<CaseTimelines>(day).Where(t => t.CaseTypeCode == caseTypeCode).ToListAsync(cancellationToken))
         .GroupBy(t => t.Step).Select(g => g.OrderByDescending(t => t.EffectiveFrom).First())
@@ -354,8 +358,8 @@ internal sealed class CaseNotices(WorkflowDbContext db, ICaseRepository cases, I
 
 /// <summary>
 /// IClaimAppealRoutes (OQ-101, OQ-102): the tenant's dispute case type for claims gives a claim decision notice its appeal
-/// route, review options and ombud schemes. A Health claim takes a CMS type where the tenant has one; otherwise, and for
-/// Life and General, a PPR_NFO type. Read on Workflow's own connection, in a transaction of its own.
+/// route, review options and ombud schemes. A claim takes a type whose route prefers its line (workflow.ref_appeal_routes) where
+/// the tenant has one; otherwise its first type. Read on Workflow's own connection, in a transaction of its own.
 /// </summary>
 internal sealed class ClaimAppealRoutes(WorkflowDbContext db, ICaseConfiguration configuration, CaseNoticeTexts texts, IBusinessDate businessDate) : IClaimAppealRoutes
 {
@@ -363,9 +367,9 @@ internal sealed class ClaimAppealRoutes(WorkflowDbContext db, ICaseConfiguration
     {
         await using var transaction = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(cancellationToken) : null;
         var types = await configuration.ClaimDisputeTypes(businessDate.Today, cancellationToken);
-        var preferred = domain == "HEALTH" ? "CMS" : "PPR_NFO";
+        var preferred = await configuration.PreferredAppealRoutes(domain, businessDate.Today, cancellationToken);
         ClaimAppealRoute? route = null;
-        if ((types.FirstOrDefault(t => t.AppealRoute == preferred) ?? types.FirstOrDefault()) is { } type)
+        if ((types.FirstOrDefault(t => preferred.Contains(t.AppealRoute)) ?? types.FirstOrDefault()) is { } type)
         {
             var (review, ombud) = await texts.For(type, cancellationToken);
             route = new ClaimAppealRoute(type.AppealRoute, review, ombud);

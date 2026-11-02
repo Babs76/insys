@@ -61,6 +61,7 @@ public static class PaymentsInfrastructure
         services.AddScoped<IPaymentCodes, PaymentCodes>();
         services.AddScoped<PaymentStarter>();
         services.AddSingleton<IPaymentProviderPolicy, PaymentProviderPolicy>();
+        services.AddSingleton<Contracts.ITenantPaymentProviders, TenantPaymentProviders>();
         services.AddSingleton<IStaticRecordValidator, PaymentProviderValidator>();
         // The build-time OpenAPI tool starts the host, in Production, with no database.
         if (!BuildingBlocks.Infrastructure.InfrastructureRegistration.IsBuildTimeDocumentGeneration)

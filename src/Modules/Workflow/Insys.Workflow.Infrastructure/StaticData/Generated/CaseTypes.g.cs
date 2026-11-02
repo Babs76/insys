@@ -60,7 +60,6 @@ public sealed class CaseTypes : StaticRecord<CaseTypesInput>
 
     public string? ReviewCaseTypeCode { get; set; }
 
-    [Insys.BuildingBlocks.Domain.OneOf("PPR_NFO", "CMS")]
     public string AppealRoute { get; set; } = "";
 
     public string[]? OmbudSchemeCodes { get; set; }
@@ -110,7 +109,6 @@ public sealed record CaseTypesInput : StaticRecordInput
 
     public string? ReviewCaseTypeCode { get; init; }
 
-    [Insys.BuildingBlocks.Domain.OneOf("PPR_NFO", "CMS")]
     [Insys.BuildingBlocks.Domain.RequiredField]
     public string? AppealRoute { get; init; }
 
@@ -132,7 +130,7 @@ public sealed record CaseTypesInput : StaticRecordInput
         errors.Required("requiresCategory", RequiresCategory);
         errors.MaxLength("reviewCaseTypeCode", ReviewCaseTypeCode, 30);
         errors.Required("appealRoute", AppealRoute);
-        errors.MaxLength("appealRoute", AppealRoute, 10);
-        errors.OneOf("appealRoute", AppealRoute, ["PPR_NFO", "CMS"]);
+        errors.MaxLength("appealRoute", AppealRoute, 20);
+        errors.Valid("appealRoute", AppealRoute, v => System.Text.RegularExpressions.Regex.IsMatch(v, @"^[A-Z][A-Z0-9_]*$"), "in the format ^[A-Z][A-Z0-9_]*$");
     }
 }

@@ -52,9 +52,10 @@ public static class WorkflowStaticDataEndpoints
         api.MapStaticEntity<WorkflowDbContext, SLADefinitions, SLADefinitionsInput>(WorkflowStaticData.Descriptors[7], Tag);
         api.MapStaticEntity<WorkflowDbContext, TaskTypesAndWorkQueues, TaskTypesAndWorkQueuesInput>(WorkflowStaticData.Descriptors[8], Tag);
         api.MapStaticEntity<WorkflowDbContext, WorkflowDefinitions, WorkflowDefinitionsInput>(WorkflowStaticData.Descriptors[9], Tag);
-        api.MapStaticEntity<WorkflowDbContext, BusinessCalendars, BusinessCalendarsInput>(WorkflowStaticData.Descriptors[10], Tag);
-        api.MapStaticEntity<WorkflowDbContext, CaseCategories, CaseCategoriesInput>(WorkflowStaticData.Descriptors[11], Tag);
-        api.MapStaticEntity<WorkflowDbContext, ExceptionCodes, ExceptionCodesInput>(WorkflowStaticData.Descriptors[12], Tag);
-        api.MapStaticEntity<WorkflowDbContext, OmbudSchemes, OmbudSchemesInput>(WorkflowStaticData.Descriptors[13], Tag);
+        api.MapStaticEntity<WorkflowDbContext, AppealRoutes, AppealRoutesInput>(WorkflowStaticData.Descriptors[10], Tag);
+        api.MapStaticEntity<WorkflowDbContext, BusinessCalendars, BusinessCalendarsInput>(WorkflowStaticData.Descriptors[11], Tag);
+        api.MapStaticEntity<WorkflowDbContext, CaseCategories, CaseCategoriesInput>(WorkflowStaticData.Descriptors[12], Tag);
+        api.MapStaticEntity<WorkflowDbContext, ExceptionCodes, ExceptionCodesInput>(WorkflowStaticData.Descriptors[13], Tag);
+        api.MapStaticEntity<WorkflowDbContext, OmbudSchemes, OmbudSchemesInput>(WorkflowStaticData.Descriptors[14], Tag);
     }
 }

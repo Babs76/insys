@@ -55,7 +55,7 @@
         "appeal_route": null,
         "ombud_scheme_codes": []
       },
-      "note": "BLOCKED IN CODE: appeal_route accepts only PPR_NFO or CMS. See the survey, §3.",
+      "note": "The route list is static data since V0126: add a row to workflow.ref_appeal_routes when the partner names the route, then set it here.",
       "status": "DRAFT-FOR-REVIEW",
       "basis_to_check": "NAICOM complaints process; any insurance ombudsman; FCCPC."
     },

@@ -56,6 +56,7 @@
 | 10 Wave 3 batch 3 | The API descriptions: the committed documents, signed-in only outside development and test; B-005 on the backlog | Branch `wave3-3` |
 | 10 Wave 3 batch 2 | Due diligence: KYC requirement sets (F002), screening, hit review, enhanced due diligence and FIC reports (F003), risk classes and reviews (F077), the gates with held payouts (OQ-123), readiness | Branch `wave3-2` |
 | 10 Waves 3 to 6 | Later batches are recorded in `docs/reports/`. Wave 6 was finished by 1 November 2026, with five functions deferred (F063, F079, F089–F091); the current position is in `docs/traceability/functional-coverage.md` | Done (UTC+14 sweep at `91cb494`: 605 of 607, both failures passed on rerun) |
+| Nigeria blockers | Appeal routes as static data, with the preferred lines (V0126). Reactivating a tenant that names the simulator is refused where it is refused | Appeal routes done; retention defaults, time zone default and age of majority not started |
 
 ## Phase 1 review items
 

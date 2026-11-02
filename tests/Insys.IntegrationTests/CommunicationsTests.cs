@@ -441,6 +441,15 @@ public sealed class CommunicationsTests(DatabaseFixture fixture) : IClassFixture
         (await Rights("LIFE_CLAIM", "LC-9001", "Not disclosed.")).ShouldStartWith("LC-9001|Not disclosed.|PPR_NFO|National Financial Ombud Scheme");
         (await Rights("HEALTH_CLAIM", "HC-9001", "Plan does not cover it."))
             .ShouldBe("HC-9001|Plan does not cover it.|CMS|Council for Medical Schemes (complaints@medicalschemes.co.za): Complain to the Registrar within three months.");
+
+        // A route of the tenant's own, in static data: General prefers it once the tenant's own PPR_NFO row stops preferring General.
+        await fixture.Database.SeedStatic(Tenant, "workflow.ref_appeal_routes", "ACTIVE", "NAICOM", From, ("route_code", "NAICOM"), ("name", "NAICOM complaints"), ("preferred_lines", new[] { "GENERAL" }));
+        await fixture.Database.SeedStatic(Tenant, "workflow.ref_appeal_routes", "ACTIVE", "PPR_NFO", From, ("route_code", "PPR_NFO"), ("name", "Policyholder Protection Rules"), ("preferred_lines", new[] { "LIFE" }));
+        await Seed("workflow.cfg_case_types", "NG_DISPUTE", ("case_type_code", "NG_DISPUTE"), ("family", "DISPUTE"), ("process_code", "CASE_PROC"), ("default_queue_code", "CASES"),
+            ("link_types", new[] { "CLAIM" }), ("portal_audiences", new[] { "CUSTOMER" }), ("requires_category", false), ("review_case_type_code", DBNull.Value),
+            ("appeal_route", "NAICOM"), ("ombud_scheme_codes", Array.Empty<string>()));
+        (await Rights("GENERAL_CLAIM", "GC-9002", "Not covered.")).ShouldStartWith("GC-9002|Not covered.|NAICOM|");
+        (await Rights("LIFE_CLAIM", "LC-9002", "Not disclosed.")).ShouldStartWith("LC-9002|Not disclosed.|PPR_NFO|");
     }
 
     [Fact]

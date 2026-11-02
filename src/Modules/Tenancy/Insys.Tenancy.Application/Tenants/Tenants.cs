@@ -241,7 +241,7 @@ internal sealed class CompleteOnboardingStepHandler(ITenantRepository tenants, O
     }
 }
 
-internal sealed class ChangeTenantStatusHandler(ITenantRepository tenants, IExecutionContext execution, IClock clock, IAuditTrail audit)
+internal sealed class ChangeTenantStatusHandler(ITenantRepository tenants, IExecutionContext execution, IClock clock, IAuditTrail audit, Payments.Contracts.ITenantPaymentProviders providers)
     : ICommandHandler<ChangeTenantStatus, long>
 {
     public async Task<Result<long>> Handle(ChangeTenantStatus command, CancellationToken cancellationToken)
@@ -256,6 +256,14 @@ internal sealed class ChangeTenantStatusHandler(ITenantRepository tenants, IExec
         if (tenant.IsFailure)
         {
             return tenant.Error;
+        }
+
+        // The start-up check reads active tenants only, so a tenant naming a refused provider can't become active again.
+        if (command.Action == TenantStatusAction.Reactivate && tenant.Value.Status == TenantStatus.Suspended
+            && await providers.NamesARefusedProvider(command.TenantId, cancellationToken))
+        {
+            return Error.Validation(Payments.Contracts.ITenantPaymentProviders.ProviderNotAllowed,
+                "The tenant's provider register or callback endpoints name a provider that is not allowed in this environment.");
         }
 
         var now = clock.UtcNow;

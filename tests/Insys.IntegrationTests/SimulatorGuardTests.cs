@@ -32,6 +32,7 @@ using Insys.BuildingBlocks.Application.ProviderCallbacks;
 using Insys.Payments.Application;
 using Insys.Payments.Contracts;
 using Insys.Payments.Domain.Payments;
+using Insys.Tenancy.Contracts;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
@@ -131,6 +132,35 @@ public sealed class SimulatorGuardTests(DatabaseFixture fixture) : IClassFixture
         var endpoint = await admin.Send(HttpMethod.Post, "/api/v1/payments/callback-endpoints", new { providerCode = "SIMULATOR" }, idempotent: true);
         endpoint.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity, await endpoint.Content.ReadAsStringAsync());
         (await endpoint.Code()).ShouldBe(PaymentErrorCodes.ProviderNotAllowed);
+    }
+
+    /// <summary>The start-up check reads active tenants only, so a suspended tenant naming the simulator can't come back while it is refused.</summary>
+    [Fact]
+    public async Task ReactivatingATenant_ThatNamesTheSimulator_IsRefused_WithItsCode()
+    {
+        var named = Guid.CreateVersion7();
+        var other = Guid.CreateVersion7();
+        await fixture.Database.SeedTenant(named, "SIMNAMED");
+        await fixture.Database.SeedTenant(other, "SIMOTHER");
+        await NameTheSimulator(named);
+        await fixture.Database.ExecuteAsOwner("UPDATE tenant.tenant SET status = 'SUSPENDED' WHERE id = ANY(@ids)", ("ids", new[] { named, other }));
+        await fixture.Database.UserWithPermissions(DatabaseFixture.Operator, "sim-operator", [TenancyPermissions.Read, TenancyPermissions.Update]);
+        var policy = new RefusesSimulator();
+        await using var app = Host(policy);
+        policy.Refusing = true;
+        var client = Admin(app, DatabaseFixture.Operator, "sim-operator");
+        async Task<HttpResponseMessage> Reactivate(Guid tenant) => await client.Send(HttpMethod.Post, $"/api/v1/tenancy/tenants/{tenant}/reactivate",
+            new { reason = "Back in service" }, ifMatch: (await client.GetAsync($"/api/v1/tenancy/tenants/{tenant}")).ETag());
+
+        var refused = await Reactivate(named);
+        refused.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity, await refused.Content.ReadAsStringAsync());
+        (await refused.Code()).ShouldBe(PaymentErrorCodes.ProviderNotAllowed);
+        (await fixture.Database.ScalarAsOwner<string>("SELECT status FROM tenant.tenant WHERE id = @t", ("t", named))).ShouldBe("SUSPENDED");
+
+        (await Reactivate(other)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+
+        policy.Refusing = false;
+        (await Reactivate(named)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
     }
 
     /// <summary>The payment and endpoint are made while the simulator is allowed; the signed callback then arrives when it isn't.</summary>

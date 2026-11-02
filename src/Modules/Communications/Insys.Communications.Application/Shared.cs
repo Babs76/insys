@@ -161,7 +161,7 @@ public static class ClaimDecisionRightsFields
     public const string ClaimedAmount = "claimed_amount";
     public const string Currency = "currency";
 
-    /// <summary>OQ-101: PPR_NFO for an insurer, CMS for a medical scheme, from the tenant's dispute case type for claims.</summary>
+    /// <summary>OQ-101: the route code (PPR_NFO, CMS or a tenant's own), from the tenant's dispute case type for claims.</summary>
     public const string AppealRoute = "appeal_route";
 
     public const string ReviewOptions = "review_options";

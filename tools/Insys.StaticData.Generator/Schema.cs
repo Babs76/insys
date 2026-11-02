@@ -94,6 +94,9 @@ internal static partial class Schema
     [GeneratedRegex(@"^ALTER TABLE (?<schema>[a-z_]+)\.(?<table>[a-z0-9_]+) ALTER COLUMN (?<name>[a-z0-9_]+) DROP NOT NULL;$")]
     private static partial Regex DropNotNull();
 
+    [GeneratedRegex(@"^ALTER TABLE (?<schema>[a-z_]+)\.(?<table>[a-z0-9_]+) ALTER COLUMN (?<name>[a-z0-9_]+) TYPE (?<type>[a-z0-9_]+(?:\([0-9, ]+\))?);$")]
+    private static partial Regex AlterType();
+
     [GeneratedRegex(@"^DROP TABLE (?<schema>[a-z_]+)\.(?<table>[a-z0-9_]+);$")]
     private static partial Regex DropTable();
 
@@ -127,6 +130,11 @@ internal static partial class Schema
                 {
                     var index = relaxed.Columns.FindIndex(c => c.Name == drop.Groups["name"].Value);
                     relaxed.Columns[index] = relaxed.Columns[index] with { NotNull = false };
+                }
+                else if (AlterType().Match(line) is { Success: true } alter && tables.TryGetValue($"{alter.Groups["schema"].Value}.{alter.Groups["table"].Value}", out var altered))
+                {
+                    var index = altered.Columns.FindIndex(c => c.Name == alter.Groups["name"].Value);
+                    altered.Columns[index] = altered.Columns[index] with { SqlType = alter.Groups["type"].Value };
                 }
                 else if (AddCheck().Match(line) is { Success: true } check && tables.TryGetValue($"{check.Groups["schema"].Value}.{check.Groups["table"].Value}", out var checkedTable))
                 {
@@ -202,7 +210,10 @@ internal static partial class Schema
         }
         else if (PatternCheck().Match(line) is { Success: true } pattern)
         {
-            Find(table, pattern.Groups["column"].Value).Pattern = pattern.Groups["pattern"].Value;
+            // A pattern replaces a list the same constraint held before.
+            var column = Find(table, pattern.Groups["column"].Value);
+            column.Pattern = pattern.Groups["pattern"].Value;
+            column.AllowedValues = null;
         }
         else if (line.Contains("_ck", StringComparison.Ordinal))
         {

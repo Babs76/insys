@@ -394,6 +394,8 @@ platform-operator	WorkflowBusinessCalendars.calendarCode	to declare
 platform-operator	WorkflowBusinessCalendarsInput.calendarCode	to declare
 platform-operator	WorkflowCaseCategories.categoryCode	to declare
 platform-operator	WorkflowCaseCategoriesInput.categoryCode	to declare
+platform-operator	WorkflowAppealRoutes.routeCode	defines the code: case types name it
+platform-operator	WorkflowAppealRoutesInput.routeCode	defines the code: case types name it
 platform-operator	WorkflowOmbudSchemes.schemeCode	to declare
 platform-operator	WorkflowOmbudSchemesInput.schemeCode	to declare
 core	GeneralRenewalView.productCode	to declare

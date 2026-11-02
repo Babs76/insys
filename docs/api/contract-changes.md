@@ -3,6 +3,12 @@
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
 
+## Appeal routes as static data, and reactivation with the simulator (2 November 2026)
+- **New static data** `workflow/static/appeal-routes`: `routeCode`, `name`, `preferredLines` (`LIFE`, `GENERAL`, `HEALTH`). `PPR_NFO` and `CMS` are global rows. A tenant's own row wins over a global one with the same code.
+- **Case types:** `appealRoute` is no longer limited to `PPR_NFO` or `CMS`. It takes capitals, digits and underscores, starting with a capital, up to 20 characters. Existing values are unchanged. Whether the route is in force is checked by readiness (`CASE_APPEAL_ROUTES`), not when the case type is written.
+- **Claim rights notices:** `appeal_route` comes from the tenant's dispute case type whose route prefers the claim's line, and otherwise its first such type.
+- **`POST /tenancy/tenants/{id}/reactivate`:** refused, 422 `PAYMENT_PROVIDER_NOT_ALLOWED`, while the tenant's provider register or callback endpoints name `SIMULATOR` and this environment refuses it.
+
 ## Simulator guard (branch `simulator-guard`, 1 November 2026)
 - **New error code** `PAYMENT_PROVIDER_NOT_ALLOWED` (422): on the provider register's static data, `POST /payments/callback-endpoints` and a provider callback, for `SIMULATOR` outside Development and Testing or a deployment declared non-production.
 

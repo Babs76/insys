@@ -164,7 +164,7 @@ public sealed class TenancyModule : IModule
 
         MapStatus(tenants, "activate", TenantStatusAction.Activate, "Activate a tenant whose onboarding is complete");
         MapStatus(tenants, "suspend", TenantStatusAction.Suspend, "Suspend a tenant; its users can no longer act");
-        MapStatus(tenants, "reactivate", TenantStatusAction.Reactivate, "Reactivate a suspended tenant");
+        MapStatus(tenants, "reactivate", TenantStatusAction.Reactivate, "Reactivate a suspended tenant; refused with PAYMENT_PROVIDER_NOT_ALLOWED while its payment configuration names a provider this environment refuses");
         MapStatus(tenants, "terminate", TenantStatusAction.Terminate, "Terminate a tenant");
 
         tenants.MapPost("/{id:guid}/change-isolation-profile", (Guid id, IsolationProfileRequest request, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>

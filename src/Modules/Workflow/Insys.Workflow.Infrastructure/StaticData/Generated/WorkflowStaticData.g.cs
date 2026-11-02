@@ -34,7 +34,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Insys.Workflow.Infrastructure.StaticData;
 
-/// <summary>The 14 static data tables owned by the Workflow module.</summary>
+/// <summary>The 15 static data tables owned by the Workflow module.</summary>
 public static class WorkflowStaticData
 {
     public static readonly IReadOnlyList<StaticDataDescriptor> Descriptors =
@@ -49,6 +49,7 @@ public static class WorkflowStaticData
         new("workflow", "cfg_sla_definitions", "cfg_sla_definitions", "SLA definitions", "workflow", "sla-definitions", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(SLADefinitions), typeof(SLADefinitionsInput), "Workflow and Case Management"),
         new("workflow", "cfg_task_types_and_work_queues", "cfg_task_types_and_work_queues", "Task types and work queues", "workflow", "task-types-and-work-queues", StaticScope.T, 2, StaticLifecycle.Configuration, typeof(TaskTypesAndWorkQueues), typeof(TaskTypesAndWorkQueuesInput), "Workflow and Case Management"),
         new("workflow", "cfg_workflow_definitions", "cfg_workflow_definitions", "Workflow definitions", "workflow", "workflow-definitions", StaticScope.T, 1, StaticLifecycle.Configuration, typeof(WorkflowDefinitions), typeof(WorkflowDefinitionsInput), "Workflow and Case Management"),
+        new("workflow", "ref_appeal_routes", "ref_appeal_routes", "Appeal routes", "workflow", "appeal-routes", StaticScope.GT, 2, StaticLifecycle.Reference, typeof(AppealRoutes), typeof(AppealRoutesInput), "Workflow and Case Management"),
         new("workflow", "ref_business_calendars", "ref_business_calendars", "Business calendars", "workflow", "business-calendars", StaticScope.GT, 2, StaticLifecycle.Reference, typeof(BusinessCalendars), typeof(BusinessCalendarsInput), "Workflow and Case Management"),
         new("workflow", "ref_case_categories", "ref_case_categories", "Case categories", "workflow", "case-categories", StaticScope.GT, 2, StaticLifecycle.Reference, typeof(CaseCategories), typeof(CaseCategoriesInput), "Workflow and Case Management"),
         new("workflow", "ref_exception_codes", "ref_exception_codes", "Exception codes", "workflow", "exception-codes", StaticScope.T, 3, StaticLifecycle.Reference, typeof(ExceptionCodes), typeof(ExceptionCodesInput), "Workflow and Case Management"),
@@ -103,7 +104,7 @@ public static class WorkflowStaticData
             entity.Property(x => x.NotificationTypes).HasColumnName("notification_types");
             entity.Property(x => x.RequiresCategory).HasColumnName("requires_category");
             entity.Property(x => x.ReviewCaseTypeCode).HasColumnName("review_case_type_code").HasMaxLength(30);
-            entity.Property(x => x.AppealRoute).HasColumnName("appeal_route").HasMaxLength(10);
+            entity.Property(x => x.AppealRoute).HasColumnName("appeal_route").HasMaxLength(20);
             entity.Property(x => x.OmbudSchemeCodes).HasColumnName("ombud_scheme_codes");
         });
         modelBuilder.Entity<DelegationAndApprovalAuthority>(entity =>
@@ -153,6 +154,14 @@ public static class WorkflowStaticData
             entity.Property(x => x.States).HasColumnName("states");
             entity.Property(x => x.Transitions).HasColumnName("transitions").HasColumnType("jsonb");
             entity.Property(x => x.DomainValidation).HasColumnName("domain_validation").HasMaxLength(80);
+        });
+        modelBuilder.Entity<AppealRoutes>(entity =>
+        {
+            entity.ToTable("ref_appeal_routes", "workflow");
+            StaticModel.ConfigureCommon(entity);
+            entity.Property(x => x.RouteCode).HasColumnName("route_code").HasMaxLength(20);
+            entity.Property(x => x.Name).HasColumnName("name").HasMaxLength(200);
+            entity.Property(x => x.PreferredLines).HasColumnName("preferred_lines");
         });
         modelBuilder.Entity<BusinessCalendars>(entity =>
         {

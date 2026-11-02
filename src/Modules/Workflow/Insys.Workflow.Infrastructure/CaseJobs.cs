@@ -195,8 +195,17 @@ internal static class CaseReadiness
             cancellationToken, ("t", context.TenantId), ("inForce", configuration), ("day", context.Day))).ToHashSet(StringComparer.Ordinal);
         var processless = typeProcesses.Where(n => n.Split(':', 2)[1] is var process && !processes.Contains(process) && BuiltInProcesses.Find(process, null) is null).ToList();
 
+        // A case type's route is checked for its form only when written, so readiness says when no route in force has that code.
+        var routes = await ReadinessSql.Strings(connection, transaction,
+            $"SELECT DISTINCT appeal_route FROM workflow.cfg_case_types WHERE tenant_id = @t AND {ReadinessSql.InForce} ORDER BY appeal_route",
+            cancellationToken, ("t", context.TenantId), ("inForce", configuration), ("day", context.Day));
+        var known = (await ReadinessSql.Strings(connection, transaction,
+            $"SELECT DISTINCT route_code FROM workflow.ref_appeal_routes WHERE (tenant_id = @t OR tenant_id IS NULL) AND {ReadinessSql.InForce}",
+            cancellationToken, ("t", context.TenantId), ("inForce", reference), ("day", context.Day))).ToHashSet(StringComparer.Ordinal);
+
         return
         [
+            ReadinessResult.Of(Step, "CASE_APPEAL_ROUTES", "The appeal routes the case types in force name", routes.Where(r => !known.Contains(r)).ToList()),
             ReadinessResult.Of(Step, "CASE_TYPE_PROCESS_NOT_IN_FORCE", "Every case type in force names a process in force (case type:process listed when not)",
                 processless),
             ReadinessResult.Of(Step, "COMPLAINT_CASE_TYPE", "A complaint case type that names its review type (PPR 18.6)", types.Count > 0 ? [] : ["workflow.cfg_case_types"]),

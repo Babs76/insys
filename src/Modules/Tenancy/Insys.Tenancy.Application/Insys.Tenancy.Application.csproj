@@ -29,5 +29,6 @@
     <ProjectReference Include="..\..\..\BuildingBlocks\Insys.BuildingBlocks.Application\Insys.BuildingBlocks.Application.csproj" />
     <ProjectReference Include="..\Insys.Tenancy.Domain\Insys.Tenancy.Domain.csproj" />
     <ProjectReference Include="..\Insys.Tenancy.Contracts\Insys.Tenancy.Contracts.csproj" />
+    <ProjectReference Include="..\..\Payments\Insys.Payments.Contracts\Insys.Payments.Contracts.csproj" />
   </ItemGroup>
 </Project>

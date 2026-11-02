@@ -163,7 +163,7 @@ public interface ICaseNotices
 
 /// <summary>
 /// Where a claimant takes a claim decision (OQ-101, OQ-102), from the tenant's dispute case type for claims in force: its
-/// appeal route (PPR_NFO for an insurer, CMS for a medical scheme), the internal review open to them and the ombud schemes.
+/// appeal route (from workflow.ref_appeal_routes: PPR_NFO for a South African insurer, CMS for a medical scheme), the internal review open to them and the ombud schemes.
 /// </summary>
 public sealed record ClaimAppealRoute(string AppealRoute, string? ReviewOptions, string? OmbudDetails);
 

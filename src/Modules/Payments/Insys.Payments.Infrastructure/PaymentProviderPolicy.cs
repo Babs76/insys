@@ -29,6 +29,7 @@ using Insys.BuildingBlocks.Domain;
 using Insys.BuildingBlocks.Infrastructure.Readiness;
 using Insys.BuildingBlocks.Infrastructure.StaticData;
 using Insys.Payments.Application;
+using Insys.Payments.Contracts;
 using Insys.Payments.Domain.Payments;
 using Insys.Payments.Infrastructure.Persistence;
 using Insys.Payments.Infrastructure.StaticData;
@@ -70,6 +71,24 @@ internal sealed class PaymentProviderValidator(IPaymentProviderPolicy policy) : 
             : new Dictionary<string, string[]>();
 }
 
+/// <summary>A tenant's provider register and callback endpoints, read in that tenant's own context on Payments' connection.</summary>
+internal sealed class TenantPaymentProviders(IPaymentProviderPolicy policy, [FromKeyedServices(PaymentsDbContext.SchemaName)] NpgsqlDataSource dataSource) : ITenantPaymentProviders
+{
+    public async Task<bool> NamesARefusedProvider(Guid tenantId, CancellationToken cancellationToken)
+    {
+        if (policy.Allows(SimulatorGateway.Code))
+        {
+            return false;
+        }
+
+        var rows = await ReadinessSql.InTenant(dataSource, tenantId, (connection, transaction) => ReadinessSql.Strings(connection, transaction,
+            "SELECT code FROM payment.mst_payment_provider_and_bank_register WHERE tenant_id = @t AND provider_code = @p AND record_status <> 'RETIRED' "
+            + "UNION ALL SELECT id::text FROM payment.callback_endpoint WHERE tenant_id = @t AND provider_code = @p AND status <> 'REVOKED'", cancellationToken,
+            ("t", tenantId), ("p", SimulatorGateway.Code)), cancellationToken);
+        return rows.Count > 0;
+    }
+}
+
 /// <summary>The service won't start where a tenant's configuration names the simulator and it isn't allowed, or where Production claims to be non-production.</summary>
 internal sealed class SimulatorGuard(IPaymentProviderPolicy policy, IServiceProvider services, IHostEnvironment environment, IConfiguration configuration) : IHostedService
 {
@@ -85,15 +104,11 @@ internal sealed class SimulatorGuard(IPaymentProviderPolicy policy, IServiceProv
             return;
         }
 
-        var dataSource = services.GetRequiredKeyedService<NpgsqlDataSource>(PaymentsDbContext.SchemaName);
+        var providers = services.GetRequiredService<ITenantPaymentProviders>();
         var naming = new List<Guid>();
         foreach (var tenant in await services.GetRequiredService<ITenantDirectory>().GetActiveTenantIds(cancellationToken))
         {
-            var rows = await ReadinessSql.InTenant(dataSource, tenant, (connection, transaction) => ReadinessSql.Strings(connection, transaction,
-                "SELECT code FROM payment.mst_payment_provider_and_bank_register WHERE tenant_id = @t AND provider_code = @p AND record_status <> 'RETIRED' "
-                + "UNION ALL SELECT id::text FROM payment.callback_endpoint WHERE tenant_id = @t AND provider_code = @p AND status <> 'REVOKED'", cancellationToken,
-                ("t", tenant), ("p", SimulatorGateway.Code)), cancellationToken);
-            if (rows.Count > 0)
+            if (await providers.NamesARefusedProvider(tenant, cancellationToken))
             {
                 naming.Add(tenant);
             }
