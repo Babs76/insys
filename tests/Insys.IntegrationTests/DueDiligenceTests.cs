@@ -38,6 +38,7 @@ using Insys.Party.Infrastructure;
 using Insys.Tenancy.Contracts;
 using Insys.Testing;
 using Insys.Workflow.Contracts;
+using Npgsql;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Time.Testing;
 
@@ -658,6 +659,119 @@ public sealed class DueDiligenceTests(DatabaseFixture fixture) : IClassFixture<D
     }
 
     private sealed record DdWorld(InsysApiFactory Factory, Guid Tenant, HttpClient Clerk, HttpClient Reviewer, Guid ReviewerId, HttpClient Approver, Guid ApproverId);
+
+    /// <summary>
+    /// BR-115: the screening on registration has opened the record but not committed it when the first check runs. The check waits on the
+    /// unique party index, loses, and runs again on what is committed. Without IRetryOnConflict this answers 409 DUPLICATE_RECORD.
+    /// </summary>
+    [Fact]
+    public async Task TheFirstCheck_RacingTheScreeningThatOpensTheRecord_Succeeds_WithOneRecord_BR115()
+    {
+        var w = await World();
+        var party = await w.Clerk.RegisterPerson("Racer");
+        var transaction = await OpenTheRecordUncommitted(w, party);
+        await using (transaction)
+        {
+            var check = w.Clerk.Send(HttpMethod.Post, $"/api/v1/party/parties/{party}/due-diligence/checks", new { checkType = "SCREENING" }, idempotent: true);
+            await WaitingOnTheRecord(check);
+            await transaction.CommitAsync();
+            var response = await check;
+            response.StatusCode.ShouldBe(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+        }
+
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM party.due_diligence WHERE party_id = @p", ("p", party))).ShouldBe(1L);
+        (await DueDiligence(w.Clerk, party)).GetProperty("checks").GetArrayLength().ShouldBeGreaterThan(0);
+    }
+
+    /// <summary>BR-115: adding a passport waits for a screening in flight, as the record's foreign key holds the party's row, and is then simply saved.</summary>
+    [Fact]
+    public async Task APassportAddedStraightAfterRegistering_WaitsForTheScreening_AndIsAdded_BR115()
+    {
+        var w = await World();
+        await Passports(w);
+        var party = await w.Clerk.RegisterPerson("Traveller");
+        var url = $"/api/v1/party/parties/{party}";
+        var transaction = await OpenTheRecordUncommitted(w, party);
+        await using (transaction)
+        {
+            var adding = w.Clerk.Send(HttpMethod.Post, $"{url}/identifiers", new { docType = "PASSPORT", country = "ZA", number = "A12345678" }, ifMatch: (await w.Clerk.GetAsync(url)).ETag());
+            await WaitingOnTheRecord(adding);
+            await transaction.CommitAsync();
+            var added = await adding;
+            added.StatusCode.ShouldBe(HttpStatusCode.Created, await added.Content.ReadAsStringAsync());
+        }
+
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM party.due_diligence WHERE party_id = @p", ("p", party))).ShouldBe(1L);
+    }
+
+    /// <summary>
+    /// BR-115: verifying a passport against a document opens the record under the party's If-Match, which the plain retry leaves out, so it raced
+    /// the screening and answered 409 DUPLICATE_RECORD. It now retries too, and If-Match still holds.
+    /// </summary>
+    [Fact]
+    public async Task VerifyingAPassport_RacingTheScreeningThatOpensTheRecord_Succeeds_WithOneRecord_BR115()
+    {
+        var w = await World();
+        await Passports(w);
+        var party = await w.Clerk.RegisterPerson("Verified");
+        var document = await Document(w, party);
+        var url = $"/api/v1/party/parties/{party}";
+        var added = await w.Clerk.Send(HttpMethod.Post, $"{url}/identifiers", new { docType = "PASSPORT", country = "ZA", number = "B12345678" }, ifMatch: (await w.Clerk.GetAsync(url)).ETag());
+        added.StatusCode.ShouldBe(HttpStatusCode.Created, await added.Content.ReadAsStringAsync());
+        var identifier = (await added.Json()).GetProperty("id").GetGuid();
+        var etag = (await w.Clerk.GetAsync(url)).ETag();
+        var body = new { verificationRef = "PP-SEEN", documentId = document };
+        var transaction = await OpenTheRecordUncommitted(w, party);
+        await using (transaction)
+        {
+            var verify = w.Clerk.Send(HttpMethod.Post, $"{url}/identifiers/{identifier}/verify", body, ifMatch: etag);
+            await WaitingOnTheRecord(verify);
+            await transaction.CommitAsync();
+            var verified = await verify;
+            verified.IsSuccessStatusCode.ShouldBeTrue(await verified.Content.ReadAsStringAsync());
+        }
+
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM party.due_diligence WHERE party_id = @p", ("p", party))).ShouldBe(1L);
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM party.due_diligence_check WHERE party_id = @p AND check_type = 'IDENTITY'", ("p", party))).ShouldBe(1L);
+        (await w.Clerk.Send(HttpMethod.Post, $"{url}/identifiers/{identifier}/verify", body, ifMatch: etag)).StatusCode.ShouldBe(HttpStatusCode.PreconditionFailed, "the party has moved on");
+    }
+
+    private Task Passports(DdWorld w) => fixture.Database.ExecuteAsOwner("""
+        INSERT INTO party.ref_identity_document_types (tenant_id, code, version, effective_from, record_status, created_by, change_reason, country, doc_type, label, format_pattern)
+        VALUES (@t, 'ZA-PP', 1, DATE '2026-01-01', 'ACTIVE', 'seed', 'test seed', 'ZA', 'PASSPORT', 'Passport', '^[A-Z][0-9]{8}$')
+        """, ("t", w.Tenant));
+
+    /// <summary>Holds, in a transaction of its own, the insert the screening on registration makes first.</summary>
+    private async Task<NpgsqlTransaction> OpenTheRecordUncommitted(DdWorld w, Guid party)
+    {
+        var connection = new NpgsqlConnection(fixture.Database.OwnerConnectionString);
+        await connection.OpenAsync();
+        var transaction = await connection.BeginTransactionAsync();
+        await using var insert = new NpgsqlCommand("""
+            INSERT INTO party.due_diligence (tenant_id, id, row_version, created_at, created_by, updated_at, updated_by, party_id, status, dd_level)
+            VALUES (@t, gen_random_uuid(), 1, now(), 'screening', now(), 'screening', @p, 'NOT_STARTED', 'STANDARD')
+            """, connection, transaction);
+        insert.Parameters.AddWithValue("t", w.Tenant);
+        insert.Parameters.AddWithValue("p", party);
+        await insert.ExecuteNonQueryAsync();
+        return transaction;
+    }
+
+    /// <summary>Until the request is blocked on the uncommitted insert into the record. A request that answers first didn't race it.</summary>
+    private async Task WaitingOnTheRecord(Task<HttpResponseMessage> request)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(20);
+        while (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM pg_locks WHERE NOT granted AND locktype = 'transactionid'") == 0)
+        {
+            if (request.IsCompleted)
+            {
+                throw new ShouldAssertException($"It answered without waiting: {(int)(await request).StatusCode} {await (await request).Content.ReadAsStringAsync()}");
+            }
+
+            DateTime.UtcNow.ShouldBeLessThan(deadline, "nothing came to wait on the record");
+            await Task.Delay(50);
+        }
+    }
 
     private async Task<DdWorld> World(InsysApiFactory? host = null)
     {
