@@ -38,7 +38,7 @@ namespace Insys.General.Application;
 public sealed record MigratedClaim(string SourceReference, Guid PolicyId, Guid? RiskObjectId, string CoverageCode, DateOnly LossDate, [property: CodeList(CodeLists.LossCauses, "cause_code")] string CauseCode, [property: CodeList(CodeLists.Perils, "peril_code")] string PerilCode, string? Description, [property: CodeList(CodeLists.ReserveTypes, "code")] string ReserveType, decimal Reserve);
 
 /// <summary>B-013: claims open in a source system, after the batch's policies. All or nothing, against the file's count and total reserve.</summary>
-public sealed record MigrateGeneralClaims(string BatchCode, int ControlCount, decimal ControlReserve, IReadOnlyList<MigratedClaim> Rows) : ICommand<PolicyMigrationResult>;
+public sealed record MigrateGeneralClaims(string BatchCode, int ControlCount, decimal ControlReserve, string Currency, IReadOnlyList<MigratedClaim> Rows) : ICommand<PolicyMigrationResult>;
 
 public sealed class MigrateGeneralClaimsValidator : AbstractValidator<MigrateGeneralClaims>
 {
@@ -89,6 +89,10 @@ internal sealed class MigrateGeneralClaimsHandler(IGeneralRepository general, IB
             if (await general.Policy(row.PolicyId, cancellationToken) is { } policy)
             {
                 ready.Add((row, policy));
+                if (!string.Equals(policy.Currency, command.Currency, StringComparison.OrdinalIgnoreCase))
+                {
+                    reasons.Add($"The policy's currency isn't the file's, {command.Currency}.");
+                }
             }
             else
             {
@@ -107,7 +111,7 @@ internal sealed class MigrateGeneralClaimsHandler(IGeneralRepository general, IB
         }));
         if (rejected.Count > 0)
         {
-            return new PolicyMigrationResult(0, 0, rejected);
+            return new PolicyMigrationResult(0, 0, rejected, null, command.Currency);
         }
 
         var ids = new Dictionary<string, Guid>(StringComparer.Ordinal);
@@ -117,6 +121,6 @@ internal sealed class MigrateGeneralClaimsHandler(IGeneralRepository general, IB
             general.Add(GeneralClaim.Migrate(id, command.BatchCode, row.SourceReference, policy.Id, row.RiskObjectId, row.CoverageCode, row.LossDate, row.CauseCode, row.PerilCode, row.Description, row.ReserveType, row.Reserve, policy.Currency, policy.ProductCode, policy.OrgNodeCode, clock.UtcNow));
         }
 
-        return new PolicyMigrationResult(command.Rows.Count, total, [], ids);
+        return new PolicyMigrationResult(command.Rows.Count, total, [], ids, command.Currency.ToUpperInvariant());
     }
 }

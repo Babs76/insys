@@ -42,12 +42,13 @@ public sealed record MigratedDependant(Guid PartyId, string DependantType);
 public sealed record MigratedMembership(string SourceReference, Guid PrincipalPartyId, Guid? PayerPartyId, Guid? SchemeId, string? MemberCategory, [property: CodeList(HealthCodeLists.PlansAndOptions, "plan_code")] string PlanCode, [property: CodeList(HealthCodeLists.PlansAndOptions, "option_code")] string OptionCode, DateOnly StartDate, string Currency, [property: CodeList(HealthCodeLists.CollectionMethods, "method_code")] string CollectionMethod,
     decimal MonthlyContribution, decimal EmployerContribution, Guid? SponsorPartyId, IReadOnlyList<MigratedDependant>? Dependants);
 
+/// <param name="Currency">The currency of this file's amounts and of every row: one file, one currency, and a batch may hold several (BR-128).</param>
 /// <param name="ControlContribution">The source system's total monthly contribution, members' and employers'.</param>
-public sealed record MigrateHealthMemberships(string BatchCode, int ControlCount, decimal ControlContribution, IReadOnlyList<MigratedMembership> Rows) : ICommand<HealthMigrationResult>;
+public sealed record MigrateHealthMemberships(string BatchCode, int ControlCount, decimal ControlContribution, string Currency, IReadOnlyList<MigratedMembership> Rows) : ICommand<HealthMigrationResult>;
 
 public sealed record HealthMigrationRejectedLine(int Line, string Reason);
 
-public sealed record HealthMigrationResult(int Loaded, decimal LoadedContribution, IReadOnlyList<HealthMigrationRejectedLine> RejectedLines, IReadOnlyDictionary<string, Guid>? Memberships = null);
+public sealed record HealthMigrationResult(int Loaded, decimal LoadedContribution, IReadOnlyList<HealthMigrationRejectedLine> RejectedLines, IReadOnlyDictionary<string, Guid>? Memberships = null, string? Currency = null);
 
 public sealed class MigrateHealthMembershipsValidator : AbstractValidator<MigrateHealthMemberships>
 {
@@ -98,6 +99,11 @@ internal sealed class MigrateHealthMembershipsHandler(IHealthRepository health, 
                 reasons.Add("This source reference is already loaded, or appears earlier in the file.");
             }
 
+            if (!string.Equals(row.Currency, command.Currency, StringComparison.OrdinalIgnoreCase))
+            {
+                reasons.Add($"The row's currency isn't the file's, {command.Currency}.");
+            }
+
             if (row.Currency.Length != 3 || row.MonthlyContribution < 0 || row.EmployerContribution < 0 || (row.EmployerContribution > 0 && row.SponsorPartyId is null))
             {
                 reasons.Add("A membership has a currency and contributions that aren't negative; an employer's share names its sponsor.");
@@ -134,7 +140,7 @@ internal sealed class MigrateHealthMembershipsHandler(IHealthRepository health, 
         }));
         if (rejected.Count > 0)
         {
-            return new HealthMigrationResult(0, 0, rejected);
+            return new HealthMigrationResult(0, 0, rejected, null, command.Currency);
         }
 
         var ids = new Dictionary<string, Guid>(StringComparer.Ordinal);
@@ -147,7 +153,7 @@ internal sealed class MigrateHealthMembershipsHandler(IHealthRepository health, 
                 (row.Dependants ?? []).Select(d => (d.PartyId, d.DependantType)).ToList(), plans[i].ProductCode, plans[i].Version, today, clock.UtcNow));
         }
 
-        return new HealthMigrationResult(command.Rows.Count, total, [], ids);
+        return new HealthMigrationResult(command.Rows.Count, total, [], ids, command.Currency.ToUpperInvariant());
     }
 }
 
@@ -159,7 +165,7 @@ public sealed record OpeningAccumulator(string SourceReference, Guid MembershipI
     decimal DeductibleMet, decimal CopayTaken);
 
 /// <summary>Ade, 1 November 2026: a member's benefit use to date, so a migrated member can't claim the period's benefit twice. Before any claim on the membership, after the batch's memberships.</summary>
-public sealed record MigrateHealthAccumulators(string BatchCode, int ControlCount, decimal ControlUsed, IReadOnlyList<OpeningAccumulator> Rows) : ICommand<HealthMigrationResult>;
+public sealed record MigrateHealthAccumulators(string BatchCode, int ControlCount, decimal ControlUsed, string Currency, IReadOnlyList<OpeningAccumulator> Rows) : ICommand<HealthMigrationResult>;
 
 public sealed class MigrateHealthAccumulatorsValidator : AbstractValidator<MigrateHealthAccumulators>
 {
@@ -204,6 +210,11 @@ internal sealed class MigrateHealthAccumulatorsHandler(IHealthRepository health,
             }
 
             var membership = await health.Membership(row.MembershipId, cancellationToken);
+            if (membership is not null && !string.Equals(membership.Currency, command.Currency, StringComparison.OrdinalIgnoreCase))
+            {
+                reasons.Add($"The membership's currency isn't the file's, {command.Currency}.");
+            }
+
             if (membership?.MigrationBatch is null)
             {
                 reasons.Add("That isn't a migrated membership: load the batch's memberships first.");
@@ -242,7 +253,7 @@ internal sealed class MigrateHealthAccumulatorsHandler(IHealthRepository health,
         }));
         if (rejected.Count > 0)
         {
-            return new HealthMigrationResult(0, 0, rejected);
+            return new HealthMigrationResult(0, 0, rejected, null, command.Currency);
         }
 
         foreach (var (row, key) in ready)
@@ -250,6 +261,6 @@ internal sealed class MigrateHealthAccumulatorsHandler(IHealthRepository health,
             health.Add(Domain.Benefits.BenefitAccumulator.Opening(Guid.CreateVersion7(), row.MembershipId, key, row.Limit, row.Used, row.DeductibleMet, row.CopayTaken, command.BatchCode, row.SourceReference));
         }
 
-        return new HealthMigrationResult(command.Rows.Count, total, []);
+        return new HealthMigrationResult(command.Rows.Count, total, [], null, command.Currency.ToUpperInvariant());
     }
 }

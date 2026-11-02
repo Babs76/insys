@@ -47056,6 +47056,7 @@
           "batchCode",
           "controlCount",
           "controlAmount",
+          "currency",
           "rows"
         ],
         "type": "object",
@@ -47078,6 +47079,9 @@
               "string"
             ],
             "format": "double"
+          },
+          "currency": {
+            "type": "string"
           },
           "rows": {
             "type": "array",
@@ -47270,6 +47274,12 @@
             "items": {
               "$ref": "#/components/schemas/BillingPremiumMigrationRejectedLine"
             }
+          },
+          "currency": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -52685,6 +52695,7 @@
           "accountingDate",
           "controlDebit",
           "controlCredit",
+          "currency",
           "lines"
         ],
         "type": "object",
@@ -52711,6 +52722,9 @@
               "string"
             ],
             "format": "double"
+          },
+          "currency": {
+            "type": "string"
           },
           "lines": {
             "type": "array",
@@ -52788,6 +52802,12 @@
             "items": {
               "$ref": "#/components/schemas/FinanceOpeningBalanceRejectedLine"
             }
+          },
+          "currency": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -54329,6 +54349,7 @@
           "batchCode",
           "controlCount",
           "controlReserve",
+          "currency",
           "rows"
         ],
         "type": "object",
@@ -54352,6 +54373,9 @@
             ],
             "format": "double"
           },
+          "currency": {
+            "type": "string"
+          },
           "rows": {
             "type": "array",
             "items": {
@@ -54365,6 +54389,7 @@
           "batchCode",
           "controlCount",
           "controlPremium",
+          "currency",
           "rows"
         ],
         "type": "object",
@@ -54387,6 +54412,9 @@
               "string"
             ],
             "format": "double"
+          },
+          "currency": {
+            "type": "string"
           },
           "rows": {
             "type": "array",
@@ -54891,6 +54919,12 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          "currency": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -59921,6 +59955,7 @@
           "batchCode",
           "controlCount",
           "controlUsed",
+          "currency",
           "rows"
         ],
         "type": "object",
@@ -59944,6 +59979,9 @@
             ],
             "format": "double"
           },
+          "currency": {
+            "type": "string"
+          },
           "rows": {
             "type": "array",
             "items": {
@@ -59957,6 +59995,7 @@
           "batchCode",
           "controlCount",
           "controlContribution",
+          "currency",
           "rows"
         ],
         "type": "object",
@@ -59979,6 +60018,9 @@
               "string"
             ],
             "format": "double"
+          },
+          "currency": {
+            "type": "string"
           },
           "rows": {
             "type": "array",
@@ -60165,6 +60207,12 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          "currency": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -65533,6 +65581,7 @@
       "IntegrationReconciliationLine": {
         "required": [
           "kind",
+          "currency",
           "sourceCount",
           "loadedCount",
           "sourceAmount",
@@ -65543,6 +65592,12 @@
         "properties": {
           "kind": {
             "type": "string"
+          },
+          "currency": {
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "sourceCount": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
@@ -65612,6 +65667,12 @@
               "string"
             ],
             "format": "double"
+          },
+          "currency": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -67310,6 +67371,7 @@
           "batchCode",
           "controlCount",
           "controlReserve",
+          "currency",
           "rows"
         ],
         "type": "object",
@@ -67333,6 +67395,9 @@
             ],
             "format": "double"
           },
+          "currency": {
+            "type": "string"
+          },
           "rows": {
             "type": "array",
             "items": {
@@ -67346,6 +67411,7 @@
           "batchCode",
           "controlCount",
           "controlPremium",
+          "currency",
           "rows"
         ],
         "type": "object",
@@ -67368,6 +67434,9 @@
               "string"
             ],
             "format": "double"
+          },
+          "currency": {
+            "type": "string"
           },
           "rows": {
             "type": "array",
@@ -67642,6 +67711,12 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          "currency": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },

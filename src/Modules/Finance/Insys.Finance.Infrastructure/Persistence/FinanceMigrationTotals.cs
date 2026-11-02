@@ -36,6 +36,6 @@ internal sealed class FinanceMigrationTotals([FromKeyedServices(FinanceDbContext
 {
     public Task<IReadOnlyList<MigrationTotal>> For(Guid tenantId, string batchCode, CancellationToken cancellationToken) =>
         MigrationTotalsReader.Read(dataSource, tenantId, batchCode, """
-        SELECT 'OPENING_BALANCE:' || e.account_code, count(*), sum(e.debit - e.credit) FROM finance.subledger_entry e JOIN finance.journal j ON j.tenant_id = e.tenant_id AND j.id = e.journal_id WHERE j.migration_batch = @batch GROUP BY e.account_code
+        SELECT 'OPENING_BALANCE:' || e.account_code, count(*), sum(e.debit - e.credit), e.currency FROM finance.subledger_entry e JOIN finance.journal j ON j.tenant_id = e.tenant_id AND j.id = e.journal_id WHERE j.migration_batch = @batch GROUP BY e.account_code, e.currency
         """, cancellationToken);
 }
