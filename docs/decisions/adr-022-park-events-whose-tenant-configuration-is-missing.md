@@ -85,7 +85,7 @@ The full table is in `docs/runbooks/dead-letters-and-webhooks.md`. Retrying cann
   - A tenant's users see their own tenant (row-level security).
   - The platform operator sees counts per tenant and code at `GET /api/v1/integration/parked-deliveries/by-tenant` [platform `dead_letter.read`, platform-operator document], and drills into one tenant.
 - **Alert.**
-  - `/health` gets a `parked-deliveries` check: Degraded while any delivery is parked, and Unhealthy once any is escalated. Its data lists each tenant code with its codes, items and counts, for example `OFT-ZA: BILLING_FREQUENCY_NOT_IN_FORCE MONTHLY ×3 (Billing)`.
+  - `/health` gets a `parked-deliveries` check: Degraded while any delivery is parked, and Unhealthy once any is escalated. Its data lists each tenant code with its codes, items and counts, for example `OFTZA: BILLING_FREQUENCY_NOT_IN_FORCE MONTHLY ×3 (Billing)`.
   - The same is logged once per tenant and code when it first parks, as a structured event (`ParkedDeliveryRaised`) that the log alarm in Cloud Eye matches on.
   - The alert names the tenant and the missing configuration, never a party or payload.
 
