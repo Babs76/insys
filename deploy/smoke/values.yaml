@@ -28,7 +28,7 @@ image:
   migrator: {repository: insys-migrator, tag: smoke}
   pullPolicy: Never
 environment: Production
-declaredNonProduction: true
+declaredNonProduction: false
 operatorTenantId: 0199f000-0000-7000-8000-000000000001
 secrets:
   migrationConnection: Host=insys-postgres;Database=insys;Username=insys_owner;Password=smoke-owner
