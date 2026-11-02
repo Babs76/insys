@@ -266,7 +266,7 @@ public sealed class OftzaSeed(SeedContext context)
 
     private static async Task<string> PartyVersion(Persona persona, string url) => $"\"{(await persona.Send(HttpMethod.Get, url)).GetProperty("rowVersion").GetInt64()}\"";
 
-    /// <summary>A motor product as a sample, by the real route: registered, validated, simulated against its test case, approved by a second person (invented wording, labelled so).</summary>
+    /// <summary>The sample products, each by the real route: registered, validated, simulated against its test case, approved by a second person (invented wording and rates, labelled so).</summary>
     private async Task Products()
     {
         if (_loadersDone)
@@ -274,36 +274,70 @@ public sealed class OftzaSeed(SeedContext context)
             return;
         }
 
-        const string product = "OFT-MOTOR";
-        await Static("product-factory/static/product-taxonomy", "GEN-MOTOR", new { line = "GENERAL", familyCode = "GEN-MOTOR", familyName = "Motor insurance (sample)" });
-        await Static("product-factory/static/coverage-and-benefit-library", "OWN_DAMAGE", new { type = "COVERAGE", name = "Own damage (sample)", basis = "INDEMNITY", measure = "SUM_INSURED", domain = "GENERAL" });
-        await Static("rating/static/rating-factor-definitions", "VEHICLE_GROUP", new { factorCode = "VEHICLE_GROUP", dataType = "CODE", sourceAttribute = "vehicle_group" });
-        await Static("rating/static/rating-tables", "OFT-MOT-BASE", new { tableCode = "OFT-MOT-BASE", dimensions = new[] { "VEHICLE_GROUP" }, values = new[] { new { key = new[] { "G3" }, value = 0.03m } }, interpolation = "NONE" });
-        await Static("rating/static/premium-parameters", "OFT-MOT-P1", new { parameterCode = "OFT-MOT-BASE", productVersion = $"{product} v1", value = 1m, unit = "FACTOR" });
-        await Static("rating/static/premium-parameters", "OFT-MOT-P2", new { parameterCode = "POLICY_FEE", productVersion = $"{product} v1", value = 50m, unit = "AMOUNT" });
-        await Static("rating/static/rounding-and-currency-precision-rules", "ZAR-2DP", new { ruleCode = "ZAR-2DP", currency = "ZAR", step = 0.01m, method = "HALF_UP", stage = "FINAL_PREMIUM" });
-        await Static("rating/static/rating-test-case-library", "OFT-MOT-T1", new { caseId = "OFT-MOT-T1", productVersion = $"{product} v1", inputs = new { currency = "ZAR", frequency = "MONTHLY", sum_insured = 100000, vehicle_group = "G3" }, expectedPremium = 3050m, tolerance = 0.01m });
-        await Static("documents/static/document-templates", "OFT-TPL-1", new { templateCode = "OFT-TPL-1", language = "en", documentType = "POLICY_SCHEDULE", bodyRef = "sample", mergeFields = Array.Empty<string>() });
-        await Static("product-factory/static/product-template-assignments", "OFT-MOT-SCH", new { productCode = product, documentType = "POLICY_SCHEDULE", template = "OFT-TPL-1", language = "en" });
-        await Static("tenancy/static/tenant-product-availability", "AVAIL-MOTOR", new { tenant = TenantCode, productFamily = "GEN-MOTOR", enabled = true });
-        await Static("rules/static/authority-matrices", "AM-MOTOR", new { roleCode = "GENERAL_UNDERWRITER", productCode = product, maxSumAssured = 1_000_000m, decisionTypes = new[] { "ACCEPT", "DECLINE" } });
-
         await Static("workflow/static/delegation-and-approval-authority", "AUTH-PRODUCT_PUBLICATION", new { roleCode = "TENANT_ADMIN", transactionType = "PRODUCT_PUBLICATION", limitValue = 0m, delegationAllowed = false });
+        await Static("rating/static/rounding-and-currency-precision-rules", "ZAR-2DP", new { ruleCode = "ZAR-2DP", currency = "ZAR", step = 0.01m, method = "HALF_UP", stage = "FINAL_PREMIUM" });
+        await Static("documents/static/document-templates", "OFT-TPL-1", new { templateCode = "OFT-TPL-1", language = "en", documentType = "POLICY_SCHEDULE", bodyRef = "sample", mergeFields = Array.Empty<string>() });
+
+        await Static("product-factory/static/coverage-and-benefit-library", "OWN_DAMAGE", new { type = "COVERAGE", name = "Own damage (sample)", basis = "INDEMNITY", measure = "SUM_INSURED", domain = "GENERAL" });
+        await RatedProduct("OFT-MOTOR", "General", "GENERAL", "GEN-MOTOR", "Motor insurance (sample)", "Motor comprehensive (invented sample)", ["OWN_DAMAGE"], "VEHICLE_GROUP", "vehicle_group", [("G3", 0.03m)], "OFT-MOT", 100_000, "G3", 3050m, "GENERAL_UNDERWRITER");
+
+        await Static("product-factory/static/coverage-and-benefit-library", "BUILDINGS", new { type = "COVERAGE", name = "Buildings (sample)", basis = "INDEMNITY", measure = "SUM_INSURED", domain = "GENERAL" });
+        await Static("product-factory/static/coverage-and-benefit-library", "CONTENTS", new { type = "COVERAGE", name = "Contents (sample)", basis = "INDEMNITY", measure = "SUM_INSURED", domain = "GENERAL" });
+        await RatedProduct("OFT-HOME", "General", "GENERAL", "GEN-HOME", "Household insurance (sample)", "Household (invented sample)", ["BUILDINGS", "CONTENTS"], "CONSTRUCTION", "construction", [("BRICK", 0.002m), ("THATCH", 0.006m)], "OFT-HOM", 1_000_000, "BRICK", 2050m, "GENERAL_UNDERWRITER");
+
+        // Rates by age band next birthday, invented and not actuarial.
+        await Static("product-factory/static/coverage-and-benefit-library", "DEATH", new { type = "BENEFIT", name = "Death (sample)", basis = "FIXED_BENEFIT", measure = "SUM_ASSURED", domain = "LIFE" });
+        await Static("product-factory/static/coverage-and-benefit-library", "FUNERAL", new { type = "BENEFIT", name = "Funeral (sample)", basis = "FIXED_BENEFIT", measure = "SUM_ASSURED", domain = "LIFE" });
+        await Static("rules/static/eligibility-rule-sets", "OFT-LIFE-ADULT", new { rulesetCode = "OFT-LIFE-ELIG", conditions = "age_next >= 18 AND age_next <= 65", outcome = "ELIGIBLE" });
+        (string, decimal)[] funeral = [("18-40", 0.002m), ("41-65", 0.005m)];
+        (string, decimal)[] term = [("18-40", 0.0004m), ("41-65", 0.0012m)];
+        await RatedProduct("OFT-FUNERAL", "Life", "LIFE", "LIFE-FUNERAL", "Funeral (sample)", "Funeral cover (invented sample)", ["FUNERAL"], "AGE_BAND", "age_band", funeral, "OFT-FUN", 30_000, "18-40", 110m, "LIFE_UNDERWRITER", "OFT-LIFE-ELIG");
+        await RatedProduct("OFT-TERM", "Life", "LIFE", "LIFE-RISK", "Life risk (sample)", "Term life (invented sample)", ["DEATH"], "AGE_BAND", "age_band", term, "OFT-TRM", 1_000_000, "18-40", 450m, "LIFE_UNDERWRITER", "OFT-LIFE-ELIG");
+
+        await Static("product-factory/static/coverage-and-benefit-library", "MEDICAL", new { type = "BENEFIT", name = "Medical scheme benefits (sample)", basis = "REIMBURSEMENT", measure = "LIMIT", domain = "HEALTH" });
+        // Publication needs a passing test case; a member's contribution itself comes from the scheme's contribution rules.
+        await RatedProduct("OFT-HEALTH", "Health", "HEALTH", "HEALTH-MED", "Medical scheme (sample)", "Medical scheme (invented sample)", ["MEDICAL"], "PLAN_OPTION", "plan_option", [("ESS", 0.01m), ("PLUS", 0.02m)], "OFT-HLT", 100_000, "ESS", 1050m, "HEALTH_MEMBERSHIP_ADMINISTRATOR");
+    }
+
+    /// <summary>A product with one rating factor, one table, a fee of 50, a test case and its schedule template, then published.</summary>
+    private async Task RatedProduct(string product, string domain, string line, string family, string familyName, string name, string[] coverages, string factor, string attribute,
+        (string Key, decimal Rate)[] rates, string prefix, int sumInsured, string testKey, decimal expected, string underwriter, string? eligibility = null)
+    {
+        var version = $"{product} v1";
+        await Static("product-factory/static/product-taxonomy", family, new { line, familyCode = family, familyName });
+        await Static("rating/static/rating-factor-definitions", factor, new { factorCode = factor, dataType = "CODE", sourceAttribute = attribute });
+        await Static("rating/static/rating-tables", $"{prefix}-BASE", new { tableCode = $"{prefix}-BASE", dimensions = new[] { factor }, values = rates.Select(r => new { key = new[] { r.Key }, value = r.Rate }).ToArray(), interpolation = "NONE" });
+        await Static("rating/static/premium-parameters", $"{prefix}-P1", new { parameterCode = $"{prefix}-BASE", productVersion = version, value = 1m, unit = "FACTOR" });
+        await Static("rating/static/premium-parameters", $"{prefix}-P2", new { parameterCode = "POLICY_FEE", productVersion = version, value = 50m, unit = "AMOUNT" });
+        var inputs = new Dictionary<string, object> { ["currency"] = "ZAR", ["frequency"] = "MONTHLY", ["sum_insured"] = sumInsured, [attribute] = testKey };
+        await Static("rating/static/rating-test-case-library", $"{prefix}-T1", new { caseId = $"{prefix}-T1", productVersion = version, inputs, expectedPremium = expected, tolerance = 0.01m });
+        await Static("product-factory/static/product-template-assignments", $"{prefix}-SCH", new { productCode = product, documentType = "POLICY_SCHEDULE", template = "OFT-TPL-1", language = "en" });
+        await Static("tenancy/static/tenant-product-availability", $"AVAIL-{family}", new { tenant = TenantCode, productFamily = family, enabled = true });
+        await Static("rules/static/authority-matrices", $"AM-{product}", new { roleCode = underwriter, productCode = product, maxSumAssured = 1_000_000m, decisionTypes = new[] { "ACCEPT", "DECLINE" } });
+        await Publish(product, domain, family, name, coverages, eligibility);
+    }
+
+    /// <summary>Registers, validates, simulates and submits a version, wherever an earlier run left it; a second person approves it.</summary>
+    private async Task Publish(string product, string domain, string family, string name, string[] coverages, string? eligibility)
+    {
         var manager = context.Tenant(TenantId, "oftza-product-manager");
         var v1 = $"/api/v1/product-factory/products/{product}/versions/1";
         var today = DateTime.UtcNow.ToString("yyyy-MM-dd");
         if (!await manager.Exists(v1))
         {
-            await manager.Send(HttpMethod.Post, "/api/v1/product-factory/products", new { productCode = product, domain = "General", familyCode = "GEN-MOTOR", name = "Motor comprehensive (invented sample)", coverages = new[] { "OWN_DAMAGE" }, effectiveFrom = today }, key: $"{TenantCode}:product:{product}");
+            await manager.Send(HttpMethod.Post, "/api/v1/product-factory/products", new { productCode = product, domain, familyCode = family, name, coverages, effectiveFrom = today }, key: $"{TenantCode}:product:{product}");
         }
 
-        for (var pass = 0; pass < 6; pass++)
+        for (var pass = 0; pass < 7; pass++)
         {
             await context.Settle();
             var version = await manager.Send(HttpMethod.Get, v1);
             var etag = $"\"{version.GetProperty("rowVersion").GetInt64()}\"";
             switch (version.GetProperty("status").GetString())
             {
+                case "Draft" when eligibility is not null && version.GetProperty("eligibilityRulesetCode").ValueKind == JsonValueKind.Null:
+                    await manager.Send(HttpMethod.Put, v1, new { name, coverages, effectiveFrom = today, eligibilityRulesetCode = eligibility }, ifMatch: etag, idempotent: false);
+                    break;
                 case "Draft":
                     await manager.Send(HttpMethod.Post, $"{v1}/validate", ifMatch: etag, idempotent: false);
                     break;

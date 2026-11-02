@@ -71,6 +71,7 @@ public sealed class OftzaSeedTests(DatabaseFixture fixture) : IClassFixture<Data
         var users = await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM iam.user_account WHERE tenant_id = @t", ("t", seed.TenantId));
         (await fixture.Database.ScalarAsOwner<string>("SELECT status FROM tenant.tenant WHERE id = @t", ("t", seed.TenantId))).ShouldBe("ACTIVE");
         (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM party.party WHERE tenant_id = @t", ("t", seed.TenantId))).ShouldBe(25L);
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(DISTINCT product_code) FROM product.cfg_product_definitions_and_versions WHERE tenant_id = @t AND record_status = 'PUBLISHED'", ("t", seed.TenantId))).ShouldBe(5L, "motor, household, funeral, term and the medical scheme, all by the real route");
         foreach (var loader in new[] { OftzaSeed.LoaderMaker, OftzaSeed.LoaderChecker })
         {
             (await fixture.Database.ScalarAsOwner<string>("SELECT status FROM iam.user_account WHERE tenant_id = @t AND username = @u", ("t", seed.TenantId), ("u", loader))).ShouldBe("DISABLED", "it ends disabled");
