@@ -38,6 +38,8 @@ public sealed partial class StateEnumTests
     /// <summary>domain-model.json context and aggregate → the module and enum that carries its state.</summary>
     private static readonly (string Context, string Aggregate, string Module, string Enum)[] Map =
     [
+        ("workflow", "ServiceCase", "Workflow", "CaseStatus"),
+        ("workflow", "CaseRedress", "Workflow", "RedressStatus"),
         ("life", "LifeProposal", "Life", "ProposalStatus"),
         ("life", "LifeUnderwritingCase", "Life", "CaseStatus"),
         ("life", "LifePolicy", "Life", "LifePolicyStatus"),

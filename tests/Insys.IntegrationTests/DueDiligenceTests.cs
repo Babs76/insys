@@ -736,6 +736,33 @@ public sealed class DueDiligenceTests(DatabaseFixture fixture) : IClassFixture<D
         (await w.Clerk.Send(HttpMethod.Post, $"{url}/identifiers/{identifier}/verify", body, ifMatch: etag)).StatusCode.ShouldBe(HttpStatusCode.PreconditionFailed, "the party has moved on");
     }
 
+    /// <summary>BR-115: an organisation's first beneficial owner opens the record too, so it can race the screening the same way.</summary>
+    [Fact]
+    public async Task TheFirstBeneficialOwner_RacingTheScreeningThatOpensTheRecord_Succeeds_WithOneRecord_BR115()
+    {
+        var w = await World();
+        await fixture.Database.SeedStatic(w.Tenant, "party.ref_party_types_and_legal_forms", "ACTIVE", "BR115", Today.AddYears(-1), ("party_kind", "ORGANISATION"), ("label", "Private company"));
+        var registered = await w.Clerk.Send(HttpMethod.Post, "/api/v1/party/parties", new { organisation = new { legalName = "Racer (Pty) Ltd", legalFormCode = "BR115" }, confirmNew = true, reason = "A separate test organisation" },
+            idempotent: true);
+        registered.StatusCode.ShouldBe(HttpStatusCode.Created, await registered.Content.ReadAsStringAsync());
+        var organisation = (await registered.Json()).GetProperty("id").GetGuid();
+        var owner = await w.Clerk.RegisterPerson("Owner");
+        var document = await Document(w, organisation);
+        var transaction = await OpenTheRecordUncommitted(w, organisation);
+        await using (transaction)
+        {
+            var recording = w.Clerk.Send(HttpMethod.Post, $"/api/v1/party/parties/{organisation}/beneficial-owners",
+                new { ownerPartyId = owner, controlType = "OWNERSHIP", sharePercent = 60m, establishedBy = "DOCUMENT", documentId = document }, idempotent: true);
+            await WaitingOnTheRecord(recording);
+            await transaction.CommitAsync();
+            var recorded = await recording;
+            recorded.IsSuccessStatusCode.ShouldBeTrue(await recorded.Content.ReadAsStringAsync());
+        }
+
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM party.due_diligence WHERE party_id = @p", ("p", organisation))).ShouldBe(1L);
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM party.beneficial_owner WHERE party_id = @p", ("p", organisation))).ShouldBe(1L);
+    }
+
     private Task Passports(DdWorld w) => fixture.Database.ExecuteAsOwner("""
         INSERT INTO party.ref_identity_document_types (tenant_id, code, version, effective_from, record_status, created_by, change_reason, country, doc_type, label, format_pattern)
         VALUES (@t, 'ZA-PP', 1, DATE '2026-01-01', 'ACTIVE', 'seed', 'test seed', 'ZA', 'PASSPORT', 'Passport', '^[A-Z][0-9]{8}$')

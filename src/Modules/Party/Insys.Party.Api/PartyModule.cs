@@ -605,6 +605,7 @@ public sealed class PartyModule : IModule
             .Produces<DueDiligenceView>(StatusCodes.Status200OK)
             .WithName("PartyRecordFicReport")
             .WithSummary("Record the FIC reference of a report made for a true match (s28A or s29); the report itself goes through the FIC's own system")
+            .WithDescription("Allowed once for a hit reviewed as a TRUE_MATCH; otherwise 409 INVALID_STATE_TRANSITION. It records the reference only; nothing is sent to the FIC.")
             .RequirePermission(PartyPermissions.DueDiligenceReport);
 
         parties.MapPost("/{id:guid}/due-diligence/unblock", async (Guid id, UnblockRequest r, IDispatcher dispatcher, CancellationToken ct) =>

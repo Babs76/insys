@@ -184,7 +184,7 @@ public static class DocumentReferenceTypes
 {
     public static readonly IReadOnlyList<string> Known =
     [
-        General.Contracts.GeneralDocuments.PolicyRefType, General.Contracts.GeneralDocuments.EndorsementRefType, Life.Contracts.LifeDocuments.PolicyRefType,
+        Contracts.PartyDocuments.RefType, General.Contracts.GeneralDocuments.PolicyRefType, General.Contracts.GeneralDocuments.EndorsementRefType, Life.Contracts.LifeDocuments.PolicyRefType,
         Health.Contracts.HealthReferences.RemittanceRefType,
     ];
 }

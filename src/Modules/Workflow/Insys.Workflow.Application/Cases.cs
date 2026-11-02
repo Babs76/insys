@@ -156,9 +156,15 @@ public sealed record CaseRedressView(Guid Id, Guid CaseId, [property: AllowedVal
 
 /// <summary>A case as staff see it (§1, §4). Overdue: open and past its expected date.</summary>
 /// <param name="LegalHold">A legal hold keeps the case past its retention: a record hold on it or on one of its documents (D-34, POST /documents/legal-holds).</param>
+/// <summary>BR-102: a case's received channel is open-ended, so the contract says what it takes.</summary>
+public static class CaseChannels
+{
+    public const string Description = "How it came in: a communication.ref_channels code, or PORTAL, PHONE, WALK_IN, LETTER or OMBUD.";
+}
+
 public sealed record CaseView(Guid Id, string CaseNumber, string CaseTypeCode, [property: AllowedValues("ENQUIRY", "COMPLAINT", "DISPUTE", "APPEAL")] string Family,
     CaseStatus Status, [property: AllowedValues("UPHELD", "PARTLY_UPHELD", "REJECTED", "WITHDRAWN", "ANSWERED")] string? Outcome, DateTimeOffset ReceivedAt,
-    string ReceivedChannel, Guid? ComplainantPartyId, string? ComplainantName, string? ComplainantContact, Guid? OnBehalfOfPartyId,
+    [property: System.ComponentModel.Description(CaseChannels.Description)] string ReceivedChannel, Guid? ComplainantPartyId, string? ComplainantName, string? ComplainantContact, Guid? OnBehalfOfPartyId,
     [property: AllowedValues("STAFF", "CUSTOMER", "BROKER", "PROVIDER")] string RaisedByAudience, Guid? RaisedByUserId, string? RaisedByIntermediaryCode,
     string? RaisedByProviderId, bool SharedWithBroker, string? CategoryCode, string Summary, bool UpheldAtReceipt, bool? Reportable, string? DecisionReasons,
     Guid? DecidedBy, DateTimeOffset? DecidedAt, Guid? ParentCaseId, Guid? ProcessInstanceId, string? ProductCode, string? OrgNodeCode, DateTimeOffset? AcknowledgedAt,
