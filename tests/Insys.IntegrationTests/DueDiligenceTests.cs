@@ -491,7 +491,7 @@ public sealed class DueDiligenceTests(DatabaseFixture fixture) : IClassFixture<D
         var w = await World();
         await fixture.Database.ExecuteAsOwner("""
             INSERT INTO party.ref_identity_document_types (tenant_id, code, version, effective_from, record_status, created_by, change_reason, country, doc_type, label, format_pattern)
-            VALUES (@t, 'ZA-PASSPORT', 1, current_date - 1, 'ACTIVE', 'seed', 'test seed', 'ZA', 'PASSPORT', 'Passport', '^[A-Z][0-9]{8}$')
+            VALUES (@t, 'ZA-PASSPORT', 1, DATE '2026-01-01', 'ACTIVE', 'seed', 'test seed', 'ZA', 'PASSPORT', 'Passport', '^[A-Z][0-9]{8}$')
             """, ("t", w.Tenant));
         var party = await w.Clerk.RegisterPerson("Traveller");
         await w.Factory.DrainOutbox();
@@ -688,7 +688,7 @@ public sealed class DueDiligenceTests(DatabaseFixture fixture) : IClassFixture<D
 
         await db.ExecuteAsOwner("""
             INSERT INTO party.ref_identity_document_types (tenant_id, code, version, effective_from, record_status, created_by, change_reason, country, doc_type, label, format_pattern)
-            VALUES (@t, 'ZA-NID', 1, current_date - 1, 'ACTIVE', 'seed', 'test seed', 'ZA', 'NATIONAL_ID', 'National identity number', '^[0-9]{13}$')
+            VALUES (@t, 'ZA-NID', 1, DATE '2026-01-01', 'ACTIVE', 'seed', 'test seed', 'ZA', 'NATIONAL_ID', 'National identity number', '^[0-9]{13}$')
             """, ("t", tenant));
         await db.SeedStatic(tenant, "document.ref_document_categories", "ACTIVE", "KYC", Today.AddDays(-1), ("category_code", "KYC"), ("label", "Due diligence evidence"),
             ("classification", "PERSONAL"), ("domain", "ALL"), ("allowed_roles", Array.Empty<string>()));

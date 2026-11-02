@@ -138,7 +138,7 @@ public sealed class IdentityTests(DatabaseFixture fixture) : IClassFixture<Datab
         await fixture.Database.ExecuteAsOwner("""
             INSERT INTO iam.cfg_segregation_of_duties_conflict_rules
               (tenant_id, code, version, effective_from, record_status, created_by, change_reason, function_a, function_b, conflict)
-            VALUES (@t, 'SOD_BANK', 1, current_date - 1, 'EFFECTIVE', 'seed', 'test', 'PARTY_BANK_ACCOUNTS', 'PARTY_BANK_ACCOUNT_VERIFY', 'BLOCK')
+            VALUES (@t, 'SOD_BANK', 1, DATE '2026-01-01', 'EFFECTIVE', 'seed', 'test', 'PARTY_BANK_ACCOUNTS', 'PARTY_BANK_ACCOUNT_VERIFY', 'BLOCK')
             """, ("t", DatabaseFixture.TenantA));
         var userId = await fixture.Database.UserWithFunctions(DatabaseFixture.TenantA, "clerk-sod", "PARTY_BANK_ACCOUNTS");
         var approver = await fixture.Database.RoleWithFunctions(DatabaseFixture.TenantA, "PARTY_BANK_ACCOUNT_VERIFY");
@@ -158,7 +158,7 @@ public sealed class IdentityTests(DatabaseFixture fixture) : IClassFixture<Datab
         await fixture.Database.ExecuteAsOwner("""
             INSERT INTO iam.cfg_authentication_and_session_policies
               (tenant_id, code, version, effective_from, record_status, created_by, change_reason, policy_code, mfa_required_roles, session_timeout, lockout_attempts)
-            VALUES (@t, 'MFA_POLICY', 1, current_date - 1, 'EFFECTIVE', 'seed', 'test', 'MFA_POLICY', @roles, interval '30 minutes', 5)
+            VALUES (@t, 'MFA_POLICY', 1, DATE '2026-01-01', 'EFFECTIVE', 'seed', 'test', 'MFA_POLICY', @roles, interval '30 minutes', 5)
             """, ("t", DatabaseFixture.TenantA), ("roles", new[] { privileged }));
         var admin = _factory.ClientFor(DatabaseFixture.TenantA, Admin);
         var created = await admin.Send(HttpMethod.Post, "/api/v1/identity/users",

@@ -163,6 +163,30 @@ public sealed class SimulatorGuardTests(DatabaseFixture fixture) : IClassFixture
         (await Reactivate(named)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
     }
 
+    [Fact]
+    public async Task ActivatingAnOnboardingTenant_ThatNamesTheSimulator_IsRefused_WithItsCode()
+    {
+        var named = Guid.CreateVersion7();
+        await fixture.Database.SeedTenant(named, "SIMFIRST");
+        await NameTheSimulator(named);
+        await fixture.Database.ExecuteAsOwner("UPDATE tenant.tenant SET status = 'ONBOARDING' WHERE id = @t", ("t", named));
+        await fixture.Database.UserWithPermissions(DatabaseFixture.Operator, "sim-activator", [TenancyPermissions.Read, TenancyPermissions.Update]);
+        var policy = new RefusesSimulator();
+        await using var app = Host(policy);
+        policy.Refusing = true;
+        var client = Admin(app, DatabaseFixture.Operator, "sim-activator");
+        async Task<HttpResponseMessage> Activate() => await client.Send(HttpMethod.Post, $"/api/v1/tenancy/tenants/{named}/activate",
+            new { reason = "Go live" }, ifMatch: (await client.GetAsync($"/api/v1/tenancy/tenants/{named}")).ETag());
+
+        var refused = await Activate();
+        refused.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity, await refused.Content.ReadAsStringAsync());
+        (await refused.Code()).ShouldBe(PaymentErrorCodes.ProviderNotAllowed);
+        (await fixture.Database.ScalarAsOwner<string>("SELECT status FROM tenant.tenant WHERE id = @t", ("t", named))).ShouldBe("ONBOARDING");
+
+        policy.Refusing = false;
+        (await (await Activate()).Code()).ShouldNotBe(PaymentErrorCodes.ProviderNotAllowed, "where the simulator is allowed, onboarding's own checks decide");
+    }
+
     /// <summary>The payment and endpoint are made while the simulator is allowed; the signed callback then arrives when it isn't.</summary>
     [Fact]
     public async Task ASignedCallback_CannotConfirmAPayment_OnAProviderThatIsNotAllowed()

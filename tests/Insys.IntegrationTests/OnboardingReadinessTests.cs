@@ -430,6 +430,22 @@ public sealed class OnboardingReadinessTests(DatabaseFixture fixture) : IClassFi
         return (id, $"/api/v1/tenancy/tenants/{id}");
     }
 
+    [Fact]
+    public async Task ACaseTypesAppealRoute_IsReportedUntilItIsInForce_ATenantsOwnOrGlobal()
+    {
+        var (tenantId, url) = await Register("ROUTES");
+        const string step = "SHARED_OPERATIONAL_SETUP";
+        async Task<string?[]> Missing() => Check(await Readiness(url), step, "CASE_APPEAL_ROUTES").GetProperty("missing").EnumerateArray().Select(m => m.GetString()).ToArray();
+
+        (await Missing()).ShouldBeEmpty("no case types");
+        await fixture.Database.SeedStaticFilled(tenantId, "workflow.cfg_case_types", "EFFECTIVE", "ROUTE_GLOBAL", From, ("case_type_code", "ROUTE_GLOBAL"), ("family", "DISPUTE"), ("appeal_route", "PPR_NFO"));
+        await fixture.Database.SeedStaticFilled(tenantId, "workflow.cfg_case_types", "EFFECTIVE", "ROUTE_OWN", From, ("case_type_code", "ROUTE_OWN"), ("family", "DISPUTE"), ("appeal_route", "NAICOM"));
+        (await Missing()).ShouldBe(["NAICOM"], "the global PPR_NFO is in force");
+
+        await fixture.Database.SeedStatic(tenantId, "workflow.ref_appeal_routes", "ACTIVE", "NAICOM", From, ("route_code", "NAICOM"), ("name", "NAICOM"), ("preferred_lines", new[] { "GENERAL" }));
+        (await Missing()).ShouldBeEmpty();
+    }
+
     private async Task<JsonElement> Readiness(string url)
     {
         var response = await _operator.GetAsync($"{url}/readiness");
