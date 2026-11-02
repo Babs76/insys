@@ -41,6 +41,25 @@ The smoke test proves these through the deployed API: migrations run on a non-ow
 ### Phase 3: per customer, only if required
 That cloud's adapter when a customer requires it, and re-wrapping a tenant's data keys when it moves between key services, which includes moving to or from OpenBao. See Appendix A.
 
+### Serving the console (BR-132; proposed, 2 November 2026, not yet decided)
+**Recommended: the chart serves the four apps by default, and a customer may turn that off and use its own host.** A deployment then needs nothing more than Kubernetes, which is this ADR's point, and a customer with a CDN isn't blocked.
+
+- **In the chart:** an optional `console` deployment, on by default: a small unprivileged web server image holding the four builds (back office at `/`, broker at `/broker/`, member at `/member/`, provider at `/provider/`). The front end's pipeline builds it once and it's promoted unchanged, with its tag as a chart value. It can run as many copies as wanted; the one-instance limit is only the API's.
+- **`config.json`:** one per app, per environment, from a ConfigMap mounted over the image's file, so nothing is rebuilt.
+- **Routing:** the chart's ingress sends only `/api/` to the API, and everything else to the console, as the front end's `docs/deployment.md` requires: its Health screens live under `/health/`, so the API's health endpoints must not be routed from that origin.
+- **What the server must do,** taken from that document: compress text assets (Brotli or gzip; a precompressed gzip is enough with a stock server, and Brotli needs a server built with it, chosen at build); `immutable`, one year, for `/assets/*`; `no-store` for `index.html` and `config.json`; deep links serve the app's `index.html`; no dotfiles or `.vite/manifest.json`; and its security headers, with the CSP's `connect-src` from the API's and Keycloak's addresses as chart values.
+- **With `console.enabled: false`:** the runbook lists the same requirements for the customer's host, and the check below proves them.
+- **The check,** in the smoke job and in the runbook, for either host:
+
+  ```bash
+  curl -sI -H 'Accept-Encoding: br, gzip' "$BASE/assets/$FILE" | grep -iE 'content-encoding|cache-control'
+  curl -sI "$BASE/config.json" | grep -i cache-control
+  curl -s -o /dev/null -w '%{http_code} %{content_type}\n' "$BASE/health/schemes"
+  ```
+
+  The first shows a compressed, immutable asset; the second `no-store`; the third 200 and `text/html`, so a deep link under `/health/` reaches the app, not the API.
+- **Size: 2 to 3 days (Est, low confidence),** on top of phase 2's figures, for the chart, the image's server configuration and the smoke checks. The front end owns building and publishing the image. Waits on: Ade's choice, and the front end publishing an image the smoke job can pull.
+
 ## Phase 2 estimate
 Working days for one engineer, with moderate confidence. It replaces the signed phase 2's chart and two runbooks, which were about 7 days.
 
