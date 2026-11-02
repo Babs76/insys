@@ -54,6 +54,15 @@ public sealed class OftzaSeed(SeedContext context)
     public async Task Run()
     {
         TenantId = await Tenant();
+        // Global rows the platform owns, shared with every tenant: plain reference data, as a platform steward would load it.
+        await Static(context.PlatformMaker, context.PlatformChecker, "static-data/static/currencies/global", "ZAR", new { name = "South African rand", minorUnits = 2, active = true });
+        await Static(context.PlatformMaker, context.PlatformChecker, "static-data/static/countries/global", "ZA", new { alpha3 = "ZAF", name = "South Africa", active = true });
+        foreach (var (code, name) in new[] { ("en", "English"), ("af", "Afrikaans"), ("zu", "isiZulu"), ("xh", "isiXhosa") })
+        {
+            await Static(context.PlatformMaker, context.PlatformChecker, "static-data/static/languages/global", code, new { name });
+        }
+
+        await Static(context.PlatformMaker, context.PlatformChecker, "static-data/static/time-zones/global", "ZA-JHB", new { zone = "Africa/Johannesburg", country = "ZA" });
         foreach (var feature in new[] { "LIFE", "GENERAL", "HEALTH", "REINSURANCE", "BROKER_PORTAL", "PROVIDER_PORTAL", "CUSTOMER_PORTAL" })
         {
             await Static(context.PlatformMaker, context.PlatformChecker, "tenancy/static/feature-entitlements/global", $"{TenantCode}:{feature}", new { tenant = TenantCode, feature, enabled = true });
@@ -67,7 +76,158 @@ public sealed class OftzaSeed(SeedContext context)
         await Locale();
         await Configuration();
         await Personas();
+        await Products();
+        await FromReadiness();
+        await Channels();
+        await Missing();
         await EndLoaders();
+        await Activate();
+    }
+
+    /// <summary>What readiness still lists after the sample values above: filled so a demo can run, with authority for the types the guide's samples don't name on the tenant administrator.</summary>
+    private async Task FromReadiness()
+    {
+        if (_loadersDone)
+        {
+            return;
+        }
+
+        List<string> Missing(List<JsonElement> checks, string code) => checks.Where(c => c.GetProperty("code").GetString() == code).SelectMany(c => c.GetProperty("missing").EnumerateArray()).Select(m => m.GetString()!).ToList();
+        var checks = await Checks();
+        var rule = 100;
+        foreach (var type in Missing(checks, "POSTING_RULES"))
+        {
+            await Static("finance/static/posting-rules", $"PR-{++rule}", new { ruleCode = $"PR-{rule}", transactionType = type, debitAccount = "1100", creditAccount = "1200" });
+        }
+
+        foreach (var type in Missing(checks, "APPROVAL_AUTHORITY"))
+        {
+            await Static("workflow/static/delegation-and-approval-authority", $"AUTH-{type}-ADMIN", new { roleCode = "TENANT_ADMIN", transactionType = type, limitValue = 100_000m, delegationAllowed = false, currency = "ZAR" });
+        }
+
+        await Static("life/static/claims-authority-limits", "LCL-DEATH", new { role = "CLAIMS_MANAGER", claimType = "DEATH", limitValue = 500_000m });
+        await Static("payments/static/tenant-bank-accounts", "OFT-BANK", new { accountRef = "OFT-BANK", bank = "SAMPLE BANK", accountNumber = "000000000", currency = "ZAR", purpose = "COLLECTIONS", glAccount = "1200" });
+        await Static("integration/static/disclosure-and-notice-texts", "DISC-PROPOSAL", new { noticeType = "POLICY_TERMS", jurisdiction = "ZA", language = "en", text = "Invented sample terms, not legal wording.", textVersion = 1, displayPoint = "PROPOSAL" });
+        var finance = context.Tenant(TenantId, "oftza-finance-manager");
+        var first = new DateOnly(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1);
+        foreach (var start in Enumerable.Range(-11, 13).Select(first.AddMonths))
+        {
+            await Static("finance/static/accounting-calendar-and-periods", $"CAL-{start:yyyy-MM}", new { periodCode = $"{start:yyyy-MM}", startDate = start, endDate = start.AddMonths(1).AddDays(-1) });
+        }
+
+        await finance.Send(HttpMethod.Post, $"/api/v1/finance/periods/{first:yyyy-MM}/open", idempotent: false);
+        await context.Tenant(TenantId, "oftza-integration-administrator").Send(HttpMethod.Post, "/api/v1/payments/callback-endpoints", new { providerCode = "SIMULATOR" });
+    }
+
+    /// <summary>Every staff role's functions on the back-office channel, as readiness lists what is uncovered.</summary>
+    private async Task Channels()
+    {
+        if (_loadersDone)
+        {
+            return;
+        }
+
+        var missing = (await Checks()).Where(c => c.GetProperty("code").GetString() == "CHANNELS").SelectMany(c => c.GetProperty("missing").EnumerateArray()).Select(m => m.GetString()!).ToList();
+        if (missing.Count > 0)
+        {
+            var parts = missing.Select(m => m.Split(": ", 2)).ToList();
+            await Import("integration/static/channel-transaction-permissions", $"CTP-{parts[0][0]}-{parts[0][1]}",
+                parts.Select(p => (object)new { channelCode = "STF", roleCode = p[0], functionCode = p[1], allowed = true, code = $"CTP-{p[0]}-{p[1]}", changeReason = Reason }).ToList());
+        }
+    }
+
+    private async Task<List<JsonElement>> Checks() =>
+        (await context.PlatformMaker.Send(HttpMethod.Get, $"/api/v1/tenancy/tenants/{TenantId}/readiness")).GetProperty("steps").EnumerateArray().SelectMany(s => s.GetProperty("checks").EnumerateArray()).ToList();
+
+    /// <summary>Says at once everything a step would refuse, rather than one step at a time. END_TO_END_TESTS's run and the waived checks come later.</summary>
+    private async Task Missing()
+    {
+        var gaps = (await Checks()).Where(c => !c.GetProperty("ready").GetBoolean() && !(c.TryGetProperty("warning", out var w) && w.ValueKind == JsonValueKind.True))
+            .Select(c => $"{c.GetProperty("code").GetString()}: {string.Join(",", c.GetProperty("missing").EnumerateArray().Take(8).Select(m => m.GetString()))}").ToList();
+        Console.Error.WriteLine("Readiness gaps: " + string.Join(" | ", gaps));
+        Gaps = gaps;
+    }
+
+    public IReadOnlyList<string> Gaps { get; private set; } = [];
+
+    /// <summary>Walks every onboarding step, then activates. A step that isn't ready stops the seed, naming what is missing.</summary>
+    private async Task Activate()
+    {
+        var url = $"/api/v1/tenancy/tenants/{TenantId}";
+        var tenant = await context.PlatformMaker.Send(HttpMethod.Get, url);
+        if (tenant.GetProperty("status").GetString() != "Onboarding")
+        {
+            return;
+        }
+
+        string Etag(JsonElement t) => $"\"{t.GetProperty("rowVersion").GetInt64()}\"";
+        var steps = tenant.GetProperty("onboardingSteps").EnumerateArray().Select(x => x.GetString()!).SkipWhile(x => x != tenant.GetProperty("onboardingStep").GetString()).ToList();
+        foreach (var step in steps)
+        {
+            tenant = await context.PlatformMaker.Send(HttpMethod.Get, url);
+            if (step == "END_TO_END_TESTS")
+            {
+                await context.PlatformMaker.Send(HttpMethod.Post, $"{url}/smoke-run", new { runReference = "OFTZA-SEED", runDate = DateTime.UtcNow.ToString("yyyy-MM-dd"), outcome = "PASSED", ranBy = "Seed" }, Etag(tenant));
+                tenant = await context.PlatformMaker.Send(HttpMethod.Get, url);
+                await context.PlatformChecker.Send(HttpMethod.Post, $"{url}/smoke-run/approve", ifMatch: Etag(tenant));
+                tenant = await context.PlatformMaker.Send(HttpMethod.Get, url);
+            }
+
+            object body = step switch
+            {
+                "REINSURANCE" => new { step, attestations = new[] { new { check = "TREATIES", note = "Sample tenant: its treaty comes with a later slice" } } },
+                "INTEGRATION_AND_REPORTING" => new { step, attestations = new[] { new { check = "WEBHOOKS_OR_NONE", note = "Sample tenant: no partners" } } },
+                _ => new { step },
+            };
+            await context.PlatformMaker.Send(HttpMethod.Post, $"{url}/complete-onboarding-step", body, Etag(tenant));
+        }
+
+        tenant = await context.PlatformMaker.Send(HttpMethod.Get, url);
+        await context.PlatformMaker.Send(HttpMethod.Post, $"{url}/activate", new { reason = "OFTZA sample tenant" }, Etag(tenant));
+    }
+
+    /// <summary>A motor product as a sample, by the real route: registered, validated, simulated against its test case, approved by a second person (invented wording, labelled so).</summary>
+    private async Task Products()
+    {
+        if (_loadersDone)
+        {
+            return;
+        }
+
+        const string product = "OFT-MOTOR";
+        await Static("product-factory/static/product-taxonomy", "GEN-MOTOR", new { line = "GENERAL", familyCode = "GEN-MOTOR", familyName = "Motor insurance (sample)" });
+        await Static("product-factory/static/coverage-and-benefit-library", "OWN_DAMAGE", new { type = "COVERAGE", name = "Own damage (sample)", basis = "INDEMNITY", measure = "SUM_INSURED", domain = "GENERAL" });
+        await Static("rating/static/rating-factor-definitions", "VEHICLE_GROUP", new { factorCode = "VEHICLE_GROUP", dataType = "CODE", sourceAttribute = "vehicle_group" });
+        await Static("rating/static/rating-tables", "OFT-MOT-BASE", new { tableCode = "OFT-MOT-BASE", dimensions = new[] { "VEHICLE_GROUP" }, values = new[] { new { key = new[] { "G3" }, value = 0.03m } }, interpolation = "NONE" });
+        await Static("rating/static/premium-parameters", "OFT-MOT-P1", new { parameterCode = "OFT-MOT-BASE", productVersion = $"{product} v1", value = 1m, unit = "FACTOR" });
+        await Static("rating/static/premium-parameters", "OFT-MOT-P2", new { parameterCode = "POLICY_FEE", productVersion = $"{product} v1", value = 50m, unit = "AMOUNT" });
+        await Static("rating/static/rounding-and-currency-precision-rules", "ZAR-2DP", new { ruleCode = "ZAR-2DP", currency = "ZAR", step = 0.01m, method = "HALF_UP", stage = "FINAL_PREMIUM" });
+        await Static("rating/static/rating-test-case-library", "OFT-MOT-T1", new { caseId = "OFT-MOT-T1", productVersion = $"{product} v1", inputs = new { currency = "ZAR", frequency = "MONTHLY", sum_insured = 100000, vehicle_group = "G3" }, expectedPremium = 3050m, tolerance = 0.01m });
+        await Static("documents/static/document-templates", "OFT-TPL-1", new { templateCode = "OFT-TPL-1", language = "en", documentType = "POLICY_SCHEDULE", bodyRef = "sample", mergeFields = Array.Empty<string>() });
+        await Static("product-factory/static/product-template-assignments", "OFT-MOT-SCH", new { productCode = product, documentType = "POLICY_SCHEDULE", template = "OFT-TPL-1", language = "en" });
+        await Static("tenancy/static/tenant-product-availability", "AVAIL-MOTOR", new { tenant = TenantCode, productFamily = "GEN-MOTOR", enabled = true });
+        await Static("rules/static/authority-matrices", "AM-MOTOR", new { roleCode = "GENERAL_UNDERWRITER", productCode = product, maxSumAssured = 1_000_000m, decisionTypes = new[] { "ACCEPT", "DECLINE" } });
+
+        await Static("workflow/static/delegation-and-approval-authority", "AUTH-PRODUCT_PUBLICATION", new { roleCode = "TENANT_ADMIN", transactionType = "PRODUCT_PUBLICATION", limitValue = 0m, delegationAllowed = false });
+        var manager = context.Tenant(TenantId, "oftza-product-manager");
+        var v1 = $"/api/v1/product-factory/products/{product}/versions/1";
+        if (await manager.Exists(v1))
+        {
+            return;
+        }
+
+        var today = DateTime.UtcNow.ToString("yyyy-MM-dd");
+        await manager.Send(HttpMethod.Post, "/api/v1/product-factory/products", new { productCode = product, domain = "General", familyCode = "GEN-MOTOR", name = "Motor comprehensive (invented sample)", coverages = new[] { "OWN_DAMAGE" }, effectiveFrom = today });
+        await manager.Send(HttpMethod.Post, $"{v1}/validate", ifMatch: "\"1\"");
+        await context.Settle();
+        await manager.Send(HttpMethod.Post, $"{v1}/simulations");
+        await manager.Send(HttpMethod.Post, $"{v1}/submit", new { reason = "Sample product" }, ifMatch: "\"2\"");
+        await context.Settle();
+        // PRODUCT_MANAGER's template names this approval but holds no approve function, so a second administrator gives it.
+        var checker = _adminChecker!;
+        var approval = (await checker.Send(HttpMethod.Get, "/api/v1/workflow/approvals?status=Requested")).GetProperty("items")[0];
+        await checker.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval.GetProperty("id").GetGuid()}/approve", ifMatch: $"\"{approval.GetProperty("rowVersion").GetInt64()}\"");
+        await context.Settle();
     }
 
     /// <summary>
@@ -91,10 +251,21 @@ public sealed class OftzaSeed(SeedContext context)
                 .Select(f => f.GetProperty("code").GetString()!));
         }
 
+        functions.UnionWith(["WORKFLOW_APPROVALS", "WORKFLOW_APPROVE"]);
         await Static("identity/static/authentication-and-session-policies", "OFTZA-AUTH", new { policyCode = "OFTZA-AUTH", mfaRequiredRoles = Array.Empty<string>(), sessionTimeout = "PT30M", lockoutAttempts = 5 });
         await Static("identity/static/roles-and-permission-sets", LoaderRole, new { roleCode = LoaderRole });
         await Import("identity/static/role-function-assignments", $"{LoaderRole}:{functions.Order(StringComparer.Ordinal).First()}",
             functions.Order(StringComparer.Ordinal).Select(f => (object)new { roleCode = LoaderRole, functionCode = f, code = $"{LoaderRole}:{f}", changeReason = Reason }).ToList());
+        // The templates decide most approvals. These four need one role holding approval and the type's own function, which no template combines (BR-114), so a sample role does.
+        string[] approving = ["WORKFLOW_APPROVALS", "WORKFLOW_APPROVE", "WORKFLOW_REJECT", "PARTY_APPROVE_ENHANCED_DD", "PARTY_OVERRIDE_RISK_CLASS", "PARTY_UNBLOCK_DUE_DILIGENCE", "GENERAL_PROPOSE_NON_RENEWAL"];
+        await Static("identity/static/roles-and-permission-sets", "OFTZA_APPROVER", new { roleCode = "OFTZA_APPROVER" });
+        await Import("identity/static/role-function-assignments", "OFTZA_APPROVER:WORKFLOW_APPROVALS", approving.Select(f => (object)new { roleCode = "OFTZA_APPROVER", functionCode = f, code = $"OFTZA_APPROVER:{f}", changeReason = Reason }).ToList());
+        _templates.Add("OFTZA_APPROVER");
+        foreach (var type in new[] { "DUE_DILIGENCE_ENHANCED", "DUE_DILIGENCE_RISK_OVERRIDE", "DUE_DILIGENCE_UNBLOCK", "GENERAL_NON_RENEWAL" })
+        {
+            await Static("workflow/static/delegation-and-approval-authority", $"AUTH-{type}", new { roleCode = "OFTZA_APPROVER", transactionType = type, limitValue = 100_000m, delegationAllowed = false, currency = "ZAR" });
+        }
+
         foreach (var type in new[] { "STATIC_DATA_T1", "STATIC_DATA_T2" })
         {
             await Static("workflow/static/delegation-and-approval-authority", $"AUTH-LOADER-{type}", new { roleCode = LoaderRole, transactionType = type, limitValue = 1m, delegationAllowed = false });
@@ -295,6 +466,36 @@ public sealed class OftzaSeed(SeedContext context)
         await Static("payments/static/payment-status-mappings", "SIM-PAID", new { providerCode = "SIMULATOR", providerStatus = "PAID", platformStatus = "SUCCEEDED", final = true });
         await Static("claims-framework/static/claim-numbering-schemes", "CLM", new { domain = "GENERAL", prefix = "CLM", sequenceLength = 8 });
         await Static("claims-framework/static/reserve-types", "INDEMNITY", new { category = "INDEMNITY", postingRule = "CLAIM_RESERVE_UP" });
+        foreach (var account in new[] { ("1100", "ASSET", "Premium receivable"), ("1200", "ASSET", "Bank"), ("2100", "LIABILITY", "Claims reserve"), ("4000", "INCOME", "Premium"), ("5000", "EXPENSE", "Claims") })
+        {
+            if (account.Item1 != "1100")
+            {
+                await Static("finance/static/chart-of-accounts-subledger", $"ACC-{account.Item1}", new { accountCode = account.Item1, name = account.Item3 + " (sample)", type = account.Item2, glAccount = account.Item1, status = "ACTIVE" });
+            }
+        }
+
+        var rule = 0;
+        foreach (var type in new[] { "PREMIUM_DUE", "PAYMENT_RECEIVED", "REFUND_PAID", "CLAIM_RESERVE_UP", "CLAIM_RESERVE_DOWN", "CLAIM_PAID", "CLAIM_PAID_REVERSED", "RECOVERY_RAISED", "RECOVERY_OFFSET" })
+        {
+            await Static("finance/static/posting-rules", $"PR-{++rule}", new { ruleCode = $"PR-{rule}", transactionType = type, debitAccount = "1100", creditAccount = "1200" });
+        }
+
+        foreach (var (type, role, limit) in new[] { ("CLAIM_SETTLEMENT", "CLAIMS_MANAGER", 250_000m), ("LIFE_CLAIM", "CLAIMS_MANAGER", 500_000m), ("CLAIM_PAYMENT", "FINANCE_OFFICER", 100_000m), ("REFUND", "FINANCE_OFFICER", 25_000m), ("PAYOUT_RELEASE", "FINANCE_MANAGER", 5_000_000m), ("COMMISSION_STATEMENT", "FINANCE_MANAGER", 5_000_000m) })
+        {
+            await Static("workflow/static/delegation-and-approval-authority", $"AUTH-{type}-{role}", new { roleCode = role, transactionType = type, limitValue = limit, delegationAllowed = false, currency = "ZAR" });
+        }
+
+        await Static("party/static/due-diligence-settings", "GATES", new { gatesEnabled = true, adverseMediaEnabled = false });
+        foreach (var (partner, type) in new[] { ("OFT-SCR", "SCREENING"), ("OFT-IDV", "IDENTITY_VERIFICATION") })
+        {
+            await Static("integration/static/partner-register", partner, new { partnerCode = partner, partnerType = type, legalName = $"{type} (stub)", status = "ACTIVE" });
+        }
+        foreach (var type in new[] { "CASE_ACKNOWLEDGED", "CASE_UPDATE", "CASE_DECISION" })
+        {
+            await Static("communications/static/notification-types", $"NT-{type}", new { typeCode = type, category = "SERVICE", channels = new[] { "EMAIL" }, portalVisible = true });
+            await Static("communications/static/notification-templates", $"NTT-{type}", new { typeCode = type, channel = "EMAIL", language = "en", subject = "Case {case_number}", body = "Case {case_number} (sample)." });
+        }
+
         await Static("finance/static/gl-export-layouts", "GL", new { layoutCode = "GL", targetSystem = "SAMPLE", format = "CSV", schedule = "MONTHLY" });
         foreach (var point in new[] { "QUOTE", "ISSUE", "RENEWAL", "CLAIM" })
         {
@@ -308,7 +509,7 @@ public sealed class OftzaSeed(SeedContext context)
     private async Task Static(Persona maker, Persona checker, string route, string code, object fields)
     {
         var path = $"/api/v1/{route}";
-        if (await maker.Exists($"{path}/{code}/versions") && (await maker.Send(HttpMethod.Get, $"{path}/{code}/versions")).GetArrayLength() > 0)
+        if (await maker.Exists($"{path}/{Uri.EscapeDataString(code)}/versions") && (await maker.Send(HttpMethod.Get, $"{path}/{Uri.EscapeDataString(code)}/versions")).GetArrayLength() > 0)
         {
             return;
         }
@@ -317,15 +518,15 @@ public sealed class OftzaSeed(SeedContext context)
         body["code"] = code;
         body["changeReason"] = Reason;
         var draft = await maker.Send(HttpMethod.Post, path, body);
-        var version = $"{path}/{code}/versions/{draft.GetProperty("version").GetInt32()}";
-        var submitted = await maker.Send(HttpMethod.Post, $"{version}/submit", ifMatch: $"\"{draft.GetProperty("rowVersion").GetInt64()}\"");
+        var version = $"{path}/{Uri.EscapeDataString(code)}/versions/{draft.GetProperty("version").GetInt32()}";
+        await maker.Send(HttpMethod.Post, $"{version}/submit", ifMatch: $"\"{draft.GetProperty("rowVersion").GetInt64()}\"");
         await context.Settle();
-        var state = submitted;
-        if (submitted.GetProperty("recordStatus").GetString() is "SUBMITTED" or "PENDING_APPROVAL")
+        var state = (await maker.Send(HttpMethod.Get, $"{path}/{Uri.EscapeDataString(code)}/versions"))[0];
+        if (state.GetProperty("recordStatus").GetString() is "SUBMITTED" or "PENDING_APPROVAL")
         {
             await checker.Send(HttpMethod.Post, $"{version}/approve");
             await context.Settle();
-            state = (await maker.Send(HttpMethod.Get, $"{path}/{code}/versions"))[0];
+            state = (await maker.Send(HttpMethod.Get, $"{path}/{Uri.EscapeDataString(code)}/versions"))[0];
         }
 
         await maker.Send(HttpMethod.Post, $"{version}/activate", ifMatch: $"\"{state.GetProperty("rowVersion").GetInt64()}\"");

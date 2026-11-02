@@ -57,9 +57,10 @@ This reduces the risk and doesn't remove it. The block below is what stops anyth
 Each slice merges on green by itself, so the minimal seed can reach the front end first. Batch 7.1's measured time will say how far to trust these.
 
 ## State
-- **Built:** the sample tenant block; the tool, with the tenant, its entitlements, two administrators, every tenant role template with its functions, a persona per template, and most of the onboarding configuration. It signs tokens with the development key, so it runs only against Development and Testing.
+- **Built:** the sample tenant block; the tool, with global reference data, the tenant, two administrators, every tenant role template, a persona per template, the onboarding configuration, a motor product published by the real route, and **`OFTZA` active**. It signs tokens with the development key, so it runs only against Development and Testing.
+- **Beyond the templates:** `OFTZA_APPROVER`, a sample role. Readiness needs a role holding approval and the type's own function for the three due diligence approvals and the non-renewal, and no template combines them. Readiness also waives treaties until a later slice.
 - **Loading (Ade, 2 November):** the two administrators hold exactly `TENANT_ADMIN`'s template. Two loader users, a maker and its checker, hold the other modules' non-privileged static data functions, and end disabled with their roles revoked. A persona's privileged role gets its second approval from the second administrator; nothing bypasses it.
-- **Next:** posting rules, approval authority, the remaining readiness rows and activation with products; parties, policies and claims; Keycloak sign-in; the fake details scheme.
+- **Next:** Life and Health products, the fake details scheme, parties, policies and claims, billing, payments and finance; Keycloak sign-in; commission, the treaty, cases, and the CI job.
 
 ## Decisions, by Ade
 1. **Role templates (OQ-111):** all the signed-off templates as they stand.

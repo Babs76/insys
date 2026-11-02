@@ -47,7 +47,15 @@ public sealed class OftzaSeedTests(DatabaseFixture fixture) : IClassFixture<Data
             ("transaction_type", "TENANT_ADMINISTRATOR"), ("limit_value", 1m), ("delegation_allowed", false));
         var seed = new OftzaSeed(new SeedContext(new Persona(host.ClientFor(DatabaseFixture.Operator, "seed-platform-1")), new Persona(host.ClientFor(DatabaseFixture.Operator, "seed-platform-2")),
             (tenant, subject) => new Persona(host.ClientFor(tenant, subject)), () => host.DrainOutbox()));
-        await seed.Run();
+        try
+        {
+            await seed.Run();
+        }
+        catch (SeedRefusedException refused)
+        {
+            throw new InvalidOperationException("GAPS " + string.Join(" | ", seed.Gaps) + " :: " + refused.Message[..Math.Min(refused.Message.Length, 300)]);
+        }
+
         return (seed, new Persona(host.ClientFor(seed.TenantId, OftzaSeed.FirstAdministrator)));
     }
 
@@ -61,6 +69,7 @@ public sealed class OftzaSeedTests(DatabaseFixture fixture) : IClassFixture<Data
         (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM iam.user_account WHERE tenant_id = @t AND username LIKE 'oftza-%'", ("t", seed.TenantId))).ShouldBeGreaterThan(15L, "a persona per role template");
         (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM iam.user_role_assignment WHERE tenant_id = @t AND role_code = 'TENANT_ADMIN'", ("t", seed.TenantId))).ShouldBe(2L);
         var users = await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM iam.user_account WHERE tenant_id = @t", ("t", seed.TenantId));
+        (await fixture.Database.ScalarAsOwner<string>("SELECT status FROM tenant.tenant WHERE id = @t", ("t", seed.TenantId))).ShouldBe("ACTIVE");
         foreach (var loader in new[] { OftzaSeed.LoaderMaker, OftzaSeed.LoaderChecker })
         {
             (await fixture.Database.ScalarAsOwner<string>("SELECT status FROM iam.user_account WHERE tenant_id = @t AND username = @u", ("t", seed.TenantId), ("u", loader))).ShouldBe("DISABLED", "it ends disabled");
