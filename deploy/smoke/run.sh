@@ -86,8 +86,7 @@ query "UPDATE party.party_identifier SET number_last4 = NULL WHERE party_id = '$
 kubectl rollout restart deploy/insys-api
 kubectl rollout status deploy/insys-api --timeout=300s
 user=$(token)
-[ "$(call GET "/party/parties/$party" | jq -r '.identifiers[0].numberLast4 // .identifiers[0].last4 // .identifiers[0].numberMasked')" != null ] || fail "no number in the party view"
-call GET "/party/parties/$party" | grep -q 9087 || fail "the number didn't decrypt to its last four"
+call GET "/party/parties/$party" | jq -r '.identifiers[0].maskedNumber' | grep -q 9087 || fail "the number didn't decrypt to its last four"
 [ "$(query "SELECT count(*) FROM party.party_identifier WHERE party_id = '$party' AND number_enc LIKE '%8001015009087%'")" = 0 ] || fail "the number is stored in clear"
 
 echo "== A document in the object store"
