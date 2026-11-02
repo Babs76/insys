@@ -14,7 +14,7 @@ Everything found between INSYS and a first live customer, at `91cb494` plus the 
 | # | Item | Size (days) | Waits on | Blocks go-live |
 |---|---|---|---|---|
 | **Deployment and assurance** | | | | |
-| 1 | ADR-027 phase 2: OpenBao adapter, Helm chart and container images, CI deployment job, runbooks | 17–21 (Doc) | Nothing; scheduled before the first customer | **Yes** |
+| 1 | ADR-027 phase 2: OpenBao adapter, Helm chart and container images, and the CI deployment job are merged; runbooks are left, including that database-owner credentials are held under dual control (`docs/runbooks/deployment.md`) | 17–21 (Doc) | Nothing; scheduled before the first customer | **Yes** |
 | 2 | Hosting and production set-up: provider, production Keycloak with MFA, keys, monitoring (`docs/production-readiness.md`, which still assumes Huawei and needs rewriting after ADR-027) | 5–8 (Est) | The customer's or Ade's choice of host; item 1 | **Yes** |
 | 3 | Load, penetration, backup and recovery tests (ADR-020) | 10–18 (Est), fixes not included | A production-like environment (items 1, 2); an external tester | **Yes** |
 | 4 | More than one API instance: shared permission evictions (ADR-006) | 3–5 (Est) | The load test's result | **If** the load test shows one instance isn't enough |
@@ -113,8 +113,8 @@ dotnet test --project tests/Insys.IntegrationTests --no-build --filter-class '*D
 All on `wave7-1-fixes`, as one head, as the review's fixes touch every slice. Check `git log origin/main` for whether it has merged.
 
 **What batch 7.2 must do, from the review:**
-- Put the currency next to each amount in the source: a stated `USD 1240` passes against a plain `1240`, as §5.1's table says it may.
-- Build `SourceData` from allowed fields, and never interpolate record data into `Instructions`. Field errors from the screen (AIA-039) are `UntrustedText`, or are rebuilt.
+- Put the currency beside every amount in the data sent and checked (Ade, 2 November): a stated `USD 1240` passes against a plain `1240`, as §5.1's table says it may.
+- **No free text goes to a model until real name detection exists (D-15, addendum §5.4).** Build prompts only from allowed structured fields. Remove `UntrustedText` and `MinimiseFreeText` from the runner first, and move the gate's injection test to what's left. Never interpolate record data into `Instructions`.
 - Weigh the transaction held open across the model call (`RunAssist`) against AIA-072.
 
 **Deferred from the review, not must-fix:**
