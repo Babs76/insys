@@ -89,11 +89,10 @@ dotnet test --project tests/Insys.IntegrationTests --no-build --filter-class '*D
 - End-to-end hosts run on `WindowClock` (22:30 UTC, no TestDate); new hosts and time-signed seeds must use it. Tests seed with fixed dates, never yesterday.
 
 ### The order of remaining work
-1. Merge `br-115-test`, `adr-027-transit` and `adr-027-helm` as each goes green. They are stacked in that order, so each fast-forwards main with no rerun. A failure holds up those above it.
-2. `br-reconcile`: merge main in, run CI, merge. It holds BR-115's beneficial owner test, nine of the front end's reconciled requests, this handover and the rules in `CLAUDE.md`.
-3. `adr-027-smoke`: get `deployment-smoke` green, **remove `adr-027-smoke` from the workflow's `push` branches**, merge main in, run CI, merge.
-4. Wave 7, batch 7.1, per `docs/specs/addenda/ai-assist.md` and `docs/srs/INSYS_AI_Assist_SRS.md`: see Wave 7 below. Phase 1's gate is its exit: security tests for tenant isolation, prompt injection and no write tools.
-5. After 7.1: the rest of ADR-027 phase 2, which stays blocking go-live in the register: the runbook, generic deployment and running OpenBao (high availability, backup and restore, unsealing). BR-100, and the items under Open below.
+1. `br-reconcile`: run CI, merge. It holds BR-115's beneficial owner test, nine of the front end's reconciled requests, this handover and the rules in `CLAUDE.md`.
+2. `adr-027-smoke`: get `deployment-smoke` green, **remove `adr-027-smoke` from the workflow's `push` branches**, merge main in, run CI, merge.
+3. Wave 7, batch 7.1, per `docs/specs/addenda/ai-assist.md` and `docs/srs/INSYS_AI_Assist_SRS.md`: see Wave 7 below. Phase 1's gate is its exit: security tests for tenant isolation, prompt injection and no write tools.
+4. After 7.1: the rest of ADR-027 phase 2, which stays blocking go-live in the register: the runbook, generic deployment and running OpenBao (high availability, backup and restore, unsealing). BR-100, and the items under Open below.
 
 ### Wave 7, batch 7.1
 **State slice by slice; this table is kept current at each merge.** Merge each slice on green on its own.
@@ -117,15 +116,12 @@ dotnet test --project tests/Insys.IntegrationTests --no-build --filter-class '*D
 
 ## State at the stop
 
-**Interim, 2 November 2026.** Completed by the Tuesday stop. Main is at `61bbdc1`, checked on the remote, with CI green on all 19 jobs for that head.
+**Interim, 2 November 2026.** Completed by the Tuesday stop. Heads and CI change quickly: check them with `gh run list` before relying on this table. On main (`e6ca9a4`): BR-126, BR-127, the small items, BR-115's first tests, the OpenBao Transit adapter, the images and the Helm chart.
 
-| Branch | Head | CI | What's left |
-|---|---|---|---|
-| `br-115-test` | `787c53b` | Running | Merge on green. On main's line |
-| `adr-027-transit` | `3870633` | Running | Merge on green, after the one above |
-| `adr-027-helm` | `e6ca9a4` | Running | Merge on green, after the one above |
-| `br-reconcile` | This commit | Not started | Merge main in, run CI, merge |
-| `adr-027-smoke` | `0f37231` | Second smoke run in progress; the first failed on the image's user, now fixed | Green, remove the temporary trigger, merge main in, CI, merge |
-| Not started | | | ADR-027's runbook |
+| Branch | State | What's left |
+|---|---|---|
+| `br-reconcile` | Holds this handover | CI on its head, then merge |
+| `adr-027-smoke` | Smoke runs in progress; deploys and signs in, but hasn't passed end to end | Green, remove the temporary trigger, merge main in, CI, merge |
+| Wave 7 | Not started | See the table above |
 
 Nigeria: appeal routes (V0126) are merged; the rest of row 24 is descoped and wasn't started.
