@@ -55,7 +55,7 @@ public sealed class OftzaSeedResumeTests(DatabaseFixture fixture) : IClassFixtur
         {
             "tenancy/tenants$", "tenant-administrators$", "/static/[^/]+$", "/imports$", "/imports/[^/]+/submit$", "/imports/[^/]+/activate$", "/versions/\\d+/submit$", "/versions/\\d+/approve$", "/versions/\\d+/activate$",
             "workflow/approvals/[^/]+/approve$", "identity/users$", "/assign-role$", "party/parties$", "/identifiers$", "/contact-points$", "product-factory/products$", "/validate$", "/simulations$",
-            "/periods/[^/]+/open$", "callback-endpoints$", "/smoke-run$", "/smoke-run/approve$", "/complete-onboarding-step$", "/revoke-role$", "/disable$",
+            "/periods/[^/]+/open$", "callback-endpoints$", "/smoke-run$", "/smoke-run/approve$", "/complete-onboarding-step$", "/revoke-role$", "/disable$", "/disable$",
         }.Select(p => new Regex(p)));
         var kinds = unstopped.Count;
         void Stop(string call)

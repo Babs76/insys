@@ -87,6 +87,7 @@ public sealed class Persona(HttpClient http, Action<string>? afterCall = null)
     /// <summary>The seed keeps to the API's rate limit as any client should: told to slow down, it waits and asks again.</summary>
     private async Task<HttpResponseMessage> Paced(Func<HttpRequestMessage> request)
     {
+        var backOff = TimeSpan.FromSeconds(5);
         for (var attempt = 1; ; attempt++)
         {
             using var message = request();
@@ -96,7 +97,9 @@ public sealed class Persona(HttpClient http, Action<string>? afterCall = null)
                 return response;
             }
 
-            var wait = response.Headers.RetryAfter?.Delta ?? TimeSpan.FromSeconds(5);
+            // The API's Retry-After says when; without one, each wait doubles, up to a minute.
+            var wait = response.Headers.RetryAfter?.Delta ?? backOff;
+            backOff = TimeSpan.FromSeconds(Math.Min(backOff.TotalSeconds * 2, 60));
             response.Dispose();
             await Task.Delay(wait);
         }

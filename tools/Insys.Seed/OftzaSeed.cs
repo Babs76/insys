@@ -322,15 +322,11 @@ public sealed class OftzaSeed(SeedContext context)
     {
         _adminMaker = _maker;
         _adminChecker = _checker;
-        // Loading is over once the first loader has begun to be ended, even if a run stopped before it finished: EndLoaders picks it up from there.
-        if (await User(LoaderMaker) is { } done)
+        // Loading is over only once the tenant has left onboarding. Short of that, the loaders are put back below, by the routes an administrator would use.
+        if ((await context.PlatformMaker.Send(HttpMethod.Get, $"/api/v1/tenancy/tenants/{TenantId}")).GetProperty("status").GetString() != "Onboarding")
         {
-            var roles = (await _maker.Send(HttpMethod.Get, $"/api/v1/identity/users/{done.GetProperty("id").GetGuid()}")).GetProperty("roleAssignments").EnumerateArray().ToList();
-            if (done.GetProperty("status").GetString() == "Disabled" || (roles.Count > 0 && roles.All(r => r.GetProperty("status").GetString() is not ("Active" or "PendingApproval"))))
-            {
-                _loadersDone = true;
-                return;
-            }
+            _loadersDone = true;
+            return;
         }
 
         var functions = new HashSet<string>(StringComparer.Ordinal);
@@ -364,22 +360,29 @@ public sealed class OftzaSeed(SeedContext context)
 
         // The approvals a role template names need authority in force, or a privileged assignment could wait for ever (WFL-004).
         await Static("workflow/static/delegation-and-approval-authority", "AUTH-PRIVILEGED_ROLE", new { roleCode = "TENANT_ADMIN", transactionType = "PRIVILEGED_ROLE", limitValue = 1m, delegationAllowed = false });
-        foreach (var name in new[] { LoaderMaker, LoaderChecker })
-        {
-            await EnsureUser(name, LoaderRole);
-        }
-
+        var maker = await LiveLoader(LoaderMaker);
+        var checker = await LiveLoader(LoaderChecker);
+        await EnsureUser(maker, LoaderRole);
+        await EnsureUser(checker, LoaderRole);
         _adminMaker = _maker;
         _adminChecker = _checker;
-        _maker = context.Tenant(TenantId, LoaderMaker);
-        _checker = context.Tenant(TenantId, LoaderChecker);
+        _maker = context.Tenant(TenantId, maker);
+        _checker = context.Tenant(TenantId, checker);
+        // Each signs in, as a person would: a user still Invited can't be disabled, and on a rerun with nothing left to approve the checker would otherwise never call.
+        await _maker.Send(HttpMethod.Get, "/api/v1/workflow/approvals?status=Requested");
+        await _checker.Send(HttpMethod.Get, "/api/v1/workflow/approvals?status=Requested");
     }
 
     private async Task EndLoaders()
     {
-        foreach (var name in new[] { LoaderMaker, LoaderChecker })
+        foreach (var name in new[] { LoaderMaker, LoaderChecker }.SelectMany(first => LoaderNames(first).Take(50)))
         {
-            var id = (await User(name))!.Value.GetProperty("id").GetGuid();
+            if (await User(name) is not { } found)
+            {
+                continue;
+            }
+
+            var id = found.GetProperty("id").GetGuid();
             var user = await _adminMaker!.Send(HttpMethod.Get, $"/api/v1/identity/users/{id}");
             if (user.GetProperty("roleAssignments").EnumerateArray().Any(a => a.GetProperty("status").GetString() == "Active"))
             {
@@ -409,6 +412,29 @@ public sealed class OftzaSeed(SeedContext context)
     private async Task<string> Version(Guid user) => $"\"{(await (_adminMaker ?? _maker).Send(HttpMethod.Get, $"/api/v1/identity/users/{user}")).GetProperty("rowVersion").GetInt64()}\"";
 
     /// <summary>A user with one role, picked up from wherever an earlier run stopped. A privileged role waits for a second person, as in real use: the second administrator approves it.</summary>
+    /// <summary>The loader to use: this name, or if that user is disabled, the next unused one. Disabling is final (IAM-005: no route or transition leads back), so a disabled loader is replaced, never revived.</summary>
+    private async Task<string> LiveLoader(string name)
+    {
+        foreach (var candidate in LoaderNames(name))
+        {
+            if (await User(candidate) is not { } user || user.GetProperty("status").GetString() != "Disabled")
+            {
+                return candidate;
+            }
+        }
+
+        throw new InvalidOperationException("Unreachable: the names don't end.");
+    }
+
+    private static IEnumerable<string> LoaderNames(string name)
+    {
+        yield return name;
+        for (var n = 2; ; n++)
+        {
+            yield return $"{name}-{n}";
+        }
+    }
+
     private async Task EnsureUser(string name, string role)
     {
         var admin = _adminMaker ?? _maker;
@@ -417,7 +443,8 @@ public sealed class OftzaSeed(SeedContext context)
             ?? (await admin.Send(HttpMethod.Post, "/api/v1/identity/users", new { username = name, displayName = $"Sample {role}", idpCode = "OIDC", externalSubject = name, mfaEnrolled = true }, key: $"{TenantCode}:user:{name}")).GetProperty("id").GetGuid();
         async Task<List<JsonElement>> Assignments() => (await admin.Send(HttpMethod.Get, $"/api/v1/identity/users/{user}")).GetProperty("roleAssignments").EnumerateArray().Where(a => a.GetProperty("roleCode").GetString() == role).ToList();
         var assignments = await Assignments();
-        if (assignments.Count == 0)
+        // A revoked assignment stays on record, so it's the live ones that count: an administrator assigns the role again, with the same approvals as the first time.
+        if (!assignments.Any(a => a.GetProperty("status").GetString() is "Active" or "PendingApproval"))
         {
             await admin.Send(HttpMethod.Post, $"/api/v1/identity/users/{user}/assign-role", new { roleCode = role }, await Version(user), idempotent: false);
             await context.Settle();
