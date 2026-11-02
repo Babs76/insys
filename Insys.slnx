@@ -223,6 +223,7 @@
     <Project Path="tests/Insys.Billing.Tests/Insys.Billing.Tests.csproj" />
     <Project Path="tests/Insys.Payments.Tests/Insys.Payments.Tests.csproj" />
     <Project Path="tests/Insys.ClaimsFramework.Tests/Insys.ClaimsFramework.Tests.csproj" />
+    <Project Path="tests/Insys.Assist.Tests/Insys.Assist.Tests.csproj" />
     <Project Path="tests/Insys.Compliance.Tests/Insys.Compliance.Tests.csproj" />
     <Project Path="tests/Insys.Communications.Tests/Insys.Communications.Tests.csproj" />
     <Project Path="tests/Insys.Distribution.Tests/Insys.Distribution.Tests.csproj" />
