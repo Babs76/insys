@@ -36,14 +36,17 @@ public static class CloudSettings
 {
     public const string LocalKms = "local";
     public const string Dew = "dew";
+
+    /// <summary>OpenBao Transit, the default for a deployment (ADR-027). "vault" names the same adapter.</summary>
+    public const string OpenBao = "openbao";
     public const string S3Compatible = "s3-compatible";
 
     /// <summary>Named by ADR-027 and built in its phase 3, when a customer chooses the cloud. Naming one now fails at start-up rather than running without it.</summary>
-    private static readonly string[] Unbuilt = ["aws", "azure", "alibaba", "vault", "openbao", "azure-blob"];
+    private static readonly string[] Unbuilt = ["aws", "azure", "alibaba", "azure-blob"];
 
     /// <summary>The key service for envelope encryption.</summary>
     public static string KmsProvider(IConfiguration configuration) =>
-        Known((configuration["Kms:Provider"] ?? configuration["FieldProtection:Envelope:Kms"] ?? LocalKms).ToLowerInvariant(), "Kms:Provider", LocalKms, Dew);
+        Known((configuration["Kms:Provider"] ?? configuration["FieldProtection:Envelope:Kms"] ?? LocalKms).ToLowerInvariant().Replace("vault", OpenBao, StringComparison.Ordinal), "Kms:Provider", LocalKms, Dew, OpenBao);
 
     /// <summary>The object store documents are kept in; null when they stay on the file system.</summary>
     public static string? ObjectStoreProvider(IConfiguration configuration)

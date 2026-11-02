@@ -47,6 +47,7 @@ public static class CloudRegistration
             configuration.GetSection("Huawei:Kms").Bind(o);
             configuration.GetSection("Kms").Bind(o);
         });
+        services.AddOptions<OpenBaoKmsOptions>().Bind(configuration.GetSection("Kms"));
         services.AddOptions<ObjectStoreOptions>().Configure(o =>
         {
             if (configuration.GetSection("Huawei:Obs").Exists())
@@ -64,6 +65,20 @@ public static class CloudRegistration
         {
             services.AddSingleton<IDewKmsApi, DewKmsApi>();
             services.AddSingleton<IKeyManagementService, DewKeyManagementService>();
+        }
+
+        if (string.Equals(configuration["FieldProtection:Provider"], "envelope", StringComparison.OrdinalIgnoreCase) && CloudSettings.KmsProvider(configuration) == CloudSettings.OpenBao)
+        {
+            foreach (var setting in new[] { "Address", "Token", "KeyName" })
+            {
+                if (string.IsNullOrWhiteSpace(configuration[$"Kms:{setting}"]))
+                {
+                    throw new InvalidOperationException($"Kms:Provider \"openbao\" needs Kms:{setting}.");
+                }
+            }
+
+            services.AddSingleton<IKeyManagementService>(sp => new OpenBaoKeyManagementService(new HttpClient { Timeout = Timeout.InfiniteTimeSpan },
+                sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<OpenBaoKmsOptions>>(), sp.GetRequiredService<ILogger<OpenBaoKeyManagementService>>()));
         }
 
         if (CloudSettings.ObjectStoreProvider(configuration) is not null)

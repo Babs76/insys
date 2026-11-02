@@ -1,0 +1,122 @@
+# ============================================================================
+# OPENFACTOR TECHNOLOGY GROUP
+# CONFIDENTIAL AND PROPRIETARY SOFTWARE
+# ============================================================================
+# Copyright (c) 2026 OpenFactor Technology Group.
+# All rights reserved.
+# PRODUCT       : INSYS
+# COMPONENT     : Build
+# CONFIDENTIALITY AND INTELLECTUAL PROPERTY NOTICE
+# This source code and its associated documentation contain confidential and
+# proprietary information belonging to OpenFactor Technology Group or its
+# applicable intellectual property rights holder.
+# This material is provided solely for authorised development, maintenance,
+# operation or evaluation purposes, as applicable. No person may reproduce,
+# modify, distribute, disclose, publish or otherwise use this material except
+# as expressly permitted by an applicable written agreement or licence.
+# No ownership rights or licence to any intellectual property are granted
+# by the inclusion of this notice, except as expressly provided in an
+# applicable written agreement or licence.
+# Third-party software, open-source components and customer-owned materials
+# remain subject to their respective ownership rights and applicable licences
+# or agreements.
+# UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
+# ============================================================================
+# One instance, not a value to change: permission evictions aren't shared between instances yet (ADR-006). Recreate keeps it to one during an upgrade.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-api
+  labels:
+    app.kubernetes.io/name: api
+    {{- include "insys.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: api
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: api
+        {{- include "insys.labels" . | nindent 8 }}
+    spec:
+      securityContext: {runAsNonRoot: true}
+      containers:
+        - name: api
+          image: "{{ .Values.image.api.repository }}:{{ .Values.image.api.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports: [{name: http, containerPort: 8080}]
+          securityContext: {allowPrivilegeEscalation: false}
+          resources: {{- toYaml .Values.api.resources | nindent 12 }}
+          startupProbe:
+            httpGet: {path: /health/live, port: http}
+            periodSeconds: 5
+            failureThreshold: 60
+          livenessProbe:
+            httpGet: {path: /health/live, port: http}
+          readinessProbe:
+            httpGet: {path: /health/ready, port: http}
+          env:
+            - {name: ASPNETCORE_ENVIRONMENT, value: {{ .Values.environment | quote }}}
+            - {name: Payments__Simulator__DeclaredNonProduction, value: {{ .Values.declaredNonProduction | quote }}}
+            - {name: Platform__OperatorTenantId, value: {{ .Values.operatorTenantId | quote }}}
+            - {name: Authentication__Authority, value: {{ .Values.authentication.authority | quote }}}
+            - {name: Authentication__Audience, value: {{ .Values.authentication.audience | quote }}}
+            - {name: Authentication__RequireHttpsMetadata, value: {{ .Values.authentication.requireHttpsMetadata | quote }}}
+            - {name: FieldProtection__Provider, value: envelope}
+            - {name: Kms__Provider, value: openbao}
+            - name: Kms__Address
+              value: {{ if .Values.openbao.enabled }}{{ printf "http://%s-openbao:8200" .Release.Name | quote }}{{ else }}{{ required "kms.address, or openbao.enabled" .Values.kms.address | quote }}{{ end }}
+            - {name: Kms__KeyName, value: {{ .Values.kms.keyName | quote }}}
+            - {name: Kms__Mount, value: {{ .Values.kms.mount | quote }}}
+            - {name: ObjectStore__Provider, value: s3-compatible}
+            - name: ObjectStore__ServiceUrl
+              value: {{ if .Values.seaweedfs.enabled }}{{ printf "http://%s-seaweedfs:8333" .Release.Name | quote }}{{ else }}{{ required "objectStore.serviceUrl, or seaweedfs.enabled" .Values.objectStore.serviceUrl | quote }}{{ end }}
+            - {name: ObjectStore__Region, value: {{ .Values.objectStore.region | quote }}}
+            - {name: ObjectStore__Bucket, value: {{ .Values.objectStore.bucket | quote }}}
+            - {name: ObjectStore__ForcePathStyle, value: {{ .Values.objectStore.forcePathStyle | quote }}}
+            {{- include "insys.secretEnv" (dict "root" . "name" "ConnectionStrings__Template" "key" "connectionTemplate") | nindent 12 }}
+            {{- include "insys.secretEnv" (dict "root" . "name" "FieldProtection__HashKey" "key" "hashKey") | nindent 12 }}
+            {{- include "insys.secretEnv" (dict "root" . "name" "Kms__Token" "key" "kmsToken") | nindent 12 }}
+            {{- include "insys.secretEnv" (dict "root" . "name" "ObjectStore__AccessKey" "key" "objectStoreAccessKey") | nindent 12 }}
+            {{- include "insys.secretEnv" (dict "root" . "name" "ObjectStore__SecretKey" "key" "objectStoreSecretKey") | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-api
+  labels: {{- include "insys.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.api.service.type }}
+  ports: [{name: http, port: {{ .Values.api.service.port }}, targetPort: http}]
+  selector:
+    app.kubernetes.io/name: api
+    app.kubernetes.io/instance: {{ .Release.Name }}
+{{- if .Values.ingress.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Release.Name }}-api
+  labels: {{- include "insys.labels" . | nindent 4 }}
+spec:
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- with .Values.ingress.tlsSecret }}
+  tls: [{hosts: [{{ $.Values.ingress.host | quote }}], secretName: {{ . }}}]
+  {{- end }}
+  rules:
+    - host: {{ required "ingress.host" .Values.ingress.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Release.Name }}-api
+                port: {name: http}
+{{- end }}

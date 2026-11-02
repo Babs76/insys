@@ -91,6 +91,31 @@ jobs:
   # The integration split for this run, made once so every shard runs the same split: from the class times the latest
   # successful run on main measured (its integration-timings artifact), else the committed timings file. A class never
   # measured is estimated from its tests (tools/integration-shards.py).
+  deployment:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: The chart's realm is the repository's
+        run: cmp deploy/keycloak/insys-realm.json deploy/helm/insys/files/insys-realm.json
+
+      - name: The chart lints and renders, with each dependency in the cluster and pointed at
+        run: |
+          helm() { docker run --rm -v "$PWD/deploy/helm/insys:/apps" alpine/helm:3.19.0 "$@"; }
+          helm lint . --set kms.address=http://bao:8200,objectStore.serviceUrl=http://s3:9000
+          helm template t . --set kms.address=http://bao:8200,objectStore.serviceUrl=http://s3:9000 > /dev/null
+          helm template t . --set postgres.enabled=true,openbao.enabled=true,seaweedfs.enabled=true,keycloak.enabled=true > /dev/null
+          if helm template t . --set kms.address=http://bao:8200,objectStore.serviceUrl=http://s3:9000 | grep -E 'annotations:|replicas: [^1]'; then
+            echo "The chart has a provider annotation or more than one replica (ADR-006, ADR-027)."
+            exit 1
+          fi
+
+      - name: The images build
+        run: |
+          docker build -q -f deploy/docker/api.Dockerfile -t insys-api .
+          docker build -q -f deploy/docker/migrator.Dockerfile -t insys-migrator .
+
   integration-plan:
     runs-on: ubuntu-latest
     timeout-minutes: 10

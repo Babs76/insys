@@ -1,6 +1,6 @@
 # ADR-027: Cloud-neutral deployment
 
-- **Status:** **Amendment signed (Ade, 1 November 2026).** Phase 1 is built. Phase 2 is scheduled before the first customer, not now.
+- **Status:** **Amendment signed (Ade, 1 November 2026).** Phase 1 is built. Phase 2 is being built in slices: the OpenBao Transit adapter is built; the rest is scheduled before the first customer.
   - **Provider name:** `Kms:Provider` accepts `openbao`, with `vault` as the same adapter.
   - **Production object storage:** each cloud's own S3-compatible service; an on-premises store is chosen per customer.
   - **Security lead's three questions:** still to be answered.
