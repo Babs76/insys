@@ -93,7 +93,7 @@ echo "== A document in the object store"
 content=$(printf 'smoke document' | base64)
 document=$(call POST /documents/documents "{\"categoryCode\":\"KYC\",\"businessRefType\":\"PARTY\",\"businessRefId\":\"$party\",\"mimeType\":\"text/plain\",\"contentBase64\":\"$content\",\"fileName\":\"smoke.txt\"}" | jq -r .id)
 [ "$(call GET "/documents/documents/$document/content?purpose=SMOKE")" = "smoke document" ] || fail "the document didn't read back"
-kubectl exec insys-seaweedfs-0 -- wget -qO- --header 'Accept: application/json' http://localhost:8888/buckets/insys-documents/ | jq -e '.Entries | length > 0' > /dev/null || fail "the bucket holds nothing"
+kubectl exec insys-seaweedfs-0 -- sh -c "wget -qO- --header 'Accept: application/json' http://\$(hostname -i):8888/buckets/insys-documents/" | jq -e '.Entries | length > 0' > /dev/null || fail "the bucket holds nothing"
 
 trap - ERR
 echo "SMOKE PASSED"
