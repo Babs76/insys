@@ -113,4 +113,4 @@ dotnet test --project tests/Insys.IntegrationTests --no-build --filter-class '*D
 | `adr-027-smoke` | `0f37231` | Second smoke run in progress; the first failed on the image's user, now fixed | Green, remove the temporary trigger, merge main in, CI, merge |
 | Not started | | | ADR-027's runbook |
 
-Nigeria: appeal routes (V0126) are merged; the rest of row 24 is descoped and wasn't started. The last full UTC+14 sweep is reported in `docs/progress.md`.
+Nigeria: appeal routes (V0126) are merged; the rest of row 24 is descoped and wasn't started.
