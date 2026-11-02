@@ -23,9 +23,10 @@ All of it is invented. Names come from a fixed list of made-up people and compan
 
 ## Fake personal details
 A checksum-valid South African ID number can't be guaranteed to belong to nobody, so the scheme makes a match with a real person as unlikely as it can:
-- **Identity numbers** are 13 digits with a valid checksum, built so Home Affairs wouldn't issue them: an impossible date in the first six digits (the 31st of a 30-day month or 30 February), and a citizenship digit that isn't one in use. This assumes INSYS checks format and checksum and doesn't parse the date; the build confirms it. If something does parse it, the fallback is a birth date before 1906, more than 120 years ago. A party's `birthDate` field is separate, and stays plausible so that rating works.
-- **Phone numbers:** I don't know of a published range reserved for fiction in South Africa, so the build checks. Unless it finds one, numbers use a prefix not allocated to any network, and the build records which and why.
-- **Bank accounts:** likewise, unless a reserved range exists, an invented bank code that matches no South African bank.
+- **Identity numbers** are 13 digits with a valid checksum, that Home Affairs wouldn't issue: every one has the date 30 February, and a citizenship digit of 9, where 0 and 1 are in use. INSYS checks the format and nothing parses the date (confirmed in the build). A party's `birthDate` is a separate, plausible field, so rating works.
+- **Phone numbers:** `+27` then a `0`. A national number after a country code never starts with 0, so it can't be dialled on any network; no reserved range was needed.
+- **Bank accounts:** the tenant's sample account is `000000000` at "SAMPLE BANK". Parties' accounts follow the same pattern when they're added.
+- **Names** carry "Sample" in every surname and company name.
 - **Email** stays on `example.test`.
 
 This reduces the risk and doesn't remove it. The block below is what stops anything reaching a person.

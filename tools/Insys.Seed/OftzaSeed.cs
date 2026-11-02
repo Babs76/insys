@@ -77,6 +77,7 @@ public sealed class OftzaSeed(SeedContext context)
         await Configuration();
         await Personas();
         await Products();
+        await Parties();
         await FromReadiness();
         await Channels();
         await Missing();
@@ -185,6 +186,39 @@ public sealed class OftzaSeed(SeedContext context)
         tenant = await context.PlatformMaker.Send(HttpMethod.Get, url);
         await context.PlatformMaker.Send(HttpMethod.Post, $"{url}/activate", new { reason = "OFTZA sample tenant" }, Etag(tenant));
     }
+
+    /// <summary>About 30 invented parties, with details that reach no one (docs/plans/workstream-f-oftza-seed.md, Fake personal details), by a persona who registers parties.</summary>
+    private async Task Parties()
+    {
+        if (_loadersDone)
+        {
+            return;
+        }
+
+        await Static("party/static/identity-document-types", "ZA-NID", new { country = "ZA", docType = "NATIONAL_ID", label = "National identity number", formatPattern = "^[0-9]{13}$" });
+        await Static("party/static/party-types-and-legal-forms", "PTY", new { partyKind = "ORGANISATION", label = "Private company (sample)" });
+        var clerk = context.Tenant(TenantId, "oftza-general-underwriter");
+        foreach (var person in SampleParties.People)
+        {
+            var id = (await clerk.Send(HttpMethod.Post, "/api/v1/party/parties", new
+            {
+                individual = new { firstNames = person.FirstNames, surname = person.Surname, birthDate = person.BirthDate }, confirmNew = true, reason = "Sample party (invented)",
+            })).GetProperty("id").GetGuid();
+            var url = $"/api/v1/party/parties/{id}";
+            await clerk.Send(HttpMethod.Post, $"{url}/identifiers", new { docType = "NATIONAL_ID", country = "ZA", number = person.IdNumber }, await PartyVersion(clerk, url));
+            await clerk.Send(HttpMethod.Post, $"{url}/contact-points", new { channelType = "EMAIL", value = person.Email, isPrimary = true }, await PartyVersion(clerk, url));
+            await clerk.Send(HttpMethod.Post, $"{url}/contact-points", new { channelType = "MOBILE", value = person.Mobile, isPrimary = false }, await PartyVersion(clerk, url));
+        }
+
+        foreach (var name in SampleParties.Companies)
+        {
+            await clerk.Send(HttpMethod.Post, "/api/v1/party/parties", new { organisation = new { legalName = name, legalFormCode = "PTY" }, confirmNew = true, reason = "Sample party (invented)" });
+        }
+
+        await context.Settle();
+    }
+
+    private static async Task<string> PartyVersion(Persona persona, string url) => $"\"{(await persona.Send(HttpMethod.Get, url)).GetProperty("rowVersion").GetInt64()}\"";
 
     /// <summary>A motor product as a sample, by the real route: registered, validated, simulated against its test case, approved by a second person (invented wording, labelled so).</summary>
     private async Task Products()

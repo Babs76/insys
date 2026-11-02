@@ -70,6 +70,7 @@ public sealed class OftzaSeedTests(DatabaseFixture fixture) : IClassFixture<Data
         (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM iam.user_role_assignment WHERE tenant_id = @t AND role_code = 'TENANT_ADMIN'", ("t", seed.TenantId))).ShouldBe(2L);
         var users = await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM iam.user_account WHERE tenant_id = @t", ("t", seed.TenantId));
         (await fixture.Database.ScalarAsOwner<string>("SELECT status FROM tenant.tenant WHERE id = @t", ("t", seed.TenantId))).ShouldBe("ACTIVE");
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM party.party WHERE tenant_id = @t", ("t", seed.TenantId))).ShouldBe(25L);
         foreach (var loader in new[] { OftzaSeed.LoaderMaker, OftzaSeed.LoaderChecker })
         {
             (await fixture.Database.ScalarAsOwner<string>("SELECT status FROM iam.user_account WHERE tenant_id = @t AND username = @u", ("t", seed.TenantId), ("u", loader))).ShouldBe("DISABLED", "it ends disabled");
@@ -83,5 +84,23 @@ public sealed class OftzaSeedTests(DatabaseFixture fixture) : IClassFixture<Data
         var again = await Run();
         again.Seed.TenantId.ShouldBe(seed.TenantId);
         (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM iam.user_account WHERE tenant_id = @t", ("t", seed.TenantId))).ShouldBe(users);
+    }
+
+    [Fact]
+    public void AnIdNumber_HasAValidChecksum_AnImpossibleDate_AndACitizenshipDigitNotInUse()
+    {
+        SampleParties.People.Select(p => p.IdNumber).Distinct().Count().ShouldBe(SampleParties.People.Count);
+        foreach (var person in SampleParties.People)
+        {
+            person.IdNumber.Length.ShouldBe(13);
+            person.IdNumber[2..6].ShouldBe("0230", "30 February doesn't exist");
+            person.IdNumber[10].ShouldBe('9', "0 and 1 are the digits in use");
+            SampleParties.LuhnDigit(person.IdNumber[..12]).ShouldBe(person.IdNumber[12]);
+            person.Mobile.ShouldStartWith("+270", customMessage: "not a diallable number");
+            person.Email.ShouldEndWith("@example.test");
+            person.Surname.ShouldContain("Sample");
+        }
+
+        SampleParties.LuhnDigit("800101500908").ShouldBe('7', "a known valid example: 8001015009087");
     }
 }
