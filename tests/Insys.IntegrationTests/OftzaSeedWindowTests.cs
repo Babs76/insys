@@ -61,7 +61,7 @@ public sealed class OftzaSeedWindowTests(DatabaseFixture fixture) : IClassFixtur
         }
 
         OftzaSeed Seed() => new(new SeedContext(new Persona(host.ClientFor(DatabaseFixture.Operator, "seed-platform-1"), Stop), new Persona(host.ClientFor(DatabaseFixture.Operator, "seed-platform-2"), Stop),
-            (tenant, subject) => new Persona(host.ClientFor(tenant, subject), Stop), () => host.DrainOutbox()));
+            (tenant, subject) => new Persona(host.ClientFor(tenant, subject, "insys-web"), Stop), () => host.DrainOutbox()));
 
         var seed = Seed();
         await Should.ThrowAsync<Interrupted>(seed.Run);

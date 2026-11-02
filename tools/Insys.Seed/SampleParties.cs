@@ -62,6 +62,14 @@ public static class SampleParties
         "Acacia Sample Holdings (Pty) Ltd", "Protea Sample Logistics (Pty) Ltd", "Baobab Sample Foods (Pty) Ltd", "Karoo Sample Mining (Pty) Ltd", "Fynbos Sample Retail (Pty) Ltd",
     ];
 
+    /// <summary>Their parties are organisations, each paid to a bank account reaching no one. The code is the register's.</summary>
+    public static readonly (string Code, string Name, string Type)[] Providers =
+    [
+        ("OFT-PR-1", "Marula Sample Medical Practice (Pty) Ltd", "GP"), ("OFT-PR-2", "Umhlanga Sample Specialists (Pty) Ltd", "SPEC"), ("OFT-PR-3", "Kloof Sample Day Hospital (Pty) Ltd", "HOSP"),
+    ];
+
+    public static readonly (string Code, string Name)[] Brokers = [("OFT-BRK-1", "Tugela Sample Brokers (Pty) Ltd"), ("OFT-BRK-2", "Vaal Sample Financial Advisers (Pty) Ltd")];
+
     public static IReadOnlyList<SamplePerson> People { get; } = Names.Select((n, i) => new SamplePerson(n.First, n.Last, $"{1960 + i}-0{(i % 9) + 1}-15", IdNumber(i), $"sample.{i + 1}@example.test", Mobile(i))).ToList();
 
     /// <summary>

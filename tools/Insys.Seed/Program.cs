@@ -60,7 +60,7 @@ string Token(Guid tenant, string subject)
     static string Part(byte[] bytes) => Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
     var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
     var unsigned = Part(JsonSerializer.SerializeToUtf8Bytes(new { alg = "HS256", typ = "JWT" })) + "."
-        + Part(JsonSerializer.SerializeToUtf8Bytes(new { iss = options["issuer"], aud = "insys-core-api", sub = subject, tenant_id = tenant.ToString(), nbf = now - 60, iat = now, exp = now + 7200 }));
+        + Part(JsonSerializer.SerializeToUtf8Bytes(new { iss = options["issuer"], aud = "insys-core-api", sub = subject, tenant_id = tenant.ToString(), azp = "insys-web", nbf = now - 60, iat = now, exp = now + 7200 }));
     return unsigned + "." + Part(HMACSHA256.HashData(Encoding.UTF8.GetBytes(options["signing-key"]), Encoding.ASCII.GetBytes(unsigned)));
 }
 
@@ -76,5 +76,5 @@ catch (SeedRefusedException refused)
     return 1;
 }
 
-Console.WriteLine($"{OftzaSeed.TenantCode}: {seed.TenantId}. It stays Onboarding until the products slice.");
+Console.WriteLine($"{OftzaSeed.TenantCode}: {seed.TenantId}. Active, with its sample records.");
 return 0;

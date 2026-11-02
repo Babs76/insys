@@ -55,7 +55,7 @@ public sealed class OftzaSeedResumeTests(DatabaseFixture fixture) : IClassFixtur
         {
             "tenancy/tenants$", "tenant-administrators$", "/static/[^/]+$", "/imports$", "/imports/[^/]+/submit$", "/imports/[^/]+/activate$", "/versions/\\d+/submit$", "/versions/\\d+/approve$", "/versions/\\d+/activate$",
             "workflow/approvals/[^/]+/approve$", "identity/users$", "/assign-role$", "party/parties$", "/identifiers$", "/contact-points$", "product-factory/products$", "/validate$", "/simulations$",
-            "/periods/[^/]+/open$", "callback-endpoints$", "/smoke-run$", "/smoke-run/approve$", "/complete-onboarding-step$", "/revoke-role$", "/disable$", "/disable$",
+            "/periods/[^/]+/open$", "callback-endpoints$", "/smoke-run$", "/smoke-run/approve$", "/complete-onboarding-step$", "/bank-accounts$", "/addresses$", "health/schemes$", "health/memberships$", "life/proposals$", "/life/proposals/[^/]+/submit$", "/underwriting-cases/[^/]+/decision$", "life/policies$", "/due-diligence/checks$", "/disclosure-acknowledgements$", "/revoke-role$", "/disable$", "/disable$",
         }.Select(p => new Regex(p)));
         var kinds = unstopped.Count;
         void Stop(string call)
@@ -72,7 +72,7 @@ public sealed class OftzaSeedResumeTests(DatabaseFixture fixture) : IClassFixtur
         while (true)
         {
             seed = new OftzaSeed(new SeedContext(new Persona(host.ClientFor(DatabaseFixture.Operator, "seed-platform-1"), Stop), new Persona(host.ClientFor(DatabaseFixture.Operator, "seed-platform-2"), Stop),
-                (tenant, subject) => new Persona(host.ClientFor(tenant, subject), Stop), () => host.DrainOutbox()));
+                (tenant, subject) => new Persona(host.ClientFor(tenant, subject, "insys-web"), Stop), () => host.DrainOutbox()));
             try
             {
                 await seed.Run();
@@ -88,7 +88,9 @@ public sealed class OftzaSeedResumeTests(DatabaseFixture fixture) : IClassFixtur
         interruptions.ShouldBe(kinds);
         var t = ("t", (object)seed.TenantId);
         (await db.ScalarAsOwner<string>("SELECT status FROM tenant.tenant WHERE id = @t", t)).ShouldBe("ACTIVE");
-        (await db.ScalarAsOwner<long>("SELECT count(*) FROM party.party WHERE tenant_id = @t", t)).ShouldBe(25L, "no party twice");
+        (await db.ScalarAsOwner<long>("SELECT count(*) FROM party.party WHERE tenant_id = @t", t)).ShouldBe(30L, "no party twice");
+        (await db.ScalarAsOwner<long>("SELECT count(*) FROM life.policy WHERE tenant_id = @t", t)).ShouldBe(2L, "no policy twice");
+        (await db.ScalarAsOwner<long>("SELECT count(*) FROM health.membership WHERE tenant_id = @t", t)).ShouldBe(1L, "no member twice");
         (await db.ScalarAsOwner<long>("SELECT count(*) FROM iam.user_account WHERE tenant_id = @t AND username LIKE 'oftza-seed-loader-%' AND status <> 'DISABLED'", t)).ShouldBe(0L);
         (await db.ScalarAsOwner<long>("SELECT count(*) FROM iam.user_role_assignment WHERE tenant_id = @t AND status = 'PENDING_APPROVAL'", t)).ShouldBe(0L);
     }

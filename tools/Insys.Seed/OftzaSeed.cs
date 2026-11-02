@@ -32,7 +32,7 @@ namespace Insys.Seed;
 /// Workstream F's sample tenant, OFTZA (docs/plans/workstream-f-oftza-seed.md). All of it invented. It goes through the governed API, a maker and a checker for every static row,
 /// and a run again skips what exists by its code. OFTZA is a sample tenant, so it reaches only stubs.
 /// </summary>
-public sealed class OftzaSeed(SeedContext context)
+public sealed partial class OftzaSeed(SeedContext context)
 {
     public const string TenantCode = "OFTZA";
     public const string FirstAdministrator = "oftza-admin-1";
@@ -78,11 +78,14 @@ public sealed class OftzaSeed(SeedContext context)
         await Personas();
         await Products();
         await Parties();
+        await LineConfiguration();
         await FromReadiness();
         await Channels();
         await Missing();
-        await EndLoaders();
         await Activate();
+        await AfterActivation();
+        await EndLoaders();
+        await Business();
     }
 
     /// <summary>What readiness still lists after the sample values above: filled so a demo can run, with authority for the types the guide's samples don't name on the tenant administrator.</summary>
@@ -104,6 +107,11 @@ public sealed class OftzaSeed(SeedContext context)
         foreach (var type in Missing(checks, "APPROVAL_AUTHORITY"))
         {
             await Static("workflow/static/delegation-and-approval-authority", $"AUTH-{type}-ADMIN", new { roleCode = "TENANT_ADMIN", transactionType = type, limitValue = 100_000m, delegationAllowed = false, currency = "ZAR" });
+        }
+
+        foreach (var reason in Missing(checks, "HEALTH_DECLINE_REASONS"))
+        {
+            await Static("claims-framework/static/claim-decision-reason-codes", reason, new { decisionType = "DECLINE", customerWording = "Your claim could not be paid (sample wording)." });
         }
 
         await Static("life/static/claims-authority-limits", "LCL-DEATH", new { role = "CLAIMS_MANAGER", claimType = "DEATH", limitValue = 500_000m });
@@ -227,6 +235,11 @@ public sealed class OftzaSeed(SeedContext context)
                 await clerk.Send(HttpMethod.Post, $"{url}/identifiers", new { docType = "NATIONAL_ID", country = "ZA", number = person.IdNumber }, await PartyVersion(clerk, url), key: $"{TenantCode}:identifier:{person.IdNumber}");
             }
 
+            if ((await clerk.Send(HttpMethod.Get, url)).GetProperty("addresses").GetArrayLength() == 0)
+            {
+                await clerk.Send(HttpMethod.Post, $"{url}/addresses", new { addressType = "RESIDENTIAL", line1 = "1 Sample Street", line2 = (string?)null, city = "Sampleton", subdivision = (string?)null, postalCode = "0000", country = "ZA", validFrom = "2020-01-01" }, await PartyVersion(clerk, url), key: $"{TenantCode}:address:{person.IdNumber}");
+            }
+
             foreach (var (type, value, primary) in new[] { ("EMAIL", person.Email, true), ("MOBILE", person.Mobile, false) })
             {
                 if (!(await clerk.Send(HttpMethod.Get, url)).GetProperty("contactPoints").EnumerateArray().Any(c => c.GetProperty("channelType").GetString() == type))
@@ -313,7 +326,7 @@ public sealed class OftzaSeed(SeedContext context)
         await Static("rating/static/rating-test-case-library", $"{prefix}-T1", new { caseId = $"{prefix}-T1", productVersion = version, inputs, expectedPremium = expected, tolerance = 0.01m });
         await Static("product-factory/static/product-template-assignments", $"{prefix}-SCH", new { productCode = product, documentType = "POLICY_SCHEDULE", template = "OFT-TPL-1", language = "en" });
         await Static("tenancy/static/tenant-product-availability", $"AVAIL-{family}", new { tenant = TenantCode, productFamily = family, enabled = true });
-        await Static("rules/static/authority-matrices", $"AM-{product}", new { roleCode = underwriter, productCode = product, maxSumAssured = 1_000_000m, decisionTypes = new[] { "ACCEPT", "DECLINE" } });
+        await Static("rules/static/authority-matrices", $"AM-{product}", new { roleCode = underwriter, productCode = product, maxSumAssured = 1_000_000m, decisionTypes = new[] { "STD" } });
         await Publish(product, domain, family, name, coverages, eligibility);
     }
 
@@ -367,8 +380,8 @@ public sealed class OftzaSeed(SeedContext context)
     {
         _adminMaker = _maker;
         _adminChecker = _checker;
-        // Loading is over only once the tenant has left onboarding. Short of that, the loaders are put back below, by the routes an administrator would use.
-        if ((await context.PlatformMaker.Send(HttpMethod.Get, $"/api/v1/tenancy/tenants/{TenantId}")).GetProperty("status").GetString() != "Onboarding")
+        // Loading is over once the tenant has left onboarding and its loaders have ended (a scheme's rule waits for activation). Short of that, they are put back below, by the routes an administrator would use.
+        if ((await context.PlatformMaker.Send(HttpMethod.Get, $"/api/v1/tenancy/tenants/{TenantId}")).GetProperty("status").GetString() != "Onboarding" && !await AnyLoaderLive())
         {
             _loadersDone = true;
             return;
@@ -416,6 +429,12 @@ public sealed class OftzaSeed(SeedContext context)
         // Each signs in, as a person would: a user still Invited can't be disabled, and on a rerun with nothing left to approve the checker would otherwise never call.
         await _maker.Send(HttpMethod.Get, "/api/v1/workflow/approvals?status=Requested");
         await _checker.Send(HttpMethod.Get, "/api/v1/workflow/approvals?status=Requested");
+    }
+
+    private async Task<bool> AnyLoaderLive()
+    {
+        var users = (await _adminMaker!.Send(HttpMethod.Get, "/api/v1/identity/users?limit=200")).GetProperty("items").EnumerateArray();
+        return users.Any(u => u.GetProperty("username").GetString()!.StartsWith("oftza-seed-loader-", StringComparison.Ordinal) && u.GetProperty("status").GetString() != "Disabled");
     }
 
     private async Task EndLoaders()
@@ -674,9 +693,13 @@ public sealed class OftzaSeed(SeedContext context)
         }
 
         var rule = 0;
-        foreach (var type in new[] { "PREMIUM_DUE", "PAYMENT_RECEIVED", "REFUND_PAID", "CLAIM_RESERVE_UP", "CLAIM_RESERVE_DOWN", "CLAIM_PAID", "CLAIM_PAID_REVERSED", "RECOVERY_RAISED", "RECOVERY_OFFSET" })
+        foreach (var (type, debit, credit) in new[]
+                 {
+                     ("PREMIUM_DUE", "1100", "4000"), ("PAYMENT_RECEIVED", "1200", "1100"), ("REFUND_PAID", "1100", "1200"), ("CLAIM_RESERVE_UP", "5000", "2100"), ("CLAIM_RESERVE_DOWN", "2100", "5000"),
+                     ("CLAIM_PAID", "2100", "1200"), ("CLAIM_PAID_REVERSED", "1200", "2100"), ("RECOVERY_RAISED", "1100", "2100"), ("RECOVERY_OFFSET", "1200", "1100"),
+                 })
         {
-            await Static("finance/static/posting-rules", $"PR-{++rule}", new { ruleCode = $"PR-{rule}", transactionType = type, debitAccount = "1100", creditAccount = "1200" });
+            await Static("finance/static/posting-rules", $"PR-{++rule}", new { ruleCode = $"PR-{rule}", transactionType = type, debitAccount = debit, creditAccount = credit });
         }
 
         foreach (var (type, role, limit) in new[] { ("CLAIM_SETTLEMENT", "CLAIMS_MANAGER", 250_000m), ("LIFE_CLAIM", "CLAIMS_MANAGER", 500_000m), ("CLAIM_PAYMENT", "FINANCE_OFFICER", 100_000m), ("REFUND", "FINANCE_OFFICER", 25_000m), ("PAYOUT_RELEASE", "FINANCE_MANAGER", 5_000_000m), ("COMMISSION_STATEMENT", "FINANCE_MANAGER", 5_000_000m) })

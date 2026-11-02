@@ -46,7 +46,7 @@ public sealed class OftzaSeedTests(DatabaseFixture fixture) : IClassFixture<Data
         await db.SeedStatic(DatabaseFixture.Operator, "workflow.cfg_delegation_and_approval_authority", "EFFECTIVE", "AUTH-SEED-ADM", new DateOnly(2026, 1, 1), ("role_code", role),
             ("transaction_type", "TENANT_ADMINISTRATOR"), ("limit_value", 1m), ("delegation_allowed", false));
         var seed = new OftzaSeed(new SeedContext(new Persona(host.ClientFor(DatabaseFixture.Operator, "seed-platform-1")), new Persona(host.ClientFor(DatabaseFixture.Operator, "seed-platform-2")),
-            (tenant, subject) => new Persona(host.ClientFor(tenant, subject)), () => host.DrainOutbox()));
+            (tenant, subject) => new Persona(host.ClientFor(tenant, subject, "insys-web")), () => host.DrainOutbox()));
         try
         {
             await seed.Run();
@@ -70,8 +70,13 @@ public sealed class OftzaSeedTests(DatabaseFixture fixture) : IClassFixture<Data
         (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM iam.user_role_assignment WHERE tenant_id = @t AND role_code = 'TENANT_ADMIN'", ("t", seed.TenantId))).ShouldBe(2L);
         var users = await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM iam.user_account WHERE tenant_id = @t", ("t", seed.TenantId));
         (await fixture.Database.ScalarAsOwner<string>("SELECT status FROM tenant.tenant WHERE id = @t", ("t", seed.TenantId))).ShouldBe("ACTIVE");
-        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM party.party WHERE tenant_id = @t", ("t", seed.TenantId))).ShouldBe(25L);
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM party.party WHERE tenant_id = @t", ("t", seed.TenantId))).ShouldBe(30L, "20 people, 5 companies, 3 providers and 2 brokers");
         (await fixture.Database.ScalarAsOwner<long>("SELECT count(DISTINCT product_code) FROM product.cfg_product_definitions_and_versions WHERE tenant_id = @t AND record_status = 'PUBLISHED'", ("t", seed.TenantId))).ShouldBe(5L, "motor, household, funeral, term and the medical scheme, all by the real route");
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM life.policy WHERE tenant_id = @t AND status = 'IN_FORCE'", ("t", seed.TenantId))).ShouldBeGreaterThanOrEqualTo(2L, "the funeral and term products take business");
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM health.membership WHERE tenant_id = @t AND status = 'ACTIVE'", ("t", seed.TenantId))).ShouldBeGreaterThanOrEqualTo(1L, "the scheme takes members");
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM party.bank_account WHERE tenant_id = @t AND status = 'ACTIVE'", ("t", seed.TenantId))).ShouldBe(5L, "each provider and broker, verified by a second person");
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM commission.mst_intermediary_register WHERE tenant_id = @t AND record_status = 'ACTIVE'", ("t", seed.TenantId))).ShouldBe(2L);
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM health.mst_provider_register WHERE tenant_id = @t AND record_status = 'ACTIVE' AND party_id IS NOT NULL", ("t", seed.TenantId))).ShouldBe(3L);
         foreach (var loader in new[] { OftzaSeed.LoaderMaker, OftzaSeed.LoaderChecker })
         {
             (await fixture.Database.ScalarAsOwner<string>("SELECT status FROM iam.user_account WHERE tenant_id = @t AND username = @u", ("t", seed.TenantId), ("u", loader))).ShouldBe("DISABLED", "it ends disabled");
