@@ -8,5 +8,5 @@ FROM mcr.microsoft.com/dotnet/runtime:10.0
 WORKDIR /app
 COPY --from=build /app .
 COPY db ./db
-USER app
+USER $APP_UID
 ENTRYPOINT ["dotnet", "Insys.DbMigrator.dll"]
