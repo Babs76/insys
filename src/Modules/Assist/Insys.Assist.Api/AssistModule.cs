@@ -53,9 +53,9 @@ public sealed class AssistModule : IModule
         var assist = api.MapGroup("/assist").WithTags(Name);
         assist.MapGet("/settings", async (IDispatcher d, HttpContext http, CancellationToken ct) => (await d.Query(new GetAssistSettings(), ct)).ToHttp(view =>
             {
-                if (view.RowVersion is { } version)
+                if (view.RowVersion > 0)
                 {
-                    Concurrency.SetETag(http, version);
+                    Concurrency.SetETag(http, view.RowVersion);
                 }
 
                 return Results.Ok(view);
@@ -72,7 +72,7 @@ public sealed class AssistModule : IModule
                 Concurrency.OptionalExpectedVersion(http.Request) is { IsSuccess: true } expected
                     ? (await d.Send(new SetAssistSettings(r.Jurisdiction, r.InferenceRegion, r.LegalBasis, r.ExplanationsEnabled, expected.Value), ct)).ToHttp(view =>
                     {
-                        Concurrency.SetETag(http, view.RowVersion ?? 1);
+                        Concurrency.SetETag(http, view.RowVersion);
                         return Results.Ok(view);
                     })
                     : Results.BadRequest())

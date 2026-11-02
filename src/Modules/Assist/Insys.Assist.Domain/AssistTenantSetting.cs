@@ -42,6 +42,10 @@ public static class AssistErrorCodes
     [ErrorCode(422, "error.assist.residency_not_set")]
     public const string ResidencyNotSet = "ASSIST_RESIDENCY_NOT_SET";
 
+    /// <summary>The tenant's administrator hasn't switched this feature on.</summary>
+    [ErrorCode(422, "error.assist.not_enabled")]
+    public const string NotEnabled = "ASSIST_NOT_ENABLED";
+
     /// <summary>The verifier rejected the model's output, so the caller gets the plain data instead (AIA-033).</summary>
     [ErrorCode(422, "error.assist.output_rejected")]
     public const string OutputRejected = "ASSIST_OUTPUT_REJECTED";
@@ -67,7 +71,7 @@ public sealed class AssistTenantSetting : AggregateRoot<Guid>
 
     public bool ExplanationsEnabled { get; private set; }
 
-    /// <summary>The tokens the tenant may use in a calendar month; null means none until the operator sets it.</summary>
+    /// <summary>The tokens the tenant may use in a calendar month; null means the deployment's low default (Assist:DefaultMonthlyTokenCap).</summary>
     public long? MonthlyTokenCap { get; private set; }
 
     public static AssistTenantSetting Start() => new() { Id = Guid.CreateVersion7() };

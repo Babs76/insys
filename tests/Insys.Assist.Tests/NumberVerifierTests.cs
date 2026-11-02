@@ -107,6 +107,40 @@ public sealed class NumberVerifierTests
         NumberVerifier.Verify("0", "").Passes.ShouldBeFalse();
     }
 
+    [Theory]
+    [InlineData("r999")] [InlineData("N999")] [InlineData("Rs999")] [InlineData("Ksh999")] [InlineData("Premium999")] [InlineData("999k")] [InlineData("R5m")] [InlineData("2bn")]
+    [InlineData("15pc")] [InlineData("15percent")] [InlineData("FRW999")] [InlineData("AUD999")] [InlineData("US999")] [InlineData("100,5000")] [InlineData("100,99")]
+    [InlineData("1240,50")] [InlineData("total.999")] [InlineData(".15")] [InlineData("R1.5m")] [InlineData("fifteen percent")] [InlineData("twelve hundred")] [InlineData("a million")]
+    [InlineData("R100 million")] [InlineData("100 billion")] [InlineData("\uFF19\uFF19\uFF19")] [InlineData("\u0669\u0669")] [InlineData("2nd November 2026")] [InlineData("the 3rd")] [InlineData("December 2026")]
+    public void WhatIsntReadAsANumber_FailsClosed(string output) =>
+        NumberVerifier.Verify($"It is {output} here.", "R100 and 100 and 1240 from 1 November 2026").Passes.ShouldBeFalse(output);
+
+    [Theory]
+    [InlineData("1240 dollars")] [InlineData("1240 rand")] [InlineData("US$1240")] [InlineData("A$1240")] [InlineData("KSh 1240")] [InlineData("1240 FCFA")] [InlineData("Frw 1240")]
+    [InlineData("usd 1240")] [InlineData("¥1240")] [InlineData("₵1240")]
+    public void ACurrencyWrittenAnyWay_MustMatchTheOneStated(string output) => NumberVerifier.Verify(output, "NGN 1240").Passes.ShouldBeFalse(output);
+
+    [Theory]
+    [InlineData("100%", "Step 1")] [InlineData("1500%", "15")] [InlineData("200%", "2")] [InlineData("1", "100%")]
+    public void APercentage_NeverMatchesAWholeNumber(string output, string source) => NumberVerifier.Verify(output, source).Passes.ShouldBeFalse();
+
+    [Theory]
+    [InlineData("\u221250")] [InlineData("R-50")] [InlineData("- 50")] [InlineData("minus 50")]
+    public void EveryWayOfWritingAMinus_IsAMinus(string output)
+    {
+        NumberVerifier.Verify(output, "50").Passes.ShouldBeFalse(output);
+        NumberVerifier.Verify("50", output).Passes.ShouldBeFalse(output);
+        NumberVerifier.Verify(output, "-50").Passes.ShouldBeTrue(output);
+    }
+
     [Fact]
-    public void ACodeWithDigits_IsNotANumber() => NumberVerifier.Verify("Rule AIA033 and version V2 say so.", "").Passes.ShouldBeTrue();
+    public void ANumberTooLongToRead_IsRejected_NotAnException() =>
+        NumberVerifier.Verify("99999999999999999999999999999999", "100").Passes.ShouldBeFalse();
+
+    [Fact]
+    public void ACodeWithDigits_PassesOnlyIfItIsInTheSource()
+    {
+        NumberVerifier.Verify("Rule AIA033 says so.", "See rule AIA033 here.").Passes.ShouldBeTrue();
+        NumberVerifier.Verify("Rule AIA033 says so.", "").Passes.ShouldBeFalse();
+    }
 }

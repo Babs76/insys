@@ -141,7 +141,7 @@ internal sealed class FunctionCatalogueQuery(FunctionCatalogueReader catalogue, 
         var refused = new SortedDictionary<string, string>(StringComparer.Ordinal);
         foreach (var code in functionCodes.Where(functions.ContainsKey))
         {
-            if (Application.Users.FunctionHolding.Refusal(code, functions[code].Feature, allowed, tenantId == platform.Value.OperatorTenantId) is { } refusal)
+            if (Application.Users.FunctionHolding.Refusal(code, functions[code].Feature, allowed, tenantId == platform.Value.OperatorTenantId, functions[code].Audiences) is { } refusal)
             {
                 refused[code] = refusal;
             }

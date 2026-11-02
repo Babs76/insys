@@ -30,6 +30,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\Host\Insys.Api\Insys.Api.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Assist\Insys.Assist.Application\Insys.Assist.Application.csproj" />
     <ProjectReference Include="..\..\tools\Insys.DbMigrator\Insys.DbMigrator.csproj" />
   </ItemGroup>
   <ItemGroup>

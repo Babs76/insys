@@ -306,7 +306,7 @@ public sealed class PrincipalResolver(
         var isOperator = tenantId == platform.Value.OperatorTenantId;
         return (await catalogue.Functions(day, cancellationToken)).Values.ToDictionary(f => f.Code, f =>
             configurationOnly && !f.AllowedWhileOnboarding ? ErrorCodes.TenantNotActive
-            : Application.Users.FunctionHolding.Refusal(f.Code, f.Feature, settings, isOperator) ?? ErrorCodes.FunctionNotGranted, StringComparer.Ordinal);
+            : Application.Users.FunctionHolding.Refusal(f.Code, f.Feature, settings, isOperator, f.Audiences) ?? ErrorCodes.FunctionNotGranted, StringComparer.Ordinal);
     }
 
     /// <summary>

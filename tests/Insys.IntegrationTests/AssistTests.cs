@@ -27,7 +27,6 @@
 using System.Net;
 using Insys.Assist.Application;
 using Insys.Assist.Domain;
-using Insys.Assist.Infrastructure;
 using Insys.BuildingBlocks.Api.Functions;
 using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Messaging;
@@ -211,28 +210,96 @@ public sealed class AssistTests(DatabaseFixture fixture) : IClassFixture<Databas
             SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
             WHERE n.nspname = 'assist' AND c.relkind = 'r' AND NOT (c.relrowsecurity AND c.relforcerowsecurity)
             """)).ShouldBe(0L, "row-level security is forced on every table");
+        (await fixture.Database.ScalarAsOwner<long>("""
+            SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE n.nspname = 'assist' AND c.relkind = 'r' AND NOT EXISTS (
+              SELECT 1 FROM pg_policies p WHERE p.schemaname = 'assist' AND p.tablename = c.relname AND p.cmd = 'ALL'
+                AND p.qual LIKE '%tenant_id%app.tenant_id%' AND p.with_check LIKE '%tenant_id%app.tenant_id%')
+            """)).ShouldBe(0L, "every table's policy is the tenant's, for reads and for writes");
         (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM pg_roles WHERE rolname = 'insys_assist' AND (rolsuper OR rolbypassrls)")).ShouldBe(0L);
 
+        var c = TestContext.Current.CancellationToken;
         await using var connection = new NpgsqlConnection(fixture.Database.ConnectionFor("insys_assist"));
-        await connection.OpenAsync(TestContext.Current.CancellationToken);
-        await using var transaction = await connection.BeginTransactionAsync(TestContext.Current.CancellationToken);
+        await connection.OpenAsync(c);
+        await using var transaction = await connection.BeginTransactionAsync(c);
         await using (var set = new NpgsqlCommand($"SELECT set_config('app.tenant_id', '{b}', true)", connection, transaction))
         {
-            await set.ExecuteScalarAsync(TestContext.Current.CancellationToken);
+            await set.ExecuteScalarAsync(c);
         }
 
-        await using (var read = new NpgsqlCommand("SELECT count(*) FROM assist.run WHERE tenant_id = @a", connection, transaction))
+        foreach (var table in new[] { "run", "run_payload", "tenant_setting" })
         {
+            await using var read = new NpgsqlCommand($"SELECT count(*) FROM assist.{table} WHERE tenant_id = @a", connection, transaction);
             read.Parameters.AddWithValue("a", a);
-            (await read.ExecuteScalarAsync(TestContext.Current.CancellationToken)).ShouldBe(0L, "tenant B's session reads none of A's runs");
+            (await read.ExecuteScalarAsync(c)).ShouldBe(0L, $"tenant B's session reads none of A's {table}");
         }
 
+        // A write into a tenant with no row, so only the policy can refuse it.
         await using var write = new NpgsqlCommand("""
             INSERT INTO assist.tenant_setting (tenant_id, id, row_version, created_at, created_by, updated_at, updated_by, jurisdiction, inference_region, explanations_enabled)
-            VALUES (@a, gen_random_uuid(), 1, now(), 't', now(), 't', 'ZA', 'ZA', true)
+            VALUES (@other, gen_random_uuid(), 1, now(), 't', now(), 't', 'ZA', 'ZA', true)
             """, connection, transaction);
-        write.Parameters.AddWithValue("a", a);
-        await Should.ThrowAsync<PostgresException>(() => write.ExecuteNonQueryAsync(TestContext.Current.CancellationToken));
+        write.Parameters.AddWithValue("other", Guid.CreateVersion7());
+        (await Should.ThrowAsync<PostgresException>(() => write.ExecuteNonQueryAsync(c))).SqlState.ShouldBe("42501");
+    }
+
+    [Fact]
+    public async Task ARunRecord_CantBeChanged_OnlyAddedTo()
+    {
+        var (a, _, host, _) = await Ready();
+        (await Run(host, a, "Premium 100.")).IsSuccess.ShouldBeTrue();
+        foreach (var privilege in new[] { "UPDATE", "DELETE" })
+        {
+            (await fixture.Database.ScalarAsOwner<bool>($"SELECT has_table_privilege('insys_assist', 'assist.run', '{privilege}')")).ShouldBeFalse(privilege);
+        }
+    }
+
+    [Fact]
+    public async Task APlatformFunction_GrantedByAnOrdinaryTenantsRole_GivesNothing_AddendumS53()
+    {
+        var (tenant, client) = await Tenant(entitled: true);
+        var subject = $"overlay-{Guid.NewGuid():N}"[..20];
+        await fixture.Database.UserWithFunctions(tenant, subject, "ASSIST_OVERLAY_APPROVE", "ASSIST_SETTINGS_MANAGE");
+        var scope = (await fixture.Host()).Services.CreateAsyncScope();
+        await using (scope)
+        {
+            var holding = scope.ServiceProvider.GetRequiredService<Insys.Identity.Application.Users.IFunctionCatalogueQuery>();
+            (await holding.NotHoldable(tenant, ["ASSIST_OVERLAY_APPROVE"], TestClock.Today, CancellationToken.None))["ASSIST_OVERLAY_APPROVE"].ShouldBe("FUNCTION_NOT_GRANTED");
+            (await holding.NotHoldable(DatabaseFixture.Operator, ["ASSIST_OVERLAY_APPROVE"], TestClock.Today, CancellationToken.None)).ShouldNotContainKey("ASSIST_OVERLAY_APPROVE");
+        }
+
+        _ = client;
+    }
+
+    [Fact]
+    public async Task TheStub_IsRegisteredOnlyByTheTestHost_AndTheDeploymentsDefaultHasNoModel()
+    {
+        await Should.ThrowAsync<AiModelUnavailableException>(() => new NoAiModelProvider().Complete(new AiModelRequest("m", "p", "i", "d"), CancellationToken.None));
+        typeof(StubAiModelProvider).Assembly.GetName().Name.ShouldBe("Insys.Testing");
+        typeof(Insys.Assist.Infrastructure.AssistInfrastructure).Assembly.GetTypes().Where(t => t.Name.Contains("Stub", StringComparison.Ordinal)).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task ExplanationsSwitchedOff_AreRefused_ButTheSettingStays()
+    {
+        var (tenant, _, host, _) = await Ready();
+        await fixture.Database.ExecuteAsOwner("UPDATE assist.tenant_setting SET explanations_enabled = false WHERE tenant_id = @t", ("t", tenant));
+        (await Run(host, tenant, "Premium 100.")).Error!.Code.ShouldBe("ASSIST_NOT_ENABLED");
+    }
+
+    [Fact]
+    public async Task ChangingSettings_NeedsIfMatch_AndEachETagIsTheCurrentOne()
+    {
+        var (_, client, _, _) = await Ready();
+        (await client.Send(HttpMethod.Put, Settings, new { jurisdiction = "ZA", inferenceRegion = "ZA", explanationsEnabled = false })).StatusCode.ShouldBe(HttpStatusCode.PreconditionRequired);
+        for (var i = 0; i < 3; i++)
+        {
+            var etag = (await client.GetAsync(Settings)).ETag();
+            var put = await client.Send(HttpMethod.Put, Settings, new { jurisdiction = "ZA", inferenceRegion = "ZA", explanationsEnabled = i % 2 == 0 }, ifMatch: etag);
+            put.StatusCode.ShouldBe(HttpStatusCode.OK, await put.Content.ReadAsStringAsync());
+            put.ETag().ShouldNotBe(etag);
+            (await client.GetAsync(Settings)).ETag().ShouldBe(put.ETag());
+        }
     }
 
     [Theory]
@@ -259,13 +326,13 @@ public sealed class AssistTests(DatabaseFixture fixture) : IClassFixture<Databas
     {
         typeof(IAiModelProvider).GetMethods().Select(m => m.Name).ShouldBe(["Complete"]);
         typeof(AiModelRequest).GetProperties().Select(p => p.Name).Order().ShouldBe(["Data", "Instructions", "ModelVersion", "PromptVersion"]);
-        typeof(AiModelResponse).GetProperties().Select(p => p.Name).Where(n => n.Contains("Tool", StringComparison.OrdinalIgnoreCase) || n.Contains("Function", StringComparison.OrdinalIgnoreCase)).ShouldBeEmpty();
+        typeof(AiModelResponse).GetProperties().Select(p => p.Name).Order().ShouldBe(["InputTokens", "OutputTokens", "Text"]);
 
         var (tenant, _, host, stub) = await Ready();
-        stub.Reply = _ => "CALL approve_payment; POST /api/v1/payments/payouts/release";
+        stub.Reply = _ => "CALL approve_payment; POST payments release";
         var before = await Counts(tenant);
         var outcome = (await Run(host, tenant, "Premium 100.")).Value;
-        outcome.Text.ShouldBe("CALL approve_payment; POST /api/v1/payments/payouts/release", "it comes back as text to show, and nothing runs it");
+        outcome.Text.ShouldBe("CALL approve_payment; POST payments release", "it comes back as text to show, and nothing runs it");
         (await Counts(tenant)).ShouldBe(before);
     }
 

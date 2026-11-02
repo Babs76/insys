@@ -39,7 +39,7 @@ public static class AssistInfrastructure
         services.AddModuleDbContext<AssistDbContext>(schema, "Assist");
         services.AddModuleHandlers<AssistDbContext>(typeof(GetAssistSettings).Assembly);
         services.AddScoped<IAssistRepository, AssistRepository>();
-        services.AddSingleton<IAiModelProvider, StubAiModelProvider>();
+        services.AddSingleton<IAiModelProvider, NoAiModelProvider>();
         services.AddScoped<AssistRunner>();
         services.AddOptions<AssistOptions>().BindConfiguration("Assist");
         return services;

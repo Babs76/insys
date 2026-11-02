@@ -6,7 +6,7 @@
  * Copyright (c) 2026 OpenFactor Technology Group.
  * All rights reserved.
  * PRODUCT       : INSYS
- * COMPONENT     : Assist
+ * COMPONENT     : Testing
  * CONFIDENTIALITY AND INTELLECTUAL PROPERTY NOTICE
  * This source code and its associated documentation contain confidential and
  * proprietary information belonging to OpenFactor Technology Group or its
@@ -27,10 +27,10 @@
 using System.Collections.Concurrent;
 using Insys.Assist.Application;
 
-namespace Insys.Assist.Infrastructure;
+namespace Insys.Testing;
 
 /// <summary>
-/// The test stub, and in batch 7.1 the only provider (SRS §9.2: no real model in CI). It gives fixed outputs, including wrong numbers and an injected instruction's effect, and
+/// The test stub (SRS §9.2: no real model in CI). It is only ever registered by the test host. It gives fixed outputs, including wrong numbers and an injected instruction's effect, and
 /// keeps what it was sent, so a test can read the payload. It reads and writes nothing else.
 /// </summary>
 public sealed class StubAiModelProvider : IAiModelProvider

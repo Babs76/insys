@@ -46701,10 +46701,7 @@
         "type": "object",
         "properties": {
           "id": {
-            "type": [
-              "null",
-              "string"
-            ],
+            "type": "string",
             "format": "uuid"
           },
           "jurisdiction": {
@@ -46743,7 +46740,6 @@
           "rowVersion": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": [
-              "null",
               "integer",
               "string"
             ],

@@ -86,8 +86,10 @@ public interface IFunctionCatalogueQuery
 /// </summary>
 public static class FunctionHolding
 {
-    public static string? Refusal(string functionCode, string? feature, TenantFunctionSettings settings, bool operatorTenant) =>
-        settings.DisabledFunctions.Contains(functionCode) ? ErrorCodes.FunctionDisabled
+    /// <param name="audiences">A function only for the platform can't be held by any other tenant, whatever a role grants it.</param>
+    public static string? Refusal(string functionCode, string? feature, TenantFunctionSettings settings, bool operatorTenant, IReadOnlyCollection<string>? audiences = null) =>
+        !operatorTenant && audiences is { Count: 1 } && audiences.Single() == "PLATFORM" ? ErrorCodes.FunctionNotGranted
+        : settings.DisabledFunctions.Contains(functionCode) ? ErrorCodes.FunctionDisabled
         : feature is { } f && !operatorTenant && !settings.EntitledFeatures.Contains(f) ? ErrorCodes.FeatureNotEntitled
         : null;
 }

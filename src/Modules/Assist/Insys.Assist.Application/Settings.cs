@@ -47,10 +47,10 @@ public interface IAssistRepository
 }
 
 /// <summary>A tenant's settings. Before any are made, the tenant has none, and Assist refuses.</summary>
-public sealed record AssistSettingsView(Guid? Id, string? Jurisdiction, string? InferenceRegion, string? LegalBasis, bool ExplanationsEnabled, long? MonthlyTokenCap, bool ResidencyAllowsInference,
-    long? RowVersion)
+public sealed record AssistSettingsView(Guid Id, string? Jurisdiction, string? InferenceRegion, string? LegalBasis, bool ExplanationsEnabled, long? MonthlyTokenCap, bool ResidencyAllowsInference,
+    long RowVersion)
 {
-    public static readonly AssistSettingsView None = new(null, null, null, null, false, null, false, null);
+    public static readonly AssistSettingsView None = new(Guid.Empty, null, null, null, false, null, false, 0);
 
     public static AssistSettingsView From(AssistTenantSetting s) =>
         new(s.Id, s.Jurisdiction, s.InferenceRegion, s.LegalBasis, s.ExplanationsEnabled, s.MonthlyTokenCap, s.ResidencyAllowsInference, s.RowVersion);
@@ -72,7 +72,7 @@ public sealed class SetAssistSettingsValidator : AbstractValidator<SetAssistSett
 {
     public SetAssistSettingsValidator()
     {
-        RuleFor(c => c.Jurisdiction).NotEmpty().Length(2);
+        RuleFor(c => c.Jurisdiction).NotEmpty().Matches("^[A-Za-z]{2}$");
         RuleFor(c => c.InferenceRegion).NotEmpty().MaximumLength(20);
         RuleFor(c => c.LegalBasis).MaximumLength(500);
     }
@@ -101,6 +101,11 @@ internal sealed class AssistSettingsHandlers(IAssistRepository assist, IBusiness
     public async Task<Result<AssistSettingsView>> Handle(SetAssistSettings command, CancellationToken cancellationToken)
     {
         var current = await assist.Setting(cancellationToken);
+        if (current is not null && command.ExpectedVersion is null)
+        {
+            return new Error(ErrorCodes.PreconditionRequired, "Changing the settings needs an If-Match header with the ETag from a GET.", ErrorKind.PreconditionRequired);
+        }
+
         if (command.ExpectedVersion is { } expected && current?.RowVersion != expected)
         {
             return Error.PreconditionFailed(ErrorCodes.PreconditionFailed, "The settings have changed since they were read. Read them again and retry.");

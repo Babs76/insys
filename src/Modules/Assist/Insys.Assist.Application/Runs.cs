@@ -75,6 +75,11 @@ public sealed class AssistRunner(IAssistRepository assist, IAiModelProvider prov
             return Error.Validation(AssistErrorCodes.ResidencyNotSet, "AI Assist needs the tenant's jurisdiction, and a legal basis if inference runs outside it (AIA-050).");
         }
 
+        if (request.Feature is AssistFeatures.ExplainRefusal or AssistFeatures.ExplainPremium && !setting.ExplanationsEnabled)
+        {
+            return Error.Validation(AssistErrorCodes.NotEnabled, "The tenant hasn't switched explanations on.");
+        }
+
         var today = businessDate.Today;
         var used = (await assist.Usage(businessDate.StartOf(new DateOnly(today.Year, today.Month, 1)), businessDate.StartOf(new DateOnly(today.Year, today.Month, 1).AddMonths(1)), cancellationToken)).Tokens;
         if (used >= (setting.MonthlyTokenCap ?? options.Value.DefaultMonthlyTokenCap))
@@ -84,7 +89,7 @@ public sealed class AssistRunner(IAssistRepository assist, IAiModelProvider prov
 
         var started = clock.UtcNow;
         var minimised = Minimiser.Minimise(request.SourceData, request.Known);
-        var untrusted = Minimiser.Minimise(request.UntrustedText ?? "", request.Known);
+        var untrusted = Minimiser.MinimiseFreeText(request.UntrustedText ?? "", request.Known);
         var sent = untrusted.Text.Length == 0 ? minimised.Text : $"{minimised.Text}\n{untrusted.Text}";
         var model = options.Value.ModelVersion;
         AiModelResponse? response = null;
@@ -92,9 +97,9 @@ public sealed class AssistRunner(IAssistRepository assist, IAiModelProvider prov
         {
             response = await provider.Complete(new AiModelRequest(model, request.PromptVersion, request.Instructions, PromptData.Delimit(sent)), cancellationToken);
         }
-        catch (AiModelUnavailableException)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            // Recorded below: INSYS never waits on the AI (P8).
+            // Recorded below: INSYS never waits on the AI (P8), whatever the provider threw.
         }
 
         var rejected = response is null ? [] : NumberVerifier.Verify(response.Text, minimised.Text).Rejected;

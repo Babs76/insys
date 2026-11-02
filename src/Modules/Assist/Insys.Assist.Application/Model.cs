@@ -43,6 +43,15 @@ public interface IAiModelProvider
     Task<AiModelResponse> Complete(AiModelRequest request, CancellationToken cancellationToken);
 }
 
+/// <summary>
+/// What runs until batch 7.3's real adapter: no model at all, so every run ends UNAVAILABLE and INSYS carries on (P8). The test stub lives only in Insys.Testing, so no deployment can reach it.
+/// </summary>
+public sealed class NoAiModelProvider : IAiModelProvider
+{
+    public Task<AiModelResponse> Complete(AiModelRequest request, CancellationToken cancellationToken) =>
+        throw new AiModelUnavailableException("No AI model is connected to this deployment.");
+}
+
 /// <summary>A provider's failure: the caller gets ASSIST_UNAVAILABLE, and INSYS carries on (P8).</summary>
 public sealed class AiModelUnavailableException(string message) : Exception(message);
 

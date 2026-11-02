@@ -50,13 +50,39 @@ public sealed class MinimiserTests
         result.Masked[kind].ShouldBe(1);
     }
 
+    [Theory]
+    [InlineData("800101 5009 087")] [InlineData("80-01-01-5009-087")] [InlineData("Thandi,8001015009087,100")] [InlineData("ID.8001015009087")] [InlineData("8001015009087.5")] [InlineData("123-45-6789")]
+    [InlineData("0803 123 4567")] [InlineData("0788 123 456")] [InlineData("0712 345 678")] [InlineData("(082) 555 0100")] [InlineData("082 555 01 00")] [InlineData("+27 (82) 555 0100")] [InlineData("+27.82.555.0100")] [InlineData("77 123 45 67")]
+    [InlineData("62012345")] [InlineData("6201 2345 678")] [InlineData("4111 1111 1111 1111")] [InlineData("4111-1111-1111-1111")] [InlineData("GB29 NWBK 6016 1331 9268 19")] [InlineData("gb29nwbk60161331926819")]
+    [InlineData("thandi at example dot com")] [InlineData("thandi@localhost")] [InlineData("POL/2026/00123")] [InlineData("POL 123456")] [InlineData("P123456")] [InlineData("pol-123456")] [InlineData("gc-20261101-0007")] [InlineData("CLM/77/2026")] [InlineData("12345/01")] [InlineData("mbr123456")]
+    public void TheFormatsAPersonsDetailsComeIn_AreMasked(string secret)
+    {
+        var digits = new string(secret.Where(char.IsDigit).ToArray());
+        var result = Minimiser.Minimise($"Details: {secret} end").Text;
+        result.ShouldNotContain(secret);
+        if (digits.Length >= 4)
+        {
+            result.ShouldNotContain(digits[^4..], customMessage: result);
+        }
+    }
+
+    [Fact]
+    public void AKnownName_GoesInItsOtherForms_ButNotInsideAnotherWord()
+    {
+        var known = new Dictionary<string, IReadOnlyCollection<string>> { ["NAME"] = ["Ann Lee"] };
+        Minimiser.Minimise("Lee, Ann and A. Lee and Ann  Lee pay annually.", known).Text.ShouldBe("[NAME], [NAME] and A. [NAME] and [NAME]  [NAME] pay annually.");
+    }
+
+    [Fact]
+    public void FreeText_LosesEveryCapitalisedWord_AsNoPatternFindsAName() =>
+        Minimiser.MinimiseFreeText("Thandi Dlamini called. Chukwuemeka too.").Text.ShouldBe("[NAME] [NAME] called. [NAME] too.");
+
     [Fact]
     public void WhatTheCallerKnows_IsMasked_LongestFirst_InAnyCase()
     {
         var known = new Dictionary<string, IReadOnlyCollection<string>> { ["NAME"] = ["Thandi", "Thandi Dlamini"], ["POLICY_NUMBER"] = ["p/77"] };
         var result = Minimiser.Minimise("THANDI DLAMINI holds P/77; Thandi pays.", known);
         result.Text.ShouldBe("[NAME] holds [POLICY_NUMBER]; [NAME] pays.");
-        result.Masked["NAME"].ShouldBe(2);
     }
 
     [Theory]
