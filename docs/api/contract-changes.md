@@ -5,6 +5,7 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 ## Activating a tenant with the simulator (2 November 2026)
 - **`POST /tenancy/tenants/{id}/activate`:** refused for an onboarding tenant, 422 `PAYMENT_PROVIDER_NOT_ALLOWED`, on the same condition as reactivation.
+
 ## BR-126 and BR-127: case categories and Health decline reasons (2 November 2026)
 - **BR-126, `POST /workflow/cases` and `POST /portal/cases`:** a category from another family than the case type's is refused, 422 `CASE_CATEGORY_NOT_ALLOWED`. A category not in force stays `VALIDATION_FAILED`.
 - **BR-126, appeals:** an appeal keeps its parent's category, including one no longer in force. On the staff route, an appeal with no `categoryCode` now takes the parent's; another category must be of the appeal type's family.
