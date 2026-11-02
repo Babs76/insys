@@ -160,6 +160,15 @@ Keycloak runs on CCE in af-south-1 (ADR-016), with the realm imported once and t
 - **Never schedule the CMK for deletion:** the data would become unreadable. Block it with a key policy.
 - **`HashKey` cannot be rotated in place** (OQ-020). Keep it in the secret store.
 
+## Kubernetes: the Helm chart (ADR-027)
+
+`deploy/helm/insys` runs INSYS on plain Kubernetes, with no provider annotations. Images come from `deploy/docker`, built from the repository root.
+
+- **One API instance, and not a value** (ADR-006). An upgrade stops it before starting the new one.
+- **Each dependency is in the cluster or pointed at.** The in-cluster PostgreSQL, OpenBao (development mode, in memory), SeaweedFS and Keycloak (`start-dev`) are for evaluation and the smoke test. A restart of that OpenBao loses every encrypted field. For real data, point the chart at ones you run.
+- **Secrets:** name your own in `existingSecret`, with the keys under `secrets` in `values.yaml`. Don't keep real values in a values file.
+- **Migrations** run as a job per release revision, which retries until the database answers. The API restarts until they are in. `migrations.createRoles` is off: production creates its roles outside the chart.
+
 ## Document storage: OBS (ADR-016)
 
 - Documents stay on the file system by default, for development. `ObjectStore:Provider=s3-compatible` keeps them in an object store.

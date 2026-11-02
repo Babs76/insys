@@ -1,0 +1,101 @@
+# ============================================================================
+# OPENFACTOR TECHNOLOGY GROUP
+# CONFIDENTIAL AND PROPRIETARY SOFTWARE
+# ============================================================================
+# Copyright (c) 2026 OpenFactor Technology Group.
+# All rights reserved.
+# PRODUCT       : INSYS
+# COMPONENT     : Build
+# CONFIDENTIALITY AND INTELLECTUAL PROPERTY NOTICE
+# This source code and its associated documentation contain confidential and
+# proprietary information belonging to OpenFactor Technology Group or its
+# applicable intellectual property rights holder.
+# This material is provided solely for authorised development, maintenance,
+# operation or evaluation purposes, as applicable. No person may reproduce,
+# modify, distribute, disclose, publish or otherwise use this material except
+# as expressly permitted by an applicable written agreement or licence.
+# No ownership rights or licence to any intellectual property are granted
+# by the inclusion of this notice, except as expressly provided in an
+# applicable written agreement or licence.
+# Third-party software, open-source components and customer-owned materials
+# remain subject to their respective ownership rights and applicable licences
+# or agreements.
+# UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
+# ============================================================================
+# Each dependency is either in the cluster (enabled: true) or pointed at (enabled: false, with its address).
+# The in-cluster ones are single nodes with no high availability: for evaluation and the smoke test, not for production (docs/runbooks/deployment.md).
+image:
+  api: {repository: insys-api, tag: latest}
+  migrator: {repository: insys-migrator, tag: latest}
+  pullPolicy: IfNotPresent
+
+# ASPNETCORE_ENVIRONMENT. Production refuses the payment simulator unless declaredNonProduction is set.
+environment: Production
+declaredNonProduction: false
+
+# A secret you made, with the keys listed in secrets below. When empty, the chart makes one from secrets.
+existingSecret: ""
+secrets:
+  migrationConnection: ""   # The owner role's connection string, for migrations only.
+  connectionTemplate: ""    # The API's connection string, with {role} standing for the module role. Never an owner or superuser.
+  rolePassword: ""          # Creates the module login roles when migrations.createRoles is true.
+  hashKey: ""               # FieldProtection:HashKey. Can't be rotated in place (OQ-020).
+  kmsToken: ""              # The OpenBao token: only datakey/plaintext and decrypt on the Transit key.
+  objectStoreAccessKey: ""
+  objectStoreSecretKey: ""
+  postgresPassword: ""      # In-cluster PostgreSQL only.
+  keycloakAdminPassword: "" # In-cluster Keycloak only.
+
+operatorTenantId: "00000000-0000-0000-0000-000000000000"
+
+authentication:
+  authority: ""                 # The issuer, such as https://id.example.com/realms/insys.
+  audience: insys-core-api
+  requireHttpsMetadata: true
+
+migrations:
+  # Production creates its roles and credentials outside the chart (OQ-004).
+  createRoles: false
+  backoffLimit: 20
+
+api:
+  resources: {requests: {cpu: 250m, memory: 512Mi}, limits: {memory: 2Gi}}
+  service: {type: ClusterIP, port: 8080}
+
+ingress:
+  enabled: false
+  className: ""
+  host: ""
+  tlsSecret: ""
+
+postgres:
+  enabled: false
+  image: postgres:18
+  database: insys
+  storage: 10Gi
+
+kms:
+  keyName: insys
+  mount: transit
+  address: ""     # When openbao.enabled is false.
+
+openbao:
+  enabled: false
+  image: quay.io/openbao/openbao:2.6.5
+  # Runs in development mode: in memory, so a restart loses every key and so every encrypted field. Never for real data.
+  devMode: true
+
+objectStore:
+  serviceUrl: ""  # When seaweedfs.enabled is false.
+  region: us-east-1
+  bucket: insys-documents
+  forcePathStyle: true
+
+seaweedfs:
+  enabled: false
+  image: chrislusf/seaweedfs:3.97
+  storage: 5Gi
+
+keycloak:
+  enabled: false
+  image: quay.io/keycloak/keycloak:26.7.5
