@@ -55,6 +55,7 @@ dotnet run --project tools/Insys.StaticData.Generator   # regenerates static dat
 - Name tests after the rule and include the requirement ID where one exists.
 - Integration tests use Testcontainers `postgres:18` with the real migrations, connecting as a non-owner role so row-level security applies.
 - Never report tests as passing without running them. Paste the real counts.
+- In a Claude Code cloud session, Docker isn't running at start. Start it before any integration test with `nohup dockerd >/tmp/dockerd.log 2>&1 &`, then check `docker info`.
 
 ## Git and merge rules
 These apply in every session, on any machine.
