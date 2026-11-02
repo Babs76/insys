@@ -1,6 +1,6 @@
 # Back-end handover
 
-**Draft, 1 November 2026.** The go-live register is written; the state of branches and work in progress is added by the Tuesday 3 November stop.
+**Draft, 2 November 2026.** The go-live register is written, and so is how to continue. The state of branches is final at the Tuesday 3 November stop.
 
 ## Go-live register
 
@@ -52,6 +52,65 @@ Everything found between INSYS and a first live customer, at `91cb494` plus the 
 
 The front end's own go-live work isn't in this register.
 
+## How to continue from here
+
+Written so that a new session with no memory of this one can carry on from GitHub alone, on this Mac or as a Claude Code cloud session. Read `CLAUDE.md` first.
+
+### The rules
+They are also in `CLAUDE.md`.
+
+- Never force-push a shared branch. Merge main into it.
+- Merge only on green CI of the exact head, by fast-forward: `git push origin "<full sha>:refs/heads/main"`. Check that main is an ancestor first.
+- Report merges and other state only after checking them: `git ls-remote origin main`, and the run's `conclusion` and `headSha`.
+- Never commit CI results to a branch about to merge: it moves the head.
+- If an approved head fails and the fix is more than tests, report to Ade before merging, even once it is green.
+- Merge without asking only when it's built with its test, green on the exact head, and needs no decision from Ade.
+- Decisions for Ade go in reports. **Ade decides the first customer after his trip.**
+- **Wave 7 doesn't start until Ade is back.** Nigeria's row 24 stays deferred until a first Nigerian customer is chosen.
+- No new work after 18:00 on Tuesday 3 November 2026; handover written and stopped by 21:00. What isn't green by 18:00 stays on its branch and goes in the table below.
+
+### Running tests
+**CI is the gate.** There's no need for a full local run. Locally, run the affected test classes only:
+
+```bash
+dotnet build -warnaserror
+dotnet test --project tests/Insys.ArchitectureTests --no-build
+dotnet test --project tests/Insys.IntegrationTests --no-build --filter-class '*DueDiligenceTests'
+```
+
+- Use `--project` and `--filter-class` or `--filter-method`. `dotnet test <dir>` is refused. Read counts with `grep -E '^\s+(total|failed|succeeded):'`.
+- Integration and end-to-end tests need Docker (Testcontainers), or `INSYS_TEST_PG=<admin connection>`. Where neither exists, push and let CI run them.
+- **The machine lock is for Ade's Mac only,** where the front end shares the machine: `tools/locked.sh --wait "<run id>" <command...>`. The run ID is required: without it the script runs the shell's `test` builtin, which exits 0 with no tests run. Never clear a lock whose holder is alive. A cloud session doesn't need it.
+- Start CI with `gh workflow run ci.yml --ref <branch>`. It has 19 jobs and takes about an hour when others are queued. Poll a run every 5 minutes at most, as `gh run watch` hit the API rate limit.
+- `deployment-smoke` is its own workflow, run on main when `deploy/`, `db/` or the Cloud project change, and by hand once it is on main.
+- **After changing:** an `[ErrorCode]`, run the catalogue test with `INSYS_UPDATE_SNAPSHOTS=1`; a contract, `tools/regen.sh`; a migration, `dotnet run --project tools/Insys.StaticData.Generator` and the hard-coded table counts in `MigrationTests` and `StaticDataTests`; a code field, `docs/api/code-field-allowances.tsv`.
+- End-to-end hosts run on `WindowClock` (22:30 UTC, no TestDate); new hosts and time-signed seeds must use it. Tests seed with fixed dates, never yesterday.
+
+### The order of remaining work
+1. Merge `br-115-test`, `adr-027-transit` and `adr-027-helm` as each goes green. They are stacked in that order, so each fast-forwards main with no rerun. A failure holds up those above it.
+2. `br-reconcile`: merge main in, run CI, merge. It holds BR-115's beneficial owner test, nine of the front end's reconciled requests, this handover and the rules in `CLAUDE.md`.
+3. `adr-027-smoke`: get `deployment-smoke` green, **remove `adr-027-smoke` from the workflow's `push` branches**, merge main in, run CI, merge.
+4. ADR-027's runbook: generic deployment, and running OpenBao (high availability, backup and restore, unsealing).
+5. After the stop, for Ade or the next session: BR-100, and the items under Open below.
+
+### Open items
+- **BR-100:** the function registry refuses one endpoint under two functions for one audience, so the case reads declare only `SERVICE_COMPLAINTS`. From reading the code, not a test, a role holding only another case screen is refused those reads. It needs a change to the registry (ADR-026).
+- **The same decline gap in Life and General:** their decline handlers take `reason?.CustomerWording`, so an unknown reason sends a notice with no wording, as Health did before BR-127. General's lapse job does too. Not asked for and not fixed.
+- **A Health decline with no notice recipient** still goes without a notice, silently.
+- **OpenBao's token** is a static token from the secret; Kubernetes auth isn't built. The chart's in-cluster OpenBao is development mode only, and running a real one is the runbook's subject. The security lead's three questions in ADR-027 are unanswered.
+- **Other relative dates** in test seeds (`current_date - 10`, `- 30`, `- 100` and the like) weren't swept, as `- 1` was.
+
 ## State at the stop
 
-To be completed by Tuesday 3 November: branches, what is merged, Nigeria's state, and the last CI and UTC+14 results.
+**Interim, 2 November 2026.** Completed by the Tuesday stop. Main is at `61bbdc1`, checked on the remote, with CI green on all 19 jobs for that head.
+
+| Branch | Head | CI | What's left |
+|---|---|---|---|
+| `br-115-test` | `787c53b` | Running | Merge on green. On main's line |
+| `adr-027-transit` | `3870633` | Running | Merge on green, after the one above |
+| `adr-027-helm` | `e6ca9a4` | Running | Merge on green, after the one above |
+| `br-reconcile` | This commit | Not started | Merge main in, run CI, merge |
+| `adr-027-smoke` | `0f37231` | Second smoke run in progress; the first failed on the image's user, now fixed | Green, remove the temporary trigger, merge main in, CI, merge |
+| Not started | | | ADR-027's runbook |
+
+Nigeria: appeal routes (V0126) are merged; the rest of row 24 is descoped and wasn't started. The last full UTC+14 sweep is reported in `docs/progress.md`.
