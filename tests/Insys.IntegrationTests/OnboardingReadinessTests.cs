@@ -430,6 +430,37 @@ public sealed class OnboardingReadinessTests(DatabaseFixture fixture) : IClassFi
         return (id, $"/api/v1/tenancy/tenants/{id}");
     }
 
+    [Fact]
+    public async Task ACaseTypesAppealRoute_IsReportedUntilItIsInForce_ATenantsOwnOrGlobal()
+    {
+        var (tenantId, url) = await Register("ROUTES");
+        const string step = "SHARED_OPERATIONAL_SETUP";
+        async Task<string?[]> Missing() => Check(await Readiness(url), step, "CASE_APPEAL_ROUTES").GetProperty("missing").EnumerateArray().Select(m => m.GetString()).ToArray();
+
+        (await Missing()).ShouldBeEmpty("no case types");
+        await fixture.Database.SeedStaticFilled(tenantId, "workflow.cfg_case_types", "EFFECTIVE", "ROUTE_GLOBAL", From, ("case_type_code", "ROUTE_GLOBAL"), ("family", "DISPUTE"), ("appeal_route", "PPR_NFO"));
+        await fixture.Database.SeedStaticFilled(tenantId, "workflow.cfg_case_types", "EFFECTIVE", "ROUTE_OWN", From, ("case_type_code", "ROUTE_OWN"), ("family", "DISPUTE"), ("appeal_route", "NAICOM"));
+        (await Missing()).ShouldBe(["NAICOM"], "the global PPR_NFO is in force");
+
+        await fixture.Database.SeedStatic(tenantId, "workflow.ref_appeal_routes", "ACTIVE", "NAICOM", From, ("route_code", "NAICOM"), ("name", "NAICOM"), ("preferred_lines", new[] { "GENERAL" }));
+        (await Missing()).ShouldBeEmpty();
+    public async Task ATenantWithHealthPlans_NeedsTheReasonsTheSystemDeclinesWith_BR127()
+    {
+        var (tenantId, url) = await Register("BR127");
+        Check(await Readiness(url), "DOMAIN_REFERENCE_DATA", "HEALTH_DECLINE_REASONS").GetProperty("ready").GetBoolean().ShouldBeTrue("no health plans, nothing to decline");
+
+        await fixture.Database.SeedStaticFilled(tenantId, "health.cfg_plans_and_options", "EFFECTIVE", "BR127-A", From, ("plan_code", "BR127"), ("option_code", "A"));
+        Check(await Readiness(url), "DOMAIN_REFERENCE_DATA", "HEALTH_DECLINE_REASONS").GetProperty("missing").EnumerateArray().Select(m => m.GetString())
+            .ShouldContain("CONTRIBUTIONS_ARREARS");
+
+        foreach (var code in Insys.Health.Application.HealthDeclineRights.AutomaticReasons)
+        {
+            await fixture.Database.SeedStatic(tenantId, "claims.ref_claim_decision_reason_codes", "ACTIVE", code, From, ("decision_type", "DECLINE"), ("customer_wording", "Declined."));
+        }
+
+        Check(await Readiness(url), "DOMAIN_REFERENCE_DATA", "HEALTH_DECLINE_REASONS").GetProperty("ready").GetBoolean().ShouldBeTrue();
+    }
+
     private async Task<JsonElement> Readiness(string url)
     {
         var response = await _operator.GetAsync($"{url}/readiness");

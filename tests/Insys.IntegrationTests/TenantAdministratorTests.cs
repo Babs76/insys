@@ -63,7 +63,7 @@ public sealed class TenantAdministratorTests(DatabaseFixture fixture) : IClassFi
         await db.ExecuteAsOwner($"""
             INSERT INTO workflow.cfg_delegation_and_approval_authority
               (tenant_id, code, version, effective_from, record_status, created_by, change_reason, role_code, transaction_type, limit_value, delegation_allowed)
-            VALUES (@t, @code, 1, current_date - 1, 'EFFECTIVE', 'seed', 'test', @role, '{IdentityApprovals.TenantAdministratorApprovalType}', 0, false)
+            VALUES (@t, @code, 1, DATE '2026-01-01', 'EFFECTIVE', 'seed', 'test', @role, '{IdentityApprovals.TenantAdministratorApprovalType}', 0, false)
             """, ("t", Operator), ("code", "AUTH-" + approverRole[..12]), ("role", approverRole));
     }
 

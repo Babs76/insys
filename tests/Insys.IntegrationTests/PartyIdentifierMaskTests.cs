@@ -44,8 +44,8 @@ public sealed class PartyIdentifierMaskTests(DatabaseFixture fixture) : IClassFi
         _factory = await fixture.Host();
         await fixture.Database.ExecuteAsOwner("""
             INSERT INTO party.ref_identity_document_types (tenant_id, code, version, effective_from, record_status, created_by, change_reason, country, doc_type, label, format_pattern)
-            VALUES (@t, 'ZA-NID', 1, current_date - 1, 'ACTIVE', 'seed', 'test seed', 'ZA', 'NATIONAL_ID', 'National identity number', '^[0-9]{13}$'),
-                   (@t, 'ZA-PIN', 1, current_date - 1, 'ACTIVE', 'seed', 'test seed', 'ZA', 'SHORT_PIN', 'Short reference', '^[0-9]{4}$')
+            VALUES (@t, 'ZA-NID', 1, DATE '2026-01-01', 'ACTIVE', 'seed', 'test seed', 'ZA', 'NATIONAL_ID', 'National identity number', '^[0-9]{13}$'),
+                   (@t, 'ZA-PIN', 1, DATE '2026-01-01', 'ACTIVE', 'seed', 'test seed', 'ZA', 'SHORT_PIN', 'Short reference', '^[0-9]{4}$')
             ON CONFLICT DO NOTHING
             """, ("t", DatabaseFixture.TenantA));
         await fixture.Database.UserWithPermissions(DatabaseFixture.TenantA, "mask-clerk", PartyPermissions.PartyCreate, PartyPermissions.PartyRead, PartyPermissions.PartyUpdate);

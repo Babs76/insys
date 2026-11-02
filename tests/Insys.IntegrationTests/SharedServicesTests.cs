@@ -283,7 +283,7 @@ public sealed class SharedServicesTests(DatabaseFixture fixture) : IClassFixture
     private Task Static(string table, string code, string columns, string values, bool reference = false) =>
         fixture.Database.ExecuteAsOwner($"""
             INSERT INTO {table} (tenant_id, code, version, effective_from, record_status, created_by, change_reason, {columns})
-            VALUES (@t, @code, 1, current_date - 1, '{(reference ? "ACTIVE" : "EFFECTIVE")}', 'seed', 'test seed', {values})
+            VALUES (@t, @code, 1, DATE '2026-01-01', '{(reference ? "ACTIVE" : "EFFECTIVE")}', 'seed', 'test seed', {values})
             ON CONFLICT DO NOTHING
             """, ("t", TenantA), ("code", code));
 }

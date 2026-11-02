@@ -60,7 +60,7 @@ public sealed class MakerCheckerTests(DatabaseFixture fixture) : IClassFixture<D
         // A role is privileged when an authentication policy requires MFA for it.
         await db.ExecuteAsOwner("""
             INSERT INTO iam.cfg_roles_and_permission_sets (tenant_id, code, version, effective_from, record_status, created_by, change_reason, role_code)
-            VALUES (@t, @role, 1, current_date - 1, 'EFFECTIVE', 'seed', 'test seed', @role)
+            VALUES (@t, @role, 1, DATE '2026-01-01', 'EFFECTIVE', 'seed', 'test seed', @role)
             ON CONFLICT DO NOTHING
             """, ("t", Tenant), ("role", PrivilegedRole));
         await db.GrantFunctionsWithin(Tenant, PrivilegedRole, TestClock.Today.AddDays(-1), IntegrationPermissions.DeadLetterRead,
@@ -68,7 +68,7 @@ public sealed class MakerCheckerTests(DatabaseFixture fixture) : IClassFixture<D
         await db.ExecuteAsOwner("""
             INSERT INTO iam.cfg_authentication_and_session_policies
               (tenant_id, code, version, effective_from, record_status, created_by, change_reason, policy_code, mfa_required_roles, session_timeout, lockout_attempts)
-            VALUES (@t, 'MC_POLICY', 1, current_date - 1, 'EFFECTIVE', 'seed', 'test', 'MC_POLICY', @roles, interval '30 minutes', 5)
+            VALUES (@t, 'MC_POLICY', 1, DATE '2026-01-01', 'EFFECTIVE', 'seed', 'test', 'MC_POLICY', @roles, interval '30 minutes', 5)
             ON CONFLICT DO NOTHING
             """, ("t", Tenant), ("roles", new[] { PrivilegedRole }));
 
@@ -78,7 +78,7 @@ public sealed class MakerCheckerTests(DatabaseFixture fixture) : IClassFixture<D
         await db.ExecuteAsOwner($"""
             INSERT INTO workflow.cfg_delegation_and_approval_authority
               (tenant_id, code, version, effective_from, record_status, created_by, change_reason, role_code, transaction_type, limit_value, delegation_allowed)
-            VALUES (@t, @code, 1, current_date - 1, 'EFFECTIVE', 'seed', 'test', @role, '{IdentityApprovals.ApprovalType}', 0, false)
+            VALUES (@t, @code, 1, DATE '2026-01-01', 'EFFECTIVE', 'seed', 'test', @role, '{IdentityApprovals.ApprovalType}', 0, false)
             """, ("t", Tenant), ("code", "AUTH-" + approverRole[..12]), ("role", approverRole));
     }
 

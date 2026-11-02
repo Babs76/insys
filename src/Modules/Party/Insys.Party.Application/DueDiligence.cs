@@ -334,7 +334,7 @@ public sealed record RecordFicReport(Guid PartyId, Guid HitId, string ReportType
 public sealed record RequestDueDiligenceUnblock(Guid PartyId, string Reason) : ICommand<DueDiligenceView>;
 
 public sealed record RecordBeneficialOwner(Guid PartyId, Guid OwnerPartyId, string ControlType, decimal? SharePercent, string EstablishedBy, Guid? DocumentId)
-    : ICommand<DueDiligenceView>;
+    : ICommand<DueDiligenceView>, IRetryOnConflict;
 
 public sealed record ListDueDiligence(DueDiligenceFilter Filter, Guid? BeforeId, int Limit) : IQuery<IReadOnlyList<DueDiligenceSummary>>;
 

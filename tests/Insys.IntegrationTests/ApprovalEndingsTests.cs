@@ -740,13 +740,13 @@ public abstract class ApprovalEndings(DatabaseFixture fixture) : IClassFixture<D
         var role = "NIGHT_OP";
         await w.Db.ExecuteAsOwner("""
             INSERT INTO iam.cfg_roles_and_permission_sets (tenant_id, code, version, effective_from, record_status, created_by, change_reason, role_code)
-            VALUES (@t, @role, 1, current_date - 1, 'EFFECTIVE', 'seed', 'test seed', @role)
+            VALUES (@t, @role, 1, DATE '2026-01-01', 'EFFECTIVE', 'seed', 'test seed', @role)
             """, ("t", w.Tenant), ("role", role));
         await w.Db.GrantFunctionsWithin(w.Tenant, role, Today.AddDays(-1), IntegrationPermissions.DeadLetterRead, IntegrationPermissions.DeadLetterUpdate);
         await w.Db.ExecuteAsOwner("""
             INSERT INTO iam.cfg_authentication_and_session_policies
               (tenant_id, code, version, effective_from, record_status, created_by, change_reason, policy_code, mfa_required_roles, session_timeout, lockout_attempts)
-            VALUES (@t, 'MC_POLICY', 1, current_date - 1, 'EFFECTIVE', 'seed', 'test', 'MC_POLICY', @roles, interval '30 minutes', 5)
+            VALUES (@t, 'MC_POLICY', 1, DATE '2026-01-01', 'EFFECTIVE', 'seed', 'test', 'MC_POLICY', @roles, interval '30 minutes', 5)
             """, ("t", w.Tenant), ("roles", new[] { role }));
         var target = await w.Db.UserWithPermissions(w.Tenant, $"night-{w.Suffix}");
         var user = await w.Maker.GetAsync($"/api/v1/identity/users/{target}");
@@ -1131,7 +1131,7 @@ public abstract class ApprovalEndings(DatabaseFixture fixture) : IClassFixture<D
         async Task Static(string table, string code, string columns, string values, bool reference = false) =>
             await w.Db.ExecuteAsOwner($"""
                 INSERT INTO {table} (tenant_id, code, version, effective_from, record_status, created_by, change_reason, {columns})
-                VALUES (@t, @code, 1, current_date - 1, '{(reference ? "ACTIVE" : "EFFECTIVE")}', 'seed', 'test seed', {values})
+                VALUES (@t, @code, 1, DATE '2026-01-01', '{(reference ? "ACTIVE" : "EFFECTIVE")}', 'seed', 'test seed', {values})
                 """, ("t", w.Tenant), ("code", code));
 
         await Static("product.ref_product_taxonomy", "GEN-MOTOR", "line, family_code, family_name", "'GENERAL', 'GEN-MOTOR', 'Motor insurance'", reference: true);

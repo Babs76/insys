@@ -144,7 +144,7 @@ public sealed class FunctionAccessTests(DatabaseFixture fixture) : IClassFixture
             ("t", tenant), ("u", user));
         await fixture.Database.ExecuteAsOwner("""
             INSERT INTO iam.cfg_role_function_assignments (tenant_id, code, version, effective_from, record_status, created_by, change_reason, role_code, function_code)
-            VALUES (@t, @r || ':PARTIES', 1, current_date - 1, 'EFFECTIVE', 'seed', 'test', @r, 'PARTIES')
+            VALUES (@t, @r || ':PARTIES', 1, DATE '2026-01-01', 'EFFECTIVE', 'seed', 'test', @r, 'PARTIES')
             """, ("t", tenant), ("r", role!));
         await Activated(tenant, "iam", "cfg_role_function_assignments");
 
@@ -237,7 +237,7 @@ public sealed class FunctionAccessTests(DatabaseFixture fixture) : IClassFixture
             ("t", tenant));
         await fixture.Database.ExecuteAsOwner("""
             INSERT INTO iam.cfg_role_function_assignments (tenant_id, code, version, effective_from, record_status, created_by, change_reason, role_code, function_code)
-            VALUES (@t, @r || ':MONEY', 1, current_date - 1, 'EFFECTIVE', 'seed', 'test', @r, 'TENANT_SWITCH_OFF_MONEY_JOBS')
+            VALUES (@t, @r || ':MONEY', 1, DATE '2026-01-01', 'EFFECTIVE', 'seed', 'test', @r, 'TENANT_SWITCH_OFF_MONEY_JOBS')
             """, ("t", tenant), ("r", role!));
         await Activated(tenant, "iam", "cfg_role_function_assignments");
         (await Submit("PAYMENTS_DAILY_JOBS")).IsSuccessStatusCode.ShouldBeTrue();
@@ -295,17 +295,17 @@ public sealed class FunctionAccessTests(DatabaseFixture fixture) : IClassFixture
         {
             await fixture.Database.ExecuteAsOwner("""
                 INSERT INTO iam.cfg_roles_and_permission_sets (tenant_id, code, version, effective_from, record_status, created_by, change_reason, role_code, permissions)
-                VALUES (@t, @r, 1, current_date - 1, 'EFFECTIVE', 'seed', 'before', @r, @p)
+                VALUES (@t, @r, 1, DATE '2026-01-01', 'EFFECTIVE', 'seed', 'before', @r, @p)
                 """, ("t", tenant), ("r", role), ("p", permissions));
         }
 
         await fixture.Database.ExecuteAsOwner("""
             INSERT INTO iam.cfg_segregation_of_duties_conflict_rules
               (tenant_id, code, version, effective_from, record_status, created_by, change_reason, permission_a, permission_b, conflict)
-            VALUES (@t, 'SOD_QUOTE', 1, current_date - 1, 'EFFECTIVE', 'seed', 'before', 'general_quote.create', 'dead_letter.update', 'BLOCK');
+            VALUES (@t, 'SOD_QUOTE', 1, DATE '2026-01-01', 'EFFECTIVE', 'seed', 'before', 'general_quote.create', 'dead_letter.update', 'BLOCK');
             INSERT INTO channel.cfg_channel_transaction_permissions
               (tenant_id, code, version, effective_from, record_status, created_by, change_reason, channel_code, role_code, transaction_type, allowed)
-            VALUES (@t, 'CP_QUOTE', 1, current_date - 1, 'EFFECTIVE', 'seed', 'before', 'STF', 'UNDERWRITER', 'general_quote.create', true);
+            VALUES (@t, 'CP_QUOTE', 1, DATE '2026-01-01', 'EFFECTIVE', 'seed', 'before', 'STF', 'UNDERWRITER', 'general_quote.create', true);
             """, ("t", tenant));
 
         await fixture.Database.AdoptFunctionCatalogue();
@@ -386,7 +386,7 @@ public sealed class FunctionAccessTests(DatabaseFixture fixture) : IClassFixture
     private Task Disable(Guid tenant, string function) =>
         fixture.Database.ExecuteAsOwner("""
             INSERT INTO tenant.cfg_tenant_function_availability (tenant_id, code, version, effective_from, record_status, created_by, change_reason, function_code, enabled)
-            VALUES (@t, @f, 1, current_date - 1, 'EFFECTIVE', 'seed', 'test', @f, false)
+            VALUES (@t, @f, 1, DATE '2026-01-01', 'EFFECTIVE', 'seed', 'test', @f, false)
             """, ("t", tenant), ("f", function));
 
     private Task Activated(Guid tenant, string schema, string table)

@@ -100,7 +100,8 @@ public interface ICaseConfiguration
     Task<IReadOnlyList<OmbudSchemeInfo>> OmbudSchemes(IReadOnlyCollection<string> schemeCodes, DateOnly day, CancellationToken cancellationToken);
 
     /// <summary>Whether the category is in force for the tenant (global or its own).</summary>
-    Task<bool> CategoryExists(string categoryCode, DateOnly day, CancellationToken cancellationToken);
+    /// <summary>The family of a category in force (a tenant's own first), or null when it isn't in force.</summary>
+    Task<string?> CategoryFamily(string categoryCode, DateOnly day, CancellationToken cancellationToken);
 
     /// <summary>BR-099: the case types a portal's audience may raise, with their wording, and the categories in force.</summary>
     Task<PortalCaseOptions> PortalOptions(string audience, DateOnly day, CancellationToken cancellationToken);
@@ -469,14 +470,24 @@ public sealed class CaseOpening(ICaseRepository cases, ICaseConfiguration config
     /// <summary>The queue routing gives a task type no queue maps (WorkflowOptions.DefaultQueue).</summary>
     private const string UnroutedQueue = "DEFAULT";
 
+    /// <param name="inheritedCategory">BR-126: an appeal's parent's category. It carries over from another family, and even after it stops being in force.</param>
     public async Task<Result<ServiceCase>> Open(CaseTypeConfig type, string channel, DateTimeOffset? receivedAt, Complainant complainant, CaseRaiser raiser, string? categoryCode,
-        string summary, bool upheldAtReceipt, Guid? parentCaseId, IReadOnlyList<CaseLinkInput> links, string actor, bool raisedFromEvent, CancellationToken cancellationToken)
+        string summary, bool upheldAtReceipt, Guid? parentCaseId, IReadOnlyList<CaseLinkInput> links, string actor, bool raisedFromEvent, CancellationToken cancellationToken,
+        string? inheritedCategory = null)
     {
         var now = clock.UtcNow;
         var received = receivedAt is { } at && at < now ? at : now;
-        if (categoryCode is { Length: > 0 } category && !await configuration.CategoryExists(category, businessDate.Today, cancellationToken))
+        if (categoryCode is { Length: > 0 } category && category != inheritedCategory)
         {
-            return Error.Validation(ErrorCodes.ValidationFailed, $"Category {category} is not in force.");
+            if (await configuration.CategoryFamily(category, businessDate.Today, cancellationToken) is not { } family)
+            {
+                return Error.Validation(ErrorCodes.ValidationFailed, $"Category {category} is not in force.");
+            }
+
+            if (family != type.Family)
+            {
+                return Error.Validation(CaseErrorCodes.CategoryNotAllowed, $"Category {category} belongs to the {family} family, not to {type.Code}'s family, {type.Family}.");
+            }
         }
 
         var timelines = await times.Timelines(type.Code, cancellationToken);
@@ -597,6 +608,7 @@ internal sealed class CaseCommandHandlers(ICaseRepository cases, ICaseConfigurat
             return Error.Validation(CaseErrorCodes.TypeNotInForce, $"Case type {command.CaseTypeCode} is not in force.");
         }
 
+        string? inheritedCategory = null;
         if (command.ParentCaseId is { } parentId)
         {
             var parent = await access.Load(cases, parentId, null, cancellationToken);
@@ -604,6 +616,8 @@ internal sealed class CaseCommandHandlers(ICaseRepository cases, ICaseConfigurat
             {
                 return parent.Error;
             }
+
+            inheritedCategory = parent.Value.CategoryCode;
 
             var appealable = await Appealable(parent.Value, type, cancellationToken);
             if (appealable.IsFailure)
@@ -618,8 +632,8 @@ internal sealed class CaseCommandHandlers(ICaseRepository cases, ICaseConfigurat
 
         var opened = await opening.Open(type, command.ReceivedChannel, command.ReceivedAt,
             new Complainant(command.ComplainantPartyId, command.ComplainantName, command.ComplainantContact, command.OnBehalfOfPartyId),
-            new CaseRaiser(CaseAudiences.Staff, access.UserId == Guid.Empty ? null : access.UserId, null, null), command.CategoryCode, command.Summary,
-            command.UpheldAtReceipt, command.ParentCaseId, command.Links ?? [], access.Actor, raisedFromEvent: false, cancellationToken);
+            new CaseRaiser(CaseAudiences.Staff, access.UserId == Guid.Empty ? null : access.UserId, null, null), command.CategoryCode ?? inheritedCategory, command.Summary,
+            command.UpheldAtReceipt, command.ParentCaseId, command.Links ?? [], access.Actor, raisedFromEvent: false, cancellationToken, inheritedCategory);
         return opened.IsFailure ? opened.Error : opened.Value.Id;
     }
 

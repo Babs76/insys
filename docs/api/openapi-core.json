@@ -31349,7 +31349,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/HealthReasonRequest"
+                "$ref": "#/components/schemas/HealthRejectClaimRequest"
               }
             }
           },
@@ -62512,6 +62512,21 @@
           },
           "currency": {
             "type": "string"
+          }
+        }
+      },
+      "HealthRejectClaimRequest": {
+        "required": [
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "reason": {
+            "maxLength": 30,
+            "type": "string",
+            "x-code-list": "claims.ref_claim_decision_reason_codes",
+            "x-code-list-column": "code",
+            "x-code-list-filter": "decision_type=DECLINE"
           }
         }
       },

@@ -301,7 +301,8 @@ internal sealed class ListBankAccountsHandler(IPartyRepository parties, Workflow
 /// Command VerifyIdentifier, by a person (F001, addenda/due-diligence.md §4.1): against a document filed against the party
 /// (DocumentId), recorded as a due diligence check by that person.
 /// </summary>
-public sealed record VerifyIdentifier(Guid PartyId, Guid IdentifierId, string VerificationRef, Guid DocumentId, long ExpectedVersion) : ICommand<long>, IVersionedCommand;
+/// <summary>BR-115: the first record of a party can open here, racing the screening on registration.</summary>
+public sealed record VerifyIdentifier(Guid PartyId, Guid IdentifierId, string VerificationRef, Guid DocumentId, long ExpectedVersion) : ICommand<long>, IVersionedCommand, IRetryOnConflictWithIfMatch;
 
 public sealed record ListIdentityChecks(Guid PartyId) : IQuery<IReadOnlyList<DueDiligenceCheckView>>;
 
