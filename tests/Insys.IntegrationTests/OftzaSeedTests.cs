@@ -61,6 +61,16 @@ public sealed class OftzaSeedTests(DatabaseFixture fixture) : IClassFixture<Data
         (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM iam.user_account WHERE tenant_id = @t AND username LIKE 'oftza-%'", ("t", seed.TenantId))).ShouldBeGreaterThan(15L, "a persona per role template");
         (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM iam.user_role_assignment WHERE tenant_id = @t AND role_code = 'TENANT_ADMIN'", ("t", seed.TenantId))).ShouldBe(2L);
         var users = await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM iam.user_account WHERE tenant_id = @t", ("t", seed.TenantId));
+        foreach (var loader in new[] { OftzaSeed.LoaderMaker, OftzaSeed.LoaderChecker })
+        {
+            (await fixture.Database.ScalarAsOwner<string>("SELECT status FROM iam.user_account WHERE tenant_id = @t AND username = @u", ("t", seed.TenantId), ("u", loader))).ShouldBe("DISABLED", "it ends disabled");
+            (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM iam.user_role_assignment r JOIN iam.user_account u ON u.tenant_id = r.tenant_id AND u.id = r.user_id WHERE r.tenant_id = @t AND u.username = @u AND r.status = 'ACTIVE'", ("t", seed.TenantId), ("u", loader))).ShouldBe(0L, "with its roles revoked");
+        }
+
+        // The administrators hold exactly TENANT_ADMIN's template.
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM iam.user_role_assignment r JOIN iam.user_account u ON u.tenant_id = r.tenant_id AND u.id = r.user_id WHERE r.tenant_id = @t AND u.username LIKE 'oftza-admin-%' AND r.role_code <> 'TENANT_ADMIN'", ("t", seed.TenantId))).ShouldBe(0L);
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM iam.user_role_assignment WHERE tenant_id = @t AND status = 'PENDING_APPROVAL'", ("t", seed.TenantId))).ShouldBe(0L, "no assignment is left waiting, or bypassed");
+
         var again = await Run();
         again.Seed.TenantId.ShouldBe(seed.TenantId);
         (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM iam.user_account WHERE tenant_id = @t", ("t", seed.TenantId))).ShouldBe(users);

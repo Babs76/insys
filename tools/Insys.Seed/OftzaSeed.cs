@@ -37,11 +37,17 @@ public sealed class OftzaSeed(SeedContext context)
     public const string TenantCode = "OFTZA";
     public const string FirstAdministrator = "oftza-admin-1";
     public const string SecondAdministrator = "oftza-admin-2";
+    public const string LoaderMaker = "oftza-seed-loader-1";
+    public const string LoaderChecker = "oftza-seed-loader-2";
+    private const string LoaderRole = "OFTZA_SEED_LOADER";
 
     private const string Reason = "OFTZA sample data (invented)";
     private Persona _maker = null!;
     private Persona _checker = null!;
     private readonly List<string> _templates = [];
+    private Persona? _adminMaker;
+    private Persona? _adminChecker;
+    private bool _loadersDone;
 
     public Guid TenantId { get; private set; }
 
@@ -56,10 +62,106 @@ public sealed class OftzaSeed(SeedContext context)
         await FirstAdministrators();
         _maker = context.Tenant(TenantId, FirstAdministrator);
         _checker = context.Tenant(TenantId, SecondAdministrator);
-        await Locale();
         await Roles();
+        await Loaders();
+        await Locale();
         await Configuration();
         await Personas();
+        await EndLoaders();
+    }
+
+    /// <summary>
+    /// The two seed administrators hold only TENANT_ADMIN's template. Two loader users, a maker and its checker, hold the other modules' non-privileged static data functions for the
+    /// length of the seed, and are disabled with their roles revoked as its last step (Ade, 2 November).
+    /// </summary>
+    private async Task Loaders()
+    {
+        if (await User(LoaderMaker) is { } done && done.GetProperty("status").GetString() == "Disabled")
+        {
+            _loadersDone = true;
+            return;
+        }
+
+        var functions = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var summary in (await context.PlatformMaker.Send(HttpMethod.Get, "/api/v1/identity/role-templates")).EnumerateArray())
+        {
+            var other = await context.PlatformMaker.Send(HttpMethod.Get, $"/api/v1/identity/role-templates/{summary.GetProperty("code").GetString()}?tenantId={TenantId}");
+            functions.UnionWith(other.GetProperty("functions").EnumerateArray()
+                .Where(f => f.GetProperty("code").GetString()!.StartsWith("SD_", StringComparison.Ordinal) && !f.GetProperty("privileged").GetBoolean() && f.GetProperty("audiences").EnumerateArray().Any(a => a.GetString() == "STAFF"))
+                .Select(f => f.GetProperty("code").GetString()!));
+        }
+
+        await Static("identity/static/authentication-and-session-policies", "OFTZA-AUTH", new { policyCode = "OFTZA-AUTH", mfaRequiredRoles = Array.Empty<string>(), sessionTimeout = "PT30M", lockoutAttempts = 5 });
+        await Static("identity/static/roles-and-permission-sets", LoaderRole, new { roleCode = LoaderRole });
+        await Import("identity/static/role-function-assignments", $"{LoaderRole}:{functions.Order(StringComparer.Ordinal).First()}",
+            functions.Order(StringComparer.Ordinal).Select(f => (object)new { roleCode = LoaderRole, functionCode = f, code = $"{LoaderRole}:{f}", changeReason = Reason }).ToList());
+        foreach (var type in new[] { "STATIC_DATA_T1", "STATIC_DATA_T2" })
+        {
+            await Static("workflow/static/delegation-and-approval-authority", $"AUTH-LOADER-{type}", new { roleCode = LoaderRole, transactionType = type, limitValue = 1m, delegationAllowed = false });
+        }
+
+        // The approvals a role template names need authority in force, or a privileged assignment could wait for ever (WFL-004).
+        await Static("workflow/static/delegation-and-approval-authority", "AUTH-PRIVILEGED_ROLE", new { roleCode = "TENANT_ADMIN", transactionType = "PRIVILEGED_ROLE", limitValue = 1m, delegationAllowed = false });
+        foreach (var name in new[] { LoaderMaker, LoaderChecker })
+        {
+            await EnsureUser(name, LoaderRole);
+        }
+
+        _adminMaker = _maker;
+        _adminChecker = _checker;
+        _maker = context.Tenant(TenantId, LoaderMaker);
+        _checker = context.Tenant(TenantId, LoaderChecker);
+    }
+
+    private async Task EndLoaders()
+    {
+        if (_loadersDone)
+        {
+            return;
+        }
+
+        foreach (var name in new[] { LoaderMaker, LoaderChecker })
+        {
+            var id = (await User(name))!.Value.GetProperty("id").GetGuid();
+            await _adminMaker!.Send(HttpMethod.Post, $"/api/v1/identity/users/{id}/revoke-role", new { roleCode = LoaderRole }, await Version(id));
+            await _adminMaker.Send(HttpMethod.Post, $"/api/v1/identity/users/{id}/disable", new { reason = "The seed has finished loading." }, await Version(id));
+        }
+    }
+
+    private async Task<JsonElement?> User(string name)
+    {
+        foreach (var user in (await (_adminMaker ?? _maker).Send(HttpMethod.Get, "/api/v1/identity/users?limit=200")).GetProperty("items").EnumerateArray())
+        {
+            if (user.GetProperty("username").GetString() == name)
+            {
+                return user;
+            }
+        }
+
+        return null;
+    }
+
+    private async Task<string> Version(Guid user) => $"\"{(await (_adminMaker ?? _maker).Send(HttpMethod.Get, $"/api/v1/identity/users/{user}")).GetProperty("rowVersion").GetInt64()}\"";
+
+    /// <summary>A user with one role. A privileged role waits for a second person, as in real use: the second administrator approves it.</summary>
+    private async Task EnsureUser(string name, string role)
+    {
+        var admin = _adminMaker ?? _maker;
+        if (await User(name) is not null)
+        {
+            return;
+        }
+
+        var user = (await admin.Send(HttpMethod.Post, "/api/v1/identity/users", new { username = name, displayName = $"Sample {role}", idpCode = "OIDC", externalSubject = name, mfaEnrolled = true })).GetProperty("id").GetGuid();
+        await admin.Send(HttpMethod.Post, $"/api/v1/identity/users/{user}/assign-role", new { roleCode = role }, await Version(user));
+        await context.Settle();
+        var checker = _adminChecker ?? _checker;
+        foreach (var assignment in (await admin.Send(HttpMethod.Get, $"/api/v1/identity/users/{user}")).GetProperty("roleAssignments").EnumerateArray().Where(a => a.GetProperty("status").GetString() == "PendingApproval"))
+        {
+            var approval = (await checker.Send(HttpMethod.Get, $"/api/v1/workflow/approvals?status=Requested&businessRefId={assignment.GetProperty("id").GetGuid()}")).GetProperty("items")[0];
+            await checker.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval.GetProperty("id").GetGuid()}/approve", ifMatch: $"\"{approval.GetProperty("rowVersion").GetInt64()}\"");
+            await context.Settle();
+        }
     }
 
     private async Task<Guid> Tenant()
@@ -99,23 +201,14 @@ public sealed class OftzaSeed(SeedContext context)
         await context.Settle();
     }
 
-    /// <summary>TENANT_ADMIN's template, and every module's static data functions that aren't privileged, as these two load the tenant's configuration: the template's own privileged ones are all it holds (Ade, 2 November).</summary>
+    /// <summary>Exactly TENANT_ADMIN's template, with what this tenant can hold.</summary>
     private async Task<string[]> AdministratorFunctions()
     {
         var template = await context.PlatformMaker.Send(HttpMethod.Get, $"/api/v1/identity/role-templates/TENANT_ADMIN?tenantId={TenantId}");
-        var functions = template.GetProperty("functions").EnumerateArray().Select(f => f.GetProperty("code").GetString()!).ToHashSet(StringComparer.Ordinal);
-        foreach (var summary in (await context.PlatformMaker.Send(HttpMethod.Get, "/api/v1/identity/role-templates")).EnumerateArray())
-        {
-            var other = await context.PlatformMaker.Send(HttpMethod.Get, $"/api/v1/identity/role-templates/{summary.GetProperty("code").GetString()}?tenantId={TenantId}");
-            functions.UnionWith(other.GetProperty("functions").EnumerateArray()
-                .Where(f => f.GetProperty("code").GetString()!.StartsWith("SD_", StringComparison.Ordinal) && !f.GetProperty("privileged").GetBoolean() && f.GetProperty("audiences").EnumerateArray().Any(a => a.GetString() == "STAFF"))
-                .Select(f => f.GetProperty("code").GetString()!));
-        }
-
-        return [.. functions.Order(StringComparer.Ordinal)];
+        return [.. template.GetProperty("functions").EnumerateArray().Select(f => f.GetProperty("code").GetString()!).Order(StringComparer.Ordinal)];
     }
 
-    private Task Locale() => Static("tenancy/static/locale-defaults", "LOCALE", new
+    private Task Locale() => _loadersDone ? Task.CompletedTask : Static("tenancy/static/locale-defaults", "LOCALE", new
     {
         tenant = TenantCode, baseCurrency = "ZAR", languages = new[] { "en", "af", "zu", "xh" }, defaultLanguage = "en", timeZone = "Africa/Johannesburg", country = "ZA",
     });
@@ -162,28 +255,21 @@ public sealed class OftzaSeed(SeedContext context)
     /// <summary>One user per role template, named for it, so a demo can sign in as any role.</summary>
     private async Task Personas()
     {
-        var users = await _maker.Send(HttpMethod.Get, "/api/v1/identity/users?limit=200");
-        var known = users.GetProperty("items").EnumerateArray().Select(u => u.GetProperty("username").GetString()).ToHashSet(StringComparer.Ordinal);
         foreach (var template in _templates)
         {
-            var name = "oftza-" + template.ToLowerInvariant().Replace('_', '-');
-            if (known.Contains(name))
-            {
-                continue;
-            }
-
-            var user = await _maker.Send(HttpMethod.Post, "/api/v1/identity/users", new { username = name, displayName = $"Sample {template}", idpCode = "OIDC", externalSubject = name, mfaEnrolled = true });
-            await _maker.Send(HttpMethod.Post, $"/api/v1/identity/users/{user.GetProperty("id").GetGuid()}/assign-role",
-                new { roleCode = template, validFrom = "2026-01-01", validTo = (string?)null, scopeProducts = (string[]?)null, scopeBranches = (string[]?)null },
-                ifMatch: $"\"{(await _maker.Send(HttpMethod.Get, $"/api/v1/identity/users/{user.GetProperty("id").GetGuid()}")).GetProperty("rowVersion").GetInt64()}\"");
+            await EnsureUser("oftza-" + template.ToLowerInvariant().Replace('_', '-'), template);
         }
     }
 
     /// <summary>What every onboarding step's readiness asks of a tenant. The sample values are for the business to confirm (OQ-112), in rand.</summary>
     private async Task Configuration()
     {
+        if (_loadersDone)
+        {
+            return;
+        }
+
         await Static("tenancy/static/organisation-structure", "OFTZA-ROOT", new { nodeCode = "OFTZA-ROOT", type = "LEGAL_ENTITY", name = "OFT Insurance South Africa (sample)" });
-        await Static("identity/static/authentication-and-session-policies", "OFTZA-AUTH", new { policyCode = "OFTZA-AUTH", mfaRequiredRoles = Array.Empty<string>(), sessionTimeout = "PT30M", lockoutAttempts = 5 });
         await Static("integration/static/channel-definitions", "CH-STF", new { channelCode = "STF", audience = "STAFF", name = "Back office", clientIds = new[] { "insys-web" } });
         await Static("finance/static/chart-of-accounts-subledger", "ACC-1100", new { accountCode = "1100", name = "Premium receivable (sample)", type = "ASSET", glAccount = "1100", status = "ACTIVE" });
         await Static("workflow/static/business-calendars", "CAL-ZA", new { calendarCode = "CAL-ZA", workingDays = new[] { "MON", "TUE", "WED", "THU", "FRI" }, hours = "08:00-17:00", holidayCalendar = "ZA", timeZone = "Africa/Johannesburg" });
