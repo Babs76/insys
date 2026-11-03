@@ -32,14 +32,19 @@ using Insys.Seed;
 
 // Usage: dotnet run --project tools/Insys.Seed -- --api http://localhost:5000 --signing-key <Authentication:DevelopmentSigningKey> --issuer <issuer> --operator-tenant <id> --platform-1 <subject> --platform-2 <subject>
 // It signs its personas' tokens with the development key, which the API accepts only in Development and Testing, so it can't run against production.
-// A deployment signing in through Keycloak comes with a later slice.
+// Or, where the API takes only Keycloak's tokens: --api <url> --keycloak-url <url> [--keycloak-realm insys] --keycloak-admin <master realm admin> --operator-tenant <id>
+// --platform-1 <Keycloak username> --platform-2 <Keycloak username>, with the admin's password in INSYS_SEED_KEYCLOAK_ADMIN_PASSWORD (never on the command line).
 var options = new Dictionary<string, string>(StringComparer.Ordinal);
 for (var i = 0; i < args.Length - 1; i += 2)
 {
     options[args[i].TrimStart('-')] = args[i + 1];
 }
 
-foreach (var required in new[] { "api", "signing-key", "issuer", "operator-tenant", "platform-1", "platform-2" })
+var keycloak = options.TryGetValue("keycloak-url", out var keycloakUrl)
+    ? new KeycloakSignIn(new HttpClient { BaseAddress = new Uri(keycloakUrl.TrimEnd('/') + "/") }, options.GetValueOrDefault("keycloak-realm", "insys"), options["keycloak-admin"],
+        Environment.GetEnvironmentVariable("INSYS_SEED_KEYCLOAK_ADMIN_PASSWORD") ?? throw new InvalidOperationException("Set INSYS_SEED_KEYCLOAK_ADMIN_PASSWORD."))
+    : null;
+foreach (var required in keycloak is null ? new[] { "api", "signing-key", "issuer", "operator-tenant", "platform-1", "platform-2" } : ["api", "keycloak-admin", "operator-tenant", "platform-1", "platform-2"])
 {
     if (!options.ContainsKey(required))
     {
@@ -50,6 +55,13 @@ foreach (var required in new[] { "api", "signing-key", "issuer", "operator-tenan
 
 Persona As(Guid tenant, string subject)
 {
+    if (keycloak is not null)
+    {
+        // The platform's users are named as they are in Keycloak; a tenant's carry its code.
+        var username = tenant == Guid.Parse(options["operator-tenant"]) ? subject : KeycloakSignIn.Username(OftzaSeed.TenantCode, subject);
+        return new Persona(new HttpClient(keycloak.For(username)) { BaseAddress = new Uri(options["api"]) });
+    }
+
     var client = new HttpClient { BaseAddress = new Uri(options["api"]) };
     client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", Token(tenant, subject));
     return new Persona(client);
@@ -65,7 +77,12 @@ string Token(Guid tenant, string subject)
 }
 
 var operatorTenant = Guid.Parse(options["operator-tenant"]);
-var seed = new OftzaSeed(new SeedContext(As(operatorTenant, options["platform-1"]), As(operatorTenant, options["platform-2"]), As, () => Task.Delay(TimeSpan.FromSeconds(3))));
+var seed = new OftzaSeed(new SeedContext(As(operatorTenant, options["platform-1"]), As(operatorTenant, options["platform-2"]), As, () => Task.Delay(TimeSpan.FromSeconds(3)), OwnRealm: keycloak is not null));
+if (keycloak is not null)
+{
+    await keycloak.Start();
+}
+
 try
 {
     await seed.Run();
@@ -74,6 +91,13 @@ catch (SeedRefusedException refused)
 {
     Console.Error.WriteLine(refused.Message);
     return 1;
+}
+finally
+{
+    if (keycloak is not null)
+    {
+        await keycloak.Stop();
+    }
 }
 
 Console.WriteLine($"{OftzaSeed.TenantCode}: {seed.TenantId}. Active, with its sample records.");

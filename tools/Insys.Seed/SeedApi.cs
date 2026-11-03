@@ -66,8 +66,28 @@ public sealed class Persona(HttpClient http, Action<string>? afterCall = null)
             return request;
         }
 
-        using var response = await Paced(Request);
+        var response = await Paced(Request);
         var text = await response.Content.ReadAsStringAsync();
+        // Asked for the record's version, as a client that has just read it would: the record is the path, or the path less its action.
+        if (response.StatusCode == HttpStatusCode.PreconditionRequired && ifMatch is null)
+        {
+            ifMatch = await CurrentVersion(path);
+            if (ifMatch is not null)
+            {
+                response.Dispose();
+                response = await Paced(Request);
+                text = await response.Content.ReadAsStringAsync();
+            }
+        }
+        else if (response.StatusCode == HttpStatusCode.UnprocessableEntity && !idempotent && text.Contains("IDEMPOTENCY_KEY_REQUIRED", StringComparison.Ordinal))
+        {
+            idempotent = true;
+            response.Dispose();
+            response = await Paced(Request);
+            text = await response.Content.ReadAsStringAsync();
+        }
+
+        using var answered = response;
         afterCall?.Invoke($"{method} {path}");
         if (!response.IsSuccessStatusCode)
         {
@@ -75,6 +95,20 @@ public sealed class Persona(HttpClient http, Action<string>? afterCall = null)
         }
 
         return text.Length == 0 ? default : JsonSerializer.Deserialize<JsonElement>(text);
+    }
+
+    private async Task<string?> CurrentVersion(string path)
+    {
+        foreach (var candidate in new[] { path, path[..path.LastIndexOf('/')] })
+        {
+            using var current = await Paced(() => new HttpRequestMessage(HttpMethod.Get, candidate));
+            if (current.IsSuccessStatusCode && current.Headers.ETag?.Tag is { } tag)
+            {
+                return tag;
+            }
+        }
+
+        return null;
     }
 
     public async Task<bool> Exists(string path)
@@ -106,5 +140,5 @@ public sealed class Persona(HttpClient http, Action<string>? afterCall = null)
     }
 }
 
-/// <summary>What the seed runs with: who it acts as, and how to wait for events to be delivered, and, where it can be asked, how to run the daily jobs now (elsewhere their timers do).</summary>
-public sealed record SeedContext(Persona PlatformMaker, Persona PlatformChecker, Func<Guid, string, Persona> Tenant, Func<Task> Settle, Func<Task>? Jobs = null);
+/// <summary>What the seed runs with: who it acts as, and how to wait for events to be delivered, and, where it can be asked, how to run the daily jobs now (elsewhere their timers do). OwnRealm: users are made in INSYS's own Keycloak realm, which signs them in (KeycloakSignIn).</summary>
+public sealed record SeedContext(Persona PlatformMaker, Persona PlatformChecker, Func<Guid, string, Persona> Tenant, Func<Task> Settle, Func<Task>? Jobs = null, bool OwnRealm = false);
