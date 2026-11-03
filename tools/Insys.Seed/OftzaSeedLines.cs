@@ -46,6 +46,11 @@ public sealed partial class OftzaSeed
         }
 
         await Static("workflow/static/delegation-and-approval-authority", "AUTH-BANK_ACCOUNT_VERIFICATION-FINANCE_MANAGER", new { roleCode = "FINANCE_MANAGER", transactionType = "BANK_ACCOUNT_VERIFICATION", limitValue = 0m, delegationAllowed = false });
+        foreach (var type in new[] { "STATIC_DATA_T1", "STATIC_DATA_T2" })
+        {
+            await Static("workflow/static/delegation-and-approval-authority", $"AUTH-{type}-{LineConfigurationRole}", new { roleCode = LineConfigurationRole, transactionType = type, limitValue = 1m, delegationAllowed = false });
+        }
+
         await Static("documents/static/document-categories", "POLICY_SCHEDULE", new { categoryCode = "POLICY_SCHEDULE", label = "Policy schedule", classification = "PERSONAL", domain = "ALL", allowedRoles = Array.Empty<string>() });
         foreach (var (route, code, fields) in new (string, string, object)[]
                  {
@@ -239,7 +244,9 @@ public sealed partial class OftzaSeed
         var number = schemes.GetArrayLength() > 0
             ? schemes[0].GetProperty("schemeNumber").GetString()!
             : (await administrator.Send(HttpMethod.Post, "/api/v1/health/schemes", new { sponsorCode = SponsorCode, startDate = today.AddYears(-1), renewalDate = today.AddMonths(6), currency = "ZAR" }, key: $"{TenantCode}:scheme")).GetProperty("schemeNumber").GetString()!;
-        await Static("health/static/contribution-rules", "CR-OFT", new { scheme = number, memberCategory = "ALL_STAFF", rate = 1_850m, employerShare = 50m });
+        // A live tenant's own line configuration managers change its Health configuration, one drafting and the other approving (role templates, B).
+        await Static(context.Tenant(TenantId, LineConfigurationMaker), context.Tenant(TenantId, LineConfigurationChecker), "health/static/contribution-rules", "CR-OFT",
+            new { scheme = number, memberCategory = "ALL_STAFF", rate = 1_850m, employerShare = 50m });
     }
 
     private Task<Guid> Person(int index) => Party(Clerk, $"{SampleParties.People[index].FirstNames} {SampleParties.People[index].Surname}", SampleParties.People[index].IdNumber, SampleParties.People[index].IdNumber, new { });
@@ -252,7 +259,7 @@ public sealed partial class OftzaSeed
             await Cleared(await Person(index));
         }
 
-        await PortalLinks();
+        await PortalLinks("oftza-member", "oftza-broker", "oftza-provider");
         await LifeBook();
         await GeneralBook();
         await HealthBook();
@@ -351,7 +358,6 @@ public sealed partial class OftzaSeed
     private async Task GeneralPolicy(string product, string objectType, string attribute, string value, string coverage, int holder, bool cancel)
     {
         var underwriter = Clerk;
-        var pricer = context.Tenant(TenantId, "oftza-product-manager");
         var party = await Person(holder);
         var existing = (await underwriter.Send(HttpMethod.Get, $"/api/v1/general/policies?policyholderPartyId={party}")).GetProperty("items");
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
@@ -377,7 +383,7 @@ public sealed partial class OftzaSeed
             var url = $"/api/v1/general/quotes/{quote}";
             if ((await underwriter.Send(HttpMethod.Get, url)).GetProperty("premium").ValueKind == JsonValueKind.Null)
             {
-                await pricer.Send(HttpMethod.Post, "/api/v1/rating/calculations", new
+                await underwriter.Send(HttpMethod.Post, "/api/v1/rating/calculations", new
                 {
                     requestRef = $"G-{quote:N}"[..20], sourceDomain = "GENERAL", subjectType = "GENERAL_QUOTE", subjectId = quote, productCode = product, productVersion = 1, currency = "ZAR", frequency = "ANNUAL",
                     values = new Dictionary<string, object> { ["sum_insured"] = 100_000m, [attribute] = value },
@@ -385,7 +391,7 @@ public sealed partial class OftzaSeed
                 await context.Settle();
             }
 
-            await Acknowledge(party, "QUOTE", "GENERAL_QUOTE", quote);
+            await Acknowledge(underwriter, party, "QUOTE", "GENERAL_QUOTE", quote);
             await Step(underwriter, url, "Rated", "issue");
             await Step(underwriter, url, "Issued", "accept");
             var proposal = (await underwriter.Send(HttpMethod.Post, "/api/v1/general/proposals", new { quoteId = quote, declarations = new { claims_last_3_years = 0 } }, key: $"{TenantCode}:proposal:{quote}")).GetProperty("id").GetGuid();
@@ -394,7 +400,7 @@ public sealed partial class OftzaSeed
                 await underwriter.Send(HttpMethod.Post, $"/api/v1/general/proposals/{proposal}/accept", idempotent: false);
             }
 
-            await Acknowledge(party, "ISSUE", "GENERAL_QUOTE", quote);
+            await Acknowledge(underwriter, party, "ISSUE", "GENERAL_QUOTE", quote);
             policy = (await underwriter.Send(HttpMethod.Post, "/api/v1/general/policies", new { quoteId = quote, billingFrequency = "MONTHLY", collectionMethod = "DEBIT_ORDER" }, key: $"{TenantCode}:gpolicy:{quote}")).GetProperty("id").GetGuid();
             await context.Settle();
         }
@@ -463,13 +469,13 @@ public sealed partial class OftzaSeed
     }
 
     /// <summary>The portal personas, each linked to who they are: a member to a person, the broker to its intermediary, the provider to its practice. A second administrator approves each link.</summary>
-    private async Task PortalLinks()
+    private async Task PortalLinks(string member, string broker, string provider)
     {
         foreach (var (name, body) in new (string, object)[]
                  {
-                     ("oftza-member", new { kind = "Party", partyId = await Person(5), intermediaryCode = (string?)null, providerId = (string?)null }),
-                     ("oftza-broker", new { kind = "Intermediary", partyId = (Guid?)null, intermediaryCode = SampleParties.Brokers[0].Code, providerId = (string?)null }),
-                     ("oftza-provider", new { kind = "Provider", partyId = (Guid?)null, intermediaryCode = (string?)null, providerId = SampleParties.Providers[0].Code }),
+                     (member, new { kind = "Party", partyId = await Person(5), intermediaryCode = (string?)null, providerId = (string?)null }),
+                     (broker, new { kind = "Intermediary", partyId = (Guid?)null, intermediaryCode = SampleParties.Brokers[0].Code, providerId = (string?)null }),
+                     (provider, new { kind = "Provider", partyId = (Guid?)null, intermediaryCode = (string?)null, providerId = SampleParties.Providers[0].Code }),
                  })
         {
             if (await User(name) is not { } found)
@@ -534,9 +540,8 @@ public sealed partial class OftzaSeed
     /// <summary>Proposal to policy, as in LifeProcessTests: rated, found eligible, submitted, accepted on standard terms within the underwriter's authority, issued.</summary>
     private async Task LifePolicy(string product, string benefit, decimal sumAssured, int holder, int backdatedDays = 0)
     {
+        // The underwriter rates the proposal, evaluates the rules and records the acknowledgement themselves (role templates, A).
         var underwriter = context.Tenant(TenantId, "oftza-life-underwriter");
-        // No underwriter template holds the calculation or the rule evaluation (handover, register): only the product manager does, and the seed adds no grant.
-        var pricer = context.Tenant(TenantId, "oftza-product-manager");
         var applicant = await Person(holder);
         if ((await underwriter.Send(HttpMethod.Get, $"/api/v1/life/policies?policyholderPartyId={applicant}")).GetProperty("items").GetArrayLength() > 0)
         {
@@ -559,13 +564,13 @@ public sealed partial class OftzaSeed
         var url = $"/api/v1/life/proposals/{proposal}";
         if ((await underwriter.Send(HttpMethod.Get, url)).GetProperty("status").GetString() is "Draft" or "Quoted")
         {
-            await pricer.Send(HttpMethod.Post, "/api/v1/rating/calculations", new
+            await underwriter.Send(HttpMethod.Post, "/api/v1/rating/calculations", new
             {
                 requestRef = $"L-{proposal:N}"[..20], sourceDomain = "LIFE", subjectType = "LIFE_PROPOSAL", subjectId = proposal, productCode = product, productVersion = 1, currency = "ZAR", frequency = "MONTHLY",
                 values = new { sum_insured = sumAssured, age_band = ageNext <= 40 ? "18-40" : "41-65" },
             });
             await context.Settle();
-            await pricer.Send(HttpMethod.Post, "/api/v1/rules/decisions", new { kind = "Eligibility", code = "OFT-LIFE-ELIG", subjectType = "LIFE_PROPOSAL", subjectId = proposal, inputs = new { age_next = ageNext } });
+            await underwriter.Send(HttpMethod.Post, "/api/v1/rules/decisions", new { kind = "Eligibility", code = "OFT-LIFE-ELIG", subjectType = "LIFE_PROPOSAL", subjectId = proposal, inputs = new { age_next = ageNext } });
             await context.Settle();
             await underwriter.Send(HttpMethod.Post, $"{url}/submit", idempotent: false);
             await context.Settle();
@@ -575,13 +580,13 @@ public sealed partial class OftzaSeed
         {
             var underwriting = (await underwriter.Send(HttpMethod.Get, $"{url}/underwriting-case")).GetProperty("id").GetGuid();
             await underwriter.Send(HttpMethod.Post, $"/api/v1/life/underwriting-cases/{underwriting}/start-assessment", idempotent: false);
-            await pricer.Send(HttpMethod.Post, "/api/v1/rules/decisions", new { kind = "Underwriting", code = product, subjectType = "LIFE_UNDERWRITING_CASE", subjectId = underwriting, inputs = new { sum_assured = sumAssured } });
+            await underwriter.Send(HttpMethod.Post, "/api/v1/rules/decisions", new { kind = "Underwriting", code = product, subjectType = "LIFE_UNDERWRITING_CASE", subjectId = underwriting, inputs = new { sum_assured = sumAssured } });
             await context.Settle();
             await underwriter.Send(HttpMethod.Post, $"/api/v1/life/underwriting-cases/{underwriting}/decision", new { outcome = "Accept", decisionCode = "STD", reason = "STANDARD" }, idempotent: false);
             await context.Settle();
         }
 
-        await Acknowledge(applicant, "ISSUE", "LIFE_PROPOSAL", proposal);
+        await Acknowledge(underwriter, applicant, "ISSUE", "LIFE_PROPOSAL", proposal);
         var policy = await underwriter.Send(HttpMethod.Post, "/api/v1/life/policies", new { proposalId = proposal }, key: $"{TenantCode}:policy:{proposal}");
         await context.Settle();
         if (backdatedDays > 0)
@@ -590,8 +595,8 @@ public sealed partial class OftzaSeed
         }
     }
 
-    /// <summary>The customer's acknowledgement of the notice shown them, recorded by staff. No underwriter template holds it (handover, register), so the integration administrator records it.</summary>
-    private Task<JsonElement> Acknowledge(Guid party, string point, string? referenceType, Guid? reference) => context.Tenant(TenantId, "oftza-integration-administrator").Send(HttpMethod.Post, "/api/v1/integration/disclosure-acknowledgements",
+    /// <summary>The customer's acknowledgement of the notice shown them, recorded by the underwriter or membership administrator who took the business (role templates, A).</summary>
+    private Task<JsonElement> Acknowledge(Persona staff, Guid party, string point, string? referenceType, Guid? reference) => staff.Send(HttpMethod.Post, "/api/v1/integration/disclosure-acknowledgements",
         new { partyId = party, displayPoint = point, noticeType = "POLICY_TERMS", jurisdiction = "ZA", language = "en", businessRefType = referenceType, businessRefId = reference }, key: $"{TenantCode}:ack:{point}:{party}:{reference}");
 
     private async Task<Guid> Membership(int principal)
@@ -605,7 +610,7 @@ public sealed partial class OftzaSeed
         }
 
         var scheme = (await administrator.Send(HttpMethod.Get, $"/api/v1/health/schemes?sponsorCode={SponsorCode}")).GetProperty("items")[0].GetProperty("id").GetGuid();
-        await Acknowledge(party, "ISSUE", null, null);
+        await Acknowledge(administrator, party, "ISSUE", null, null);
         var created = await administrator.Send(HttpMethod.Post, "/api/v1/health/memberships", new
         {
             principalPartyId = party, schemeId = scheme, memberCategory = "ALL_STAFF", planCode = Scheme, optionCode = principal % 2 == 0 ? "ESS" : "PLUS", startDate = DateOnly.FromDateTime(DateTime.UtcNow), currency = "ZAR", collectionMethod = "DEBIT_ORDER", facts = new { employment_type = "PERMANENT" },

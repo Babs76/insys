@@ -86,6 +86,7 @@ Tenant `OFTZA` from the seed, plus generic accounts, each mapped to one template
 | CLAIMSMGR01/02 | `CLAIMS_MANAGER` |
 | HEALTHCLM01/02 | `HEALTH_CLAIMS_ASSESSOR` |
 | HEALTHMEM01/02 | `HEALTH_MEMBERSHIP_ADMINISTRATOR` |
+| LINECFG01/02 | `LINE_CONFIGURATION_MANAGER` |
 | FIN01/02 | `FINANCE_OFFICER` |
 | FINMGR01/02 | `FINANCE_MANAGER` |
 | PAY01 / PAY02 | `FINANCE_OFFICER` / `FINANCE_MANAGER` |
@@ -103,7 +104,7 @@ Tenant `OFTZA` from the seed, plus generic accounts, each mapped to one template
 | OPERATOR01/02 | `PLATFORM_ADMIN`, operator tenant |
 | STEWARD01/02 | `PLATFORM_STATIC_DATA_STEWARD`, operator tenant |
 
-That's 49 accounts. Keycloak stores usernames in lower case, and sign-in ignores case.
+That's 51 accounts, with `LINECFG01/02` for `LINE_CONFIGURATION_MANAGER` (role templates B, signed 3 November). Keycloak stores usernames in lower case, and sign-in ignores case. **Built** (`tools/Insys.Seed/PreviewAccounts.cs`, run with `--accounts true`): with Keycloak, the seed prints their new passwords as JSON on stdout and nowhere else, for the run to encrypt at once. The operator tenant's four are made by its two platform administrators (the bootstrap's `insys-admin` and `insys-admin-2`), one approving the other's privileged assignments, so all 51 are built. The TOTP secrets for the portal accounts aren't.
 
 **Why the accounts are mapped this way (accepted by Ade):**
 1. **PAY01/02:** there's no payments template; payments are in the finance ones. Building and releasing a batch can't be one person (a blocked conflict), so PAY01 is the officer and PAY02 the manager.
@@ -123,7 +124,7 @@ That's 49 accounts. Keycloak stores usernames in lower case, and sign-in ignores
 - **Chart:** OpenBao and Keycloak durable (`devMode: false`), proven by the smoke test restarting both; Ingress annotations, the API's path, and a sign-in Ingress for Keycloak (`/realms/` and `/resources/` only); the operator bootstrap as a migration job option.
 - **`preview.yml` and `deploy/preview/`:** every action written (`preview.sh`), linted with actionlint and shellcheck. **Not yet run:** it needs Ade's secrets, and its first run is the proof. Expect fixes there.
 - **The console in the chart:** the front end's image pinned by digest, each app's `config.json` from a ConfigMap, only `/api/` to the API, on for the Preview with the `ghcr` pull secret made from `PREVIEW_CONSOLE_PULL_TOKEN`; the four apps' Keycloak clients get the Preview's addresses. The smoke test pulls it with the workflow's own token.
-- **The labels' read route** (`GET /api/v1/platform/environment`), **the tenant's 45 accounts** in the seed, and **Keycloak sign-in for the seed**.
+- **The labels' read route** (`GET /api/v1/platform/environment`), **the tenant's 47 accounts** in the seed, and **Keycloak sign-in for the seed**.
 - **The quick-start:** `docs/preview/quick-start.md`.
 - **Backups:** the nightly job (`deploy/preview/backup.yaml`) and the restore steps (`docs/preview/restore.md`), **not yet rehearsed**.
 

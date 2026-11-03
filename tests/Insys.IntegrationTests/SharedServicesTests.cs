@@ -107,6 +107,13 @@ public sealed class SharedServicesTests(DatabaseFixture fixture) : IClassFixture
         (await failed.Code()).ShouldBe("EXPRESSION_EVALUATION_FAILED");
         (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM rules.decision_log WHERE subject_id = @s", ("s", subject))).ShouldBe(2);
         (await fixture.Database.ScalarAsOwner<string>("SELECT inputs->>'age_next' FROM rules.decision_log WHERE subject_id = @s", ("s", subject))).ShouldBe("62");
+
+        // Each decision is audited with who evaluated it and its outcome, never its inputs (IAM-006; role templates, A).
+        await _factory.DrainOutbox();
+        (await fixture.Database.ScalarAsOwner<string>("""
+            SELECT string_agg(concat_ws('|', outcome, details->>'ruleset', details->>'outcome', coalesce(details->>'inputs', '-')), ',' ORDER BY occurred_at)
+            FROM audit.audit_event WHERE tenant_id = @t AND operation = 'EvaluateRuleSet' AND details->>'subjectId' = @s
+            """, ("t", TenantA), ("s", subject.ToString()))).ShouldBe("SUCCESS|ELIG-TERM v1|REFER|-,SUCCESS|ELIG-TERM v1|REFER|-");
     }
 
     /// <summary>An engineering case: the premium is worked from the engine's rules, not supplied by an actuary (docs/rating/test-cases.md).</summary>
@@ -130,6 +137,9 @@ public sealed class SharedServicesTests(DatabaseFixture fixture) : IClassFixture
         stored.GetProperty("lines").GetArrayLength().ShouldBe(3);
         stored.GetProperty("inputs").GetProperty("values").GetProperty("life").GetProperty("age").GetInt32().ShouldBe(45);
         (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM rating.rating_result_line WHERE request_id = @id", ("id", id))).ShouldBe(3);
+        await _factory.DrainOutbox();
+        (await fixture.Database.ScalarAsOwner<string>("SELECT concat_ws('|', outcome, details->>'product', details->>'premium') FROM audit.audit_event WHERE tenant_id = @t AND operation = 'CalculatePremium' AND target_id = @id",
+            ("t", TenantA), ("id", id.ToString()))).ShouldBe("SUCCESS|LIF-TERM v1|5000.0000", "audited, as an underwriter may rate the business they issue (role templates, A)");
 
         await fixture.Database.UserWithPermissions(DatabaseFixture.TenantB, "shared-other", All);
         (await _factory.ClientFor(DatabaseFixture.TenantB, "shared-other").GetAsync($"/api/v1/rating/calculations/{id}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);

@@ -61,16 +61,23 @@ public sealed class KeycloakSignIn(HttpClient keycloak, string realm, string adm
             return held.Token;
         }
 
-        var user = await User(username);
-        var password = Convert.ToBase64String(RandomNumberGenerator.GetBytes(24));
-        await Admin(HttpMethod.Put, $"users/{user}/reset-password", new { type = "password", value = password, temporary = false });
-        await Admin(HttpMethod.Put, $"users/{user}", new { requiredActions = Array.Empty<string>(), emailVerified = true });
+        var password = await SetPassword(username);
         var token = await Grant($"realms/{realm}/protocol/openid-connect/token", new Dictionary<string, string>
         {
             ["grant_type"] = "password", ["client_id"] = ClientId, ["username"] = username, ["password"] = password, ["scope"] = "openid",
         });
         _tokens[username] = token;
         return token.Token;
+    }
+
+    /// <summary>A new generated password on the account, with its required actions cleared so it can sign in; returned, never logged.</summary>
+    public async Task<string> SetPassword(string username)
+    {
+        var user = await User(username);
+        var password = Convert.ToBase64String(RandomNumberGenerator.GetBytes(24));
+        await Admin(HttpMethod.Put, $"users/{user}/reset-password", new { type = "password", value = password, temporary = false });
+        await Admin(HttpMethod.Put, $"users/{user}", new { requiredActions = Array.Empty<string>(), emailVerified = true });
+        return password;
     }
 
     /// <summary>The user's id. Identity creates a tenant's users in Keycloak when it delivers their event, so a new one may take a moment to appear.</summary>

@@ -26,6 +26,7 @@
  */
 using System.Text.Json;
 using FluentValidation;
+using Insys.BuildingBlocks.Application.Auditing;
 using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Messaging;
 using Insys.BuildingBlocks.Contracts;
@@ -144,7 +145,8 @@ public sealed class PremiumRater(IRatingConfigurationReader configuration, IBusi
     }
 }
 
-internal sealed class CalculatePremiumHandler(PremiumRater rater, IPremiumCalculationRepository calculations, IClock clock)
+/// <summary>A premium rated on the values its caller gives. Audited (IAM-006), as an underwriter may rate the quote they issue (role templates, A).</summary>
+internal sealed class CalculatePremiumHandler(PremiumRater rater, IPremiumCalculationRepository calculations, IClock clock, IAuditTrail audit)
     : ICommandHandler<CalculatePremium, CalculationView>
 {
     public async Task<Result<CalculationView>> Handle(CalculatePremium command, CancellationToken cancellationToken)
@@ -158,6 +160,11 @@ internal sealed class CalculatePremiumHandler(PremiumRater rater, IPremiumCalcul
         var calculation = PremiumCalculation.CalculatePremium(Guid.CreateVersion7(), command.RequestRef, command.SourceDomain, command.SubjectType, command.SubjectId,
             command.Rating.ProductCode, command.Rating.ProductVersion, rated.Value.InputsJson, rated.Value.Breakdown, clock.UtcNow);
         calculations.Add(calculation);
+        audit.Record(new AuditEntry("RATING", "CalculatePremium", nameof(PremiumCalculation), calculation.Id.ToString(), new Dictionary<string, string?>
+        {
+            ["product"] = $"{calculation.ProductCode} v{calculation.ProductVersion}", ["subjectType"] = calculation.SubjectType, ["subjectId"] = calculation.SubjectId.ToString(),
+            ["premium"] = calculation.Premium.ToString(System.Globalization.CultureInfo.InvariantCulture), ["currency"] = calculation.Currency,
+        }));
         return CalculationViews.From(calculation);
     }
 }
