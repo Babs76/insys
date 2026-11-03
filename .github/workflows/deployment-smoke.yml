@@ -65,9 +65,13 @@ jobs:
           image=$(sed -n 's/^  image: \(ghcr.io\/[^ ]*@sha256:[0-9a-f]*\).*/\1/p' deploy/helm/insys/values.yaml)
           echo "$GHCR_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin > /dev/null
           if ! docker pull -q "$image"; then
-            # What the workflow's token can see of the package: its versions' digests and tags, to compare with the pinned one.
-            GH_TOKEN="$GHCR_TOKEN" gh api /users/babs76/packages/container/insys-console-web/versions \
-              --jq '.[0:10][] | [.name, (.metadata.container.tags | join(","))] | @tsv' || echo "The token can't list the package's versions."
+            # What the registry itself says to this token: its tags (refused if the package gives this repository no access), then the pinned digest.
+            repo=${image#ghcr.io/}; repo=${repo%@*}
+            bearer=$(curl -s -u "${{ github.actor }}:$GHCR_TOKEN" "https://ghcr.io/token?scope=repository:$repo:pull" | jq -r .token)
+            echo "Tags: $(curl -s -H "Authorization: Bearer $bearer" "https://ghcr.io/v2/$repo/tags/list" | jq -c '.tags // .errors' | cut -c1-600)"
+            echo "Pinned digest: HTTP $(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $bearer" \
+              -H 'Accept: application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json' \
+              "https://ghcr.io/v2/$repo/manifests/${image#*@}")"
             exit 1
           fi
           docker tag "$image" insys-console:smoke
