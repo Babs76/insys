@@ -40,6 +40,7 @@ diagnose() {
   kubectl describe pod -l app.kubernetes.io/name=api | tail -25 || true
   kubectl logs deploy/insys-api --tail=60 || true
   kubectl logs job/insys-migrate-1 --tail=30 || true
+  kubectl describe pod -l app.kubernetes.io/name=console | sed -n '/^Events:/,$p' | tail -15 || true
 }
 trap 'diagnose' ERR
 
