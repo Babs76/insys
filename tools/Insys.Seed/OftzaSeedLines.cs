@@ -64,6 +64,16 @@ public sealed partial class OftzaSeed
         await Brokers();
         await HealthConfiguration();
         await ClaimConfiguration();
+        await Reinsurance();
+    }
+
+    /// <summary>One quota share treaty on the General products, 30 % retained, with a sample reinsurer: policies issued after it are ceded.</summary>
+    private async Task Reinsurance()
+    {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        await Static("reinsurance/static/reinsurer-register", "OFT-RE-1", new { reinsurerCode = "OFT-RE-1", legalName = "Sample Reinsurance (invented)", country = "ZA", status = "APPROVED" });
+        await Static("reinsurance/static/treaty-definitions", "OFT-QS-1", new { treatyCode = "OFT-QS-1", type = "QUOTA_SHARE", retention = "30", capacity = 5_000_000m, periodFrom = today.AddYears(-1), periodTo = today.AddYears(1), participants = new[] { new { reinsurer = "OFT-RE-1", share = 100 } } });
+        await Static("reinsurance/static/cession-rules", "OFT-CR-1", new { ruleCode = "OFT-CR-1", treaty = "OFT-QS-1", products = new[] { "OFT-MOTOR", "OFT-HOME" }, allocationBasis = "SUM_INSURED" });
     }
 
     private async Task LifeConfiguration()
@@ -143,6 +153,7 @@ public sealed partial class OftzaSeed
 
     private async Task Brokers()
     {
+        await Static("distribution/static/commission-plans", "OFT-COM-10", new { planCode = "OFT-COM-10", basis = "PREMIUM", rate = 10m, clawbackRule = "UNEARNED" });
         var number = SampleParties.Providers.Length;
         foreach (var (code, name) in SampleParties.Brokers)
         {
@@ -150,7 +161,7 @@ public sealed partial class OftzaSeed
             await Static("distribution/static/intermediary-register", code, new { intermediaryCode = code, type = "BROKER", legalName = name, licenceNumbers = new[] { $"SAMPLE-FSP-{number}" }, status = "ACTIVE", hierarchyNode = "OFTZA-ROOT", partyId = party });
             foreach (var product in new[] { "OFT-MOTOR", "OFT-HOME", "OFT-FUNERAL", "OFT-TERM", "OFT-HEALTH" })
             {
-                await Static("distribution/static/intermediary-product-permissions", $"{code}:{product}", new { intermediary = code, product, transactionsAllowed = new[] { "QUOTE", "BIND", "SERVICE" } });
+                await Static("distribution/static/intermediary-product-permissions", $"{code}:{product}", new { intermediary = code, product, transactionsAllowed = Array.Empty<string>(), planCode = "OFT-COM-10" });
             }
         }
     }
@@ -358,7 +369,7 @@ public sealed partial class OftzaSeed
             var risk = (await underwriter.Send(HttpMethod.Post, "/api/v1/general/risk-objects", new { objectType, attributes }, key: $"{TenantCode}:risk:{holder}")).GetProperty("id").GetGuid();
             var quote = (await underwriter.Send(HttpMethod.Post, "/api/v1/general/quotes", new
             {
-                productCode = product, proposerPartyId = party, currency = "ZAR", periodStart = today, periodEnd = today.AddYears(1).AddDays(-1),
+                productCode = product, proposerPartyId = party, currency = "ZAR", periodStart = today, periodEnd = today.AddYears(1).AddDays(-1), intermediaryCode = holder < 4 ? SampleParties.Brokers[0].Code : null,
                 risks = new[] { new { riskObjectId = risk, sumInsured = 100_000m, coverages = new object[] { new { coverageCode = coverage, sumInsured = 100_000m } } } },
             }, key: $"{TenantCode}:quote:{holder}")).GetProperty("id").GetGuid();
             var url = $"/api/v1/general/quotes/{quote}";

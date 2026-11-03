@@ -201,7 +201,6 @@ public sealed partial class OftzaSeed(SeedContext context)
 
             object body = step switch
             {
-                "REINSURANCE" => new { step, attestations = new[] { new { check = "TREATIES", note = "Sample tenant: its treaty comes with a later slice" } } },
                 "INTEGRATION_AND_REPORTING" => new { step, attestations = new[] { new { check = "WEBHOOKS_OR_NONE", note = "Sample tenant: no partners" } } },
                 _ => new { step },
             };

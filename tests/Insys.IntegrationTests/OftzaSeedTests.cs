@@ -99,6 +99,9 @@ public sealed class OftzaSeedTests(DatabaseFixture fixture) : IClassFixture<Data
         (await Count("SELECT count(*) FROM finance.journal WHERE tenant_id = @t")).ShouldBeGreaterThan(50L, "the records' journals");
         (await Count("SELECT count(*) FROM billing.refund_request WHERE tenant_id = @t")).ShouldBe(1L);
         (await Count("SELECT count(*) FROM health.provider_statement WHERE tenant_id = @t")).ShouldBe(1L);
+        (await Count("SELECT count(*) FROM reinsurance.cession WHERE tenant_id = @t")).ShouldBeGreaterThan(0L, "General policies ceded to the treaty");
+        (await Count("SELECT count(*) FROM commission.commission_statement WHERE tenant_id = @t")).ShouldBe(1L);
+        (await Count("SELECT count(*) FROM workflow.service_case WHERE tenant_id = @t")).ShouldBe(1L, "a claim disputed through a case");
         (await Count("SELECT count(*) FROM finance.tax_return WHERE tenant_id = @t")).ShouldBe(1L, "one VAT return prepared");
         (await Count("SELECT count(*) FROM finance.accounting_period WHERE tenant_id = @t AND status = 'CLOSED'")).ShouldBe(1L, "last month closed");
         (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM party.bank_account WHERE tenant_id = @t AND status = 'ACTIVE'", ("t", seed.TenantId))).ShouldBeGreaterThanOrEqualTo(5L, "each provider, broker and payee, verified by a second person");

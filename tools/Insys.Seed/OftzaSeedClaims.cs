@@ -64,6 +64,7 @@ public sealed partial class OftzaSeed
         await Static("documents/static/document-categories", "REMITTANCE_ADVICE", new { categoryCode = "REMITTANCE_ADVICE", label = "Remittance advice", classification = "CONFIDENTIAL", domain = "HEALTH", allowedRoles = Array.Empty<string>() });
         await Static("documents/static/document-templates", "OFT-TPL-RA", new { templateCode = "OFT-TPL-RA", language = "en", documentType = "REMITTANCE_ADVICE", bodyRef = "sample", mergeFields = new[] { "run_code", "provider_id", "amount" } });
         await Static("health/static/remittance-advice-formats", "RA-STD", new { formatCode = "RA-STD", channel = "PORTAL", template = "OFT-TPL-RA v1" });
+        await Static("workflow/static/case-categories", "CLAIM_DISPUTE", new { categoryCode = "CLAIM_DISPUTE", family = "COMPLAINT", pprCategory = "CLAIMS", name = "Claim dispute (sample)" });
         foreach (var (status, platform) in new[] { ("BOUNCED", "FAILED"), ("TIMEOUT", "UNKNOWN") })
         {
             await Static("payments/static/payment-status-mappings", $"SIM-{status}", new { providerCode = "SIMULATOR", providerStatus = status, platformStatus = platform, final = platform != "UNKNOWN" });
@@ -95,6 +96,8 @@ public sealed partial class OftzaSeed
         await Refund();
         await PayOut();
         await Statement();
+        await Commission();
+        await Complaint();
         await Books();
 
         // Approved after the week's run, so it waits for the next one.
@@ -327,6 +330,42 @@ public sealed partial class OftzaSeed
             await Approve(FinanceManager, refund);
             await context.Settle();
         }
+    }
+
+    /// <summary>The broker's statement for the month, from the commission its paid premiums earned, approved by the finance manager.</summary>
+    private async Task Commission()
+    {
+        var distribution = context.Tenant(TenantId, "oftza-distribution-administrator");
+        var broker = SampleParties.Brokers[0].Code;
+        var existing = (await distribution.Send(HttpMethod.Get, $"/api/v1/distribution/statements?intermediaryCode={broker}")).GetProperty("items");
+        if (existing.GetArrayLength() == 0)
+        {
+            var statement = (await distribution.Send(HttpMethod.Post, "/api/v1/distribution/statements", new { intermediaryCode = broker, periodCode = $"{Today:yyyy-MM}", currency = "ZAR" }, key: $"{TenantCode}:statement:{broker}:{Today:yyyy-MM}")).GetProperty("id").GetGuid();
+            await context.Settle();
+            await Approve(FinanceManager, statement);
+            await context.Settle();
+        }
+    }
+
+    /// <summary>A policyholder disputes their claim: a complaint case linked to it, acknowledged within its timeline.</summary>
+    private async Task Complaint()
+    {
+        var agent = context.Tenant(TenantId, "oftza-customer-service-agent");
+        var party = await Person(2);
+        var policy = (await Clerk.Send(HttpMethod.Get, $"/api/v1/general/policies?policyholderPartyId={party}")).GetProperty("items")[0].GetProperty("id").GetGuid();
+        var claim = (await Handler.Send(HttpMethod.Get, $"/api/v1/general/claims?policyId={policy}")).GetProperty("items")[0];
+        if ((await agent.Send(HttpMethod.Get, $"/api/v1/workflow/cases?linkType=CLAIM&linkId={claim.GetProperty("id").GetGuid()}")).GetProperty("items").GetArrayLength() > 0)
+        {
+            return;
+        }
+
+        var opened = (await agent.Send(HttpMethod.Post, "/api/v1/workflow/cases", new
+        {
+            caseTypeCode = "COMPLAINT", receivedChannel = "PHONE", receivedAt = DateTimeOffset.UtcNow, complainantPartyId = party, complainantName = (string?)null, complainantContact = (string?)null, onBehalfOfPartyId = (Guid?)null,
+            categoryCode = "CLAIM_DISPUTE", summary = "Sample: the policyholder disputes the assessed amount.", upheldAtReceipt = (bool?)null, parentCaseId = (Guid?)null,
+            links = new[] { new { linkType = "CLAIM", recordId = claim.GetProperty("id").GetGuid(), reference = claim.GetProperty("claimNumber").GetString() } },
+        }, key: $"{TenantCode}:complaint:{party}")).GetProperty("id").GetGuid();
+        await agent.Send(HttpMethod.Post, $"/api/v1/workflow/cases/{opened}/acknowledge", idempotent: false);
     }
 
     /// <summary>The provider's statement for the week, compared with INSYS's records: one claim agrees, one it has no record of.</summary>
