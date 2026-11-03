@@ -41,7 +41,7 @@ public sealed class DatabaseBusyTests(DatabaseFixture fixture) : IClassFixture<D
     [Fact]
     public async Task ConcurrentRequests_WithThePoolExhausted_Get503WithRetryAfter_ThenSucceed_GAP039()
     {
-        var factory = await fixture.Host(new Dictionary<string, string?> { ["Database:Pools:insys_integration"] = "1", ["Database:PoolWaitSeconds"] = "1" });
+        var factory = await fixture.Host(new Dictionary<string, string?> { ["Database:Pools:insys_integration"] = "1", ["Database:PoolWaitSeconds"] = "5" });
         await fixture.Database.UserWithPermissions(DatabaseFixture.TenantA, "busy-reader", IntegrationPermissions.DeadLetterRead);
         var client = factory.ClientFor(DatabaseFixture.TenantA, "busy-reader");
 
@@ -58,7 +58,8 @@ public sealed class DatabaseBusyTests(DatabaseFixture fixture) : IClassFixture<D
             response.Headers.RetryAfter!.Delta.ShouldBe(TimeSpan.FromSeconds(2));
         }
 
-        // Once the connection is back, the same burst succeeds, queued on the one connection.
+        // Once the connection is back, the same burst succeeds, queued on the one connection. Each may wait 5 seconds: at 1, a slow CI runner
+        // turned some of the ten into 503s (3 November 2026), while the held connection above still makes every first one wait it out.
         var after = await Task.WhenAll(Enumerable.Range(0, 10).Select(_ => client.GetAsync("/api/v1/integration/dead-letters")));
         after.ShouldAllBe(r => r.StatusCode == HttpStatusCode.OK);
     }
