@@ -1,0 +1,77 @@
+# ============================================================================
+# OPENFACTOR TECHNOLOGY GROUP
+# CONFIDENTIAL AND PROPRIETARY SOFTWARE
+# ============================================================================
+# Copyright (c) 2026 OpenFactor Technology Group.
+# All rights reserved.
+# PRODUCT       : INSYS
+# COMPONENT     : Build
+# CONFIDENTIALITY AND INTELLECTUAL PROPERTY NOTICE
+# This source code and its associated documentation contain confidential and
+# proprietary information belonging to OpenFactor Technology Group or its
+# applicable intellectual property rights holder.
+# This material is provided solely for authorised development, maintenance,
+# operation or evaluation purposes, as applicable. No person may reproduce,
+# modify, distribute, disclose, publish or otherwise use this material except
+# as expressly permitted by an applicable written agreement or licence.
+# No ownership rights or licence to any intellectual property are granted
+# by the inclusion of this notice, except as expressly provided in an
+# applicable written agreement or licence.
+# Third-party software, open-source components and customer-owned materials
+# remain subject to their respective ownership rights and applicable licences
+# or agreements.
+# UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
+# ============================================================================
+# The Preview's nightly backup (docs/plans/insys-preview.md, Backups): both databases dumped and OpenBao's volume copied to the server's disk,
+# /var/backups/insys, which Hetzner's daily backups capture. Seven nights are kept. OpenBao's copy holds only sealed data: restoring it needs
+# Ade's unseal key, as any restart does. Restoring: docs/preview/restore.md.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: insys-backup
+spec:
+  schedule: "0 1 * * *"
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: databases
+              image: postgres:18
+              command:
+                - sh
+                - -c
+                - |
+                  set -e
+                  day=$(date -u +%F)
+                  for db in insys keycloak; do
+                    pg_dump -h insys-postgres -U insys_owner -Fc "$db" > "/backup/$day-$db.dump.partial"
+                    mv "/backup/$day-$db.dump.partial" "/backup/$day-$db.dump"
+                  done
+                  find /backup -name '*.dump' -mtime +7 -delete
+              env:
+                - name: PGPASSWORD
+                  valueFrom: {secretKeyRef: {name: insys-secrets, key: postgresPassword}}
+              volumeMounts: [{name: backup, mountPath: /backup}]
+            - name: openbao
+              image: busybox:1.37
+              command:
+                - sh
+                - -c
+                - |
+                  set -e
+                  day=$(date -u +%F)
+                  tar -C /openbao -czf "/backup/$day-openbao.tar.gz.partial" .
+                  mv "/backup/$day-openbao.tar.gz.partial" "/backup/$day-openbao.tar.gz"
+                  find /backup -name '*-openbao.tar.gz' -mtime +7 -delete
+              volumeMounts:
+                - {name: backup, mountPath: /backup}
+                - {name: openbao, mountPath: /openbao, readOnly: true}
+          volumes:
+            - name: backup
+              hostPath: {path: /var/backups/insys, type: DirectoryOrCreate}
+            - name: openbao
+              persistentVolumeClaim: {claimName: data-insys-openbao-0, readOnly: true}

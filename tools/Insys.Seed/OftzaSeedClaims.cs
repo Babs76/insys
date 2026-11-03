@@ -293,7 +293,17 @@ public sealed partial class OftzaSeed
         await context.Settle();
         foreach (var purpose in new[] { "CLAIM_PAYOUT", "REFUND" })
         {
-            var batch = (await FinanceOfficer.Send(HttpMethod.Post, "/api/v1/payments/payout-batches", new { purpose, currency = "ZAR" }, key: $"{TenantCode}:payout:{purpose}:{Today:yyyyMMdd}")).GetProperty("id").GetGuid();
+            Guid batch;
+            try
+            {
+                batch = (await FinanceOfficer.Send(HttpMethod.Post, "/api/v1/payments/payout-batches", new { purpose, currency = "ZAR" }, key: $"{TenantCode}:payout:{purpose}:{Today:yyyyMMdd}")).GetProperty("id").GetGuid();
+            }
+            catch (SeedRefusedException empty) when (empty.Message.Contains("PAYOUT_BATCH_EMPTY", StringComparison.Ordinal))
+            {
+                // An earlier run paid everything there was.
+                continue;
+            }
+
             await context.Settle();
             await Approve(FinanceManager, batch);
             await context.Settle();
@@ -337,14 +347,13 @@ public sealed partial class OftzaSeed
         var policy = (await Clerk.Send(HttpMethod.Get, $"/api/v1/general/policies?policyholderPartyId={party}")).GetProperty("items")[0].GetProperty("id").GetGuid();
         var id = (await FinanceOfficer.Send(HttpMethod.Get, $"/api/v1/billing/accounts?policyRef={policy}")).GetProperty("items")[0].GetProperty("id").GetGuid();
         var account = await FinanceOfficer.Send(HttpMethod.Get, $"/api/v1/billing/accounts/{id}");
-        if (account.GetProperty("refunds") is not { ValueKind: JsonValueKind.Array } refunds || refunds.GetArrayLength() == 0)
-        {
-            var bank = await PayeeAccount(party, "000000108");
-            var refund = (await FinanceOfficer.Send(HttpMethod.Post, $"/api/v1/billing/accounts/{account.GetProperty("id").GetGuid()}/refunds", new { amount = 100m, reasonCode = "INS_REQUEST", bankAccountId = bank }, key: $"{TenantCode}:refund:{policy}")).GetProperty("id").GetGuid();
-            await context.Settle();
-            await Approve(FinanceManager, refund);
-            await context.Settle();
-        }
+        var refund = account.GetProperty("refunds") is { ValueKind: JsonValueKind.Array } refunds && refunds.GetArrayLength() > 0
+            ? refunds[0].GetProperty("id").GetGuid()
+            : (await FinanceOfficer.Send(HttpMethod.Post, $"/api/v1/billing/accounts/{account.GetProperty("id").GetGuid()}/refunds", new { amount = 100m, reasonCode = "INS_REQUEST", bankAccountId = await PayeeAccount(party, "000000108") }, key: $"{TenantCode}:refund:{policy}")).GetProperty("id").GetGuid();
+        // Approved whether this run asked or an earlier one stopped just after asking.
+        await context.Settle();
+        await Approve(FinanceManager, refund);
+        await context.Settle();
     }
 
     /// <summary>The broker's statement for the month, from the commission its paid premiums earned, approved by the finance manager.</summary>

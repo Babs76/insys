@@ -1,0 +1,53 @@
+# ============================================================================
+# OPENFACTOR TECHNOLOGY GROUP
+# CONFIDENTIAL AND PROPRIETARY SOFTWARE
+# ============================================================================
+# Copyright (c) 2026 OpenFactor Technology Group.
+# All rights reserved.
+# PRODUCT       : INSYS
+# COMPONENT     : Build
+# CONFIDENTIALITY AND INTELLECTUAL PROPERTY NOTICE
+# This source code and its associated documentation contain confidential and
+# proprietary information belonging to OpenFactor Technology Group or its
+# applicable intellectual property rights holder.
+# This material is provided solely for authorised development, maintenance,
+# operation or evaluation purposes, as applicable. No person may reproduce,
+# modify, distribute, disclose, publish or otherwise use this material except
+# as expressly permitted by an applicable written agreement or licence.
+# No ownership rights or licence to any intellectual property are granted
+# by the inclusion of this notice, except as expressly provided in an
+# applicable written agreement or licence.
+# Third-party software, open-source components and customer-owned materials
+# remain subject to their respective ownership rights and applicable licences
+# or agreements.
+# UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
+# ============================================================================
+# Traefik, as k3s bundles it, with a Let's Encrypt resolver, le, using the TLS-ALPN-01 challenge, which needs only port 443 (no DNS token).
+# Its certificates persist on a volume. preview.sh sets the CA: Let's Encrypt's staging service until issuance is proven, then the real one.
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    persistence:
+      enabled: true
+      size: 128Mi
+    deployment:
+      initContainers:
+        - name: acme-permissions
+          image: busybox:1.37
+          command: ["sh", "-c", "touch /data/acme.json && chmod 600 /data/acme.json"]
+          volumeMounts: [{name: data, mountPath: /data}]
+    ports:
+      web:
+        expose:
+          default: false
+    certificatesResolvers:
+      le:
+        acme:
+          email: ACME_EMAIL
+          storage: /data/acme.json
+          caServer: ACME_CA
+          tlsChallenge: {}

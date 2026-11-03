@@ -12,6 +12,7 @@ Operating procedures for the INSYS Core back end. Each one describes what the co
 | [static-data.md](static-data.md) | Changing reference data and configuration through versions and approvals |
 | [security-incidents.md](security-incidents.md) | Suspected compromise, cutting off access, key rotation |
 | [backup-and-recovery.md](backup-and-recovery.md) | Backups, restore and recovery (a proposal; the targets are open) |
+| [openbao.md](openbao.md) | Running OpenBao, the key service for protected fields: high availability, unsealing, backup and restore, tokens (ADR-027) |
 
 Conventions used in every runbook:
 
