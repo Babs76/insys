@@ -23,6 +23,14 @@
 # UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
 # ============================================================================
 {{- if .Values.keycloak.enabled }}
+{{- $realm := .Files.Get "files/insys-realm.json" }}
+{{- with .Values.keycloak.realmDisplayName }}
+{{- /* The sign-in page's title and heading. Keycloak imports the realm only when it doesn't exist yet, so this names a new realm. */}}
+{{- $parsed := fromJson $realm }}
+{{- $_ := set $parsed "displayName" . }}
+{{- $_ := set $parsed "displayNameHtml" (html .) }}
+{{- $realm = toPrettyJson $parsed }}
+{{- end }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -30,7 +38,7 @@ metadata:
   labels: {{- include "insys.labels" . | nindent 4 }}
 data:
   insys-realm.json: |-
-{{ .Files.Get "files/insys-realm.json" | indent 4 }}
+{{ $realm | indent 4 }}
 ---
 # devMode: start-dev, with its data in the container, so a restart loses every account. Otherwise production mode with its data in the in-cluster
 # PostgreSQL (its own database, keycloak), so accounts survive a restart; TLS ends at the Ingress, so Keycloak serves HTTP behind it.

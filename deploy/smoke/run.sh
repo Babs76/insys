@@ -71,6 +71,9 @@ echo "== Migrations ran, and the API connects on non-owner roles"
 [ "$(query "SELECT count(*) FROM pg_tables WHERE tableowner LIKE 'insys\_%' AND tableowner <> 'insys_owner'")" = 0 ] || fail "a module role owns tables"
 
 echo "== Sign-in through Keycloak"
+# The sign-in page carries the realm name from the values (keycloak.realmDisplayName), in its title.
+login="$kc/realms/insys/protocol/openid-connect/auth?client_id=insys-web&response_type=code&scope=openid&redirect_uri=http%3A%2F%2Flocalhost%3A5173%2F&code_challenge_method=S256&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
+in_cluster "curl -sf '$login'" | grep -q '<title>.*INSYS smoke test (sample data only)' || fail "the sign-in page doesn't show the realm's name"
 admin=$(in_cluster "curl -sf -d grant_type=password -d client_id=admin-cli -d username=admin -d password=smoke-admin $kc/realms/master/protocol/openid-connect/token | jq -r .access_token")
 auth="Authorization: Bearer $admin"
 subject=$(in_cluster "curl -si -H '$auth' -H 'Content-Type: application/json' $kc/admin/realms/insys/users -d '{\"username\":\"smoke\",\"enabled\":true,\"email\":\"smoke@example.test\",\"emailVerified\":true,\"firstName\":\"Smoke\",\"lastName\":\"Test\",\"attributes\":{\"tenant_id\":[\"$tenant\"]},\"credentials\":[{\"type\":\"password\",\"value\":\"smoke-pass\",\"temporary\":false}]}' | tr -d '\r' | sed -n 's#^[Ll]ocation: .*/##p'")

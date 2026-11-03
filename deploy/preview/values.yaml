@@ -46,7 +46,8 @@ migrations:
 postgres: {enabled: true, storage: 20Gi}
 openbao: {enabled: true, devMode: false, storage: 1Gi}
 seaweedfs: {enabled: true, storage: 20Gi}
-keycloak: {enabled: true, devMode: false}
+# The console's banner shows only after sign-in, so the sign-in page says it too.
+keycloak: {enabled: true, devMode: false, realmDisplayName: "INSYS Preview (sample data only)"}
 ingress:
   enabled: true
   className: traefik

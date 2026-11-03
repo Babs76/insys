@@ -1,6 +1,6 @@
 # INSYS Preview: quick-start
 
-**For OpenFactor's functional team.** The INSYS Preview is a test system with invented data. It isn't production, and nothing in it reaches a real person, provider or bank. A banner on every page says so.
+**For OpenFactor's functional team.** The INSYS Preview is a test system with invented data. It isn't production, and nothing in it reaches a real person, provider or bank. A banner on every page says so, and the sign-in page is titled "INSYS Preview (sample data only)".
 
 ## Signing in
 - **Address:** `https://insys.project-demo.app`. Sign-in goes through `https://id.insys.project-demo.app`.

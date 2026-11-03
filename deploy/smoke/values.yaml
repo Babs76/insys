@@ -47,4 +47,4 @@ migrations: {createRoles: true}
 postgres: {enabled: true, storage: 2Gi}
 openbao: {enabled: true, devMode: false, storage: 1Gi}
 seaweedfs: {enabled: true, storage: 2Gi}
-keycloak: {enabled: true, devMode: false}
+keycloak: {enabled: true, devMode: false, realmDisplayName: "INSYS smoke test (sample data only)"}

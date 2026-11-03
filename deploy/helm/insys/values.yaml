@@ -113,3 +113,4 @@ keycloak:
   devMode: true
   hostname: ""   # Its public address, such as https://id.example.com. Empty: any host is accepted (the smoke test).
   ingressHost: "" # Routes sign-in (only /realms/ and /resources/) from this host, such as id.example.com, through the chart's Ingress settings.
+  realmDisplayName: "" # The sign-in page's title and heading for a new realm. Empty: the realm file's own.
