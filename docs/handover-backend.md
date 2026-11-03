@@ -1,6 +1,6 @@
 # Back-end handover
 
-**Draft, 2 November 2026.** The go-live register is written, and so is how to continue. The state of branches is final at the Tuesday 3 November stop.
+**Interim, 3 November 2026; final at the stop on Wednesday 4 November (Ade moved it from Tuesday).** The go-live register is written, and so is how to continue. The state of branches is made final at the stop.
 
 ## First: the INSYS Preview milestone
 **Decided by Ade, 2 November 2026; it comes before everything else.** A hosted environment for OpenFactor's functional team, with all built functionality, sample data only, and every external integration stubbed and clearly labelled. Not production.
@@ -79,7 +79,7 @@ They are also in `CLAUDE.md`.
 - Decisions for Ade go in reports. **Ade decides the first customer after his trip,** and coordinates remotely.
 - **Only one back-end session works at a time.** The Mac session stops before a cloud one starts.
 - **Wave 7 is paused after 7.1 until the INSYS Preview is live (Ade, 2 November).** It then resumes in the D-8 order: 7.2, 7.3, 7.6, 7.7, 7.4, 7.5, 7.8. Nigeria's row 24 stays deferred until a first Nigerian customer is chosen.
-- No new work after 18:00 on Tuesday 3 November 2026; handover written and stopped by 21:00. What isn't green by 18:00 stays on its branch and goes in the table below.
+- **The Mac session stops on Wednesday 4 November 2026:** nothing new after 07:00, the handover merged and checked by 10:00. A cloud session continues from this document and GitHub.
 
 ### Running tests
 **CI is the gate.** There's no need for a full local run. Locally, run the affected test classes only:
@@ -100,10 +100,17 @@ dotnet test --project tests/Insys.IntegrationTests --no-build --filter-class '*D
 - End-to-end hosts run on `WindowClock` (22:30 UTC, no TestDate); new hosts and time-signed seeds must use it. Tests seed with fixed dates, never yesterday.
 
 ### The order of remaining work
-1. Workstream F's remaining slices: `docs/plans/workstream-f-oftza-seed.md`.
+1. Workstream F's remaining slices: `docs/plans/workstream-f-oftza-seed.md` (its State lists them). The one the Preview needs first is **Keycloak sign-in for the seed**, below.
 2. The INSYS Preview, signed by Ade: `docs/plans/insys-preview.md`.
 3. Batch 7.2, once the Preview is live, then the D-8 order: 7.3, 7.6, 7.7, 7.4, 7.5, 7.8.
 4. The rest of ADR-027 phase 2, blocking go-live in the register: the runbook, generic deployment and running OpenBao (high availability, backup and restore, unsealing). The Preview's chart work covers the console deployment. BR-100, and the items under Open below.
+
+### Workstream F: what's left, and how
+The seed (`tools/Insys.Seed`) now loads a working insurer through the API: see the plan's State. Its tests are the `OftzaSeed*Tests` classes in `tests/Insys.IntegrationTests`, about 6 minutes each, except `OftzaSeedResumeTests` at about 30, which stops the seed once after every kind of step and runs it again. They already load the seed on a fresh database and read it back on every CI run, so the plan's separate CI job isn't needed; a cloud session may decide otherwise if the shards grow past 45 minutes (the timings job warns at 35).
+
+- **Keycloak sign-in: built.** Where the API takes only Keycloak's tokens, run the seed with `--keycloak-url`, `--keycloak-admin` and the admin's password in `INSYS_SEED_KEYCLOAK_ADMIN_PASSWORD` (see `tools/Insys.Seed/Program.cs`). It makes users in INSYS's own realm, so Identity creates their Keycloak accounts (`oftza.<username>`), and signs in as each through the realm's `insys-seed` client, which is disabled in the realm and enabled only for the run. It sets its own generated passwords on the accounts it uses, held in memory, so **the Preview's password step must run after the seed**. Invitation emails park as `KEYCLOAK_EMAIL_UNSENT` without a mail server. Tested against the real realm in `KeycloakRealmTests`; not yet run end to end against a deployed API.
+- **Cases of the other families** (enquiry, dispute, appeal): only a complaint about a claim is seeded.
+- **Notification templates** beyond the case notices.
 
 ### Wave 7, batch 7.1
 **State slice by slice; this table is kept current at each merge.** Merge each slice on green on its own.
@@ -138,6 +145,9 @@ All on `wave7-1-fixes`, as one head, as the review's fixes touch every slice. Ch
 - **An underwriter can't quote or issue alone:** for Ade, found building the seed. `LIFE_UNDERWRITER` and `GENERAL_UNDERWRITER` hold neither `RATING_CALCULATE_PREMIUM` nor `RULES_EVALUATE_RULE_SET`, nor `INTEGRATION_ACKNOWLEDGE_DISCLOSURE`, and issuing needs all three. So a real underwriter is refused (403 `FUNCTION_NOT_GRANTED`). The templates are signed, so the seed adds no grant: the product manager rates and evaluates, and the integration administrator records the acknowledgement. The Preview's team will meet this.
 - **No tenant role maintains Life, General or Health configuration once live:** for Ade, found building the seed. `CONFIG_LIFE`, `CONFIG_GENERAL` and `CONFIG_HEALTH` are only in the platform steward's template, so after activation a tenant's staff can't load, say, a new scheme's contribution rule. The seed's loaders stay until that rule is in, then end.
 - **A migrated unpaid premium doesn't start a Life policy's grace:** a defect, found building the seed. `POST /billing/migration/outstanding-premiums` makes an overdue invoice and Billing reports the arrears, but it attaches no instalment, and `PolicyArrearsQuery` counts through instalments. So the missed count stays 0 and the policy never lapses. A migrated Life book in arrears would look in order. The seed goes round it, and the fix is unbuilt.
+- **The test host supplies `If-Match` and `Idempotency-Key` when a call leaves them out** (`TestPreconditionsHandler`), so a test can pass where a real client is refused. The seed's main test now runs on `StrictClientFor`, which adds nothing, and the seed reads a record's version itself when the API asks. Other API clients may have the same gap.
+- **INSYS has no route that cancels a Life policy,** so the sample Life book has no cancelled status. For the business review.
+- **A seed run that crosses midnight UTC can fail at activation** with `PRODUCT_PUBLISHED` not ready, seen once; run again, it completed. Not investigated.
 - **BR-100:** the function registry refuses one endpoint under two functions for one audience, so the case reads declare only `SERVICE_COMPLAINTS`. From reading the code, not a test, a role holding only another case screen is refused those reads. It needs a change to the registry (ADR-026).
 - **The same decline gap in Life and General:** their decline handlers take `reason?.CustomerWording`, so an unknown reason sends a notice with no wording, as Health did before BR-127. General's lapse job does too. Not asked for and not fixed.
 - **A Health decline with no notice recipient** still goes without a notice, silently.

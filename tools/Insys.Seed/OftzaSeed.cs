@@ -503,7 +503,7 @@ public sealed partial class OftzaSeed(SeedContext context)
         var admin = _adminMaker ?? _maker;
         var checker = _adminChecker ?? _checker;
         var user = (await User(name))?.GetProperty("id").GetGuid()
-            ?? (await admin.Send(HttpMethod.Post, "/api/v1/identity/users", new { username = name, displayName = $"Sample {role}", idpCode = "OIDC", externalSubject = name, mfaEnrolled = true }, key: $"{TenantCode}:user:{name}")).GetProperty("id").GetGuid();
+            ?? (await admin.Send(HttpMethod.Post, "/api/v1/identity/users", Person(name, $"Sample {role.Replace('_', ' ').ToLowerInvariant()}"), key: $"{TenantCode}:user:{name}")).GetProperty("id").GetGuid();
         async Task<List<JsonElement>> Assignments() => (await admin.Send(HttpMethod.Get, $"/api/v1/identity/users/{user}")).GetProperty("roleAssignments").EnumerateArray().Where(a => a.GetProperty("roleCode").GetString() == role).ToList();
         var assignments = await Assignments();
         // A revoked assignment stays on record, so it's the live ones that count: an administrator assigns the role again, with the same approvals as the first time.
@@ -557,15 +557,19 @@ public sealed partial class OftzaSeed(SeedContext context)
         }
         else
         {
-            object Person(string name) => new { username = name, displayName = name, idpCode = "OIDC", externalSubject = name, mfaEnrolled = true };
             request = (await context.PlatformMaker.Send(HttpMethod.Post, "/api/v1/identity/tenant-administrators",
-                new { tenantId = TenantId, administrators = new[] { Person(FirstAdministrator), Person(SecondAdministrator) }, functions = await AdministratorFunctions() }, key: $"{TenantCode}:first-administrators")).GetProperty("id").GetGuid();
+                new { tenantId = TenantId, administrators = new[] { Person(FirstAdministrator, FirstAdministrator), Person(SecondAdministrator, SecondAdministrator) }, functions = await AdministratorFunctions() }, key: $"{TenantCode}:first-administrators")).GetProperty("id").GetGuid();
         }
 
         await context.Settle();
         await Approve(context.PlatformChecker, request);
         await context.Settle();
     }
+
+    /// <summary>A user as the seed makes one: in INSYS's own realm, Identity creates the Keycloak user and its subject; otherwise the subject is the name, as the development key signs it.</summary>
+    private object Person(string name, string displayName) => context.OwnRealm
+        ? new { username = name, displayName, idpCode = "KEYCLOAK", externalSubject = (string?)null, email = (string?)$"{name}@example.test", mfaEnrolled = true }
+        : new { username = name, displayName, idpCode = "OIDC", externalSubject = (string?)name, email = (string?)null, mfaEnrolled = true };
 
     /// <summary>Exactly TENANT_ADMIN's template, with what this tenant can hold.</summary>
     private async Task<string[]> AdministratorFunctions()
@@ -658,7 +662,7 @@ public sealed partial class OftzaSeed(SeedContext context)
         }
 
         await Static("tenancy/static/organisation-structure", "OFTZA-ROOT", new { nodeCode = "OFTZA-ROOT", type = "LEGAL_ENTITY", name = "OFT Insurance South Africa (sample)" });
-        await Static("integration/static/channel-definitions", "CH-STF", new { channelCode = "STF", audience = "STAFF", name = "Back office", clientIds = new[] { "insys-web" } });
+        await Static("integration/static/channel-definitions", "CH-STF", new { channelCode = "STF", audience = "STAFF", name = "Back office", clientIds = new[] { "insys-web", KeycloakSignIn.ClientId } });
         await Static("finance/static/chart-of-accounts-subledger", "ACC-1100", new { accountCode = "1100", name = "Premium receivable (sample)", type = "ASSET", glAccount = "1100", status = "ACTIVE" });
         await Static("workflow/static/business-calendars", "CAL-ZA", new { calendarCode = "CAL-ZA", workingDays = new[] { "MON", "TUE", "WED", "THU", "FRI" }, hours = "08:00-17:00", holidayCalendar = "ZA", timeZone = "Africa/Johannesburg" });
         await Static("workflow/static/task-types-and-work-queues", "OFTZA-TASKS", new { queueCode = "OFTZA-TASKS", taskTypes = new[] { "REVIEW" }, assignmentRule = "MANUAL_PULL" });
