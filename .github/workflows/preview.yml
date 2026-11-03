@@ -23,7 +23,8 @@
 # UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
 # ============================================================================
 # The INSYS Preview (docs/plans/insys-preview.md): one Hetzner server with k3s and the chart, sample data only. Run by hand, in the
-# Environment "preview", which needs Ade's approval. Ade sets HCLOUD_TOKEN and PREVIEW_SSH_KEY as its secrets, and PREVIEW_DOMAIN,
+# Environment "preview", which needs Ade's approval. Ade sets HCLOUD_TOKEN, PREVIEW_SSH_KEY and PREVIEW_CONSOLE_PULL_TOKEN (a classic PAT with
+# read:packages only, for the console's private image) as its secrets, and PREVIEW_DOMAIN,
 # PREVIEW_AGE_RECIPIENT and, optionally, PREVIEW_ACME_EMAIL as its variables. The only artifact is the file encrypted to Ade's age key, as
 # this repository is public; nothing secret is printed, and the inputs (also public) never carry one.
 name: preview
@@ -61,6 +62,7 @@ jobs:
     env:
       HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
       PREVIEW_SSH_KEY: ${{ secrets.PREVIEW_SSH_KEY }}
+      PREVIEW_CONSOLE_PULL_TOKEN: ${{ secrets.PREVIEW_CONSOLE_PULL_TOKEN }}
       PREVIEW_DOMAIN: ${{ vars.PREVIEW_DOMAIN }}
       PREVIEW_AGE_RECIPIENT: ${{ vars.PREVIEW_AGE_RECIPIENT }}
       PREVIEW_ACME_EMAIL: ${{ vars.PREVIEW_ACME_EMAIL }}

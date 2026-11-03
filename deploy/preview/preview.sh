@@ -119,10 +119,19 @@ server_secrets() {
       --from-literal=keycloakAdminPassword="$(r)" >/dev/null'
 }
 
+# The console's image is private: a pull secret for ghcr.io from the read-only token, handed to the cluster on stdin.
+pull_secret() {
+  : "${PREVIEW_CONSOLE_PULL_TOKEN:?the pull token for the console image, a classic PAT with read:packages only}"
+  mask "$PREVIEW_CONSOLE_PULL_TOKEN"
+  jq -nc --arg user "${PREVIEW_CONSOLE_PULL_USER:-babs76}" --arg token "$PREVIEW_CONSOLE_PULL_TOKEN" \
+    '{auths: {"ghcr.io": {auth: ("\($user):\($token)" | @base64)}}}' \
+    | on_server "kubectl create secret generic ghcr --type=kubernetes.io/dockerconfigjson --from-file=.dockerconfigjson=/dev/stdin --dry-run=client -o yaml | kubectl apply -f - >/dev/null"
+}
+
 chart() {
   tar -C deploy -cz helm/insys preview/values.yaml preview/backup.yaml openbao/openbao.sh | on_server "rm -rf /root/insys && mkdir -p /root/insys && tar -C /root/insys -xz"
   on_server "cd /root/insys && helm upgrade --install insys helm/insys -f preview/values.yaml \
-    --set ingress.host=$PREVIEW_DOMAIN,ingress.apiPath=/api/,keycloak.ingressHost=id.$PREVIEW_DOMAIN,keycloak.hostname=https://id.$PREVIEW_DOMAIN \
+    --set ingress.host=$PREVIEW_DOMAIN,ingress.apiPath=/api/,console.environmentName=preview,keycloak.ingressHost=id.$PREVIEW_DOMAIN,keycloak.hostname=https://id.$PREVIEW_DOMAIN \
     --set authentication.authority=https://id.$PREVIEW_DOMAIN/realms/insys"
   on_server "kubectl wait --for=condition=complete job -l app.kubernetes.io/name=migrate --timeout=900s && kubectl rollout status statefulset/insys-openbao --timeout=600s"
   on_server "kubectl apply -f /root/insys/preview/backup.yaml >/dev/null"
@@ -148,11 +157,27 @@ seed() {
   mask "$admin"
   on_server "pkill -f 'port-forward svc/insys-' || true; (nohup kubectl port-forward svc/insys-api 18080:8080 >/dev/null 2>&1 &); (nohup kubectl port-forward svc/insys-keycloak 18081:8080 >/dev/null 2>&1 &); sleep 3"
   ssh -i "$key" -o UserKnownHostsFile="$RUNNER_TEMP/known_hosts" -fN -L 18080:127.0.0.1:18080 -L 18081:127.0.0.1:18081 "root@$(address)"
+  clients "$admin"
   dotnet build tools/Insys.Seed -c Release -v q >/dev/null
   ACCOUNTS=$(INSYS_SEED_KEYCLOAK_ADMIN_PASSWORD="$admin" dotnet tools/Insys.Seed/bin/Release/net10.0/Insys.Seed.dll --api http://127.0.0.1:18080 \
     --keycloak-url http://127.0.0.1:18081 --keycloak-admin admin --operator-tenant "$operator_tenant" --platform-1 insys-admin --platform-2 insys-admin-2 --accounts true)
   while read -r password; do mask "$password"; done < <(jq -r '.accounts[].password' <<<"$ACCOUNTS")
   on_server "pkill -f 'port-forward svc/insys-' || true"
+}
+
+# Each app's Keycloak client gets the Preview's addresses, through the tunnel: sign-in returns to the app, and the browser may call the token endpoint.
+clients() {
+  local token id base
+  token=$(curl -sf -d grant_type=password -d client_id=admin-cli -d username=admin --data-urlencode "password=$1" \
+    http://127.0.0.1:18081/realms/master/protocol/openid-connect/token | jq -r .access_token)
+  mask "$token"
+  for client in insys-web:/ broker-portal:/broker/ member-portal:/member/ provider-portal:/provider/; do
+    base="https://$PREVIEW_DOMAIN${client#*:}"
+    id=$(curl -sf -H "Authorization: Bearer $token" "http://127.0.0.1:18081/admin/realms/insys/clients?clientId=${client%%:*}" | jq -r '.[0].id')
+    curl -sf -H "Authorization: Bearer $token" "http://127.0.0.1:18081/admin/realms/insys/clients/$id" \
+      | jq --arg base "$base" --arg origin "https://$PREVIEW_DOMAIN" '.redirectUris = [$base + "*"] | .webOrigins = [$origin] | .rootUrl = $base | .attributes["post.logout.redirect.uris"] = ($base + "*")' \
+      | curl -sf -X PUT -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary @- "http://127.0.0.1:18081/admin/realms/insys/clients/$id"
+  done
 }
 
 # Encrypted to Ade's key, the only form that leaves memory.
@@ -180,10 +205,10 @@ check_tls() {
 trap close_ssh EXIT
 case "$action" in
   provision)
-    ssh_key; infrastructure; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; cluster; images; server_secrets; chart; openbao; seed; encrypt; check_tls
+    ssh_key; infrastructure; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; cluster; images; server_secrets; pull_secret; chart; openbao; seed; encrypt; check_tls
     ;;
   upgrade)
-    ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; cluster; images; chart; check_tls
+    ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; cluster; images; pull_secret; chart; check_tls
     ;;
   open-ssh)
     trap - EXIT
@@ -193,7 +218,7 @@ case "$action" in
   reset)
     ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh
     on_server "helm uninstall insys --wait || true; kubectl delete pvc --all --wait=true; kubectl delete secret insys-secrets --ignore-not-found"
-    cluster; images; server_secrets; chart; openbao; seed; encrypt; check_tls
+    cluster; images; server_secrets; pull_secret; chart; openbao; seed; encrypt; check_tls
     ;;
   rotate-passwords)
     ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; seed; encrypt

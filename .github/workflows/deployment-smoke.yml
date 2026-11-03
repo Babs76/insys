@@ -37,6 +37,7 @@ on:
 
 permissions:
   contents: read
+  packages: read
 
 jobs:
   smoke:
@@ -54,6 +55,27 @@ jobs:
           docker build -q -f deploy/docker/api.Dockerfile -t insys-api:smoke .
           docker build -q -f deploy/docker/migrator.Dockerfile -t insys-migrator:smoke .
           kind load docker-image insys-api:smoke insys-migrator:smoke --name insys-smoke
+
+      # The console's image is private: the workflow's own token reads it (the package gives this repository read access). It's pulled by the
+      # digest the chart pins and loaded into the cluster, so the cluster needs no pull secret here; the Preview uses one.
+      - name: The console's image, by the chart's digest
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          image=$(sed -n 's/^  image: \(ghcr.io\/[^ ]*@sha256:[0-9a-f]*\).*/\1/p' deploy/helm/insys/values.yaml)
+          echo "$GHCR_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin > /dev/null
+          if ! docker pull -q "$image"; then
+            # What the registry itself says to this token: its tags (refused if the package gives this repository no access), then the pinned digest.
+            repo=${image#ghcr.io/}; repo=${repo%@*}
+            bearer=$(curl -s -u "${{ github.actor }}:$GHCR_TOKEN" "https://ghcr.io/token?scope=repository:$repo:pull" | jq -r .token)
+            echo "Tags: $(curl -s -H "Authorization: Bearer $bearer" "https://ghcr.io/v2/$repo/tags/list" | jq -c '.tags // .errors' | cut -c1-600)"
+            echo "Pinned digest: HTTP $(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $bearer" \
+              -H 'Accept: application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json' \
+              "https://ghcr.io/v2/$repo/manifests/${image#*@}")"
+            exit 1
+          fi
+          docker tag "$image" insys-console:smoke
+          kind load docker-image insys-console:smoke --name insys-smoke
 
       - name: Deploy and smoke test
         run: deploy/smoke/run.sh

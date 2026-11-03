@@ -123,6 +123,7 @@ That's 51 accounts, with `LINECFG01/02` for `LINE_CONFIGURATION_MANAGER` (role t
 ## Built so far (3 November 2026)
 - **Chart:** OpenBao and Keycloak durable (`devMode: false`), proven by the smoke test restarting both; Ingress annotations, the API's path, and a sign-in Ingress for Keycloak (`/realms/` and `/resources/` only); the operator bootstrap as a migration job option.
 - **`preview.yml` and `deploy/preview/`:** every action written (`preview.sh`), linted with actionlint and shellcheck. **Not yet run:** it needs Ade's secrets, and its first run is the proof. Expect fixes there.
+- **The console in the chart:** the front end's image pinned by digest, each app's `config.json` from a ConfigMap, only `/api/` to the API, on for the Preview with the `ghcr` pull secret made from `PREVIEW_CONSOLE_PULL_TOKEN`; the four apps' Keycloak clients get the Preview's addresses. The smoke test pulls it with the workflow's own token.
 - **The labels' read route** (`GET /api/v1/platform/environment`), **the tenant's 47 accounts** in the seed, and **Keycloak sign-in for the seed**.
 - **The quick-start:** `docs/preview/quick-start.md`.
 - **Backups:** the nightly job (`deploy/preview/backup.yaml`) and the restore steps (`docs/preview/restore.md`), **not yet rehearsed**.

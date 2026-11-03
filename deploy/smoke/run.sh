@@ -27,7 +27,8 @@
 # deploys the chart with every dependency in the cluster and proves through the deployed API that migrations ran and the API uses non-owner
 # roles, sign-in goes through Keycloak, a protected field is written and read back through OpenBao, and a document is stored in and read
 # from the object store, and that OpenBao and Keycloak keep their keys and accounts across a restart (register row 1), OpenBao unsealed with
-# throwaway keys. It says nothing about a particular provider's services, load or failover.
+# throwaway keys, and that the console serves each app with its config, deep links and headers. It says nothing about a particular provider's
+# services, load or failover.
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 tenant=0199f000-0000-7000-8000-00000000abcd
@@ -39,6 +40,7 @@ diagnose() {
   kubectl describe pod -l app.kubernetes.io/name=api | tail -25 || true
   kubectl logs deploy/insys-api --tail=60 || true
   kubectl logs job/insys-migrate-1 --tail=30 || true
+  kubectl describe pod -l app.kubernetes.io/name=console | sed -n '/^Events:/,$p' | tail -15 || true
 }
 trap 'diagnose' ERR
 
@@ -116,6 +118,16 @@ query "UPDATE party.party_identifier SET number_last4 = NULL WHERE party_id = '$
 kubectl rollout restart deploy/insys-api
 kubectl rollout status deploy/insys-api --timeout=300s
 call GET "/party/parties/$party" | jq -r '.identifiers[0].maskedNumber' | grep -q 9087 || fail "after OpenBao's restart, the number didn't decrypt"
+
+echo "== The console: each app with its config, deep links to the apps, the headers"
+kubectl rollout status deploy/insys-console --timeout=300s
+console=http://insys-console:8080
+[ "$(in_cluster "curl -sf $console/config.json | jq -r .keycloak.clientId")" = insys-web ] || fail "the back office has no config.json"
+[ "$(in_cluster "curl -sf $console/broker/config.json | jq -r .keycloak.clientId")" = broker-portal ] || fail "the broker portal has no config.json"
+in_cluster "curl -sf $console/health/schemes" | grep -qi '<html' || fail "a deep link under /health/ didn't reach the app"
+in_cluster "curl -sf $console/member/policies" | grep -qi '<html' || fail "a portal's deep link didn't reach its app"
+in_cluster "curl -sI $console/" | tr -d '\r' | grep -i '^content-security-policy:' | grep -q "connect-src 'self' https://insys.smoke.test https://id.smoke.test" || fail "the CSP doesn't name the API's and Keycloak's origins"
+[ "$(in_cluster "curl -s -o /dev/null -w '%{http_code}' $console/assets/none.js")" = 404 ] || fail "a missing asset isn't a 404"
 
 echo "== A document in the object store"
 content=$(printf 'smoke document' | base64)
