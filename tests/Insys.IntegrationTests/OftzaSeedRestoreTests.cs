@@ -85,7 +85,7 @@ public sealed class OftzaSeedRestoreTests(DatabaseFixture fixture) : IClassFixtu
         calls.ShouldContain($"POST {revoked}/assign-role", "the revoked role is assigned again");
         calls.ShouldNotContain($"POST {disabled}/assign-role");
         (await db.ScalarAsOwner<string>("SELECT status FROM tenant.tenant WHERE id = @t", t)).ShouldBe("ACTIVE");
-        (await db.ScalarAsOwner<long>("SELECT count(*) FROM party.party WHERE tenant_id = @t", t)).ShouldBe(25L);
+        (await db.ScalarAsOwner<long>("SELECT count(*) FROM party.party WHERE tenant_id = @t", t)).ShouldBe(30L);
         (await db.ScalarAsOwner<long>("SELECT count(*) FROM iam.user_account WHERE tenant_id = @t AND username = 'oftza-seed-loader-1-2' AND status = 'DISABLED'", t)).ShouldBe(1L);
         (await db.ScalarAsOwner<long>("SELECT count(*) FROM iam.user_account WHERE tenant_id = @t AND username LIKE 'oftza-seed-loader-%' AND status <> 'DISABLED'", t)).ShouldBe(0L);
         (await db.ScalarAsOwner<long>("SELECT count(*) FROM iam.user_role_assignment WHERE tenant_id = @t AND role_code = 'OFTZA_SEED_LOADER' AND status <> 'REVOKED'", t)).ShouldBe(0L);

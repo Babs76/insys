@@ -106,5 +106,5 @@ public sealed class Persona(HttpClient http, Action<string>? afterCall = null)
     }
 }
 
-/// <summary>What the seed runs with: who it acts as, and how to wait for events to be delivered.</summary>
-public sealed record SeedContext(Persona PlatformMaker, Persona PlatformChecker, Func<Guid, string, Persona> Tenant, Func<Task> Settle);
+/// <summary>What the seed runs with: who it acts as, and how to wait for events to be delivered, and, where it can be asked, how to run the daily jobs now (elsewhere their timers do).</summary>
+public sealed record SeedContext(Persona PlatformMaker, Persona PlatformChecker, Func<Guid, string, Persona> Tenant, Func<Task> Settle, Func<Task>? Jobs = null);

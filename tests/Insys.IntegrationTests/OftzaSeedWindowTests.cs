@@ -72,6 +72,6 @@ public sealed class OftzaSeedWindowTests(DatabaseFixture fixture) : IClassFixtur
 
         var t = ("t", (object)seed.TenantId);
         (await db.ScalarAsOwner<string>("SELECT status FROM tenant.tenant WHERE id = @t", t)).ShouldBe("ACTIVE");
-        (await db.ScalarAsOwner<long>("SELECT count(*) FROM party.party WHERE tenant_id = @t", t)).ShouldBe(25L, "no party twice");
+        (await db.ScalarAsOwner<long>("SELECT count(*) FROM party.party WHERE tenant_id = @t", t)).ShouldBe(30L, "no party twice");
     }
 }

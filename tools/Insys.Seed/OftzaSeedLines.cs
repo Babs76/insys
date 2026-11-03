@@ -59,6 +59,7 @@ public sealed partial class OftzaSeed
 
         await Static("documents/static/document-categories", "KYC_EVIDENCE", new { categoryCode = "KYC_EVIDENCE", label = "Due diligence evidence", classification = "PERSONAL", domain = "ALL", allowedRoles = Array.Empty<string>() });
         await LifeConfiguration();
+        await GeneralConfiguration();
         await Providers();
         await Brokers();
         await HealthConfiguration();
@@ -90,6 +91,22 @@ public sealed partial class OftzaSeed
         {
             await Static("life/static/nomination-rules", $"NOM-{product}", new { productCode = product, maxBeneficiaries = 5, minShare = 10m, allowedRelationships = new[] { "SPOUSE", "CHILD" } });
             await Static("life/static/lapse-and-reinstatement-rules", $"LAPSE-{product}", new { productCode = product, missedPaymentsToLapse = 2, reinstatementWindow = "P180D", evidenceRequired = "DECLARATION" });
+        }
+    }
+
+    private async Task GeneralConfiguration()
+    {
+        await Static("general/static/risk-object-types-and-attribute-schemas", "VEHICLE", new { objectType = "VEHICLE", attributes = new[] { "registration:String(10):Y", "vehicle_group:String(5):Y", "year:Integer:Y" } });
+        await Static("general/static/risk-object-types-and-attribute-schemas", "BUILDING", new { objectType = "BUILDING", attributes = new[] { "construction:String(10):Y", "year:Integer:Y" } });
+        await Static("general/static/policy-numbering-schemes", "GP", new { productLine = "GENERAL", prefix = "GP", sequenceLength = 9 });
+        await Static("general/static/cancellation-reasons-and-refund-rules", "INS_REQUEST", new { reasonCode = "INS_REQUEST", initiator = "INSURED", refundBasis = "PRO_RATA", fee = 0m });
+        await Static("billing/static/adjustment-and-reversal-reason-codes", "INS_REQUEST", new { label = "Cancelled at the insured's request", requiresApproval = false, accountingImpact = "CREDIT" });
+        await Static("general/static/endorsement-types", "CHANGE_SI", new { premiumMethod = "PRO_RATA", documents = new[] { "ENDORSEMENT" }, requiresUnderwriting = false });
+        await Static("documents/static/document-templates", "OFT-TPL-RENEWAL", new { templateCode = "OFT-TPL-RENEWAL", language = "en", documentType = "RENEWAL_NOTICE", bodyRef = "sample", mergeFields = Array.Empty<string>() });
+        foreach (var product in new[] { "OFT-MOTOR", "OFT-HOME" })
+        {
+            await Static("general/static/quote-validity-periods", $"QV-{product}", new { productCode = product, daysValid = 30, reRateOnExpiry = false });
+            await Static("general/static/renewal-rules", $"RR-{product}", new { productCode = product, noticeDays = 31, autoRenew = false, reRating = false, invitationTemplate = "OFT-TPL-RENEWAL", acceptance = "ON_ACCEPTANCE" });
         }
     }
 
@@ -222,9 +239,212 @@ public sealed partial class OftzaSeed
             await Cleared(await Person(index));
         }
 
-        await LifePolicy("OFT-FUNERAL", "FUNERAL", 30_000m, 3);
-        await LifePolicy("OFT-TERM", "DEATH", 1_000_000m, 4);
-        await Membership(5);
+        await LifeBook();
+        await GeneralBook();
+        await HealthBook();
+        if (context.Jobs is not null)
+        {
+            await context.Jobs();
+        }
+    }
+
+    /// <summary>About 12 Life policies: in force, some older than today allows by the normal route, so migrated (B-013), and in grace and lapsed once the hourly jobs have aged what is unpaid. INSYS has no route that cancels a Life policy.</summary>
+    private async Task LifeBook()
+    {
+        foreach (var holder in new[] { 3, 5, 7 })
+        {
+            await LifePolicy("OFT-FUNERAL", "FUNERAL", 30_000m, holder);
+        }
+
+        foreach (var holder in new[] { 4, 6, 8 })
+        {
+            await LifePolicy("OFT-TERM", "DEATH", 1_000_000m, holder);
+        }
+
+        await MigratedLife(9);
+        await MigratedLife(10);
+
+        // Backdated, so past instalments are unpaid: one in grace, two or more past it. The overdue invoice on the account is what makes Billing report its arrears; a migrated premium alone isn't counted (handover, register).
+        foreach (var (holder, days) in new[] { (11, 10), (12, 10), (13, 65), (14, 65) })
+        {
+            await LifePolicy("OFT-TERM", "DEATH", 500_000m, holder, days);
+        }
+    }
+
+    /// <summary>A policy that began last year.</summary>
+    private async Task MigratedLife(int holder)
+    {
+        var underwriter = context.Tenant(TenantId, "oftza-life-underwriter");
+        var party = await Person(holder);
+        if ((await underwriter.Send(HttpMethod.Get, $"/api/v1/life/policies?policyholderPartyId={party}")).GetProperty("items").GetArrayLength() > 0)
+        {
+            return;
+        }
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var reference = $"OFT-LM-{holder}";
+        var born = DateOnly.Parse(SampleParties.People[holder].BirthDate, System.Globalization.CultureInfo.InvariantCulture);
+        await underwriter.Send(HttpMethod.Post, "/api/v1/life/migration/policies", new
+        {
+            batchCode = reference, currency = "ZAR", controlCount = 1, controlPremium = 150m,
+            rows = new[]
+            {
+                new
+                {
+                    sourceReference = reference, productCode = "OFT-TERM", productVersion = 1, policyholderPartyId = party, inceptionDate = today.AddYears(-1), termEndDate = today.AddYears(9), currency = "ZAR", billingFrequency = "MONTHLY", collectionMethod = "DEBIT_ORDER",
+                    lives = new[] { new { partyId = party, lifeRole = "MAIN", entryAge = today.Year - born.Year, benefits = new[] { new { benefitCode = "DEATH", sumAssured = 500_000m, premium = 150m } } } },
+                },
+            },
+        }, key: $"{TenantCode}:{reference}");
+        await context.Settle();
+    }
+
+    private async Task Unpaid(string domain, string reference, Guid policy, decimal amount, int[] daysAgo)
+    {
+        if (daysAgo.Length == 0)
+        {
+            return;
+        }
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        await context.Tenant(TenantId, "oftza-finance-officer").Send(HttpMethod.Post, "/api/v1/billing/migration/outstanding-premiums", new
+        {
+            batchCode = $"{reference}-I", currency = "ZAR", controlCount = daysAgo.Length, controlAmount = amount * daysAgo.Length,
+            rows = daysAgo.Select(d => new { sourceReference = $"{reference}-I{d}", sourceDomain = domain, policyRef = policy, amount, dueDate = today.AddDays(-d) }).ToArray(),
+        }, key: $"{TenantCode}:{reference}-I");
+        await context.Settle();
+    }
+
+    /// <summary>About 12 General policies, motor and household: in force by the normal route and from last year, cancelled, and two near the end of their period, awaiting renewal.</summary>
+    private async Task GeneralBook()
+    {
+        foreach (var holder in new[] { 0, 2, 4, 6, 8, 10 })
+        {
+            await GeneralPolicy("OFT-MOTOR", "VEHICLE", "vehicle_group", "G3", "OWN_DAMAGE", holder, cancel: holder is 8 or 10);
+        }
+
+        foreach (var holder in new[] { 1, 3, 5, 7 })
+        {
+            await GeneralPolicy("OFT-HOME", "BUILDING", "construction", "BRICK", "BUILDINGS", holder, cancel: false);
+        }
+
+        await MigratedGeneral(9);
+        await MigratedGeneral(11);
+    }
+
+    /// <summary>Quote to policy, as in GeneralProcessTests: a risk object, a quote rated and accepted, a proposal accepted, the notice acknowledged, the policy issued.</summary>
+    private async Task GeneralPolicy(string product, string objectType, string attribute, string value, string coverage, int holder, bool cancel)
+    {
+        var underwriter = Clerk;
+        var pricer = context.Tenant(TenantId, "oftza-product-manager");
+        var party = await Person(holder);
+        var existing = (await underwriter.Send(HttpMethod.Get, $"/api/v1/general/policies?policyholderPartyId={party}")).GetProperty("items");
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        Guid policy;
+        if (existing.GetArrayLength() > 0)
+        {
+            policy = existing[0].GetProperty("id").GetGuid();
+        }
+        else
+        {
+            var attributes = new Dictionary<string, object> { [attribute] = value, ["year"] = today.Year - 2 };
+            if (objectType == "VEHICLE")
+            {
+                attributes["registration"] = $"SMP{holder:000}GP";
+            }
+
+            var risk = (await underwriter.Send(HttpMethod.Post, "/api/v1/general/risk-objects", new { objectType, attributes }, key: $"{TenantCode}:risk:{holder}")).GetProperty("id").GetGuid();
+            var quote = (await underwriter.Send(HttpMethod.Post, "/api/v1/general/quotes", new
+            {
+                productCode = product, proposerPartyId = party, currency = "ZAR", periodStart = today, periodEnd = today.AddYears(1).AddDays(-1),
+                risks = new[] { new { riskObjectId = risk, sumInsured = 100_000m, coverages = new object[] { new { coverageCode = coverage, sumInsured = 100_000m } } } },
+            }, key: $"{TenantCode}:quote:{holder}")).GetProperty("id").GetGuid();
+            var url = $"/api/v1/general/quotes/{quote}";
+            if ((await underwriter.Send(HttpMethod.Get, url)).GetProperty("premium").ValueKind == JsonValueKind.Null)
+            {
+                await pricer.Send(HttpMethod.Post, "/api/v1/rating/calculations", new
+                {
+                    requestRef = $"G-{quote:N}"[..20], sourceDomain = "GENERAL", subjectType = "GENERAL_QUOTE", subjectId = quote, productCode = product, productVersion = 1, currency = "ZAR", frequency = "ANNUAL",
+                    values = new Dictionary<string, object> { ["sum_insured"] = 100_000m, [attribute] = value },
+                });
+                await context.Settle();
+            }
+
+            await Acknowledge(party, "QUOTE", "GENERAL_QUOTE", quote);
+            await Step(underwriter, url, "Rated", "issue");
+            await Step(underwriter, url, "Issued", "accept");
+            var proposal = (await underwriter.Send(HttpMethod.Post, "/api/v1/general/proposals", new { quoteId = quote, declarations = new { claims_last_3_years = 0 } }, key: $"{TenantCode}:proposal:{quote}")).GetProperty("id").GetGuid();
+            if ((await underwriter.Send(HttpMethod.Get, $"/api/v1/general/proposals/{proposal}")).GetProperty("status").GetString() != "Accepted")
+            {
+                await underwriter.Send(HttpMethod.Post, $"/api/v1/general/proposals/{proposal}/accept", idempotent: false);
+            }
+
+            await Acknowledge(party, "ISSUE", "GENERAL_QUOTE", quote);
+            policy = (await underwriter.Send(HttpMethod.Post, "/api/v1/general/policies", new { quoteId = quote, billingFrequency = "MONTHLY", collectionMethod = "DEBIT_ORDER" }, key: $"{TenantCode}:gpolicy:{quote}")).GetProperty("id").GetGuid();
+            await context.Settle();
+        }
+
+        if (cancel && (await underwriter.Send(HttpMethod.Get, $"/api/v1/general/policies/{policy}")).GetProperty("status").GetString() != "Cancelled")
+        {
+            await underwriter.Send(HttpMethod.Post, $"/api/v1/general/policies/{policy}/cancel", new { reasonCode = "INS_REQUEST", effectiveDate = today }, key: $"{TenantCode}:cancel:{policy}");
+            await context.Settle();
+        }
+    }
+
+    /// <summary>A quote's step, unless an earlier run took it.</summary>
+    private static async Task Step(Persona persona, string url, string from, string action)
+    {
+        if ((await persona.Send(HttpMethod.Get, url)).GetProperty("status").GetString() == from)
+        {
+            await persona.Send(HttpMethod.Post, $"{url}/{action}", idempotent: false);
+        }
+    }
+
+    /// <summary>A policy from last year ending within the renewal notice, so the hourly job takes it to its renewal.</summary>
+    private async Task MigratedGeneral(int holder)
+    {
+        var party = await Person(holder);
+        if ((await Clerk.Send(HttpMethod.Get, $"/api/v1/general/policies?policyholderPartyId={party}")).GetProperty("items").GetArrayLength() > 0)
+        {
+            return;
+        }
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var reference = $"OFT-GM-{holder}";
+        await Clerk.Send(HttpMethod.Post, "/api/v1/general/migration/policies", new
+        {
+            batchCode = reference, currency = "ZAR", controlCount = 1, controlPremium = 1_200m,
+            rows = new[]
+            {
+                new
+                {
+                    sourceReference = reference, productCode = "OFT-MOTOR", productVersion = 1, policyholderPartyId = party, periodStart = today.AddYears(-1).AddDays(20), periodEnd = today.AddDays(19), currency = "ZAR", annualPremium = 1_200m, billingFrequency = "MONTHLY", collectionMethod = "DEBIT_ORDER",
+                    risks = new[] { new { objectType = "VEHICLE", attributes = new { registration = $"SMP{holder:000}GP", vehicle_group = "G3", year = today.Year - 2 }, valuation = 180_000m, valuationBasis = "RETAIL", sumInsured = 180_000m, coverages = new[] { new { coverageCode = "OWN_DAMAGE", sumInsured = 180_000m } } } },
+                },
+            },
+        }, key: $"{TenantCode}:{reference}");
+        await context.Settle();
+    }
+
+    /// <summary>About 12 members: active, some suspended and some terminated by their routes.</summary>
+    private async Task HealthBook()
+    {
+        foreach (var principal in Enumerable.Range(5, 8))
+        {
+            await Membership(principal);
+        }
+
+        foreach (var (principal, action) in new[] { (13, "suspend"), (14, "suspend"), (15, "terminate"), (16, "terminate") })
+        {
+            var id = await Membership(principal);
+            var url = $"/api/v1/health/memberships/{id}";
+            var administrator = context.Tenant(TenantId, "oftza-health-membership-administrato");
+            if ((await administrator.Send(HttpMethod.Get, url)).GetProperty("status").GetString() == "Active")
+            {
+                await administrator.Send(HttpMethod.Post, $"{url}/{action}", new { effectiveDate = DateOnly.FromDateTime(DateTime.UtcNow), reason = "Sample" }, key: $"{TenantCode}:{action}:{id}");
+                await context.Settle();
+            }
+        }
     }
 
     /// <summary>A party's due diligence, done as a clerk does it: each outstanding check run, or recorded against a sample document, until nothing is left.</summary>
@@ -264,7 +484,7 @@ public sealed partial class OftzaSeed
     }
 
     /// <summary>Proposal to policy, as in LifeProcessTests: rated, found eligible, submitted, accepted on standard terms within the underwriter's authority, issued.</summary>
-    private async Task LifePolicy(string product, string benefit, decimal sumAssured, int holder)
+    private async Task LifePolicy(string product, string benefit, decimal sumAssured, int holder, int backdatedDays = 0)
     {
         var underwriter = context.Tenant(TenantId, "oftza-life-underwriter");
         // No underwriter template holds the calculation or the rule evaluation (handover, register): only the product manager does, and the seed adds no grant.
@@ -275,14 +495,14 @@ public sealed partial class OftzaSeed
             return;
         }
 
-        var spouse = await Person(holder + 10);
+        var spouse = await Person((holder + 10) % SampleParties.People.Count);
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var born = DateOnly.Parse(SampleParties.People[holder].BirthDate, System.Globalization.CultureInfo.InvariantCulture);
-        var ageNext = today.Year - born.Year + 1;
+        var ageNext = today.AddDays(-backdatedDays).Year - born.Year + 1;
         var existing = (await underwriter.Send(HttpMethod.Get, $"/api/v1/life/proposals?applicantPartyId={applicant}")).GetProperty("items");
         var proposal = existing.GetArrayLength() > 0 ? existing[0].GetProperty("id").GetGuid() : (await underwriter.Send(HttpMethod.Post, "/api/v1/life/proposals", new
         {
-            productCode = product, applicantPartyId = applicant, channelCode = "BRANCH", currency = "ZAR", inceptionDate = today, frequency = "MONTHLY", collectionMethod = "DEBIT_ORDER",
+            productCode = product, applicantPartyId = applicant, channelCode = "BRANCH", currency = "ZAR", inceptionDate = today.AddDays(-backdatedDays), frequency = "MONTHLY", collectionMethod = "DEBIT_ORDER",
             lives = new[] { new { partyId = applicant, lifeRole = "MAIN", smokerStatus = "NS" } },
             covers = new[] { new { insuredPartyId = applicant, benefitCode = benefit, sumAssured, termYears = 20 } },
             disclosures = new[] { new { insuredPartyId = applicant, questionCode = "SMOKE_12M", questionVersion = 1, answer = JsonSerializer.SerializeToElement(new { value = false }) } },
@@ -314,29 +534,35 @@ public sealed partial class OftzaSeed
         }
 
         await Acknowledge(applicant, "ISSUE", "LIFE_PROPOSAL", proposal);
-        await underwriter.Send(HttpMethod.Post, "/api/v1/life/policies", new { proposalId = proposal }, key: $"{TenantCode}:policy:{proposal}");
+        var policy = await underwriter.Send(HttpMethod.Post, "/api/v1/life/policies", new { proposalId = proposal }, key: $"{TenantCode}:policy:{proposal}");
         await context.Settle();
+        if (backdatedDays > 0)
+        {
+            await Unpaid("LIFE", $"OFT-LA-{holder}", policy.GetProperty("id").GetGuid(), 100m, [backdatedDays]);
+        }
     }
 
     /// <summary>The customer's acknowledgement of the notice shown them, recorded by staff. No underwriter template holds it (handover, register), so the integration administrator records it.</summary>
     private Task<JsonElement> Acknowledge(Guid party, string point, string? referenceType, Guid? reference) => context.Tenant(TenantId, "oftza-integration-administrator").Send(HttpMethod.Post, "/api/v1/integration/disclosure-acknowledgements",
         new { partyId = party, displayPoint = point, noticeType = "POLICY_TERMS", jurisdiction = "ZA", language = "en", businessRefType = referenceType, businessRefId = reference }, key: $"{TenantCode}:ack:{point}:{party}:{reference}");
 
-    private async Task Membership(int principal)
+    private async Task<Guid> Membership(int principal)
     {
         var administrator = context.Tenant(TenantId, "oftza-health-membership-administrato");
         var party = await Person(principal);
-        if ((await administrator.Send(HttpMethod.Get, $"/api/v1/health/memberships?principalPartyId={party}")).GetProperty("items").GetArrayLength() > 0)
+        var existing = (await administrator.Send(HttpMethod.Get, $"/api/v1/health/memberships?principalPartyId={party}")).GetProperty("items");
+        if (existing.GetArrayLength() > 0)
         {
-            return;
+            return existing[0].GetProperty("id").GetGuid();
         }
 
         var scheme = (await administrator.Send(HttpMethod.Get, $"/api/v1/health/schemes?sponsorCode={SponsorCode}")).GetProperty("items")[0].GetProperty("id").GetGuid();
         await Acknowledge(party, "ISSUE", null, null);
-        await administrator.Send(HttpMethod.Post, "/api/v1/health/memberships", new
+        var created = await administrator.Send(HttpMethod.Post, "/api/v1/health/memberships", new
         {
             principalPartyId = party, schemeId = scheme, memberCategory = "ALL_STAFF", planCode = Scheme, optionCode = principal % 2 == 0 ? "ESS" : "PLUS", startDate = DateOnly.FromDateTime(DateTime.UtcNow), currency = "ZAR", collectionMethod = "DEBIT_ORDER", facts = new { employment_type = "PERMANENT" },
         }, key: $"{TenantCode}:membership:{principal}");
         await context.Settle();
+        return created.GetProperty("id").GetGuid();
     }
 }
