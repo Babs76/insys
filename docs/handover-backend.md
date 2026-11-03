@@ -5,10 +5,34 @@
 ## First: the INSYS Preview milestone
 **Decided by Ade, 2 November 2026; it comes before everything else.** A hosted environment for OpenFactor's functional team, with all built functionality, sample data only, and every external integration stubbed and clearly labelled. Not production.
 
-- **Order:** finish Workstream F's remaining slices, then stand up the Preview.
+- **Order:** Workstream F is done; the Preview is built but not yet run (`docs/plans/insys-preview.md`, Built so far). Its first run needs Ade's secrets and the console's image access (below).
 - **Wave 7 is paused after 7.1** until the Preview is live. Batch 7.2 doesn't start before then.
 - **The plan is [`docs/plans/insys-preview.md`](plans/insys-preview.md): one Hetzner server, k3s, the ADR-027 chart. Signed by Ade, 2 November, with decisions recorded at its top.** It starts after Workstream F. The restore rehearsal comes before the team gets access.
 - **Never handle Ade's secrets.** The Hetzner API token goes in GitHub, set by Ade, never in a file, chat or session. Generated passwords, and OpenBao's unseal keys and root token, are only ever written encrypted to Ade's key, as this repository is public; the unseal keys and root token are never stored on the server or in GitHub. Nothing sensitive goes in logs or artifacts.
+
+### Running the Preview: the five open points in Ade's deployment guide
+1. **The workflow, its actions and the confirmation words.** The workflow is `preview` (`.github/workflows/preview.yml`): Actions, then preview, then Run workflow. It runs in the Environment `preview`, so each run waits for Ade's approval. Its inputs:
+   - `action`: `provision`, `upgrade`, `open-ssh`, `reset`, `rotate-passwords` or `destroy`.
+   - `confirm`: for `reset`, `rotate-passwords` and `destroy` only, the action's own name typed exactly: `reset`, `rotate-passwords`, `destroy`. Anything else stops the run before it starts.
+   - `ssh_from`: for `open-ssh`, the address to allow, Ade's own IP.
+   - `acme`: `staging` (the default) until a run has shown a staging certificate on both hosts, then `production`.
+   The first run is `provision` with `acme: staging`. It prints the server's address; Ade then creates the two A records (`insys.project-demo.app` and `id.insys.project-demo.app`), and the run waits for them before checking certificates.
+2. **Unsealing OpenBao: the key, the user and the command.** SSH is as `root`, with the private key whose text is the `PREVIEW_SSH_KEY` secret: the key pair Ade made for it, kept on his machine. Then:
+   1. Run the workflow with `action: open-ssh` and `ssh_from` set to his IP. SSH stays open from that address until the next run closes it.
+   2. On his machine, read the unseal key from the run's encrypted file: `age -d -i <his age key file> preview-secrets.age | jq -r .openbao.unsealKey`.
+   3. `ssh -i <that private key> root@<the server's address>`, then on the server:
+      ```bash
+      read -rs key && printf '%s' "$key" | /root/insys/openbao/openbao.sh unseal insys && unset key && kubectl rollout restart deploy/insys-api
+      ```
+      `read -rs` takes the pasted key without showing it, so it isn't on a command line, in the shell's history or in a file. The script prints nothing on success; `/root/insys/openbao/openbao.sh sealed insys` then prints `false`.
+   4. Run any action (`upgrade` changes nothing else) to close SSH again.
+3. **What `destroy` removes.** The server and its firewall. **It keeps the reserved IPv4 address** (made with auto-delete off), so the DNS records stay right for a later `provision`; delete it in Hetzner's console if it's no longer wanted. **It does delete the backups:** Hetzner's backups belong to the server and go with it, and the nightly dumps are on the server's own disk. Take a snapshot in Hetzner's console first if anything must be kept. (Hetzner's documentation says backups go with the server; check the console before relying on it.)
+4. **The portal accounts' TOTP secrets: not set by the run.** `BROKER01` and `PROVIDER01` need a second factor. Setting a TOTP secret isn't built: I found no call in Keycloak's admin API that creates one, and didn't try the alternative. So the first person to sign in to each is asked to set it up, scans the code with an authenticator, and shares that setup (the code or the authenticator export) with the others privately. To build later: the realm's partial import, which can create a credential.
+5. **The console's pull token.** `PREVIEW_CONSOLE_PULL_TOKEN` is a secret in the Environment `preview`: a GitHub classic personal access token with the `read:packages` scope only, from an account that can read `ghcr.io/babs76/insys-console-web`. The run turns it into the cluster's `ghcr` pull secret, on stdin, never on a command line or in a value. The username defaults to `babs76`; set the variable `PREVIEW_CONSOLE_PULL_USER` if the token belongs to another account. The smoke workflow doesn't use it: it pulls with its own token, which needs the package to give `Babs76/insys` read access (package settings, Manage Actions access).
+
+### Decisions Ade asked for (3 November)
+- **Proposals for sign-off, not built:** `docs/plans/role-template-proposals.md`. A: underwriters rate, evaluate the rules and record the acknowledgement themselves (six single functions). B: a new `LINE_CONFIGURATION_MANAGER` template for Life, General and Health configuration under maker-checker. Build each on sign-off, about half a day each (Est).
+- **Cancelling a Life policy:** in the register (row 32), planned after the Preview.
 
 ## Go-live register
 
@@ -50,6 +74,7 @@ Everything found between INSYS and a first live customer, at `91cb494` plus the 
 | 22 | OQ-052: actuary on step order, cap rule, PERCENT parameters, with actuary-supplied test cases. Life cash values stay null until the basis is set | 1–3 (Est) for configuration | An actuary | **Yes** for any rated product |
 | 23 | Customer set-up: tenant configuration, approval roles, `TENANT_ADMIN` permission list, data migration with reconciliation against the source system. Import is built (B-013); open Health claims are resubmitted | Per customer; not sized | The customer's data | **Yes**; not in the total above |
 | 31 | Revoking an invitation (group A, Ade, 2 November). An administrator can't stop an invitation sent to the wrong person, or to someone who leaves before signing in: `Invited` has no way out but first sign-in, `disable` and `lock` are refused (`UserAccountTests.InvitedUser_CannotBeLockedOrDisabled_IsInvalidStateTransition`), and first sign-in activates the user. Needed: an administrator revokes or disables an Invited user, audited, with the Keycloak user disabled, and a test that the revoked invitation can't be used. Adds `Invited-DisableUser->Disabled` or its own trigger to the domain model's lifecycle | 1–2 (Est) | Nothing | **Yes** |
+| 32 | Cancelling a Life policy (Ade, 3 November). The SRS names no Life cancellation and the domain model's Life lifecycle has no cancelled state, but the specification's disclosures include a cooling-off notice ("You may cancel this policy within the cooling-off period") and Life has termination reason codes (`life.ref_termination_reason_codes`, under Surrender and termination). Needed: cancellation in the cooling-off period with the premium refunded, and termination at the policyholder's request for a policy without cash value, each with its reason code, the schedule stopped, notices and audit, and a refund through Billing. For the business to confirm the cooling-off period and refund rules (PPR). Planned after the Preview | 3–4 (Est) | The Preview | **Yes** |
 | **Markets** | | | | |
 | 24 | Nigeria blockers: retention defaults, default time zone, age of majority. **Descoped by Ade, 2 November: deferred until a first Nigerian customer is chosen; not started.** Appeal routes are static data and stay, as they serve every market (V0126); the Nigerian route itself waits on row 25 | 2–3 (Est, from the 3–4 in the survey) | A first Nigerian customer being chosen | **If** the first customer is Nigerian |
 | 25 | Nigeria: "no premium, no cover" domain review; starter pack review sheet and partner sign-off | Unknown until reviewed | Nigerian compliance partner; compliance lead | **If** the first customer is Nigerian |
