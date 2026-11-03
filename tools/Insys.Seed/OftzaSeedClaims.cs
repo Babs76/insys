@@ -178,11 +178,19 @@ public sealed partial class OftzaSeed
         }
 
         var account = await PayeeAccount(party, $"0000{holder + 100:00000}");
-        await Handler.Send(HttpMethod.Post, $"{url}/settlement", new { payeePartyId = party, bankAccountId = account, reserveType = "INDEMNITY", decisionCode = "SETTLE", rationale = "Within the assessed amount" }, key: $"{TenantCode}:gsettle:{claim}");
-        await context.Settle();
+        if (!await Waiting(claim))
+        {
+            await Handler.Send(HttpMethod.Post, $"{url}/settlement", new { payeePartyId = party, bankAccountId = account, reserveType = "INDEMNITY", decisionCode = "SETTLE", rationale = "Within the assessed amount" }, key: $"{TenantCode}:gsettle:{claim}");
+            await context.Settle();
+        }
+
         await Approve(ClaimsManager, claim);
         await context.Settle();
     }
+
+    /// <summary>Whether a decision on the record already waits for a second person, from a run stopped after asking.</summary>
+    private async Task<bool> Waiting(Guid record) =>
+        (await ClaimsManager.Send(HttpMethod.Get, $"/api/v1/workflow/approvals?status=Requested&businessRefId={record}")).GetProperty("items").GetArrayLength() > 0;
 
     private async Task LifeClaim(int holder, string type, string stage, decimal amount)
     {
@@ -222,7 +230,7 @@ public sealed partial class OftzaSeed
         }
 
         var account = await PayeeAccount(spouse, $"0000{holder + 200:00000}");
-        if (await Status() == "InAssessment")
+        if (await Status() == "InAssessment" && !await Waiting(claim))
         {
             await Handler.Send(HttpMethod.Post, $"{url}/approval", new { payees = new[] { new { partyId = spouse, bankAccountId = account, sharePct = 100m } }, reserveType = "INDEMNITY", decisionReason = type == "DEATH" ? "PART_COVER" : "DEATH_PROVEN", rationale = "Sample: certificate verified." }, key: $"{TenantCode}:lapprove:{claim}");
             await context.Settle();
