@@ -24,6 +24,8 @@
 # UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
 # ============================================================================
 # The INSYS Preview's actions (docs/plans/insys-preview.md), run by .github/workflows/preview.yml on a GitHub runner:
+#   check             what a first provision needs (Hetzner token, server type in the location, SSH key, age recipient, pull token),
+#                     checked without creating or changing anything
 #   provision         the server, its firewall and address, k3s, the images, the chart, OpenBao, the seed and the accounts
 #   upgrade           the images and the chart at this ref; data and passwords stay
 #   open-ssh <ip>     SSH from that address, until the next run closes it (for Ade to unseal OpenBao)
@@ -206,6 +208,77 @@ check_tls() {
     case "$issuer" in *"Let's Encrypt"*|*"(STAGING)"*) ;; *) fail "$host has no Let's Encrypt certificate yet: are its A records in place?" ;; esac
   done
 }
+
+# What a first provision needs, checked without creating or changing anything: pass or fail per item, and no secret in the output. Each item
+# returns its own status, as set -e doesn't apply inside the if that runs it.
+check() {
+  local failed=0 out
+  item() { # label, then the check; its output says what was found
+    local label=$1; shift
+    if out=$("$@" 2>&1); then echo "PASS  $label: $out"; else echo "FAIL  $label: ${out:-no detail}"; failed=1; fi
+  }
+  item "Hetzner token" check_token
+  item "$server_type in $location" check_server
+  item "PREVIEW_SSH_KEY" check_ssh_key
+  item "PREVIEW_AGE_RECIPIENT" check_age
+  item "PREVIEW_CONSOLE_PULL_TOKEN" check_pull
+  [ "$failed" = 0 ] || fail "At least one check failed: see FAIL above."
+  echo "Every check passed. Nothing was created or changed."
+}
+check_token() {
+  hcloud location list -o noheader -o columns=name >/dev/null || return 1
+  echo "the API answers to it"
+}
+check_server() {
+  local id found
+  [ -n "$location" ] && [ -n "$server_type" ] || { echo "PREVIEW_LOCATION and PREVIEW_SERVER_TYPE must both be set"; return 1; }
+  id=$(hcloud server-type describe "$server_type" -o json | jq -r .id) || { echo "no server type $server_type"; return 1; }
+  # A datacenter lists the server types it can create now (server_types.available); fsn1 has one or more datacenters.
+  found=$(hcloud datacenter list -o json | jq -r --arg l "$location" --argjson id "$id" \
+    '[.[] | select(.location.name == $l)] | if length == 0 then "no-location" elif any(.[]; (.server_types.available // []) | index($id)) then "yes" else "no" end') || return 1
+  case "$found" in
+    yes) echo "available now" ;;
+    no) echo "not available in $location now"; return 1 ;;
+    *) echo "Hetzner has no location $location"; return 1 ;;
+  esac
+}
+check_ssh_key() {
+  local file fingerprint
+  [ -n "${PREVIEW_SSH_KEY:-}" ] || { echo "not set"; return 1; }
+  file=$(mktemp "$RUNNER_TEMP/check-key.XXXXXX")
+  printf '%s\n' "$PREVIEW_SSH_KEY" > "$file"
+  # The public half's fingerprint and type only: public, and what Ade can match against the key on his machine.
+  fingerprint=$(ssh-keygen -y -P '' -f "$file" 2>/dev/null | ssh-keygen -l -f - 2>/dev/null)
+  rm -f "$file"
+  [ -n "$fingerprint" ] || { echo "doesn't parse as an unencrypted private key"; return 1; }
+  echo "a private key; its public half is $(awk '{print $NF, $2}' <<<"$fingerprint")"
+}
+check_age() {
+  [ -n "${PREVIEW_AGE_RECIPIENT:-}" ] || { echo "not set"; return 1; }
+  age -r "$PREVIEW_AGE_RECIPIENT" -o /dev/null </dev/null 2>/dev/null || { echo "age refuses it as a recipient"; return 1; }
+  echo "age encrypts to it"
+}
+check_pull() {
+  local image repo bearer code
+  [ -n "${PREVIEW_CONSOLE_PULL_TOKEN:-}" ] || { echo "not set"; return 1; }
+  image=$(sed -n 's/^  image: \(ghcr.io\/[^ ]*@sha256:[0-9a-f]*\).*/\1/p' "$here/../helm/insys/values.yaml")
+  repo=${image#ghcr.io/}; repo=${repo%@*}
+  # The token goes to curl as a config on stdin, not on its command line.
+  bearer=$(printf 'user = "%s:%s"\n' "${PREVIEW_CONSOLE_PULL_USER:-babs76}" "$PREVIEW_CONSOLE_PULL_TOKEN" \
+    | curl -s -K - "https://ghcr.io/token?scope=repository:$repo:pull" | jq -r '.token // empty')
+  [ -n "$bearer" ] || { echo "ghcr.io gave no token for it (user ${PREVIEW_CONSOLE_PULL_USER:-babs76})"; return 1; }
+  mask "$bearer"
+  code=$(printf 'header = "Authorization: Bearer %s"\n' "$bearer" | curl -s -K - -o /dev/null -w '%{http_code}' \
+    -H 'Accept: application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json' \
+    "https://ghcr.io/v2/$repo/manifests/${image#*@}")
+  [ "$code" = 200 ] || { echo "the pinned manifest answers HTTP $code"; return 1; }
+  echo "reads the pinned manifest, $repo@${image#*@}"
+}
+
+if [ "$action" = check ]; then
+  check
+  exit 0
+fi
 
 trap close_ssh EXIT
 case "$action" in

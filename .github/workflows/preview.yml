@@ -35,7 +35,7 @@ on:
       action:
         description: What to do
         type: choice
-        options: [provision, upgrade, open-ssh, reset, rotate-passwords, destroy]
+        options: [check, provision, upgrade, open-ssh, reset, rotate-passwords, destroy]
       confirm:
         description: For reset, rotate-passwords and destroy, type the action's name
         default: ""

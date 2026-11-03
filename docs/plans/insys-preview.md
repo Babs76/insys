@@ -70,7 +70,7 @@ A manually triggered workflow, `preview.yml`, on `Babs76/insys`, in a GitHub Env
 
 **Images:** the API and migrator are built in the run and imported directly to the server. The console's image comes from the front end's pipeline.
 
-**Actions, chosen when triggering:** `provision`, `upgrade`, `open-ssh`, `reset`, `rotate-passwords`, `destroy`. `reset`, `rotate-passwords` and `destroy` need the word typed as confirmation.
+**Actions, chosen when triggering:** `check` (creates and changes nothing; PASS or FAIL for each thing a first provision needs), `provision`, `upgrade`, `open-ssh`, `reset`, `rotate-passwords`, `destroy`. `reset`, `rotate-passwords` and `destroy` need the word typed as confirmation.
 
 ## Upgrades and resets
 - **Upgrade:** pick a git ref. The run builds it, runs `helm upgrade --atomic`, runs migrations as the chart's job, and then the smoke checks. Data and passwords stay. Migrations only go forward, so a bad one means restoring a backup or resetting.
