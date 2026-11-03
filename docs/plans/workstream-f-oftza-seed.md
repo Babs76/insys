@@ -44,7 +44,7 @@ This reduces the risk and doesn't remove it. The block below is what stops anyth
 
 **Where it runs:** demo and test only. It uses the payment simulator, so the environment must allow it, and start-up refuses it elsewhere. The tool refuses to run where `ASPNETCORE_ENVIRONMENT` is `Production` unless declared non-production. Persona passwords are generated at the run and written to its own output, never to the repository.
 
-**Its test:** a CI job loads it on a fresh database and reads it back through the API. It makes CI longer, so I'd run it on main only.
+**Its test:** CI's `seed` job loads it on a fresh database and reads it back through the API, on every run, outside the integration shards.
 
 ## Size
 | Slice | Days (Est) |
@@ -64,7 +64,7 @@ Each slice merges on green by itself, so the minimal seed can reach the front en
 - **Rerunning:** a run stopped anywhere can be run again. Every create has a deterministic key, good for the API's 24 hours; past that, parties fall back to a search by identifier, then by exact name for one stopped before its identifier went on. While the tenant is onboarding, ended loaders come back by the routes an administrator uses: a revoked role is assigned again, and a disabled loader is replaced by a new user, `oftza-seed-loader-1-2`, since disabling is final (no route or transition leads back). All end disabled. The loaders now end after activation, since a scheme can only be registered on an active tenant and its contribution rule names its number; with no live loader left on an active tenant, loading is over. The seed waits out a 429 for its `Retry-After`, or backs off without one; the API's limit is unchanged.
 - **INSYS has no route that cancels a Life policy,** so Life has no cancelled status here. Grace, lapse and renewal come from the hourly jobs, so on a live environment they appear within the hour.
 - **Payments reach only the simulator.** A callback's key and secret are shown once, so each run that reports money issues its own endpoint.
-- **Next:** cases of the other families (enquiry, dispute, appeal) and notification templates beyond the case notices. The separate CI job isn't needed: the seed tests load and read back the seed on every CI run (handover).
+- **Next:** cases of the other families (enquiry, dispute, appeal) and notification templates beyond the case notices.
 
 ## Decisions, by Ade
 1. **Role templates (OQ-111):** all the signed-off templates as they stand.

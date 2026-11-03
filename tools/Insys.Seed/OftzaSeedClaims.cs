@@ -64,6 +64,20 @@ public sealed partial class OftzaSeed
         await Static("documents/static/document-categories", "REMITTANCE_ADVICE", new { categoryCode = "REMITTANCE_ADVICE", label = "Remittance advice", classification = "CONFIDENTIAL", domain = "HEALTH", allowedRoles = Array.Empty<string>() });
         await Static("documents/static/document-templates", "OFT-TPL-RA", new { templateCode = "OFT-TPL-RA", language = "en", documentType = "REMITTANCE_ADVICE", bodyRef = "sample", mergeFields = new[] { "run_code", "provider_id", "amount" } });
         await Static("health/static/remittance-advice-formats", "RA-STD", new { formatCode = "RA-STD", channel = "PORTAL", template = "OFT-TPL-RA v1" });
+        foreach (var (type, family, links, audiences, steps) in new[]
+                 {
+                     ("COMPLAINT_REVIEW", "APPEAL", new[] { "POLICY", "CLAIM" }, new[] { "CUSTOMER" }, new[] { ("REVIEW", "P10D") }),
+                     ("ENQUIRY", "ENQUIRY", new[] { "POLICY", "PARTY" }, new[] { "CUSTOMER", "BROKER" }, new[] { ("RESOLVE", "P10D") }),
+                     ("PROVIDER_DISPUTE", "DISPUTE", new[] { "CLAIM" }, new[] { "PROVIDER" }, new[] { ("RESOLVE", "P30D") }),
+                 })
+        {
+            await Static("workflow/static/case-types", type, new { caseTypeCode = type, family, processCode = "COMPLAINT", linkTypes = links, requiresCategory = false, appealRoute = "PPR_NFO", portalAudiences = audiences, ombudSchemeCodes = Array.Empty<string>() });
+            foreach (var (step, duration) in steps)
+            {
+                await Static("workflow/static/case-timelines", $"{type}-{step}", new { caseTypeCode = type, step, duration, basis = "CALENDAR", extensionAllowed = false });
+            }
+        }
+
         await Static("workflow/static/case-categories", "CLAIM_DISPUTE", new { categoryCode = "CLAIM_DISPUTE", family = "COMPLAINT", pprCategory = "CLAIMS", name = "Claim dispute (sample)" });
         foreach (var (status, platform) in new[] { ("BOUNCED", "FAILED"), ("TIMEOUT", "UNKNOWN") })
         {
@@ -98,6 +112,7 @@ public sealed partial class OftzaSeed
         await Statement();
         await Commission();
         await Complaint();
+        await OtherCases();
         await Books();
 
         // Approved after the week's run, so it waits for the next one.
@@ -367,6 +382,41 @@ public sealed partial class OftzaSeed
         }, key: $"{TenantCode}:complaint:{party}")).GetProperty("id").GetGuid();
         await agent.Send(HttpMethod.Post, $"/api/v1/workflow/cases/{opened}/acknowledge", idempotent: false);
     }
+
+    /// <summary>The other families: an enquiry about a policy, a provider disputing a claim's payment, and a complaint decided and appealed.</summary>
+    private async Task OtherCases()
+    {
+        var agent = context.Tenant(TenantId, "oftza-customer-service-agent");
+        if ((await agent.Send(HttpMethod.Get, "/api/v1/workflow/cases?family=APPEAL")).GetProperty("items").GetArrayLength() > 0)
+        {
+            return;
+        }
+
+        var party = await Person(2);
+        var policy = (await Clerk.Send(HttpMethod.Get, $"/api/v1/general/policies?policyholderPartyId={party}")).GetProperty("items")[0];
+        await agent.Send(HttpMethod.Post, "/api/v1/workflow/cases", Case("ENQUIRY", party, null, "Sample: when does my cover renew?", null,
+            ("POLICY", policy.GetProperty("id").GetGuid(), policy.GetProperty("policyNumber").GetString())), key: $"{TenantCode}:enquiry:{party}");
+        var paid = (await Assessor.Send(HttpMethod.Get, $"/api/v1/health/claims?membershipId={await Membership(8)}")).GetProperty("items")[0];
+        await agent.Send(HttpMethod.Post, "/api/v1/workflow/cases", Case("PROVIDER_DISPUTE", null, SampleParties.Providers[0].Name, "Sample: the practice disputes a short payment.", null,
+            ("CLAIM", paid.GetProperty("id").GetGuid(), paid.GetProperty("claimNumber").GetString())), key: $"{TenantCode}:dispute:{paid.GetProperty("id").GetGuid()}");
+        var other = await Person(4);
+        var decided = (await agent.Send(HttpMethod.Post, "/api/v1/workflow/cases", Case("COMPLAINT", other, null, "Sample: the policyholder complains about service.", "CLAIM_DISPUTE"), key: $"{TenantCode}:complaint:{other}")).GetProperty("id").GetGuid();
+        var url = $"/api/v1/workflow/cases/{decided}";
+        await Step(agent, url, "Received", "acknowledge");
+        if ((await agent.Send(HttpMethod.Get, url)).GetProperty("status").GetString() != "Decided")
+        {
+            await agent.Send(HttpMethod.Post, $"{url}/decide", new { outcome = "REJECTED", reasons = "Sample: within our service standards." }, idempotent: false);
+        }
+
+        await agent.Send(HttpMethod.Post, "/api/v1/workflow/cases", Case("COMPLAINT_REVIEW", other, null, "Sample: please review the decision.", null, parent: decided), key: $"{TenantCode}:appeal:{decided}");
+    }
+
+    private static object Case(string type, Guid? party, string? name, string summary, string? category, (string Type, Guid Id, string? Reference)? link = null, Guid? parent = null) => new
+    {
+        caseTypeCode = type, receivedChannel = "PHONE", receivedAt = DateTimeOffset.UtcNow, complainantPartyId = party, complainantName = name, complainantContact = (string?)null, onBehalfOfPartyId = (Guid?)null,
+        categoryCode = category, summary, upheldAtReceipt = (bool?)null, parentCaseId = parent,
+        links = link is { } l ? new[] { new { linkType = l.Type, recordId = l.Id, reference = l.Reference } } : null,
+    };
 
     /// <summary>The provider's statement for the week, compared with INSYS's records: one claim agrees, one it has no record of.</summary>
     private async Task Statement()

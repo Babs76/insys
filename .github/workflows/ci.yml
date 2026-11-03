@@ -245,6 +245,45 @@ jobs:
             if [ "$seconds" -gt 2100 ]; then echo "::warning title=Integration shard over 35 minutes::$name took $minutes minutes (limit 45)."; fi
           done
 
+  # The sample tenant's seed (Workstream F), loaded on a fresh database through the API and read back, in jobs of its own:
+  # the resume test stops it after every kind of step and runs it again, about 30 minutes alone. Its classes are in
+  # tools/integration-shards.py's SEED, so the shards leave them out.
+  seed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - group: 1
+            classes: OftzaSeedResumeTests
+          - group: 2
+            classes: OftzaSeedTests OftzaSeedRestoreTests OftzaSeedWindowTests
+    name: seed (${{ matrix.group }} of 2)
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore Insys.slnx
+
+      - name: Build
+        run: dotnet build Insys.slnx --no-restore --configuration Release -warnaserror
+
+      - name: The seed's classes are the ones the shards leave out
+        run: |
+          grouped=$(echo "OftzaSeedResumeTests OftzaSeedTests OftzaSeedRestoreTests OftzaSeedWindowTests" | tr ' ' '\n' | sort)
+          excluded=$(python3 -c "import runpy; print('\n'.join(sorted(runpy.run_path('tools/integration-shards.py', run_name='shards')['SEED'])))")
+          if [ "$grouped" != "$excluded" ]; then echo "The seed jobs and the shards' SEED differ:"; diff <(echo "$grouped") <(echo "$excluded"); exit 1; fi
+
+      - name: Seed (${{ matrix.classes }})
+        run: >-
+          dotnet test --project tests/Insys.IntegrationTests --no-build --configuration Release --
+          $(for c in ${{ matrix.classes }}; do printf -- '--filter-class "*.%s" ' "$c"; done)
+
   # Two jobs from 29 October 2026 (one took 27.6 minutes; Ade: every job well under 20), split by end-to-end test class.
   # Every end-to-end class runs in exactly one group (checked below), so a new class cannot be left out.
   sweeps-and-end-to-end:
