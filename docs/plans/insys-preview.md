@@ -119,8 +119,14 @@ That's 49 accounts. Keycloak stores usernames in lower case, and sign-in ignores
 
 **MFA:** broker and provider portal accounts must use it (`external-user-access.md`), and any role in a policy's `mfa_required_roles` too. These accounts will be shared, and a code set up on one person's phone locks out the others. So the run generates each TOTP secret and puts it in the same encrypted file, if Keycloak's admin API lets us set it; otherwise the first person to sign in enrols, and shares it. To be proven in the build.
 
+## Built so far (3 November 2026)
+- **Chart:** OpenBao and Keycloak durable (`devMode: false`), proven by the smoke test restarting both; Ingress annotations, the API's path, and a sign-in Ingress for Keycloak (`/realms/` and `/resources/` only); the operator bootstrap as a migration job option.
+- **`preview.yml` and `deploy/preview/`:** every action written (`preview.sh`), linted with actionlint and shellcheck. **Not yet run:** it needs Ade's secrets, and its first run is the proof. Expect fixes there.
+- **The labels' read route** (`GET /api/v1/platform/environment`), **the tenant's 45 accounts** in the seed, and **Keycloak sign-in for the seed**.
+- **The quick-start:** `docs/preview/quick-start.md`.
+
 ## What the chart and code still lack
-Nothing below exists today, and it's what the size pays for.
+Written before the build; see Built so far above for what's done.
 - **Environment:** the simulator is refused in `Production`, and `Production` can't declare itself non-production. So the Preview runs as `ASPNETCORE_ENVIRONMENT=Preview` with `declaredNonProduction: true`.
 - **OpenBao:** the chart's runs in development mode, in memory, so **a restart loses every key and so every encrypted field**. A defect for production too (register row 1): the chart itself gets persistent storage and sealed start-up, and the smoke job restarts the pod, unseals with throwaway keys, and reads a protected field back.
 - **Keycloak:** the chart's runs `start-dev` with data inside the container, so **a restart loses every account**. It gets production mode on PostgreSQL in the chart, with the hostname and TLS set, and the smoke job restarts the pod and signs in again.

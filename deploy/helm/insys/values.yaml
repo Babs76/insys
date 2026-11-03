@@ -57,6 +57,12 @@ migrations:
   # Production creates its roles and credentials outside the chart (OQ-004).
   createRoles: false
   backoffLimit: 20
+  # Creates the operator tenant (operatorTenantId) and its two platform administrators, once, for a new deployment that signs in through Keycloak:
+  # each subject is the administrator's Keycloak user id.
+  bootstrapOperator:
+    enabled: false
+    admin1: {subject: "", username: "", name: ""}
+    admin2: {subject: "", username: "", name: ""}
 
 api:
   resources: {requests: {cpu: 250m, memory: 512Mi}, limits: {memory: 2Gi}}
@@ -67,6 +73,8 @@ ingress:
   className: ""
   host: ""
   tlsSecret: ""
+  apiPath: /        # /api/ where the API shares its host with the console (ADR-027).
+  annotations: {}   # The ingress controller's own, such as Traefik's certificate resolver; none by default.
 
 postgres:
   enabled: false
@@ -104,3 +112,4 @@ keycloak:
   # devMode: start-dev, its accounts lost on a restart. Otherwise production mode on the in-cluster PostgreSQL (postgres.enabled).
   devMode: true
   hostname: ""   # Its public address, such as https://id.example.com. Empty: any host is accepted (the smoke test).
+  ingressHost: "" # Routes sign-in (only /realms/ and /resources/) from this host, such as id.example.com, through the chart's Ingress settings.

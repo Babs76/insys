@@ -104,4 +104,32 @@ spec:
   selector:
     app.kubernetes.io/name: keycloak
     app.kubernetes.io/instance: {{ .Release.Name }}
+{{- with .Values.keycloak.ingressHost }}
+---
+# Sign-in only: /realms/ and /resources/ are routed, so Keycloak's admin console isn't public.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $.Release.Name }}-keycloak
+  labels: {{- include "insys.labels" $ | nindent 4 }}
+  {{- with $.Values.ingress.annotations }}
+  annotations: {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with $.Values.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  rules:
+    - host: {{ . | quote }}
+      http:
+        paths:
+          {{- range list "/realms/" "/resources/" }}
+          - path: {{ . }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $.Release.Name }}-keycloak
+                port: {name: http}
+          {{- end }}
+{{- end }}
 {{- end }}

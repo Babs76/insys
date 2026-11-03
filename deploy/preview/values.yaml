@@ -1,0 +1,57 @@
+# ============================================================================
+# OPENFACTOR TECHNOLOGY GROUP
+# CONFIDENTIAL AND PROPRIETARY SOFTWARE
+# ============================================================================
+# Copyright (c) 2026 OpenFactor Technology Group.
+# All rights reserved.
+# PRODUCT       : INSYS
+# COMPONENT     : Build
+# CONFIDENTIALITY AND INTELLECTUAL PROPERTY NOTICE
+# This source code and its associated documentation contain confidential and
+# proprietary information belonging to OpenFactor Technology Group or its
+# applicable intellectual property rights holder.
+# This material is provided solely for authorised development, maintenance,
+# operation or evaluation purposes, as applicable. No person may reproduce,
+# modify, distribute, disclose, publish or otherwise use this material except
+# as expressly permitted by an applicable written agreement or licence.
+# No ownership rights or licence to any intellectual property are granted
+# by the inclusion of this notice, except as expressly provided in an
+# applicable written agreement or licence.
+# Third-party software, open-source components and customer-owned materials
+# remain subject to their respective ownership rights and applicable licences
+# or agreements.
+# UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
+# ============================================================================
+# The INSYS Preview (docs/plans/insys-preview.md): one server, k3s, every dependency in the cluster and durable. Not production: sample data
+# only, and every external integration a labelled stub. The domain-dependent values are set by deploy/preview/preview.sh; secrets live only on
+# the server, in the Secret it makes (existingSecret), never here.
+image:
+  api: {repository: insys-api, tag: preview}
+  migrator: {repository: insys-migrator, tag: preview}
+  pullPolicy: Never
+environment: Preview
+declaredNonProduction: true
+existingSecret: insys-secrets
+# The realm's platform tenant, as its two platform users' tenant_id says (deploy/keycloak/insys-realm.json).
+operatorTenantId: 0199f000-0000-7000-8000-000000000001
+authentication:
+  audience: insys-core-api
+  requireHttpsMetadata: true
+migrations:
+  createRoles: true
+  bootstrapOperator:
+    enabled: true
+    admin1: {subject: 0199f000-0000-7000-8000-0000000000a1, username: insys-admin, name: Platform Administrator}
+    admin2: {subject: 0199f000-0000-7000-8000-0000000000a2, username: insys-admin-2, name: Second platform Administrator}
+postgres: {enabled: true, storage: 20Gi}
+openbao: {enabled: true, devMode: false, storage: 1Gi}
+seaweedfs: {enabled: true, storage: 20Gi}
+keycloak: {enabled: true, devMode: false}
+ingress:
+  enabled: true
+  className: traefik
+  # Traefik's Let's Encrypt resolver, le, from deploy/preview/traefik.yaml.
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    traefik.ingress.kubernetes.io/router.tls.certresolver: le

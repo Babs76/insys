@@ -102,6 +102,9 @@ kind: Ingress
 metadata:
   name: {{ .Release.Name }}-api
   labels: {{- include "insys.labels" . | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations: {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
   {{- with .Values.ingress.className }}
   ingressClassName: {{ . }}
@@ -113,7 +116,7 @@ spec:
     - host: {{ required "ingress.host" .Values.ingress.host | quote }}
       http:
         paths:
-          - path: /
+          - path: {{ .Values.ingress.apiPath }}
             pathType: Prefix
             backend:
               service:
