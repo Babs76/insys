@@ -44,8 +44,6 @@ diagnose() {
 }
 trap 'diagnose' ERR
 
-# The console's image is private: the workflow's token reads it (GHCR_TOKEN), and never leaves the cluster's secret.
-kubectl create secret docker-registry ghcr --docker-server=ghcr.io --docker-username="${GHCR_USER:?}" --docker-password="${GHCR_TOKEN:?}" >/dev/null
 helm install insys "$here/../helm/insys" -f "$here/values.yaml"
 kubectl wait --for=condition=complete job/insys-migrate-1 --timeout=600s
 kubectl rollout status statefulset/insys-openbao --timeout=300s

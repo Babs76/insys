@@ -56,9 +56,17 @@ jobs:
           docker build -q -f deploy/docker/migrator.Dockerfile -t insys-migrator:smoke .
           kind load docker-image insys-api:smoke insys-migrator:smoke --name insys-smoke
 
-      - name: Deploy and smoke test
-        # The console's image is private: the workflow's own token reads it, if the package gives this repository access.
+      # The console's image is private: the workflow's own token reads it (the package gives this repository read access). It's pulled by the
+      # digest the chart pins and loaded into the cluster, so the cluster needs no pull secret here; the Preview uses one.
+      - name: The console's image, by the chart's digest
         env:
-          GHCR_USER: ${{ github.actor }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          image=$(sed -n 's/^  image: \(ghcr.io\/[^ ]*@sha256:[0-9a-f]*\).*/\1/p' deploy/helm/insys/values.yaml)
+          echo "$GHCR_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin > /dev/null
+          docker pull -q "$image"
+          docker tag "$image" insys-console:smoke
+          kind load docker-image insys-console:smoke --name insys-smoke
+
+      - name: Deploy and smoke test
         run: deploy/smoke/run.sh

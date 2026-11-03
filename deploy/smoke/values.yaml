@@ -48,7 +48,7 @@ postgres: {enabled: true, storage: 2Gi}
 openbao: {enabled: true, devMode: false, storage: 1Gi}
 seaweedfs: {enabled: true, storage: 2Gi}
 keycloak: {enabled: true, devMode: false}
-# The console from its private image, pulled with the workflow's own token (the secret ghcr, made by run.sh). Its addresses must be https, so the
-# smoke test gives it names it never visits: it's checked from inside the cluster.
+# The console: its image pulled by the chart's digest and loaded as insys-console:smoke by the workflow. Its addresses must be https, so the smoke
+# test gives it names it never visits: it's checked from inside the cluster.
 ingress: {enabled: false, host: insys.smoke.test, apiPath: /api/}
-console: {enabled: true, pullSecret: ghcr, environmentName: smoke, issuer: "https://id.smoke.test/realms/insys"}
+console: {enabled: true, image: "insys-console:smoke", environmentName: smoke, issuer: "https://id.smoke.test/realms/insys"}
