@@ -129,12 +129,22 @@ pull_secret() {
 }
 
 chart() {
-  tar -C deploy -cz helm/insys preview/values.yaml preview/backup.yaml openbao/openbao.sh | on_server "rm -rf /root/insys && mkdir -p /root/insys && tar -C /root/insys -xz"
+  tar -C deploy -cz helm/insys preview/values.yaml preview/backup.yaml openbao/openbao.sh keycloak/realm-name.sh | on_server "rm -rf /root/insys && mkdir -p /root/insys && tar -C /root/insys -xz"
   on_server "cd /root/insys && helm upgrade --install insys helm/insys -f preview/values.yaml \
     --set ingress.host=$PREVIEW_DOMAIN,ingress.apiPath=/api/,console.environmentName=preview,keycloak.ingressHost=id.$PREVIEW_DOMAIN,keycloak.hostname=https://id.$PREVIEW_DOMAIN \
     --set authentication.authority=https://id.$PREVIEW_DOMAIN/realms/insys"
   on_server "kubectl wait --for=condition=complete job -l app.kubernetes.io/name=migrate --timeout=900s && kubectl rollout status statefulset/insys-openbao --timeout=600s"
   on_server "kubectl apply -f /root/insys/preview/backup.yaml >/dev/null"
+  realm_name
+}
+
+# The sign-in page's name, from the values, on an existing realm too: the chart's import names only a new one. The admin password stays on the server.
+realm_name() {
+  local name
+  name=$(sed -n 's/^keycloak:.*realmDisplayName: "\([^"]*\)".*/\1/p' deploy/preview/values.yaml)
+  [ -n "$name" ] || fail "deploy/preview/values.yaml sets no keycloak.realmDisplayName"
+  on_server "kubectl rollout status deploy/insys-keycloak --timeout=900s >/dev/null && kubectl get secret insys-secrets -o jsonpath='{.data.keycloakAdminPassword}' \
+    | base64 -d | /root/insys/keycloak/realm-name.sh insys insys $(printf '%q' "$name")"
 }
 
 # OpenBao made new: initialised, unsealed and configured. Its unseal key and root token go only into the encrypted file.

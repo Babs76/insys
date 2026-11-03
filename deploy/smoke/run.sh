@@ -73,9 +73,21 @@ echo "== Migrations ran, and the API connects on non-owner roles"
 [ "$(query "SELECT count(*) FROM pg_tables WHERE tableowner LIKE 'insys\_%' AND tableowner <> 'insys_owner'")" = 0 ] || fail "a module role owns tables"
 
 echo "== Sign-in through Keycloak"
-# The sign-in page carries the realm name from the values (keycloak.realmDisplayName), in its title.
+# The sign-in page carries the realm's name in its title: from the values (keycloak.realmDisplayName) on import, then through the admin API on the
+# existing realm (deploy/keycloak/realm-name.sh, as the Preview does), twice, the second changing nothing. The page is held whole, not piped into
+# grep -q: under pipefail, grep stopping at the match fails the pipe.
 login="$kc/realms/insys/protocol/openid-connect/auth?client_id=insys-web&response_type=code&scope=openid&redirect_uri=http%3A%2F%2Flocalhost%3A5173%2F&code_challenge_method=S256&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
-in_cluster "curl -sf '$login'" | grep -q '<title>.*INSYS smoke test (sample data only)' || fail "the sign-in page doesn't show the realm's name"
+sign_in_title() {
+  local page title
+  page=$(in_cluster "curl -s -w '\nHTTP %{http_code}' '$login'")
+  title=$(grep -m1 -i '<title' <<<"$page" || true)
+  case "$title" in *"$1"*) ;; *) fail "the sign-in page doesn't show \"$1\": $(tail -n1 <<<"$page"), title: ${title:-none}" ;; esac
+}
+sign_in_title "INSYS smoke test (sample data only)"
+renamed="INSYS smoke test, renamed (sample data only)"
+[ "$(printf '%s' smoke-admin | "$here/../keycloak/realm-name.sh" insys insys "$renamed")" = "The realm insys is now named \"$renamed\"." ] || fail "the realm wasn't renamed"
+[ "$(printf '%s' smoke-admin | "$here/../keycloak/realm-name.sh" insys insys "$renamed")" = "The realm insys is already named \"$renamed\"." ] || fail "naming the realm again changed it"
+sign_in_title "$renamed"
 admin=$(in_cluster "curl -sf -d grant_type=password -d client_id=admin-cli -d username=admin -d password=smoke-admin $kc/realms/master/protocol/openid-connect/token | jq -r .access_token")
 auth="Authorization: Bearer $admin"
 subject=$(in_cluster "curl -si -H '$auth' -H 'Content-Type: application/json' $kc/admin/realms/insys/users -d '{\"username\":\"smoke\",\"enabled\":true,\"email\":\"smoke@example.test\",\"emailVerified\":true,\"firstName\":\"Smoke\",\"lastName\":\"Test\",\"attributes\":{\"tenant_id\":[\"$tenant\"]},\"credentials\":[{\"type\":\"password\",\"value\":\"smoke-pass\",\"temporary\":false}]}' | tr -d '\r' | sed -n 's#^[Ll]ocation: .*/##p'")

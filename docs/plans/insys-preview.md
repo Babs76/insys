@@ -127,7 +127,7 @@ That's 51 accounts, with `LINECFG01/02` for `LINE_CONFIGURATION_MANAGER` (role t
 - **The labels' read route** (`GET /api/v1/platform/environment`), **the tenant's 47 accounts** in the seed, and **Keycloak sign-in for the seed**.
 - **The quick-start:** `docs/preview/quick-start.md`.
 - **Backups:** the nightly job (`deploy/preview/backup.yaml`) and the restore steps (`docs/preview/restore.md`), **not yet rehearsed**.
-- **The sign-in page's label:** the Preview's values name the realm "INSYS Preview (sample data only)" (`keycloak.realmDisplayName`), so the page's title and heading say it before the console's banner can. Keycloak imports the realm only when it doesn't exist, so this names a new realm; the first `provision` makes it. The smoke test checks the page's title.
+- **The sign-in page's label:** the Preview's values name the realm "INSYS Preview (sample data only)" (`keycloak.realmDisplayName`), so the page's title and heading say it before the console's banner can. Keycloak imports the realm only when it doesn't exist, so `preview.sh` also sets the name through Keycloak's admin API (`deploy/keycloak/realm-name.sh`) on every `provision`, `reset` and `upgrade`, changing nothing when it's already set: a realm made before this gets it too. The smoke test checks the page's title after the import, then renames its realm with the same script, twice.
 
 ## What the chart and code still lack
 Written before the build; see Built so far above for what's done.
