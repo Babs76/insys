@@ -359,7 +359,8 @@ public sealed partial class OftzaSeed(SeedContext context)
                     break;
                 case "Submitted" or "PendingApproval":
                     // PRODUCT_MANAGER's template names this approval but holds no approve function, so a second administrator gives it.
-                    foreach (var approval in (await _adminChecker!.Send(HttpMethod.Get, "/api/v1/workflow/approvals?status=Requested")).GetProperty("items").EnumerateArray())
+                    foreach (var approval in (await _adminChecker!.Send(HttpMethod.Get, "/api/v1/workflow/approvals?status=Requested")).GetProperty("items").EnumerateArray()
+                                 .Where(a => a.GetProperty("approvalType").GetString() == "PRODUCT_PUBLICATION"))
                     {
                         await _adminChecker.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval.GetProperty("id").GetGuid()}/approve", ifMatch: $"\"{approval.GetProperty("rowVersion").GetInt64()}\"", idempotent: false);
                     }
