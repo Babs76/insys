@@ -124,6 +124,7 @@ That's 49 accounts. Keycloak stores usernames in lower case, and sign-in ignores
 - **`preview.yml` and `deploy/preview/`:** every action written (`preview.sh`), linted with actionlint and shellcheck. **Not yet run:** it needs Ade's secrets, and its first run is the proof. Expect fixes there.
 - **The labels' read route** (`GET /api/v1/platform/environment`), **the tenant's 45 accounts** in the seed, and **Keycloak sign-in for the seed**.
 - **The quick-start:** `docs/preview/quick-start.md`.
+- **Backups:** the nightly job (`deploy/preview/backup.yaml`) and the restore steps (`docs/preview/restore.md`), **not yet rehearsed**.
 
 ## What the chart and code still lack
 Written before the build; see Built so far above for what's done.

@@ -120,11 +120,12 @@ server_secrets() {
 }
 
 chart() {
-  tar -C deploy -cz helm/insys preview/values.yaml openbao/openbao.sh | on_server "rm -rf /root/insys && mkdir -p /root/insys && tar -C /root/insys -xz"
+  tar -C deploy -cz helm/insys preview/values.yaml preview/backup.yaml openbao/openbao.sh | on_server "rm -rf /root/insys && mkdir -p /root/insys && tar -C /root/insys -xz"
   on_server "cd /root/insys && helm upgrade --install insys helm/insys -f preview/values.yaml \
     --set ingress.host=$PREVIEW_DOMAIN,ingress.apiPath=/api/,keycloak.ingressHost=id.$PREVIEW_DOMAIN,keycloak.hostname=https://id.$PREVIEW_DOMAIN \
     --set authentication.authority=https://id.$PREVIEW_DOMAIN/realms/insys"
   on_server "kubectl wait --for=condition=complete job -l app.kubernetes.io/name=migrate --timeout=900s && kubectl rollout status statefulset/insys-openbao --timeout=600s"
+  on_server "kubectl apply -f /root/insys/preview/backup.yaml >/dev/null"
 }
 
 # OpenBao made new: initialised, unsealed and configured. Its unseal key and root token go only into the encrypted file.
