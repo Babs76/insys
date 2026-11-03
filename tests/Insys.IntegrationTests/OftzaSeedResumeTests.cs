@@ -55,7 +55,7 @@ public sealed class OftzaSeedResumeTests(DatabaseFixture fixture) : IClassFixtur
         {
             "tenancy/tenants$", "tenant-administrators$", "/static/[^/]+$", "/imports$", "/imports/[^/]+/submit$", "/imports/[^/]+/activate$", "/versions/\\d+/submit$", "/versions/\\d+/approve$", "/versions/\\d+/activate$",
             "workflow/approvals/[^/]+/approve$", "identity/users$", "/assign-role$", "party/parties$", "/identifiers$", "/contact-points$", "product-factory/products$", "/validate$", "/simulations$",
-            "/periods/[^/]+/open$", "callback-endpoints$", "/smoke-run$", "/smoke-run/approve$", "/complete-onboarding-step$", "/bank-accounts$", "/addresses$", "health/schemes$", "health/memberships$", "life/proposals$", "/life/proposals/[^/]+/submit$", "/underwriting-cases/[^/]+/decision$", "life/policies$", "life/migration/policies$", "general/risk-objects$", "general/quotes$", "general/proposals$", "general/policies$", "general/migration/policies$", "/cancel$", "/suspend$", "/terminate$", "outstanding-premiums$", "/due-diligence/checks$", "/disclosure-acknowledgements$", "/revoke-role$", "/disable$", "/disable$",
+            "/periods/[^/]+/open$", "callback-endpoints$", "/smoke-run$", "/smoke-run/approve$", "/complete-onboarding-step$", "/bank-accounts$", "/addresses$", "health/schemes$", "health/memberships$", "life/proposals$", "/life/proposals/[^/]+/submit$", "/underwriting-cases/[^/]+/decision$", "life/policies$", "life/migration/policies$", "general/risk-objects$", "general/quotes$", "general/proposals$", "general/policies$", "general/migration/policies$", "/cancel$", "/suspend$", "/terminate$", "outstanding-premiums$", "general/claims$", "/register$", "/reserves$", "/settlement$", "life/claims$", "health/claims$", "payment-runs$", "payout-batches$", "/refunds$", "provider-statements/import$", "tax-returns$", "/due-diligence/checks$", "/disclosure-acknowledgements$", "/revoke-role$", "/disable$", "/disable$",
         }.Select(p => new Regex(p)));
         var kinds = unstopped.Count;
         void Stop(string call)
@@ -91,6 +91,8 @@ public sealed class OftzaSeedResumeTests(DatabaseFixture fixture) : IClassFixtur
         (await db.ScalarAsOwner<long>("SELECT count(*) FROM party.party WHERE tenant_id = @t", t)).ShouldBe(30L, "no party twice");
         (await db.ScalarAsOwner<long>("SELECT count(*) FROM life.policy WHERE tenant_id = @t", t)).ShouldBe(12L, "no policy twice");
         (await db.ScalarAsOwner<long>("SELECT count(*) FROM general.policy WHERE tenant_id = @t", t)).ShouldBe(12L, "no policy twice");
+        (await db.ScalarAsOwner<long>("SELECT count(*) FROM general.claim WHERE tenant_id = @t", t)).ShouldBe(7L, "no claim twice");
+        (await db.ScalarAsOwner<long>("SELECT count(*) FROM billing.refund_request WHERE tenant_id = @t", t)).ShouldBe(1L, "no refund twice");
         (await db.ScalarAsOwner<long>("SELECT count(*) FROM health.membership WHERE tenant_id = @t", t)).ShouldBe(12L, "no member twice");
         (await db.ScalarAsOwner<long>("SELECT count(*) FROM iam.user_account WHERE tenant_id = @t AND username LIKE 'oftza-seed-loader-%' AND status <> 'DISABLED'", t)).ShouldBe(0L);
         (await db.ScalarAsOwner<long>("SELECT count(*) FROM iam.user_role_assignment WHERE tenant_id = @t AND status = 'PENDING_APPROVAL'", t)).ShouldBe(0L);

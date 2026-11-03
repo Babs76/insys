@@ -63,6 +63,7 @@ public sealed partial class OftzaSeed
         await Providers();
         await Brokers();
         await HealthConfiguration();
+        await ClaimConfiguration();
     }
 
     private async Task LifeConfiguration()
@@ -168,7 +169,7 @@ public sealed partial class OftzaSeed
         await Static("health/static/member-numbering-schemes", "HM", new { prefix = "HM", sequenceLength = 9, dependantSuffix = "-01" });
         await Static("health/static/dependant-types-and-age-limits", "CHILD", new { typeCode = "CHILD", maxAge = 21, studentExtensionAge = 26, evidence = "BIRTH_CERTIFICATE" });
         await Static("health/static/dependant-types-and-age-limits", "SPOUSE", new { typeCode = "SPOUSE", maxAge = 120, evidence = "MARRIAGE_CERTIFICATE" });
-        await Static("health/static/health-waiting-period-rules", "WP-GEN", new { ruleCode = "WP-GEN", type = "GENERAL", duration = "P90D", exceptions = new[] { "EMERGENCY" } });
+        await Static("health/static/health-waiting-period-rules", "WP-GEN", new { ruleCode = "WP-GEN", type = "GENERAL", duration = "P0D", exceptions = new[] { "EMERGENCY" } });
         foreach (var (option, limit, schedule) in new[] { ("ESS", 20_000m, "OFT-BS-ESS"), ("PLUS", 60_000m, "OFT-BS-PLUS") })
         {
             await Static("health/static/plans-and-options", $"{Scheme}-{option}", new { planCode = Scheme, optionCode = option, benefitSchedule = schedule, network = "OFT-NET", benefitYear = "CALENDAR", memberClaimBasis = "REFERENCE_TARIFF", productCode = "OFT-HEALTH", referenceTariffScheduleCode = Reference });
@@ -242,6 +243,7 @@ public sealed partial class OftzaSeed
         await LifeBook();
         await GeneralBook();
         await HealthBook();
+        await Claims();
         if (context.Jobs is not null)
         {
             await context.Jobs();
@@ -394,7 +396,7 @@ public sealed partial class OftzaSeed
     /// <summary>A quote's step, unless an earlier run took it.</summary>
     private static async Task Step(Persona persona, string url, string from, string action)
     {
-        if ((await persona.Send(HttpMethod.Get, url)).GetProperty("status").GetString() == from)
+        if (action != "none" && (await persona.Send(HttpMethod.Get, url)).GetProperty("status").GetString() == from)
         {
             await persona.Send(HttpMethod.Post, $"{url}/{action}", idempotent: false);
         }

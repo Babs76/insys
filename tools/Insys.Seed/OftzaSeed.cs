@@ -292,11 +292,11 @@ public sealed partial class OftzaSeed(SeedContext context)
         await Static("documents/static/document-templates", "OFT-TPL-1", new { templateCode = "OFT-TPL-1", language = "en", documentType = "POLICY_SCHEDULE", bodyRef = "sample", mergeFields = Array.Empty<string>() });
 
         await Static("product-factory/static/coverage-and-benefit-library", "OWN_DAMAGE", new { type = "COVERAGE", name = "Own damage (sample)", basis = "INDEMNITY", measure = "SUM_INSURED", domain = "GENERAL" });
-        await RatedProduct("OFT-MOTOR", "General", "GENERAL", "GEN-MOTOR", "Motor insurance (sample)", "Motor comprehensive (invented sample)", ["OWN_DAMAGE"], "VEHICLE_GROUP", "vehicle_group", [("G3", 0.03m)], "OFT-MOT", 100_000, "G3", 3050m, "GENERAL_UNDERWRITER");
+        await RatedProduct("OFT-MOTOR", "General", "GENERAL", "MOTOR", "Motor insurance (sample)", "Motor comprehensive (invented sample)", ["OWN_DAMAGE"], "VEHICLE_GROUP", "vehicle_group", [("G3", 0.03m)], "OFT-MOT", 100_000, "G3", 3050m, "GENERAL_UNDERWRITER");
 
         await Static("product-factory/static/coverage-and-benefit-library", "BUILDINGS", new { type = "COVERAGE", name = "Buildings (sample)", basis = "INDEMNITY", measure = "SUM_INSURED", domain = "GENERAL" });
         await Static("product-factory/static/coverage-and-benefit-library", "CONTENTS", new { type = "COVERAGE", name = "Contents (sample)", basis = "INDEMNITY", measure = "SUM_INSURED", domain = "GENERAL" });
-        await RatedProduct("OFT-HOME", "General", "GENERAL", "GEN-HOME", "Household insurance (sample)", "Household (invented sample)", ["BUILDINGS", "CONTENTS"], "CONSTRUCTION", "construction", [("BRICK", 0.002m), ("THATCH", 0.006m)], "OFT-HOM", 1_000_000, "BRICK", 2050m, "GENERAL_UNDERWRITER");
+        await RatedProduct("OFT-HOME", "General", "GENERAL", "PROPERTY", "Household insurance (sample)", "Household (invented sample)", ["BUILDINGS", "CONTENTS"], "CONSTRUCTION", "construction", [("BRICK", 0.002m), ("THATCH", 0.006m)], "OFT-HOM", 1_000_000, "BRICK", 2050m, "GENERAL_UNDERWRITER");
 
         // Rates by age band next birthday, invented and not actuarial.
         await Static("product-factory/static/coverage-and-benefit-library", "DEATH", new { type = "BENEFIT", name = "Death (sample)", basis = "FIXED_BENEFIT", measure = "SUM_ASSURED", domain = "LIFE" });
@@ -675,12 +675,12 @@ public sealed partial class OftzaSeed(SeedContext context)
         await Static("billing/static/document-numbering-schemes", "INV", new { documentType = "INVOICE", prefix = "INV", sequenceLength = 8, resetRule = "NEVER" });
         await Static("billing/static/arrears-ageing-buckets", "B1", new { bucketCode = "B1", daysFrom = 1, daysTo = 30, action = "REMINDER" });
         await Static("billing/static/arrears-ageing-buckets", "B2", new { bucketCode = "B2", daysFrom = 31, daysTo = 9999, action = "LAPSE" });
-        foreach (var (method, direction) in new[] { ("COLLECT", "COLLECT"), ("PAY", "PAY") })
+        foreach (var (method, direction) in new[] { ("DEBIT_ORDER", "COLLECT"), ("EFT", "PAY") })
         {
             await Static("payments/static/payment-methods", method, new { methodCode = method, direction, currencies = new[] { "ZAR" }, countries = new[] { "ZA" } });
         }
 
-        await Static("payments/static/payment-provider-and-bank-register", "SIMULATOR", new { providerCode = "SIMULATOR", type = "PAYMENT_GATEWAY", supportedMethods = new[] { "COLLECT", "PAY" }, credentialRef = "vault:simulator" });
+        await Static("payments/static/payment-provider-and-bank-register", "SIMULATOR", new { providerCode = "SIMULATOR", type = "PAYMENT_GATEWAY", supportedMethods = new[] { "DEBIT_ORDER", "EFT" }, credentialRef = "vault:simulator" });
         await Static("payments/static/payment-status-mappings", "SIM-PAID", new { providerCode = "SIMULATOR", providerStatus = "PAID", platformStatus = "SUCCEEDED", final = true });
         await Static("claims-framework/static/claim-numbering-schemes", "CLM", new { domain = "GENERAL", prefix = "CLM", sequenceLength = 8 });
         await Static("claims-framework/static/reserve-types", "INDEMNITY", new { category = "INDEMNITY", postingRule = "CLAIM_RESERVE_UP" });
