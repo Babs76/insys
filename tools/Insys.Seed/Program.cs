@@ -110,6 +110,11 @@ if (keycloak is not null && options.ContainsKey("accounts"))
         passwords.Add(new { username, role, password = await keycloak.SetPassword(KeycloakSignIn.Username(OftzaSeed.TenantCode, username)) });
     }
 
+    foreach (var (username, role) in OftzaSeed.OperatorAccounts)
+    {
+        passwords.Add(new { username, role, password = await keycloak.SetPassword(KeycloakSignIn.Username(OftzaSeed.OperatorTenantCode, username)) });
+    }
+
     Console.Out.WriteLine(JsonSerializer.Serialize(new { tenant = OftzaSeed.TenantCode, accounts = passwords }));
     Console.Error.WriteLine($"{OftzaSeed.TenantCode}: {seed.TenantId}, with its {passwords.Count} accounts.");
     return 0;

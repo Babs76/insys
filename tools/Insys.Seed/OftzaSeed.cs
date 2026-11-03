@@ -464,9 +464,9 @@ public sealed partial class OftzaSeed(SeedContext context)
         }
     }
 
-    private async Task<JsonElement?> User(string name)
+    private async Task<JsonElement?> User(string name, Persona? who = null)
     {
-        foreach (var user in (await (_adminMaker ?? _maker).Send(HttpMethod.Get, "/api/v1/identity/users?limit=200")).GetProperty("items").EnumerateArray())
+        foreach (var user in (await (who ?? _adminMaker ?? _maker).Send(HttpMethod.Get, "/api/v1/identity/users?limit=200")).GetProperty("items").EnumerateArray())
         {
             if (user.GetProperty("username").GetString() == name)
             {
@@ -477,7 +477,7 @@ public sealed partial class OftzaSeed(SeedContext context)
         return null;
     }
 
-    private async Task<string> Version(Guid user) => $"\"{(await (_adminMaker ?? _maker).Send(HttpMethod.Get, $"/api/v1/identity/users/{user}")).GetProperty("rowVersion").GetInt64()}\"";
+    private async Task<string> Version(Guid user, Persona? who = null) => $"\"{(await (who ?? _adminMaker ?? _maker).Send(HttpMethod.Get, $"/api/v1/identity/users/{user}")).GetProperty("rowVersion").GetInt64()}\"";
 
     /// <summary>A user with one role, picked up from wherever an earlier run stopped. A privileged role waits for a second person, as in real use: the second administrator approves it.</summary>
     /// <summary>The loader to use: this name, or if that user is disabled, the next unused one. Disabling is final (IAM-005: no route or transition leads back), so a disabled loader is replaced, never revived.</summary>
@@ -503,18 +503,20 @@ public sealed partial class OftzaSeed(SeedContext context)
         }
     }
 
-    private async Task EnsureUser(string name, string role)
+    /// <param name="admin">Who makes the user and assigns the role; the tenant's first administrator by default.</param>
+    /// <param name="checker">Who approves a privileged assignment; the second administrator by default.</param>
+    private async Task EnsureUser(string name, string role, Persona? admin = null, Persona? checker = null)
     {
-        var admin = _adminMaker ?? _maker;
-        var checker = _adminChecker ?? _checker;
-        var user = (await User(name))?.GetProperty("id").GetGuid()
+        admin ??= _adminMaker ?? _maker;
+        checker ??= _adminChecker ?? _checker;
+        var user = (await User(name, admin))?.GetProperty("id").GetGuid()
             ?? (await admin.Send(HttpMethod.Post, "/api/v1/identity/users", Person(name, $"Sample {role.Replace('_', ' ').ToLowerInvariant()}"), key: $"{TenantCode}:user:{name}")).GetProperty("id").GetGuid();
         async Task<List<JsonElement>> Assignments() => (await admin.Send(HttpMethod.Get, $"/api/v1/identity/users/{user}")).GetProperty("roleAssignments").EnumerateArray().Where(a => a.GetProperty("roleCode").GetString() == role).ToList();
         var assignments = await Assignments();
         // A revoked assignment stays on record, so it's the live ones that count: an administrator assigns the role again, with the same approvals as the first time.
         if (!assignments.Any(a => a.GetProperty("status").GetString() is "Active" or "PendingApproval"))
         {
-            await admin.Send(HttpMethod.Post, $"/api/v1/identity/users/{user}/assign-role", new { roleCode = role }, await Version(user), idempotent: false);
+            await admin.Send(HttpMethod.Post, $"/api/v1/identity/users/{user}/assign-role", new { roleCode = role }, await Version(user, admin), idempotent: false);
             await context.Settle();
             assignments = await Assignments();
         }

@@ -39,13 +39,16 @@ public sealed class OftzaSeedTests(DatabaseFixture fixture) : IClassFixture<Data
     {
         var db = fixture.Database;
         var host = await fixture.Host();
-        string[] platform = ["tenant.read", "tenant.create", "tenant.update", "user.read", "user.create", "approval.read", "approval.approve", "static_data.read", "static_data.create", "static_data.update", "static_data.approve"];
+        string[] platform = ["tenant.read", "tenant.create", "tenant.update", "user.read", "user.create", "user.update", "approval.read", "approval.approve", "static_data.read", "static_data.create", "static_data.update", "static_data.approve"];
         await db.UserWithPermissions(DatabaseFixture.Operator, "seed-platform-1", platform);
         var second = await db.UserWithPermissions(DatabaseFixture.Operator, "seed-platform-2", platform);
         var role = await db.RoleWithPermissions(DatabaseFixture.Operator);
         await db.AssignRole(DatabaseFixture.Operator, second, role);
         await db.SeedStatic(DatabaseFixture.Operator, "workflow.cfg_delegation_and_approval_authority", "EFFECTIVE", "AUTH-SEED-ADM", new DateOnly(2026, 1, 1), ("role_code", role),
             ("transaction_type", "TENANT_ADMINISTRATOR"), ("limit_value", 1m), ("delegation_allowed", false));
+        // As the operator's bootstrap gives PLATFORM_ADMIN (db/bootstrap/operator.sql): the other administrator's privileged role assignments.
+        await db.SeedStatic(DatabaseFixture.Operator, "workflow.cfg_delegation_and_approval_authority", "EFFECTIVE", "AUTH-SEED-PRIV", new DateOnly(2026, 1, 1), ("role_code", role),
+            ("transaction_type", "PRIVILEGED_ROLE"), ("limit_value", 1m), ("delegation_allowed", false));
         var seed = new OftzaSeed(new SeedContext(new Persona(host.StrictClientFor(DatabaseFixture.Operator, "seed-platform-1")), new Persona(host.StrictClientFor(DatabaseFixture.Operator, "seed-platform-2")),
             (tenant, subject) => new Persona(host.StrictClientFor(tenant, subject, "insys-web")), () => host.DrainOutbox(), async () =>
             {
@@ -100,6 +103,8 @@ public sealed class OftzaSeedTests(DatabaseFixture fixture) : IClassFixture<Data
         (await Count("SELECT count(*) FROM billing.refund_request WHERE tenant_id = @t")).ShouldBe(1L);
         (await Count("SELECT count(*) FROM health.provider_statement WHERE tenant_id = @t")).ShouldBe(1L);
         (await Count("SELECT count(DISTINCT u.username) FROM iam.user_account u JOIN iam.user_role_assignment r ON r.tenant_id = u.tenant_id AND r.user_id = u.id AND r.status = 'ACTIVE' WHERE u.tenant_id = @t AND u.username ~ '^[a-z]+0[12]$'")).ShouldBe((long)OftzaSeed.PreviewAccounts.Count, "every Preview account, its role in force");
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(DISTINCT u.username) FROM iam.user_account u JOIN iam.user_role_assignment r ON r.tenant_id = u.tenant_id AND r.user_id = u.id AND r.status = 'ACTIVE' WHERE u.tenant_id = @t AND u.username IN ('operator01', 'operator02', 'steward01', 'steward02')",
+            ("t", DatabaseFixture.Operator))).ShouldBe(4L, "the operator tenant's four, their roles in force");
         (await Count("SELECT count(*) FROM iam.user_subject_link WHERE tenant_id = @t AND status = 'ACTIVE'")).ShouldBe(6L, "a member, a broker and a provider on their portals, as personas and as Preview accounts");
         (await Count("SELECT count(*) FROM reinsurance.cession WHERE tenant_id = @t")).ShouldBeGreaterThan(0L, "General policies ceded to the treaty");
         (await Count("SELECT count(*) FROM commission.commission_statement WHERE tenant_id = @t")).ShouldBe(1L);
