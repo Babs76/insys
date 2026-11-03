@@ -41,6 +41,7 @@ public sealed partial class OftzaSeed
         ("pay01", "FINANCE_OFFICER"), ("pay02", "FINANCE_MANAGER"), .. Pair("dist", "DISTRIBUTION_ADMINISTRATOR"), .. Pair("reins", "REINSURANCE_OFFICER"),
         .. Pair("compl", "COMPLIANCE_OFFICER"), .. Pair("dpo", "DATA_PROTECTION_OFFICER"), .. Pair("cs", "CUSTOMER_SERVICE_AGENT"), .. Pair("ops", "OPERATIONS_ANALYST"),
         .. Pair("integ", "INTEGRATION_ADMINISTRATOR"), .. Pair("audit", "AUDITOR"), .. Pair("healthaud", "HEALTH_AUDITOR"), .. Pair("approver", "OFTZA_APPROVER"),
+        .. Pair("linecfg", "LINE_CONFIGURATION_MANAGER"),
         ("broker01", "BROKER"), ("member01", "MEMBER"), ("provider01", "PROVIDER"),
     ];
 

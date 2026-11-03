@@ -1,6 +1,6 @@
 # Role template changes: two proposals for Ade's sign-off
 
-**For sign-off, 3 November 2026. Nothing below is built.** Both answer findings from building the sample tenant (handover, Open items). The templates are signed (OQ-111), so each change needs Ade's decision. Both are small changes to `src/Modules/Identity/Insys.Identity.Api/RoleTemplates.cs`, from which the addendum is generated and `RoleTemplateTests` checks every rule.
+**Signed by Ade, 3 November 2026, and built.** A: the six functions as proposed (option 1, with audit: each rule evaluation and premium calculation is now on the audit trail, `EvaluateRuleSet` and `CalculatePremium`). Option 2 is in the go-live register as blocking (row 33, about 2 days, after the Preview). B: `LINE_CONFIGURATION_MANAGER` as proposed, with `LINECFG01/02` in the Preview (51 accounts); the fourth segregation rule is in the register as hardening (row 34). The text below is the proposal as signed. Both answer findings from building the sample tenant (handover, Open items). The templates are signed (OQ-111), so each change needs Ade's decision. Both are small changes to `src/Modules/Identity/Insys.Identity.Api/RoleTemplates.cs`, from which the addendum is generated and `RoleTemplateTests` checks every rule.
 
 ## A. Underwriters can quote and issue on their own
 

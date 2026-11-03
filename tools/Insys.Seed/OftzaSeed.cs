@@ -40,6 +40,9 @@ public sealed partial class OftzaSeed(SeedContext context)
     public const string LoaderMaker = "oftza-seed-loader-1";
     public const string LoaderChecker = "oftza-seed-loader-2";
     private const string LoaderRole = "OFTZA_SEED_LOADER";
+    public const string LineConfigurationRole = "LINE_CONFIGURATION_MANAGER";
+    public const string LineConfigurationMaker = "oftza-line-configuration-manager";
+    public const string LineConfigurationChecker = "oftza-line-configuration-checker";
 
     private const string Reason = "OFTZA sample data (invented)";
     private Persona _maker = null!;
@@ -651,13 +654,15 @@ public sealed partial class OftzaSeed(SeedContext context)
         }
     }
 
-    /// <summary>One user per role template, named for it, so a demo can sign in as any role.</summary>
+    /// <summary>One user per role template, named for it, so a demo can sign in as any role, and a second line configuration manager to approve the first's changes.</summary>
     private async Task Personas()
     {
         foreach (var template in _templates)
         {
             await EnsureUser("oftza-" + template.ToLowerInvariant().Replace('_', '-'), template);
         }
+
+        await EnsureUser(LineConfigurationChecker, LineConfigurationRole);
     }
 
     /// <summary>What every onboarding step's readiness asks of a tenant. The sample values are for the business to confirm (OQ-112), in rand.</summary>

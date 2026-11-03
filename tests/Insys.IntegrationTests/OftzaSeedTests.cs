@@ -112,6 +112,16 @@ public sealed class OftzaSeedTests(DatabaseFixture fixture) : IClassFixture<Data
         (await Count("SELECT count(DISTINCT family) FROM workflow.service_case WHERE tenant_id = @t")).ShouldBe(4L, "cases of each family");
         (await Count("SELECT count(*) FROM finance.tax_return WHERE tenant_id = @t")).ShouldBe(1L, "one VAT return prepared");
         (await Count("SELECT count(*) FROM finance.accounting_period WHERE tenant_id = @t AND status = 'CLOSED'")).ShouldBe(1L, "last month closed");
+
+        // Role templates A and B (signed 3 November 2026): underwriters rate, evaluate and acknowledge themselves, audited; the line configuration managers change Health configuration, one making and the other approving.
+        string By(string column, string username) => $"{column} IN (SELECT x FROM iam.user_account u, LATERAL (VALUES (u.username), (u.external_subject), (u.id::text)) v(x) WHERE u.tenant_id = @t AND u.username = '{username}' AND x IS NOT NULL)";
+        (await Count($"SELECT count(*) FROM audit.audit_event WHERE tenant_id = @t AND operation = 'EvaluateRuleSet' AND {By("actor_id", "oftza-life-underwriter")}")).ShouldBeGreaterThan(0L, "the Life underwriter evaluates the rules, audited");
+        (await Count($"SELECT count(*) FROM audit.audit_event WHERE tenant_id = @t AND operation = 'CalculatePremium' AND {By("actor_id", "oftza-general-underwriter")}")).ShouldBeGreaterThan(0L, "the General underwriter rates the quote, audited");
+        (await Count($"SELECT count(*) FROM audit.audit_event WHERE tenant_id = @t AND operation IN ('EvaluateRuleSet', 'CalculatePremium') AND {By("actor_id", "oftza-product-manager")}")).ShouldBe(0L, "the product manager no longer rates the business");
+        (await Count($"SELECT count(*) FROM channel.disclosure_acknowledgement WHERE tenant_id = @t AND {By("recorded_by", "oftza-integration-administrator")}")).ShouldBe(0L, "nor does the integration administrator record acknowledgements");
+        (await Count($"SELECT count(*) FROM channel.disclosure_acknowledgement WHERE tenant_id = @t AND {By("recorded_by", "oftza-health-membership-administrato")}")).ShouldBeGreaterThan(0L, "the membership administrator records them at enrolment");
+        (await Count($"SELECT count(*) FROM health.cfg_contribution_rules WHERE tenant_id = @t AND code = 'CR-OFT' AND record_status = 'PUBLISHED' AND {By("created_by", OftzaSeed.LineConfigurationMaker)} AND {By("approved_by", OftzaSeed.LineConfigurationChecker)}"))
+            .ShouldBe(1L, "a live tenant's own line configuration managers change its configuration under maker-checker");
         (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM party.bank_account WHERE tenant_id = @t AND status = 'ACTIVE'", ("t", seed.TenantId))).ShouldBeGreaterThanOrEqualTo(5L, "each provider, broker and payee, verified by a second person");
         (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM commission.mst_intermediary_register WHERE tenant_id = @t AND record_status = 'ACTIVE'", ("t", seed.TenantId))).ShouldBe(2L);
         (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM health.mst_provider_register WHERE tenant_id = @t AND record_status = 'ACTIVE' AND party_id IS NOT NULL", ("t", seed.TenantId))).ShouldBe(3L);

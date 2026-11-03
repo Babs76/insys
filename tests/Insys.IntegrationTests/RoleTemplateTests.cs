@@ -222,6 +222,52 @@ public sealed class RoleTemplateTests(DatabaseFixture fixture) : IClassFixture<D
         holders.ShouldBe(["TENANT_ADMIN", "PLATFORM_ADMIN"], ignoreOrder: true);
     }
 
+    /// <summary>
+    /// Proposal A (signed 3 November 2026): the underwriters rate, evaluate the rules and record the acknowledgement, as single functions; changing rates and rules
+    /// stays with the product manager, and no template gains an approval.
+    /// </summary>
+    [Fact]
+    public async Task Underwriters_RateEvaluateAndAcknowledge_ButDoNotChangeRatesOrRules_OQ111()
+    {
+        var catalogue = await Catalogue();
+        HashSet<string> Codes(string template) => RoleTemplates.Expand(RoleTemplates.All.Single(t => t.Code == template), catalogue).Select(f => f.Code).ToHashSet(StringComparer.Ordinal);
+        string[] quoting = ["RATING_CALCULATIONS", "RATING_CALCULATE_PREMIUM", "RULE_DECISIONS", "RULES_EVALUATE_RULE_SET", "INTEGRATION_DISCLOSURES", "INTEGRATION_ACKNOWLEDGE_DISCLOSURE"];
+        foreach (var template in new[] { "GENERAL_UNDERWRITER", "LIFE_UNDERWRITER" })
+        {
+            var codes = Codes(template);
+            quoting.Where(c => !codes.Contains(c)).ShouldBeEmpty(template);
+            codes.Where(c => catalogue.Single(f => f.Function.Code == c).Function.SubDomain is "RATING" or "RULES" && !quoting.Contains(c)).ShouldBeEmpty($"{template} changes no rate or rule");
+            codes.ShouldNotContain("RATING_SIMULATE_PREMIUM");
+        }
+
+        var membership = Codes("HEALTH_MEMBERSHIP_ADMINISTRATOR");
+        membership.ShouldContain("INTEGRATION_ACKNOWLEDGE_DISCLOSURE");
+        membership.ShouldNotContain("RATING_CALCULATE_PREMIUM");
+        RoleTemplates.All.Single(t => t.Code == "GENERAL_UNDERWRITER").Approves.ShouldBe(["ENDORSEMENT"]);
+        RoleTemplates.All.Single(t => t.Code == "LIFE_UNDERWRITER").Approves.ShouldBe(["LIFE_UNDERWRITING"]);
+    }
+
+    /// <summary>
+    /// Proposal B (signed 3 November 2026): a line configuration manager maintains and approves Life, General and Health configuration and decides others'
+    /// changes in the inbox, and nothing else; the static data engine refuses an approval by the change's maker.
+    /// </summary>
+    [Fact]
+    public async Task LineConfigurationManager_HoldsTheThreeLinesConfiguration_AndNothingElse_OQ111()
+    {
+        var catalogue = await Catalogue();
+        var functions = RoleTemplates.Expand(RoleTemplates.All.Single(t => t.Code == "LINE_CONFIGURATION_MANAGER"), catalogue);
+        functions.Select(f => f.SubDomain).Distinct().Order(StringComparer.Ordinal).ShouldBe(["CONFIG_GENERAL", "CONFIG_HEALTH", "CONFIG_LIFE", "WORKFLOW"]);
+        functions.Where(f => f.SubDomain == "WORKFLOW").Select(f => f.Code).ShouldBe(["WORKFLOW_APPROVALS", "WORKFLOW_APPROVE", "WORKFLOW_REJECT"], ignoreOrder: true);
+        foreach (var line in new[] { "CONFIG_LIFE", "CONFIG_GENERAL", "CONFIG_HEALTH" })
+        {
+            var inLine = catalogue.Where(f => f.Function.SubDomain == line && f.Function.Kind != FunctionKind.Job && f.Function.Audiences.Contains("STAFF") && !f.Function.Privileged).Select(f => f.Function.Code);
+            inLine.Where(c => functions.All(f => f.Code != c)).ShouldBeEmpty($"every function of {line}");
+            functions.ShouldContain(f => f.SubDomain == line && f.Code.EndsWith("_APPROVE", StringComparison.Ordinal), $"approves {line}");
+        }
+
+        RoleTemplates.All.Single(t => t.Code == "LINE_CONFIGURATION_MANAGER").Approves.ShouldBe(["STATIC_DATA_T1", "STATIC_DATA_T2"]);
+    }
+
     [Fact]
     public async Task Addendum_IsGeneratedFromTheTemplates_OQ111()
     {

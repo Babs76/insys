@@ -26,6 +26,7 @@
  */
 using System.Text.Json;
 using FluentValidation;
+using Insys.BuildingBlocks.Application.Auditing;
 using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Messaging;
 using Insys.BuildingBlocks.Contracts;
@@ -79,7 +80,11 @@ public sealed class EvaluateRuleSetValidator : AbstractValidator<EvaluateRuleSet
     }
 }
 
-internal sealed class EvaluateRuleSetHandler(IRuleSetReader reader, IRuleDecisionRepository decisions, IBusinessDate businessDate, IClock clock) : ICommandHandler<EvaluateRuleSet, RuleDecisionView>
+/// <summary>
+/// A rule set evaluated on the inputs its caller gives. Audited (IAM-006): an underwriter who evaluates the rules may also decide the case (role templates, A),
+/// so who evaluated what, and the outcome, is on the audit trail. The inputs stay on the decision, not in the audit entry: they can be medical facts.
+/// </summary>
+internal sealed class EvaluateRuleSetHandler(IRuleSetReader reader, IRuleDecisionRepository decisions, IBusinessDate businessDate, IClock clock, IAuditTrail audit) : ICommandHandler<EvaluateRuleSet, RuleDecisionView>
 {
     public async Task<Result<RuleDecisionView>> Handle(EvaluateRuleSet command, CancellationToken cancellationToken)
     {
@@ -98,6 +103,11 @@ internal sealed class EvaluateRuleSetHandler(IRuleSetReader reader, IRuleDecisio
         }
 
         decisions.Add(decision.Value);
+        audit.Record(new AuditEntry("RULES", "EvaluateRuleSet", nameof(RuleDecision), decision.Value.Id.ToString(), new Dictionary<string, string?>
+        {
+            ["ruleset"] = $"{decision.Value.RulesetCode} v{decision.Value.RulesetVersion}", ["subjectType"] = decision.Value.SubjectType,
+            ["subjectId"] = decision.Value.SubjectId.ToString(), ["outcome"] = decision.Value.Outcome,
+        }));
         return RuleDecisionViews.From(decision.Value);
     }
 }

@@ -14,13 +14,14 @@ Each account holds one role template, with nothing added.
 | Accounts | Role | Use it for |
 |---|---|---|
 | ADMIN01/02 | Tenant administrator | Users and roles, static data approvals, **and approving a product's publication** (see below) |
-| PRODUCT01/02 | Product manager | Products, rating and rules; **also rating quotes and proposals** (see below) |
-| UNDWRIT01/02 | General underwriter | Motor and household quotes, policies, endorsements |
-| LIFEUW01/02 | Life underwriter | Funeral and term proposals, underwriting, policies |
+| PRODUCT01/02 | Product manager | Products, rating tables and rules |
+| UNDWRIT01/02 | General underwriter | Motor and household quotes (rating them too), policies, endorsements |
+| LIFEUW01/02 | Life underwriter | Funeral and term proposals (rating them and running the rules too), underwriting, policies |
 | CLAIMS01/02 | Claims handler | Registering, reserving and assessing General and Life claims |
 | CLAIMSMGR01/02 | Claims manager | Approving settlements and Life claims |
 | HEALTHCLM01/02 | Health claims assessor | Medical claims and preauthorisations |
 | HEALTHMEM01/02 | Health membership administrator | The scheme, members and dependants |
+| LINECFG01/02 | Line configuration manager | Life, General and Health configuration, such as a scheme's contribution rule: one changes it, the other approves |
 | FIN01/02, PAY01 | Finance officer | Billing, payment runs, building payout batches |
 | FINMGR01/02, PAY02 | Finance manager | Releasing payout batches, verifying bank accounts, approving refunds and runs |
 | DIST01/02 | Distribution administrator | Brokers and commission |
@@ -39,9 +40,7 @@ Nothing is sent or paid for real. The console lists the stubs; they are email, S
 
 ## Where a journey stops or goes round
 These are findings for the business review, not things to work around quietly.
-- **An underwriter can't rate a quote or proposal, or record the customer's acknowledgement of the terms.** The product manager rates and evaluates the rules; the integration administrator records the acknowledgement. So a quote-to-policy journey takes three accounts today.
 - **A product manager can't approve a publication:** the administrator does.
-- **Nobody in the tenant can change Life, General or Health configuration** (such as a scheme's contribution rule) once it's live.
 - **A Life policy can't be cancelled:** there's no such step.
 - **Grace, lapse and renewal invitations** come from jobs that run every hour, so a change shows within the hour, not at once.
 

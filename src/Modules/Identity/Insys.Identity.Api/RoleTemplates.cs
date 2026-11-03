@@ -101,6 +101,16 @@ public static class RoleTemplates
 
     private static readonly string[] Approving = ["WORKFLOW_APPROVALS", "WORKFLOW_APPROVE", "WORKFLOW_REJECT"];
 
+    /// <summary>Records the customer's acknowledgement of the notice shown them (proposal A).</summary>
+    private static readonly string[] Acknowledging = ["INTEGRATION_DISCLOSURES", "INTEGRATION_ACKNOWLEDGE_DISCLOSURE"];
+
+    /// <summary>
+    /// What an underwriter needs to quote and issue on their own (signed by Ade, 3 November 2026, proposal A): rate the quote or proposal, evaluate the
+    /// product's rules on it, and record the customer's acknowledgement. Single functions, not the RATING and RULES domains: changing rates and rules stays
+    /// with the product manager. Each evaluation and calculation is audited (IAM-006), as the underwriter's own decision may follow from it.
+    /// </summary>
+    private static readonly string[] Quoting = ["RATING_CALCULATIONS", "RATING_CALCULATE_PREMIUM", "RULE_DECISIONS", "RULES_EVALUATE_RULE_SET", .. Acknowledging];
+
     /// <summary>Screens with medical information (HLT-008) and the party search log: the Health auditor's, not the auditor's (proposed).</summary>
     public static readonly string[] SensitiveReadScreens = ["HEALTH_CLAIMS", "HEALTH_PREAUTHORISATIONS", "HEALTH_FRAUD_CASES", "HEALTH_UTILISATION_CASES", "PARTY_SEARCH_LOG"];
 
@@ -142,10 +152,10 @@ public static class RoleTemplates
             ["PRODUCT_FACTORY", "RATING", "RULES", "CONFIG_PRODUCT_FACTORY", "CONFIG_RATING", "CONFIG_RULES"], Approves: ["PRODUCT_PUBLICATION"]),
         new("GENERAL_UNDERWRITER", "General underwriter", "STAFF", "Risk objects, quotes, policies, endorsements and renewals for General",
             ["GENERAL_RISK_OBJECTS", "GENERAL_QUOTATION", "GENERAL_POLICY_ADMIN", "PARTIES", "CONSENT_PREFERENCES", "DOCUMENTS"],
-            Excluded: ["PARTY_BANK_ACCOUNT_VERIFY", .. DueDiligenceCompliance], Approves: ["ENDORSEMENT"]),
+            Excluded: ["PARTY_BANK_ACCOUNT_VERIFY", .. DueDiligenceCompliance], Extra: Quoting, Approves: ["ENDORSEMENT"]),
         new("LIFE_UNDERWRITER", "Life underwriter", "STAFF", "Proposals, underwriting cases, policies, values and group schemes for Life",
             ["LIFE_NEW_BUSINESS", "LIFE_UNDERWRITING", "LIFE_POLICY_ADMIN", "LIFE_POLICY_VALUES", "LIFE_GROUP_SCHEMES", "PARTIES", "CONSENT_PREFERENCES", "DOCUMENTS"],
-            Excluded: ["PARTY_BANK_ACCOUNT_VERIFY", .. DueDiligenceCompliance], Approves: ["LIFE_UNDERWRITING"]),
+            Excluded: ["PARTY_BANK_ACCOUNT_VERIFY", .. DueDiligenceCompliance], Extra: Quoting, Approves: ["LIFE_UNDERWRITING"]),
         new("CLAIMS_HANDLER", "Claims handler", "STAFF", "Registers, assesses and reserves General and Life claims and recoveries, and drafts payment instructions (the maker)",
             ["CLAIM_REGISTER", "CLAIM_FINANCIALS", "GENERAL_CLAIMS", "GENERAL_RECOVERIES", "LIFE_CLAIMS", "PARTIES", "DOCUMENTS", "DISPUTES_APPEALS"],
             Excluded: ["CLAIMS_RELEASE_INSTRUCTION", "PARTY_BANK_ACCOUNT_VERIFY", .. DueDiligenceAll]),
@@ -155,7 +165,10 @@ public static class RoleTemplates
         new("HEALTH_CLAIMS_ASSESSOR", "Health claims assessor", "STAFF", "Medical claims, preauthorisations, fraud and utilisation cases",
             ["HEALTH_MEDICAL_CLAIMS", "HEALTH_ACCESS_TO_CARE", "HEALTH_FRAUD_UTILISATION", "PARTIES", "DOCUMENTS"], Excluded: ["PARTY_BANK_ACCOUNT_VERIFY", .. DueDiligenceAll]),
         new("HEALTH_MEMBERSHIP_ADMINISTRATOR", "Health membership administrator", "STAFF", "Schemes, plans and memberships",
-            ["HEALTH_SCHEMES_PLANS", "HEALTH_MEMBERSHIP", "PARTIES", "CONSENT_PREFERENCES", "DOCUMENTS"], Excluded: ["PARTY_BANK_ACCOUNT_VERIFY", .. DueDiligenceCompliance]),
+            ["HEALTH_SCHEMES_PLANS", "HEALTH_MEMBERSHIP", "PARTIES", "CONSENT_PREFERENCES", "DOCUMENTS"], Excluded: ["PARTY_BANK_ACCOUNT_VERIFY", .. DueDiligenceCompliance], Extra: Acknowledging),
+        new("LINE_CONFIGURATION_MANAGER", "Line configuration manager", "STAFF",
+            "Life, General and Health configuration: each line's rules, codes and parameters, under maker-checker; decides another person's change, never their own",
+            ["CONFIG_LIFE", "CONFIG_GENERAL", "CONFIG_HEALTH"], Extra: Approving, Approves: ["STATIC_DATA_T1", "STATIC_DATA_T2"]),
         new("FINANCE_OFFICER", "Finance officer", "STAFF", "Billing, journals and provider payment runs, and builds payout batches (the maker)",
             ["BILLING", "PAYMENTS", "FINANCE", "HEALTH_PROVIDER_PAYMENTS", "CONFIG_BILLING", "CONFIG_PAYMENTS", "CONFIG_FINANCE"],
             Excluded: ["PAYMENTS_RELEASE_BATCH", .. CallbackScreens]),
