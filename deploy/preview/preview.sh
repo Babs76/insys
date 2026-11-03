@@ -39,8 +39,9 @@ here="$(cd "$(dirname "$0")" && pwd)"
 action=${1:?an action}
 : "${HCLOUD_TOKEN:?}" "${PREVIEW_DOMAIN:?}"
 name=insys-preview
-location=${PREVIEW_LOCATION:-nbg1}
-server_type=${PREVIEW_SERVER_TYPE:-cx43}
+# No defaults: the reserved IPv4 is made in the location and can't move to another, so a provision without them stops (infrastructure).
+location=${PREVIEW_LOCATION:-}
+server_type=${PREVIEW_SERVER_TYPE:-}
 k3s_version=${PREVIEW_K3S_VERSION:-v1.33.5+k3s1}
 helm_version=v3.19.0
 operator_tenant=0199f000-0000-7000-8000-000000000001
@@ -71,8 +72,12 @@ open_ssh() {
 }
 
 infrastructure() {
+  local ip_location
+  [ -n "$location" ] && [ -n "$server_type" ] || fail "Set PREVIEW_LOCATION and PREVIEW_SERVER_TYPE in the Environment preview first: the reserved IPv4 can't move between locations."
   hcloud ssh-key describe "$name" >/dev/null 2>&1 || hcloud ssh-key create --name "$name" --public-key "$(ssh-keygen -y -f "$key")" >/dev/null
   hcloud primary-ip describe "$name" >/dev/null 2>&1 || hcloud primary-ip create --name "$name" --type ipv4 --location "$location" --auto-delete=false >/dev/null
+  ip_location=$(hcloud primary-ip describe "$name" -o json | jq -r '.location.name // .datacenter.location.name')
+  [ "$ip_location" = "$location" ] || fail "The reserved IPv4 is in $ip_location, not $location, and can't move: set PREVIEW_LOCATION=$ip_location, or delete the address in Hetzner's console (and repoint the DNS records)."
   hcloud firewall describe "$name" >/dev/null 2>&1 || hcloud firewall create --name "$name" >/dev/null
   close_ssh
   if ! hcloud server describe "$name" >/dev/null 2>&1; then

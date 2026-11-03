@@ -16,6 +16,7 @@
    - `confirm`: for `reset`, `rotate-passwords` and `destroy` only, the action's own name typed exactly: `reset`, `rotate-passwords`, `destroy`. Anything else stops the run before it starts.
    - `ssh_from`: for `open-ssh`, the address to allow, Ade's own IP.
    - `acme`: `staging` (the default) until a run has shown a staging certificate on both hosts, then `production`.
+   - The server: the Environment's variables `PREVIEW_SERVER_TYPE=cpx42` and `PREVIEW_LOCATION=fsn1` (Ade, 3 November), passed through by `preview.yml` (merged 3 November, with `PREVIEW_CONSOLE_PULL_USER`, which it lacked too). `provision` stops if either is unset, or if the reserved IPv4 already exists in another location: an address can't move between locations, so `fsn1` must be set before the first run.
    The first run is `provision` with `acme: staging`. It prints the server's address; Ade then creates the two A records (`insys.project-demo.app` and `id.insys.project-demo.app`), and the run waits for them before checking certificates.
 2. **Unsealing OpenBao: the key, the user and the command.** SSH is as `root`, with the private key whose text is the `PREVIEW_SSH_KEY` secret: the key pair Ade made for it, kept on his machine. Then:
    1. Run the workflow with `action: open-ssh` and `ssh_from` set to his IP. SSH stays open from that address until the next run closes it.

@@ -12,14 +12,16 @@
 5. **Durability is a defect for production too:** OpenBao and Keycloak get persistent storage in the chart itself, with a test that a pod restart keeps keys and accounts (register row 1). **OpenBao's unseal keys and root token are never stored on the server or in GitHub.** They go to Ade, encrypted to Ade's age key, like the passwords.
 
 ## Server
-**One Hetzner CX43 in Nuremberg (NBG1), with Helsinki as the fallback: 8 shared vCPU, 16 GB RAM, 160 GB NVMe, 20 TB traffic.**
+**Confirmed by Ade, 3 November: one Hetzner CPX42 in Falkenstein (FSN1): 8 vCPU, 16 GB RAM, 320 GB.** It's the fallback the plan named below; prices as checked on 2 November. The workflow takes both from the Environment's variables `PREVIEW_SERVER_TYPE=cpx42` and `PREVIEW_LOCATION=fsn1`, and `provision` stops without them: the reserved IPv4 is made in that location and can't move to another.
 
 | Item | Monthly, excl. VAT |
 |---|---|
-| CX43, including IPv4 | €16.49 |
-| Hetzner daily backups, 20% of the server | about €3.30 |
+| CPX42, including IPv4 | €69.99 |
+| Hetzner daily backups, 20% of the server | about €14.00 |
 | Documents in-cluster (SeaweedFS, on the server's disk) | €0 |
-| **Total** | **about €19.79** |
+| **Total** | **about €83.99** |
+
+The plan as first written, for the record: one CX43 in Nuremberg (NBG1), about €19.79 with backups.
 
 - **Checked 2 November 2026.** The server price is from [Hetzner's cost-optimized page](https://www.hetzner.com/cloud/cost-optimized/). The backup rate is from third-party sources only, as Hetzner's pages I could read don't state it. Hetzner repriced twice in 2026, so check the price when ordering.
 - **Availability must be checked first.** The pages as I read them marked every plan "currently unavailable", and I can't tell whether that's real or a result of reading the page without choosing a location. The first step is to look in the Hetzner console or API. If CX43 can't be had, the fallback is CPX42 (8 vCPU, 16 GB, 320 GB) at €69.99, with backups about €83.99; the plan stays the same.
@@ -62,6 +64,8 @@ A manually triggered workflow, `preview.yml`, on `Babs76/insys`, in a GitHub Env
 | `PREVIEW_SSH_KEY` | The private key the workflow uses to reach the server |
 | `PREVIEW_AGE_RECIPIENT` | A variable, not a secret: the public half of an [age](https://github.com/FiloSottile/age) key Ade makes and keeps |
 | `PREVIEW_DOMAIN` | A variable: `insys.project-demo.app` |
+| `PREVIEW_LOCATION` | A variable: `fsn1`. Set before the first `provision`: the reserved IPv4 is made there and can't move |
+| `PREVIEW_SERVER_TYPE` | A variable: `cpx42` |
 | `PREVIEW_CONSOLE_PULL_TOKEN` | Read-only, only if the console's image in `insys-web` is private |
 
 **Images:** the API and migrator are built in the run and imported directly to the server. The console's image comes from the front end's pipeline.
