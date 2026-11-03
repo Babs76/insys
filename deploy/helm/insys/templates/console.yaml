@@ -1,0 +1,106 @@
+# ============================================================================
+# OPENFACTOR TECHNOLOGY GROUP
+# CONFIDENTIAL AND PROPRIETARY SOFTWARE
+# ============================================================================
+# Copyright (c) 2026 OpenFactor Technology Group.
+# All rights reserved.
+# PRODUCT       : INSYS
+# COMPONENT     : Build
+# CONFIDENTIALITY AND INTELLECTUAL PROPERTY NOTICE
+# This source code and its associated documentation contain confidential and
+# proprietary information belonging to OpenFactor Technology Group or its
+# applicable intellectual property rights holder.
+# This material is provided solely for authorised development, maintenance,
+# operation or evaluation purposes, as applicable. No person may reproduce,
+# modify, distribute, disclose, publish or otherwise use this material except
+# as expressly permitted by an applicable written agreement or licence.
+# No ownership rights or licence to any intellectual property are granted
+# by the inclusion of this notice, except as expressly provided in an
+# applicable written agreement or licence.
+# Third-party software, open-source components and customer-owned materials
+# remain subject to their respective ownership rights and applicable licences
+# or agreements.
+# UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
+# ============================================================================
+{{- if .Values.console.enabled }}
+{{- /* The front end's four apps (ADR-027, BR-132): one image, the back office at / and the portals under their paths, each with its config.json. */}}
+{{- $host := required "console: ingress.host, the console's host" .Values.ingress.host }}
+{{- $origin := printf "https://%s" $host }}
+{{- $issuer := required "console: authentication.authority (or console.issuer), Keycloak's realm issuer" (.Values.console.issuer | default .Values.authentication.authority) }}
+{{- $keycloak := regexFind "^https://[^/]+" $issuer }}
+{{- if not $keycloak }}{{ fail "console: Keycloak's issuer must be an https address" }}{{ end }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-console
+  labels: {{- include "insys.labels" . | nindent 4 }}
+data:
+  {{- range $app := list (list "backoffice" "" "insys-web") (list "broker" "broker/" "broker-portal") (list "member" "member/" "member-portal") (list "provider" "provider/" "provider-portal") }}
+  {{ index $app 0 }}.json: |-
+    {{- $base := printf "%s/%s" $origin (index $app 1) }}
+    {{- dict "environmentName" $.Values.console.environmentName "appBaseUrl" $base "apiBaseUrl" $origin
+          "keycloak" (dict "issuer" $issuer "clientId" (index $app 2)) "postLogoutRedirectUri" (printf "%ssigned-out" $base)
+          "apps" (dict "backoffice" (printf "%s/" $origin) "broker" (printf "%s/broker/" $origin) "member" (printf "%s/member/" $origin) "provider" (printf "%s/provider/" $origin))
+          | toJson | nindent 4 }}
+  {{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-console
+  labels: {{- include "insys.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.console.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: console
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: console
+        {{- include "insys.labels" . | nindent 8 }}
+      annotations:
+        # A change of address or values restarts it, so each app reads its new config.json.
+        checksum/config: {{ printf "%s %s %s" $origin $issuer (toJson .Values.console) | sha256sum | trunc 16 | quote }}
+    spec:
+      {{- with .Values.console.pullSecret }}
+      imagePullSecrets: [{name: {{ . }}}]
+      {{- end }}
+      securityContext: {runAsNonRoot: true, runAsUser: 101, runAsGroup: 101}
+      containers:
+        - name: console
+          image: {{ required "console.image, pinned by digest" .Values.console.image | quote }}
+          imagePullPolicy: IfNotPresent
+          ports: [{name: http, containerPort: 8080}]
+          env:
+            - {name: INSYS_API_ORIGIN, value: {{ $origin | quote }}}
+            - {name: INSYS_KEYCLOAK_ORIGIN, value: {{ $keycloak | quote }}}
+          readinessProbe:
+            httpGet: {path: /config.json, port: http}
+          livenessProbe:
+            httpGet: {path: /config.json, port: http}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+          resources: {requests: {cpu: 20m, memory: 32Mi}, limits: {memory: 128Mi}}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+            {{- range $app := list "backoffice" "broker" "member" "provider" }}
+            - {name: config, mountPath: /etc/insys/config/{{ $app }}/config.json, subPath: {{ $app }}.json, readOnly: true}
+            {{- end }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: config
+          configMap: {name: {{ .Release.Name }}-console}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-console
+  labels: {{- include "insys.labels" . | nindent 4 }}
+spec:
+  ports: [{name: http, port: 8080, targetPort: http}]
+  selector:
+    app.kubernetes.io/name: console
+    app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}

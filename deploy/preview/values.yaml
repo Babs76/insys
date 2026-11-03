@@ -47,6 +47,8 @@ postgres: {enabled: true, storage: 20Gi}
 openbao: {enabled: true, devMode: false, storage: 1Gi}
 seaweedfs: {enabled: true, storage: 20Gi}
 keycloak: {enabled: true, devMode: false}
+# The front end's apps, from the chart's pinned digest; ghcr is the pull secret preview.sh makes from PREVIEW_CONSOLE_PULL_TOKEN.
+console: {enabled: true, pullSecret: ghcr, environmentName: preview}
 ingress:
   enabled: true
   className: traefik
