@@ -1,0 +1,106 @@
+# ============================================================================
+# OPENFACTOR TECHNOLOGY GROUP
+# CONFIDENTIAL AND PROPRIETARY SOFTWARE
+# ============================================================================
+# Copyright (c) 2026 OpenFactor Technology Group.
+# All rights reserved.
+# PRODUCT       : INSYS
+# COMPONENT     : CI
+# CONFIDENTIALITY AND INTELLECTUAL PROPERTY NOTICE
+# This source code and its associated documentation contain confidential and
+# proprietary information belonging to OpenFactor Technology Group or its
+# applicable intellectual property rights holder.
+# This material is provided solely for authorised development, maintenance,
+# operation or evaluation purposes, as applicable. No person may reproduce,
+# modify, distribute, disclose, publish or otherwise use this material except
+# as expressly permitted by an applicable written agreement or licence.
+# No ownership rights or licence to any intellectual property are granted
+# by the inclusion of this notice, except as expressly provided in an
+# applicable written agreement or licence.
+# Third-party software, open-source components and customer-owned materials
+# remain subject to their respective ownership rights and applicable licences
+# or agreements.
+# UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
+# ============================================================================
+# The INSYS Preview (docs/plans/insys-preview.md): one Hetzner server with k3s and the chart, sample data only. Run by hand, in the
+# Environment "preview", which needs Ade's approval. Ade sets HCLOUD_TOKEN and PREVIEW_SSH_KEY as its secrets, and PREVIEW_DOMAIN,
+# PREVIEW_AGE_RECIPIENT and, optionally, PREVIEW_ACME_EMAIL as its variables. The only artifact is the file encrypted to Ade's age key, as
+# this repository is public; nothing secret is printed, and the inputs (also public) never carry one.
+name: preview
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: What to do
+        type: choice
+        options: [provision, upgrade, open-ssh, reset, rotate-passwords, destroy]
+      confirm:
+        description: For reset, rotate-passwords and destroy, type the action's name
+        default: ""
+      ssh_from:
+        description: For open-ssh, the address to allow (your own IP)
+        default: ""
+      acme:
+        description: Let's Encrypt's staging service until issuance is proven, then production
+        type: choice
+        options: [staging, production]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: preview
+  cancel-in-progress: false
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    environment: preview
+    timeout-minutes: 120
+    env:
+      HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+      PREVIEW_SSH_KEY: ${{ secrets.PREVIEW_SSH_KEY }}
+      PREVIEW_DOMAIN: ${{ vars.PREVIEW_DOMAIN }}
+      PREVIEW_AGE_RECIPIENT: ${{ vars.PREVIEW_AGE_RECIPIENT }}
+      PREVIEW_ACME_EMAIL: ${{ vars.PREVIEW_ACME_EMAIL }}
+      PREVIEW_ACME: ${{ inputs.acme }}
+    steps:
+      - name: Confirmation
+        if: contains(fromJSON('["reset", "rotate-passwords", "destroy"]'), inputs.action) && inputs.confirm != inputs.action
+        run: |
+          echo "::error::Type the action's name in confirm to ${{ inputs.action }}."
+          exit 1
+
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Tools (hcloud, checked against its published checksum, and age)
+        run: |
+          version=v1.70.1
+          cd "$RUNNER_TEMP"
+          curl -sfLO "https://github.com/hetznercloud/cli/releases/download/$version/hcloud-linux-amd64.tar.gz"
+          curl -sfLO "https://github.com/hetznercloud/cli/releases/download/$version/checksums.txt"
+          grep ' hcloud-linux-amd64.tar.gz$' checksums.txt | sha256sum -c -
+          tar -xzf hcloud-linux-amd64.tar.gz hcloud && sudo install hcloud /usr/local/bin/hcloud
+          sudo apt-get install -y -qq age > /dev/null
+
+      - name: ${{ inputs.action }}
+        env:
+          SSH_FROM: ${{ inputs.ssh_from }}
+        run: |
+          RUNNER_IP="$(curl -sf https://api.ipify.org)"
+          export RUNNER_IP
+          deploy/preview/preview.sh "${{ inputs.action }}" ${SSH_FROM:+"$SSH_FROM"}
+
+      - name: The file for Ade, encrypted to his key
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: preview-secrets
+          path: ${{ runner.temp }}/preview-secrets.age
+          retention-days: 1
+          if-no-files-found: ignore
