@@ -484,7 +484,9 @@ public sealed partial class OftzaSeed
                 await context.Settle();
             }
 
-            foreach (var approval in (await _adminChecker!.Send(HttpMethod.Get, "/api/v1/workflow/approvals?status=Requested")).GetProperty("items").EnumerateArray())
+            // Only the links: other approvals waiting (a claim's, from a stopped run) are another person's to decide.
+            foreach (var approval in (await _adminChecker!.Send(HttpMethod.Get, "/api/v1/workflow/approvals?status=Requested")).GetProperty("items").EnumerateArray()
+                         .Where(a => a.GetProperty("approvalType").GetString() == "EXTERNAL_SUBJECT_LINK"))
             {
                 await _adminChecker.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval.GetProperty("id").GetGuid()}/approve", ifMatch: $"\"{approval.GetProperty("rowVersion").GetInt64()}\"", idempotent: false);
             }
