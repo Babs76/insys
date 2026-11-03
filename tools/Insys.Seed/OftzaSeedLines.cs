@@ -65,6 +65,7 @@ public sealed partial class OftzaSeed
         await HealthConfiguration();
         await ClaimConfiguration();
         await Reinsurance();
+        await Static("workflow/static/delegation-and-approval-authority", "AUTH-EXTERNAL_SUBJECT_LINK", new { roleCode = "TENANT_ADMIN", transactionType = "EXTERNAL_SUBJECT_LINK", limitValue = 0m, delegationAllowed = false });
     }
 
     /// <summary>One quota share treaty on the General products, 30 % retained, with a sample reinsurer: policies issued after it are ceded.</summary>
@@ -251,6 +252,7 @@ public sealed partial class OftzaSeed
             await Cleared(await Person(index));
         }
 
+        await PortalLinks();
         await LifeBook();
         await GeneralBook();
         await HealthBook();
@@ -457,6 +459,37 @@ public sealed partial class OftzaSeed
                 await administrator.Send(HttpMethod.Post, $"{url}/{action}", new { effectiveDate = DateOnly.FromDateTime(DateTime.UtcNow), reason = "Sample" }, key: $"{TenantCode}:{action}:{id}");
                 await context.Settle();
             }
+        }
+    }
+
+    /// <summary>The portal personas, each linked to who they are: a member to a person, the broker to its intermediary, the provider to its practice. A second administrator approves each link.</summary>
+    private async Task PortalLinks()
+    {
+        foreach (var (name, body) in new (string, object)[]
+                 {
+                     ("oftza-member", new { kind = "Party", partyId = await Person(5), intermediaryCode = (string?)null, providerId = (string?)null }),
+                     ("oftza-broker", new { kind = "Intermediary", partyId = (Guid?)null, intermediaryCode = SampleParties.Brokers[0].Code, providerId = (string?)null }),
+                     ("oftza-provider", new { kind = "Provider", partyId = (Guid?)null, intermediaryCode = (string?)null, providerId = SampleParties.Providers[0].Code }),
+                 })
+        {
+            if (await User(name) is not { } found)
+            {
+                continue;
+            }
+
+            var id = found.GetProperty("id").GetGuid();
+            if ((await _adminMaker!.Send(HttpMethod.Get, $"/api/v1/identity/users/{id}")).GetProperty("externalSubjectLink").ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
+            {
+                await _adminMaker.Send(HttpMethod.Post, $"/api/v1/identity/users/{id}/subject-link", body, await Version(id), idempotent: false);
+                await context.Settle();
+            }
+
+            foreach (var approval in (await _adminChecker!.Send(HttpMethod.Get, "/api/v1/workflow/approvals?status=Requested")).GetProperty("items").EnumerateArray())
+            {
+                await _adminChecker.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval.GetProperty("id").GetGuid()}/approve", ifMatch: $"\"{approval.GetProperty("rowVersion").GetInt64()}\"", idempotent: false);
+            }
+
+            await context.Settle();
         }
     }
 

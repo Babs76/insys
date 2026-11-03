@@ -99,6 +99,7 @@ public sealed class OftzaSeedTests(DatabaseFixture fixture) : IClassFixture<Data
         (await Count("SELECT count(*) FROM finance.journal WHERE tenant_id = @t")).ShouldBeGreaterThan(50L, "the records' journals");
         (await Count("SELECT count(*) FROM billing.refund_request WHERE tenant_id = @t")).ShouldBe(1L);
         (await Count("SELECT count(*) FROM health.provider_statement WHERE tenant_id = @t")).ShouldBe(1L);
+        (await Count("SELECT count(*) FROM iam.user_subject_link WHERE tenant_id = @t AND status = 'ACTIVE'")).ShouldBe(3L, "a member, a broker and a provider on their portals");
         (await Count("SELECT count(*) FROM reinsurance.cession WHERE tenant_id = @t")).ShouldBeGreaterThan(0L, "General policies ceded to the treaty");
         (await Count("SELECT count(*) FROM commission.commission_statement WHERE tenant_id = @t")).ShouldBe(1L);
         (await Count("SELECT count(*) FROM workflow.service_case WHERE tenant_id = @t")).ShouldBe(1L, "a claim disputed through a case");
