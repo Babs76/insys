@@ -23,6 +23,17 @@
 # UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
 # ============================================================================
 {{- if .Values.postgres.enabled }}
+{{- if and .Values.keycloak.enabled (not .Values.keycloak.devMode) }}
+# Keycloak's own database, made when the volume is new.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-postgres-init
+  labels: {{- include "insys.labels" . | nindent 4 }}
+data:
+  keycloak.sql: CREATE DATABASE keycloak;
+---
+{{- end }}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -51,7 +62,16 @@ spec:
             - {name: POSTGRES_USER, value: insys_owner}
             - {name: POSTGRES_DB, value: {{ .Values.postgres.database | quote }}}
             {{- include "insys.secretEnv" (dict "root" . "name" "POSTGRES_PASSWORD" "key" "postgresPassword") | nindent 12 }}
-          volumeMounts: [{name: data, mountPath: /var/lib/postgresql}]
+          volumeMounts:
+            - {name: data, mountPath: /var/lib/postgresql}
+            {{- if and .Values.keycloak.enabled (not .Values.keycloak.devMode) }}
+            - {name: init, mountPath: /docker-entrypoint-initdb.d, readOnly: true}
+            {{- end }}
+      {{- if and .Values.keycloak.enabled (not .Values.keycloak.devMode) }}
+      volumes:
+        - name: init
+          configMap: {name: {{ .Release.Name }}-postgres-init}
+      {{- end }}
   volumeClaimTemplates:
     - metadata: {name: data}
       spec:

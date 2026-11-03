@@ -108,6 +108,14 @@ public sealed class InsysApiFactory(TestDatabase database, IReadOnlyDictionary<s
         return client;
     }
 
+    /// <summary>As <see cref="ClientFor"/>, with nothing supplied for the caller: what a client outside the tests meets.</summary>
+    public HttpClient StrictClientFor(Guid? tenantId, string subject, string? clientId = null)
+    {
+        var client = CreateDefaultClient(ClientOptions.BaseAddress);
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", TestTokens.For(tenantId, subject, time?.GetUtcNow().UtcDateTime ?? DateTime.UtcNow, clientId));
+        return client;
+    }
+
     /// <summary>Publishes every pending outbox event to its consumers now (the relay is off in tests).</summary>
     /// <summary>Relays outbox events until none are left, so chains of events (a consumer publishing in turn) complete.</summary>
     public async Task<int> DrainOutbox()

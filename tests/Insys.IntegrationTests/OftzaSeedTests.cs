@@ -46,8 +46,8 @@ public sealed class OftzaSeedTests(DatabaseFixture fixture) : IClassFixture<Data
         await db.AssignRole(DatabaseFixture.Operator, second, role);
         await db.SeedStatic(DatabaseFixture.Operator, "workflow.cfg_delegation_and_approval_authority", "EFFECTIVE", "AUTH-SEED-ADM", new DateOnly(2026, 1, 1), ("role_code", role),
             ("transaction_type", "TENANT_ADMINISTRATOR"), ("limit_value", 1m), ("delegation_allowed", false));
-        var seed = new OftzaSeed(new SeedContext(new Persona(host.ClientFor(DatabaseFixture.Operator, "seed-platform-1")), new Persona(host.ClientFor(DatabaseFixture.Operator, "seed-platform-2")),
-            (tenant, subject) => new Persona(host.ClientFor(tenant, subject, "insys-web")), () => host.DrainOutbox(), async () =>
+        var seed = new OftzaSeed(new SeedContext(new Persona(host.StrictClientFor(DatabaseFixture.Operator, "seed-platform-1")), new Persona(host.StrictClientFor(DatabaseFixture.Operator, "seed-platform-2")),
+            (tenant, subject) => new Persona(host.StrictClientFor(tenant, subject, "insys-web")), () => host.DrainOutbox(), async () =>
             {
                 await host.Services.GetRequiredService<Insys.Billing.Infrastructure.BillingJobs>().Run(CancellationToken.None);
                 await host.DrainOutbox();
@@ -61,7 +61,7 @@ public sealed class OftzaSeedTests(DatabaseFixture fixture) : IClassFixture<Data
         }
         catch (SeedRefusedException refused)
         {
-            throw new InvalidOperationException("GAPS " + string.Join(" | ", seed.Gaps) + " :: " + refused.Message[..Math.Min(refused.Message.Length, 300)]);
+            throw new InvalidOperationException("GAPS " + string.Join(" | ", seed.Gaps) + " :: " + refused.Message[..Math.Min(refused.Message.Length, 1500)]);
         }
 
         return (seed, new Persona(host.ClientFor(seed.TenantId, OftzaSeed.FirstAdministrator)));
@@ -89,7 +89,24 @@ public sealed class OftzaSeedTests(DatabaseFixture fixture) : IClassFixture<Data
         (await Count("SELECT count(*) FROM health.membership WHERE tenant_id = @t")).ShouldBe(12L);
         (await Count("SELECT count(*) FROM health.membership WHERE tenant_id = @t AND status = 'SUSPENDED'")).ShouldBe(2L);
         (await Count("SELECT count(*) FROM health.membership WHERE tenant_id = @t AND status = 'TERMINATED'")).ShouldBe(2L);
-        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM party.bank_account WHERE tenant_id = @t AND status = 'ACTIVE'", ("t", seed.TenantId))).ShouldBe(5L, "each provider and broker, verified by a second person");
+        (await Count("SELECT count(DISTINCT status) FROM general.claim WHERE tenant_id = @t")).ShouldBeGreaterThanOrEqualTo(4L, "claims at each main stage");
+        (await Count("SELECT count(*) FROM general.claim WHERE tenant_id = @t AND status = 'DECLINED'")).ShouldBe(1L);
+        (await Count("SELECT count(*) FROM life.claim WHERE tenant_id = @t")).ShouldBe(5L);
+        (await Count("SELECT count(*) FROM health.medical_claim WHERE tenant_id = @t AND status = 'PAID'")).ShouldBe(2L);
+        (await Count("SELECT count(*) FROM payment.payout_batch WHERE tenant_id = @t AND status IN ('RELEASED', 'SETTLED')")).ShouldBeGreaterThanOrEqualTo(1L, "released by a second person");
+        (await Count("SELECT count(*) FROM payment.payment WHERE tenant_id = @t AND status = 'FAILED'")).ShouldBe(1L, "one collection bounced");
+        (await Count("SELECT count(*) FROM payment.payment WHERE tenant_id = @t AND status = 'UNKNOWN'")).ShouldBe(1L, "one with no clear answer");
+        (await Count("SELECT count(*) FROM finance.journal WHERE tenant_id = @t")).ShouldBeGreaterThan(50L, "the records' journals");
+        (await Count("SELECT count(*) FROM billing.refund_request WHERE tenant_id = @t")).ShouldBe(1L);
+        (await Count("SELECT count(*) FROM health.provider_statement WHERE tenant_id = @t")).ShouldBe(1L);
+        (await Count("SELECT count(*) FROM iam.user_subject_link WHERE tenant_id = @t AND status = 'ACTIVE'")).ShouldBe(3L, "a member, a broker and a provider on their portals");
+        (await Count("SELECT count(*) FROM reinsurance.cession WHERE tenant_id = @t")).ShouldBeGreaterThan(0L, "General policies ceded to the treaty");
+        (await Count("SELECT count(*) FROM commission.commission_statement WHERE tenant_id = @t")).ShouldBe(1L);
+        (await Count("SELECT count(*) FROM workflow.service_case WHERE tenant_id = @t")).ShouldBe(5L, "a claim disputed through a complaint, an enquiry, a provider's dispute, and a complaint decided and appealed");
+        (await Count("SELECT count(DISTINCT family) FROM workflow.service_case WHERE tenant_id = @t")).ShouldBe(4L, "cases of each family");
+        (await Count("SELECT count(*) FROM finance.tax_return WHERE tenant_id = @t")).ShouldBe(1L, "one VAT return prepared");
+        (await Count("SELECT count(*) FROM finance.accounting_period WHERE tenant_id = @t AND status = 'CLOSED'")).ShouldBe(1L, "last month closed");
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM party.bank_account WHERE tenant_id = @t AND status = 'ACTIVE'", ("t", seed.TenantId))).ShouldBeGreaterThanOrEqualTo(5L, "each provider, broker and payee, verified by a second person");
         (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM commission.mst_intermediary_register WHERE tenant_id = @t AND record_status = 'ACTIVE'", ("t", seed.TenantId))).ShouldBe(2L);
         (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM health.mst_provider_register WHERE tenant_id = @t AND record_status = 'ACTIVE' AND party_id IS NOT NULL", ("t", seed.TenantId))).ShouldBe(3L);
         foreach (var loader in new[] { OftzaSeed.LoaderMaker, OftzaSeed.LoaderChecker })

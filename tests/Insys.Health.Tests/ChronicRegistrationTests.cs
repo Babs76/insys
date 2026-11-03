@@ -77,9 +77,11 @@ public sealed class ChronicRegistrationTests
         registration.Decline("Criteria not met", Checker, recipient, "PROD", null, "ZAR", Day, Now).IsSuccess.ShouldBeTrue();
         var raised = registration.DomainEvents.OfType<ChronicRegistrationDeclinedRightsDue>().Single();
         raised.RecipientPartyId.ShouldBe(recipient);
-        raised.ToString().ShouldNotContain("DIABETES");
-        raised.ToString().ShouldNotContain("E11");
-        raised.ToString().ShouldNotContain("Criteria");
+        // Its ids are random hex, which can hold "e11" by chance: they're taken out before looking for the diagnosis code.
+        var text = System.Text.RegularExpressions.Regex.Replace(raised.ToString(), "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", "<id>");
+        text.ShouldNotContain("DIABETES");
+        text.ShouldNotContain("E11");
+        text.ShouldNotContain("Criteria");
     }
 
     [Fact]

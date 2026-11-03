@@ -49,6 +49,21 @@ spec:
             - --roles
             - db/roles
             {{- end }}
+            {{- with .Values.migrations.bootstrapOperator }}
+            {{- if .enabled }}
+            # The operator tenant and its two platform administrators, from db/bootstrap/operator.sql: a run again changes nothing (BR-061).
+            - --bootstrap-operator
+            - {{ $.Values.operatorTenantId | quote }}
+            {{- range $n, $admin := list .admin1 .admin2 }}
+            - --admin{{ add1 $n }}-subject
+            - {{ required "migrations.bootstrapOperator: each administrator's subject" $admin.subject | quote }}
+            - --admin{{ add1 $n }}-username
+            - {{ required "migrations.bootstrapOperator: each administrator's username" $admin.username | quote }}
+            - --admin{{ add1 $n }}-name
+            - {{ required "migrations.bootstrapOperator: each administrator's name" $admin.name | quote }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
           env:
             {{- include "insys.secretEnv" (dict "root" . "name" "INSYS_MIGRATION_CONNECTION" "key" "migrationConnection") | nindent 12 }}
             {{- if .Values.migrations.createRoles }}

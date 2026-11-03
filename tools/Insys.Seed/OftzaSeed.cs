@@ -201,7 +201,6 @@ public sealed partial class OftzaSeed(SeedContext context)
 
             object body = step switch
             {
-                "REINSURANCE" => new { step, attestations = new[] { new { check = "TREATIES", note = "Sample tenant: its treaty comes with a later slice" } } },
                 "INTEGRATION_AND_REPORTING" => new { step, attestations = new[] { new { check = "WEBHOOKS_OR_NONE", note = "Sample tenant: no partners" } } },
                 _ => new { step },
             };
@@ -292,11 +291,11 @@ public sealed partial class OftzaSeed(SeedContext context)
         await Static("documents/static/document-templates", "OFT-TPL-1", new { templateCode = "OFT-TPL-1", language = "en", documentType = "POLICY_SCHEDULE", bodyRef = "sample", mergeFields = Array.Empty<string>() });
 
         await Static("product-factory/static/coverage-and-benefit-library", "OWN_DAMAGE", new { type = "COVERAGE", name = "Own damage (sample)", basis = "INDEMNITY", measure = "SUM_INSURED", domain = "GENERAL" });
-        await RatedProduct("OFT-MOTOR", "General", "GENERAL", "GEN-MOTOR", "Motor insurance (sample)", "Motor comprehensive (invented sample)", ["OWN_DAMAGE"], "VEHICLE_GROUP", "vehicle_group", [("G3", 0.03m)], "OFT-MOT", 100_000, "G3", 3050m, "GENERAL_UNDERWRITER");
+        await RatedProduct("OFT-MOTOR", "General", "GENERAL", "MOTOR", "Motor insurance (sample)", "Motor comprehensive (invented sample)", ["OWN_DAMAGE"], "VEHICLE_GROUP", "vehicle_group", [("G3", 0.03m)], "OFT-MOT", 100_000, "G3", 3050m, "GENERAL_UNDERWRITER");
 
         await Static("product-factory/static/coverage-and-benefit-library", "BUILDINGS", new { type = "COVERAGE", name = "Buildings (sample)", basis = "INDEMNITY", measure = "SUM_INSURED", domain = "GENERAL" });
         await Static("product-factory/static/coverage-and-benefit-library", "CONTENTS", new { type = "COVERAGE", name = "Contents (sample)", basis = "INDEMNITY", measure = "SUM_INSURED", domain = "GENERAL" });
-        await RatedProduct("OFT-HOME", "General", "GENERAL", "GEN-HOME", "Household insurance (sample)", "Household (invented sample)", ["BUILDINGS", "CONTENTS"], "CONSTRUCTION", "construction", [("BRICK", 0.002m), ("THATCH", 0.006m)], "OFT-HOM", 1_000_000, "BRICK", 2050m, "GENERAL_UNDERWRITER");
+        await RatedProduct("OFT-HOME", "General", "GENERAL", "PROPERTY", "Household insurance (sample)", "Household (invented sample)", ["BUILDINGS", "CONTENTS"], "CONSTRUCTION", "construction", [("BRICK", 0.002m), ("THATCH", 0.006m)], "OFT-HOM", 1_000_000, "BRICK", 2050m, "GENERAL_UNDERWRITER");
 
         // Rates by age band next birthday, invented and not actuarial.
         await Static("product-factory/static/coverage-and-benefit-library", "DEATH", new { type = "BENEFIT", name = "Death (sample)", basis = "FIXED_BENEFIT", measure = "SUM_ASSURED", domain = "LIFE" });
@@ -360,7 +359,8 @@ public sealed partial class OftzaSeed(SeedContext context)
                     break;
                 case "Submitted" or "PendingApproval":
                     // PRODUCT_MANAGER's template names this approval but holds no approve function, so a second administrator gives it.
-                    foreach (var approval in (await _adminChecker!.Send(HttpMethod.Get, "/api/v1/workflow/approvals?status=Requested")).GetProperty("items").EnumerateArray())
+                    foreach (var approval in (await _adminChecker!.Send(HttpMethod.Get, "/api/v1/workflow/approvals?status=Requested")).GetProperty("items").EnumerateArray()
+                                 .Where(a => a.GetProperty("approvalType").GetString() == "PRODUCT_PUBLICATION"))
                     {
                         await _adminChecker.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval.GetProperty("id").GetGuid()}/approve", ifMatch: $"\"{approval.GetProperty("rowVersion").GetInt64()}\"", idempotent: false);
                     }
@@ -504,7 +504,7 @@ public sealed partial class OftzaSeed(SeedContext context)
         var admin = _adminMaker ?? _maker;
         var checker = _adminChecker ?? _checker;
         var user = (await User(name))?.GetProperty("id").GetGuid()
-            ?? (await admin.Send(HttpMethod.Post, "/api/v1/identity/users", new { username = name, displayName = $"Sample {role}", idpCode = "OIDC", externalSubject = name, mfaEnrolled = true }, key: $"{TenantCode}:user:{name}")).GetProperty("id").GetGuid();
+            ?? (await admin.Send(HttpMethod.Post, "/api/v1/identity/users", Person(name, $"Sample {role.Replace('_', ' ').ToLowerInvariant()}"), key: $"{TenantCode}:user:{name}")).GetProperty("id").GetGuid();
         async Task<List<JsonElement>> Assignments() => (await admin.Send(HttpMethod.Get, $"/api/v1/identity/users/{user}")).GetProperty("roleAssignments").EnumerateArray().Where(a => a.GetProperty("roleCode").GetString() == role).ToList();
         var assignments = await Assignments();
         // A revoked assignment stays on record, so it's the live ones that count: an administrator assigns the role again, with the same approvals as the first time.
@@ -558,15 +558,19 @@ public sealed partial class OftzaSeed(SeedContext context)
         }
         else
         {
-            object Person(string name) => new { username = name, displayName = name, idpCode = "OIDC", externalSubject = name, mfaEnrolled = true };
             request = (await context.PlatformMaker.Send(HttpMethod.Post, "/api/v1/identity/tenant-administrators",
-                new { tenantId = TenantId, administrators = new[] { Person(FirstAdministrator), Person(SecondAdministrator) }, functions = await AdministratorFunctions() }, key: $"{TenantCode}:first-administrators")).GetProperty("id").GetGuid();
+                new { tenantId = TenantId, administrators = new[] { Person(FirstAdministrator, FirstAdministrator), Person(SecondAdministrator, SecondAdministrator) }, functions = await AdministratorFunctions() }, key: $"{TenantCode}:first-administrators")).GetProperty("id").GetGuid();
         }
 
         await context.Settle();
         await Approve(context.PlatformChecker, request);
         await context.Settle();
     }
+
+    /// <summary>A user as the seed makes one: in INSYS's own realm, Identity creates the Keycloak user and its subject; otherwise the subject is the name, as the development key signs it.</summary>
+    private object Person(string name, string displayName) => context.OwnRealm
+        ? new { username = name, displayName, idpCode = "KEYCLOAK", externalSubject = (string?)null, email = (string?)$"{name}@example.test", mfaEnrolled = true }
+        : new { username = name, displayName, idpCode = "OIDC", externalSubject = (string?)name, email = (string?)null, mfaEnrolled = true };
 
     /// <summary>Exactly TENANT_ADMIN's template, with what this tenant can hold.</summary>
     private async Task<string[]> AdministratorFunctions()
@@ -659,7 +663,7 @@ public sealed partial class OftzaSeed(SeedContext context)
         }
 
         await Static("tenancy/static/organisation-structure", "OFTZA-ROOT", new { nodeCode = "OFTZA-ROOT", type = "LEGAL_ENTITY", name = "OFT Insurance South Africa (sample)" });
-        await Static("integration/static/channel-definitions", "CH-STF", new { channelCode = "STF", audience = "STAFF", name = "Back office", clientIds = new[] { "insys-web" } });
+        await Static("integration/static/channel-definitions", "CH-STF", new { channelCode = "STF", audience = "STAFF", name = "Back office", clientIds = new[] { "insys-web", KeycloakSignIn.ClientId } });
         await Static("finance/static/chart-of-accounts-subledger", "ACC-1100", new { accountCode = "1100", name = "Premium receivable (sample)", type = "ASSET", glAccount = "1100", status = "ACTIVE" });
         await Static("workflow/static/business-calendars", "CAL-ZA", new { calendarCode = "CAL-ZA", workingDays = new[] { "MON", "TUE", "WED", "THU", "FRI" }, hours = "08:00-17:00", holidayCalendar = "ZA", timeZone = "Africa/Johannesburg" });
         await Static("workflow/static/task-types-and-work-queues", "OFTZA-TASKS", new { queueCode = "OFTZA-TASKS", taskTypes = new[] { "REVIEW" }, assignmentRule = "MANUAL_PULL" });
@@ -675,12 +679,12 @@ public sealed partial class OftzaSeed(SeedContext context)
         await Static("billing/static/document-numbering-schemes", "INV", new { documentType = "INVOICE", prefix = "INV", sequenceLength = 8, resetRule = "NEVER" });
         await Static("billing/static/arrears-ageing-buckets", "B1", new { bucketCode = "B1", daysFrom = 1, daysTo = 30, action = "REMINDER" });
         await Static("billing/static/arrears-ageing-buckets", "B2", new { bucketCode = "B2", daysFrom = 31, daysTo = 9999, action = "LAPSE" });
-        foreach (var (method, direction) in new[] { ("COLLECT", "COLLECT"), ("PAY", "PAY") })
+        foreach (var (method, direction) in new[] { ("DEBIT_ORDER", "COLLECT"), ("EFT", "PAY") })
         {
             await Static("payments/static/payment-methods", method, new { methodCode = method, direction, currencies = new[] { "ZAR" }, countries = new[] { "ZA" } });
         }
 
-        await Static("payments/static/payment-provider-and-bank-register", "SIMULATOR", new { providerCode = "SIMULATOR", type = "PAYMENT_GATEWAY", supportedMethods = new[] { "COLLECT", "PAY" }, credentialRef = "vault:simulator" });
+        await Static("payments/static/payment-provider-and-bank-register", "SIMULATOR", new { providerCode = "SIMULATOR", type = "PAYMENT_GATEWAY", supportedMethods = new[] { "DEBIT_ORDER", "EFT" }, credentialRef = "vault:simulator" });
         await Static("payments/static/payment-status-mappings", "SIM-PAID", new { providerCode = "SIMULATOR", providerStatus = "PAID", platformStatus = "SUCCEEDED", final = true });
         await Static("claims-framework/static/claim-numbering-schemes", "CLM", new { domain = "GENERAL", prefix = "CLM", sequenceLength = 8 });
         await Static("claims-framework/static/reserve-types", "INDEMNITY", new { category = "INDEMNITY", postingRule = "CLAIM_RESERVE_UP" });
