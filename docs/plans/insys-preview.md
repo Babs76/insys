@@ -103,7 +103,7 @@ Tenant `OFTZA` from the seed, plus generic accounts, each mapped to one template
 | OPERATOR01/02 | `PLATFORM_ADMIN`, operator tenant |
 | STEWARD01/02 | `PLATFORM_STATIC_DATA_STEWARD`, operator tenant |
 
-That's 49 accounts. Keycloak stores usernames in lower case, and sign-in ignores case.
+That's 49 accounts. Keycloak stores usernames in lower case, and sign-in ignores case. **Built for the tenant's 45** (`tools/Insys.Seed/PreviewAccounts.cs`, run with `--accounts true`): with Keycloak, the seed prints their new passwords as JSON on stdout and nowhere else, for the run to encrypt at once. The operator tenant's four come from the migrator's operator bootstrap, which isn't wired into a run yet, and the TOTP secrets for the portal accounts aren't built.
 
 **Why the accounts are mapped this way (accepted by Ade):**
 1. **PAY01/02:** there's no payments template; payments are in the finance ones. Building and releasing a batch can't be one person (a blocked conflict), so PAY01 is the officer and PAY02 the manager.

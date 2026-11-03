@@ -32,6 +32,7 @@ using Insys.Seed;
 
 // Usage: dotnet run --project tools/Insys.Seed -- --api http://localhost:5000 --signing-key <Authentication:DevelopmentSigningKey> --issuer <issuer> --operator-tenant <id> --platform-1 <subject> --platform-2 <subject>
 // It signs its personas' tokens with the development key, which the API accepts only in Development and Testing, so it can't run against production.
+// --accounts true also makes the INSYS Preview's generic accounts; with Keycloak, their new passwords go to stdout as JSON, and nothing else does.
 // Or, where the API takes only Keycloak's tokens: --api <url> --keycloak-url <url> [--keycloak-realm insys] --keycloak-admin <master realm admin> --operator-tenant <id>
 // --platform-1 <Keycloak username> --platform-2 <Keycloak username>, with the admin's password in INSYS_SEED_KEYCLOAK_ADMIN_PASSWORD (never on the command line).
 var options = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -77,7 +78,7 @@ string Token(Guid tenant, string subject)
 }
 
 var operatorTenant = Guid.Parse(options["operator-tenant"]);
-var seed = new OftzaSeed(new SeedContext(As(operatorTenant, options["platform-1"]), As(operatorTenant, options["platform-2"]), As, () => Task.Delay(TimeSpan.FromSeconds(3)), OwnRealm: keycloak is not null));
+var seed = new OftzaSeed(new SeedContext(As(operatorTenant, options["platform-1"]), As(operatorTenant, options["platform-2"]), As, () => Task.Delay(TimeSpan.FromSeconds(3)), OwnRealm: keycloak is not null, Accounts: options.ContainsKey("accounts")));
 if (keycloak is not null)
 {
     await keycloak.Start();
@@ -98,6 +99,20 @@ finally
     {
         await keycloak.Stop();
     }
+}
+
+// With --accounts true and Keycloak: each generic account's new password, as JSON on stdout and nowhere else, for the caller to encrypt at once.
+if (keycloak is not null && options.ContainsKey("accounts"))
+{
+    var passwords = new List<object>();
+    foreach (var (username, role) in OftzaSeed.PreviewAccounts)
+    {
+        passwords.Add(new { username, role, password = await keycloak.SetPassword(KeycloakSignIn.Username(OftzaSeed.TenantCode, username)) });
+    }
+
+    Console.Out.WriteLine(JsonSerializer.Serialize(new { tenant = OftzaSeed.TenantCode, accounts = passwords }));
+    Console.Error.WriteLine($"{OftzaSeed.TenantCode}: {seed.TenantId}, with its {passwords.Count} accounts.");
+    return 0;
 }
 
 Console.WriteLine($"{OftzaSeed.TenantCode}: {seed.TenantId}. Active, with its sample records.");

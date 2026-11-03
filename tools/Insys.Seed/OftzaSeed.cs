@@ -86,6 +86,10 @@ public sealed partial class OftzaSeed(SeedContext context)
         await AfterActivation();
         await EndLoaders();
         await Business();
+        if (context.Accounts)
+        {
+            await Accounts();
+        }
     }
 
     /// <summary>What readiness still lists after the sample values above: filled so a demo can run, with authority for the types the guide's samples don't name on the tenant administrator.</summary>

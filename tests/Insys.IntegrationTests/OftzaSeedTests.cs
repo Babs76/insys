@@ -54,7 +54,7 @@ public sealed class OftzaSeedTests(DatabaseFixture fixture) : IClassFixture<Data
                 await host.Services.GetRequiredService<Insys.Life.Infrastructure.LifeJobs>().Run(CancellationToken.None);
                 await host.Services.GetRequiredService<Insys.General.Infrastructure.GeneralJobs>().Run(CancellationToken.None);
                 await host.DrainOutbox();
-            }));
+            }, Accounts: true));
         try
         {
             await seed.Run();
@@ -75,7 +75,7 @@ public sealed class OftzaSeedTests(DatabaseFixture fixture) : IClassFixture<Data
         (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM tenant.cfg_locale_defaults WHERE tenant_id = @t", ("t", seed.TenantId))).ShouldBe(1L);
 
         (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM iam.user_account WHERE tenant_id = @t AND username LIKE 'oftza-%'", ("t", seed.TenantId))).ShouldBeGreaterThan(15L, "a persona per role template");
-        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM iam.user_role_assignment WHERE tenant_id = @t AND role_code = 'TENANT_ADMIN'", ("t", seed.TenantId))).ShouldBe(2L);
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM iam.user_role_assignment WHERE tenant_id = @t AND role_code = 'TENANT_ADMIN'", ("t", seed.TenantId))).ShouldBe(4L, "the seed's two administrators, and the Preview's ADMIN01 and ADMIN02");
         var users = await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM iam.user_account WHERE tenant_id = @t", ("t", seed.TenantId));
         (await fixture.Database.ScalarAsOwner<string>("SELECT status FROM tenant.tenant WHERE id = @t", ("t", seed.TenantId))).ShouldBe("ACTIVE");
         (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM party.party WHERE tenant_id = @t", ("t", seed.TenantId))).ShouldBe(30L, "20 people, 5 companies, 3 providers and 2 brokers");
@@ -99,7 +99,8 @@ public sealed class OftzaSeedTests(DatabaseFixture fixture) : IClassFixture<Data
         (await Count("SELECT count(*) FROM finance.journal WHERE tenant_id = @t")).ShouldBeGreaterThan(50L, "the records' journals");
         (await Count("SELECT count(*) FROM billing.refund_request WHERE tenant_id = @t")).ShouldBe(1L);
         (await Count("SELECT count(*) FROM health.provider_statement WHERE tenant_id = @t")).ShouldBe(1L);
-        (await Count("SELECT count(*) FROM iam.user_subject_link WHERE tenant_id = @t AND status = 'ACTIVE'")).ShouldBe(3L, "a member, a broker and a provider on their portals");
+        (await Count("SELECT count(DISTINCT u.username) FROM iam.user_account u JOIN iam.user_role_assignment r ON r.tenant_id = u.tenant_id AND r.user_id = u.id AND r.status = 'ACTIVE' WHERE u.tenant_id = @t AND u.username ~ '^[a-z]+0[12]$'")).ShouldBe((long)OftzaSeed.PreviewAccounts.Count, "every Preview account, its role in force");
+        (await Count("SELECT count(*) FROM iam.user_subject_link WHERE tenant_id = @t AND status = 'ACTIVE'")).ShouldBe(6L, "a member, a broker and a provider on their portals, as personas and as Preview accounts");
         (await Count("SELECT count(*) FROM reinsurance.cession WHERE tenant_id = @t")).ShouldBeGreaterThan(0L, "General policies ceded to the treaty");
         (await Count("SELECT count(*) FROM commission.commission_statement WHERE tenant_id = @t")).ShouldBe(1L);
         (await Count("SELECT count(*) FROM workflow.service_case WHERE tenant_id = @t")).ShouldBe(5L, "a claim disputed through a complaint, an enquiry, a provider's dispute, and a complaint decided and appealed");

@@ -252,7 +252,7 @@ public sealed partial class OftzaSeed
             await Cleared(await Person(index));
         }
 
-        await PortalLinks();
+        await PortalLinks("oftza-member", "oftza-broker", "oftza-provider");
         await LifeBook();
         await GeneralBook();
         await HealthBook();
@@ -463,13 +463,13 @@ public sealed partial class OftzaSeed
     }
 
     /// <summary>The portal personas, each linked to who they are: a member to a person, the broker to its intermediary, the provider to its practice. A second administrator approves each link.</summary>
-    private async Task PortalLinks()
+    private async Task PortalLinks(string member, string broker, string provider)
     {
         foreach (var (name, body) in new (string, object)[]
                  {
-                     ("oftza-member", new { kind = "Party", partyId = await Person(5), intermediaryCode = (string?)null, providerId = (string?)null }),
-                     ("oftza-broker", new { kind = "Intermediary", partyId = (Guid?)null, intermediaryCode = SampleParties.Brokers[0].Code, providerId = (string?)null }),
-                     ("oftza-provider", new { kind = "Provider", partyId = (Guid?)null, intermediaryCode = (string?)null, providerId = SampleParties.Providers[0].Code }),
+                     (member, new { kind = "Party", partyId = await Person(5), intermediaryCode = (string?)null, providerId = (string?)null }),
+                     (broker, new { kind = "Intermediary", partyId = (Guid?)null, intermediaryCode = SampleParties.Brokers[0].Code, providerId = (string?)null }),
+                     (provider, new { kind = "Provider", partyId = (Guid?)null, intermediaryCode = (string?)null, providerId = SampleParties.Providers[0].Code }),
                  })
         {
             if (await User(name) is not { } found)
