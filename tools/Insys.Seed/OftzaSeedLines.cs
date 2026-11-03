@@ -63,6 +63,18 @@ public sealed partial class OftzaSeed
         await Providers();
         await Brokers();
         await HealthConfiguration();
+        await ClaimConfiguration();
+        await Reinsurance();
+        await Static("workflow/static/delegation-and-approval-authority", "AUTH-EXTERNAL_SUBJECT_LINK", new { roleCode = "TENANT_ADMIN", transactionType = "EXTERNAL_SUBJECT_LINK", limitValue = 0m, delegationAllowed = false });
+    }
+
+    /// <summary>One quota share treaty on the General products, 30 % retained, with a sample reinsurer: policies issued after it are ceded.</summary>
+    private async Task Reinsurance()
+    {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        await Static("reinsurance/static/reinsurer-register", "OFT-RE-1", new { reinsurerCode = "OFT-RE-1", legalName = "Sample Reinsurance (invented)", country = "ZA", status = "APPROVED" });
+        await Static("reinsurance/static/treaty-definitions", "OFT-QS-1", new { treatyCode = "OFT-QS-1", type = "QUOTA_SHARE", retention = "30", capacity = 5_000_000m, periodFrom = today.AddYears(-1), periodTo = today.AddYears(1), participants = new[] { new { reinsurer = "OFT-RE-1", share = 100 } } });
+        await Static("reinsurance/static/cession-rules", "OFT-CR-1", new { ruleCode = "OFT-CR-1", treaty = "OFT-QS-1", products = new[] { "OFT-MOTOR", "OFT-HOME" }, allocationBasis = "SUM_INSURED" });
     }
 
     private async Task LifeConfiguration()
@@ -142,6 +154,7 @@ public sealed partial class OftzaSeed
 
     private async Task Brokers()
     {
+        await Static("distribution/static/commission-plans", "OFT-COM-10", new { planCode = "OFT-COM-10", basis = "PREMIUM", rate = 10m, clawbackRule = "UNEARNED" });
         var number = SampleParties.Providers.Length;
         foreach (var (code, name) in SampleParties.Brokers)
         {
@@ -149,7 +162,7 @@ public sealed partial class OftzaSeed
             await Static("distribution/static/intermediary-register", code, new { intermediaryCode = code, type = "BROKER", legalName = name, licenceNumbers = new[] { $"SAMPLE-FSP-{number}" }, status = "ACTIVE", hierarchyNode = "OFTZA-ROOT", partyId = party });
             foreach (var product in new[] { "OFT-MOTOR", "OFT-HOME", "OFT-FUNERAL", "OFT-TERM", "OFT-HEALTH" })
             {
-                await Static("distribution/static/intermediary-product-permissions", $"{code}:{product}", new { intermediary = code, product, transactionsAllowed = new[] { "QUOTE", "BIND", "SERVICE" } });
+                await Static("distribution/static/intermediary-product-permissions", $"{code}:{product}", new { intermediary = code, product, transactionsAllowed = Array.Empty<string>(), planCode = "OFT-COM-10" });
             }
         }
     }
@@ -168,7 +181,7 @@ public sealed partial class OftzaSeed
         await Static("health/static/member-numbering-schemes", "HM", new { prefix = "HM", sequenceLength = 9, dependantSuffix = "-01" });
         await Static("health/static/dependant-types-and-age-limits", "CHILD", new { typeCode = "CHILD", maxAge = 21, studentExtensionAge = 26, evidence = "BIRTH_CERTIFICATE" });
         await Static("health/static/dependant-types-and-age-limits", "SPOUSE", new { typeCode = "SPOUSE", maxAge = 120, evidence = "MARRIAGE_CERTIFICATE" });
-        await Static("health/static/health-waiting-period-rules", "WP-GEN", new { ruleCode = "WP-GEN", type = "GENERAL", duration = "P90D", exceptions = new[] { "EMERGENCY" } });
+        await Static("health/static/health-waiting-period-rules", "WP-GEN", new { ruleCode = "WP-GEN", type = "GENERAL", duration = "P0D", exceptions = new[] { "EMERGENCY" } });
         foreach (var (option, limit, schedule) in new[] { ("ESS", 20_000m, "OFT-BS-ESS"), ("PLUS", 60_000m, "OFT-BS-PLUS") })
         {
             await Static("health/static/plans-and-options", $"{Scheme}-{option}", new { planCode = Scheme, optionCode = option, benefitSchedule = schedule, network = "OFT-NET", benefitYear = "CALENDAR", memberClaimBasis = "REFERENCE_TARIFF", productCode = "OFT-HEALTH", referenceTariffScheduleCode = Reference });
@@ -239,9 +252,11 @@ public sealed partial class OftzaSeed
             await Cleared(await Person(index));
         }
 
+        await PortalLinks();
         await LifeBook();
         await GeneralBook();
         await HealthBook();
+        await Claims();
         if (context.Jobs is not null)
         {
             await context.Jobs();
@@ -356,7 +371,7 @@ public sealed partial class OftzaSeed
             var risk = (await underwriter.Send(HttpMethod.Post, "/api/v1/general/risk-objects", new { objectType, attributes }, key: $"{TenantCode}:risk:{holder}")).GetProperty("id").GetGuid();
             var quote = (await underwriter.Send(HttpMethod.Post, "/api/v1/general/quotes", new
             {
-                productCode = product, proposerPartyId = party, currency = "ZAR", periodStart = today, periodEnd = today.AddYears(1).AddDays(-1),
+                productCode = product, proposerPartyId = party, currency = "ZAR", periodStart = today, periodEnd = today.AddYears(1).AddDays(-1), intermediaryCode = holder < 4 ? SampleParties.Brokers[0].Code : null,
                 risks = new[] { new { riskObjectId = risk, sumInsured = 100_000m, coverages = new object[] { new { coverageCode = coverage, sumInsured = 100_000m } } } },
             }, key: $"{TenantCode}:quote:{holder}")).GetProperty("id").GetGuid();
             var url = $"/api/v1/general/quotes/{quote}";
@@ -394,7 +409,7 @@ public sealed partial class OftzaSeed
     /// <summary>A quote's step, unless an earlier run took it.</summary>
     private static async Task Step(Persona persona, string url, string from, string action)
     {
-        if ((await persona.Send(HttpMethod.Get, url)).GetProperty("status").GetString() == from)
+        if (action != "none" && (await persona.Send(HttpMethod.Get, url)).GetProperty("status").GetString() == from)
         {
             await persona.Send(HttpMethod.Post, $"{url}/{action}", idempotent: false);
         }
@@ -444,6 +459,39 @@ public sealed partial class OftzaSeed
                 await administrator.Send(HttpMethod.Post, $"{url}/{action}", new { effectiveDate = DateOnly.FromDateTime(DateTime.UtcNow), reason = "Sample" }, key: $"{TenantCode}:{action}:{id}");
                 await context.Settle();
             }
+        }
+    }
+
+    /// <summary>The portal personas, each linked to who they are: a member to a person, the broker to its intermediary, the provider to its practice. A second administrator approves each link.</summary>
+    private async Task PortalLinks()
+    {
+        foreach (var (name, body) in new (string, object)[]
+                 {
+                     ("oftza-member", new { kind = "Party", partyId = await Person(5), intermediaryCode = (string?)null, providerId = (string?)null }),
+                     ("oftza-broker", new { kind = "Intermediary", partyId = (Guid?)null, intermediaryCode = SampleParties.Brokers[0].Code, providerId = (string?)null }),
+                     ("oftza-provider", new { kind = "Provider", partyId = (Guid?)null, intermediaryCode = (string?)null, providerId = SampleParties.Providers[0].Code }),
+                 })
+        {
+            if (await User(name) is not { } found)
+            {
+                continue;
+            }
+
+            var id = found.GetProperty("id").GetGuid();
+            if ((await _adminMaker!.Send(HttpMethod.Get, $"/api/v1/identity/users/{id}")).GetProperty("externalSubjectLink").ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
+            {
+                await _adminMaker.Send(HttpMethod.Post, $"/api/v1/identity/users/{id}/subject-link", body, await Version(id), idempotent: false);
+                await context.Settle();
+            }
+
+            // Only the links: other approvals waiting (a claim's, from a stopped run) are another person's to decide.
+            foreach (var approval in (await _adminChecker!.Send(HttpMethod.Get, "/api/v1/workflow/approvals?status=Requested")).GetProperty("items").EnumerateArray()
+                         .Where(a => a.GetProperty("approvalType").GetString() == "EXTERNAL_SUBJECT_LINK"))
+            {
+                await _adminChecker.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval.GetProperty("id").GetGuid()}/approve", ifMatch: $"\"{approval.GetProperty("rowVersion").GetInt64()}\"", idempotent: false);
+            }
+
+            await context.Settle();
         }
     }
 

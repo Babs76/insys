@@ -31,8 +31,8 @@ Usage: integration-shards.py SHARD COUNT   prints the --filter-class arguments o
                                                     output) on stdin and fails unless each one is in a shard or excluded.
        integration-shards.py --measure REPORT...  rewrites the timings file from xUnit XML reports (--report-xunit-xml).
 
-Every test class in tests/Insys.IntegrationTests is assigned, so a new class always runs. The endpoint sweeps run in
-their own job and are left out. A class weighs its measured seconds from the timings file (TIMINGS, or the file named by
+Every test class in tests/Insys.IntegrationTests is assigned, so a new class always runs. The endpoint sweeps and the
+seed run in their own jobs and are left out. A class weighs its measured seconds from the timings file (TIMINGS, or the file named by
 INSYS_SHARD_TIMINGS): the time it held a parallel slot in a full run, from its first test's start to its last test's
 finish. Every CI run measures its shards and publishes the merged file as the "integration-timings" artifact; the next
 run balances from the latest one on main, so no weight is edited by hand. Only a class never measured is estimated from
@@ -48,7 +48,9 @@ import xml.etree.ElementTree as ElementTree
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent / "tests" / "Insys.IntegrationTests"
 TIMINGS = ROOT / "class-timings.json"
-EXCLUDED = {"EndpointSecuritySweepTests"}
+# The endpoint sweeps and the sample tenant's seed (Workstream F) run in jobs of their own: the seed's resume test alone takes about 30 minutes.
+SEED = {"OftzaSeedTests", "OftzaSeedResumeTests", "OftzaSeedRestoreTests", "OftzaSeedWindowTests"}
+EXCLUDED = {"EndpointSecuritySweepTests"} | SEED
 # A class never measured: start-up plus a share per test, until a run measures it.
 ESTIMATE_BASE = 60
 ESTIMATE_PER_TEST = 50

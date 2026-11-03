@@ -350,6 +350,41 @@ public sealed class KeycloakRealmTests(DatabaseFixture fixture, KeycloakRealmTes
         return JsonDocument.Parse(Encoding.UTF8.GetString(Convert.FromBase64String(part.PadRight(part.Length + ((4 - (part.Length % 4)) % 4), '=')))).RootElement;
     }
 
+    /// <summary>
+    /// Workstream F: where the API takes only Keycloak's tokens, the seed signs in as each persona through its own client, insys-seed, which is
+    /// disabled in the realm. It's open only while the seed runs, its token carries what the API needs, and its passwords are its own.
+    /// </summary>
+    [Fact]
+    public async Task TheSeed_SignsInAsAPersona_ThroughItsOwnClient_OnlyWhileItRuns()
+    {
+        var admin = await Token(_http, Base, "master", "admin-cli", "admin", "admin");
+        using (var create = new HttpRequestMessage(HttpMethod.Post, $"{Base}/admin/realms/insys/users")
+               {
+                   Content = JsonContent.Create(new
+                   {
+                       username = "oftza.seed-persona", enabled = true, email = "seed-persona@example.test", firstName = "Seed", lastName = "Persona",
+                       attributes = new Dictionary<string, string[]> { ["tenant_id"] = [OperatorTenant] }, requiredActions = new[] { "UPDATE_PASSWORD" },
+                   }),
+               })
+        {
+            create.Headers.Authorization = new AuthenticationHeaderValue("Bearer", admin);
+            (await _http.SendAsync(create)).StatusCode.ShouldBe(HttpStatusCode.Created);
+        }
+
+        var signIn = new Insys.Seed.KeycloakSignIn(new HttpClient { BaseAddress = new Uri(Base + "/") }, "insys", "admin", "admin");
+        await Should.ThrowAsync<Insys.Seed.SeedRefusedException>(() => signIn.Token("oftza.seed-persona"), "the client is disabled until the seed runs");
+
+        await signIn.Start();
+        var claims = Payload(await signIn.Token(Insys.Seed.KeycloakSignIn.Username("OFTZA", "seed-persona")));
+        claims.GetProperty("tenant_id").GetString().ShouldBe(OperatorTenant);
+        claims.GetProperty("azp").GetString().ShouldBe(Insys.Seed.KeycloakSignIn.ClientId);
+        Audiences(claims).ShouldContain("insys-core-api");
+
+        await signIn.Stop();
+        await Should.ThrowAsync<Insys.Seed.SeedRefusedException>(() => new Insys.Seed.KeycloakSignIn(new HttpClient { BaseAddress = new Uri(Base + "/") }, "insys", "admin", "admin").Token("oftza.seed-persona"),
+            "disabled again once the seed has run");
+    }
+
     private static IEnumerable<string?> Audiences(JsonElement claims) =>
         claims.GetProperty("aud").ValueKind == JsonValueKind.Array ? claims.GetProperty("aud").EnumerateArray().Select(a => a.GetString()) : [claims.GetProperty("aud").GetString()];
 }

@@ -3,6 +3,9 @@
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
 
+## The environment and its stubs, for the INSYS Preview (3 November 2026)
+- **`GET /platform/environment` (new):** any signed-in user, staff or portal. `environment` (`ASPNETCORE_ENVIRONMENT`, such as `Preview`), `nonProduction` (true everywhere but Production) and `stubs`: each integration a stub answers, with its `area` (`EMAIL`, `SMS`, `PUSH`, `WHATSAPP`, `PAYMENTS`, `SCREENING`, `IDENTITY_VERIFICATION`, `REINSURER`, `REGULATOR`, `GENERAL_LEDGER`) and a sentence saying what it does instead. For the console's permanent banner and its list of stubs (`docs/plans/insys-preview.md`); the front end's part is a request.
+
 ## The front end's reconciled requests (2 November 2026)
 - **`GeneralPolicyView.expiryReason` (BR-116):** now returned and declared: `NOT_RENEWED_BY_INSURER`, `DECLINED_BY_CUSTOMER` or `LAPSED`, on an expired policy. The earlier note promised it before the view carried it.
 - **`CessionView.periodCode` (BR-125):** the `yyyy-MM` value `GET /reinsurance/cessions?periodCode=` finds the cession under.

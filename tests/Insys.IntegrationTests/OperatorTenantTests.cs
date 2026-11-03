@@ -65,7 +65,9 @@ public sealed class OperatorTenantTests(DatabaseFixture fixture) : IClassFixture
         static bool IsPlatform((string Route, List<string> Tags, bool Refused) e) =>
             e.Tags.Any(t => PlatformModules.Any(m => t == m || t == $"{m} static data"))
             || e.Route.Contains("/static-data/", StringComparison.Ordinal) || e.Route.Contains("/{module}/static/", StringComparison.Ordinal)
-            || e.Route.Contains("/testing/", StringComparison.Ordinal);
+            || e.Route.Contains("/testing/", StringComparison.Ordinal)
+            // The host's own route about the deployment (its environment and stubs), for any signed-in user, operator included.
+            || e.Route.Contains("/platform/environment", StringComparison.Ordinal);
 
         // Cases (Wave 2) are business records hosted in the Workflow module: the operator tenant has no complaints or disputes, so
         // their routes refuse it, as a business module's do.

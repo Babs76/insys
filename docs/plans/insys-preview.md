@@ -136,7 +136,7 @@ Written before the build; see Built so far above for what's done.
 - **The seed signs tokens with the development key,** which the API accepts only in Development and Testing, so it needs Keycloak sign-in. That's already in Workstream F's list.
 - **Email:** creating a user sends a Keycloak action email, and the Preview has no mail server, so that step needs switching off for these accounts, with passwords set through Keycloak's admin API.
 - **Quick-start:** a short guide for the team: how to sign in, which account does what, what's stubbed, and where a journey stops.
-- **Labels:** a permanent console banner, and a list of the stubs in use: email, SMS, push, WhatsApp, ledger, screening and identity, reinsurer and regulator, payments (`SimulatorGateway`). AI Assist stays off. It needs a small read route and a front-end request.
+- **Labels:** a permanent console banner, and a list of the stubs in use: email, SMS, push, WhatsApp, ledger, screening and identity, reinsurer and regulator, payments (`SimulatorGateway`). AI Assist stays off. **The read route is built:** `GET /api/v1/platform/environment` (`docs/api/contract-changes.md`). The banner is the front end's.
 
 ## Size
 Working days for one engineer. My estimates, made without building it, so low to moderate confidence.
