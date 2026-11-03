@@ -46,6 +46,14 @@ public static class StubNotificationChannelsRegistration
         services.TryAddEnumerable(ServiceDescriptor.Singleton<INotificationChannel, PushChannel>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<INotificationChannel, WhatsAppChannel>());
         services.TryAddSingleton<INotificationChannels, NotificationChannelRegistry>();
+        foreach (var channel in new[] { "EMAIL", "SMS", "PUSH", "WHATSAPP" })
+        {
+            if (!services.Any(d => d.ImplementationInstance is BuildingBlocks.Application.StubInUse stub && stub.Area == channel))
+            {
+                services.AddSingleton(new BuildingBlocks.Application.StubInUse(channel, "A stub: nothing is sent; the message is kept in the stub outbox."));
+            }
+        }
+
         return services;
     }
 }

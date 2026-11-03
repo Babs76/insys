@@ -79,6 +79,15 @@ public static class IntegrationInfrastructure
         }
 
         services.AddSingleton<Partners.StubPartnerAdapters>();
+        foreach (var (area, description) in new[]
+                 {
+                     ("SCREENING", "A stub: sanctions and PEP screening finds no match unless a test list says so."), ("IDENTITY_VERIFICATION", "A stub: identity checks are accepted with a reference."),
+                     ("REINSURER", "A stub: nothing is sent to a reinsurer."), ("REGULATOR", "A stub: nothing is sent to a regulator."), ("GENERAL_LEDGER", "A stub: no journal reaches an external ledger."),
+                 })
+        {
+            services.AddSingleton(new BuildingBlocks.Application.StubInUse(area, description));
+        }
+
         services.AddSingleton<IReinsurerAdapter>(sp => sp.GetRequiredService<Partners.StubPartnerAdapters>());
         services.AddSingleton<IRegulatorAdapter>(sp => sp.GetRequiredService<Partners.StubPartnerAdapters>());
         services.AddSingleton<IGeneralLedgerAdapter>(sp => sp.GetRequiredService<Partners.StubPartnerAdapters>());
