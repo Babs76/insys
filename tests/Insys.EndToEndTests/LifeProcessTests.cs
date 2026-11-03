@@ -772,6 +772,55 @@ public sealed class LifeProcessTests(PostgresServer server) : IAsyncLifetime
         (await _db.ScalarAsOwner<long>("SELECT count(*) FROM document.document WHERE business_ref_id = @p", ("p", policy))).ShouldBe(0);
     }
 
+    /// <summary>
+    /// Found by Workstream F's seed: premiums a migrated policy owed before migration, loaded as outstanding, are missed premiums like any other.
+    /// Billing reports the arrears, Life counts them from the oldest, and past grace with the product's missed payments the policy lapses.
+    /// </summary>
+    [Fact]
+    public async Task AMigratedPolicysOutstandingPremiums_CountAsMissed_AndLapseItPastGrace_OQ158_LIF005()
+    {
+        await _db.UserWithPermissions(Tenant, "life-migrator", LifePermissions.PolicyMigrate, BillingPermissions.PremiumMigrate);
+        await _db.AdoptFunctionCatalogue();
+        var migrator = _factory.ClientFor(Tenant, "life-migrator");
+        var holder = await _maker.RegisterPerson("MigratedArrears");
+        var loaded = await (await migrator.Send(HttpMethod.Post, "/api/v1/life/migration/policies", new
+        {
+            batchCode = "L2", currency = "ZAR", controlCount = 1, controlPremium = 150m,
+            rows = new[]
+            {
+                new
+                {
+                    sourceReference = "L-SRC-2", productCode = Product, productVersion = 1, policyholderPartyId = holder, inceptionDate = Today.AddYears(-2), termEndDate = Today.AddYears(8),
+                    currency = "ZAR", billingFrequency = "MONTHLY", collectionMethod = "DEBIT_ORDER",
+                    lives = new[] { new { partyId = holder, lifeRole = "MAIN", entryAge = 40, benefits = new[] { new { benefitCode = "DEATH", sumAssured = 500_000m, premium = 150m } } } },
+                },
+            },
+        }, idempotent: true)).Json();
+        loaded.GetProperty("loaded").GetInt32().ShouldBe(1, loaded.ToString());
+        var policy = await _db.ScalarAsOwner<Guid>("SELECT id FROM life.policy WHERE source_reference = 'L-SRC-2'");
+        await _factory.DrainOutbox();
+
+        var premiums = await (await migrator.Send(HttpMethod.Post, "/api/v1/billing/migration/outstanding-premiums", new
+        {
+            batchCode = "L2-I", currency = "ZAR", controlCount = 2, controlAmount = 300m,
+            rows = new[]
+            {
+                new { sourceReference = "L2-I1", sourceDomain = "LIFE", policyRef = policy, amount = 150m, dueDate = Today.AddDays(-65) },
+                new { sourceReference = "L2-I2", sourceDomain = "LIFE", policyRef = policy, amount = 150m, dueDate = Today.AddDays(-35) },
+            },
+        }, idempotent: true)).Json();
+        premiums.GetProperty("loaded").GetInt32().ShouldBe(2, premiums.ToString());
+
+        await _factory.Services.GetRequiredService<Insys.Billing.Infrastructure.BillingJobs>().Run(CancellationToken.None);
+        await _factory.DrainOutbox();
+        var schedule = (await Get($"/api/v1/life/policies/{policy}")).GetProperty("schedule");
+        (schedule.GetProperty("missedCount").GetInt32(), schedule.GetProperty("arrearsSince").GetString()).ShouldBe((2, Today.AddDays(-65).ToString("yyyy-MM-dd")));
+
+        await _factory.Services.GetRequiredService<Insys.Life.Infrastructure.LifeJobs>().Run(CancellationToken.None);
+        await _factory.DrainOutbox();
+        (await Get($"/api/v1/life/policies/{policy}")).GetProperty("status").GetString().ShouldBe("Lapsed");
+    }
+
     private async Task<Guid> IssuedPolicy(Guid applicant, Guid spouse, DateOnly inception, string? orgNodeCode = null)
     {
         var proposal = await Underwritten(applicant, spouse, inception, orgNodeCode);

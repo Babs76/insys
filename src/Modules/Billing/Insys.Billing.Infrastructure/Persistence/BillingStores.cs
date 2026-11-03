@@ -300,7 +300,15 @@ internal sealed class PolicyArrearsQuery([FromKeyedServices(BillingDbContext.Sch
               JOIN billing.premium_schedule s ON s.tenant_id = i.tenant_id AND s.id = i.schedule_id
               JOIN billing.invoice v ON v.tenant_id = i.tenant_id AND v.id = i.invoice_id
               WHERE i.tenant_id = @t AND s.source_domain = @domain AND s.policy_ref = @policy AND i.status = 'INVOICED'
-                AND v.status IN ('ISSUED', 'PART_PAID', 'OVERDUE') AND i.due_date < @day)
+                AND v.status IN ('ISSUED', 'PART_PAID', 'OVERDUE') AND i.due_date < @day
+              -- A premium owed before migration is an invoice with no instalment: one missed premium, due when the invoice was.
+              UNION ALL
+              SELECT v.due_date, v.id,
+                     v.total_amount - v.allocated_amount - coalesce((SELECT sum(a.amount) FROM billing.adjustment a WHERE a.tenant_id = v.tenant_id AND a.invoice_id = v.id), 0)
+              FROM billing.invoice v
+              WHERE v.tenant_id = @t AND v.source_domain = @domain AND v.policy_ref = @policy AND v.migration_batch IS NOT NULL
+                AND v.status IN ('ISSUED', 'PART_PAID', 'OVERDUE') AND v.due_date < @day
+                AND NOT EXISTS (SELECT 1 FROM billing.premium_instalment i WHERE i.tenant_id = v.tenant_id AND i.invoice_id = v.id))
             SELECT count(*), min(due_date), (SELECT coalesce(sum(outstanding), 0) FROM (SELECT DISTINCT invoice_id, outstanding FROM overdue) o) FROM overdue
             """, connection, transaction);
         command.Parameters.AddWithValue("t", tenantId);
