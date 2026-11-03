@@ -64,7 +64,12 @@ jobs:
         run: |
           image=$(sed -n 's/^  image: \(ghcr.io\/[^ ]*@sha256:[0-9a-f]*\).*/\1/p' deploy/helm/insys/values.yaml)
           echo "$GHCR_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin > /dev/null
-          docker pull -q "$image"
+          if ! docker pull -q "$image"; then
+            # What the workflow's token can see of the package: its versions' digests and tags, to compare with the pinned one.
+            GH_TOKEN="$GHCR_TOKEN" gh api /users/babs76/packages/container/insys-console-web/versions \
+              --jq '.[0:10][] | [.name, (.metadata.container.tags | join(","))] | @tsv' || echo "The token can't list the package's versions."
+            exit 1
+          fi
           docker tag "$image" insys-console:smoke
           kind load docker-image insys-console:smoke --name insys-smoke
 
