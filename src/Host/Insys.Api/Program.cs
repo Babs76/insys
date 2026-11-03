@@ -97,6 +97,8 @@ foreach (var module in modules)
     module.MapEndpoints(module.HoldsBusinessData ? moduleGroup.RefuseOperatorTenant() : moduleGroup);
 }
 
+v1.MapEnvironmentInfo(app.Environment);
+
 // Test only (ADR-025), mapped last and kept out of the documents.
 v1.MapDailyJobRunner(app.Configuration, app.Environment);
 

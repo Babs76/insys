@@ -46549,6 +46549,43 @@
           "CUSTOMER_PORTAL_COMMUNICATIONS_REVOKE_DEVICE"
         ]
       }
+    },
+    "/api/v1/platform/environment": {
+      "get": {
+        "tags": [
+          "Platform"
+        ],
+        "summary": "The deployment\u0027s environment, whether it is production, and the integrations stubs answer: for the console\u0027s banner and labels",
+        "operationId": "PlatformGetEnvironment",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvironmentView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "signed-in user"
+      }
     }
   },
   "components": {
@@ -52686,6 +52723,28 @@
               "null",
               "string"
             ]
+          }
+        }
+      },
+      "EnvironmentView": {
+        "required": [
+          "environment",
+          "nonProduction",
+          "stubs"
+        ],
+        "type": "object",
+        "properties": {
+          "environment": {
+            "type": "string"
+          },
+          "nonProduction": {
+            "type": "boolean"
+          },
+          "stubs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StubInUse"
+            }
           }
         }
       },
@@ -73995,6 +74054,21 @@
         "type": "string",
         "format": "binary"
       },
+      "StubInUse": {
+        "required": [
+          "area",
+          "description"
+        ],
+        "type": "object",
+        "properties": {
+          "area": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      },
       "TenancyOnboardingAttestationView": {
         "required": [
           "kind",
@@ -76747,6 +76821,9 @@
     },
     {
       "name": "Communications"
+    },
+    {
+      "name": "Platform"
     }
   ]
 }

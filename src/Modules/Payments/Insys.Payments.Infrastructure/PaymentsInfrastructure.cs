@@ -70,6 +70,7 @@ public static class PaymentsInfrastructure
         }
 
         services.AddSingleton<IPaymentGateway, SimulatorGateway>();
+        services.AddSingleton(new BuildingBlocks.Application.StubInUse("PAYMENTS", "The payment simulator: it moves no money, and is refused in Production."));
         services.AddIntegrationEventHandler<InvoiceIssued, PaymentPolicies, PaymentsDbContext>(schema, "InvoiceIssued");
         services.AddIntegrationEventHandler<RefundApproved, PaymentPolicies, PaymentsDbContext>(schema, "RefundApproved");
         services.AddIntegrationEventHandler<Workflow.Contracts.CaseRedressApproved, PaymentPolicies, PaymentsDbContext>(schema, "CaseRedressApproved");

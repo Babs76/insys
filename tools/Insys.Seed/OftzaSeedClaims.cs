@@ -458,19 +458,34 @@ public sealed partial class OftzaSeed
         return (issued.GetProperty("callbackPath").GetString()!, issued.GetProperty("signingSecret").GetString()!);
     }
 
+    /// <summary>Reports a payment's outcome as the provider would, signed. Told to slow down, it waits as Persona does, then signs a fresh request.</summary>
     private async Task Callback((string Path, string Secret) endpoint, string externalRef, string status)
     {
         var body = JsonSerializer.Serialize(new { externalRef, status }, JsonSerializerOptions.Web);
-        var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture);
-        var id = Guid.CreateVersion7().ToString();
-        using var request = new HttpRequestMessage(HttpMethod.Post, endpoint.Path) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
-        request.Headers.Add("X-Callback-Timestamp", timestamp);
-        request.Headers.Add("X-Callback-Id", id);
-        request.Headers.Add("X-Signature", Convert.ToHexStringLower(HMACSHA256.HashData(Encoding.UTF8.GetBytes(endpoint.Secret), Encoding.UTF8.GetBytes($"{timestamp}.{id}.{body}"))));
-        using var response = await FinanceOfficer.Http.SendAsync(request);
-        if (!response.IsSuccessStatusCode)
+        var backOff = TimeSpan.FromSeconds(5);
+        for (var attempt = 1; ; attempt++)
         {
-            throw new SeedRefusedException($"POST {endpoint.Path}", response.StatusCode, await response.Content.ReadAsStringAsync());
+            var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture);
+            var id = Guid.CreateVersion7().ToString();
+            using var request = new HttpRequestMessage(HttpMethod.Post, endpoint.Path) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
+            request.Headers.Add("X-Callback-Timestamp", timestamp);
+            request.Headers.Add("X-Callback-Id", id);
+            request.Headers.Add("X-Signature", Convert.ToHexStringLower(HMACSHA256.HashData(Encoding.UTF8.GetBytes(endpoint.Secret), Encoding.UTF8.GetBytes($"{timestamp}.{id}.{body}"))));
+            using var response = await FinanceOfficer.Http.SendAsync(request);
+            if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests && attempt < 30)
+            {
+                var wait = response.Headers.RetryAfter?.Delta ?? backOff;
+                backOff = TimeSpan.FromSeconds(Math.Min(backOff.TotalSeconds * 2, 60));
+                await Task.Delay(wait);
+                continue;
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new SeedRefusedException($"POST {endpoint.Path}", response.StatusCode, await response.Content.ReadAsStringAsync());
+            }
+
+            return;
         }
     }
 }
