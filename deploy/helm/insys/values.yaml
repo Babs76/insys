@@ -82,8 +82,10 @@ kms:
 openbao:
   enabled: false
   image: quay.io/openbao/openbao:2.6.5
-  # Runs in development mode: in memory, so a restart loses every key and so every encrypted field. Never for real data.
+  # devMode: in memory, so a restart loses every key and so every encrypted field; never for real data. Otherwise durable, on a volume, and sealed
+  # at start and after every restart until unsealed (deploy/openbao/openbao.sh). Still a single node: high availability is the runbook's (ADR-027).
   devMode: true
+  storage: 1Gi
 
 objectStore:
   serviceUrl: ""  # When seaweedfs.enabled is false.
@@ -99,3 +101,6 @@ seaweedfs:
 keycloak:
   enabled: false
   image: quay.io/keycloak/keycloak:26.7.5
+  # devMode: start-dev, its accounts lost on a restart. Otherwise production mode on the in-cluster PostgreSQL (postgres.enabled).
+  devMode: true
+  hostname: ""   # Its public address, such as https://id.example.com. Empty: any host is accepted (the smoke test).

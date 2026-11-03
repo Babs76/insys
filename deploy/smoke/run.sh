@@ -26,7 +26,8 @@
 # ADR-027's proof of cloud neutrality: on a throwaway cluster, with the images loaded as insys-api:smoke and insys-migrator:smoke,
 # deploys the chart with every dependency in the cluster and proves through the deployed API that migrations ran and the API uses non-owner
 # roles, sign-in goes through Keycloak, a protected field is written and read back through OpenBao, and a document is stored in and read
-# from the object store. It says nothing about a particular provider's services, load or failover.
+# from the object store, and that OpenBao and Keycloak keep their keys and accounts across a restart (register row 1), OpenBao unsealed with
+# throwaway keys. It says nothing about a particular provider's services, load or failover.
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 tenant=0199f000-0000-7000-8000-00000000abcd
@@ -43,7 +44,17 @@ trap 'diagnose' ERR
 
 helm install insys "$here/../helm/insys" -f "$here/values.yaml"
 kubectl wait --for=condition=complete job/insys-migrate-1 --timeout=600s
-for d in insys-keycloak insys-openbao insys-api; do kubectl rollout status "deploy/$d" --timeout=600s; done
+kubectl rollout status statefulset/insys-openbao --timeout=300s
+
+echo "== OpenBao initialised, unsealed and configured, its keys kept only in this shell"
+init=$("$here/../openbao/openbao.sh" init insys)
+unseal_key=$(jq -r '.keys_base64[0]' <<<"$init")
+printf '%s' "$unseal_key" | "$here/../openbao/openbao.sh" unseal insys
+kms_token=$(jq -r .root_token <<<"$init" | "$here/../openbao/openbao.sh" configure insys transit insys)
+[ "$("$here/../openbao/openbao.sh" sealed insys)" = false ] || fail "OpenBao is still sealed"
+jq -nc --arg t "$kms_token" '{stringData: {kmsToken: $t}}' | kubectl patch secret insys-secrets --type merge --patch-file /dev/stdin > /dev/null
+kubectl rollout restart deploy/insys-api
+for d in insys-keycloak insys-api; do kubectl rollout status "deploy/$d" --timeout=600s; done
 kubectl rollout status statefulset/insys-seaweedfs --timeout=300s
 
 kubectl run smoke --image=alpine:3.20 --restart=Never --command -- sleep 3600
@@ -88,6 +99,20 @@ kubectl rollout status deploy/insys-api --timeout=300s
 user=$(token)
 call GET "/party/parties/$party" | jq -r '.identifiers[0].maskedNumber' | grep -q 9087 || fail "the number didn't decrypt to its last four"
 [ "$(query "SELECT count(*) FROM party.party_identifier WHERE party_id = '$party' AND number_enc LIKE '%8001015009087%'")" = 0 ] || fail "the number is stored in clear"
+
+echo "== OpenBao and Keycloak keep their keys and accounts across a restart"
+kubectl delete pod insys-openbao-0 --wait=true > /dev/null
+kubectl wait --for=condition=ready pod/insys-openbao-0 --timeout=300s
+[ "$("$here/../openbao/openbao.sh" sealed insys)" = true ] || fail "OpenBao came back unsealed: something holds its key"
+printf '%s' "$unseal_key" | "$here/../openbao/openbao.sh" unseal insys
+kubectl rollout restart deploy/insys-keycloak
+kubectl rollout status deploy/insys-keycloak --timeout=600s
+user=$(token)
+[ -n "$user" ] && [ "$user" != null ] || fail "the account didn't survive Keycloak's restart"
+query "UPDATE party.party_identifier SET number_last4 = NULL WHERE party_id = '$party'" > /dev/null
+kubectl rollout restart deploy/insys-api
+kubectl rollout status deploy/insys-api --timeout=300s
+call GET "/party/parties/$party" | jq -r '.identifiers[0].maskedNumber' | grep -q 9087 || fail "after OpenBao's restart, the number didn't decrypt"
 
 echo "== A document in the object store"
 content=$(printf 'smoke document' | base64)
