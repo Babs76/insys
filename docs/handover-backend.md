@@ -53,7 +53,14 @@ Ade started run 41801699489 himself, on main (6d6dfbd) with `acme: staging`, and
   - Keycloak runs with `--hostname-backchannel-dynamic=true`, so the keys' address it gives the API is the cluster's. Shown on Keycloak 26.7.5: the issuer stays `https://id…`, and `jwks_uri` is the address asked.
   - When `check_tls` fails, it prints Traefik's ACME log lines.
   
-  The next run is `reset` again. OpenBao is initialised, and `provision` would try to initialise it again; `reset` makes a new one, so the earlier artifact's keys then no longer apply.
+  - The smoke test now has the Preview's shape: Keycloak's public hostname, tokens with that issuer, and the API reading the keys in the cluster. Its signed-in API calls rehearse the fix.
+  - When the seed fails, `preview.sh` prints the API's token-validation log lines (`IDX…` messages, which hide the token). The 401's cause wasn't read from the API's logs, as nothing here can reach the server without a run: the next run's output confirms it.
+
+  **Ade has that run's file and is keeping its OpenBao, so the next runs don't wipe it:**
+  1. `upgrade` (no confirm word) applies the new settings. The API and Keycloak restart; OpenBao, the data and `insys-secrets` stay. It ends with `check_tls`, which will most likely fail on the missing certificate and print Traefik's ACME lines. That's expected, and it doesn't undo the upgrade.
+  2. `rotate-passwords` (confirm word `rotate-passwords`) runs the seed, which on this empty database is its first run, then writes a new file with the 51 accounts. It has no OpenBao keys: those are in run 41835262697's file.
+  
+  If OpenBao is sealed by then (its pod restarted), the API's calls that need the KMS fail. Unseal it as in "Unsealing OpenBao" above, with the key from 41835262697's file. `reset` is the fallback only: it makes a new OpenBao and new keys.
 - **Not fixed yet:** in `clients()`, the Keycloak admin password and the API token go to `curl` on its command line. They aren't in the log, but this breaks the script's own rule. Fix it once the Preview is up, by passing them on stdin with `curl -K -`, as `check_server` does.
 - **Decided (4 November, 08:53 UTC): raise the limit and keep cpx42.** Ade requests the increase. Once Hetzner grants it, he runs `provision` again himself, with `acme: staging`. The options were: raise the limit (Hetzner console: the account's Limits page, a request for at least 8 shared vCPUs) and run `provision` again with `acme: staging`, unchanged; or choose a smaller type in `PREVIEW_SERVER_TYPE`, which the plan's sizing would need to accept. Don't change `PREVIEW_LOCATION`: the reserved address is in fsn1.
 
@@ -223,8 +230,8 @@ All on `wave7-1-fixes`, as one head, as the review's fixes touch every slice. Ch
 | `preview-migrate-wait` | Merged (fe5f841) | The migration Job labelled for the Preview's wait: the fix for the third provision's failure |
 | `preview-realm-local` | Merged (34fe073) | `realm_name`'s local renamed: the fix for the fourth provision's failure |
 | `preview-pkill` | Merged (07ed2c9) | The anchored `pkill`, and the file written after OpenBao too: the fix for the fifth provision's failure |
-| `preview-internal-oidc` | Merged only if `git ls-remote` shows main at this branch's head; otherwise it waits on CI and Ade's go-ahead | The API reads Keycloak in the cluster, and `check_tls` prints Traefik's ACME log: the fix for the sixth run's 401 |
-| Next | **`reset`** again (confirm word `reset`), from main with `preview-internal-oidc`. If `check_tls` then fails, its Traefik lines say why there's no certificate | See "The first provision" |
+| `preview-internal-oidc` | Merged only if `git ls-remote` shows main at this branch's head; otherwise it waits on CI and Ade's go-ahead | The API reads Keycloak in the cluster (smoke rehearses it), `check_tls` prints Traefik's ACME log, and a failed seed prints the API's: the fix for the sixth run's 401 |
+| Next | **`upgrade`, then `rotate-passwords`**, from main with `preview-internal-oidc`; not `reset` (it would replace the OpenBao whose keys Ade has). Then the certificates, from `check_tls`'s Traefik lines | See "The first provision" |
 
 **The red CI of 4 November (fixed).** `DueDiligenceTests`' two BR-112 tests failed on main from 4 November, at any hour. The cause was in the tests, not the product. Their host's clock is fixed at 22:30 UTC on 1 November (2 November in Johannesburg), but they seeded config from the run's UTC date, less a day. From 4 November that date falls after the host's, so the screening partner, the gate and the LOW class weren't in force. They now seed from the host's own date. `TestClock` takes `INSYS_TEST_RUN_AT`, which runs the suite as if it started at that time. Before the fix, both tests failed at `2026-11-04T05:44Z` and passed at `2026-11-03T05:44Z` and `T20:50Z`. After it, they pass at all three and at `2027-03-01T23:30Z`. Any other test whose host has a fixed clock and seeds from `TestClock.Today` would fail the same way; a search for hosts built on a literal `FakeTimeProvider` date found only `AssignRoleBusinessDateTests` besides these, and it seeds nothing from `TestClock.Today`. Hosts given their clock some other way weren't searched.
 

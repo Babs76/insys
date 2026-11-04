@@ -40,14 +40,16 @@ secrets:
   objectStoreSecretKey: smoke-secret-key
   postgresPassword: smoke-owner
   keycloakAdminPassword: smoke-admin
+# As the Preview: the tokens carry Keycloak's public issuer, and the API reads its keys inside the cluster.
 authentication:
   authority: http://insys-keycloak:8080/realms/insys
+  issuer: https://id.smoke.test/realms/insys
   requireHttpsMetadata: false
 migrations: {createRoles: true}
 postgres: {enabled: true, storage: 2Gi}
 openbao: {enabled: true, devMode: false, storage: 1Gi}
 seaweedfs: {enabled: true, storage: 2Gi}
-keycloak: {enabled: true, devMode: false, realmDisplayName: "INSYS smoke test (sample data only)"}
+keycloak: {enabled: true, devMode: false, realmDisplayName: "INSYS smoke test (sample data only)", hostname: "https://id.smoke.test"}
 # The console: its image pulled by the chart's digest and loaded as insys-console:smoke by the workflow. Its addresses must be https, so the smoke
 # test gives it names it never visits: it's checked from inside the cluster.
 ingress: {enabled: false, host: insys.smoke.test, apiPath: /api/}
