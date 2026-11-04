@@ -169,18 +169,19 @@ openbao() {
 }
 
 # The seed and the accounts, through tunnels to the API and Keycloak. The accounts' passwords come back on the seed's stdout only.
+# "^kubectl port-forward": anchored, so pkill -f matches only the forwards, not the remote shell running it, whose command line holds the same text.
 seed() {
   local admin
   admin=$(on_server "kubectl get secret insys-secrets -o jsonpath='{.data.keycloakAdminPassword}' | base64 -d")
   mask "$admin"
-  on_server "pkill -f 'port-forward svc/insys-' || true; (nohup kubectl port-forward svc/insys-api 18080:8080 >/dev/null 2>&1 &); (nohup kubectl port-forward svc/insys-keycloak 18081:8080 >/dev/null 2>&1 &); sleep 3"
+  on_server "pkill -f '^kubectl port-forward svc/insys-' || true; (nohup kubectl port-forward svc/insys-api 18080:8080 >/dev/null 2>&1 &); (nohup kubectl port-forward svc/insys-keycloak 18081:8080 >/dev/null 2>&1 &); sleep 3"
   ssh -i "$key" -o UserKnownHostsFile="$RUNNER_TEMP/known_hosts" -fN -L 18080:127.0.0.1:18080 -L 18081:127.0.0.1:18081 "root@$(address)"
   clients "$admin"
   dotnet build tools/Insys.Seed -c Release -v q >/dev/null
   ACCOUNTS=$(INSYS_SEED_KEYCLOAK_ADMIN_PASSWORD="$admin" dotnet tools/Insys.Seed/bin/Release/net10.0/Insys.Seed.dll --api http://127.0.0.1:18080 \
     --keycloak-url http://127.0.0.1:18081 --keycloak-admin admin --operator-tenant "$operator_tenant" --platform-1 insys-admin --platform-2 insys-admin-2 --accounts true)
   while read -r password; do mask "$password"; done < <(jq -r '.accounts[].password' <<<"$ACCOUNTS")
-  on_server "pkill -f 'port-forward svc/insys-' || true"
+  on_server "pkill -f '^kubectl port-forward svc/insys-' || true"
 }
 
 # Each app's Keycloak client gets the Preview's addresses, through the tunnel: sign-in returns to the app, and the browser may call the token endpoint.
@@ -198,7 +199,7 @@ clients() {
   done
 }
 
-# Encrypted to Ade's key, the only form that leaves memory.
+# Encrypted to Ade's key, the only form that leaves memory. Written once OpenBao is initialised too, so a later failure keeps its keys.
 encrypt() {
   : "${PREVIEW_AGE_RECIPIENT:?}"
   jq -n --argjson accounts "${ACCOUNTS:-null}" --argjson openbao "${OPENBAO_INIT:-null}" --arg domain "$PREVIEW_DOMAIN" \
@@ -299,7 +300,7 @@ fi
 trap close_ssh EXIT
 case "$action" in
   provision)
-    ssh_key; infrastructure; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; cluster; images; server_secrets; pull_secret; chart; openbao; seed; encrypt; check_tls
+    ssh_key; infrastructure; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; cluster; images; server_secrets; pull_secret; chart; openbao; encrypt; seed; encrypt; check_tls
     ;;
   upgrade)
     ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; cluster; images; pull_secret; chart; check_tls
@@ -312,7 +313,7 @@ case "$action" in
   reset)
     ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh
     on_server "KUBECONFIG=/etc/rancher/k3s/k3s.yaml helm uninstall insys --wait || true; kubectl delete pvc --all --wait=true; kubectl delete secret insys-secrets --ignore-not-found"
-    cluster; images; server_secrets; pull_secret; chart; openbao; seed; encrypt; check_tls
+    cluster; images; server_secrets; pull_secret; chart; openbao; encrypt; seed; encrypt; check_tls
     ;;
   rotate-passwords)
     ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; seed; encrypt
