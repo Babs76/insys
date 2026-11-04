@@ -24,8 +24,8 @@
 # ============================================================================
 # The INSYS Preview (docs/plans/insys-preview.md): one Hetzner server with k3s and the chart, sample data only. Run by hand, in the
 # Environment "preview", which needs Ade's approval. Ade sets HCLOUD_TOKEN, PREVIEW_SSH_KEY and PREVIEW_CONSOLE_PULL_TOKEN (a classic PAT with
-# read:packages only, for the console's private image) as its secrets, and PREVIEW_DOMAIN,
-# PREVIEW_AGE_RECIPIENT and, optionally, PREVIEW_ACME_EMAIL as its variables. The only artifact is the file encrypted to Ade's age key, as
+# read:packages only, for the console's private image) as its secrets, and PREVIEW_DOMAIN, PREVIEW_AGE_RECIPIENT, PREVIEW_LOCATION and
+# PREVIEW_SERVER_TYPE (fsn1 and cpx42, Ade, 3 November) and, optionally, PREVIEW_ACME_EMAIL and PREVIEW_CONSOLE_PULL_USER as its variables. The only artifact is the file encrypted to Ade's age key, as
 # this repository is public; nothing secret is printed, and the inputs (also public) never carry one.
 name: preview
 
@@ -35,7 +35,7 @@ on:
       action:
         description: What to do
         type: choice
-        options: [provision, upgrade, open-ssh, reset, rotate-passwords, destroy]
+        options: [check, provision, upgrade, open-ssh, reset, rotate-passwords, destroy]
       confirm:
         description: For reset, rotate-passwords and destroy, type the action's name
         default: ""
@@ -66,6 +66,9 @@ jobs:
       PREVIEW_DOMAIN: ${{ vars.PREVIEW_DOMAIN }}
       PREVIEW_AGE_RECIPIENT: ${{ vars.PREVIEW_AGE_RECIPIENT }}
       PREVIEW_ACME_EMAIL: ${{ vars.PREVIEW_ACME_EMAIL }}
+      PREVIEW_LOCATION: ${{ vars.PREVIEW_LOCATION }}
+      PREVIEW_SERVER_TYPE: ${{ vars.PREVIEW_SERVER_TYPE }}
+      PREVIEW_CONSOLE_PULL_USER: ${{ vars.PREVIEW_CONSOLE_PULL_USER }}
       PREVIEW_ACME: ${{ inputs.acme }}
     steps:
       - name: Confirmation
