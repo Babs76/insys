@@ -50,4 +50,4 @@ spec:
           email: ACME_EMAIL
           storage: /data/acme.json
           caServer: ACME_CA
-          tlsChallenge: {}
+          tlsChallenge: true   # true, not {}: the chart turns an empty map into no argument at all, which left le with no challenge
