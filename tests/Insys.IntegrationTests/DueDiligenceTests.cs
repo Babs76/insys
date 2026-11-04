@@ -56,6 +56,12 @@ public sealed class DueDiligenceTests(DatabaseFixture fixture) : IClassFixture<D
 {
     private static readonly DateOnly Today = TestClock.Today;
 
+    /// <summary>The BR-112 host's clock: 22:30 UTC on 1 November, 00:30 on 2 November in Johannesburg.</summary>
+    private static readonly DateTimeOffset Br112Instant = new(2026, 11, 1, 22, 30, 0, TimeSpan.Zero);
+
+    /// <summary>The BR-112 host's business date. Its tests seed from it, not from the run's date, which is later than it.</summary>
+    private static readonly DateOnly Br112Today = new(2026, 11, 2);
+
     private static readonly string[] Permissions =
     [
         PartyPermissions.PartyCreate, PartyPermissions.PartyRead, PartyPermissions.PartyUpdate, PartyPermissions.DueDiligenceRead, PartyPermissions.DueDiligenceCheck,
@@ -391,12 +397,11 @@ public sealed class DueDiligenceTests(DatabaseFixture fixture) : IClassFixture<D
     [Fact]
     public async Task AScreeningJustAfterLocalMidnightOnTheReviewDate_IsFreshForTheReview_BR112()
     {
-        var instant = new DateTimeOffset(2026, 11, 1, 22, 30, 0, TimeSpan.Zero);
         var host = await Br112Host();
-        var w = await World(host);
-        var reviewDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(instant, TimeZoneInfo.FindSystemTimeZoneById(TestClock.DefaultTimeZone)).DateTime);
-        reviewDate.ShouldBeGreaterThan(DateOnly.FromDateTime(instant.UtcDateTime), "the tenant's day has begun; UTC's has not");
-        await fixture.Database.SeedStatic(w.Tenant, "party.cfg_customer_risk_classes", "EFFECTIVE", "LOW", Today.AddDays(-1), ("risk_class", "LOW"), ("min_score", -1000),
+        var w = await World(host, Br112Today);
+        var reviewDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(Br112Instant, TimeZoneInfo.FindSystemTimeZoneById(TestClock.DefaultTimeZone)).DateTime);
+        reviewDate.ShouldBeGreaterThan(DateOnly.FromDateTime(Br112Instant.UtcDateTime), "the tenant's day has begun; UTC's has not");
+        await fixture.Database.SeedStatic(w.Tenant, "party.cfg_customer_risk_classes", "EFFECTIVE", "LOW", Br112Today.AddDays(-1), ("risk_class", "LOW"), ("min_score", -1000),
             ("max_score", 29), ("dd_level", "STANDARD"), ("review_interval", TimeSpan.FromDays(365 * 5)), ("review_mode", "AUTOMATIC"));
         var party = await w.Clerk.RegisterPerson("Midnight");
         await w.Factory.DrainOutbox();
@@ -422,8 +427,8 @@ public sealed class DueDiligenceTests(DatabaseFixture fixture) : IClassFixture<D
     [Fact]
     public async Task AScreeningAgeOf36Hours_IsOneDay_RoundedDown_BR112()
     {
-        var w = await World(await Br112Host());
-        await fixture.Database.SeedStatic(w.Tenant, "party.cfg_due_diligence_gates", "EFFECTIVE", "GENERAL-PAYOUT", Today.AddDays(-1), ("domain", "GENERAL"),
+        var w = await World(await Br112Host(), Br112Today);
+        await fixture.Database.SeedStatic(w.Tenant, "party.cfg_due_diligence_gates", "EFFECTIVE", "GENERAL-PAYOUT", Br112Today.AddDays(-1), ("domain", "GENERAL"),
             ("step", DueDiligenceSteps.Payout), ("requirement", "SCREENED"), ("screening_max_age", TimeSpan.FromHours(36)));
         var party = await w.Clerk.RegisterPerson("Hourly");
         await w.Factory.DrainOutbox();
@@ -443,7 +448,7 @@ public sealed class DueDiligenceTests(DatabaseFixture fixture) : IClassFixture<D
     /// </summary>
     private Task<InsysApiFactory> Br112Host() => fixture.Shared("dd-br112-2230-utc", () => new InsysApiFactory(fixture.Database,
         new Dictionary<string, string?> { ["Identity:PermissionCache:AllowMultipleInstances"] = "true" },
-        time: new FakeTimeProvider(new DateTimeOffset(2026, 11, 1, 22, 30, 0, TimeSpan.Zero))).Warm());
+        time: new FakeTimeProvider(Br112Instant)).Warm());
 
     /// <summary>
     /// OQ-138: the reviewer contributed to the assessment, so they cannot give the party's enhanced approval on review; a person
@@ -800,9 +805,11 @@ public sealed class DueDiligenceTests(DatabaseFixture fixture) : IClassFixture<D
         }
     }
 
-    private async Task<DdWorld> World(InsysApiFactory? host = null)
+    /// <summary>A tenant and its people, its config in force from the day before <paramref name="today"/> (the shared hosts': the run's date).</summary>
+    private async Task<DdWorld> World(InsysApiFactory? host = null, DateOnly? today = null)
     {
         var factory = host ?? await fixture.Host();
+        var from = today ?? Today;
         var suffix = Guid.NewGuid().ToString("N")[..8];
         var tenant = Guid.CreateVersion7();
         var db = fixture.Database;
@@ -817,13 +824,13 @@ public sealed class DueDiligenceTests(DatabaseFixture fixture) : IClassFixture<D
         await db.AssignRole(tenant, approver, officer);
         foreach (var type in new[] { PartyApprovals.EnhancedDueDiligenceType, PartyApprovals.RiskClassOverrideType, PartyApprovals.UnblockType })
         {
-            await db.SeedStatic(tenant, "workflow.cfg_delegation_and_approval_authority", "EFFECTIVE", $"AUTH-{type}", Today.AddYears(-1), ("role_code", officer),
+            await db.SeedStatic(tenant, "workflow.cfg_delegation_and_approval_authority", "EFFECTIVE", $"AUTH-{type}", from.AddYears(-1), ("role_code", officer),
                 ("transaction_type", type), ("limit_value", 1_000_000m), ("delegation_allowed", false));
         }
 
         foreach (var (partner, type) in new[] { ("SCR-1", "SCREENING"), ("IDV-1", "IDENTITY_VERIFICATION") })
         {
-            await db.SeedStatic(tenant, "integration.mst_partner_register", "ACTIVE", partner, Today.AddDays(-1), ("partner_code", partner), ("partner_type", type),
+            await db.SeedStatic(tenant, "integration.mst_partner_register", "ACTIVE", partner, from.AddDays(-1), ("partner_code", partner), ("partner_type", type),
                 ("legal_name", $"{type} (stub)"), ("status", "ACTIVE"));
         }
 
@@ -831,7 +838,7 @@ public sealed class DueDiligenceTests(DatabaseFixture fixture) : IClassFixture<D
             INSERT INTO party.ref_identity_document_types (tenant_id, code, version, effective_from, record_status, created_by, change_reason, country, doc_type, label, format_pattern)
             VALUES (@t, 'ZA-NID', 1, DATE '2026-01-01', 'ACTIVE', 'seed', 'test seed', 'ZA', 'NATIONAL_ID', 'National identity number', '^[0-9]{13}$')
             """, ("t", tenant));
-        await db.SeedStatic(tenant, "document.ref_document_categories", "ACTIVE", "KYC", Today.AddDays(-1), ("category_code", "KYC"), ("label", "Due diligence evidence"),
+        await db.SeedStatic(tenant, "document.ref_document_categories", "ACTIVE", "KYC", from.AddDays(-1), ("category_code", "KYC"), ("label", "Due diligence evidence"),
             ("classification", "PERSONAL"), ("domain", "ALL"), ("allowed_roles", Array.Empty<string>()));
         return new DdWorld(factory, tenant, factory.ClientFor(tenant, $"dd-clerk-{suffix}"), factory.ClientFor(tenant, $"dd-review-{suffix}"), reviewer,
             factory.ClientFor(tenant, $"dd-approve-{suffix}"), approver);
