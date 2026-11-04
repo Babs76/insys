@@ -136,11 +136,13 @@ pull_secret() {
     | on_server "kubectl create secret generic ghcr --type=kubernetes.io/dockerconfigjson --from-file=.dockerconfigjson=/dev/stdin --dry-run=client -o yaml | kubectl apply -f - >/dev/null"
 }
 
+# The API reads Keycloak's keys inside the cluster, not through the public address and its certificate; its tokens' issuer stays the public one.
 chart() {
   tar -C deploy -cz helm/insys preview/values.yaml preview/backup.yaml openbao/openbao.sh keycloak/realm-name.sh | on_server "rm -rf /root/insys && mkdir -p /root/insys && tar -C /root/insys -xz"
   on_server "cd /root/insys && KUBECONFIG=/etc/rancher/k3s/k3s.yaml helm upgrade --install insys helm/insys -f preview/values.yaml \
     --set ingress.host=$PREVIEW_DOMAIN,ingress.apiPath=/api/,console.environmentName=preview,keycloak.ingressHost=id.$PREVIEW_DOMAIN,keycloak.hostname=https://id.$PREVIEW_DOMAIN \
-    --set authentication.authority=https://id.$PREVIEW_DOMAIN/realms/insys"
+    --set authentication.authority=http://insys-keycloak:8080/realms/insys,authentication.requireHttpsMetadata=false \
+    --set authentication.issuer=https://id.$PREVIEW_DOMAIN/realms/insys,console.issuer=https://id.$PREVIEW_DOMAIN/realms/insys"
   on_server "kubectl wait --for=condition=complete job -l app.kubernetes.io/name=migrate --timeout=900s && kubectl rollout status statefulset/insys-openbao --timeout=600s"
   on_server "kubectl apply -f /root/insys/preview/backup.yaml >/dev/null"
   realm_name
@@ -217,7 +219,9 @@ check_tls() {
       sleep 10
     done
     echo "$host: $issuer"
-    case "$issuer" in *"Let's Encrypt"*|*"(STAGING)"*) ;; *) fail "$host has no Let's Encrypt certificate yet: are its A records in place?" ;; esac
+    case "$issuer" in *"Let's Encrypt"*|*"(STAGING)"*) ;; *)
+      on_server "kubectl -n kube-system logs deploy/traefik --tail=300 | grep -iE 'acme|certificate|resolver' | tail -n 20" || true   # why, from Traefik: no secret in it
+      fail "$host has no Let's Encrypt certificate yet: are its A records in place?" ;; esac
   done
 }
 

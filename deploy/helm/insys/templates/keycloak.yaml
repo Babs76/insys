@@ -73,6 +73,8 @@ spec:
             - --proxy-headers=xforwarded
             {{- if .Values.keycloak.hostname }}
             - --hostname={{ .Values.keycloak.hostname }}
+            # The API's calls inside the cluster get the cluster's addresses for the keys and tokens; tokens keep the public issuer.
+            - --hostname-backchannel-dynamic=true
             {{- else }}
             - --hostname-strict=false
             {{- end }}

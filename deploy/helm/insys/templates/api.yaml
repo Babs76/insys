@@ -64,6 +64,9 @@ spec:
             - {name: Payments__Simulator__DeclaredNonProduction, value: {{ .Values.declaredNonProduction | quote }}}
             - {name: Platform__OperatorTenantId, value: {{ .Values.operatorTenantId | quote }}}
             - {name: Authentication__Authority, value: {{ .Values.authentication.authority | quote }}}
+            {{- with .Values.authentication.issuer }}
+            - {name: Authentication__Issuer, value: {{ . | quote }}}
+            {{- end }}
             - {name: Authentication__Audience, value: {{ .Values.authentication.audience | quote }}}
             - {name: Authentication__RequireHttpsMetadata, value: {{ .Values.authentication.requireHttpsMetadata | quote }}}
             - {name: FieldProtection__Provider, value: envelope}

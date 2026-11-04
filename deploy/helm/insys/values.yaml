@@ -50,6 +50,7 @@ operatorTenantId: "00000000-0000-0000-0000-000000000000"
 
 authentication:
   authority: ""                 # The issuer, such as https://id.example.com/realms/insys.
+  issuer: ""                    # The tokens' issuer, when the API reaches Keycloak at another address than authority (the Preview: in the cluster).
   audience: insys-core-api
   requireHttpsMetadata: true
 
