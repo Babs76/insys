@@ -85,7 +85,7 @@ jobs:
 
       - name: Tools (hcloud, checked against its published checksum, and age)
         run: |
-          version=v1.70.1
+          version=v1.70.2   # current on 4 November 2026; it has no datacenter flags (removed by Hetzner, 1 July 2026)
           cd "$RUNNER_TEMP"
           curl -sfLO "https://github.com/hetznercloud/cli/releases/download/$version/hcloud-linux-amd64.tar.gz"
           curl -sfLO "https://github.com/hetznercloud/cli/releases/download/$version/checksums.txt"

@@ -78,7 +78,7 @@ infrastructure() {
   [ -n "$location" ] && [ -n "$server_type" ] || fail "Set PREVIEW_LOCATION and PREVIEW_SERVER_TYPE in the Environment preview first: the reserved IPv4 can't move between locations."
   hcloud ssh-key describe "$name" >/dev/null 2>&1 || hcloud ssh-key create --name "$name" --public-key "$(ssh-keygen -y -f "$key")" >/dev/null
   hcloud primary-ip describe "$name" >/dev/null 2>&1 || hcloud primary-ip create --name "$name" --type ipv4 --location "$location" --auto-delete=false >/dev/null
-  ip_location=$(hcloud primary-ip describe "$name" -o json | jq -r '.location.name // .datacenter.location.name')
+  ip_location=$(hcloud primary-ip describe "$name" -o json | jq -r .location.name)   # location: Hetzner removed datacenter from Primary IPs, 1 July 2026
   [ "$ip_location" = "$location" ] || fail "The reserved IPv4 is in $ip_location, not $location, and can't move: set PREVIEW_LOCATION=$ip_location, or delete the address in Hetzner's console (and repoint the DNS records)."
   hcloud firewall describe "$name" >/dev/null 2>&1 || hcloud firewall create --name "$name" >/dev/null
   close_ssh
