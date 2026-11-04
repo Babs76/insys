@@ -223,6 +223,7 @@ check_tls() {
 # returns its own status, as set -e doesn't apply inside the if that runs it.
 check() {
   local failed=0 out
+  exec 3>&1   # the step's output, for what an item must say outside its captured result
   item() { # label, then the check; its output says what was found
     local label=$1; shift
     if out=$("$@" 2>&1); then echo "PASS  $label: $out"; else echo "FAIL  $label: ${out:-no detail}"; failed=1; fi
@@ -240,16 +241,20 @@ check_token() {
   echo "the API answers to it"
 }
 check_server() {
-  local id found
+  local found
   [ -n "$location" ] && [ -n "$server_type" ] || { echo "PREVIEW_LOCATION and PREVIEW_SERVER_TYPE must both be set"; return 1; }
-  id=$(hcloud server-type describe "$server_type" -o json | jq -r .id) || { echo "no server type $server_type"; return 1; }
-  # A datacenter lists the server types it can create now (server_types.available); fsn1 has one or more datacenters.
-  found=$(hcloud datacenter list -o json | jq -r --arg l "$location" --argjson id "$id" \
-    '[.[] | select(.location.name == $l)] | if length == 0 then "no-location" elif any(.[]; (.server_types.available // []) | index($id)) then "yes" else "no" end') || return 1
+  # The server type's own locations, each with available: Hetzner's indicator of what can be created now, not a guarantee (changelog,
+  # 1 April 2026; the datacenters' server_types it replaced are gone). Straight from the API, the token on curl's stdin.
+  found=$(printf 'header = "Authorization: Bearer %s"\n' "$HCLOUD_TOKEN" \
+    | curl -sS --fail-with-body -K - "https://api.hetzner.cloud/v1/server_types?name=$server_type" \
+    | jq -r --arg l "$location" '.server_types[0] | if . == null then "no-type"
+        else ([.locations[]? | select(.name == $l)][0]) as $at
+          | if $at == null then "not-offered" elif $at.available then "yes" else "no" end end') || return 1
   case "$found" in
-    yes) echo "available now" ;;
-    no) echo "not available in $location now"; return 1 ;;
-    *) echo "Hetzner has no location $location"; return 1 ;;
+    yes) echo "available now (Hetzner's indicator, not a guarantee)" ;;
+    no) echo "offered in $location but not available now"; return 1 ;;
+    not-offered) echo "not offered in $location"; return 1 ;;
+    *) echo "no server type $server_type"; return 1 ;;
   esac
 }
 check_ssh_key() {
@@ -277,7 +282,7 @@ check_pull() {
   bearer=$(printf 'user = "%s:%s"\n' "${PREVIEW_CONSOLE_PULL_USER:-babs76}" "$PREVIEW_CONSOLE_PULL_TOKEN" \
     | curl -s -K - "https://ghcr.io/token?scope=repository:$repo:pull" | jq -r '.token // empty')
   [ -n "$bearer" ] || { echo "ghcr.io gave no token for it (user ${PREVIEW_CONSOLE_PULL_USER:-babs76})"; return 1; }
-  mask "$bearer"
+  mask "$bearer" >&3   # to the step's own output: a mask is a workflow command only at the start of a line
   code=$(printf 'header = "Authorization: Bearer %s"\n' "$bearer" | curl -s -K - -o /dev/null -w '%{http_code}' \
     -H 'Accept: application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json' \
     "https://ghcr.io/v2/$repo/manifests/${image#*@}")
