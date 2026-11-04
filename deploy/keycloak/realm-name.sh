@@ -22,6 +22,7 @@
 # remain subject to their respective ownership rights and applicable licences
 # or agreements.
 # UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
+# ============================================================================
 # Names the chart's Keycloak realm for its sign-in page: displayName (the page's title) and displayNameHtml (its heading), through the admin API
 # on a port-forward. The chart's realm import never touches a realm that already exists, so this is what names one. Idempotent: a realm that
 # already has the name is left alone. The master admin's password goes in on stdin, never on a command line or in a log.
