@@ -148,11 +148,11 @@ chart() {
 
 # The sign-in page's name, from the values, on an existing realm too: the chart's import names only a new one. The admin password stays on the server.
 realm_name() {
-  local name
-  name=$(sed -n 's/^keycloak:.*realmDisplayName: "\([^"]*\)".*/\1/p' deploy/preview/values.yaml)
-  [ -n "$name" ] || fail "deploy/preview/values.yaml sets no keycloak.realmDisplayName"
+  local label   # not name: that's the server's, which on_server reads
+  label=$(sed -n 's/^keycloak:.*realmDisplayName: "\([^"]*\)".*/\1/p' deploy/preview/values.yaml)
+  [ -n "$label" ] || fail "deploy/preview/values.yaml sets no keycloak.realmDisplayName"
   on_server "kubectl rollout status deploy/insys-keycloak --timeout=900s >/dev/null && kubectl get secret insys-secrets -o jsonpath='{.data.keycloakAdminPassword}' \
-    | base64 -d | /root/insys/keycloak/realm-name.sh insys insys $(printf '%q' "$name")"
+    | base64 -d | /root/insys/keycloak/realm-name.sh insys insys $(printf '%q' "$label")"
 }
 
 # OpenBao made new: initialised, unsealed and configured. Its unseal key and root token go only into the encrypted file.
