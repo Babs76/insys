@@ -95,6 +95,7 @@ wait_for_ssh() {
 }
 
 # k3s with its bundled Traefik, which gets Let's Encrypt on 443; helm and jq for the steps run on the server.
+# helm reads the cluster from k3s.yaml, given each time: unlike k3s's kubectl, it doesn't look there itself.
 cluster() {
   local ca=https://acme-staging-v02.api.letsencrypt.org/directory
   [ "${PREVIEW_ACME:-staging}" = production ] && ca=https://acme-v02.api.letsencrypt.org/directory
@@ -137,7 +138,7 @@ pull_secret() {
 
 chart() {
   tar -C deploy -cz helm/insys preview/values.yaml preview/backup.yaml openbao/openbao.sh keycloak/realm-name.sh | on_server "rm -rf /root/insys && mkdir -p /root/insys && tar -C /root/insys -xz"
-  on_server "cd /root/insys && helm upgrade --install insys helm/insys -f preview/values.yaml \
+  on_server "cd /root/insys && KUBECONFIG=/etc/rancher/k3s/k3s.yaml helm upgrade --install insys helm/insys -f preview/values.yaml \
     --set ingress.host=$PREVIEW_DOMAIN,ingress.apiPath=/api/,console.environmentName=preview,keycloak.ingressHost=id.$PREVIEW_DOMAIN,keycloak.hostname=https://id.$PREVIEW_DOMAIN \
     --set authentication.authority=https://id.$PREVIEW_DOMAIN/realms/insys"
   on_server "kubectl wait --for=condition=complete job -l app.kubernetes.io/name=migrate --timeout=900s && kubectl rollout status statefulset/insys-openbao --timeout=600s"
@@ -310,7 +311,7 @@ case "$action" in
     ;;
   reset)
     ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh
-    on_server "helm uninstall insys --wait || true; kubectl delete pvc --all --wait=true; kubectl delete secret insys-secrets --ignore-not-found"
+    on_server "KUBECONFIG=/etc/rancher/k3s/k3s.yaml helm uninstall insys --wait || true; kubectl delete pvc --all --wait=true; kubectl delete secret insys-secrets --ignore-not-found"
     cluster; images; server_secrets; pull_secret; chart; openbao; seed; encrypt; check_tls
     ;;
   rotate-passwords)
