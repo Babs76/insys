@@ -77,11 +77,11 @@ ingress:
   apiPath: /        # /api/ where the API shares its host with the console (ADR-027).
   annotations: {}   # The ingress controller's own, such as Traefik's certificate resolver; none by default.
 
-# The front end's four apps, from its published image, pinned by digest (ADR-027, BR-132). Off here, as it needs its host
+# The front end's four apps, from its published image, pinned by digest (ADR-027, BR-132). This digest: the console's main at 68b4659 (its run 41825364425). Off here, as it needs its host
 # (ingress.host, with ingress.apiPath /api/) and Keycloak's https issuer (authentication.authority); the INSYS Preview turns it on.
 console:
   enabled: false
-  image: ghcr.io/babs76/insys-console-web@sha256:e0c06bb54292593cd9f3f6471e79dbeae4ebae3e5ca11c56559b3f7918ee865f
+  image: ghcr.io/babs76/insys-console-web@sha256:078c7f593c4316d9ae81b6e1323deae752262ea62d5818f56369817881c7063a
   replicas: 1          # Static files: as many as you like. Only the API is one instance (ADR-006).
   pullSecret: ""       # A docker-registry secret for ghcr.io, made in the cluster: the package is private. Never in these values.
   environmentName: ""  # Shown in the apps' top bar, except "production".
