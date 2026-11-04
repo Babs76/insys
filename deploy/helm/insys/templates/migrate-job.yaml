@@ -27,7 +27,9 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: {{ .Release.Name }}-migrate-{{ .Release.Revision }}
-  labels: {{- include "insys.labels" . | nindent 4 }}
+  labels:
+    app.kubernetes.io/name: migrate   # the Job too, not only its pods: the Preview waits for it by this label
+    {{- include "insys.labels" . | nindent 4 }}
 spec:
   backoffLimit: {{ .Values.migrations.backoffLimit }}
   ttlSecondsAfterFinished: 86400
