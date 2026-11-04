@@ -46,6 +46,19 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # Main's run on fe5f841 (41816611728) stopped on "No space left on device": three images, kind's node and its volumes fill the runner.
+      # The smoke test uses none of these toolchains on the runner itself (the builds run in Docker), so they go first.
+      - name: Free disk space
+        run: |
+          df -h / | tail -n 1
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL /usr/share/swift
+          docker image prune -af > /dev/null
+          df -h / | tail -n 1
+
+      # The Preview's Traefik must get the TLS-ALPN-01 challenge: with tlsChallenge: {} the chart rendered no argument, and no certificate came.
+      - name: The Preview's Traefik arguments
+        run: deploy/preview/check-traefik.sh
+
       - uses: helm/kind-action@v1
         with:
           cluster_name: insys-smoke
