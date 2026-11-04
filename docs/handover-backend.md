@@ -1,11 +1,11 @@
 # Back-end handover
 
-**Interim, 3 November 2026; final at the stop on Wednesday 4 November (Ade moved it from Tuesday).** The go-live register is written, and so is how to continue. The state of branches is made final at the stop.
+**Final, at the stop on Wednesday 4 November 2026.** The go-live register is written, and so is how to continue. The state of branches is under "State at the stop": every branch is merged, and nothing is in progress.
 
 ## First: the INSYS Preview milestone
 **Decided by Ade, 2 November 2026; it comes before everything else.** A hosted environment for OpenFactor's functional team, with all built functionality, sample data only, and every external integration stubbed and clearly labelled. Not production.
 
-- **Order:** Workstream F is done; the Preview is built but not yet run (`docs/plans/insys-preview.md`, Built so far). Its first run needs Ade's secrets and the console's image access (below).
+- **Order:** Workstream F is done; the Preview is built but not yet provisioned (`docs/plans/insys-preview.md`, Built so far). Ade's secrets, variables and the console's image access are set, and the environment's reviewer rule is saved. The `check` runs are under "The check runs" below; `provision` comes next.
 - **Wave 7 is paused after 7.1** until the Preview is live. Batch 7.2 doesn't start before then.
 - **The plan is [`docs/plans/insys-preview.md`](plans/insys-preview.md): one Hetzner server, k3s, the ADR-027 chart. Signed by Ade, 2 November, with decisions recorded at its top.** It starts after Workstream F. The restore rehearsal comes before the team gets access.
 - **Never handle Ade's secrets.** The Hetzner API token goes in GitHub, set by Ade, never in a file, chat or session. Generated passwords, and OpenBao's unseal keys and root token, are only ever written encrypted to Ade's key, as this repository is public; the unseal keys and root token are never stored on the server or in GitHub. Nothing sensitive goes in logs or artifacts.
@@ -30,6 +30,15 @@
 3. **What `destroy` removes.** The server and its firewall. **It keeps the reserved IPv4 address** (made with auto-delete off), so the DNS records stay right for a later `provision`; delete it in Hetzner's console if it's no longer wanted. **It does delete the backups:** Hetzner's backups belong to the server and go with it, and the nightly dumps are on the server's own disk. Take a snapshot in Hetzner's console first if anything must be kept. (Hetzner's documentation says backups go with the server; check the console before relying on it.)
 4. **The portal accounts' TOTP secrets: not set by the run.** `BROKER01` and `PROVIDER01` need a second factor. Setting a TOTP secret isn't built: I found no call in Keycloak's admin API that creates one, and didn't try the alternative. So the first person to sign in to each is asked to set it up, scans the code with an authenticator, and shares that setup (the code or the authenticator export) with the others privately. To build later: the realm's partial import, which can create a credential.
 5. **The console's pull token.** `PREVIEW_CONSOLE_PULL_TOKEN` is a secret in the Environment `preview`: a GitHub classic personal access token with the `read:packages` scope only, from an account that can read `ghcr.io/babs76/insys-console-web`. The run turns it into the cluster's `ghcr` pull secret, on stdin, never on a command line or in a value. The username defaults to `babs76`; set the variable `PREVIEW_CONSOLE_PULL_USER` if the token belongs to another account. The smoke workflow doesn't use it: it pulls with its own token, which needs the package to give `Babs76/insys` read access (package settings, Manage Actions access).
+
+### The check runs (4 November)
+- **First, run 41781131696 (on 13df18c):** PASS for the Hetzner token, `PREVIEW_SSH_KEY`, `PREVIEW_AGE_RECIPIENT` and the pull token (it reads the console's pinned manifest). FAIL for cpx42 in fsn1: it asked Hetzner's datacenter API, which Hetzner has removed. The key's public half is `(ED25519) SHA256:tTdH9PPNZlvytBnQmJat+czm4MI0mNpDA6nCDzA50aI`: Ade matches it against his key. This run started without waiting for approval, because the environment had no required reviewer yet. And the pull token's `::add-mask::` command was printed in the middle of its PASS line, where it doesn't work; the value showed only as `***`, so no secret was printed.
+- **Fixed on main (6d6dfbd):**
+  - Availability now comes from `server_types[].locations[].available`. It's Hetzner's indicator, not a guarantee.
+  - hcloud is pinned to v1.70.2, and nothing in `preview.sh` or `preview.yml` uses datacenters any more.
+  - The mask goes out on its own line.
+  - Ade saved the reviewer rule: Babs76 is required, on main only.
+- **Second, run 41800066571 (on main, 6d6dfbd), dispatched at 08:30 UTC:** it shows **Waiting** for Babs76's approval, so the gate works. At the time of writing it hasn't been approved, so it has no result yet. Read its PASS and FAIL lines once it's approved. If all of them pass, the next run is `provision` with `acme: staging`. A FAIL on cpx42 in fsn1 means Hetzner shows no capacity there right now: choose with Ade between waiting and another type or location, before the first provision.
 
 ### Decisions Ade asked for (3 November)
 - **Role templates, signed by Ade and built:** `docs/plans/role-template-proposals.md`. A: `GENERAL_UNDERWRITER` and `LIFE_UNDERWRITER` rate, evaluate the rules and record the acknowledgement themselves, and `HEALTH_MEMBERSHIP_ADMINISTRATOR` records it at enrolment (six single functions, option 1); each rule evaluation and premium calculation is now on the audit trail. B: the new `LINE_CONFIGURATION_MANAGER` template, held by `LINECFG01/02` in the Preview (51 accounts), and the seed's line configuration managers make and approve the scheme's contribution rule. Option 2 of A is row 33; the fourth segregation rule is row 34.
@@ -185,10 +194,16 @@ All on `wave7-1-fixes`, as one head, as the review's fixes touch every slice. Ch
 
 ## State at the stop
 
-**Interim, 2 November 2026.** Completed by the Tuesday stop. Heads and CI change quickly: check them with `gh run list` before relying on this table. On main: BR-115, 126, 127, 128, the reconciled requests, the small items, the OpenBao Transit adapter, the images, the Helm chart and the smoke job, which also passed on main.
+**Final, 4 November 2026.** Main is at `6d6dfbd`, with CI and the deployment smoke test green on that exact commit (runs 41791431434 and 41791435306). Check with `git ls-remote` and `gh run list` before relying on this. On main: BR-115, 126, 127, 128, the reconciled requests, the small items, the OpenBao Transit adapter, the images, the Helm chart and the smoke job, and these, from 3 and 4 November:
 
-| Branch | State | What's left |
+| Branch | State | What's in it |
 |---|---|---|
-| Next | Workstream F's remaining slices, then the Preview | See the order of work |
+| `preview-console` | Merged (099fc67) | The console in the Preview, pulled with `PREVIEW_CONSOLE_PULL_TOKEN`. The smoke test pulls with its own token |
+| `preview-location` | Merged (13df18c) | The pass-through for `PREVIEW_SERVER_TYPE`, `PREVIEW_LOCATION` and `PREVIEW_CONSOLE_PULL_USER`, and the `check` action |
+| `preview-realm-name` | Merged (6d6dfbd) | The sign-in page reads "INSYS Preview (sample data only)" through the Preview's values, and `preview.sh` sets it through the admin API on provision and upgrade, idempotently (row 35 covers production's name). It also has the check fixes listed under "The check runs" |
+| `br112-test-date` | Merged (260a0c9, inside 6d6dfbd) | The fix for the red CI of 4 November, below |
+| Next | The second check run's result, then `provision` | See "The check runs" |
+
+**The red CI of 4 November (fixed).** `DueDiligenceTests`' two BR-112 tests failed on main from 4 November, at any hour. The cause was in the tests, not the product. Their host's clock is fixed at 22:30 UTC on 1 November (2 November in Johannesburg), but they seeded config from the run's UTC date, less a day. From 4 November that date falls after the host's, so the screening partner, the gate and the LOW class weren't in force. They now seed from the host's own date. `TestClock` takes `INSYS_TEST_RUN_AT`, which runs the suite as if it started at that time. Before the fix, both tests failed at `2026-11-04T05:44Z` and passed at `2026-11-03T05:44Z` and `T20:50Z`. After it, they pass at all three and at `2027-03-01T23:30Z`. Any other test whose host has a fixed clock and seeds from `TestClock.Today` would fail the same way; a search for hosts built on a literal `FakeTimeProvider` date found only `AssignRoleBusinessDateTests` besides these, and it seeds nothing from `TestClock.Today`. Hosts given their clock some other way weren't searched.
 
 Nigeria: appeal routes (V0126) are merged; the rest of row 24 is descoped and wasn't started.
