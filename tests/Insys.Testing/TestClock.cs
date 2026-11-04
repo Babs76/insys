@@ -31,10 +31,14 @@ namespace Insys.Testing;
 /// the UTC date the test run started, whatever the hour. The hosts get it as BusinessDate:TestDate (test only), so a run
 /// between 22:00 and 24:00 UTC, when Johannesburg is already on the next date, behaves as any other. A host given a fixed
 /// clock of its own (BusinessDateTests, the 23:30 UTC boundary cases) leaves it unset to exercise the time-zone conversion.
+/// INSYS_TEST_RUN_AT (ISO 8601, UTC) stands in for the run's start, to run on a given date.
 /// </summary>
 public static class TestClock
 {
-    public static DateOnly Today { get; } = DateOnly.FromDateTime(DateTime.UtcNow);
+    public static DateOnly Today { get; } = DateOnly.FromDateTime(
+        Environment.GetEnvironmentVariable("INSYS_TEST_RUN_AT") is { Length: > 0 } runAt
+            ? DateTimeOffset.Parse(runAt, System.Globalization.CultureInfo.InvariantCulture).UtcDateTime
+            : DateTime.UtcNow);
 
     public static string TodayText => Today.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
 
