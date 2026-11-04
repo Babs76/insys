@@ -170,14 +170,34 @@ openbao() {
   OPENBAO_INIT=$init
 }
 
+# The API's and Keycloak's port-forwards on the server, once both have rolled out, each waited for until its health or realm answers 200 (a fixed
+# sleep 3 left rotate-passwords run 41929744851 with curl's empty reply, 52). If one doesn't, the pods' states and the forwards' own output say why.
+forwards() {
+  # shellcheck disable=SC2016 # it runs on the server, which expands it
+  on_server 'kubectl rollout status deploy/insys-keycloak --timeout=600s >/dev/null && kubectl rollout status deploy/insys-api --timeout=600s >/dev/null \
+      || { kubectl get pods -o wide; exit 1; }
+    pkill -f "^kubectl port-forward svc/insys-" || true
+    (nohup kubectl port-forward svc/insys-api 18080:8080 >/tmp/forward-api.log 2>&1 &)
+    (nohup kubectl port-forward svc/insys-keycloak 18081:8080 >/tmp/forward-keycloak.log 2>&1 &)
+    for url in http://127.0.0.1:18080/health/ready http://127.0.0.1:18081/realms/insys; do
+      for _ in $(seq 1 90); do code=$(curl -s -o /dev/null -w "%{http_code}" "$url"); [ "$code" = 200 ] && continue 2; sleep 1; done
+      echo "$url answered HTTP $code, not 200, for 90 s. The pods, then the forwards'\'' own output:"
+      kubectl get pods -o wide; tail -n 10 /tmp/forward-api.log /tmp/forward-keycloak.log; exit 1
+    done' || fail "a port-forward on the server didn't answer: see the pods and the forwards' output above"
+}
+
 # The seed and the accounts, through tunnels to the API and Keycloak. The accounts' passwords come back on the seed's stdout only.
 # "^kubectl port-forward": anchored, so pkill -f matches only the forwards, not the remote shell running it, whose command line holds the same text.
 seed() {
   local admin
   admin=$(on_server "kubectl get secret insys-secrets -o jsonpath='{.data.keycloakAdminPassword}' | base64 -d")
   mask "$admin"
-  on_server "pkill -f '^kubectl port-forward svc/insys-' || true; (nohup kubectl port-forward svc/insys-api 18080:8080 >/dev/null 2>&1 &); (nohup kubectl port-forward svc/insys-keycloak 18081:8080 >/dev/null 2>&1 &); sleep 3"
+  forwards
   ssh -i "$key" -o UserKnownHostsFile="$RUNNER_TEMP/known_hosts" -fN -L 18080:127.0.0.1:18080 -L 18081:127.0.0.1:18081 "root@$(address)"
+  for url in http://127.0.0.1:18080/health/ready http://127.0.0.1:18081/realms/insys; do   # the runner's end of the tunnel too
+    for _ in $(seq 1 30); do code=$(curl -s -o /dev/null -w '%{http_code}' "$url"); [ "$code" = 200 ] && continue 2; sleep 1; done
+    fail "through the runner's tunnel, $url answered HTTP $code, not 200"
+  done
   clients "$admin"
   dotnet build tools/Insys.Seed -c Release -v q >/dev/null
   ACCOUNTS=$(INSYS_SEED_KEYCLOAK_ADMIN_PASSWORD="$admin" dotnet tools/Insys.Seed/bin/Release/net10.0/Insys.Seed.dll --api http://127.0.0.1:18080 \
@@ -191,16 +211,23 @@ seed() {
 
 # Each app's Keycloak client gets the Preview's addresses, through the tunnel: sign-in returns to the app, and the browser may call the token endpoint.
 clients() {
-  local token id base
-  token=$(curl -sf -d grant_type=password -d client_id=admin-cli -d username=admin --data-urlencode "password=$1" \
-    http://127.0.0.1:18081/realms/master/protocol/openid-connect/token | jq -r .access_token)
+  local answer token id base
+  # The password on curl's stdin and the token in a header from a process substitution, never on a command line. Each call says which it was,
+  # with curl's own exit code (52: an empty reply, as in rotate-passwords run 41929744851).
+  answer=$(printf '%s' "$1" | curl -sf -d grant_type=password -d client_id=admin-cli -d username=admin --data-urlencode password@- \
+    http://127.0.0.1:18081/realms/master/protocol/openid-connect/token) || fail "Keycloak's admin token, through the tunnel to 18081: curl exit $?"
+  token=$(jq -er .access_token <<<"$answer") || fail "Keycloak's admin token: its answer holds no access_token"
   mask "$token"
   for client in insys-web:/ broker-portal:/broker/ member-portal:/member/ provider-portal:/provider/; do
     base="https://$PREVIEW_DOMAIN${client#*:}"
-    id=$(curl -sf -H "Authorization: Bearer $token" "http://127.0.0.1:18081/admin/realms/insys/clients?clientId=${client%%:*}" | jq -r '.[0].id')
-    curl -sf -H "Authorization: Bearer $token" "http://127.0.0.1:18081/admin/realms/insys/clients/$id" \
-      | jq --arg base "$base" --arg origin "https://$PREVIEW_DOMAIN" '.redirectUris = [$base + "*"] | .webOrigins = [$origin] | .rootUrl = $base | .attributes["post.logout.redirect.uris"] = ($base + "*")' \
-      | curl -sf -X PUT -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary @- "http://127.0.0.1:18081/admin/realms/insys/clients/$id"
+    answer=$(curl -sf -H @<(printf 'Authorization: Bearer %s\n' "$token") "http://127.0.0.1:18081/admin/realms/insys/clients?clientId=${client%%:*}") \
+      || fail "finding Keycloak's client ${client%%:*}: curl exit $?"
+    id=$(jq -er '.[0].id' <<<"$answer") || fail "Keycloak has no client ${client%%:*}"
+    answer=$(curl -sf -H @<(printf 'Authorization: Bearer %s\n' "$token") "http://127.0.0.1:18081/admin/realms/insys/clients/$id") \
+      || fail "reading Keycloak's client ${client%%:*}: curl exit $?"
+    jq --arg base "$base" --arg origin "https://$PREVIEW_DOMAIN" '.redirectUris = [$base + "*"] | .webOrigins = [$origin] | .rootUrl = $base | .attributes["post.logout.redirect.uris"] = ($base + "*")' <<<"$answer" \
+      | curl -sf -X PUT -H @<(printf 'Authorization: Bearer %s\n' "$token") -H 'Content-Type: application/json' --data-binary @- "http://127.0.0.1:18081/admin/realms/insys/clients/$id" \
+      || fail "updating Keycloak's client ${client%%:*}: exit $?"
   done
 }
 
