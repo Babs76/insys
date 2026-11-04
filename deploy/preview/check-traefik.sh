@@ -22,6 +22,7 @@
 # remain subject to their respective ownership rights and applicable licences
 # or agreements.
 # UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
+# ============================================================================
 # Renders the Traefik chart that the Preview's k3s bundles with deploy/preview/traefik.yaml's values, and checks the arguments Traefik gets:
 # the resolver le must have the TLS-ALPN-01 challenge, its storage and its CA. Run by the deployment smoke workflow; needs helm and git.
 # The chart's version is read from k3s's own manifest at the Preview's k3s version, so a k3s upgrade is checked against its own chart.
