@@ -128,7 +128,7 @@ public sealed partial class OftzaSeed
         var id = accounts.Count > 0 ? accounts[0].GetProperty("id").GetGuid()
             : (await Clerk.Send(HttpMethod.Post, url, new { accountNumber = number, bankCode = "000000", accountHolderName = "Sample account holder", accountType = "CURRENT", currency = "ZAR" }, key: $"{TenantCode}:bank-account:{party}")).GetProperty("id").GetGuid();
         await context.Settle();
-        await Approve(FinanceManager, id);
+        await Approve(FinanceManager, id, "verifying a payee's bank account");
         await context.Settle();
         return id;
     }
@@ -202,7 +202,7 @@ public sealed partial class OftzaSeed
             await context.Settle();
         }
 
-        await Approve(ClaimsManager, claim);
+        await Approve(ClaimsManager, claim, "approving a claim's settlement");
         await context.Settle();
     }
 
@@ -254,7 +254,7 @@ public sealed partial class OftzaSeed
             await context.Settle();
         }
 
-        await Approve(ClaimsManager, claim);
+        await Approve(ClaimsManager, claim, "approving a claim's settlement");
         await context.Settle();
     }
 
@@ -287,7 +287,7 @@ public sealed partial class OftzaSeed
         await Step(FinanceOfficer, url, "Open", "cut-off");
         await Step(FinanceOfficer, url, "CutOff", "calculate");
         await context.Settle();
-        await Approve(FinanceManager, run);
+        await Approve(FinanceManager, run, "approving the provider payment run");
         await context.Settle();
         await Step(FinanceManager, url, "Approved", "release");
         await context.Settle();
@@ -305,7 +305,7 @@ public sealed partial class OftzaSeed
             }
 
             await context.Settle();
-            await Approve(FinanceManager, batch);
+            await Approve(FinanceManager, batch, "releasing a payout batch");
             await context.Settle();
             await Step(FinanceManager, $"/api/v1/payments/payout-batches/{batch}", "Approved", "release");
             await context.Settle();
@@ -352,7 +352,7 @@ public sealed partial class OftzaSeed
             : (await FinanceOfficer.Send(HttpMethod.Post, $"/api/v1/billing/accounts/{account.GetProperty("id").GetGuid()}/refunds", new { amount = 100m, reasonCode = "INS_REQUEST", bankAccountId = await PayeeAccount(party, "000000108") }, key: $"{TenantCode}:refund:{policy}")).GetProperty("id").GetGuid();
         // Approved whether this run asked or an earlier one stopped just after asking.
         await context.Settle();
-        await Approve(FinanceManager, refund);
+        await Approve(FinanceManager, refund, "approving the refund");
         await context.Settle();
     }
 
@@ -366,7 +366,7 @@ public sealed partial class OftzaSeed
         {
             var statement = (await distribution.Send(HttpMethod.Post, "/api/v1/distribution/statements", new { intermediaryCode = broker, periodCode = $"{Today:yyyy-MM}", currency = "ZAR" }, key: $"{TenantCode}:statement:{broker}:{Today:yyyy-MM}")).GetProperty("id").GetGuid();
             await context.Settle();
-            await Approve(FinanceManager, statement);
+            await Approve(FinanceManager, statement, "approving the commission statement");
             await context.Settle();
         }
     }
