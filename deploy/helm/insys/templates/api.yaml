@@ -68,6 +68,14 @@ spec:
             - {name: Authentication__Issuer, value: {{ . | quote }}}
             {{- end }}
             - {name: Authentication__Audience, value: {{ .Values.authentication.audience | quote }}}
+            {{- $keycloakAdmin := .Values.identity.keycloak.baseUrl | default (ternary (printf "http://%s-keycloak:8080" .Release.Name) "" .Values.keycloak.enabled) }}
+            {{- if $keycloakAdmin }}
+            # Keycloak user provisioning, inside the cluster; the client secret from the Secret, optional so the API starts before it's copied there.
+            - {name: Identity__Keycloak__BaseUrl, value: {{ $keycloakAdmin | quote }}}
+            - name: Identity__Keycloak__ClientSecret
+              valueFrom:
+                secretKeyRef: {name: {{ include "insys.secret" . }}, key: keycloakUserAdminSecret, optional: true}
+            {{- end }}
             - {name: Authentication__RequireHttpsMetadata, value: {{ .Values.authentication.requireHttpsMetadata | quote }}}
             - {name: FieldProtection__Provider, value: envelope}
             - {name: Kms__Provider, value: openbao}

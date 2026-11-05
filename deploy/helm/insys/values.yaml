@@ -117,6 +117,13 @@ seaweedfs:
   image: chrislusf/seaweedfs:3.97
   storage: 5Gi
 
+# The API's Keycloak user provisioning (Identity:Keycloak): it makes each INSYS user's Keycloak account through the realm's confidential client
+# insys-user-admin. With keycloak.enabled the address is the in-cluster service; otherwise set baseUrl, or users can't be made and their
+# requests park (KEYCLOAK_UNAVAILABLE). The client's secret is never a value here: it's the Secret's keycloakUserAdminSecret key (the INSYS
+# Preview copies Keycloak's generated one there on the server, deploy/keycloak/user-admin-secret.sh).
+identity:
+  keycloak:
+    baseUrl: ""
 keycloak:
   enabled: false
   image: quay.io/keycloak/keycloak:26.7.5

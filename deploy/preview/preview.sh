@@ -165,7 +165,7 @@ pull_secret() {
 
 # The API reads Keycloak's keys inside the cluster, not through the public address and its certificate; its tokens' issuer stays the public one.
 chart() {
-  tar -C deploy -cz helm/insys preview/values.yaml preview/backup.yaml openbao/openbao.sh keycloak/realm-name.sh | on_server "rm -rf /root/insys && mkdir -p /root/insys && tar -C /root/insys -xz"
+  tar -C deploy -cz helm/insys preview/values.yaml preview/backup.yaml openbao/openbao.sh keycloak/realm-name.sh keycloak/user-admin-secret.sh | on_server "rm -rf /root/insys && mkdir -p /root/insys && tar -C /root/insys -xz"
   on_server "cd /root/insys && KUBECONFIG=/etc/rancher/k3s/k3s.yaml helm upgrade --install insys helm/insys -f preview/values.yaml \
     --set ingress.host=$PREVIEW_DOMAIN,ingress.apiPath=/api/,console.environmentName=preview,keycloak.ingressHost=id.$PREVIEW_DOMAIN,keycloak.hostname=https://id.$PREVIEW_DOMAIN \
     --set authentication.authority=http://insys-keycloak:8080/realms/insys,authentication.requireHttpsMetadata=false \
@@ -173,6 +173,7 @@ chart() {
   on_server "kubectl wait --for=condition=complete job -l app.kubernetes.io/name=migrate --timeout=900s && kubectl rollout status statefulset/insys-openbao --timeout=600s"
   on_server "kubectl apply -f /root/insys/preview/backup.yaml >/dev/null"
   realm_name
+  user_admin
 }
 
 # The sign-in page's name, from the values, on an existing realm too: the chart's import names only a new one. The admin password stays on the server.
@@ -213,12 +214,22 @@ forwards() {
     done' || fail "a port-forward on the server didn't answer: see the pods and the forwards' output above"
 }
 
+# The API makes each user's Keycloak account through the realm's client insys-user-admin, whose secret Keycloak generated on import: copied
+# into insys-secrets on the server, from Keycloak to the Secret only, by deploy/keycloak/user-admin-secret.sh (it restarts the API when it
+# changes). Without it, rotate-passwords run 41983797927 parked the first administrators' accounts (KEYCLOAK_UNAVAILABLE).
+user_admin() {
+  on_server "test -x /root/insys/keycloak/user-admin-secret.sh" || fail "the server has no keycloak/user-admin-secret.sh: run upgrade first"
+  on_server "kubectl rollout status deploy/insys-keycloak --timeout=900s >/dev/null && kubectl get secret insys-secrets -o jsonpath='{.data.keycloakAdminPassword}' \
+    | base64 -d | /root/insys/keycloak/user-admin-secret.sh insys insys"
+}
+
 # The seed and the accounts, through tunnels to the API and Keycloak. The accounts' passwords come back on the seed's stdout only.
 # "^kubectl port-forward": anchored, so pkill -f matches only the forwards, not the remote shell running it, whose command line holds the same text.
 seed() {
   local admin
   admin=$(on_server "kubectl get secret insys-secrets -o jsonpath='{.data.keycloakAdminPassword}' | base64 -d")
   mask "$admin"
+  user_admin
   forwards
   ssh -i "$key" -o UserKnownHostsFile="$RUNNER_TEMP/known_hosts" -fN -L 18080:127.0.0.1:18080 -L 18081:127.0.0.1:18081 "root@$(address)"
   for url in http://127.0.0.1:18080/health/ready http://127.0.0.1:18081/realms/insys; do   # the runner's end of the tunnel too

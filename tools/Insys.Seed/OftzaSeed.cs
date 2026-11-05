@@ -565,12 +565,21 @@ public sealed partial class OftzaSeed(SeedContext context)
         Guid request;
         if (existing.ValueKind != JsonValueKind.Undefined)
         {
-            if (existing.GetProperty("status").GetString() == "Provisioned")
+            var status = existing.GetProperty("status").GetString();
+            if (status == "Provisioned")
             {
                 return;
             }
 
             request = existing.GetProperty("id").GetGuid();
+            if (status is "IdentityParked" or "IdentityFailed")
+            {
+                // An earlier run's identities, parked while the API couldn't reach Keycloak (rotate-passwords run 41983797927): retried now,
+                // as the operator does once the cause is fixed (BR-018), rather than on the parking job's periodic check.
+                await context.PlatformMaker.Send(HttpMethod.Post, $"/api/v1/identity/tenant-administrators/{request}/retry-identity", idempotent: false);
+                await context.Settle();
+                return;
+            }
         }
         else
         {

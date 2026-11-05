@@ -41,6 +41,6 @@ INSERT INTO iam.cfg_roles_and_permission_sets (tenant_id, code, version, effecti
   VALUES (:'tenant', 'SMOKE', 1, DATE '2026-01-01', 'EFFECTIVE', 'smoke', 'smoke', 'SMOKE');
 INSERT INTO iam.cfg_role_function_assignments (tenant_id, code, version, effective_from, record_status, created_by, change_reason, role_code, function_code)
   SELECT :'tenant', 'SMOKE:' || f, 1, DATE '2026-01-01', 'EFFECTIVE', 'smoke', 'smoke', 'SMOKE', f
-  FROM iam.functions_within(ARRAY['party.read', 'party.create', 'party.update', 'document.read', 'document.create']) AS f;
+  FROM iam.functions_within(ARRAY['party.read', 'party.create', 'party.update', 'document.read', 'document.create', 'user.read', 'user.create']) AS f;
 INSERT INTO iam.user_role_assignment (tenant_id, id, row_version, created_at, created_by, updated_at, updated_by, user_id, role_code, valid_from, assigned_by, status)
   VALUES (:'tenant', gen_random_uuid(), 1, now(), 'smoke', now(), 'smoke', :'tenant', 'SMOKE', DATE '2026-01-01', :'tenant', 'ACTIVE');
