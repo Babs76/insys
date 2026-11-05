@@ -58,7 +58,7 @@ jobs:
   preview:
     runs-on: ubuntu-latest
     environment: preview
-    timeout-minutes: 120
+    timeout-minutes: 240   # rotate-passwords runs the whole seed against the relay; a cut-off run is recoverable (it resumes, and sets all 51 passwords at the end)
     env:
       HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
       PREVIEW_SSH_KEY: ${{ secrets.PREVIEW_SSH_KEY }}
