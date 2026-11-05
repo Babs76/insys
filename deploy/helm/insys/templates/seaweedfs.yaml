@@ -23,15 +23,6 @@
 # UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
 # ============================================================================
 {{- if .Values.seaweedfs.enabled }}
-apiVersion: v1
-kind: Secret
-metadata:
-  name: {{ .Release.Name }}-seaweedfs-s3
-  labels: {{- include "insys.labels" . | nindent 4 }}
-stringData:
-  s3.json: |
-    {"identities": [{"name": "insys", "credentials": [{"accessKey": {{ .Values.secrets.objectStoreAccessKey | quote }}, "secretKey": {{ .Values.secrets.objectStoreSecretKey | quote }}}], "actions": ["Admin", "Read", "Write", "List", "Tagging"]}]}
----
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -50,6 +41,22 @@ spec:
         app.kubernetes.io/name: seaweedfs
         {{- include "insys.labels" . | nindent 8 }}
     spec:
+      # Its S3 identity from the release's Secret, the same keys the API signs with (objectStoreAccessKey, objectStoreSecretKey), so the two
+      # always agree. Built from the values before, it was empty wherever the Secret is made outside the chart (existingSecret, the INSYS
+      # Preview), and every document write failed (rotate-passwords run 42080719155: POST /documents/documents, 500).
+      initContainers:
+        - name: s3-config
+          image: {{ .Values.seaweedfs.image }}
+          command:
+            - sh
+            - -c
+            - |
+              printf '{"identities": [{"name": "insys", "credentials": [{"accessKey": "%s", "secretKey": "%s"}], "actions": ["Admin", "Read", "Write", "List", "Tagging"]}]}' "$ACCESS_KEY" "$SECRET_KEY" > /config/s3.json
+          env:
+            {{- include "insys.secretEnv" (dict "root" . "name" "ACCESS_KEY" "key" "objectStoreAccessKey") | nindent 12 }}
+            {{- include "insys.secretEnv" (dict "root" . "name" "SECRET_KEY" "key" "objectStoreSecretKey") | nindent 12 }}
+          volumeMounts:
+            - {name: config, mountPath: /config}
       containers:
         - name: seaweedfs
           image: {{ .Values.seaweedfs.image }}
@@ -69,7 +76,7 @@ spec:
             - {name: config, mountPath: /etc/seaweedfs, readOnly: true}
       volumes:
         - name: config
-          secret: {secretName: {{ .Release.Name }}-seaweedfs-s3}
+          emptyDir: {}
   volumeClaimTemplates:
     - metadata: {name: data}
       spec:

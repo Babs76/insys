@@ -30,16 +30,8 @@ image:
 environment: Production
 declaredNonProduction: false
 operatorTenantId: 0199f000-0000-7000-8000-000000000001
-secrets:
-  migrationConnection: Host=insys-postgres;Database=insys;Username=insys_owner;Password=smoke-owner
-  connectionTemplate: Host=insys-postgres;Database=insys;Username={role};Password=smoke-role
-  rolePassword: smoke-role
-  hashKey: c21va2Utc21va2Utc21va2Utc21va2Utc21va2Utc21vaw==
-  kmsToken: smoke-kms-token
-  objectStoreAccessKey: smoke-access
-  objectStoreSecretKey: smoke-secret-key
-  postgresPassword: smoke-owner
-  keycloakAdminPassword: smoke-admin
+# As the Preview: the Secret is made outside the chart (deploy/smoke/run.sh), so the chart reads every secret from it, never from values.
+existingSecret: insys-secrets
 # As the Preview: the tokens carry Keycloak's public issuer, and the API reads its keys inside the cluster.
 authentication:
   authority: http://insys-keycloak:8080/realms/insys

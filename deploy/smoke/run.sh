@@ -44,6 +44,14 @@ diagnose() {
 }
 trap 'diagnose' ERR
 
+# The Secret made outside the chart, as the Preview's server makes it (existingSecret): a template reading a secret from values instead would
+# get nothing, as SeaweedFS's S3 keys did (rotate-passwords run 42080719155). Throwaway values for a throwaway cluster, not secrets.
+kubectl create secret generic insys-secrets \
+  --from-literal=migrationConnection='Host=insys-postgres;Database=insys;Username=insys_owner;Password=smoke-owner' \
+  --from-literal=connectionTemplate='Host=insys-postgres;Database=insys;Username={role};Password=smoke-role' \
+  --from-literal=rolePassword=smoke-role --from-literal=hashKey=c21va2Utc21va2Utc21va2Utc21va2Utc21va2Utc21vaw== \
+  --from-literal=kmsToken=smoke-kms-token --from-literal=objectStoreAccessKey=smoke-access --from-literal=objectStoreSecretKey=smoke-secret-key \
+  --from-literal=postgresPassword=smoke-owner --from-literal=keycloakAdminPassword=smoke-admin > /dev/null
 helm install insys "$here/../helm/insys" -f "$here/values.yaml"
 kubectl wait --for=condition=complete job/insys-migrate-1 --timeout=600s
 kubectl rollout status statefulset/insys-openbao --timeout=300s
