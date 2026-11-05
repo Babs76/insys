@@ -99,9 +99,9 @@ wait_for_ssh() {
 cluster() {
   local ca=https://acme-staging-v02.api.letsencrypt.org/directory
   [ "${PREVIEW_ACME:-staging}" = production ] && ca=https://acme-v02.api.letsencrypt.org/directory
-  on_server "command -v k3s >/dev/null || curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION='$k3s_version' sh -s - --write-kubeconfig-mode 600"
+  on_server "command -v k3s >/dev/null || curl -sfL --retry 3 --retry-all-errors --retry-delay 5 https://get.k3s.io | INSTALL_K3S_VERSION='$k3s_version' sh -s - --write-kubeconfig-mode 600"
   on_server "command -v jq >/dev/null || (apt-get update -qq && apt-get install -y -qq jq >/dev/null)"
-  on_server "command -v helm >/dev/null || (curl -sfL https://get.helm.sh/helm-$helm_version-linux-amd64.tar.gz | tar -xz -C /tmp && install /tmp/linux-amd64/helm /usr/local/bin/helm)"
+  on_server "command -v helm >/dev/null || (curl -sfL --retry 3 --retry-all-errors --retry-delay 5 https://get.helm.sh/helm-$helm_version-linux-amd64.tar.gz | tar -xz -C /tmp && install /tmp/linux-amd64/helm /usr/local/bin/helm)"
   sed -e "s#ACME_CA#$ca#" -e "s#ACME_EMAIL#${PREVIEW_ACME_EMAIL:-}#" "$here/traefik.yaml" | on_server "cat > /var/lib/rancher/k3s/server/manifests/traefik-config.yaml"
   on_server "until kubectl get nodes 2>/dev/null | grep -q ' Ready'; do sleep 5; done"
   acme_ca "$ca"
