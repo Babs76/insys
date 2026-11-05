@@ -104,6 +104,33 @@ cluster() {
   on_server "command -v helm >/dev/null || (curl -sfL https://get.helm.sh/helm-$helm_version-linux-amd64.tar.gz | tar -xz -C /tmp && install /tmp/linux-amd64/helm /usr/local/bin/helm)"
   sed -e "s#ACME_CA#$ca#" -e "s#ACME_EMAIL#${PREVIEW_ACME_EMAIL:-}#" "$here/traefik.yaml" | on_server "cat > /var/lib/rancher/k3s/server/manifests/traefik-config.yaml"
   on_server "until kubectl get nodes 2>/dev/null | grep -q ' Ready'; do sleep 5; done"
+  acme_ca "$ca"
+}
+
+# Traefik keeps its certificates in acme.json when its CA changes: v3.3.2 resets only the ACME account (pkg/provider/acme/provider.go) and
+# renews a certificate only in its last 30 days, so a switch from staging to production would go on serving staging's for about two months.
+# So the CA the certificates came from is noted on the server, and on a change, once Traefik runs with the new CA, acme.json is emptied and
+# Traefik restarted: it then asks the new CA for both hosts. No note means staging, the only CA used before this was written.
+acme_ca() {
+  on_server "CA='$1' bash -s" <<'EOF'
+set -euo pipefail
+note=/var/lib/rancher/k3s/server/insys-acme-ca
+was=$(cat "$note" 2>/dev/null || echo https://acme-staging-v02.api.letsencrypt.org/directory)
+[ "$was" = "$CA" ] && exit 0
+for _ in $(seq 1 120); do
+  kubectl -n kube-system get deploy traefik -o jsonpath='{.spec.template.spec.containers[0].args}' 2>/dev/null \
+    | grep -qF -- "--certificatesresolvers.le.acme.caServer=$CA" && break
+  sleep 5
+done
+kubectl -n kube-system get deploy traefik -o jsonpath='{.spec.template.spec.containers[0].args}' | grep -qF -- "--certificatesresolvers.le.acme.caServer=$CA" \
+  || { echo "Traefik didn't get the new CA, $CA, within 10 minutes"; exit 1; }
+kubectl -n kube-system rollout status deploy/traefik --timeout=600s >/dev/null
+kubectl -n kube-system exec deploy/traefik -- sh -c ': > /data/acme.json'
+kubectl -n kube-system rollout restart deploy/traefik >/dev/null
+kubectl -n kube-system rollout status deploy/traefik --timeout=600s >/dev/null
+printf '%s' "$CA" > "$note"
+echo "Traefik's certificates from $was were cleared, so it asks $CA for new ones."
+EOF
 }
 
 images() {
@@ -240,18 +267,25 @@ encrypt() {
   echo "Encrypted for Ade: $(basename "$out")."
 }
 
-# TLS is proven before anyone relies on it: the certificate must come from the CA asked for.
+# TLS is proven before anyone relies on it: the certificate must come from the CA asked for. Staging's issuers name Let's Encrypt too
+# ("O = Let's Encrypt, CN = (STAGING) ..."), so production is Let's Encrypt without "(STAGING)", and staging is Let's Encrypt with it.
+issued_by() { # issuer, then staging or production
+  case "$1" in *"O = Let's Encrypt"*) ;; *) return 1 ;; esac
+  case "$1" in *"(STAGING)"*) [ "$2" = staging ] ;; *) [ "$2" = production ] ;; esac
+}
 check_tls() {
+  local want=${PREVIEW_ACME:-staging}
   for host in "$PREVIEW_DOMAIN" "id.$PREVIEW_DOMAIN"; do
     for _ in $(seq 1 60); do
       issuer=$(echo | openssl s_client -connect "$(address):443" -servername "$host" 2>/dev/null | openssl x509 -noout -issuer 2>/dev/null || true)
-      case "$issuer" in *"Let's Encrypt"*|*"(STAGING)"*) break ;; esac
+      issued_by "$issuer" "$want" && break
       sleep 10
     done
     echo "$host: $issuer"
-    case "$issuer" in *"Let's Encrypt"*|*"(STAGING)"*) ;; *)
+    issued_by "$issuer" "$want" || {
       on_server "kubectl -n kube-system logs deploy/traefik --tail=300 | grep -iE 'acme|certificate|resolver' | tail -n 20" || true   # why, from Traefik: no secret in it
-      fail "$host has no Let's Encrypt certificate yet: are its A records in place?" ;; esac
+      fail "$host has no Let's Encrypt $want certificate yet"
+    }
   done
 }
 
