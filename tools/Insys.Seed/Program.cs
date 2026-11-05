@@ -60,12 +60,12 @@ Persona As(Guid tenant, string subject)
     {
         // The platform's users are named as they are in Keycloak; a tenant's carry its code.
         var username = tenant == Guid.Parse(options["operator-tenant"]) ? subject : KeycloakSignIn.Username(OftzaSeed.TenantCode, subject);
-        return new Persona(new HttpClient(keycloak.For(username)) { BaseAddress = new Uri(options["api"]) });
+        return new Persona(new HttpClient(keycloak.For(username)) { BaseAddress = new Uri(options["api"]) }) { Settle = Settle };
     }
 
     var client = new HttpClient { BaseAddress = new Uri(options["api"]) };
     client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", Token(tenant, subject));
-    return new Persona(client);
+    return new Persona(client) { Settle = Settle };
 }
 
 string Token(Guid tenant, string subject)

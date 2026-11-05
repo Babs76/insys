@@ -43,9 +43,16 @@ public sealed class Persona(HttpClient http, Action<string>? afterCall = null)
 {
     public HttpClient Http { get; } = http;
 
+    /// <summary>Waits for what earlier writes raised to be applied (the CLI: until /health shows no pending outbox event), before a 412's re-read.</summary>
+    public Func<Task>? Settle { get; set; }
+
+    /// <summary>How many times a write refused with 412 is tried again on the record's fresh version.</summary>
+    public const int PreconditionRetries = 3;
+
     /// <param name="key">The Idempotency-Key, deterministic so a rerun gets the original record back: the tenant code, the record's type and its business key. By default, a hash of the call itself.</param>
     public async Task<JsonElement> Send(HttpMethod method, string path, object? body = null, string? ifMatch = null, bool idempotent = true, string? key = null)
     {
+        string? retryTag = null;   // the version a 412's retry is made on: in its Idempotency-Key, as a route that requires one keeps its 412 against the first
         HttpRequestMessage Request()
         {
             var request = new HttpRequestMessage(method, path);
@@ -57,8 +64,9 @@ public sealed class Persona(HttpClient http, Action<string>? afterCall = null)
             if (idempotent && method == HttpMethod.Post)
             {
                 // The API takes at most 80 characters, so a long business key goes in as its hash.
-                var source = key ?? path + "|" + JsonSerializer.Serialize(body, JsonSerializerOptions.Web);
-                request.Headers.Add("Idempotency-Key", key is { Length: <= 80 } ? key : $"seed:{Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(source)))[..40]}");
+                var source = (key ?? path + "|" + JsonSerializer.Serialize(body, JsonSerializerOptions.Web)) + (retryTag is null ? "" : "|retry " + retryTag);
+                var plain = key is null ? null : retryTag is null ? key : $"{key}:r{retryTag}";
+                request.Headers.Add("Idempotency-Key", plain is { Length: <= 80 } ? plain : $"seed:{Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(source)))[..40]}");
             }
 
             if (ifMatch is not null)
@@ -90,6 +98,30 @@ public sealed class Persona(HttpClient http, Action<string>? afterCall = null)
             text = await response.Content.ReadAsStringAsync();
         }
 
+        // Refused because the record changed since its version was read: a consumer of an earlier write's event, through the relay
+        // (rotate-passwords run 42057678256: a party's contact point, after IdentityVerificationPolicy handled PartyIdentifierAdded). A 412
+        // means nothing was applied, so the write is made again on the record's fresh version, after a settle, under a key of its own (a route
+        // that requires an Idempotency-Key keeps a 4xx against it for 24 hours, and would replay it).
+        for (var retry = 1; response.StatusCode == HttpStatusCode.PreconditionFailed && ifMatch is not null && retry <= PreconditionRetries; retry++)
+        {
+            if (Settle is not null)
+            {
+                await Settle();
+            }
+
+            var fresh = await CurrentVersion(path);
+            if (fresh is null)
+            {
+                break;
+            }
+
+            ifMatch = fresh;
+            retryTag = $"{retry}-{fresh.Trim('"')}";
+            response.Dispose();
+            response = await Paced(Request);
+            text = await response.Content.ReadAsStringAsync();
+        }
+
         using var answered = response;
         afterCall?.Invoke($"{method} {path}");
         if (!response.IsSuccessStatusCode)
@@ -100,9 +132,16 @@ public sealed class Persona(HttpClient http, Action<string>? afterCall = null)
         return text.Length == 0 ? default : JsonSerializer.Deserialize<JsonElement>(text);
     }
 
+    /// <summary>The record's version: the path itself, or up to three segments up (an action, or an action on a sub-resource such as a tenant's smoke run).</summary>
     private async Task<string?> CurrentVersion(string path)
     {
-        foreach (var candidate in new[] { path, path[..path.LastIndexOf('/')] })
+        var candidates = new List<string> { path };
+        for (var up = path; candidates.Count < 4 && up.LastIndexOf('/') > 0; candidates.Add(up))
+        {
+            up = up[..up.LastIndexOf('/')];
+        }
+
+        foreach (var candidate in candidates)
         {
             using var current = await Paced(() => new HttpRequestMessage(HttpMethod.Get, candidate));
             if (current.IsSuccessStatusCode && current.Headers.ETag?.Tag is { } tag)

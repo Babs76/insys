@@ -239,22 +239,19 @@ public sealed partial class OftzaSeed(SeedContext context)
             var url = $"/api/v1/party/parties/{id}";
             if ((await clerk.Send(HttpMethod.Get, url)).GetProperty("identifiers").GetArrayLength() == 0)
             {
-                var version = await PartyVersion(clerk, url);   // in the key too: a refusal at one version (412, kept 24 h against its key) mustn't block the next
-                await clerk.Send(HttpMethod.Post, $"{url}/identifiers", new { docType = "NATIONAL_ID", country = "ZA", number = person.IdNumber }, version, key: $"{TenantCode}:identifier:{person.IdNumber}:v{version.Trim('"')}");
+                await clerk.Send(HttpMethod.Post, $"{url}/identifiers", new { docType = "NATIONAL_ID", country = "ZA", number = person.IdNumber }, await PartyVersion(clerk, url), key: $"{TenantCode}:identifier:{person.IdNumber}");
             }
 
             if ((await clerk.Send(HttpMethod.Get, url)).GetProperty("addresses").GetArrayLength() == 0)
             {
-                var version = await PartyVersion(clerk, url);   // in the key too: a refusal at one version (412, kept 24 h against its key) mustn't block the next
-                await clerk.Send(HttpMethod.Post, $"{url}/addresses", new { addressType = "RESIDENTIAL", line1 = "1 Sample Street", line2 = (string?)null, city = "Sampleton", subdivision = (string?)null, postalCode = "0000", country = "ZA", validFrom = "2020-01-01" }, version, key: $"{TenantCode}:address:{person.IdNumber}:v{version.Trim('"')}");
+                await clerk.Send(HttpMethod.Post, $"{url}/addresses", new { addressType = "RESIDENTIAL", line1 = "1 Sample Street", line2 = (string?)null, city = "Sampleton", subdivision = (string?)null, postalCode = "0000", country = "ZA", validFrom = "2020-01-01" }, await PartyVersion(clerk, url), key: $"{TenantCode}:address:{person.IdNumber}");
             }
 
             foreach (var (type, value, primary) in new[] { ("EMAIL", person.Email, true), ("MOBILE", person.Mobile, false) })
             {
                 if (!(await clerk.Send(HttpMethod.Get, url)).GetProperty("contactPoints").EnumerateArray().Any(c => c.GetProperty("channelType").GetString() == type))
                 {
-                    var version = await PartyVersion(clerk, url);   // in the key too: a refusal at one version (412, kept 24 h against its key) mustn't block the next
-                    await clerk.Send(HttpMethod.Post, $"{url}/contact-points", new { channelType = type, value, isPrimary = primary }, version, key: $"{TenantCode}:contact:{person.IdNumber}:{type}:v{version.Trim('"')}");
+                    await clerk.Send(HttpMethod.Post, $"{url}/contact-points", new { channelType = type, value, isPrimary = primary }, await PartyVersion(clerk, url), key: $"{TenantCode}:contact:{person.IdNumber}:{type}");
                 }
             }
         }
@@ -290,7 +287,7 @@ public sealed partial class OftzaSeed(SeedContext context)
     /// <summary>
     /// The party's version for a write, read once what earlier writes raised has been applied: a consumer of the party's own events
     /// (IdentityVerificationPolicy on PartyIdentifierAdded) changes it too, and a version read before that lands is refused (412,
-    /// rotate-passwords run 42057678256). A 412 isn't retried: the API keeps it against the request's idempotency key.
+    /// rotate-passwords run 42057678256). A 412 that happens all the same is retried on the fresh version (Persona.Send).
     /// </summary>
     private async Task<string> PartyVersion(Persona persona, string url)
     {
