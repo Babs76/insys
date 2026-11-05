@@ -239,19 +239,22 @@ public sealed partial class OftzaSeed(SeedContext context)
             var url = $"/api/v1/party/parties/{id}";
             if ((await clerk.Send(HttpMethod.Get, url)).GetProperty("identifiers").GetArrayLength() == 0)
             {
-                await clerk.Send(HttpMethod.Post, $"{url}/identifiers", new { docType = "NATIONAL_ID", country = "ZA", number = person.IdNumber }, await PartyVersion(clerk, url), key: $"{TenantCode}:identifier:{person.IdNumber}");
+                var version = await PartyVersion(clerk, url);   // in the key too: a refusal at one version (412, kept 24 h against its key) mustn't block the next
+                await clerk.Send(HttpMethod.Post, $"{url}/identifiers", new { docType = "NATIONAL_ID", country = "ZA", number = person.IdNumber }, version, key: $"{TenantCode}:identifier:{person.IdNumber}:v{version.Trim('"')}");
             }
 
             if ((await clerk.Send(HttpMethod.Get, url)).GetProperty("addresses").GetArrayLength() == 0)
             {
-                await clerk.Send(HttpMethod.Post, $"{url}/addresses", new { addressType = "RESIDENTIAL", line1 = "1 Sample Street", line2 = (string?)null, city = "Sampleton", subdivision = (string?)null, postalCode = "0000", country = "ZA", validFrom = "2020-01-01" }, await PartyVersion(clerk, url), key: $"{TenantCode}:address:{person.IdNumber}");
+                var version = await PartyVersion(clerk, url);   // in the key too: a refusal at one version (412, kept 24 h against its key) mustn't block the next
+                await clerk.Send(HttpMethod.Post, $"{url}/addresses", new { addressType = "RESIDENTIAL", line1 = "1 Sample Street", line2 = (string?)null, city = "Sampleton", subdivision = (string?)null, postalCode = "0000", country = "ZA", validFrom = "2020-01-01" }, version, key: $"{TenantCode}:address:{person.IdNumber}:v{version.Trim('"')}");
             }
 
             foreach (var (type, value, primary) in new[] { ("EMAIL", person.Email, true), ("MOBILE", person.Mobile, false) })
             {
                 if (!(await clerk.Send(HttpMethod.Get, url)).GetProperty("contactPoints").EnumerateArray().Any(c => c.GetProperty("channelType").GetString() == type))
                 {
-                    await clerk.Send(HttpMethod.Post, $"{url}/contact-points", new { channelType = type, value, isPrimary = primary }, await PartyVersion(clerk, url), key: $"{TenantCode}:contact:{person.IdNumber}:{type}");
+                    var version = await PartyVersion(clerk, url);   // in the key too: a refusal at one version (412, kept 24 h against its key) mustn't block the next
+                    await clerk.Send(HttpMethod.Post, $"{url}/contact-points", new { channelType = type, value, isPrimary = primary }, version, key: $"{TenantCode}:contact:{person.IdNumber}:{type}:v{version.Trim('"')}");
                 }
             }
         }
@@ -284,7 +287,16 @@ public sealed partial class OftzaSeed(SeedContext context)
         return (await clerk.Send(HttpMethod.Post, "/api/v1/party/parties", body, key: $"{TenantCode}:party:{businessKey}")).GetProperty("id").GetGuid();
     }
 
-    private static async Task<string> PartyVersion(Persona persona, string url) => $"\"{(await persona.Send(HttpMethod.Get, url)).GetProperty("rowVersion").GetInt64()}\"";
+    /// <summary>
+    /// The party's version for a write, read once what earlier writes raised has been applied: a consumer of the party's own events
+    /// (IdentityVerificationPolicy on PartyIdentifierAdded) changes it too, and a version read before that lands is refused (412,
+    /// rotate-passwords run 42057678256). A 412 isn't retried: the API keeps it against the request's idempotency key.
+    /// </summary>
+    private async Task<string> PartyVersion(Persona persona, string url)
+    {
+        await context.Settle();
+        return $"\"{(await persona.Send(HttpMethod.Get, url)).GetProperty("rowVersion").GetInt64()}\"";
+    }
 
     /// <summary>The sample products, each by the real route: registered, validated, simulated against its test case, approved by a second person (invented wording and rates, labelled so).</summary>
     private async Task Products()
@@ -486,7 +498,12 @@ public sealed partial class OftzaSeed(SeedContext context)
         return null;
     }
 
-    private async Task<string> Version(Guid user, Persona? who = null) => $"\"{(await (who ?? _adminMaker ?? _maker).Send(HttpMethod.Get, $"/api/v1/identity/users/{user}")).GetProperty("rowVersion").GetInt64()}\"";
+    /// <summary>The user's version for a write, read once what earlier writes raised has been applied (see PartyVersion).</summary>
+    private async Task<string> Version(Guid user, Persona? who = null)
+    {
+        await context.Settle();
+        return $"\"{(await (who ?? _adminMaker ?? _maker).Send(HttpMethod.Get, $"/api/v1/identity/users/{user}")).GetProperty("rowVersion").GetInt64()}\"";
+    }
 
     /// <summary>A user with one role, picked up from wherever an earlier run stopped. A privileged role waits for a second person, as in real use: the second administrator approves it.</summary>
     /// <summary>The loader to use: this name, or if that user is disabled, the next unused one. Disabling is final (IAM-005: no route or transition leads back), so a disabled loader is replaced, never revived.</summary>
