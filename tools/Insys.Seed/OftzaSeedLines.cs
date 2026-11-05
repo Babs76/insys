@@ -137,7 +137,7 @@ public sealed partial class OftzaSeed
         var id = accounts.Count > 0 ? accounts[0].GetProperty("id").GetGuid()
             : (await Clerk.Send(HttpMethod.Post, url, new { accountNumber = $"{account:000000000}", bankCode = "000000", accountHolderName = name, accountType = "CURRENT", currency = "ZAR" }, key: $"{TenantCode}:bank-account:{name}")).GetProperty("id").GetGuid();
         await context.Settle();
-        await Approve(context.Tenant(TenantId, "oftza-finance-manager"), id);
+        await Approve(context.Tenant(TenantId, "oftza-finance-manager"), id, "verifying a provider's bank account");
         await context.Settle();
         return party;
     }

@@ -77,8 +77,35 @@ string Token(Guid tenant, string subject)
     return unsigned + "." + Part(HMACSHA256.HashData(Encoding.UTF8.GetBytes(options["signing-key"]), Encoding.ASCII.GetBytes(unsigned)));
 }
 
+// A deployment's API relays its outbox itself, so the seed settles as the tests' DrainOutbox does: until /health's outbox-lag check says no
+// event is pending. A fixed 3 s was too short for a slow relay (rotate-passwords run 41937659695: a checker's 404, and a rehearsal's 403 on
+// a grant not yet applied). At most 30 s, so an event stuck elsewhere doesn't hold every step; a checker's own wait is longer (PendingWaitSeconds).
+var health = new HttpClient { BaseAddress = new Uri(options["api"]), Timeout = TimeSpan.FromSeconds(10) };
+async Task Settle()
+{
+    var deadline = DateTime.UtcNow.AddSeconds(30);
+    while (DateTime.UtcNow < deadline)
+    {
+        try
+        {
+            using var response = await health.GetAsync("/health");   // 503 while a check is unhealthy, with the same body
+            using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            if (body.RootElement.GetProperty("checks").GetProperty("outbox-lag").GetProperty("data").GetProperty("pending").GetInt32() == 0)
+            {
+                return;
+            }
+        }
+        catch (Exception e) when (e is HttpRequestException or TaskCanceledException or JsonException or KeyNotFoundException or InvalidOperationException)
+        {
+            // No answer, or not the shape expected: wait as before.
+        }
+
+        await Task.Delay(TimeSpan.FromSeconds(1));
+    }
+}
+
 var operatorTenant = Guid.Parse(options["operator-tenant"]);
-var seed = new OftzaSeed(new SeedContext(As(operatorTenant, options["platform-1"]), As(operatorTenant, options["platform-2"]), As, () => Task.Delay(TimeSpan.FromSeconds(3)), OwnRealm: keycloak is not null, Accounts: options.ContainsKey("accounts")));
+var seed = new OftzaSeed(new SeedContext(As(operatorTenant, options["platform-1"]), As(operatorTenant, options["platform-2"]), As, Settle, OwnRealm: keycloak is not null, Accounts: options.ContainsKey("accounts")));
 if (keycloak is not null)
 {
     await keycloak.Start();

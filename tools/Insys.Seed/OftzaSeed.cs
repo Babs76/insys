@@ -24,6 +24,7 @@
  * UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
  * ============================================================================
  */
+using System.Net;
 using System.Text.Json;
 
 namespace Insys.Seed;
@@ -366,12 +367,17 @@ public sealed partial class OftzaSeed(SeedContext context)
                     break;
                 case "Submitted" or "PendingApproval":
                     // PRODUCT_MANAGER's template names this approval but holds no approve function, so a second administrator gives it.
-                    foreach (var approval in (await _adminChecker!.Send(HttpMethod.Get, "/api/v1/workflow/approvals?status=Requested")).GetProperty("items").EnumerateArray()
-                                 .Where(a => a.GetProperty("approvalType").GetString() == "PRODUCT_PUBLICATION"))
+                    await Until($"approving the publication of {product}", async () =>
                     {
-                        await _adminChecker.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval.GetProperty("id").GetGuid()}/approve", ifMatch: $"\"{approval.GetProperty("rowVersion").GetInt64()}\"", idempotent: false);
-                    }
+                        var approvals = (await _adminChecker!.Send(HttpMethod.Get, "/api/v1/workflow/approvals?status=Requested")).GetProperty("items").EnumerateArray()
+                            .Where(a => a.GetProperty("approvalType").GetString() == "PRODUCT_PUBLICATION").ToList();
+                        foreach (var approval in approvals)
+                        {
+                            await _adminChecker.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval.GetProperty("id").GetGuid()}/approve", ifMatch: $"\"{approval.GetProperty("rowVersion").GetInt64()}\"", idempotent: false);
+                        }
 
+                        return approvals.Count > 0 || (await manager.Send(HttpMethod.Get, v1)).GetProperty("status").GetString() is not ("Submitted" or "PendingApproval");
+                    });
                     break;
                 default:
                     return;
@@ -526,8 +532,9 @@ public sealed partial class OftzaSeed(SeedContext context)
 
         foreach (var assignment in assignments.Where(a => a.GetProperty("status").GetString() == "PendingApproval"))
         {
-            await context.Settle();
-            await Approve(checker, assignment.GetProperty("id").GetGuid());
+            var id = assignment.GetProperty("id").GetGuid();
+            await Approve(checker, id, $"approving {role} for {name}",
+                async () => (await Assignments()).Any(a => a.GetProperty("id").GetGuid() == id && a.GetProperty("status").GetString() == "PendingApproval"));
             await context.Settle();
         }
     }
@@ -572,7 +579,7 @@ public sealed partial class OftzaSeed(SeedContext context)
         }
 
         await context.Settle();
-        await Approve(context.PlatformChecker, request);
+        await Approve(context.PlatformChecker, request, "approving the tenant's administrators");
         await context.Settle();
     }
 
@@ -634,7 +641,8 @@ public sealed partial class OftzaSeed(SeedContext context)
                     await _maker.Send(HttpMethod.Post, $"{path}/imports/{batch}/submit", idempotent: false);
                     break;
                 case "SUBMITTED" or "PENDING_APPROVAL":
-                    await Approve(_checker, state.GetProperty("changeRequestId").GetGuid());
+                    await Approve(_checker, state.GetProperty("changeRequestId").GetGuid(), $"approving the import into {path}",
+                        async () => (await _maker.Send(HttpMethod.Get, first))[0].GetProperty("recordStatus").GetString() is "SUBMITTED" or "PENDING_APPROVAL");
                     break;
                 case "APPROVED" or "VALIDATED":
                     await _maker.Send(HttpMethod.Post, $"{path}/imports/{batch}/activate", idempotent: false);
@@ -645,12 +653,47 @@ public sealed partial class OftzaSeed(SeedContext context)
         }
     }
 
-    /// <summary>Approves what waits on this record, if anything still does.</summary>
-    private static async Task Approve(Persona checker, Guid businessRef)
+    /// <summary>
+    /// Approves what waits on this record, once its approval is recorded: waited for while the record still waits (stillPending), so
+    /// an approval an earlier run already gave, with the record not yet moved on, isn't waited for to the end.
+    /// </summary>
+    private Task Approve(Persona checker, Guid businessRef, string what, Func<Task<bool>> stillPending) => Until(what, async () =>
     {
-        foreach (var approval in (await checker.Send(HttpMethod.Get, $"/api/v1/workflow/approvals?status=Requested&businessRefId={businessRef}")).GetProperty("items").EnumerateArray())
+        var approvals = (await checker.Send(HttpMethod.Get, $"/api/v1/workflow/approvals?status=Requested&businessRefId={businessRef}")).GetProperty("items").EnumerateArray().ToList();
+        foreach (var approval in approvals)
         {
             await checker.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval.GetProperty("id").GetGuid()}/approve", ifMatch: $"\"{approval.GetProperty("rowVersion").GetInt64()}\"", idempotent: false);
+        }
+
+        return approvals.Count > 0 || !await stillPending();
+    });
+
+    /// <summary>
+    /// Approves what waits on this record, for a step that always asks for an approval: waited for until Workflow has one for the
+    /// record in any status. One already decided (an earlier run's) ends the wait; none at all means it isn't recorded yet.
+    /// </summary>
+    private Task Approve(Persona checker, Guid businessRef, string what) => Approve(checker, businessRef, what, async () =>
+        (await checker.Send(HttpMethod.Get, $"/api/v1/workflow/approvals?businessRefId={businessRef}")).GetProperty("items").GetArrayLength() == 0);
+
+    /// <summary>How long a checker waits for what the maker's step records for it, through the API's outbox (PendingWaitSeconds).</summary>
+    private TimeSpan PendingWait => TimeSpan.FromSeconds(context.PendingWaitSeconds);
+
+    /// <summary>
+    /// A checker's step after a maker's: the change request or approval it decides is recorded by an event, through the API's outbox,
+    /// so it can lag the maker's call (rotate-passwords run 41937659695: 404, "no change request is pending"). Tried, then retried after
+    /// each Settle (the tests drain the outbox there; a deployment's API relays it itself), until done or PendingWait has passed.
+    /// </summary>
+    private async Task Until(string what, Func<Task<bool>> attempt)
+    {
+        var deadline = DateTime.UtcNow + PendingWait;
+        while (!await attempt())
+        {
+            if (DateTime.UtcNow >= deadline)
+            {
+                throw new SeedPendingTimeoutException($"{what}: nothing to decide after {PendingWait.TotalSeconds:0} s. The maker's step is recorded for its checker by the API's outbox relay and its consumer: is the relay running, or is the event parked?");
+            }
+
+            await context.Settle();
         }
     }
 
@@ -768,7 +811,19 @@ public sealed partial class OftzaSeed(SeedContext context)
                     await maker.Send(HttpMethod.Post, $"{version}/submit", ifMatch: etag, idempotent: false);
                     break;
                 case "SUBMITTED" or "PENDING_APPROVAL":
-                    await checker.Send(HttpMethod.Post, $"{version}/approve", idempotent: false);
+                    await Until($"approving {route}/{code} version {state.GetProperty("version").GetInt32()}", async () =>
+                    {
+                        try
+                        {
+                            await checker.Send(HttpMethod.Post, $"{version}/approve", idempotent: false);
+                            return true;
+                        }
+                        catch (SeedRefusedException refused) when (refused.Status == HttpStatusCode.NotFound)
+                        {
+                            // Not recorded yet, or decided meanwhile (an earlier run's approval): the row says which.
+                            return (await maker.Send(HttpMethod.Get, row))[0].GetProperty("recordStatus").GetString() is not ("SUBMITTED" or "PENDING_APPROVAL");
+                        }
+                    });
                     break;
                 case "APPROVED" or "VALIDATED":
                     await maker.Send(HttpMethod.Post, $"{version}/activate", ifMatch: etag, idempotent: false);

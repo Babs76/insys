@@ -33,7 +33,10 @@ using System.Text.Json;
 namespace Insys.Seed;
 
 /// <summary>A refusal from the API, which stops the seed where it is: it writes nothing around one.</summary>
-public sealed class SeedRefusedException(string what, HttpStatusCode status, string body) : Exception($"{what}: {(int)status} {body}");
+public sealed class SeedRefusedException(string what, HttpStatusCode status, string body) : Exception($"{what}: {(int)status} {body}")
+{
+    public HttpStatusCode Status { get; } = status;
+}
 
 /// <summary>Calls the API as one persona. The seed only ever goes through the API, as any user would (never the database).</summary>
 public sealed class Persona(HttpClient http, Action<string>? afterCall = null)
@@ -141,4 +144,8 @@ public sealed class Persona(HttpClient http, Action<string>? afterCall = null)
 }
 
 /// <summary>What the seed runs with: who it acts as, and how to wait for events to be delivered, and, where it can be asked, how to run the daily jobs now (elsewhere their timers do). OwnRealm: users are made in INSYS's own Keycloak realm, which signs them in (KeycloakSignIn). Accounts: the INSYS Preview's generic accounts too.</summary>
-public sealed record SeedContext(Persona PlatformMaker, Persona PlatformChecker, Func<Guid, string, Persona> Tenant, Func<Task> Settle, Func<Task>? Jobs = null, bool OwnRealm = false, bool Accounts = false);
+public sealed record SeedContext(Persona PlatformMaker, Persona PlatformChecker, Func<Guid, string, Persona> Tenant, Func<Task> Settle, Func<Task>? Jobs = null, bool OwnRealm = false, bool Accounts = false,
+    int PendingWaitSeconds = 120);
+
+/// <summary>A checker's step found nothing to decide within the wait: what the maker recorded never reached it.</summary>
+public sealed class SeedPendingTimeoutException(string message) : Exception(message);
