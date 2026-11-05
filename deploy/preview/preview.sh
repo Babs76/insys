@@ -174,6 +174,7 @@ chart() {
   on_server "kubectl apply -f /root/insys/preview/backup.yaml >/dev/null"
   realm_name
   user_admin
+  storage_check
 }
 
 # The sign-in page's name, from the values, on an existing realm too: the chart's import names only a new one. The admin password stays on the server.
@@ -214,6 +215,45 @@ forwards() {
     done' || fail "a port-forward on the server didn't answer: see the pods and the forwards' output above"
 }
 
+# Document storage, proven with the API's own keys before anyone relies on it: a short-lived pod stores an object in the documents bucket,
+# reads it back and deletes it, signing as the API does (S3, SigV4) with insys-secrets' objectStoreAccessKey and objectStoreSecretKey. The
+# keys reach curl as a config on stdin, never on a command line or in the log. SeaweedFS's keys had come from empty values (rotate-passwords
+# run 42080719155: the first document, 500).
+storage_check() {
+  on_server "kubectl rollout status statefulset/insys-seaweedfs --timeout=600s >/dev/null && kubectl delete pod insys-storage-check --ignore-not-found --wait=true >/dev/null"
+  on_server "kubectl apply -f - >/dev/null" <<'EOF'
+apiVersion: v1
+kind: Pod
+metadata: {name: insys-storage-check}
+spec:
+  restartPolicy: Never
+  containers:
+    - name: check
+      image: curlimages/curl:8.23.0@sha256:3fb7e13e5d179a845c97d78204f3f1064d1907037f26a3ebf91710571151fd93
+      env:
+        - {name: ACCESS_KEY, valueFrom: {secretKeyRef: {name: insys-secrets, key: objectStoreAccessKey}}}
+        - {name: SECRET_KEY, valueFrom: {secretKeyRef: {name: insys-secrets, key: objectStoreSecretKey}}}
+      command:
+        - sh
+        - -c
+        - |
+          set -eu
+          obj="http://insys-seaweedfs:8333/insys-documents/preview-check/$(date +%s)"
+          cfg() { printf 'user = "%s:%s"\n' "$ACCESS_KEY" "$SECRET_KEY"; }
+          s3() { cfg | curl -sS --fail-with-body --retry 3 --retry-all-errors --retry-delay 5 -K - --aws-sigv4 "aws:amz:us-east-1:s3" "$@"; }
+          printf 'INSYS storage check' > /tmp/body
+          s3 -T /tmp/body "$obj" > /dev/null
+          got=$(s3 "$obj")
+          s3 -X DELETE "$obj" > /dev/null
+          [ "$got" = "INSYS storage check" ] || { echo "read back something else"; exit 1; }
+          echo "Document storage: stored, read back and deleted an object with the API's keys."
+EOF
+  # shellcheck disable=SC2016 # it runs on the server, which expands it
+  on_server 'for _ in $(seq 1 60); do phase=$(kubectl get pod insys-storage-check -o jsonpath="{.status.phase}"); case "$phase" in Succeeded|Failed) break ;; esac; sleep 3; done
+    kubectl logs insys-storage-check 2>&1 | tail -n 5; kubectl delete pod insys-storage-check --wait=false >/dev/null; [ "$phase" = Succeeded ]' \
+    || fail "document storage refused the API's keys, or didn't answer: see above"
+}
+
 # The API makes each user's Keycloak account through the realm's client insys-user-admin, whose secret Keycloak generated on import: copied
 # into insys-secrets on the server, from Keycloak to the Secret only, by deploy/keycloak/user-admin-secret.sh (it restarts the API when it
 # changes). Without it, rotate-passwords run 41983797927 parked the first administrators' accounts (KEYCLOAK_UNAVAILABLE).
@@ -230,6 +270,7 @@ seed() {
   admin=$(on_server "kubectl get secret insys-secrets -o jsonpath='{.data.keycloakAdminPassword}' | base64 -d")
   mask "$admin"
   user_admin
+  storage_check
   forwards
   ssh -i "$key" -o UserKnownHostsFile="$RUNNER_TEMP/known_hosts" -fN -L 18080:127.0.0.1:18080 -L 18081:127.0.0.1:18081 "root@$(address)"
   for url in http://127.0.0.1:18080/health/ready http://127.0.0.1:18081/realms/insys; do   # the runner's end of the tunnel too
