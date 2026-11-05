@@ -22,6 +22,7 @@
 # remain subject to their respective ownership rights and applicable licences
 # or agreements.
 # UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
+# ============================================================================
 # Gives the API the client secret of insys-user-admin, the realm's confidential client for creating users (Identity:Keycloak). The realm file
 # names no secret, so Keycloak generates one when it imports the realm: this reads it through the admin API on a port-forward and writes it to
 # the release's Secret (key keycloakUserAdminSecret), then restarts the API to read it. The secret goes from Keycloak's answer into the Secret
