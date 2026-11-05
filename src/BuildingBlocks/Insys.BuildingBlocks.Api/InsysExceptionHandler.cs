@@ -42,12 +42,35 @@ namespace Insys.BuildingBlocks.Api;
 /// </summary>
 public sealed class InsysExceptionHandler(IProblemDetailsService problemDetails, ILogger<InsysExceptionHandler> logger) : IExceptionHandler
 {
+    /// <summary>
+    /// What the log says of an unhandled exception: its type and its inner exceptions' types, with a database error's SQLSTATE and
+    /// constraint, and an error code a client library exposes (an S3 error's, say). Never a message, which may hold data values.
+    /// </summary>
+    public static string Describe(Exception exception)
+    {
+        var parts = new List<string>();
+        for (var e = exception; e is not null && parts.Count < 6; e = e.InnerException)
+        {
+            var detail = e switch
+            {
+                PostgresException pg => $"SQLSTATE {pg.SqlState}{(string.IsNullOrEmpty(pg.ConstraintName) ? "" : $", constraint {pg.ConstraintName}")}",
+                _ when e.GetType().GetProperty("ErrorCode")?.GetValue(e) is string { Length: > 0 and <= 80 } errorCode => $"code {errorCode}",
+                _ => null,
+            };
+            parts.Add(detail is null ? e.GetType().FullName! : $"{e.GetType().FullName} ({detail})");
+        }
+
+        return string.Join(" <- ", parts);
+    }
+
     public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
     {
         var (status, code, message) = Classify(exception);
         if (status >= 500)
         {
-            logger.LogError("Unhandled {ExceptionType} on {Method} {Path}", exception.GetType().FullName, httpContext.Request.Method, httpContext.Request.Path);
+            // The trace is the one the client is given (traceId), so a failed request's line can be found in the log.
+            logger.LogError("Unhandled {ExceptionType} on {Method} {Path} (trace {TraceId})", Describe(exception), httpContext.Request.Method, httpContext.Request.Path,
+                System.Diagnostics.Activity.Current?.Id ?? httpContext.TraceIdentifier);
         }
         else
         {

@@ -239,9 +239,11 @@ seed() {
   clients "$admin"
   dotnet build tools/Insys.Seed -c Release -v q >/dev/null
   ACCOUNTS=$(INSYS_SEED_KEYCLOAK_ADMIN_PASSWORD="$admin" dotnet tools/Insys.Seed/bin/Release/net10.0/Insys.Seed.dll --api http://127.0.0.1:18080 \
-    --keycloak-url http://127.0.0.1:18081 --keycloak-admin admin --operator-tenant "$operator_tenant" --platform-1 insys-admin --platform-2 insys-admin-2 --accounts true) || {
+    --keycloak-url http://127.0.0.1:18081 --keycloak-admin admin --operator-tenant "$operator_tenant" --platform-1 insys-admin --platform-2 insys-admin-2 --accounts true \
+    2> >(tee "$RUNNER_TEMP/seed.err" >&2)) || {
     on_server "kubectl logs deploy/insys-api --tail=400 | grep -E 'IDX[0-9]+|Bearer|metadata|SSL|certificate' | tail -n 20" || true   # why, from the API: IDX messages hide the token
     events || true
+    failure_state "$(sleep 1; grep -o '"traceId":"[^"]*"' "$RUNNER_TEMP/seed.err" 2>/dev/null | tail -n 1 | cut -d'"' -f4)" || true
     fail "the seed failed"
   }
   while read -r password; do mask "$password"; done < <(jq -r '.accounts[].password' <<<"$ACCOUNTS")
@@ -260,6 +262,25 @@ events() {
     | on_server "kubectl exec -i statefulset/insys-postgres -- psql -U insys_owner -d insys -AF ' ' -t"
   echo "The API's relay log, last 30 minutes:"
   on_server "kubectl logs deploy/insys-api --since=30m | grep -E 'Outbox|dead-letter|[Pp]arked|relay pass' | tail -n 20"
+}
+
+# For a seed that failed on the API's own fault (a 500): the API's line for the failed request's trace (the exception's types, a database
+# error's SQLSTATE and constraint, a client library's error code; never a message), else its last few 500s; and the stores a request
+# leans on: SeaweedFS (its pod, whether its S3 config has an empty key, its buckets) and OpenBao (sealed or not). No key or secret is printed.
+failure_state() { # trace id, if the seed's error gave one
+  local trace=${1:-}
+  echo "The API's unhandled errors${trace:+ for trace $trace} (types and codes only):"
+  # shellcheck disable=SC2016 # it runs on the server, which expands it
+  on_server 'lines=$(kubectl logs deploy/insys-api --since=90m | grep -F "Unhandled " | grep -F -- "'"${trace:-Unhandled}"'" | tail -n 5)
+    [ -n "$lines" ] || lines=$(kubectl logs deploy/insys-api --since=90m | grep -F "Unhandled " | tail -n 5)
+    printf "%s\n" "${lines:-none in the last 90 minutes}"' || true
+  echo "SeaweedFS (pod, restarts; S3 identities with an empty key; buckets):"
+  # shellcheck disable=SC2016 # it runs on the server, which expands it
+  on_server 'kubectl get pod insys-seaweedfs-0 -o jsonpath="{.status.phase} {.status.containerStatuses[0].restartCount}{\"\n\"}"
+    kubectl exec insys-seaweedfs-0 -c seaweedfs -- sh -c "grep -o \"accessKey\\\": \\\"\\\"\" /etc/seaweedfs/s3.json | wc -l"
+    printf "s3.bucket.list\n" | kubectl exec -i insys-seaweedfs-0 -c seaweedfs -- weed shell 2>/dev/null | grep -E "size|bucket" | head -n 5' || true
+  echo "OpenBao (sealed; pod restarts):"
+  on_server "/root/insys/openbao/openbao.sh sealed insys; kubectl get pod insys-openbao-0 -o jsonpath='{.status.containerStatuses[0].restartCount}{\"\\n\"}'" || true
 }
 
 # Each app's Keycloak client gets the Preview's addresses, through the tunnel: sign-in returns to the app, and the browser may call the token endpoint.
