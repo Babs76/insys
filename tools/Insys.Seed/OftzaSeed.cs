@@ -533,7 +533,7 @@ public sealed partial class OftzaSeed(SeedContext context)
         admin ??= _adminMaker ?? _maker;
         checker ??= _adminChecker ?? _checker;
         var user = (await User(name, admin))?.GetProperty("id").GetGuid()
-            ?? (await admin.Send(HttpMethod.Post, "/api/v1/identity/users", Person(name, $"Sample {role.Replace('_', ' ').ToLowerInvariant()}"), key: $"{TenantCode}:user:{name}")).GetProperty("id").GetGuid();
+            ?? (await admin.Send(HttpMethod.Post, "/api/v1/identity/users", Person(name, DisplayName(role)), key: $"{TenantCode}:user:{name}")).GetProperty("id").GetGuid();
         async Task<List<JsonElement>> Assignments() => (await admin.Send(HttpMethod.Get, $"/api/v1/identity/users/{user}")).GetProperty("roleAssignments").EnumerateArray().Where(a => a.GetProperty("roleCode").GetString() == role).ToList();
         var assignments = await Assignments();
         // A revoked assignment stays on record, so it's the live ones that count: an administrator assigns the role again, with the same approvals as the first time.

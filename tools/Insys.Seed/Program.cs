@@ -134,12 +134,15 @@ if (keycloak is not null && options.ContainsKey("accounts"))
     var passwords = new List<object>();
     foreach (var (username, role) in OftzaSeed.PreviewAccounts)
     {
-        passwords.Add(new { username, role, password = await keycloak.SetPassword(KeycloakSignIn.Username(OftzaSeed.TenantCode, username)) });
+        // signIn: exactly what to type at the sign-in page, the tenant's code included; displayName: what INSYS shows for the account.
+        var signIn = KeycloakSignIn.Username(OftzaSeed.TenantCode, username);
+        passwords.Add(new { signIn, displayName = OftzaSeed.DisplayName(role), username, role, password = await keycloak.SetPassword(signIn) });
     }
 
     foreach (var (username, role) in OftzaSeed.OperatorAccounts)
     {
-        passwords.Add(new { username, role, password = await keycloak.SetPassword(KeycloakSignIn.Username(OftzaSeed.OperatorTenantCode, username)) });
+        var signIn = KeycloakSignIn.Username(OftzaSeed.OperatorTenantCode, username);
+        passwords.Add(new { signIn, displayName = OftzaSeed.DisplayName(role), username, role, password = await keycloak.SetPassword(signIn) });
     }
 
     Console.Out.WriteLine(JsonSerializer.Serialize(new { tenant = OftzaSeed.TenantCode, accounts = passwords }));
