@@ -10,4 +10,4 @@ digest where a run pulls the image itself.
 
 - **Not audited yet:** the Alpine packages inside `curlimages/curl` (musl, OpenSSL and others), each under its own licence.
 - **Not recorded here yet:** the chart's own images (`postgres`, `quay.io/openbao/openbao` (MPL-2.0, per ADR-027), `chrislusf/seaweedfs`, `quay.io/keycloak/keycloak`, the console's) and `busybox` in the Preview's Traefik settings. Each is to be checked the same way before go-live.
-- **Planned:** Mailpit, as the Preview's in-cluster mail catcher (Ade, 5 November): its repository's `LICENSE` reads MIT; its current version is to be confirmed and recorded here when it's added.
+- **Not used: Mailpit.** It was planned as an in-cluster mail catcher (Ade, 5 November); Ade chose Google Workspace's SMTP relay instead (6 November), so no mail image is deployed.

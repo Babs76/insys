@@ -165,7 +165,7 @@ pull_secret() {
 
 # The API reads Keycloak's keys inside the cluster, not through the public address and its certificate; its tokens' issuer stays the public one.
 chart() {
-  tar -C deploy -cz helm/insys preview/values.yaml preview/backup.yaml openbao/openbao.sh keycloak/realm-name.sh keycloak/user-admin-secret.sh | on_server "rm -rf /root/insys && mkdir -p /root/insys && tar -C /root/insys -xz"
+  tar -C deploy -cz helm/insys preview/values.yaml preview/backup.yaml openbao/openbao.sh keycloak/realm-name.sh keycloak/user-admin-secret.sh keycloak/realm-smtp.sh | on_server "rm -rf /root/insys && mkdir -p /root/insys && tar -C /root/insys -xz"
   on_server "cd /root/insys && KUBECONFIG=/etc/rancher/k3s/k3s.yaml helm upgrade --install insys helm/insys -f preview/values.yaml \
     --set ingress.host=$PREVIEW_DOMAIN,ingress.apiPath=/api/,console.environmentName=preview,keycloak.ingressHost=id.$PREVIEW_DOMAIN,keycloak.hostname=https://id.$PREVIEW_DOMAIN \
     --set authentication.authority=http://insys-keycloak:8080/realms/insys,authentication.requireHttpsMetadata=false \
@@ -175,6 +175,8 @@ chart() {
   realm_name
   user_admin
   storage_check
+  realm_smtp
+  smtp_check
 }
 
 # The sign-in page's name, from the values, on an existing realm too: the chart's import names only a new one. The admin password stays on the server.
@@ -213,6 +215,31 @@ forwards() {
       echo "$url answered HTTP $code, not 200, for 90 s. The pods, then the forwards'\'' own output:"
       kubectl get pods -o wide; tail -n 10 /tmp/forward-api.log /tmp/forward-keycloak.log; exit 1
     done' || fail "a port-forward on the server didn't answer: see the pods and the forwards' output above"
+}
+
+# The realm's own emails (invitations to set a password) go through Google Workspace's SMTP relay for openfactorgroup.com (Ade, 6 November):
+# it takes mail only from this server's address, over STARTTLS on 587, with no password, and only from addresses in Ade's domain. Nothing
+# goes to a reserved test address (ReservedEmailAddresses, in the API), so the seed's generic accounts are sent nothing. The API that holds
+# that rule must be the one running before Keycloak can send, so an older API pod can't retry a parked invitation without it.
+smtp='{"host":"smtp-relay.gmail.com","port":587,"from":"insys-preview@openfactorgroup.com","fromDisplayName":"INSYS Preview","starttls":true,"ssl":false,"auth":false}'
+realm_smtp() {
+  on_server "kubectl rollout status deploy/insys-api --timeout=600s >/dev/null && kubectl rollout status deploy/insys-keycloak --timeout=900s >/dev/null"
+  on_server "kubectl get secret insys-secrets -o jsonpath='{.data.keycloakAdminPassword}' | base64 -d | /root/insys/keycloak/realm-smtp.sh insys insys $(printf '%q' "$smtp")"
+  # shellcheck disable=SC2016 # it runs on the server, which expands it
+  on_server 'n=$(printf "%s" "SELECT count(*) FROM integration.parked_delivery WHERE prerequisite_code = '\''KEYCLOAK_EMAIL_UNSENT'\'' AND status IN ('\''PARKED'\'', '\''RETRYING'\'')" | kubectl exec -i insys-postgres-0 -- psql -U insys_owner -d insys -At)
+    echo "Invitations still parked as KEYCLOAK_EMAIL_UNSENT: $n. Those to reserved test addresses resolve unsent at their next retry (every 15 minutes)."' || true
+}
+
+# Outbound 587 from the server to the relay, and its STARTTLS with a certificate that verifies: Keycloak's mail leaves from here.
+smtp_check() {
+  # shellcheck disable=SC2016 # it runs on the server, which expands it
+  if on_server 'out=$(timeout 25 openssl s_client -starttls smtp -connect smtp-relay.gmail.com:587 -servername smtp-relay.gmail.com -verify_return_error -brief </dev/null 2>&1)
+      printf "%s\n" "$out" | grep -E "^(CONNECTION ESTABLISHED|Protocol version|Verification|Peer certificate)" | head -n 4
+      printf "%s\n" "$out" | grep -q "^Verification: OK"'; then
+    echo "SMTP relay: outbound 587 from the server is open, and STARTTLS verifies."
+  else
+    echo "::warning::SMTP relay: outbound 587 from the server to smtp-relay.gmail.com failed or didn't verify, so Keycloak can't send its emails (see above)."
+  fi
 }
 
 # Document storage, proven with the API's own keys before anyone relies on it: a short-lived pod stores an object in the documents bucket,

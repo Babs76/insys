@@ -96,8 +96,16 @@ public sealed class KeycloakProvisioning(IUserRepository users, IKeycloakAdmin k
 
     public async Task Handle(Contracts.UserInvitationRequested requested, EventEnvelope envelope, CancellationToken cancellationToken)
     {
-        if (await users.Get(requested.UserId, cancellationToken) is not { IdpCode: UserAccount.OwnRealm, ExternalSubject: { } subject, Status: UserStatus.Invited })
+        if (await users.Get(requested.UserId, cancellationToken) is not { IdpCode: UserAccount.OwnRealm, ExternalSubject: { } subject, Status: UserStatus.Invited } user)
         {
+            return;
+        }
+
+        // No mail reaches a reserved test domain (Ade, 6 November 2026): nothing is sent, and the delivery is done, not parked.
+        if (ReservedEmailAddresses.IsReserved(user.Email))
+        {
+            audit.Record(new AuditEntry("IDENTITY", "SendInvitation", nameof(UserAccount), requested.UserId.ToString(),
+                new Dictionary<string, string?> { ["actions"] = string.Join(",", requested.Actions), ["outcome"] = "NOT_SENT_RESERVED_ADDRESS" }));
             return;
         }
 

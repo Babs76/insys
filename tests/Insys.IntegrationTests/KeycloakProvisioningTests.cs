@@ -114,7 +114,8 @@ public sealed class KeycloakProvisioningTests(DatabaseFixture fixture, KeycloakP
     [Fact]
     public async Task Provisioning_CreatesExactlyOneKeycloakUser_InTheUsersTenant_AndDisablingDisablesIt_KeycloakProvisioning()
     {
-        var user = await Provision(_admin, "jane.doe", mfa: true);
+        // An address outside the reserved test domains, so the invitation is attempted (this realm has no SMTP, so nothing is sent).
+        var user = await Provision(_admin, "jane.doe", mfa: true, email: "jane.doe@insys-sample.co.za");
         (await Status(user)).ShouldBe("PENDING_IDENTITY");
         await _factory.DrainOutbox();
 
@@ -146,6 +147,41 @@ public sealed class KeycloakProvisioningTests(DatabaseFixture fixture, KeycloakP
 
         // The service client's secret is never logged.
         _logs.Messages.ShouldNotContain(m => m.Contains(realm.Secret, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task AnInvitationToAReservedTestAddress_IsNotSent_AndNothingParks_WhileAnotherAddressIsSentAsBefore()
+    {
+        var reserved = await Provision(_admin, "res.user", email: "res.user@example.test");
+        var ordinary = await Provision(_admin, "ord.user", email: "ord.user@insys-sample.co.za");
+        await _factory.DrainOutbox();
+
+        // Both are made in Keycloak and linked; each waits for its first sign-in.
+        (await realm.Users("tena.res.user")).Length.ShouldBe(1);
+        (await Status(reserved)).ShouldBe("INVITED");
+        (await Status(ordinary)).ShouldBe("INVITED");
+
+        // Nothing is sent to the reserved address, so nothing waits to be sent again; the other's email is tried and, with no SMTP here, parks.
+        (await Parked("iam.KeycloakProvisioning.UserInvitationRequested", reserved)).ShouldBeNull();
+        (await Parked("iam.KeycloakProvisioning.UserInvitationRequested", ordinary)).ShouldBe("KEYCLOAK_EMAIL_UNSENT insys");
+
+        // Resent, the reserved address is again sent nothing.
+        var etag = (await _admin.GetAsync($"/api/v1/identity/users/{reserved}")).ETag();
+        var resent = await _admin.Send(HttpMethod.Post, $"/api/v1/identity/users/{reserved}/resend-invitation", ifMatch: etag);
+        resent.IsSuccessStatusCode.ShouldBeTrue(await resent.Content.ReadAsStringAsync());
+        await _factory.DrainOutbox();
+        (await Parked("iam.KeycloakProvisioning.UserInvitationRequested", reserved)).ShouldBeNull();
+
+        // An invitation to a reserved address parked before the rule (the Preview's seed: 23 at example.test) resolves on its next retry, unsent.
+        // Here the parked one's address is made reserved, as theirs were when they parked.
+        await fixture.Database.ExecuteAsOwner($"UPDATE iam.user_account SET email = 'ord.user@example.test' WHERE id = '{ordinary}'");
+        await fixture.Database.ExecuteAsOwner("UPDATE integration.parked_delivery SET retry_requested_at = now() WHERE prerequisite_code = 'KEYCLOAK_EMAIL_UNSENT'");
+        await _factory.Services.GetRequiredService<ParkingJob>().RunForTenant(Tenant, CancellationToken.None);
+        await _factory.DrainOutbox();
+        (await Parked("iam.KeycloakProvisioning.UserInvitationRequested", ordinary)).ShouldBeNull();
+        (await fixture.Database.ScalarAsOwner<string>("""
+            SELECT status FROM integration.parked_delivery WHERE consumer = 'iam.KeycloakProvisioning.UserInvitationRequested' AND payload ->> 'userId' = @u
+            """, ("u", ordinary.ToString()))).ShouldBe("RESOLVED");
     }
 
     [Fact]
@@ -367,11 +403,12 @@ public sealed class KeycloakProvisioningTests(DatabaseFixture fixture, KeycloakP
         return requestId;
     }
 
-    private static async Task<Guid> Provision(HttpClient client, string username, bool mfa = false)
+    /// <param name="email">By default a reserved test address (example.com), to which no invitation is sent.</param>
+    private static async Task<Guid> Provision(HttpClient client, string username, bool mfa = false, string? email = null)
     {
         var created = await client.Send(HttpMethod.Post, "/api/v1/identity/users", new
         {
-            username, displayName = "Test " + username, idpCode = "KEYCLOAK", email = $"{username}@example.com", mfaEnrolled = mfa,
+            username, displayName = "Test " + username, idpCode = "KEYCLOAK", email = email ?? $"{username}@example.com", mfaEnrolled = mfa,
         }, idempotent: true);
         created.StatusCode.ShouldBe(HttpStatusCode.Created, await created.Content.ReadAsStringAsync());
         return (await created.Json()).GetProperty("id").GetGuid();
