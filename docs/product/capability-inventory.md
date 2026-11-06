@@ -1,6 +1,6 @@
 # INSYS Core: verified capability inventory
 
-**As of 6 November 2026, at `main` commit `d488b32`.** The fact base for the INSYS product guide (customers, partners, internal teams). Not itself the guide: it is written for the guide's author.
+**As of 6 November 2026, at `main` commit `d488b32`;** corrected on 6 November after the product guide's review (privileged count, the three-person return's tests, cooling-off's status). The fact base for the INSYS product guide (customers, partners, internal teams). Not itself the guide: it is written for the guide's author.
 
 ## How to read this
 - **Every capability here was checked against the code and tests on `main` at `d488b32`.** Each BUILT item names one test that exists on main; all 538 test names cited were checked to exist by a script. Tests were not re-run for this inventory: their results are main's CI on `d488b32` (run 42190151149, all green).
@@ -10,6 +10,7 @@
   - **PARTLY BUILT:** what's missing is said.
   - **SPECIFIED, NOT BUILT:** in the SRS or domain model only.
   - **DEFERRED:** by a recorded decision (ADR, OQ, backlog item B-0nn, or go-live register row).
+  - One item is outside these five: Life's cooling-off cancellation is **NOT BUILT, GO-LIVE ITEM** (register #32). It is in neither the SRS nor a deferral, and it blocks go-live (Ade, 6 November).
 - **Nothing is described as working because the SRS says so.** "Inferred:" marks a conclusion drawn rather than verified; "(from docs)" marks a statement taken from a document and not checked in code.
 - **IDs:** SRS requirement IDs (`LIF-008`, from SRS v1.0 of 21 October 2026); `F0nn` the 103 required functions (`docs/traceability/functional-coverage.md`); `BR-nnn` business requests; `OQ-nnn` open questions (`docs/decisions/open-questions.md`); `ADR-0nn` decisions (`docs/decisions/`); `B-0nn` backlog; **#n** a row of the go-live register (`docs/handover-backend.md`, "Go-live register").
 - **Gathered by:** seven read-only research passes over the code, each told to verify in code and tests, then checked here: the cited tests' existence, the summary figures below, and the claims that disagree with existing documents (marked **Correction**).
@@ -62,7 +63,7 @@ The 24 modules, in this order: Life with pricing, rules and products; General wi
   - Show the policy's latest cash value and its date. **PARTLY BUILT**: the policy shows a value only if a row exists in `life.cash_value`; nothing in INSYS writes one, so it is null in normal use (OQ-052, register #22). Test: `LifeProcessTests.PolicyLoans_AreListedInThePolicysCurrency_AndThePolicyShowsItsLatestCashValue_BR062_BR063_BR065` (inserts the rows directly as the database owner).
   - Surrender, make paid-up, mature. **DEFERRED** (OQ-052, register #22): routes exist but always refuse until actuarial defines the values. Skipped tests: `LifeTests.SurrenderPolicy_PaysTheSurrenderValueLessLoans_OQ052`, `MakePaidUp_...`, `MaturityCase_...`.
   - Issue on loaded or postponed underwriting terms. **DEFERRED** (OQ-052): refused with `LOADED_TERMS_NOT_RATED`. Test: `LifeTests.IssuePolicy_WithALoading_IsRefusedUntilLoadingsCanBeRated_OQ052`.
-  - Cancel a policy in the cooling-off period with a premium refund, or terminate at the policyholder's request. **DEFERRED** (register #32, planned after the Preview). No command exists; the lifecycle has no cancelled state, and `life.ref_termination_reason_codes` is static data used by no code. Not in the SRS.
+  - Cancel a policy in the cooling-off period with a premium refund, or terminate at the policyholder's request. **NOT BUILT, GO-LIVE ITEM** (register #32, blocking; planned after the Preview). No command exists; the lifecycle has no cancelled state, and `life.ref_termination_reason_codes` is static data used by no code. Not in the SRS.
   - Death and other benefit claims: notify, register (policy status, insured life, benefit, exclusions and claimant checked), assess, approve with payees (net of loans, split by beneficiary shares), decline, close. **BUILT, STAND-IN** (payments: payout goes through `SimulatorGateway`, register #13) (LIF-006, LIF-008, CLM-003). Test: `LifeProcessTests.DeathClaim_IsCheckedRegisteredApprovedAndPaidToTheBeneficiary_ThenThePolicyIsClaimed_LIF008`; `LifeTests.ClaimApproval_SplitsTheNetAmountBySharesAfterTheLoan_AndIsBoundToItsSubject_CLM003`.
   - Claim approval by a second person within the claims authority limits for the claim type; partial approval with reason and rights notice; a declined claim reopened when a dispute is upheld. **BUILT** (SRS-002, BR-081, OQ-102, OQ-103). Test: `LifeTests.ApprovalBelowTheAmountClaimed_IsAPartialApproval_WithAPartialReason_AndARightsNotice_OQ102`; `LifeTests.UpheldDispute_ReopensADeclinedClaimForAssessment_OQ103`.
   - Group schemes: set up a scheme, enrol, change and remove members (cover as a salary multiple; cover above the free cover limit, banded by scheme size, needs evidence), accept member evidence, renew, terminate. **PARTLY BUILT**: no group premium rating (OQ-052); renewal simply moves one year (OQ-061). Test: `LifeTests.GroupMembers_CoverIsAMultipleOfSalary_AndAboveTheFreeCoverLimitNeedsEvidence`; `FreeCoverBandTests.MemberEnrolled_WithTheBandsLimit_NeedsEvidenceOnlyAboveIt_GAP043`.
@@ -410,7 +411,7 @@ The 24 modules, in this order: Life with pricing, rules and products; General wi
   - Risk limits. **Not in this module.** The RISK_LIMITS sub-domain holds only General's aggregation alerts (`GENERAL_AGGREGATION_ALERTS`, alert only, OQ-154). They are BUILT in General, test `GeneralProcessTests.ZoneLimit_RefersAQuoteOverIt_AndNamesItToTheEndorsementApprover_F062`, and the compliance officer holds them.
   - Solvency and capital reporting extracts. **DEFERRED** (F063; B-002; register #15).
 - **Key business rules:**
-  - Three different people prepare, review and approve a return (SRS-002). **BUILT**.
+  - Three different people prepare, review and approve a return (SRS-002). **BUILT**. Tests: `ComplianceTests.Return_IsApprovedByAComplianceOfficer_OtherThanItsPreparerAndReviewer_BeforeSubmission`, `EnterpriseProcessTests.ClosedPeriod_PreparesItsReturn_ApprovedByAnotherOfficerBeforeSubmission_AndReportsFollowTheCatalogue`.
   - Return actions use ETag and If-Match (DBA-011). **BUILT**.
   - Deadlines are tenant configuration only, never invented (OQ-083). **BUILT** (no deadline means never overdue).
   - Report access and export follow the catalogue's roles. **BUILT**.
@@ -591,7 +592,7 @@ The 24 modules, in this order: Life with pricing, rules and products; General wi
     
     **BUILT**. Tests: `IdentityTests.RevokedRole_DeniesTheNextRequestWithTheSameToken_IAM005`, `MeTests.ScopedRoleAssignments_AreAccepted_AndListedForReview_F103`, `AssignRoleBusinessDateTests`.
   - Privileged roles:
-    - A role is privileged if it requires MFA or holds one of the 28 privileged functions.
+    - A role is privileged if it requires MFA or holds one of the 33 privileged functions.
     - Assigning one creates a PendingApproval assignment that gives nothing until a second person approves it in Workflow (`PRIVILEGED_ROLE`). The approver can't be the person who requested it.
     - A role that requires MFA is refused for a user who isn't MFA-enrolled (IAM-003).
     

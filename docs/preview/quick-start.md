@@ -7,7 +7,7 @@
 - **Accounts:** Ade gives each person the accounts they need, with their passwords, privately. Don't share them in chat or email.
 - **Broker and provider portal accounts** ask for a second factor. Ade gives you its setup code with the password; if he can't, the first person to sign in sets it up and shares it.
 - **Sign-in names** carry the tenant's code: the tenant's accounts are `oftza.` and the account (`oftza.admin01`), the platform's `operator.` and the account (`operator.operator01`). The full list is under "Every account's sign-in name" below. They ignore case.
-- **Emails:** Invitations and password resets are real emails from insys-preview@openfactorgroup.com; everything else is a stand-in.
+- **Emails:** Invitations are real emails from insys-preview@openfactorgroup.com; there is no self-service password reset; everything else is a stand-in.
 
 ## Who does what
 Each account holds one role template, with nothing added.
