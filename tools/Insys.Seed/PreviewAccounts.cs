@@ -52,6 +52,9 @@ public sealed partial class OftzaSeed
 
     private static (string, string)[] Pair(string name, string role) => [($"{name}01", role), ($"{name}02", role)];
 
+    /// <summary>The name INSYS shows for an account the seed makes: "Sample" and its role in plain words, the same for both of a pair.</summary>
+    public static string DisplayName(string role) => $"Sample {role.Replace('_', ' ').ToLowerInvariant()}";
+
     /// <summary>Makes each account the seed hasn't yet, with its role, and links the portal accounts. Usernames are in lower case, as Keycloak keeps them.</summary>
     private async Task Accounts()
     {
