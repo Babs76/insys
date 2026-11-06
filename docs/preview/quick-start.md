@@ -1,12 +1,13 @@
 # INSYS Preview: quick-start
 
-**For OpenFactor's functional team.** The INSYS Preview is a test system with invented data. It isn't production, and nothing in it reaches a real person, provider or bank. A banner on every page says so, and the sign-in page is titled "INSYS Preview (sample data only)".
+**For OpenFactor's functional team.** The INSYS Preview is a test system with invented data. It isn't production, and nothing in it reaches a real person, provider or bank, except the sign-in emails below. A banner on every page says so, and the sign-in page is titled "INSYS Preview (sample data only)".
 
 ## Signing in
 - **Address:** `https://insys.project-demo.app`. Sign-in goes through `https://id.insys.project-demo.app`.
 - **Accounts:** Ade gives each person the accounts they need, with their passwords, privately. Don't share them in chat or email.
 - **Broker and provider portal accounts** ask for a second factor. Ade gives you its setup code with the password; if he can't, the first person to sign in sets it up and shares it.
 - **Usernames** ignore case.
+- **Emails:** Invitations and password resets are real emails from insys-preview@openfactorgroup.com; everything else is a stand-in.
 
 ## Who does what
 Each account holds one role template, with nothing added.
