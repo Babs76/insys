@@ -377,6 +377,106 @@ check_tls() {
   done
 }
 
+# Backups and the restore rehearsal (docs/preview/restore.md). The nightly job (deploy/preview/backup.yaml) writes the databases' dumps and
+# OpenBao's volume to /var/backups/insys on the server. Nothing here prints a secret: counts, names, sizes and pass or fail only.
+counts() { # rows in a few tables, to compare before and after a restore
+  printf '%s' "SELECT 'parties ' || (SELECT count(*) FROM party.party) || ', users ' || (SELECT count(*) FROM iam.user_account)
+    || ', documents ' || (SELECT count(*) FROM document.document) || ', General policies ' || (SELECT count(*) FROM general.policy)
+    || ', Life policies ' || (SELECT count(*) FROM life.policy) || ', Health memberships ' || (SELECT count(*) FROM health.membership)
+    || ', approvals ' || (SELECT count(*) FROM workflow.approval) || ', data keys ' || (SELECT count(*) FROM integration.field_data_key)" \
+    | on_server "kubectl exec -i insys-postgres-0 -- psql -U insys_owner -d insys -At"
+}
+
+# OpenBao unsealed, and a data key the database holds unwrapped by Transit with the API's own token: so what was encrypted before reads
+# after. The key's plaintext is never printed; its ciphertext is useless without OpenBao.
+kms_check() {
+  local sealed wrapped
+  sealed=$(on_server "/root/insys/openbao/openbao.sh sealed insys")
+  [ "$sealed" = false ] || fail "OpenBao is sealed: unseal it (the handover's Unsealing OpenBao), then run this again"
+  wrapped=$(printf '%s' "SELECT convert_from(ciphertext, 'UTF8') FROM integration.field_data_key WHERE master_key_ref LIKE 'openbao:%' ORDER BY created_at LIMIT 1" \
+    | on_server "kubectl exec -i insys-postgres-0 -- psql -U insys_owner -d insys -At")
+  [ -n "$wrapped" ] || { echo "OpenBao: unsealed; no data key stored yet to decrypt."; return 0; }
+  on_server "kubectl delete pod insys-kms-check --ignore-not-found --wait=true >/dev/null"
+  jq -n --arg c "$wrapped" '{apiVersion: "v1", kind: "Pod", metadata: {name: "insys-kms-check"}, spec: {restartPolicy: "Never", containers: [{name: "check",
+      image: "curlimages/curl:8.23.0@sha256:3fb7e13e5d179a845c97d78204f3f1064d1907037f26a3ebf91710571151fd93",
+      env: [{name: "KMS_TOKEN", valueFrom: {secretKeyRef: {name: "insys-secrets", key: "kmsToken"}}}, {name: "WRAPPED", value: $c}],
+      command: ["sh", "-c", "set -eu; printf \"header = \\\"X-Vault-Token: %s\\\"\\n\" \"$KMS_TOKEN\" | curl -sS --fail-with-body -K - -o /dev/null -X POST --data \"{\\\"ciphertext\\\":\\\"$WRAPPED\\\"}\" http://insys-openbao:8200/v1/transit/decrypt/insys && echo \"OpenBao: unsealed, and a stored data key decrypts with the API token.\""]}]}}' \
+    | on_server "kubectl apply -f - >/dev/null"
+  # shellcheck disable=SC2016 # it runs on the server, which expands it
+  on_server 'for _ in $(seq 1 40); do phase=$(kubectl get pod insys-kms-check -o jsonpath="{.status.phase}"); case "$phase" in Succeeded|Failed) break ;; esac; sleep 3; done
+    kubectl logs insys-kms-check 2>&1 | tail -n 3; kubectl delete pod insys-kms-check --wait=false >/dev/null; [ "$phase" = Succeeded ]' \
+    || fail "OpenBao didn't decrypt a stored data key with the API's token: see above"
+}
+
+# A backup now, by the nightly job, then each file checked: the dumps list their contents (pg_restore --list), the archive opens (tar -t).
+backup_now() {
+  local day
+  day=$(date -u +%F)
+  # shellcheck disable=SC2016 # it runs on the server, which expands it
+  on_server 'job=insys-backup-$(date -u +%H%M%S); kubectl create job "$job" --from=cronjob/insys-backup >/dev/null && kubectl wait --for=condition=complete "job/$job" --timeout=900s >/dev/null' \
+    || fail "the backup job didn't complete"
+  echo "Backup of $day, on the server in /var/backups/insys:"
+  on_server "ls -l /var/backups/insys | awk '/$day/ {print \"  \" \$NF \", \" \$5 \" bytes\"}'"
+  for db in insys keycloak; do
+    echo "  $day-$db.dump lists $(on_server "kubectl exec -i insys-postgres-0 -- pg_restore --list < /var/backups/insys/$day-$db.dump | grep -vc '^;'") items"
+  done
+  echo "  $day-openbao.tar.gz holds $(on_server "tar -tzf /var/backups/insys/$day-openbao.tar.gz | wc -l") entries"
+  echo "Counts now: $(counts)"
+  storage_check
+  kms_check
+}
+
+# Restores the nightly backup of PREVIEW_BACKUP_DAY (yyyy-mm-dd): both databases, then OpenBao's volume. OpenBao comes back sealed, so SSH
+# is left open from Ade's address for him to unseal it with the key of the OpenBao the backup came from; then backup_now checks it all.
+restore() {
+  local day=${PREVIEW_BACKUP_DAY:-}
+  [[ $day =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || fail "set backup_day to the backup's date, yyyy-mm-dd"
+  echo "Before the restore: $(counts)"
+  on_server "DAY='$day' bash -s" <<'EOF'
+set -euo pipefail
+b=/var/backups/insys
+for f in "$b/$DAY-insys.dump" "$b/$DAY-keycloak.dump" "$b/$DAY-openbao.tar.gz"; do [ -s "$f" ] || { echo "There's no $f."; exit 1; }; done
+kubectl scale deploy/insys-api deploy/insys-keycloak --replicas=0 >/dev/null
+kubectl wait --for=delete pod -l 'app.kubernetes.io/name in (api, keycloak)' --timeout=300s >/dev/null 2>&1 || true
+for db in insys keycloak; do
+  # Dropped and made again from the dump (--create brings its settings and grants), not --clean: --clean can't drop a partition's
+  # inherited constraints, and left 240 errors on a seeded INSYS database in rehearsal; drop-and-create left none, with the same grants
+  # and row-level security policies.
+  kubectl exec insys-postgres-0 -- psql -U insys_owner -d postgres -qc "DROP DATABASE IF EXISTS $db WITH (FORCE)"
+  if ! kubectl exec -i insys-postgres-0 -- pg_restore -U insys_owner -d postgres --create < "$b/$DAY-$db.dump" 2> "/tmp/restore-$db.err"; then
+    echo "$db: pg_restore reported $(grep -c 'error:' "/tmp/restore-$db.err") error(s); the first: $(grep -m1 'error:' "/tmp/restore-$db.err" | cut -c1-200)"
+    exit 1
+  fi
+  echo "$db: restored from $DAY."
+done
+kubectl scale statefulset/insys-openbao --replicas=0 >/dev/null
+kubectl wait --for=delete pod/insys-openbao-0 --timeout=300s >/dev/null 2>&1 || true
+kubectl delete pod insys-openbao-restore --ignore-not-found --wait=true >/dev/null
+kubectl apply -f - >/dev/null <<POD
+apiVersion: v1
+kind: Pod
+metadata: {name: insys-openbao-restore}
+spec:
+  restartPolicy: Never
+  containers:
+    - name: restore
+      image: busybox:1.37
+      command: [sh, -c, 'set -e; find /openbao -mindepth 1 -delete; tar -C /openbao -xzf /backup/$DAY-openbao.tar.gz; echo "OpenBao: its volume restored from $DAY."']
+      volumeMounts: [{name: openbao, mountPath: /openbao}, {name: backup, mountPath: /backup, readOnly: true}]
+  volumes:
+    - {name: openbao, persistentVolumeClaim: {claimName: data-insys-openbao-0}}
+    - {name: backup, hostPath: {path: /var/backups/insys, type: Directory}}
+POD
+for _ in $(seq 1 60); do phase=$(kubectl get pod insys-openbao-restore -o jsonpath='{.status.phase}'); case "$phase" in Succeeded|Failed) break ;; esac; sleep 3; done
+kubectl logs insys-openbao-restore | tail -n 2; kubectl delete pod insys-openbao-restore --wait=false >/dev/null
+[ "$phase" = Succeeded ] || { echo "OpenBao's volume wasn't restored."; exit 1; }
+kubectl scale statefulset/insys-openbao --replicas=1 >/dev/null && kubectl rollout status statefulset/insys-openbao --timeout=600s >/dev/null
+kubectl scale deploy/insys-keycloak deploy/insys-api --replicas=1 >/dev/null
+kubectl rollout status deploy/insys-keycloak --timeout=900s >/dev/null
+EOF
+  echo "After the restore: $(counts)"
+}
+
 # What a first provision needs, checked without creating or changing anything: pass or fail per item, and no secret in the output. Each item
 # returns its own status, as set -e doesn't apply inside the if that runs it.
 check() {
@@ -470,6 +570,17 @@ case "$action" in
     ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh
     on_server "KUBECONFIG=/etc/rancher/k3s/k3s.yaml helm uninstall insys --wait || true; kubectl delete pvc --all --wait=true; kubectl delete secret insys-secrets --ignore-not-found"
     cluster; images; server_secrets; pull_secret; chart; openbao; encrypt; seed; encrypt; check_tls
+    ;;
+  backup)
+    ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; backup_now
+    ;;
+  restore)
+    [ -n "${2:-}" ] || fail "set ssh_from to your own address: you unseal OpenBao over SSH after the restore"
+    ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; restore
+    close_ssh; open_ssh "$2"   # the runner's rule goes; only yours stays, for the unseal
+    trap - EXIT                # the next run closes it
+    echo "OpenBao is sealed, as after any restore. SSH is open from $2: unseal it as the handover's Unsealing OpenBao says, with the key from the file"
+    echo "of the OpenBao this backup came from (run 41835262697's), then run backup to check the counts and that a stored data key decrypts."
     ;;
   rotate-passwords)
     ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; seed; encrypt

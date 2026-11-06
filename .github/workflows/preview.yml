@@ -35,12 +35,15 @@ on:
       action:
         description: What to do
         type: choice
-        options: [check, provision, upgrade, open-ssh, reset, rotate-passwords, destroy]
+        options: [check, provision, upgrade, open-ssh, backup, restore, reset, rotate-passwords, destroy]
       confirm:
-        description: For reset, rotate-passwords and destroy, type the action's name
+        description: For restore, reset, rotate-passwords and destroy, type the action's name
         default: ""
       ssh_from:
-        description: For open-ssh, the address to allow (your own IP)
+        description: For open-ssh and restore, the address to allow (your own IP)
+        default: ""
+      backup_day:
+        description: For restore, the backup's date (yyyy-mm-dd)
         default: ""
       acme:
         description: Let's Encrypt's staging service until issuance is proven, then production
@@ -70,9 +73,10 @@ jobs:
       PREVIEW_SERVER_TYPE: ${{ vars.PREVIEW_SERVER_TYPE }}
       PREVIEW_CONSOLE_PULL_USER: ${{ vars.PREVIEW_CONSOLE_PULL_USER }}
       PREVIEW_ACME: ${{ inputs.acme }}
+      PREVIEW_BACKUP_DAY: ${{ inputs.backup_day }}
     steps:
       - name: Confirmation
-        if: contains(fromJSON('["reset", "rotate-passwords", "destroy"]'), inputs.action) && inputs.confirm != inputs.action
+        if: contains(fromJSON('["restore", "reset", "rotate-passwords", "destroy"]'), inputs.action) && inputs.confirm != inputs.action
         run: |
           echo "::error::Type the action's name in confirm to ${{ inputs.action }}."
           exit 1
