@@ -56,7 +56,12 @@ public sealed class StaticDataModule : IModule
     /// <summary>A platform module: open to the operator tenant (ADR-024).</summary>
     public bool HoldsBusinessData => false;
 
-    public void Register(IServiceCollection services, IConfiguration configuration) => services.AddStaticDataInfrastructure();
+    public void Register(IServiceCollection services, IConfiguration configuration)
+    {
+        services.AddStaticDataInfrastructure();
+        // ADR-026: a static data change approval is decided only by a holder of the table's approve function, on every route.
+        services.AddSingleton<Workflow.Contracts.IApprovalFunctionSource, StaticDataApprovalFunctions>();
+    }
 
     public void MapEndpoints(IEndpointRouteBuilder api)
     {
@@ -144,4 +149,21 @@ public sealed class StaticDataModule : IModule
             .WithSummary("List static data import batches and their rejected lines (SDM-012)")
             .RequirePermission(StaticDataGovernancePermissions.ChangeRequestRead);
     }
+}
+
+/// <summary>
+/// The function deciding a static data change approval needs (ADR-026, SRS-002): the approve function of the table the
+/// change is for, as the table's own approve and reject route requires (FunctionChecks). It is found from the change
+/// request when the approval is decided, so an approval raised before this check is held to it too.
+/// </summary>
+internal sealed class StaticDataApprovalFunctions(IStaticDataChangeLookup lookup, IEnumerable<ModuleStaticDataTables> modules)
+    : Workflow.Contracts.IApprovalFunctionSource
+{
+    public bool Covers(string businessRefType) => businessRefType == StaticDataApprovals.BusinessRefType;
+
+    public async Task<string?> FunctionFor(Guid tenantId, string businessRefType, Guid businessRefId, CancellationToken cancellationToken) =>
+        await lookup.EntityCode(tenantId, businessRefId, cancellationToken) is { } entity
+        && modules.SelectMany(m => m.Descriptors).FirstOrDefault(d => d.EntityCode == entity) is { } descriptor
+            ? StaticDataFunctions.Approve(descriptor)
+            : null;
 }

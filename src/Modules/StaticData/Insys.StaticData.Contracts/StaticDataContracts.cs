@@ -60,6 +60,9 @@ public static class StaticDataApprovals
 public interface IStaticDataChangeLookup
 {
     Task<Guid?> PendingChange(Guid tenantId, string entityCode, string code, int version, bool global, CancellationToken cancellationToken);
+
+    /// <summary>The entity code of the table a change request (a change of one version, or an import) is for; null when there is no such change request.</summary>
+    Task<string?> EntityCode(Guid tenantId, Guid changeRequestId, CancellationToken cancellationToken);
 }
 
 /// <summary>Public query interface: the public holidays of a holiday calendar (refdata.ref_public_holiday_calendars), as observed.</summary>
