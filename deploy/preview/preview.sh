@@ -550,36 +550,54 @@ alert_secret() {
     '{apiVersion: "v1", kind: "Secret", metadata: {name: "insys-alert"}, type: "Opaque",
       stringData: {to: $to, from: $smtp.from, relay: "\($smtp.host):\($smtp.port)", helo: $helo}}' \
     | on_server "kubectl apply -f - >/dev/null"
-  [ -n "${PREVIEW_ALERT_TO:-}" ] \
-    || summary "**No seal alert address:** set the secret PREVIEW_ALERT_TO in the Environment preview for the nightly backup to email when OpenBao is sealed. Until then a seal fails the job on the server only, and check shows it."
+  alert_note
+}
+# The run summary's word on the seal alert. The address reaches the server only through alert_secret, in provision, upgrade and reset.
+alert_note() {
+  if [ -n "${PREVIEW_ALERT_TO:-}" ]; then
+    summary "**Seal alert:** PREVIEW_ALERT_TO is set. A change to it takes effect on the server at the next provision, upgrade or reset."
+  else
+    summary "**No seal alert address:** PREVIEW_ALERT_TO isn't set, so a seal fails the nightly backup on the server only, and check shows it. Once set, it takes effect at the next provision, upgrade or reset."
+  fi
 }
 
-# No automatic updates, reboots or service restarts on the server (Ade, 14 November): unattended-upgrades' periodic runs and apt's daily timers
-# off, needrestart lists and restarts nothing (k3s included). Updates go through os-update, approved like every run. k3s's own unit still
-# restarts it if it crashes (Restart=always), which keeps its containers, OpenBao's included, running.
+# Security updates stay automatic; restarts and reboots don't (Ade, 14 November). unattended-upgrades and apt's daily timers stay on, with
+# Ubuntu's own settings (security updates only); automatic reboot is false, and needrestart lists and restarts nothing, k3s included. check
+# reports a pending reboot and what needrestart lists, so Ade can plan one. os-update applies everything else. k3s's own unit still restarts
+# it if it crashes (Restart=always), which keeps its containers, OpenBao's included, running.
 os_policy() {
   # shellcheck disable=SC2016 # it runs on the server, which expands it
   on_server 'set -e
-    cat > /etc/apt/apt.conf.d/99insys-no-automatic <<EOF
-// INSYS Preview (Ade, 14 November 2026): no automatic updates or reboots. Updates go through os-update in the preview workflow.
-APT::Periodic::Update-Package-Lists "0";
-APT::Periodic::Download-Upgradeable-Packages "0";
-APT::Periodic::Unattended-Upgrade "0";
-APT::Periodic::AutocleanInterval "0";
+    rm -f /etc/apt/apt.conf.d/99insys-no-automatic
+    cat > /etc/apt/apt.conf.d/99insys-no-automatic-reboot <<EOF
+// INSYS Preview (Ade, 14 November 2026): security updates apply themselves; the server never reboots itself for them.
+APT::Periodic::Update-Package-Lists "1";
+APT::Periodic::Unattended-Upgrade "1";
 Unattended-Upgrade::Automatic-Reboot "false";
 EOF
     mkdir -p /etc/needrestart/conf.d
     cat > /etc/needrestart/conf.d/99insys.conf <<EOF
-# INSYS Preview (Ade, 14 November 2026): list what needs a restart, restart nothing.
+# INSYS Preview (Ade, 14 November 2026): list what needs a restart, restart nothing, k3s included.
 \$nrconf{restart} = "l";
 \$nrconf{override_rc}{qr(^k3s)} = 0;
 EOF
-    systemctl disable --now apt-daily.timer apt-daily-upgrade.timer >/dev/null 2>&1 || true
-    echo "Server policy: unattended upgrades $(apt-config dump | sed -n "s/^APT::Periodic::Unattended-Upgrade \"\(.*\)\";/\1/p"), automatic reboot $(apt-config dump | sed -n "s/^Unattended-Upgrade::Automatic-Reboot \"\(.*\)\";/\1/p"), apt timers $(systemctl is-enabled apt-daily.timer apt-daily-upgrade.timer 2>/dev/null | sort -u | paste -sd/ -), needrestart lists only."'
+    systemctl enable --now apt-daily.timer apt-daily-upgrade.timer >/dev/null 2>&1 || true
+    echo "Server policy: unattended security updates $(apt-config dump | sed -n "s/^APT::Periodic::Unattended-Upgrade \"\(.*\)\";/\1/p"), automatic reboot $(apt-config dump | sed -n "s/^Unattended-Upgrade::Automatic-Reboot \"\(.*\)\";/\1/p"), apt timers $(systemctl is-enabled apt-daily.timer apt-daily-upgrade.timer 2>/dev/null | sort -u | paste -sd/ -), needrestart lists only."'
 }
 
-# The server's packages, updated with nothing restarted or rebooted. A reboot restarts OpenBao, which comes back sealed: that is Ade's call,
-# with the unseal key at hand. k3s isn't an apt package, so this doesn't change it.
+# What would need a restart or a reboot, for Ade to plan one: /var/run/reboot-required (and the packages that set it), a newer kernel waiting,
+# and the services needrestart lists. Nothing is restarted.
+pending_restarts() {
+  # shellcheck disable=SC2016 # it runs on the server, which expands it
+  on_server 'if [ -f /var/run/reboot-required ]; then printf "reboot pending (%s)" "$(paste -sd, /var/run/reboot-required.pkgs 2>/dev/null)"; else printf "no reboot pending"; fi
+    nr=$(NEEDRESTART_MODE=l needrestart -b -r l 2>/dev/null)
+    case "$nr" in *"NEEDRESTART-KSTA: "[23]*) printf "; a newer kernel is installed" ;; esac
+    svc=$(printf "%s\n" "$nr" | sed -n "s/^NEEDRESTART-SVC: //p" | paste -sd, -)
+    printf "; needrestart lists: %s\n" "${svc:-nothing}"'
+}
+
+# The server's packages, all of them (security updates already apply themselves), with nothing restarted or rebooted. A reboot restarts
+# OpenBao, which comes back sealed: that is Ade's call, with the unseal key at hand. k3s isn't an apt package, so this doesn't change it.
 os_update() {
   # shellcheck disable=SC2016 # it runs on the server, which expands it
   on_server 'set -e; export DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=l NEEDRESTART_SUSPEND=1
@@ -656,8 +674,10 @@ check() {
     trap close_ssh EXIT
     open_ssh "${RUNNER_IP:?}"
     item "OpenBao" check_openbao
+    item "Restarts and reboots" pending_restarts
     changed="Nothing was created. SSH was opened for this runner only, and is closed at the end with any other SSH rule (open-ssh's too)."
   fi
+  alert_note
   [ "$failed" = 0 ] || fail "At least one check failed: see FAIL above. $changed"
   echo "Every check passed. $changed"
 }
