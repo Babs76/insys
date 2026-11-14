@@ -49,6 +49,17 @@ public sealed partial class OftzaSeed(SeedContext context)
     private Persona _maker = null!;
     private Persona _checker = null!;
     private readonly List<string> _templates = [];
+
+    /// <summary>Each role's functions, as Roles() assigned them: a portal channel's rows follow its role's (BR-140).</summary>
+    private readonly Dictionary<string, List<string>> _roleFunctions = new(StringComparer.Ordinal);
+
+    /// <summary>The portals' channels (BR-140, F005): each portal role's functions allowed on the channel of its Keycloak client.</summary>
+    private static readonly (string Channel, string Audience, string Name, string ClientId, string Role)[] PortalChannels =
+    [
+        ("MEMBER_WEB", "CUSTOMER", "Member portal", "member-portal", "MEMBER"),
+        ("BROKER_WEB", "BROKER", "Broker portal", "broker-portal", "BROKER"),
+        ("PROVIDER_WEB", "PROVIDER", "Provider portal", "provider-portal", "PROVIDER"),
+    ];
     private Persona? _adminMaker;
     private Persona? _adminChecker;
     private bool _loadersDone;
@@ -145,7 +156,11 @@ public sealed partial class OftzaSeed(SeedContext context)
         }
     }
 
-    /// <summary>Every staff role's functions on the back-office channel, as readiness lists what is uncovered.</summary>
+    /// <summary>
+    /// Every staff role's functions on the back-office channel, as readiness lists what is uncovered; and each portal role's functions on its
+    /// portal's channel (BR-140), which readiness doesn't list: until a portal user holds it, a portal role counts as staff there, so it is
+    /// left off the back-office channel.
+    /// </summary>
     private async Task Channels()
     {
         if (_loadersDone)
@@ -153,7 +168,16 @@ public sealed partial class OftzaSeed(SeedContext context)
             return;
         }
 
-        var missing = (await Checks()).Where(c => c.GetProperty("code").GetString() == "CHANNELS").SelectMany(c => c.GetProperty("missing").EnumerateArray()).Select(m => m.GetString()!).ToList();
+        var portalRoles = PortalChannels.Select(p => p.Role).ToHashSet(StringComparer.Ordinal);
+        var missing = (await Checks()).Where(c => c.GetProperty("code").GetString() == "CHANNELS").SelectMany(c => c.GetProperty("missing").EnumerateArray()).Select(m => m.GetString()!)
+            .Where(m => !portalRoles.Contains(m.Split(": ", 2)[0])).ToList();
+        foreach (var (channel, _, _, _, role) in PortalChannels)
+        {
+            var functions = _roleFunctions[role];
+            await Import("integration/static/channel-transaction-permissions", $"CTP-{channel}-{functions[0]}",
+                functions.Select(f => (object)new { channelCode = channel, roleCode = role, functionCode = f, allowed = true, code = $"CTP-{channel}-{f}", changeReason = Reason }).ToList());
+        }
+
         if (missing.Count > 0)
         {
             var parts = missing.Select(m => m.Split(": ", 2)).ToList();
@@ -640,6 +664,7 @@ public sealed partial class OftzaSeed(SeedContext context)
             await Static("identity/static/roles-and-permission-sets", code, new { roleCode = code });
             var functions = template.GetProperty("functions").EnumerateArray().Where(f => !f.TryGetProperty("available", out var a) || a.ValueKind != JsonValueKind.False).Select(f => f.GetProperty("code").GetString()!).ToList();
             await Import("identity/static/role-function-assignments", $"{code}:{functions[0]}", functions.Select(f => (object)new { roleCode = code, functionCode = f, code = $"{code}:{f}", changeReason = Reason }).ToList());
+            _roleFunctions[code] = functions;
         }
     }
 
@@ -741,6 +766,15 @@ public sealed partial class OftzaSeed(SeedContext context)
 
         await Static("tenancy/static/organisation-structure", "OFTZA-ROOT", new { nodeCode = "OFTZA-ROOT", type = "LEGAL_ENTITY", name = "OFT Insurance South Africa (sample)" });
         await Static("integration/static/channel-definitions", "CH-STF", new { channelCode = "STF", audience = "STAFF", name = "Back office", clientIds = new[] { "insys-web", KeycloakSignIn.ClientId } });
+        foreach (var (channel, audience, name, clientId, _) in PortalChannels)
+        {
+            await Static("integration/static/channel-definitions", $"CH-{channel}", new { channelCode = channel, audience, name, clientIds = new[] { clientId } });
+        }
+        // Consent purposes (BR-143, POPIA s69), so a party's marketing consent can be recorded and withdrawn.
+        foreach (var (purpose, label) in new[] { ("MKT_EMAIL", "Marketing by email"), ("MKT_SMS", "Marketing by SMS") })
+        {
+            await Static("party/static/consent-purposes", purpose, new { purposeCode = purpose, label, legalBasis = "CONSENT", jurisdiction = "ZA", defaultValue = false, retentionPeriod = "P5Y" });
+        }
         await Static("finance/static/chart-of-accounts-subledger", "ACC-1100", new { accountCode = "1100", name = "Premium receivable (sample)", type = "ASSET", glAccount = "1100", status = "ACTIVE" });
         await Static("workflow/static/business-calendars", "CAL-ZA", new { calendarCode = "CAL-ZA", workingDays = new[] { "MON", "TUE", "WED", "THU", "FRI" }, hours = "08:00-17:00", holidayCalendar = "ZA", timeZone = "Africa/Johannesburg" });
         await Static("workflow/static/task-types-and-work-queues", "OFTZA-TASKS", new { queueCode = "OFTZA-TASKS", taskTypes = new[] { "REVIEW" }, assignmentRule = "MANUAL_PULL" });

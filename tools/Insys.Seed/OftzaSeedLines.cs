@@ -46,9 +46,14 @@ public sealed partial class OftzaSeed
         }
 
         await Static("workflow/static/delegation-and-approval-authority", "AUTH-BANK_ACCOUNT_VERIFICATION-FINANCE_MANAGER", new { roleCode = "FINANCE_MANAGER", transactionType = "BANK_ACCOUNT_VERIFICATION", limitValue = 0m, delegationAllowed = false });
-        foreach (var type in new[] { "STATIC_DATA_T1", "STATIC_DATA_T2" })
+        // BR-141 (Ade, 13 November 2026): product managers and reinsurance officers approve their own areas' static data, another of the same role than the
+        // maker. Authority is per approval type; the table's own SD_<module>_APPROVE function keeps each to its own modules.
+        foreach (var role in new[] { LineConfigurationRole, "PRODUCT_MANAGER", "REINSURANCE_OFFICER" })
         {
-            await Static("workflow/static/delegation-and-approval-authority", $"AUTH-{type}-{LineConfigurationRole}", new { roleCode = LineConfigurationRole, transactionType = type, limitValue = 1m, delegationAllowed = false });
+            foreach (var type in new[] { "STATIC_DATA_T1", "STATIC_DATA_T2" })
+            {
+                await Static("workflow/static/delegation-and-approval-authority", $"AUTH-{type}-{role}", new { roleCode = role, transactionType = type, limitValue = 1m, delegationAllowed = false });
+            }
         }
 
         await Static("documents/static/document-categories", "POLICY_SCHEDULE", new { categoryCode = "POLICY_SCHEDULE", label = "Policy schedule", classification = "PERSONAL", domain = "ALL", allowedRoles = Array.Empty<string>() });
@@ -80,6 +85,9 @@ public sealed partial class OftzaSeed
         await Static("reinsurance/static/reinsurer-register", "OFT-RE-1", new { reinsurerCode = "OFT-RE-1", legalName = "Sample Reinsurance (invented)", country = "ZA", status = "APPROVED" });
         await Static("reinsurance/static/treaty-definitions", "OFT-QS-1", new { treatyCode = "OFT-QS-1", type = "QUOTA_SHARE", retention = "30", capacity = 5_000_000m, periodFrom = today.AddYears(-1), periodTo = today.AddYears(1), participants = new[] { new { reinsurer = "OFT-RE-1", share = 100 } } });
         await Static("reinsurance/static/cession-rules", "OFT-CR-1", new { ruleCode = "OFT-CR-1", treaty = "OFT-QS-1", products = new[] { "OFT-MOTOR", "OFT-HOME" }, allocationBasis = "SUM_INSURED" });
+        // A monthly bordereau of the quota share (BR-142), so one can be prepared, sent to the stand-in reinsurer and agreed.
+        await Static("reinsurance/static/bordereaux-layouts", "OFT-BX-QS1", new { layoutCode = "OFT-BX-QS1", treaty = "OFT-QS-1", frequency = "MONTHLY",
+            fields = new[] { "policy_ref", "product_code", "gross_sum_insured", "gross_premium", "ceded_share", "ceded_sum_insured", "ceded_premium", "currency" } });
     }
 
     private async Task LifeConfiguration()
@@ -287,10 +295,14 @@ public sealed partial class OftzaSeed
         await MigratedLife(10);
 
         // Backdated, so past instalments are unpaid: one in grace, two or more past it. The overdue invoice on the account is what makes Billing report its arrears; a migrated premium alone isn't counted (handover, register).
+        // BR-146: 10 days overdue is in B1 (1 to 30), 65 in B2 (31 and over), on any business date; then each account is aged at once, as the hourly
+        // billing job would later, so the arrears show as soon as the seed ends.
         foreach (var (holder, days) in new[] { (11, 10), (12, 10), (13, 65), (14, 65) })
         {
             await LifePolicy("OFT-TERM", "DEATH", 500_000m, holder, days);
         }
+
+        await AgeArrears([11, 12, 13, 14]);
     }
 
     /// <summary>A policy that began last year.</summary>
@@ -328,12 +340,38 @@ public sealed partial class OftzaSeed
             return;
         }
 
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        await context.Tenant(TenantId, "oftza-finance-officer").Send(HttpMethod.Post, "/api/v1/billing/migration/outstanding-premiums", new
+        // Due dates from the tenant's business date, as Billing reckons days overdue from it (BR-146), not the UTC clock's.
+        var finance = context.Tenant(TenantId, "oftza-finance-officer");
+        var today = DateOnly.Parse((await finance.Send(HttpMethod.Get, "/api/v1/identity/me")).GetProperty("tenant").GetProperty("businessDate").GetString()!,
+            System.Globalization.CultureInfo.InvariantCulture);
+        var result = await finance.Send(HttpMethod.Post, "/api/v1/billing/migration/outstanding-premiums", new
         {
             batchCode = $"{reference}-I", currency = "ZAR", controlCount = daysAgo.Length, controlAmount = amount * daysAgo.Length,
             rows = daysAgo.Select(d => new { sourceReference = $"{reference}-I{d}", sourceDomain = domain, policyRef = policy, amount, dueDate = today.AddDays(-d) }).ToArray(),
         }, key: $"{TenantCode}:{reference}-I");
+        // A rejected line is a 200 with the line listed and no invoice (BR-146): the seed stops rather than leave the account quietly paid up.
+        if (result.TryGetProperty("rejectedLines", out var rejected) && rejected.GetArrayLength() > 0)
+        {
+            throw new InvalidOperationException($"Billing refused the outstanding premium {reference}: {rejected}");
+        }
+
+        await context.Settle();
+    }
+
+    /// <summary>Ages the billing account of each holder's Life policy now (POST /billing/accounts/{id}/age), as the hourly billing job would (BR-146).</summary>
+    private async Task AgeArrears(int[] holders)
+    {
+        var finance = context.Tenant(TenantId, "oftza-finance-officer");
+        var underwriter = context.Tenant(TenantId, "oftza-life-underwriter");
+        foreach (var holder in holders)
+        {
+            var policy = (await underwriter.Send(HttpMethod.Get, $"/api/v1/life/policies?policyholderPartyId={await Person(holder)}")).GetProperty("items")[0].GetProperty("id").GetGuid();
+            foreach (var account in (await finance.Send(HttpMethod.Get, $"/api/v1/billing/accounts?policyRef={policy}")).GetProperty("items").EnumerateArray())
+            {
+                await finance.Send(HttpMethod.Post, $"/api/v1/billing/accounts/{account.GetProperty("id").GetGuid()}/age", ifMatch: $"\"{account.GetProperty("rowVersion").GetInt64()}\"", idempotent: false);
+            }
+        }
+
         await context.Settle();
     }
 
@@ -543,8 +581,15 @@ public sealed partial class OftzaSeed
         // The underwriter rates the proposal, evaluates the rules and records the acknowledgement themselves (role templates, A).
         var underwriter = context.Tenant(TenantId, "oftza-life-underwriter");
         var applicant = await Person(holder);
-        if ((await underwriter.Send(HttpMethod.Get, $"/api/v1/life/policies?policyholderPartyId={applicant}")).GetProperty("items").GetArrayLength() > 0)
+        var held = (await underwriter.Send(HttpMethod.Get, $"/api/v1/life/policies?policyholderPartyId={applicant}")).GetProperty("items");
+        if (held.GetArrayLength() > 0)
         {
+            // On a rerun, the outstanding premium again (its key replays it if it was taken): a run stopped before it left none (BR-146).
+            if (backdatedDays > 0)
+            {
+                await Unpaid("LIFE", $"OFT-LA-{holder}", held[0].GetProperty("id").GetGuid(), 100m, [backdatedDays]);
+            }
+
             return;
         }
 

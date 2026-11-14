@@ -113,6 +113,41 @@ public sealed class OftzaSeedTests(DatabaseFixture fixture) : IClassFixture<Data
         (await Count("SELECT count(*) FROM finance.tax_return WHERE tenant_id = @t")).ShouldBe(1L, "one VAT return prepared");
         (await Count("SELECT count(*) FROM finance.accounting_period WHERE tenant_id = @t AND status = 'CLOSED'")).ShouldBe(1L, "last month closed");
 
+        // BR-140: a channel per portal, so a portal user's calls pass the channel check (CHANNEL_NOT_ENABLED before).
+        (await Count("SELECT count(*) FROM channel.cfg_channel_definitions WHERE tenant_id = @t AND record_status IN ('PUBLISHED', 'EFFECTIVE', 'ACTIVE') AND audience IN ('CUSTOMER', 'BROKER', 'PROVIDER')")).ShouldBe(3L);
+        var host = await fixture.Host();
+        foreach (var (subject, client) in new[] { ("oftza-member", "member-portal"), ("oftza-broker", "broker-portal"), ("oftza-provider", "provider-portal") })
+        {
+            // Signed in with a second factor, as the broker and provider portals require (BR-008): what's left to refuse is the channel.
+            var me = await host.ClientFor(seed.TenantId, subject, client, multiFactor: true).GetAsync("/api/v1/identity/me");
+            me.StatusCode.ShouldBe(System.Net.HttpStatusCode.OK, $"{subject} on {client}: {await me.Content.ReadAsStringAsync()}");
+        }
+
+        // BR-142 and BR-143: a bordereaux layout for the quota share, and consent purposes.
+        (await Count("SELECT count(*) FROM reinsurance.cfg_bordereaux_layouts WHERE tenant_id = @t AND record_status IN ('PUBLISHED', 'EFFECTIVE', 'ACTIVE') AND treaty = 'OFT-QS-1'")).ShouldBe(1L);
+        (await Count("SELECT count(*) FROM party.cfg_consent_purposes WHERE tenant_id = @t AND record_status IN ('PUBLISHED', 'EFFECTIVE', 'ACTIVE') AND jurisdiction = 'ZA'")).ShouldBe(2L);
+
+        // BR-146: the four Life accounts left in arrears show at once, in both buckets (B1, 1 to 30 days; B2, 31 and over), whatever the business date.
+        (await Count("SELECT count(DISTINCT bucket_code) FROM billing.arrears_case WHERE tenant_id = @t AND bucket_code IN ('B1', 'B2')")).ShouldBe(2L);
+        var inArrears = await host.StrictClientFor(seed.TenantId, "oftza-finance-officer", "insys-web").GetAsync("/api/v1/billing/accounts?status=InArrears&limit=100");
+        var arrearsBody = await inArrears.Content.ReadAsStringAsync();
+        inArrears.StatusCode.ShouldBe(System.Net.HttpStatusCode.OK, arrearsBody);
+        System.Text.Json.JsonDocument.Parse(arrearsBody).RootElement.GetProperty("items").GetArrayLength().ShouldBeGreaterThanOrEqualTo(4, arrearsBody);
+
+        // BR-141: a product manager approves another product manager's rating change; a reinsurance officer can't approve it; and nobody approves their own.
+        const string Rounding = "/api/v1/rating/static/rounding-and-currency-precision-rules";
+        var product01 = host.StrictClientFor(seed.TenantId, "product01");
+        var drafted = await product01.Send(HttpMethod.Post, Rounding, new { code = "ZAR-BR141", ruleCode = "ZAR-BR141", currency = "ZAR", step = 0.01m, method = "HALF_UP", stage = "FINAL_PREMIUM", changeReason = "BR-141 test" }, idempotent: true);
+        drafted.StatusCode.ShouldBe(System.Net.HttpStatusCode.Created, await drafted.Content.ReadAsStringAsync());
+        (await product01.Send(HttpMethod.Post, $"{Rounding}/ZAR-BR141/versions/1/submit", ifMatch: drafted.ETag())).StatusCode.ShouldBe(System.Net.HttpStatusCode.OK);
+        await host.DrainOutbox();
+        var own = await product01.Send(HttpMethod.Post, $"{Rounding}/ZAR-BR141/versions/1/approve");
+        own.StatusCode.ShouldBe(System.Net.HttpStatusCode.Forbidden);
+        (await own.Code()).ShouldBe("MAKER_CHECKER_SAME_PERSON");
+        (await host.StrictClientFor(seed.TenantId, "reins02").Send(HttpMethod.Post, $"{Rounding}/ZAR-BR141/versions/1/approve")).StatusCode.ShouldBe(System.Net.HttpStatusCode.Forbidden, "rating isn't the reinsurance officer's area");
+        var approvedByPeer = await host.StrictClientFor(seed.TenantId, "product02").Send(HttpMethod.Post, $"{Rounding}/ZAR-BR141/versions/1/approve");
+        approvedByPeer.StatusCode.ShouldBe(System.Net.HttpStatusCode.OK, await approvedByPeer.Content.ReadAsStringAsync());
+
         // Role templates A and B (signed 3 November 2026): underwriters rate, evaluate and acknowledge themselves, audited; the line configuration managers change Health configuration, one making and the other approving.
         string By(string column, string username) => $"{column} IN (SELECT x FROM iam.user_account u, LATERAL (VALUES (u.username), (u.external_subject), (u.id::text)) v(x) WHERE u.tenant_id = @t AND u.username = '{username}' AND x IS NOT NULL)";
         (await Count($"SELECT count(*) FROM audit.audit_event WHERE tenant_id = @t AND operation = 'EvaluateRuleSet' AND {By("actor_id", "oftza-life-underwriter")}")).ShouldBeGreaterThan(0L, "the Life underwriter evaluates the rules, audited");
