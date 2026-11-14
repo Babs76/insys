@@ -148,6 +148,18 @@ public sealed class OftzaSeedTests(DatabaseFixture fixture) : IClassFixture<Data
         var approvedByPeer = await host.StrictClientFor(seed.TenantId, "product02").Send(HttpMethod.Post, $"{Rounding}/ZAR-BR141/versions/1/approve");
         approvedByPeer.StatusCode.ShouldBe(System.Net.HttpStatusCode.OK, await approvedByPeer.Content.ReadAsStringAsync());
 
+        // BR-141 for the other module roles (Ade, 14 November), shown for the distribution administrator: its own area's table, a second of the role approves.
+        const string Hierarchy = "/api/v1/distribution/static/distribution-hierarchy";
+        var dist01 = host.StrictClientFor(seed.TenantId, "dist01");
+        var node = await dist01.Send(HttpMethod.Post, Hierarchy, new { code = "OFT-BR141", nodeCode = "OFT-BR141", overridingCommission = false, changeReason = "BR-141 test" }, idempotent: true);
+        node.StatusCode.ShouldBe(System.Net.HttpStatusCode.Created, await node.Content.ReadAsStringAsync());
+        (await dist01.Send(HttpMethod.Post, $"{Hierarchy}/OFT-BR141/versions/1/submit", ifMatch: node.ETag())).StatusCode.ShouldBe(System.Net.HttpStatusCode.OK);
+        await host.DrainOutbox();
+        (await (await dist01.Send(HttpMethod.Post, $"{Hierarchy}/OFT-BR141/versions/1/approve")).Code()).ShouldBe("MAKER_CHECKER_SAME_PERSON");
+        (await host.StrictClientFor(seed.TenantId, "product02").Send(HttpMethod.Post, $"{Hierarchy}/OFT-BR141/versions/1/approve")).StatusCode.ShouldBe(System.Net.HttpStatusCode.Forbidden, "distribution isn't the product manager's area");
+        var byDist02 = await host.StrictClientFor(seed.TenantId, "dist02").Send(HttpMethod.Post, $"{Hierarchy}/OFT-BR141/versions/1/approve");
+        byDist02.StatusCode.ShouldBe(System.Net.HttpStatusCode.OK, await byDist02.Content.ReadAsStringAsync());
+
         // Role templates A and B (signed 3 November 2026): underwriters rate, evaluate and acknowledge themselves, audited; the line configuration managers change Health configuration, one making and the other approving.
         string By(string column, string username) => $"{column} IN (SELECT x FROM iam.user_account u, LATERAL (VALUES (u.username), (u.external_subject), (u.id::text)) v(x) WHERE u.tenant_id = @t AND u.username = '{username}' AND x IS NOT NULL)";
         (await Count($"SELECT count(*) FROM audit.audit_event WHERE tenant_id = @t AND operation = 'EvaluateRuleSet' AND {By("actor_id", "oftza-life-underwriter")}")).ShouldBeGreaterThan(0L, "the Life underwriter evaluates the rules, audited");
