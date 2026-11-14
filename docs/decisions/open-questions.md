@@ -1299,3 +1299,42 @@ All eight in `docs/reports/2026-10-30-wave5a-batch3.md` accepted as recommended,
 - **Cause:** a disposed host is never freed. 14 hosts in a row all stayed alive; the heap went from 330 MB to 1.7 GB and builds from 11 to 15 seconds. Heap dumps show what holds them: EF Core's static `ServiceProviderCache`, ASP.NET's rate limiter timers (never stopped, and holding the middleware), and Npgsql's static metrics reporters.
 - **Decided:** full local runs use `tools/full-sweep.sh`, a process per CI shard: 607 of 607 in UTC+14, in 28 minutes against 101. No retries or longer timeouts. Freeing the hosts themselves would need reflection into private framework fields, so it was tried and dropped.
 - **Still open:** the retention stays. Production has one host, so it doesn't build up there. It may be part of OQ-129's stalls on CI, which isn't shown.
+
+### OQ-163 to OQ-165 From the front end's requests BR-140, BR-144 and BR-145 (14 November 2026)
+Checked in code at `e20d29a`. Ade, 14 November: BR-144 accepted as specified, with its open question recorded; BR-145 an open question for Ade and the actuary, with a proposal for the contract; BR-140's readiness check proposed, not built.
+
+**OQ-163: does a partly paid Life claim recover anything from reinsurance? (BR-144) Open.**
+- **Today:** a recovery is raised only on the paid loss, as ADR-015 and OQ-063 say ("what was paid × the ceded share"). General settles on its payment (`ClaimPaymentCompleted` → `GeneralClaim.SettleClaim` → `GeneralClaimSettled`). Life raises `LifeClaimSettled` only when the paid total reaches the approved amount (`LifeClaim.RecordPayment`), and Reinsurance recovers only on `GeneralClaimSettled` and `LifeClaimSettled`.
+- **So** a Life claim paid in parts (several payees, or a payment held then released) recovers nothing until its last payment, and then recovers on the whole. Nothing in the SRS (REI-001, REI-003), the domain model or ADR-015 says whether each payment should recover its own share.
+- **Options:** (a) keep it: one recovery when the claim is fully paid; (b) a recovery per payment, on what that payment paid. (b) needs Reinsurance to consume each payment (a new event or `ClaimPaymentCompleted` with the claim's cession), and the bordereau to show several recoveries per claim.
+- **Recommended:** (a) until a treaty asks for (b): it matches the specifications, and recoveries are billed periodically anyway. For Ade, with finance.
+
+**OQ-164: the basis of a rated premium: annual, or per instalment? (BR-145) Open, for Ade and the actuary.**
+- **Today:** the rating engine has no basis of its own. It reads the frequency only to choose the premium bounds (`RatingEngine`, `RatingStep.Bounds`; ADR-007 step 6), so `MONTHLY` and `ANNUAL` give the same figure. The two lines read that figure differently:
+  - **General** takes it as **annual** (`QuotePricing.Frequency = "ANNUAL"`), and Billing splits it into instalments with the product's instalment loading (V0079). Ade's decision of 28 October 2026 (`docs/reports/2026-10-28-wave2-batch6.md`).
+  - **Life** takes it as **one instalment** at the proposal's frequency (`LifeProposal.QuotedPremium`: "the premium per instalment at Frequency, from Rating"), billed as it is; Reinsurance annualises it by the number of instalments.
+- **So** the same product configuration means 3,050 a year in General and 3,050 a month in Life. A test case's expected premium (`OFT-GD1001-1-T1`, `MONTHLY`, 3,050) passes whatever its frequency, and neither the test case nor the result says which basis it is on. Nothing in the SRS (LIF-005, BIL-001, PRD-008), the domain model or OQ-052 settles it.
+- **Questions:** is a rated premium always annual, with modal factors (a loading per frequency) applied after rating, for Life too? Or is the basis set per product?
+
+**Proposal for the contract (BR-145, not built):**
+1. **A basis per product version:** `premium_basis`, `ANNUAL` or `PER_INSTALMENT`, in the product's rating configuration, defaulting to today's behaviour per line (General `ANNUAL`, Life and Health `PER_INSTALMENT`), so nothing in force changes. A new numbered migration and a static data field.
+2. **The rating result states it:** `premiumBasis` and the `frequency` used, on the calculation view, `PremiumCalculated` and the product's simulation (`SimulatedPremium`), so the console labels "per year" or "per month".
+3. **A test case states it:** the test case library gains `premiumBasis`; a case whose basis differs from its product's is refused at validation, and its frequency is then meaningful: under `PER_INSTALMENT`, the expected premium is the instalment.
+4. **Later, if the actuary wants modal factors:** a per-frequency factor applied by Rating under `ANNUAL`, replacing General's billing-side instalment loading, with its own test cases.
+
+Recommended: 1 to 3, after the actuary answers OQ-052 and this question; 4 only if they ask. The OpenAPI change is additive (two read-only fields, one optional input).
+
+**OQ-165: readiness should name portal roles that no portal channel covers (BR-140). Proposed, not built.**
+- **Today:** readiness `CHANNELS` (`Insys.Integration.Infrastructure/Channels/ChannelReadiness.cs`) checks only staff roles on the back-office channel, through `IStaffRoles.InForce`. A role held only by external users isn't a staff role there, and a portal role nobody holds yet is counted as staff. So a tenant can be activated with portals enabled and no portal channel, and every portal call is refused `CHANNEL_NOT_ENABLED` (what BR-140 saw on the sample tenant).
+- **Proposed Identity contract** (in `Insys.Identity.Contracts`), from the function catalogue's audiences:
+  ```csharp
+  /// <summary>Roles in force that grant portal functions, with those functions by audience (CUSTOMER, BROKER, PROVIDER), for onboarding readiness.</summary>
+  public interface IPortalRoles
+  {
+      Task<IReadOnlyList<(string RoleCode, string Audience, IReadOnlyList<string> Functions)>> InForce(Guid tenantId, DateOnly day, CancellationToken cancellationToken);
+  }
+  ```
+  A role whose functions span audiences appears once per audience. Read from `iam.cfg_role_function_assignments` joined to `iam.ref_function_catalogue.audiences`, as `StaffRoles` reads its roles.
+- **Readiness then adds**, for each tenant feature `CUSTOMER_PORTAL`, `BROKER_PORTAL` or `PROVIDER_PORTAL` that is enabled: a channel in force with that audience, and for each portal role of the audience an allowed row on it for each of its channel-scoped functions. Missing rows named `ROLE: function (AUDIENCE channel)`, as today's are. `IStaffRoles` leaves out roles whose functions are all portal functions, so the two checks don't overlap.
+- **Tests:** readiness lists a portal role with no channel, then a channel without its rows, then clears; a staff-only tenant (no portal features) is unaffected. No OpenAPI change: readiness's `missing` list is free text.
+- **Size (Est):** about a day. Waits on Ade's go-ahead.

@@ -161,6 +161,19 @@ internal sealed class StaticDataChangeLookup([FromKeyedServices(StaticDataDbCont
         await transaction.CommitAsync(cancellationToken);
         return id as Guid?;
     }
+
+    public async Task<string?> EntityCode(Guid tenantId, Guid changeRequestId, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await TenantSession.SetTenant(connection, transaction, tenantId, cancellationToken);
+        await using var command = new NpgsqlCommand("SELECT entity_code FROM sdm.change_request WHERE tenant_id = @t AND id = @id", connection, transaction);
+        command.Parameters.AddWithValue("t", tenantId);
+        command.Parameters.AddWithValue("id", changeRequestId);
+        var entity = await command.ExecuteScalarAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return entity as string;
+    }
 }
 
 internal sealed class HolidayCalendar([FromKeyedServices(StaticDataDbContext.SchemaName)] NpgsqlDataSource dataSource) : Contracts.IHolidayCalendar

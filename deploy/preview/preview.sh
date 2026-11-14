@@ -32,6 +32,7 @@
 #   open-ssh <ip>     SSH from that address, until the next run closes it (for Ade to unseal OpenBao); check closes it soonest
 #   diagnose          read only: what rebooted the server or restarted k3s (boots, package runs, needrestart, the journal, Hetzner's actions)
 #   os-update         the server's packages updated, nothing restarted or rebooted; says what would need a restart or reboot
+#   rotate-ssh-key    PREVIEW_SSH_KEY_NEW put in place of PREVIEW_SSH_KEY: on the server, every other key removed; and in Hetzner
 #   reset             everything removed and made again from the seed, with new passwords and a new OpenBao
 #   rotate-passwords  new passwords for the accounts
 #   destroy           the server and its firewall; the address is kept, so the DNS records stay right
@@ -654,6 +655,66 @@ diagnose() {
     | jq -r '.actions[] | "\(.started)  \(.command)  \(.status)"'
 }
 
+# A connection with one given key only, nothing else offered: for rotate-ssh-key, to prove which key the server accepts.
+ssh_with() { # key file, then the command
+  local with=$1; shift
+  ssh -i "$with" -o IdentitiesOnly=yes -o BatchMode=yes -o PreferredAuthentications=publickey -o StrictHostKeyChecking=accept-new \
+    -o UserKnownHostsFile="$RUNNER_TEMP/known_hosts" -o ConnectTimeout=20 "root@$(address)" "$@"
+}
+fingerprint_of() { ssh-keygen -l -f "$1" | awk '{print $2, $NF}'; }
+
+# The SSH key, replaced (Ade, 14 November: PREVIEW_SSH_KEY was exposed on 13 November). The old key connects and adds the new key's public
+# half; a second connection with the new key alone must work, or the run stops with the old key still in place; then, over the new key,
+# every other key goes from every authorized_keys on the server, root's and any user's, and the old key is shown refused; then Hetzner's
+# ssh-key object is made again with the new public key, under the same name, for a rebuild or rescue. Fingerprints only are printed, never
+# a key. Afterwards Ade puts the new key in PREVIEW_SSH_KEY, deletes PREVIEW_SSH_KEY_NEW, and runs check.
+rotate_ssh_key() {
+  local new="$RUNNER_TEMP/preview-ssh-new" pub old_fp new_fp files
+  : "${PREVIEW_SSH_KEY_NEW:?set the secret PREVIEW_SSH_KEY_NEW in the Environment preview to the new private key}"
+  install -m 600 /dev/null "$new"
+  printf '%s\n' "$PREVIEW_SSH_KEY_NEW" > "$new"
+  pub=$(ssh-keygen -y -P '' -f "$new" 2>/dev/null) || fail "PREVIEW_SSH_KEY_NEW doesn't parse as an unencrypted private key"
+  printf '%s\n' "$pub" > "$new.pub"
+  ssh-keygen -y -P '' -f "$key" > "$key.pub" 2>/dev/null || fail "PREVIEW_SSH_KEY doesn't parse as an unencrypted private key"
+  old_fp=$(fingerprint_of "$key.pub"); new_fp=$(fingerprint_of "$new.pub")
+  echo "Old key (PREVIEW_SSH_KEY): $old_fp"
+  echo "New key (PREVIEW_SSH_KEY_NEW): $new_fp"
+  [ "$old_fp" != "$new_fp" ] || fail "PREVIEW_SSH_KEY_NEW is the same key as PREVIEW_SSH_KEY"
+
+  # Where sshd reads keys from, and the fingerprints there now.
+  # shellcheck disable=SC2016 # it runs on the server, which expands it
+  files='for f in /root/.ssh/authorized_keys /root/.ssh/authorized_keys2 /home/*/.ssh/authorized_keys /home/*/.ssh/authorized_keys2; do [ -f "$f" ] && echo "$f"; done
+    sshd -T 2>/dev/null | sed -n "s/^authorizedkeysfile //p" | tr " " "\n" | sed "s#%u#root#g; s#%h#/root#g" | grep "^/" | while read -r f; do [ -f "$f" ] && echo "$f"; done; true'
+  # shellcheck disable=SC2016 # it runs on the server, which expands it
+  ssh_with "$key" 'c=$(sshd -T 2>/dev/null | sed -n "s/^authorizedkeyscommand //p"); [ -z "$c" ] || [ "$c" = none ] || echo "Note: sshd also asks an AuthorizedKeysCommand, which this run does not change."'
+  echo "Keys on the server before:"
+  # shellcheck disable=SC2016 # it runs on the server, which expands it
+  ssh_with "$key" "for f in \$($files); do echo \"  \$f\"; ssh-keygen -l -f \"\$f\" 2>/dev/null | awk '{print \"    \" \$2, \$NF}'; done"
+
+  # 1. The new key added with the old one, from stdin (a public key, but never on a command line either).
+  # shellcheck disable=SC2016 # it runs on the server, which expands it
+  ssh_with "$key" 'mkdir -p /root/.ssh && chmod 700 /root/.ssh && touch /root/.ssh/authorized_keys && chmod 600 /root/.ssh/authorized_keys
+    read -r line; grep -qxF "$line" /root/.ssh/authorized_keys || printf "%s\n" "$line" >> /root/.ssh/authorized_keys' < "$new.pub"
+  # 2. The new key alone, on a second connection.
+  ssh_with "$new" true || fail "The new key wasn't accepted on a connection of its own. Nothing was removed: the old key still works, and Hetzner's key is unchanged."
+  echo "The new key connects on its own."
+  # 3. Every other key removed, over the new key: root's file holds only the new key, every other file none.
+  # shellcheck disable=SC2016 # it runs on the server, which expands it
+  ssh_with "$new" "read -r line; for f in \$($files); do if [ \"\$f\" = /root/.ssh/authorized_keys ]; then printf '%s\n' \"\$line\" > \"\$f\"; else : > \"\$f\"; fi; done" < "$new.pub"
+  echo "Keys on the server after:"
+  # shellcheck disable=SC2016 # it runs on the server, which expands it
+  ssh_with "$new" "for f in \$($files); do echo \"  \$f\"; ssh-keygen -l -f \"\$f\" 2>/dev/null | awk '{print \"    \" \$2, \$NF}'; done"
+  if ssh_with "$key" true 2>/dev/null; then fail "The old key is still accepted after the removal: check sshd's AuthorizedKeysFile and AuthorizedKeysCommand"; fi
+  echo "The old key is refused."
+  ssh_with "$new" true || fail "The new key stopped connecting after the removal"
+  # 4. Hetzner's ssh-key object, made again with the new public key under the same name.
+  hcloud ssh-key delete "$name" >/dev/null 2>&1 || true
+  hcloud ssh-key create --name "$name" --public-key "$pub" >/dev/null
+  echo "Hetzner's ssh-key $name: $(hcloud ssh-key describe "$name" -o format='{{.Fingerprint}}') (MD5, as Hetzner shows it)"
+  key=$new   # the rest of this run (closing SSH) uses the new key
+  summary "**The SSH key is replaced:** the server and Hetzner accept only $new_fp. Now put the new private key in PREVIEW_SSH_KEY, delete PREVIEW_SSH_KEY_NEW, and run check."
+}
+
 # What a first provision needs, checked without creating or changing anything: pass or fail per item, and no secret in the output. Each item
 # returns its own status, as set -e doesn't apply inside the if that runs it.
 check() {
@@ -767,6 +828,9 @@ case "$action" in
     ;;
   diagnose)
     ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; diagnose
+    ;;
+  rotate-ssh-key)
+    ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; rotate_ssh_key
     ;;
   os-update)
     ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; os_policy; os_update

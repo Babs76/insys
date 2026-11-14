@@ -201,7 +201,7 @@ internal static class Checker
 /// </summary>
 public sealed class ApprovalDecision(IUserRoleQuery roles, IAuthorityReader authority, IEnumerable<IApprovalAuthoritySource> sources, ITenantContext tenant,
     IExecutionContext execution, IBusinessDate businessDate, Tenancy.Contracts.ITenantBaseCurrency baseCurrency, IClock clock, IAuditTrail audit,
-    IEnumerable<IApprovalCheckerExclusions> exclusions)
+    IEnumerable<IApprovalCheckerExclusions> exclusions, IEnumerable<IApprovalFunctionSource> functionSources, ExecutionScope scope)
 {
     private const string PermissionAuthority = "(static_data.approve)";
 
@@ -219,6 +219,14 @@ public sealed class ApprovalDecision(IUserRoleQuery roles, IAuthorityReader auth
         if (approval.RequiredPermission is { } permission && !execution.HasPermission(permission))
         {
             return Error.Forbidden(ErrorCodes.Forbidden, $"Deciding this approval needs the {permission} permission.");
+        }
+
+        // ADR-026, SRS-002: and the function the owning module names (a static data change: the table's SD_{module}_APPROVE), on this route as on the table's own.
+        if (await FunctionRefusal(approval, cancellationToken) is { } refusal)
+        {
+            return Error.Forbidden(refusal.Code, refusal.Function is { } function
+                ? $"Deciding this approval needs the {function} function, which your roles do not grant."
+                : "The record this approval is about was not found, so its function cannot be checked.");
         }
 
         // SRS-002, BR-109: nor anyone the owning module excludes (for enhanced due diligence, everyone who contributed to the assessment).
@@ -242,8 +250,37 @@ public sealed class ApprovalDecision(IUserRoleQuery roles, IAuthorityReader auth
     public async Task<bool> CanApprove(Approval approval, Guid checkerId, CancellationToken cancellationToken) =>
         (!approval.IsScoped || execution.CurrentScope.Allows(approval.ProductCode, approval.OrgNodeCode))
         && (approval.RequiredPermission is not { } permission || execution.HasPermission(permission))
+        && await FunctionRefusal(approval, cancellationToken) is null
         && !await Excluded(approval, checkerId, cancellationToken)
         && approval.CanApprove(checkerId, await GrantsFor(approval, checkerId, cancellationToken), clock.UtcNow, await BaseCurrency(cancellationToken)).IsSuccess;
+
+    /// <summary>
+    /// The refusal of the function the owning module names for deciding the approval (ADR-026: functions come from the
+    /// checker's role assignments, per request), or null when it names none or the checker may use it. A caller with no
+    /// function access (a service) is not checked, as at the endpoint (FunctionChecks).
+    /// </summary>
+    private async Task<(string Code, string? Function)?> FunctionRefusal(Approval approval, CancellationToken cancellationToken)
+    {
+        if (scope.Functions is not { } functions)
+        {
+            return null;
+        }
+
+        foreach (var source in functionSources.Where(s => s.Covers(approval.BusinessRefType)))
+        {
+            if (await source.FunctionFor(tenant.RequireTenantId(), approval.BusinessRefType, approval.BusinessRefId, cancellationToken) is not { } function)
+            {
+                return (ErrorCodes.FunctionNotGranted, null);
+            }
+
+            if (functions.Refusal([function]) is { } code)
+            {
+                return (code, function);
+            }
+        }
+
+        return null;
+    }
 
     private async Task<bool> Excluded(Approval approval, Guid checkerId, CancellationToken cancellationToken)
     {
