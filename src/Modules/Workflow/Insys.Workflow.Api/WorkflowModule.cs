@@ -185,7 +185,9 @@ public sealed class WorkflowModule : IModule
             .AlsoChecks(Insys.General.Contracts.GeneralPermissions.PolicyNonRenew, "the approval is an insurer's non-renewal (businessRefType GENERAL_RENEWAL, type GENERAL_NON_RENEWAL; requiredPermission names it)")
             .WithSummary("Approve (not by the maker, within the checker's authority)")
             .WithDescription("The checker needs a role with authority for the approval type and, where there is an amount, a limit at least that amount (WFL-004). "
-                + "The body is optional: a reason (BR-001) is kept as the approval's decisionReason, as a rejection's is.")
+                + "The body is optional: a reason (BR-001) is kept as the approval's decisionReason, as a rejection's is. "
+                + "A static data change approval (businessRefType STATIC_DATA_CHANGE) also needs the approve function of the table the change is for "
+                + "(SD_{catalogue module}_APPROVE), as the table's own approve and reject operations do: 403 FUNCTION_NOT_GRANTED without it (ADR-026, SRS-002).")
             .WithEventualEffects("the decision reaches the record that asked for it (a static data version, product version, role assignment, bank "
                 + "account, payment or claim instruction, first tenant administrator ...) and its own follow-ups, such as a product's publication; read that "
                 + "record again to see it.")
@@ -203,6 +205,8 @@ public sealed class WorkflowModule : IModule
             .AlsoChecks(PartyPermissions.DueDiligenceUnblock, "the approval unblocks a party's due diligence (businessRefType DUE_DILIGENCE_UNBLOCK; requiredPermission names it)")
             .AlsoChecks(Insys.General.Contracts.GeneralPermissions.PolicyNonRenew, "the approval is an insurer's non-renewal (businessRefType GENERAL_RENEWAL, type GENERAL_NON_RENEWAL; requiredPermission names it)")
             .WithSummary("Reject, with a reason")
+            .WithDescription("A static data change approval (businessRefType STATIC_DATA_CHANGE) also needs the approve function of the table the change is for "
+                + "(SD_{catalogue module}_APPROVE), as the table's own approve and reject operations do: 403 FUNCTION_NOT_GRANTED without it (ADR-026, SRS-002).")
             .WithEventualEffects("the rejection reaches the record that asked for it, which is put back in a defined state (an expiry or withdrawal does the same); read that record again.")
             .RequirePermission(WorkflowPermissions.ApprovalApprove);
 

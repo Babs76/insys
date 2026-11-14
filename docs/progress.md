@@ -326,6 +326,7 @@ The defaults of OQ-062 to OQ-066 were accepted to build (ADR-014, ADR-015, V0021
   - **ProcessInstance:** versioned definitions (WFL-001) and transition guards. The owning module's validation is called and fails closed (WFL-002). Tasks can be assigned, reassigned and escalated, with SLA timers (WFL-003). State is stored, so processes survive restarts (WFL-005).
   - Case notes, and a background job for expiry and timers.
 - **Static Data approvals moved to Workflow:** the same approve and reject paths are now decided as Workflow approvals (Phase 0 item 7).
+  - The generic approve and reject routes also need the table's own `SD_{module}_APPROVE` function for a static data change (ADR-026; Ade, 14 November 2026).
 - **Rules:** EvaluateRuleSet for eligibility and underwriting. Each decision is recorded in `rules.decision_log` with its rule set version and inputs (LIF-002).
 - **Rating:**
   - The reference engine (ADR-007). Each calculation is recorded with its breakdown, product version and rating version (PRD-008).

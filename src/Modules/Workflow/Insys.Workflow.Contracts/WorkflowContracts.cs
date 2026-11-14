@@ -83,6 +83,20 @@ public interface IApprovalCheckerExclusions
 }
 
 /// <summary>
+/// The function a checker must hold to decide a module's approval, found from the record it is about (ADR-026), on every
+/// route that decides it: for a static data change, the table's own approve function (SD_{module}_APPROVE), as the
+/// table's approve and reject route requires. Workflow refuses a checker without it (403 FUNCTION_NOT_GRANTED, or the
+/// tenant's refusal of the function) and leaves the approval off their list of approvals to decide.
+/// </summary>
+public interface IApprovalFunctionSource
+{
+    bool Covers(string businessRefType);
+
+    /// <summary>The function code, or null when the record is not found: the approval is then refused, never decided without the check.</summary>
+    Task<string?> FunctionFor(Guid tenantId, string businessRefType, Guid businessRefId, CancellationToken cancellationToken);
+}
+
+/// <summary>
 /// Authority a module keeps in its own static data, for its own approval types (Life claims: life.cfg_claims_authority_limits
 /// by claim type). For an approval type a source decides, Workflow uses the source's authority instead of the
 /// delegation table; maker and checker still differ (SRS-002, WFL-004).
