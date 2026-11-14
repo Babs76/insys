@@ -25,6 +25,9 @@
 # The Preview's nightly backup (docs/plans/insys-preview.md, Backups): both databases dumped and OpenBao's volume copied to the server's disk,
 # /var/backups/insys, which Hetzner's daily backups capture. Seven nights are kept. OpenBao's copy holds only sealed data: restoring it needs
 # Ade's unseal key, as any restart does. Restoring: docs/preview/restore.md.
+# The backups run first (init containers, in order), then OpenBao's seal is checked (Ade, 14 November): a sealed OpenBao fails the job, with
+# exit 3, which fails it at once (podFailurePolicy, no retry), says so in the job's log, and sends one email through the realm's SMTP relay to
+# the address in the Secret insys-alert, if set (PREVIEW_ALERT_TO). Nothing secret is in the email. The backups are kept either way.
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -35,10 +38,14 @@ spec:
   jobTemplate:
     spec:
       backoffLimit: 2
+      podFailurePolicy:
+        rules:
+          - action: FailJob   # a sealed OpenBao: no retry, so one email
+            onExitCodes: {containerName: seal, operator: In, values: [3]}
       template:
         spec:
           restartPolicy: Never
-          containers:
+          initContainers:
             - name: databases
               image: postgres:18
               command:
@@ -70,6 +77,37 @@ spec:
               volumeMounts:
                 - {name: backup, mountPath: /backup}
                 - {name: openbao, mountPath: /openbao, readOnly: true}
+          containers:
+            - name: seal
+              image: curlimages/curl:8.23.0@sha256:3fb7e13e5d179a845c97d78204f3f1064d1907037f26a3ebf91710571151fd93
+              command:
+                - sh
+                - -c
+                - |
+                  day=$(date -u +%F)
+                  answer=$(curl -s --max-time 10 http://insys-openbao:8200/v1/sys/seal-status)
+                  sealed=$(printf '%s' "$answer" | sed -n 's/.*"sealed": *\([a-z]*\).*/\1/p')
+                  if [ "$sealed" = false ]; then echo "OpenBao is unsealed."; exit 0; fi
+                  state="OpenBao is sealed"; [ "$sealed" = true ] || state="OpenBao is sealed or down: it didn't answer its seal status"
+                  echo "$state. The backups of $day were taken; the API can't use its keys until OpenBao is unsealed."
+                  if [ -z "${ALERT_TO:-}" ]; then echo "No alert address is set (PREVIEW_ALERT_TO), so no email was sent."; exit 3; fi
+                  printf 'From: INSYS Preview <%s>\r\nTo: %s\r\nSubject: INSYS Preview: OpenBao is sealed (%s)\r\n\r\n%s\r\n' "$ALERT_FROM" "$ALERT_TO" "$day" \
+                    "The nightly backup of $day on the INSYS Preview: $state. The backups were taken. Encrypted fields can't be read until OpenBao is unsealed with the key from the encrypted file of the run that initialised it. Run check to see why it sealed." > /tmp/mail
+                  if curl -sS --max-time 60 --ssl-reqd --url "smtp://$ALERT_RELAY/$ALERT_HELO" --mail-from "$ALERT_FROM" --mail-rcpt "$ALERT_TO" --upload-file /tmp/mail; then
+                    echo "An alert email was sent."
+                  else
+                    echo "The alert email couldn't be sent (see above)."
+                  fi
+                  exit 3
+              env:
+                - name: ALERT_TO
+                  valueFrom: {secretKeyRef: {name: insys-alert, key: to, optional: true}}
+                - name: ALERT_FROM
+                  valueFrom: {secretKeyRef: {name: insys-alert, key: from, optional: true}}
+                - name: ALERT_RELAY
+                  valueFrom: {secretKeyRef: {name: insys-alert, key: relay, optional: true}}
+                - name: ALERT_HELO
+                  valueFrom: {secretKeyRef: {name: insys-alert, key: helo, optional: true}}
           volumes:
             - name: backup
               hostPath: {path: /var/backups/insys, type: DirectoryOrCreate}

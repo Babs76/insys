@@ -30,6 +30,8 @@
 #   provision         the server, its firewall and address, k3s, the images, the chart, OpenBao, the seed and the accounts
 #   upgrade           the images and the chart at this ref; data and passwords stay
 #   open-ssh <ip>     SSH from that address, until the next run closes it (for Ade to unseal OpenBao); check closes it soonest
+#   diagnose          read only: what rebooted the server or restarted k3s (boots, package runs, needrestart, the journal, Hetzner's actions)
+#   os-update         the server's packages updated, nothing restarted or rebooted; says what would need a restart or reboot
 #   reset             everything removed and made again from the seed, with new passwords and a new OpenBao
 #   rotate-passwords  new passwords for the accounts
 #   destroy           the server and its firewall; the address is kept, so the DNS records stay right
@@ -175,6 +177,7 @@ chart() {
     --set authentication.authority=http://insys-keycloak:8080/realms/insys,authentication.requireHttpsMetadata=false \
     --set authentication.issuer=https://id.$PREVIEW_DOMAIN/realms/insys,console.issuer=https://id.$PREVIEW_DOMAIN/realms/insys"
   on_server "kubectl wait --for=condition=complete job -l app.kubernetes.io/name=migrate --timeout=900s && kubectl rollout status statefulset/insys-openbao --timeout=600s"
+  alert_secret
   on_server "kubectl apply -f /root/insys/preview/backup.yaml >/dev/null"
   realm_name
   user_admin
@@ -466,7 +469,14 @@ backup_now() {
   local day items
   day=$(date -u +%F)
   # shellcheck disable=SC2016 # it runs on the server, which expands it
-  on_server 'job=insys-backup-$(date -u +%H%M%S); kubectl create job "$job" --from=cronjob/insys-backup >/dev/null && kubectl wait --for=condition=complete "job/$job" --timeout=900s >/dev/null' \
+  # The job's last step checks OpenBao's seal: a seal fails the job after the backups were taken, which kms_check below reports in turn.
+  on_server 'job=insys-backup-$(date -u +%H%M%S); kubectl create job "$job" --from=cronjob/insys-backup >/dev/null || exit 1
+    for _ in $(seq 1 300); do   # until the Job ends: Complete, or Failed once its retries are spent (a seal has none)
+      ended=$(kubectl get job "$job" -o jsonpath="{range .status.conditions[?(@.status==\"True\")]}{.type} {end}")
+      case "$ended" in *Complete*) exit 0 ;; *Failed*) break ;; esac; sleep 3
+    done
+    log=$(kubectl logs "job/$job" -c seal 2>/dev/null); echo "$log"
+    case "$log" in *"OpenBao is sealed"*) exit 0 ;; esac; exit 1' \
     || fail "the backup job didn't complete"
   echo "Backup of $day, on the server in /var/backups/insys:"
   on_server "ls -l /var/backups/insys | awk '/$day/ {print \"  \" \$NF \", \" \$5 \" bytes\"}'"
@@ -531,6 +541,99 @@ kubectl scale deploy/insys-keycloak deploy/insys-api --replicas=1 >/dev/null
 kubectl rollout status deploy/insys-keycloak --timeout=900s >/dev/null
 EOF
   echo "After the restore: $(counts)"
+}
+
+# Where the nightly backup's seal alert goes: PREVIEW_ALERT_TO (a secret Ade sets), with the realm's relay and sender. On the server only, from
+# stdin; the address is never on a command line or in the log. Unset, the job still fails on a seal, and the run summary says no email goes.
+alert_secret() {
+  jq -nc --arg to "${PREVIEW_ALERT_TO:-}" --argjson smtp "$smtp" --arg helo "$PREVIEW_DOMAIN" \
+    '{apiVersion: "v1", kind: "Secret", metadata: {name: "insys-alert"}, type: "Opaque",
+      stringData: {to: $to, from: $smtp.from, relay: "\($smtp.host):\($smtp.port)", helo: $helo}}' \
+    | on_server "kubectl apply -f - >/dev/null"
+  [ -n "${PREVIEW_ALERT_TO:-}" ] \
+    || summary "**No seal alert address:** set the secret PREVIEW_ALERT_TO in the Environment preview for the nightly backup to email when OpenBao is sealed. Until then a seal fails the job on the server only, and check shows it."
+}
+
+# No automatic updates, reboots or service restarts on the server (Ade, 14 November): unattended-upgrades' periodic runs and apt's daily timers
+# off, needrestart lists and restarts nothing (k3s included). Updates go through os-update, approved like every run. k3s's own unit still
+# restarts it if it crashes (Restart=always), which keeps its containers, OpenBao's included, running.
+os_policy() {
+  # shellcheck disable=SC2016 # it runs on the server, which expands it
+  on_server 'set -e
+    cat > /etc/apt/apt.conf.d/99insys-no-automatic <<EOF
+// INSYS Preview (Ade, 14 November 2026): no automatic updates or reboots. Updates go through os-update in the preview workflow.
+APT::Periodic::Update-Package-Lists "0";
+APT::Periodic::Download-Upgradeable-Packages "0";
+APT::Periodic::Unattended-Upgrade "0";
+APT::Periodic::AutocleanInterval "0";
+Unattended-Upgrade::Automatic-Reboot "false";
+EOF
+    mkdir -p /etc/needrestart/conf.d
+    cat > /etc/needrestart/conf.d/99insys.conf <<EOF
+# INSYS Preview (Ade, 14 November 2026): list what needs a restart, restart nothing.
+\$nrconf{restart} = "l";
+\$nrconf{override_rc}{qr(^k3s)} = 0;
+EOF
+    systemctl disable --now apt-daily.timer apt-daily-upgrade.timer >/dev/null 2>&1 || true
+    echo "Server policy: unattended upgrades $(apt-config dump | sed -n "s/^APT::Periodic::Unattended-Upgrade \"\(.*\)\";/\1/p"), automatic reboot $(apt-config dump | sed -n "s/^Unattended-Upgrade::Automatic-Reboot \"\(.*\)\";/\1/p"), apt timers $(systemctl is-enabled apt-daily.timer apt-daily-upgrade.timer 2>/dev/null | sort -u | paste -sd/ -), needrestart lists only."'
+}
+
+# The server's packages, updated with nothing restarted or rebooted. A reboot restarts OpenBao, which comes back sealed: that is Ade's call,
+# with the unseal key at hand. k3s isn't an apt package, so this doesn't change it.
+os_update() {
+  # shellcheck disable=SC2016 # it runs on the server, which expands it
+  on_server 'set -e; export DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=l NEEDRESTART_SUSPEND=1
+    apt-get update -qq
+    before=$(dpkg-query -W -f "\${Package} \${Version}\n" | sort)
+    apt-get -y -qq -o Dpkg::Options::=--force-confold upgrade >/dev/null
+    after=$(dpkg-query -W -f "\${Package} \${Version}\n" | sort)
+    changed=$(comm -13 <(echo "$before") <(echo "$after"))
+    echo "Packages updated: $(printf "%s" "$changed" | grep -c . || true)"; printf "%s\n" "$changed" | sed -n "1,80s/^/  /p"
+    needrestart -b -r l 2>/dev/null | sed -n "s/^NEEDRESTART-SVC: /Needs a restart (not done): /p; s/^NEEDRESTART-KSTA: 1$/Kernel: current/p; s/^NEEDRESTART-KSTA: [23]$/Kernel: a newer one is installed, used after a reboot/p"
+    if [ -f /var/run/reboot-required ]; then echo "A reboot is needed ($(paste -sd, /var/run/reboot-required.pkgs 2>/dev/null)). Not done: a reboot seals OpenBao."; else echo "No reboot is needed."; fi'
+}
+
+# Read only: what rebooted the server or restarted k3s. The boots, the reboot records, unattended-upgrades' and apt's logs for the last 14
+# days, needrestart's lines in apt's log, and the journal's system lines around each boot and k3s's last start; then Hetzner's own record
+# of actions on the server (a reboot or reset from its API or console is there). The repository is public, so only system lines are read:
+# systemd, logind, the kernel, the package tools and k3s's start and stop, never an application's log, a session's address or a command line.
+diagnose() {
+  local id
+  # shellcheck disable=SC2016 # it runs on the server, which expands it
+  on_server 'since=$(date -u -d "-14 days" +%F)
+    echo "== Now: $(date -u "+%F %T") UTC; booted $(uptime -s); k3s started $(systemctl show k3s -p ActiveEnterTimestamp --value)"
+    echo "== Journal storage: $( [ -d /var/log/journal ] && echo persistent || echo "volatile, so earlier boots are not kept")"
+    echo "== Boots"; journalctl --list-boots --no-pager 2>/dev/null | tail -n 12
+    echo "== Reboots and shutdowns (wtmp)"; last -x -F reboot shutdown 2>/dev/null | grep -v "^$" | head -n 12
+    echo "== Automatic updates as set now"
+    apt-config dump | grep -E "^(APT::Periodic::(Update-Package-Lists|Unattended-Upgrade)|Unattended-Upgrade::Automatic-Reboot(-Time)?) "
+    systemctl list-timers apt-daily.timer apt-daily-upgrade.timer --all --no-pager 2>/dev/null | sed -n "1,4p"
+    grep -hE "^[[:space:]]*\\\$nrconf\{(restart|kernelhints)\}" /etc/needrestart/needrestart.conf /etc/needrestart/conf.d/*.conf 2>/dev/null | sed "s/^/needrestart: /"
+    echo "== unattended-upgrades since $since"
+    zcat -f /var/log/unattended-upgrades/unattended-upgrades.log* 2>/dev/null | awk -v s="$since" "substr(\$0,1,10) >= s" | grep -vE " DEBUG " | sort | tail -n 60 | cut -c1-300
+    echo "== apt runs since $since"
+    zcat -f /var/log/apt/history.log* 2>/dev/null | awk -v s="$since" "/^Start-Date: /{p = (\$2 >= s)} p && /^(Start-Date|Commandline|Requested-By|End-Date):/" | cut -c1-200 | tail -n 60
+    echo "== needrestart and reboot lines in the apt term log since $since"
+    zcat -f /var/log/apt/term.log* 2>/dev/null | awk -v s="$since" "/^Log started: /{p = (\$3 >= s)} p && (/^Log started/ || tolower(\$0) ~ /restart|reboot|k3s|kernel/)" | cut -c1-200 | tail -n 60
+    window() { # from, to, title: the system lines of the journal, no sessions or addresses
+      echo "== Journal, $3 ($1 to $2 UTC)"
+      journalctl --no-pager --utc -o short-iso --since "$1" --until "$2" -t systemd -t systemd-logind -t systemd-shutdown -t kernel -t unattended-upgrade \
+        -t unattended-upgrades-shutdown -t needrestart -t apt.systemd.daily -t cloud-init 2>/dev/null \
+        | grep -vE "session|Session|user@|from [0-9a-f:.]+|ssh" | tail -n 50 | cut -c1-220
+      journalctl --no-pager --utc -o short-iso --since "$1" --until "$2" -u k3s 2>/dev/null \
+        | grep -E "k3s.service|Stopping|Stopped|Starting|Started|signal|shutting down" | grep -vE "msg=|level=" | tail -n 15 | cut -c1-220
+    }
+    for boot in $(journalctl --list-boots --no-pager -o json 2>/dev/null | jq -r ".[-5:][] | .first_entry" 2>/dev/null); do
+      t=$(date -u -d "@$((boot / 1000000))" "+%F %T")
+      window "$(date -u -d "$t 25 minutes ago" "+%F %T")" "$(date -u -d "$t 2 minutes" "+%F %T")" "before and at the boot of $t"
+    done
+    k=$(date -u -d "$(systemctl show k3s -p ActiveEnterTimestamp --value)" "+%F %T")
+    window "$(date -u -d "$k 25 minutes ago" "+%F %T")" "$(date -u -d "$k 2 minutes" "+%F %T")" "before and at the last start of k3s, $k"'
+  echo "== Hetzner's actions on the server (newest first)"
+  id=$(hcloud server describe "$name" -o format='{{.ID}}')
+  printf 'header = "Authorization: Bearer %s"\n' "$HCLOUD_TOKEN" \
+    | curl -sS --fail-with-body -K - "https://api.hetzner.cloud/v1/servers/$id/actions?sort=started:desc&per_page=25" \
+    | jq -r '.actions[] | "\(.started)  \(.command)  \(.status)"'
 }
 
 # What a first provision needs, checked without creating or changing anything: pass or fail per item, and no secret in the output. Each item
@@ -627,10 +730,10 @@ fi
 trap close_ssh EXIT
 case "$action" in
   provision)
-    ssh_key; infrastructure; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; cluster; images; server_secrets; pull_secret; chart; openbao; encrypt; seed; encrypt; check_tls
+    ssh_key; infrastructure; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; os_policy; cluster; images; server_secrets; pull_secret; chart; openbao; encrypt; seed; encrypt; check_tls
     ;;
   upgrade)
-    ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; cluster; images; pull_secret; chart; check_tls
+    ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; os_policy; cluster; images; pull_secret; chart; check_tls
     ;;
   open-ssh)
     trap - EXIT
@@ -638,9 +741,15 @@ case "$action" in
     echo "SSH is open from $2 until the next run closes it."
     ;;
   reset)
-    ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh
+    ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; os_policy
     on_server "KUBECONFIG=/etc/rancher/k3s/k3s.yaml helm uninstall insys --wait || true; kubectl delete pvc --all --wait=true; kubectl delete secret insys-secrets --ignore-not-found"
     cluster; images; server_secrets; pull_secret; chart; openbao; encrypt; seed; encrypt; check_tls
+    ;;
+  diagnose)
+    ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; diagnose
+    ;;
+  os-update)
+    ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; os_policy; os_update
     ;;
   backup)
     ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; backup_now
