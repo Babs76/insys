@@ -59,6 +59,24 @@ Ade's `check` on 14 November read: `sealed true; pod started 2026-11-04T13:11:16
 - **`os-update` (confirm `os-update`).** Everything else: `apt-get upgrade` with nothing restarted or rebooted. It lists the packages changed, the services that would need a restart, whether a newer kernel waits, and whether a reboot is needed. A reboot seals OpenBao, so it stays Ade's call, with the unseal key at hand. k3s isn't an apt package.
 - **The nightly backup names a seal.** Its backups run first; its last step asks OpenBao's seal status. Sealed, or not answering, the job fails at once with no retry (exit 3, `podFailurePolicy`), says so in its log, and sends one email through the realm's SMTP relay to the address in the Secret `insys-alert`. That address comes from the Environment's secret **`PREVIEW_ALERT_TO`, which Ade sets** (before the reset, 14 November). It reaches the server only at a `provision`, `upgrade` or `reset`, and every such run's summary, and `check`'s, says so. Unset, the job still fails, on the server only. The `backup` action reads the seal step's verdict and goes on to its checks. Rehearsed: the step against a sealed and an unsealed OpenBao 2.6.5 and one that is down (exits 3, 0, 3), and the email through a STARTTLS-only mail server; the CronJob validated by k3s v1.33.5. Not rehearsed in a cluster: the init containers' order and `podFailurePolicy` (the local k3s couldn't pull its sandbox image).
 
+### The SSH key swap, before the reset (`preview-rotate-ssh-key`)
+**The private key in `PREVIEW_SSH_KEY` was exposed on 13 November** (Ade). It must be gone from the server and from Hetzner before the `reset`: the reset makes OpenBao's new keys and the new passwords on that same server, and anyone with the old key could read them. A reset doesn't replace the key, as the server and its `authorized_keys` are kept, and `infrastructure()` creates Hetzner's `ssh-key` object only when none exists.
+
+**`rotate-ssh-key` (confirm `rotate-ssh-key`)** takes the new private key from the secret `PREVIEW_SSH_KEY_NEW`, which Ade sets, and:
+1. connects with the old key and adds the new key's public half to `/root/.ssh/authorized_keys`;
+2. opens a second connection with the new key alone, and stops if that fails, with the old key still in place and Hetzner's key unchanged;
+3. over the new key, removes every other key from every `authorized_keys` on the server (root's, any user's, and any absolute `AuthorizedKeysFile` sshd names), then shows the old key refused;
+4. deletes Hetzner's `ssh-key` object `insys-preview` and makes it again with the new public key;
+5. prints fingerprints only, before and after, never a key.
+
+Rehearsed against OpenSSH on Ubuntu 24.04: an extra key in root's file and in a user's both went, the old key was refused, and a second key file from `AuthorizedKeysFile` was cleaned too. With the new key refused by the server, the run stopped and the old key still worked.
+
+**Then Ade:** moves the new key into `PREVIEW_SSH_KEY`, deletes `PREVIEW_SSH_KEY_NEW`, and runs `check`, which shows the runner still connects.
+
+**After restoring a Hetzner backup or snapshot from before the swap,** the old key is back (`docs/preview/restore.md`): run the swap again, with the old key in `PREVIEW_SSH_KEY` and the current one in `PREVIEW_SSH_KEY_NEW`.
+
+**What the swap doesn't cover:** it takes the old key's access away. It can't show that nobody used the key before it went, or remove anything such a person left on the server. SSH was open from 11 November (`open-ssh` 43012903114, from Ade's address only) until the `check` of 14 November closed it, so using the key needed that address too. If that isn't enough assurance, `destroy` and `provision` make a new server.
+
 ### The recovery: what `reset` does on this Preview (Ade decides; nothing has been run)
 `action: reset`, `confirm: reset`, `acme: production`. Its steps:
 1. `helm uninstall`, then delete every volume in the default namespace, then delete `insys-secrets`.

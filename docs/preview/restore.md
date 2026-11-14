@@ -27,3 +27,5 @@ Actions, then preview, then Run workflow, with `action: backup` (no confirm word
 1. In Hetzner's console, restore the chosen backup onto the server `insys-preview`. The address stays the same, so DNS needs nothing.
 2. OpenBao comes back sealed: run `open-ssh` with your address and unseal it as in step 3 above.
 3. Run `backup` to check it.
+
+**A Hetzner backup or snapshot taken before an SSH key swap brings the old key back** (Ade, 14 November). Restoring one puts back the server's disk, `/root/.ssh/authorized_keys` with it, so the key the swap removed works again. After such a restore, run `rotate-ssh-key` again before anything else: with the old key still in `PREVIEW_SSH_KEY` and the current one in `PREVIEW_SSH_KEY_NEW`, as in the handover's "The SSH key swap".
