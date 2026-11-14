@@ -477,30 +477,7 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
         (await Journals("COMMISSION", entitlement.GetProperty("id").GetGuid())).Count.ShouldBe(2);
 
         // A claim on a ceded policy is settled; IdentifyRecovery and BillRecovery: 70 % of the 35 000 paid (REI-003).
-        var vehicle = await Vehicle();
-        var policy = await IssuedPolicy(vehicle);
-        var claim = await Created("/api/v1/general/claims", new
-        {
-            policyId = policy, riskObjectId = vehicle, coverageCode = "OWN_DAMAGE", lossDate = Today, causeCode = "COLLISION", perilCode = "ACC",
-        });
-        var number = (await (await _maker.PostAsync($"/api/v1/general/claims/{claim}/register", null)).Json()).GetProperty("claimNumber").GetString()!;
-        (await _maker.PostAsJsonAsync($"/api/v1/claims/claims/{number}/reserves", new { action = "Set", reserveType = "INDEMNITY", amount = 50_000m, currency = "ZAR", reason = "Assessed" }))
-            .StatusCode.ShouldBe(HttpStatusCode.OK);
-        (await _maker.PostAsJsonAsync($"/api/v1/general/claims/{claim}/assessor", new { assessorPartyId = Assessor })).StatusCode.ShouldBe(HttpStatusCode.OK);
-        await _factory.DrainOutbox();
-        var assessment = (await (await _maker.GetAsync($"/api/v1/general/claims/{claim}/assessments")).Json()).GetProperty("items").EnumerateArray().Single().GetProperty("id").GetGuid();
-        (await _maker.PostAsync($"/api/v1/general/assessments/{assessment}/start", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
-        (await _maker.PostAsJsonAsync($"/api/v1/general/assessments/{assessment}/report", new { assessedAmount = 40_000m })).StatusCode.ShouldBe(HttpStatusCode.OK);
-        (await _maker.PostAsync($"/api/v1/general/assessments/{assessment}/accept", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
-        var payee = await _maker.RegisterPerson("Insured");
-        var account = await _maker.AddVerifiedBankAccount(_checker, _factory, payee, "62 0009 8765");
-        (await _maker.PostAsJsonAsync($"/api/v1/general/claims/{claim}/settlement", new
-        {
-            payeePartyId = payee, bankAccountId = account, reserveType = "INDEMNITY", decisionCode = "SETTLE", rationale = "Assessed and accepted",
-        })).StatusCode.ShouldBe(HttpStatusCode.OK);
-        await _factory.DrainOutbox();
-        await Decide(GeneralApprovals.SettlementBusinessRefType, claim);
-        var instruction = await _db.ScalarAsOwner<Guid>("SELECT id FROM claims.claim_payment_instruction WHERE claim_number = @n", ("n", number));
+        var (claim, number, instruction, policy) = await ApprovedSettlementOnACededPolicy();
         await PayOut(PaymentPurposes.ClaimPayout, instruction);
         (await Get($"/api/v1/general/claims/{claim}")).GetProperty("status").GetString().ShouldBe("Settled");
 
@@ -518,6 +495,29 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
             .ShouldBe(await _db.ScalarAsOwner<Guid>("SELECT id FROM iam.user_account WHERE tenant_id = @t AND external_subject = 'underwriter'", ("t", Tenant)));
         await _factory.DrainOutbox();
         (await Journals("RI_RECOVERY", recoveryId)).Count.ShouldBe(2);
+    }
+
+    /// <summary>
+    /// BR-144 (ADR-015, OQ-063 item 3): a recovery is raised when the claim is paid, not when its settlement is approved.
+    /// Approved and not yet paid, the ceded claim has no recovery; once the payout is confirmed paid, it has exactly one,
+    /// for the ceded share (70 %) of the 35 000 paid (REI-003).
+    /// </summary>
+    [Fact]
+    public async Task ACededClaim_RecoversNothingOnApproval_AndTheCededShareOnceItIsPaid_REI003()
+    {
+        var (claim, number, instruction, policy) = await ApprovedSettlementOnACededPolicy();
+        (await Get($"/api/v1/general/claims/{claim}")).GetProperty("status").GetString().ShouldBe("Approved");
+        (await _db.ScalarAsOwner<string>("SELECT status FROM claims.claim_payment_instruction WHERE id = @i", ("i", instruction))).ShouldBe("RELEASED");
+        (await Get($"/api/v1/reinsurance/recoveries?claimNumber={number}")).GetProperty("items").GetArrayLength().ShouldBe(0, "approval alone raises no recovery");
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM reinsurance.recovery WHERE claim_number = @n", ("n", number))).ShouldBe(0L);
+
+        await PayOut(PaymentPurposes.ClaimPayout, instruction);
+        (await _db.ScalarAsOwner<string>("SELECT status FROM claims.claim_payment_instruction WHERE id = @i", ("i", instruction))).ShouldBe("PAID");
+        (await Get($"/api/v1/general/claims/{claim}")).GetProperty("status").GetString().ShouldBe("Settled");
+        var recovery = (await Get($"/api/v1/reinsurance/recoveries?claimNumber={number}")).GetProperty("items").EnumerateArray().Single();
+        (recovery.GetProperty("treatyCode").GetString(), recovery.GetProperty("paidAmount").GetDecimal(), recovery.GetProperty("recoverable").GetDecimal(),
+            recovery.GetProperty("status").GetString(), recovery.GetProperty("policyRef").GetGuid()).ShouldBe(("QS-1", 35_000m, 24_500m, "Billed", policy));
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM reinsurance.recovery WHERE claim_number = @n", ("n", number))).ShouldBe(1L);
     }
 
     [Fact]
@@ -988,6 +988,39 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
         var kept = await Changed();
         (await _db.ScalarAsOwner<long>("SELECT count(*) FROM commission.commission_recovery WHERE policy_ref = @p", ("p", kept))).ShouldBe(0);
         (await Entitlements(kept)).ShouldNotContain(e => e.GetProperty("intermediaryCode").GetString() == "BRK-9");
+    }
+
+    /// <summary>
+    /// A claim on a ceded policy (QS-1, 70 % ceded), reserved, assessed at 40 000 and accepted, whose settlement (35 000
+    /// after the excess) is approved by the checker: its payment instruction is released and not yet paid.
+    /// </summary>
+    private async Task<(Guid Claim, string Number, Guid Instruction, Guid Policy)> ApprovedSettlementOnACededPolicy()
+    {
+        var vehicle = await Vehicle();
+        var policy = await IssuedPolicy(vehicle);
+        var claim = await Created("/api/v1/general/claims", new
+        {
+            policyId = policy, riskObjectId = vehicle, coverageCode = "OWN_DAMAGE", lossDate = Today, causeCode = "COLLISION", perilCode = "ACC",
+        });
+        var number = (await (await _maker.PostAsync($"/api/v1/general/claims/{claim}/register", null)).Json()).GetProperty("claimNumber").GetString()!;
+        (await _maker.PostAsJsonAsync($"/api/v1/claims/claims/{number}/reserves", new { action = "Set", reserveType = "INDEMNITY", amount = 50_000m, currency = "ZAR", reason = "Assessed" }))
+            .StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await _maker.PostAsJsonAsync($"/api/v1/general/claims/{claim}/assessor", new { assessorPartyId = Assessor })).StatusCode.ShouldBe(HttpStatusCode.OK);
+        await _factory.DrainOutbox();
+        var assessment = (await (await _maker.GetAsync($"/api/v1/general/claims/{claim}/assessments")).Json()).GetProperty("items").EnumerateArray().Single().GetProperty("id").GetGuid();
+        (await _maker.PostAsync($"/api/v1/general/assessments/{assessment}/start", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await _maker.PostAsJsonAsync($"/api/v1/general/assessments/{assessment}/report", new { assessedAmount = 40_000m })).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await _maker.PostAsync($"/api/v1/general/assessments/{assessment}/accept", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        var payee = await _maker.RegisterPerson("Insured");
+        var account = await _maker.AddVerifiedBankAccount(_checker, _factory, payee, "62 0009 8765");
+        (await _maker.PostAsJsonAsync($"/api/v1/general/claims/{claim}/settlement", new
+        {
+            payeePartyId = payee, bankAccountId = account, reserveType = "INDEMNITY", decisionCode = "SETTLE", rationale = "Assessed and accepted",
+        })).StatusCode.ShouldBe(HttpStatusCode.OK);
+        await _factory.DrainOutbox();
+        await Decide(GeneralApprovals.SettlementBusinessRefType, claim);
+        var instruction = await _db.ScalarAsOwner<Guid>("SELECT id FROM claims.claim_payment_instruction WHERE claim_number = @n", ("n", number));
+        return (claim, number, instruction, policy);
     }
 
     private async Task<Guid> IssuedPolicy(Guid vehicle)
