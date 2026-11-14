@@ -25,10 +25,11 @@
 # ============================================================================
 # The INSYS Preview's actions (docs/plans/insys-preview.md), run by .github/workflows/preview.yml on a GitHub runner:
 #   check             what a first provision needs (Hetzner token, server type in the location, SSH key, age recipient, pull token),
-#                     checked without creating or changing anything
+#                     checked without creating anything; once the server exists, also whether OpenBao is sealed, over SSH opened for
+#                     the runner only and closed at the end with any other SSH rule
 #   provision         the server, its firewall and address, k3s, the images, the chart, OpenBao, the seed and the accounts
 #   upgrade           the images and the chart at this ref; data and passwords stay
-#   open-ssh <ip>     SSH from that address, until the next run closes it (for Ade to unseal OpenBao)
+#   open-ssh <ip>     SSH from that address, until the next run closes it (for Ade to unseal OpenBao); check closes it soonest
 #   reset             everything removed and made again from the seed, with new passwords and a new OpenBao
 #   rotate-passwords  new passwords for the accounts
 #   destroy           the server and its firewall; the address is kept, so the DNS records stay right
@@ -52,6 +53,9 @@ out="$RUNNER_TEMP/preview-secrets.age"
 
 mask() { echo "::add-mask::$1"; }
 fail() { echo "::error::$*" >&2; exit 1; }
+summary() { [ -z "${GITHUB_STEP_SUMMARY:-}" ] || printf '%s\n\n' "$*" >> "$GITHUB_STEP_SUMMARY"; }
+# Which run initialised the server's OpenBao, and so whose encrypted file holds its unseal key: "<run id> <yyyy-mm-dd>", written by openbao().
+openbao_run_note=/var/lib/rancher/k3s/server/insys-openbao-run
 
 ssh_key() {
   : "${PREVIEW_SSH_KEY:?}"
@@ -199,6 +203,17 @@ openbao() {
   jq -nc --arg t "$token" '{stringData: {kmsToken: $t}}' | on_server "kubectl patch secret insys-secrets --type merge --patch-file /dev/stdin >/dev/null"
   on_server "kubectl rollout restart deploy/insys-api && kubectl rollout status deploy/insys-api --timeout=600s && kubectl rollout status deploy/insys-keycloak --timeout=900s"
   OPENBAO_INIT=$init
+  on_server "printf '%s %s\n' '${GITHUB_RUN_ID:-local}' '$(date -u +%F)' > $openbao_run_note"
+  summary "**This run's file, preview-secrets, holds the unseal key and root token of the OpenBao it initialised: the only copy.** Download it and keep it offline; every unseal needs it. GitHub deletes the artifact after 90 days."
+}
+
+# OpenBao's state, and what would explain a seal: OpenBao starts sealed whenever its container starts, so the pod's start and restarts, the
+# container's last stop and its reason (OOMKilled, Error), when k3s last started, and when the server booted. Times are UTC.
+openbao_state() {
+  # shellcheck disable=SC2016 # it runs on the server, which expands it
+  on_server 'sealed=$(/root/insys/openbao/openbao.sh sealed insys 2>/dev/null || echo unknown)
+    set -- $(kubectl get pod insys-openbao-0 -o jsonpath="{.status.startTime} {.status.containerStatuses[0].restartCount} {.status.containerStatuses[0].lastState.terminated.finishedAt} {.status.containerStatuses[0].lastState.terminated.reason}")
+    echo "sealed ${sealed:-unknown}; pod started ${1:-?}, restarts ${2:-?}${3:+, container last stopped $3 (${4:-no reason})}; k3s started $(systemctl show k3s -p ActiveEnterTimestamp --value); server booted $(uptime -s)"'
 }
 
 # The API's and Keycloak's port-forwards on the server, once both have rolled out, each waited for until its health or realm answers 200 (a fixed
@@ -347,8 +362,7 @@ failure_state() { # trace id, if the seed's error gave one
   on_server 'kubectl get pod insys-seaweedfs-0 -o jsonpath="{.status.phase} {.status.containerStatuses[0].restartCount}{\"\n\"}"
     kubectl exec insys-seaweedfs-0 -c seaweedfs -- sh -c "grep -o \"accessKey\\\": \\\"\\\"\" /etc/seaweedfs/s3.json | wc -l"
     printf "s3.bucket.list\n" | kubectl exec -i insys-seaweedfs-0 -c seaweedfs -- weed shell 2>/dev/null | grep -E "size|bucket" | head -n 5' || true
-  echo "OpenBao (sealed; pod restarts):"
-  on_server "/root/insys/openbao/openbao.sh sealed insys; kubectl get pod insys-openbao-0 -o jsonpath='{.status.containerStatuses[0].restartCount}{\"\\n\"}'" || true
+  echo "OpenBao: $(openbao_state || true)"
 }
 
 # Each app's Keycloak client gets the Preview's addresses, through the tunnel: sign-in returns to the app, and the browser may call the token endpoint.
@@ -380,6 +394,15 @@ encrypt() {
     '{domain: $domain, accounts: $accounts.accounts, openbao: ($openbao | if . then {unsealKey: .keys_base64[0], rootToken: .root_token} else null end)}' \
     | age -r "$PREVIEW_AGE_RECIPIENT" -o "$out"
   echo "Encrypted for Ade: $(basename "$out")."
+  if [ -z "${OPENBAO_INIT:-}" ]; then   # only provision and reset initialise OpenBao, so only their files hold its key
+    local run
+    run=$(on_server "cat $openbao_run_note 2>/dev/null" || true)
+    echo "::warning::This run's file has no OpenBao unseal key. It is in $(openbao_file "$run")."
+    summary "**This run's file has no OpenBao unseal key.** It is in $(openbao_file "$run"). Keep that file: without it a sealed OpenBao can't be unsealed."
+  fi
+}
+openbao_file() { # the note's "<run id> <date>"
+  if [ -n "$1" ]; then echo "the file of run ${1%% *}, which initialised this OpenBao on ${1#* }"; else echo "the file of the run that last initialised OpenBao, which the server has no record of (before 14 November a run didn't note it)"; fi
 }
 
 # TLS is proven before anyone relies on it: the certificate must come from the CA asked for. Staging's issuers name Let's Encrypt too
@@ -417,9 +440,10 @@ counts() { # rows in a few tables, to compare before and after a restore
 # OpenBao unsealed, and a data key the database holds unwrapped by Transit with the API's own token: so what was encrypted before reads
 # after. The key's plaintext is never printed; its ciphertext is useless without OpenBao.
 kms_check() {
-  local sealed wrapped
-  sealed=$(on_server "/root/insys/openbao/openbao.sh sealed insys")
-  [ "$sealed" = false ] || fail "OpenBao is sealed: unseal it (the handover's Unsealing OpenBao), then run this again"
+  local state wrapped
+  state=$(openbao_state)
+  echo "OpenBao: $state"
+  [[ $state == "sealed false;"* ]] || fail "OpenBao is sealed: unseal it (the handover's Unsealing OpenBao), then run this again"
   wrapped=$(printf '%s' "SELECT convert_from(ciphertext, 'UTF8') FROM integration.field_data_key WHERE master_key_ref LIKE 'openbao:%' ORDER BY created_at LIMIT 1" \
     | on_server "kubectl exec -i insys-postgres-0 -- psql -U insys_owner -d insys -At")
   [ -n "$wrapped" ] || { echo "OpenBao: unsealed; no data key stored yet to decrypt."; return 0; }
@@ -436,8 +460,10 @@ kms_check() {
 }
 
 # A backup now, by the nightly job, then each file checked: the dumps list their contents (pg_restore --list), the archive opens (tar -t).
+# The pod takes the whole dump before listing it: pg_restore --list reads only the table of contents and exits, and kubectl exec -i, still
+# forwarding the rest of the file, hung until SSH dropped (backup run 42299623098: about 17 minutes per dump, and no count, unnoticed).
 backup_now() {
-  local day
+  local day items
   day=$(date -u +%F)
   # shellcheck disable=SC2016 # it runs on the server, which expands it
   on_server 'job=insys-backup-$(date -u +%H%M%S); kubectl create job "$job" --from=cronjob/insys-backup >/dev/null && kubectl wait --for=condition=complete "job/$job" --timeout=900s >/dev/null' \
@@ -445,7 +471,10 @@ backup_now() {
   echo "Backup of $day, on the server in /var/backups/insys:"
   on_server "ls -l /var/backups/insys | awk '/$day/ {print \"  \" \$NF \", \" \$5 \" bytes\"}'"
   for db in insys keycloak; do
-    echo "  $day-$db.dump lists $(on_server "kubectl exec -i insys-postgres-0 -- pg_restore --list < /var/backups/insys/$day-$db.dump | grep -vc '^;'") items"
+    items=$(on_server "timeout 600 kubectl exec -i insys-postgres-0 -- sh -c 'cat > /tmp/list.dump && pg_restore --list /tmp/list.dump | grep -vc \"^;\"; rm -f /tmp/list.dump' \
+      < /var/backups/insys/$day-$db.dump") || true
+    [[ $items =~ ^[1-9][0-9]*$ ]] || fail "$day-$db.dump didn't list as a pg_dump archive (got: ${items:-nothing})"
+    echo "  $day-$db.dump lists $items items"
   done
   echo "  $day-openbao.tar.gz holds $(on_server "tar -tzf /var/backups/insys/$day-openbao.tar.gz | wc -l") entries"
   echo "Counts now: $(counts)"
@@ -518,8 +547,23 @@ check() {
   item "PREVIEW_SSH_KEY" check_ssh_key
   item "PREVIEW_AGE_RECIPIENT" check_age
   item "PREVIEW_CONSOLE_PULL_TOKEN" check_pull
-  [ "$failed" = 0 ] || fail "At least one check failed: see FAIL above."
-  echo "Every check passed. Nothing was created or changed."
+  local changed="Nothing was created or changed."
+  if hcloud server describe "$name" >/dev/null 2>&1; then   # once provisioned: OpenBao, over SSH for this runner, closed again at the end
+    ssh_key
+    trap close_ssh EXIT
+    open_ssh "${RUNNER_IP:?}"
+    item "OpenBao" check_openbao
+    changed="Nothing was created. SSH was opened for this runner only, and is closed at the end with any other SSH rule (open-ssh's too)."
+  fi
+  [ "$failed" = 0 ] || fail "At least one check failed: see FAIL above. $changed"
+  echo "Every check passed. $changed"
+}
+check_openbao() {
+  local state
+  wait_for_ssh
+  state=$(openbao_state) || { echo "the server didn't answer: ${state:-no detail}"; return 1; }
+  echo "$state"
+  [[ $state == "sealed false;"* ]]
 }
 check_token() {
   hcloud location list -o noheader -o columns=name >/dev/null || return 1
@@ -606,8 +650,9 @@ case "$action" in
     ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; restore
     close_ssh; open_ssh "$2"   # the runner's rule goes; only yours stays, for the unseal
     trap - EXIT                # the next run closes it
-    echo "OpenBao is sealed, as after any restore. SSH is open from $2: unseal it as the handover's Unsealing OpenBao says, with the key from the file"
-    echo "of the OpenBao this backup came from (run 41835262697's), then run backup to check the counts and that a stored data key decrypts."
+    echo "OpenBao is sealed, as after any restore. SSH is open from $2: unseal it as the handover's Unsealing OpenBao says, with the key of the OpenBao"
+    echo "this backup came from: $(openbao_file "$(on_server "cat $openbao_run_note 2>/dev/null" || true)"), if the backup is from that day or later."
+    echo "Then run backup, to check the counts and that a stored data key decrypts."
     ;;
   rotate-passwords)
     ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; seed; encrypt

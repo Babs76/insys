@@ -1,6 +1,100 @@
 # Back-end handover
 
-**The Mac session stopped on Wednesday 4 November 2026; a Claude Code cloud session continues from here (from about 13:40 UTC).** The go-live register is written, and so is how to continue. The state of branches is under "State at the stop", with the cloud session's changes under "The cloud session (4 November)".
+**The Mac session resumed on 14 November 2026, after the cloud session (4 to 6 November).** The go-live register is written, and so is how to continue. The state of branches is under "State at the stop", with the cloud session's changes under "The cloud session (4 November)". **What happened since, and the recovery Ade decides on, are under "OpenBao sealed, its key lost (6 to 14 November)", next.**
+
+## OpenBao sealed, its key lost (6 to 14 November)
+**The Preview's OpenBao is sealed and can't be unsealed: the only way back is `reset`.** Ade decides when. No `preview` run has been started since, and none runs without Ade's approval.
+
+### What happened
+- **6 November:** `upgrade` run 42190162209 (d488b32, chart revision 5) and `check` run 42286802427 passed. The `backup` run 42299623098 was dispatched at 21:47 UTC on 298ba30.
+- **8 November:** that run waited for approval about 40 hours, then **ran from 13:31 to 14:07 UTC**. It failed at its last step, the KMS check: `OpenBao is sealed` (14:07:01). Before that it took the backup (`2026-11-08-insys.dump`, 15,770,489 bytes; `-keycloak.dump`, 466,579; `-openbao.tar.gz`, 18,505, 60 entries), and storage passed. The counts were: parties 30, users 81, documents 31, General policies 12, Life policies 12, Health memberships 12, approvals 586, data keys 1. The run closed SSH at its end.
+- **The unseal key is gone.** Only `provision` and `reset` write OpenBao's key into the encrypted file; every other run's file has `openbao: null`. Reset run 41835262697's artifact, the only one with this OpenBao's key, expired after its one day's retention. Ade doesn't have the file.
+- **11 November:** `open-ssh` run 43012903114 opened SSH from Ade's address at 11:33 UTC. No run has closed it since.
+
+### Why the backup check failed: two faults
+1. **OpenBao was sealed.** Sealing is the cause of the failure, and the check reported it correctly.
+2. **Each dump's listing hung for about 17 minutes and printed no count** (`client_loop: send disconnect: Broken pipe`, then `lists  items`), and the run went on as if it had passed. `pg_restore --list` reads only the archive's table of contents and exits, while `kubectl exec -i` went on forwarding the rest of the file. That is most likely what hung it, until SSH dropped. **Fixed on `preview-seal-backup`:**
+   - The pod takes the whole dump into `/tmp`, lists it, and deletes it, with a 10-minute limit.
+   - A count that isn't a positive number now fails the run.
+   - Rehearsed against postgres:18: a 8.8 MB dump lists its items; a corrupt file gives 0 and fails; nothing is left in the pod.
+
+### Why OpenBao became sealed: not yet known
+OpenBao starts sealed whenever its container starts, so something restarted it between the seed of 5 November (`rotate-passwords` 42104013738, done 22:20 UTC) and 8 November 14:07. What the record shows:
+- **No run restarted it.** The only chart run in that time, `upgrade` 42190162209, changed nothing in OpenBao's StatefulSet. Its template and labels are the same from e4e79ae to d488b32, so Helm had nothing to roll.
+- **No run read its state** before the backup. `failure_state` prints it only when a seed fails, and no seed failed after 5 November.
+
+So it was a container restart (a crash, or the node's out-of-memory killer: OpenBao has no memory limit), a k3s restart, or a server reboot. Which one can be read only on the server. **`check` now reads it** (on `preview-seal-backup`, rehearsed with stand-ins):
+- Once the server exists, `check` opens SSH for the runner only and reports OpenBao as an item, PASS if unsealed and FAIL if sealed.
+- With it, the pod's start time and restart count, the container's last stop and its reason (`OOMKilled`, `Error`), when k3s last started, and when the server booted.
+- At the end it closes SSH, including any rule left by `open-ssh`.
+- `kms_check` and `failure_state` print the same line.
+
+**Run `check` before the `reset`:** the reset makes a new pod and resets the restart count, though the boot time and k3s's start stay.
+
+### The key's file, from now on (on `preview-seal-backup`)
+- **The artifact is kept 90 days, not one.** GitHub's maximum for this repository: past that, only Ade's own copy remains.
+- **A run that initialises OpenBao** (`provision`, `reset`) notes its run ID and date on the server, in `/var/lib/rancher/k3s/server/insys-openbao-run`. Neither is secret. Its run summary says, in bold, that its file holds the only copy of the unseal key and root token, to download and keep offline.
+- **A run whose file has no unseal key** (`rotate-passwords`) puts a warning in its run summary and its annotations that names the run whose file has it, from that note. On today's server, which has no note, it says the run isn't recorded.
+- `restore` names that run too, in place of the hard-coded 41835262697.
+
+### Closing SSH now
+**On main as it is: run `backup`.** No confirm word.
+- It opens SSH for the runner only, and takes today's backup, as the nightly job does.
+- It ends red at the KMS check, `OpenBao is sealed`. That's expected.
+- Its exit trap replaces the firewall's rules with 443 only, so Ade's SSH rule goes too.
+- Expect about 35 minutes, as the two listings hang until SSH drops. Don't cancel it: the trap is what closes SSH.
+- Nothing else changes, and `rotate-passwords`, `upgrade` and the confirm-word actions all do more.
+
+**Once `preview-seal-backup` is on main, `check` does it in about 2 minutes,** and records why OpenBao sealed.
+
+### The recovery: what `reset` does on this Preview (Ade decides; nothing has been run)
+`action: reset`, `confirm: reset`, `acme: production`. Its steps:
+1. `helm uninstall`, then delete every volume in the default namespace, then delete `insys-secrets`.
+2. Then, as a provision does: Traefik's settings, the images, new server secrets, the pull secret, the chart, Keycloak's realm name, user-admin secret and SMTP, and the storage and SMTP checks.
+3. Then a new OpenBao: initialised, unsealed and configured.
+4. Then the file is written with its key, the full seed runs with the accounts, the file is written again, and `check_tls` runs.
+
+**Lost:**
+- **The INSYS database**, with all of it: the sample data (30 parties, 36 policies and memberships, 586 approvals, 31 documents' records), audit and parked deliveries. It also holds anything Ade or anyone else entered after the seed.
+- **Keycloak's database:** its users, sessions and any TOTP set up for `BROKER01` or `PROVIDER01`.
+- **The documents in SeaweedFS.**
+- **OpenBao and its one data key.** Fields encrypted under that key are unreadable already, while it stays sealed with no key.
+- **Every secret in `insys-secrets`:** the database, Keycloak admin, object store and hash keys. These are made new, on the server only.
+- **Every password in Ade's earlier files** stops working.
+
+**Kept:**
+- The server, its address and the DNS records.
+- k3s.
+- Traefik's production certificates: they're on Traefik's own volume in `kube-system`, which the reset doesn't touch.
+- The nightly backups in `/var/backups/insys`, and Hetzner's server backups.
+
+**Don't restore a backup older than the reset.** Its OpenBao is the sealed one.
+
+**Rebuilt:**
+- The OFTZA sample data, from the seed.
+- A new OpenBao, with a new unseal key and root token.
+- The 51 accounts, with new passwords.
+- The realm's name, the SMTP relay and the clients' addresses.
+
+**How long:** about 2 hours of running, inside the job's 240-minute limit, plus the wait for approval. The estimate comes from two runs:
+- Reset 41835262697 reached OpenBao's file in under 5 minutes, chart included.
+- The seed with the accounts took 1 hour 47 minutes in `rotate-passwords` 42104013738. The local rehearsals took 96 to 122 minutes.
+
+`check_tls` should pass at once, as the certificates are kept.
+
+**The file to keep:** the reset run's own `preview-secrets` artifact. It downloads as `preview-secrets.zip`, holding `preview-secrets.age`, and that one file has the unseal key, the root token and the 51 accounts. If the run fails after OpenBao, the artifact still holds the key: the file is written straight after OpenBao is initialised. Keep it offline, in two places. To check it without showing a secret:
+```bash
+age -d -i ~/insys-preview-age-key.txt preview-secrets.age | jq '{unsealKey: (.openbao.unsealKey | type == "string" and length > 0), rootToken: (.openbao.rootToken | type == "string" and length > 0), accounts: (.accounts | length)}'
+```
+It must print `true`, `true` and `51`. Any `false` means this isn't the file. If the reset runs after `preview-seal-backup` is on main, its run summary also says so in bold, and the artifact lasts 90 days. **So merge `preview-seal-backup` first.**
+
+**Then the restore rehearsal** (`docs/preview/restore.md`), before the team gets access:
+1. `backup`.
+2. `restore` of that day.
+3. Unseal with the new file's key.
+4. `backup` again: the counts match, and a stored data key decrypts.
+
+That rehearsal is also the first real test that the new file's key unseals.
 
 ## First: the INSYS Preview milestone
 **Decided by Ade, 2 November 2026; it comes before everything else.** A hosted environment for OpenFactor's functional team, with all built functionality, sample data only, and every external integration stubbed and clearly labelled. Not production.
@@ -12,7 +106,7 @@
 
 ### Running the Preview: the five open points in Ade's deployment guide
 1. **The workflow, its actions and the confirmation words.** The workflow is `preview` (`.github/workflows/preview.yml`): Actions, then preview, then Run workflow. It runs in the Environment `preview`, so each run waits for Ade's approval. Its inputs:
-   - `action`: `check` (the default), `provision`, `upgrade`, `open-ssh`, `reset`, `rotate-passwords` or `destroy`. `check` creates and changes nothing: it prints PASS or FAIL for the Hetzner token, the server type's availability in the location now, `PREVIEW_SSH_KEY` (with its public fingerprint, to match against Ade's key), `PREVIEW_AGE_RECIPIENT` and the pull token's read of the console's pinned manifest, and no secret.
+   - `action`: `check` (the default), `provision`, `upgrade`, `open-ssh`, `reset`, `rotate-passwords` or `destroy`. `check` creates nothing: it prints PASS or FAIL for the Hetzner token, the server type's availability in the location now, `PREVIEW_SSH_KEY` (with its public fingerprint, to match against Ade's key), `PREVIEW_AGE_RECIPIENT` and the pull token's read of the console's pinned manifest, and no secret. Once the server exists, it also reports OpenBao: sealed or not, with what would explain a seal. It reads that over SSH opened for the runner, and closes SSH at the end, including `open-ssh`'s rule (`preview-seal-backup`).
    - `confirm`: for `reset`, `rotate-passwords` and `destroy` only, the action's own name typed exactly: `reset`, `rotate-passwords`, `destroy`. Anything else stops the run before it starts.
    - `ssh_from`: for `open-ssh`, the address to allow, Ade's own IP.
    - `acme`: `staging` (the default) until a run has shown a staging certificate on both hosts, then `production`.
@@ -26,7 +120,7 @@
       read -rs key && printf '%s' "$key" | /root/insys/openbao/openbao.sh unseal insys && unset key && kubectl rollout restart deploy/insys-api
       ```
       `read -rs` takes the pasted key without showing it, so it isn't on a command line, in the shell's history or in a file. The script prints nothing on success; `/root/insys/openbao/openbao.sh sealed insys` then prints `false`.
-   4. Run any action (`upgrade` changes nothing else) to close SSH again.
+   4. Run `check` to close SSH again. It also reports OpenBao's state. Before `preview-seal-backup` is on main, `check` doesn't touch the server: run `backup` instead.
 3. **What `destroy` removes.** The server and its firewall. **It keeps the reserved IPv4 address** (made with auto-delete off), so the DNS records stay right for a later `provision`; delete it in Hetzner's console if it's no longer wanted. **It does delete the backups:** Hetzner's backups belong to the server and go with it, and the nightly dumps are on the server's own disk. Take a snapshot in Hetzner's console first if anything must be kept. (Hetzner's documentation says backups go with the server; check the console before relying on it.)
 4. **The portal accounts' TOTP secrets: not set by the run.** `BROKER01` and `PROVIDER01` need a second factor. Setting a TOTP secret isn't built: I found no call in Keycloak's admin API that creates one, and didn't try the alternative. So the first person to sign in to each is asked to set it up, scans the code with an authenticator, and shares that setup (the code or the authenticator export) with the others privately. To build later: the realm's partial import, which can create a credential.
 5. **The console's pull token.** `PREVIEW_CONSOLE_PULL_TOKEN` is a secret in the Environment `preview`: a GitHub classic personal access token with the `read:packages` scope only, from an account that can read `ghcr.io/babs76/insys-console-web`. The run turns it into the cluster's `ghcr` pull secret, on stdin, never on a command line or in a value. The username defaults to `babs76`; set the variable `PREVIEW_CONSOLE_PULL_USER` if the token belongs to another account. The smoke workflow doesn't use it: it pulls with its own token, which needs the package to give `Babs76/insys` read access (package settings, Manage Actions access).
@@ -60,7 +154,7 @@ Ade started run 41801699489 himself, on main (6d6dfbd) with `acme: staging`, and
   1. `upgrade` (no confirm word) applies the new settings. The API and Keycloak restart; OpenBao, the data and `insys-secrets` stay. It ends with `check_tls`, which will most likely fail on the missing certificate and print Traefik's ACME lines. That's expected, and it doesn't undo the upgrade.
   2. `rotate-passwords` (confirm word `rotate-passwords`) runs the seed, which on this empty database is its first run, then writes a new file with the 51 accounts. It has no OpenBao keys: those are in run 41835262697's file.
   
-  If OpenBao is sealed by then (its pod restarted), the API's calls that need the KMS fail. Unseal it as in "Unsealing OpenBao" above, with the key from 41835262697's file. `reset` is the fallback only: it makes a new OpenBao and new keys.
+  If OpenBao is sealed by then (its pod restarted), the API's calls that need the KMS fail. Unseal it as in "Unsealing OpenBao" above, with the key from 41835262697's file. `reset` is the fallback only: it makes a new OpenBao and new keys. **Superseded (14 November):** that file expired, and OpenBao is sealed. See "OpenBao sealed, its key lost".
 - **No certificate, cause found (cloud session, 4 November):** `deploy/preview/traefik.yaml` had `tlsChallenge: {}`. The Traefik chart that k3s v1.33.5 bundles (34.2.0) turns values into arguments with `yaml2CommandLineArgs`, which recurses into maps, so an empty map gives **no argument at all**: the resolver `le` had its CA and storage and no challenge, and never asked Let's Encrypt for anything. Shown by rendering that chart with `helm template`: with `{}` there's no `tlschallenge` argument; with `true` Traefik gets `--certificatesresolvers.le.acme.tlsChallenge=true`. Traefik's own log on the server hasn't been read. Fixed on `preview-acme-tls`: `tlsChallenge: true`, and `deploy/preview/check-traefik.sh`, run by the smoke workflow, renders the chart of the k3s version `preview.sh` pins with these values and fails without the challenge, the storage and the CA. `upgrade` applies it: `cluster()` rewrites the HelmChartConfig, and k3s redeploys Traefik.
 - **The smoke workflow's disk:** main's smoke run 41816611728 (fe5f841) stopped on "No space left on device" in the runner's own log. The workflow now removes .NET, Android, GHC, Swift and CodeQL from the runner first (the smoke test builds in Docker and uses none of them), on `preview-acme-tls`.
 - **Fixed on `preview-seed-forwards` (cloud session, 4 November); was not fixed yet:** in `clients()`, the Keycloak admin password and the API token went to `curl` on its command line. They aren't in the log, but this breaks the script's own rule. Fix it once the Preview is up, by passing them on stdin with `curl -K -`, as `check_server` does.
@@ -248,9 +342,13 @@ All on `wave7-1-fixes`, as one head, as the review's fixes touch every slice. Ch
 | `preview-seed-version-settle` | Merged (18cd541) | A write refused with 412 is made again on the fresh version, after a settle |
 | `preview-seaweedfs-keys` | Merged (e4e79ae) | SeaweedFS reads its S3 keys from the Secret; the smoke test makes the Secret outside the chart; a 500's log line names its cause and trace |
 | `preview-storage-check` | Merged (53f9bb6) | `storage_check`; register row 37; `docs/dependencies/container-images.md` |
-| `preview-signin-names` | Merged only if `git ls-remote` shows main at or past its head | Each account's sign-in name in the quick-start and the encrypted file |
-| `preview-restore` | Merged only if `git ls-remote` shows main at or past its head | The `backup` and `restore` actions for the restore rehearsal |
-| Next | **`upgrade`, then `rotate-passwords`**, from main with `preview-internal-oidc`; not `reset` (it would replace the OpenBao whose keys Ade has). Then the certificates, from `check_tls`'s Traefik lines | See "The first provision" |
+| `preview-signin-names` | Merged (795cf67) | Each account's sign-in name in the quick-start and the encrypted file |
+| `preview-restore` | Merged (6344070, through 94ef8cc) | The `backup` and `restore` actions for the restore rehearsal |
+| `preview-keycloak-smtp` | Merged (4866bb7) | Keycloak's mail through Google Workspace's SMTP relay; nothing to reserved test addresses |
+| `preview-smtp-test-ship` | Merged (d488b32) | `smtp-test.sh` shipped to the server with the chart |
+| `product-capability-inventory`, `docs-inventory-fixes` | Merged (298ba30, 20dafe7) | The capability inventory, for the product guide |
+| `preview-seal-backup` | Pushed 14 November; merges on green CI and smoke on its exact head | The backup's dump listing fixed, `check` reports OpenBao's seal and closes SSH, the file kept 90 days with a warning when it has no key, and this handover |
+| Next | **Ade decides on `reset`** ("OpenBao sealed, its key lost"), after `check` once `preview-seal-backup` is on main. Then the restore rehearsal | |
 
 ### The cloud session (4 November)
 The Mac session stopped; a Claude Code cloud session took over at about 13:40 UTC, while Ade travels. Ade approves every `preview` run himself.

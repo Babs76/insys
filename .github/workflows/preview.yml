@@ -111,5 +111,5 @@ jobs:
         with:
           name: preview-secrets
           path: ${{ runner.temp }}/preview-secrets.age
-          retention-days: 1
+          retention-days: 90   # it may hold OpenBao's unseal key, needed for every unseal (one day lost run 41835262697's); encrypted to Ade's key only
           if-no-files-found: ignore

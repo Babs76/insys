@@ -8,13 +8,13 @@
 - **If both fail:** the `reset` action rebuilds from the seed. Accounts and sample data come back; what the team entered doesn't.
 
 ## Taking and checking a backup: the `backup` action
-Actions, then preview, then Run workflow, with `action: backup` (no confirm word; it changes no data). It runs the nightly job now, then checks each file: the dumps list their contents (`pg_restore --list`), the archive opens (`tar -t`). It prints row counts (parties, users, documents, policies, memberships, approvals, data keys), stores, reads back and deletes an object with the API's keys, and checks that OpenBao is unsealed and decrypts a data key the database holds, with the API's own token. Nothing secret is printed.
+Actions, then preview, then Run workflow, with `action: backup` (no confirm word; it changes no data). It runs the nightly job now, then checks each file: the dumps list their contents (`pg_restore --list`), the archive opens (`tar -t`). It prints row counts (parties, users, documents, policies, memberships, approvals, data keys), stores, reads back and deletes an object with the API's keys, and checks that OpenBao is unsealed and decrypts a data key the database holds, with the API's own token. Nothing secret is printed. `check` reports whether OpenBao is sealed in about 2 minutes, without a backup.
 
 ## Restoring the nightly backup: the `restore` action
 `action: restore`, `confirm: restore`, `backup_day`: the backup's date (`yyyy-mm-dd`), `ssh_from`: your own IP address. **It replaces the databases and OpenBao's volume with the backup's: everything entered since is lost.**
 1. It prints the counts, stops the API and Keycloak, and makes each database again from its dump: dropped and restored with `pg_restore --create`, which brings back its settings and grants. Not `--clean`: on an INSYS database, `--clean` can't drop the partitions' inherited constraints (240 errors in rehearsal); drop-and-create left none, with the same grants, row-level security policies and rows, and a module role reading as before.
 2. It restores OpenBao's volume from the archive and starts OpenBao, which comes back **sealed**. It starts Keycloak and the API, and prints the counts again.
-3. It leaves SSH open from your address, and stops. **Your turn: unseal OpenBao**, with the key of the OpenBao the backup came from (today, run 41835262697's file):
+3. It leaves SSH open from your address, and stops. **Your turn: unseal OpenBao**, with the key of the OpenBao the backup came from. The run's output names the run whose file holds it: the last `provision` or `reset` before the backup's date. A backup older than that run is from an earlier OpenBao.
    1. On your machine: `age -d -i ~/insys-preview-age-key.txt preview-secrets.age | jq -r .openbao.unsealKey`, and copy the key.
    2. `ssh -i <the PREVIEW_SSH_KEY private key> root@2.31.133.22`, then on the server:
       ```bash
