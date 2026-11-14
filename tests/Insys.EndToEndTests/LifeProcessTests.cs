@@ -37,6 +37,7 @@ using Insys.Life.Contracts;
 using Insys.Party.Contracts;
 using Insys.Payments.Contracts;
 using Insys.Rating.Contracts;
+using Insys.Reinsurance.Contracts;
 using Insys.Rules.Contracts;
 using Insys.Workflow.Contracts;
 using Microsoft.Extensions.DependencyInjection;
@@ -47,7 +48,7 @@ namespace Insys.EndToEndTests;
 /// The Life processes of domain-model.json, through the API with the real migrations and every module involved: "Life
 /// proposal to policy" (LIF-001 to LIF-005) and "Missed premium to lapse" (LIF-005), with their compensations, and a
 /// death claim paid to the beneficiaries through the Claims Framework (LIF-008, CLM-003). Commission and reinsurance
-/// steps are tested on General in EnterpriseProcessTests. The premium is an engineering case (OQ-052).
+/// steps are tested on General in EnterpriseProcessTests; here, only a ceded Life claim's recovery (REI-003). The premium is an engineering case (OQ-052).
 /// </summary>
 public sealed class LifeProcessTests(PostgresServer server) : IAsyncLifetime
 {
@@ -524,6 +525,75 @@ public sealed class LifeProcessTests(PostgresServer server) : IAsyncLifetime
         (await (await outsider.GetAsync("/api/v1/portal/life/claims")).Json()).GetProperty("items").EnumerateArray().Select(c => c.GetProperty("id").GetGuid()).ShouldContain(refused,
             "the stranger made that one");
         (await broker.GetAsync($"/api/v1/portal/life/claims/{claim}")).StatusCode.ShouldBe(HttpStatusCode.OK);
+    }
+
+    /// <summary>
+    /// BR-144 (ADR-015, OQ-063 item 3): a Life policy issued under a 30 % retention quota share is ceded at issue; its death
+    /// claim, approved and not yet paid, has no recovery; paid in full, it raises one recovery for the ceded share (70 %)
+    /// of the 1 000 000 paid (REI-003).
+    /// </summary>
+    [Fact]
+    public async Task ACededLifeClaim_RecoversNothingBeforePayment_AndTheCededShareOncePaidInFull_REI003()
+    {
+        await Seed("reinsurance.cfg_treaty_definitions", "EFFECTIVE", "QS-L", ("treaty_code", "QS-L"), ("type", "QUOTA_SHARE"), ("retention", "30"), ("capacity", 5_000_000m),
+            ("period_from", Today.AddYears(-1)), ("period_to", Today.AddYears(1)), ("participants", JsonSerializer.SerializeToElement(new[] { new { reinsurer = "RE-1", share = 100 } })));
+        await Seed("reinsurance.cfg_cession_rules", "EFFECTIVE", "CR-L", ("rule_code", "CR-L"), ("treaty", "QS-L"), ("products", new[] { Product }),
+            ("allocation_basis", "SUM_INSURED"));
+        await Seed("finance.cfg_posting_rules", "EFFECTIVE", "PR-CEDED", ("rule_code", "PR-CEDED"), ("transaction_type", TransactionTypes.PremiumCeded), ("debit_account", "4000"),
+            ("credit_account", "2100"));
+        await Seed("finance.cfg_posting_rules", "EFFECTIVE", "PR-RI-REC", ("rule_code", "PR-RI-REC"), ("transaction_type", TransactionTypes.ReinsuranceRecoverable),
+            ("debit_account", "1100"), ("credit_account", "5000"));
+        await _db.UserWithPermissions(Tenant, "ri-reader", ReinsurancePermissions.CessionRead, ReinsurancePermissions.RecoveryRead);
+        var reinsurance = _factory.ClientFor(Tenant, "ri-reader");
+        async Task<List<JsonElement>> Items(string url)
+        {
+            var response = await reinsurance.GetAsync(url);
+            response.StatusCode.ShouldBe(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+            return (await response.Json()).GetProperty("items").EnumerateArray().ToList();
+        }
+
+        // CalculateCession at issue ("Life proposal to policy").
+        var applicant = await _maker.RegisterPerson("Insured");
+        var spouse = await _maker.RegisterPerson("Widow");
+        var policy = await IssuedPolicy(applicant, spouse, Today.AddMonths(-1));
+        var cession = (await Items($"/api/v1/reinsurance/cessions?sourceDomain={LifeSubjects.SourceDomain}&policyRef={policy}")).Single();
+        (cession.GetProperty("sourceType").GetString(), cession.GetProperty("treatyCode").GetString(), cession.GetProperty("ruleCode").GetString(),
+            cession.GetProperty("cededShare").GetDecimal()).ShouldBe(("LIFE_POLICY", "QS-L", "CR-L", 0.7m));
+
+        // A death claim, assessed at the death cover's 1 000 000 and approved by the checker: no recovery yet.
+        var view = await Get($"/api/v1/life/policies/{policy}");
+        var life = view.GetProperty("lives")[0].GetProperty("id").GetGuid();
+        var death = view.GetProperty("benefits").EnumerateArray().Single(b => b.GetProperty("benefitCode").GetString() == "DEATH").GetProperty("id").GetGuid();
+        await _db.SeedGlobalStatic("life.ref_life_benefit_types", "ACTIVE", "DEATH", Today.AddDays(-30), ("label", "Death"), ("payout_type", "LUMP_SUM"));
+        await Seed("life.cfg_claims_authority_limits", "EFFECTIVE", "CAL-DEATH-SNR", ("role", _approverRole), ("claim_type", "DEATH"), ("limit_value", 1_000_000m));
+        var claim = await Created("/api/v1/life/claims", new { policyId = policy, claimType = "DEATH", eventDate = Today, causeCode = "I21", claimantPartyId = spouse, insuredLifeId = life });
+        var number = (await (await _maker.PostAsync($"/api/v1/life/claims/{claim}/register", null)).Json()).GetProperty("claimNumber").GetString()!;
+        (await _maker.PostAsJsonAsync($"/api/v1/life/claims/{claim}/assessment", new { lines = new[] { new { policyBenefitId = death, amount = 1_000_000m } } }))
+            .StatusCode.ShouldBe(HttpStatusCode.OK);
+        var account = await _maker.AddVerifiedBankAccount(_checker, _factory, spouse, "4400112244");
+        (await _maker.PostAsJsonAsync($"/api/v1/life/claims/{claim}/approval", new
+        {
+            payees = new[] { new { partyId = spouse, bankAccountId = account, sharePct = 100m } }, reserveType = "INDEMNITY", decisionReason = "DEATH_PROVEN",
+            rationale = "Death certificate verified; cause not excluded.",
+        })).StatusCode.ShouldBe(HttpStatusCode.OK);
+        await _factory.DrainOutbox();
+        await Decide(LifeApprovals.ClaimBusinessRefType, claim);
+        (await Get($"/api/v1/life/claims/{claim}")).GetProperty("status").GetString().ShouldBe("Approved");
+        var instruction = await _db.ScalarAsOwner<Guid>("SELECT id FROM claims.claim_payment_instruction WHERE claim_number = @n", ("n", number));
+        (await _db.ScalarAsOwner<string>("SELECT status FROM claims.claim_payment_instruction WHERE id = @i", ("i", instruction))).ShouldBe("RELEASED");
+        (await Items($"/api/v1/reinsurance/recoveries?claimNumber={number}")).ShouldBeEmpty("approval alone raises no recovery");
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM reinsurance.recovery WHERE claim_number = @n", ("n", number))).ShouldBe(0L);
+
+        // Paid in full: LifeClaimSettled, then IdentifyRecovery and BillRecovery on 70 % of the 1 000 000 paid.
+        await PayOut(instruction, "PAID");
+        (await _db.ScalarAsOwner<string>("SELECT status FROM claims.claim_payment_instruction WHERE id = @i", ("i", instruction))).ShouldBe("PAID");
+        (await Get($"/api/v1/life/claims/{claim}")).GetProperty("status").GetString().ShouldBe("Settled");
+        var recovery = (await Items($"/api/v1/reinsurance/recoveries?claimNumber={number}")).Single();
+        (recovery.GetProperty("sourceDomain").GetString(), recovery.GetProperty("treatyCode").GetString(), recovery.GetProperty("cessionId").GetGuid(),
+            recovery.GetProperty("policyRef").GetGuid(), recovery.GetProperty("paidAmount").GetDecimal(), recovery.GetProperty("recoverable").GetDecimal(),
+            recovery.GetProperty("status").GetString()).ShouldBe(("LIFE", "QS-L", cession.GetProperty("id").GetGuid(), policy, 1_000_000m, 700_000m, "Billed"));
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM reinsurance.recovery WHERE claim_number = @n", ("n", number))).ShouldBe(1L);
+        (await _db.ScalarAsOwner<long>("SELECT count(*) FROM integration.dead_letter_message")).ShouldBe(0L);
     }
 
     /// <summary>
