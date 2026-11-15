@@ -69,17 +69,18 @@ public sealed class AssistExplanationTests(DatabaseFixture fixture) : IClassFixt
     }
 
     /// <summary>A recorded calculation, as Rating records one: a product, its inputs, its lines and the premium.</summary>
-    private async Task<Guid> Calculation(Guid tenant, decimal premium, string inputs)
+    private async Task<Guid> Calculation(Guid tenant, decimal premium, string inputs, Guid? subject = null, string product = "OFT-GD1001")
     {
         var id = Guid.CreateVersion7();
         await fixture.Database.ExecuteAsOwner("""
             INSERT INTO rating.rating_request (tenant_id, id, created_at, created_by, request_ref, source_domain, subject_type, subject_id, product_code, product_version,
               rating_version, inputs, premium, currency, calculated_at)
-            VALUES (@t, @id, now(), 'test', @ref, 'GENERAL', 'GENERAL_QUOTE', gen_random_uuid(), 'OFT-GD1001', 1, 1, @inputs::jsonb, @premium, 'ZAR', now());
+            VALUES (@t, @id, now(), 'test', @ref, 'GENERAL', 'GENERAL_QUOTE', @subject, @product, 1, 1, @inputs::jsonb, @premium, 'ZAR', now());
             INSERT INTO rating.rating_result_line (tenant_id, id, created_at, created_by, request_id, line_no, component, factor_code, factor_value, amount) VALUES
               (@t, gen_random_uuid(), now(), 'test', @id, 1, 'BASE_RATE', 'VEHICLE_GROUP', 'G3', @base),
               (@t, gen_random_uuid(), now(), 'test', @id, 2, 'POLICY_FEE', NULL, NULL, 50);
-            """, ("t", tenant), ("id", id), ("ref", "AX-" + id.ToString("N")[..20]), ("inputs", inputs), ("premium", premium), ("base", premium - 50));
+            """, ("t", tenant), ("id", id), ("ref", "AX-" + id.ToString("N")[..20]), ("inputs", inputs), ("premium", premium), ("base", premium - 50),
+            ("subject", subject ?? Guid.CreateVersion7()), ("product", product));
         return id;
     }
 
@@ -269,6 +270,33 @@ public sealed class AssistExplanationTests(DatabaseFixture fixture) : IClassFixt
         var inScope = host.ClientFor(tenant, "ax-sc-own");
         (await inScope.GetAsync($"/api/v1/rating/calculations/{calculation}")).StatusCode.ShouldBe(HttpStatusCode.OK);
         (await (await inScope.Send(HttpMethod.Post, Premiums, new { calculationId = calculation }, idempotent: true)).Json()).GetProperty("reused").GetBoolean().ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task ACalculation_IsScopedByProductOnly_SoAProductLimitedReaderIsRefusedOtherProducts_AndABranchLimitedReaderSeesTheirs_F103_OQ168()
+    {
+        var (tenant, _, host, _) = await Ready();
+        var subject = Guid.CreateVersion7();
+        var motor = await Calculation(tenant, 4200m, """{"currency":"ZAR"}""", subject);
+        var other = await Calculation(tenant, 4300m, """{"currency":"ZAR"}""", subject, "OFT-OTHER");
+        var list = $"/api/v1/rating/calculations?subjectType=GENERAL_QUOTE&subjectId={subject}";
+        async Task<List<Guid>> Listed(HttpClient client) =>
+            (await (await client.GetAsync(list)).Json()).GetProperty("items").EnumerateArray().Select(i => i.GetProperty("id").GetGuid()).ToList();
+
+        var productLimited = await fixture.Database.UserWithFunctions(tenant, "ax-oq168-product", "ASSIST_EXPLAIN_PREMIUM", "RATING_CALCULATIONS");
+        await fixture.Database.ExecuteAsOwner("UPDATE iam.user_role_assignment SET scope_products = ARRAY['OFT-GD1001'] WHERE user_id = @u", ("u", productLimited));
+        var byProduct = host.ClientFor(tenant, "ax-oq168-product");
+        (await byProduct.GetAsync($"/api/v1/rating/calculations/{motor}")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await byProduct.GetAsync($"/api/v1/rating/calculations/{other}")).StatusCode.ShouldBe(HttpStatusCode.NotFound, "another product's calculation");
+        (await byProduct.Send(HttpMethod.Post, Premiums, new { calculationId = other }, idempotent: true)).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await Listed(byProduct)).ShouldBe([motor], "the list is filtered to the reader's products");
+
+        var branchLimited = await fixture.Database.UserWithFunctions(tenant, "ax-oq168-branch", "ASSIST_EXPLAIN_PREMIUM", "RATING_CALCULATIONS");
+        await fixture.Database.ExecuteAsOwner("UPDATE iam.user_role_assignment SET scope_branches = ARRAY['OQ168-BRANCH'] WHERE user_id = @u", ("u", branchLimited));
+        var byBranch = host.ClientFor(tenant, "ax-oq168-branch");
+        (await byBranch.GetAsync($"/api/v1/rating/calculations/{motor}")).StatusCode.ShouldBe(HttpStatusCode.OK, "a calculation has no branch yet, so a branch scope doesn't hide it");
+        (await (await byBranch.Send(HttpMethod.Post, Premiums, new { calculationId = motor }, idempotent: true)).Json()).GetProperty("outcome").GetString().ShouldBe("EXPLAINED");
+        (await Listed(byBranch)).ShouldBe([other, motor]);
     }
 
     [Fact]

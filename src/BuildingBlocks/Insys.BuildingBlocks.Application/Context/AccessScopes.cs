@@ -57,6 +57,12 @@ public sealed class AccessScope(IReadOnlyList<PermissionGrant> grants)
 
     public bool Allows(string? product, string? orgNode) => Grants.Any(g => g.Allows(product, orgNode));
 
+    /// <summary>
+    /// The scope with the organisation dimension dropped from every grant: for records that know their product but have no node of their own yet
+    /// (premium calculations, OQ-168), so that a branch-limited reader is judged by product alone rather than refused everything.
+    /// </summary>
+    public AccessScope WithoutOrgNodes() => new(Grants.Select(g => g with { OrgNodes = null }).ToList());
+
     /// <summary>The scope with every grant's products narrowed to <paramref name="products"/> (F005: what the channel allows).</summary>
     public AccessScope RestrictProducts(IReadOnlySet<string> products) =>
         new(Grants.Select(g => g with { Products = g.Products is null ? products : g.Products.Where(products.Contains).ToHashSet(StringComparer.Ordinal) }).ToList());

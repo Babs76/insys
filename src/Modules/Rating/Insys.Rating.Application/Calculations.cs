@@ -77,7 +77,8 @@ public interface IPremiumCalculationQueries
     Task<CalculationView?> Get(Guid id, CancellationToken cancellationToken);
 
     /// <summary>A subject's calculations, newest first, those before <paramref name="beforeId"/> when it is given (BR-025).</summary>
-    Task<IReadOnlyList<CalculationView>> ForSubject(string subjectType, Guid subjectId, Guid? beforeId, int limit, CancellationToken cancellationToken);
+    /// <param name="scope">The reader's scope: only calculations of a product in it are listed, filtered in the query so paging holds (F103).</param>
+    Task<IReadOnlyList<CalculationView>> ForSubject(string subjectType, Guid subjectId, Guid? beforeId, int limit, AccessScope scope, CancellationToken cancellationToken);
 }
 
 /// <summary>Command CalculatePremium: rates and records the calculation with its breakdown.</summary>
@@ -241,24 +242,24 @@ internal sealed class RunRatingTestCasesHandler(IRatingTestCases cases, PremiumR
 /// <summary>
 /// One recorded calculation, in the reader's product scope (F103, addenda/access-scopes.md §1 and §4): a calculation knows its product, so outside the scope of
 /// premium_calculation.read it isn't found (404), as another tenant's isn't. The scope is that permission's own, not the request's, so a module reading through
-/// IRecordedCalculations (AI Assist) gets the reader's scope too (AIA-003). It has no organisation node.
+/// IRecordedCalculations (AI Assist) gets the reader's scope too (AIA-003). A calculation has no organisation node yet, so a branch scope doesn't apply
+/// to it: it is judged by product only until it takes its subject's node (OQ-168).
 /// </summary>
 internal sealed class GetCalculationHandler(IPremiumCalculationQueries queries, IExecutionContext execution) : IQueryHandler<GetCalculation, CalculationView>
 {
     public async Task<Result<CalculationView>> Handle(GetCalculation query, CancellationToken cancellationToken) =>
-        await queries.Get(query.Id, cancellationToken) is { } view && execution.ScopeFor(RatingPermissions.CalculationRead).Allows(view.ProductCode, null)
+        await queries.Get(query.Id, cancellationToken) is { } view && execution.ScopeFor(RatingPermissions.CalculationRead).WithoutOrgNodes().Allows(view.ProductCode, null)
             ? view
             : Error.NotFound(ErrorCodes.NotFound, "The calculation was not found.");
 }
 
-/// <summary>A subject's calculations in the reader's product scope (F103). A subject is rated for one product, so the filter keeps all of a page or none of it, and paging holds.</summary>
+/// <summary>A subject's calculations in the reader's product scope (F103; by product only, OQ-168), filtered in the query so paging holds.</summary>
 internal sealed class ListCalculationsHandler(IPremiumCalculationQueries queries, IExecutionContext execution) : IQueryHandler<ListCalculations, IReadOnlyList<CalculationView>>
 {
     public async Task<Result<IReadOnlyList<CalculationView>>> Handle(ListCalculations query, CancellationToken cancellationToken)
     {
-        var scope = execution.ScopeFor(RatingPermissions.CalculationRead);
-        var views = await queries.ForSubject(query.SubjectType, query.SubjectId, query.BeforeId, query.Limit, cancellationToken);
-        return Result.Success<IReadOnlyList<CalculationView>>(views.Where(v => scope.Allows(v.ProductCode, null)).ToList());
+        var scope = execution.ScopeFor(RatingPermissions.CalculationRead).WithoutOrgNodes();
+        return Result.Success(await queries.ForSubject(query.SubjectType, query.SubjectId, query.BeforeId, query.Limit, scope, cancellationToken));
     }
 }
 

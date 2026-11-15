@@ -31,6 +31,7 @@ using Insys.BuildingBlocks.Application.Messaging;
 using Insys.BuildingBlocks.Contracts;
 using Insys.BuildingBlocks.Contracts.StaticData;
 using Insys.BuildingBlocks.Domain;
+using Insys.BuildingBlocks.Infrastructure.Persistence;
 using Insys.BuildingBlocks.Infrastructure.StaticData;
 using Insys.ProductFactory.Contracts;
 using Insys.Rating.Application;
@@ -58,9 +59,11 @@ internal sealed class PremiumCalculationQueries(RatingDbContext db) : IPremiumCa
             : null;
 
     // Newest first by ID (UUIDv7, which sorts by creation time), so the cursor and the order agree (BR-025).
-    public async Task<IReadOnlyList<CalculationView>> ForSubject(string subjectType, Guid subjectId, Guid? beforeId, int limit, CancellationToken cancellationToken) =>
+    public async Task<IReadOnlyList<CalculationView>> ForSubject(string subjectType, Guid subjectId, Guid? beforeId, int limit, AccessScope scope,
+        CancellationToken cancellationToken) =>
         (await db.Calculations.AsNoTracking().Include(c => c.Lines)
             .Where(c => c.SubjectType == subjectType && c.SubjectId == subjectId && (beforeId == null || c.Id.CompareTo(beforeId.Value) < 0))
+            .InScope(scope, c => c.ProductCode, c => null)
             .OrderByDescending(c => c.Id).Take(limit).ToListAsync(cancellationToken)).Select(CalculationViews.From).ToList();
 }
 

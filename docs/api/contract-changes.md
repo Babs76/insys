@@ -3,6 +3,10 @@
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
 
+## Premium calculations: a branch scope no longer hides them (15 November 2026)
+- **`GET /rating/calculations/{id}`, `GET /rating/calculations?subjectType&subjectId` and `POST /assist/explanations/premiums`** apply the reader's **product** scope only. A calculation has no branch yet, so a branch scope doesn't apply to it (OQ-168). Since 7.3 below, a reader whose grants were all branch-limited was refused every calculation (404, an empty list); they see their products' calculations again. Product-limited readers see no change.
+- **The list is filtered in the query,** so a page is full and its cursor is right when some calculations of a subject are out of scope.
+
 ## Premium calculations follow the reader's product scope (Wave 7 batch 7.3, 15 November 2026)
 - **`GET /rating/calculations/{id}` and `GET /rating/calculations?subjectType&subjectId`** now apply the product scope of `premium_calculation.read` (F103, `addenda/access-scopes.md` §1): a calculation of a product outside the reader's scope isn't found (404), and isn't listed. Before, any holder of the permission read every product's. Unscoped readers see no change.
 - **`POST /assist/explanations/premiums`** follows it: refused in the same way (404), with no stored explanation returned and no model call (AIA-003).
