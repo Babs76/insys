@@ -48,6 +48,10 @@ public sealed class AssistDbContext(DbContextOptions<AssistDbContext> options, M
 
     public DbSet<AssistExplanationFeedback> Feedback => Set<AssistExplanationFeedback>();
 
+    public DbSet<StarterPack> Packs => Set<StarterPack>();
+
+    public DbSet<StarterPackValue> PackValues => Set<StarterPackValue>();
+
     protected override void ConfigureModel(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<AssistTenantSetting>(setting =>
@@ -109,6 +113,65 @@ public sealed class AssistDbContext(DbContextOptions<AssistDbContext> options, M
             feedback.Ignore(f => f.HasChanges);
             feedback.Ignore(f => f.RowVersion);
         });
+
+        // D-18: the starter packs. A platform version is held by the operator tenant and read by all (row-level security: read_platform_and_own).
+        modelBuilder.Entity<StarterPack>(pack =>
+        {
+            pack.ToTable("starter_pack");
+            pack.HasKey(p => new { p.TenantId, p.Id });
+            pack.HasAuditColumns();
+            pack.Ignore(p => p.DomainEvents);
+            pack.Ignore(p => p.HasChanges);
+            pack.Property(p => p.Country).HasColumnType("char(2)");
+            pack.Property(p => p.ContentHash).HasColumnType("char(64)");
+        });
+        modelBuilder.Entity<StarterPackValue>(value =>
+        {
+            value.ToTable("starter_pack_value");
+            value.HasKey(v => new { v.TenantId, v.Id });
+            value.HasAuditColumns(updatable: false);
+            value.Ignore(v => v.DomainEvents);
+            value.Ignore(v => v.HasChanges);
+            value.Ignore(v => v.RowVersion);
+            value.Ignore(v => v.MayBeTailored);
+            value.Property(v => v.Values).HasColumnType("jsonb");
+            // So that the version is written before its rows (fk_starter_pack_value_pack).
+            value.HasOne<StarterPack>().WithMany().HasForeignKey(v => new { v.TenantId, v.PackId }).HasPrincipalKey(p => new { p.TenantId, p.Id });
+        });
+    }
+}
+
+/// <summary>
+/// The starter packs a tenant may read (D-18): platform versions and its own. The reads lift the tenant filter only to say exactly that; row-level security
+/// enforces the same rule underneath.
+/// </summary>
+internal sealed class StarterPacks(AssistDbContext db, BuildingBlocks.Application.Context.ITenantContext tenant) : Application.IStarterPacks
+{
+    private IQueryable<StarterPack> Readable()
+    {
+        var current = tenant.RequireTenantId();
+        return db.Packs.IgnoreQueryFilters([ModuleDbContext.TenantFilterKey]).Where(p => p.Scope == PackScopes.AllTenants || p.TenantId == current);
+    }
+
+    public Task<StarterPack?> Get(Guid id, CancellationToken cancellationToken) => Readable().SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
+
+    public async Task<IReadOnlyList<StarterPackValue>> Rows(Guid packId, CancellationToken cancellationToken)
+    {
+        var current = tenant.RequireTenantId();
+        return await db.PackValues.IgnoreQueryFilters([ModuleDbContext.TenantFilterKey]).AsNoTracking()
+            .Where(v => v.PackId == packId && (v.Scope == PackScopes.AllTenants || v.TenantId == current)).OrderBy(v => v.LineNo).ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<StarterPack>> List(string? packCode, CancellationToken cancellationToken) =>
+        await Readable().AsNoTracking().Where(p => packCode == null || p.PackCode == packCode).OrderBy(p => p.PackCode).ThenByDescending(p => p.Version).ToListAsync(cancellationToken);
+
+    public async Task<int> LastVersion(string packCode, CancellationToken cancellationToken) =>
+        await db.Packs.Where(p => p.PackCode == packCode).Select(p => (int?)p.Version).MaxAsync(cancellationToken) ?? 0;
+
+    public void Add(StarterPack pack, IReadOnlyList<StarterPackValue> rows)
+    {
+        db.Packs.Add(pack);
+        db.PackValues.AddRange(rows);
     }
 }
 

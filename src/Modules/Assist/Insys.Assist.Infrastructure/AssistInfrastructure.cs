@@ -42,6 +42,7 @@ public static class AssistInfrastructure
         services.AddModuleDbContext<AssistDbContext>(schema, "Assist");
         services.AddModuleHandlers<AssistDbContext>(typeof(GetAssistSettings).Assembly);
         services.AddScoped<IAssistRepository, AssistRepository>();
+        services.AddScoped<IStarterPacks, StarterPacks>();
         // No model unless the deployment connects one (the Cloud adapter project registers Claude when Assist:Provider is claude).
         services.TryAddSingleton<IAiModelProvider, NoAiModelProvider>();
         services.AddScoped<AssistRunner>();

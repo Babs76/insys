@@ -1,6 +1,6 @@
 # Starter packs
 
-**Status: draft, not loaded by anything.** A pack is a list of static data rows a new tenant starts from. Each row goes through the governed static data APIs and a second person, as a tenant's own rows do today. No loader exists yet.
+**Status: draft.** A pack is a list of static data rows a new tenant starts from. Each row goes through the governed static data APIs and a second person, as a tenant's own rows do today. Batch 7.6 loads a pack file as a version in Assist's own tables (D-18), for review and approval (§5.3); its rows reach a tenant only through the `SETUP` change set (7.7).
 
 ## Structure
 A tenant's starting data is three layers. A later layer replaces a row with the same table and code.
@@ -10,6 +10,8 @@ A tenant's starting data is three layers. A later layer replaces a row with the 
 3. **Line overlay, `overlays/line-<line>.json`:** taxonomy, coverages and rating structure of a line of business.
 
 Every row has a `class`: `OPERATIONAL`, `FINANCE` or `COMPLIANCE`. Review sheets list only FINANCE and COMPLIANCE rows.
+
+Every row is to carry two marks (D-20, Ade 15 November): `regulated` (true when only an approved overlay may supply it, AIA-082) and `tailorable` (true when AI may tailor it, 7.8). **No row in these drafts has them yet.** Until it does, INSYS reads a missing `tailorable` as false and a missing `regulated` from the class (FINANCE or COMPLIANCE is regulated), and records that the mark is the interim reading; the overlay review sheet shows each row's marks and their source for the reviewer and the approver to confirm. AI never tailors a row whose mark is the interim reading.
 
 Target markets in order, with the overlays each needs:
 | Market | Overlays | Regulator | Currency | Language | State |
