@@ -1348,3 +1348,32 @@ Recommended: 1 to 3, after the actuary answers OQ-052 and this question; 4 only 
 **OQ-167: who writes and reviews the rest of the error catalogue's wording (AIA-031)? Decided (Ade, 15 November): the proposal; the wording review goes with BR-009 (go-live register row 21).**
 - **Today (7.2):** `[ErrorCode]` carries `Means` and `Remedy`, written for 69 of 260 codes: the 39 platform codes, approvals (9), users and roles (14) and static data (7). A code without wording is shown as the plain refusal, with no model call. The wording lives beside each code, the single source of the catalogue; it isn't yet in `integration.ref_error_code_catalogue`, so the console can't show it by itself.
 - **Proposed:** the remaining 191 module codes written in two passes (the codes staff meet in daily work first, from the seed's flows), each checked against the code that raises it, then reviewed by the business with the BR-009 wording review (go-live register row 21). Publishing the wording in the catalogue table is a migration and a regenerated `R__error_code_catalogue.sql`; worth doing if the console should show the remedy without an explanation.
+
+### OQ-168 to OQ-177 From the read-scope sweep (15 November 2026)
+Raised by the read-scope sweep (`docs/reviews/read-scope-sweep.md`, at `06ecae1`), where `addenda/access-scopes.md` didn't settle which records are scoped or how. **All decided by Ade, 15 November.**
+
+**OQ-168: do premium calculations and rule decisions take a branch? Decided: they take their subject's branch (the quote, proposal, renewal or underwriting case). Until that's built, product only.**
+- Today a calculation stores its product and no node; a rule decision stores neither (an underwriting rule set's code names its product). Treating the missing node as out of scope refused every branch-limited reader, so calculations are judged by product only (`AccessScope.WithoutOrgNodes`).
+
+**OQ-169: are documents and holds attached to a record its child records (§1)? Decided: yes. Unattached documents keep classification only.**
+- Today holds follow their record (`ILegalHoldTargets`); documents check only classification and purpose.
+
+**OQ-170: are rule decisions, fraud cases, reconciliation exceptions and Finance journals scoped? Decided: the first three through the record they reference. Finance journals aren't scoped.**
+
+**OQ-171: are Reinsurance records scoped? Decided: cessions and recoveries by product. Bordereaux aren't scoped.**
+
+**OQ-172: what does a scoped reader see of tenant-wide records? Decided: reference records are visible. Totals across products (projection totals, compliance returns, report runs, aggregation alerts) are for unrestricted readers only.**
+- Covers General risk objects and Health schemes (reference records) and Health provider measures, reviews and statements where they total several products.
+
+**OQ-173: does a product scope apply in ProductFactory? Decided: changes and approvals of products are scoped. Reading product definitions isn't.**
+- Product definitions have no node, so the check is by product only.
+
+**OQ-174: are commission entitlements, recoveries and statements scoped? Decided: they are payouts, not scoped (the 24 October addition).**
+
+**OQ-175: does a portal user's product or branch scope apply on top of the relationship? Decided: no. Portal users are scoped by relationship only, the same on every portal route.**
+- Today some portal routes also apply the assignment's scope (memberships, a single claim, referrals, invoices) and some don't.
+
+**OQ-176: is a record with neither product nor branch visible to every scoped reader? Decided: no, fail closed. Cases and approvals get a scope source from their subject.**
+- Today cases with no product or node, approvals of types with no `IApprovalScopeSource`, and payments whose reference no source covers are visible to, and decidable by, every holder of the permission.
+
+**OQ-177: Health provider recoveries and credit notes refuse a restricted reader with 403. Decided: follow §4, 404 for one record and filtering for lists.**
