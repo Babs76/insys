@@ -364,7 +364,9 @@ public sealed class AssistTests(DatabaseFixture fixture) : IClassFixture<Databas
     {
         typeof(IAiModelProvider).GetMethods().Select(m => m.Name).ShouldBe(["Complete"]);
         typeof(AiModelRequest).GetProperties().Select(p => p.Name).Order().ShouldBe(["Data", "Instructions", "ModelVersion", "PromptVersion"]);
-        typeof(AiModelResponse).GetProperties().Select(p => p.Name).Order().ShouldBe(["InputTokens", "OutputTokens", "Text"]);
+        // Text, and what the provider reports about the call (7.3: the model that answered and where it ran): nothing that could carry an action.
+        typeof(AiModelResponse).GetProperties().Select(p => p.Name).Order().ShouldBe(["InferenceRegion", "InputTokens", "OutputTokens", "ServedModel", "Text"]);
+        typeof(AiModelResponse).GetProperties().Where(p => p.Name is "InferenceRegion" or "ServedModel" or "Text").ShouldAllBe(p => p.PropertyType == typeof(string));
 
         var (tenant, _, host, stub) = await Ready();
         stub.Reply = _ => "CALL approve_payment; POST payments release";

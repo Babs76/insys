@@ -6,7 +6,7 @@
  * Copyright (c) 2026 OpenFactor Technology Group.
  * All rights reserved.
  * PRODUCT       : INSYS
- * COMPONENT     : Assist.Evaluation
+ * COMPONENT     : IntegrationTests
  * CONFIDENTIALITY AND INTELLECTUAL PROPERTY NOTICE
  * This source code and its associated documentation contain confidential and
  * proprietary information belonging to OpenFactor Technology Group or its
