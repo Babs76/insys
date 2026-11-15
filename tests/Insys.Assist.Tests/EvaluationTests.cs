@@ -45,6 +45,7 @@ public sealed class EvaluationTests
     private static AssistOptions Options() => new()
     {
         ModelVersion = "claude-opus-5-5",
+        InferenceRegions = ["US", "GLOBAL"],
         Prompts = new(StringComparer.Ordinal)
         {
             [AssistFeatures.ExplainRefusal] = new() { Version = "refusal-v1", Text = "Explain the refusal." },
@@ -147,13 +148,13 @@ public sealed class EvaluationTests
         results[2].RejectedNumbers.ShouldBe(["ZAR 900.00"]);
         results[0].Cost.ShouldBe(0.001080m);
         results[0].InferenceRegion.ShouldBe("global");
+        provider.Sent.ShouldAllBe(r => r.InferenceGeo == "global", "a GLOBAL tenant's region, asked on every call");
         provider.Sent.ShouldAllBe(r => r.ModelVersion == "claude-opus-5-5");
         provider.Sent.Select(r => r.Instructions).Distinct().Order().ToList().ShouldBe(["Explain the premium.", "Explain the refusal."], customMessage: "the configured templates");
 
         var summary = EvaluationReport.Summary(results, Options(), "scripted", DateTimeOffset.UnixEpoch);
-        summary.ShouldContain("| All | 3 | 1 | 1 | 1 |");
-        summary.ShouldContain("`global` (1)");
-        summary.ShouldContain("`not reported` (2)", customMessage: "the premium's answer said nothing, and the unavailable call gave nothing");
+        summary.ShouldContain("| All | 3 | 1 | 1 | 0 | 1 |");
+        summary.ShouldContain("`global` (1), `not reported` (1), `us` (1)");
         summary.ShouldContain("USD 0.001080");
         var sheet = EvaluationReport.ReviewSheet(results).Split('\n', StringSplitOptions.RemoveEmptyEntries);
         sheet.Length.ShouldBe(4, "a header and a row per case");
@@ -171,11 +172,33 @@ public sealed class EvaluationTests
             [Case("C-001", AssistRunStatuses.Verified, 1, 0.0001m), Case("C-002", AssistRunStatuses.Verified, 2, 0.0001m), Case("C-003", AssistRunStatuses.Verified, 3, 0.0001m)]);
         var table = EvaluationReport.Comparison([opus, haiku]);
 
-        table.ShouldContain("| `claude-haiku-5-5` | medium | us | `us` (3) | 3 | 3 (100.0%) | 0 (0.0%) | 0 (0.0%) | 2.00 | 3.00 | 3.00 | 0 | USD 0.000100 | USD 0.0003 |");
-        table.ShouldContain("| `claude-opus-5-5` | medium | us | `us` (3) | 3 | 1 (33.3%) | 1 (33.3%) | 1 (33.3%) | 4.00 | 12.00 | 12.00 | 1 | USD 0.002500 | USD 0.0050 |",
+        table.ShouldContain("| `claude-haiku-5-5` | medium | us | `us` (3) | 3 | 3 (100.0%) | 0 (0.0%) | 0 (0.0%) | 0 (0.0%) | 2.00 | 3.00 | 3.00 | 0 | USD 0.000100 | USD 0.0003 |");
+        table.ShouldContain("| `claude-opus-5-5` | medium | us | `us` (3) | 3 | 1 (33.3%) | 1 (33.3%) | 0 (0.0%) | 1 (33.3%) | 4.00 | 12.00 | 12.00 | 1 | USD 0.002500 | USD 0.0050 |",
             customMessage: "times are of the answered calls; the cost of every call, the unavailable one included, over the two explanations given");
         table.ShouldContain("- **`claude-opus-5-5`:** C-002 (ZAR 900.00).");
         table.IndexOf("claude-haiku-5-5", StringComparison.Ordinal).ShouldBeLessThan(table.IndexOf("claude-opus-5-5", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ARunForAUsTenant_AsksForTheUs_AndAnAnswerReportedFromElsewhere_IsAResidencyMismatch_AIA050()
+    {
+        var set = new EvaluationSet("test", [new("R-001", "CURRENCY_MISMATCH", false, "The currencies differ.", "Use one currency.", 0)],
+            [new("C-001", Motor.SourceDomain, Motor.ProductCode, 1, 1, Motor.Premium, Motor.Currency, Motor.Lines)]);
+        var provider = new Scripted(request => request.PromptVersion == "premium-v1" ? "The premium is ZAR 800.00." : "Use one currency.");
+        var results = await new EvaluationRunner(provider, Options(), "US").Run(set, CancellationToken.None);
+        provider.Sent.ShouldAllBe(r => r.InferenceGeo == "us");
+        results.Select(r => (r.Id, r.Status)).ShouldBe([("R-001", AssistRunStatuses.ResidencyMismatch), ("C-001", AssistRunStatuses.Verified)],
+            "the refusal's answer was reported as global, the premium's as us");
+    }
+
+    [Fact]
+    public async Task TheWholeSet_WithAStubReportingTheUs_VerifiesInTheComparison_NotAResidencyMismatch()
+    {
+        var set = EvaluationSet.Read(Path.Combine(Root(), "docs", "evaluation", "ai2-evaluation-set.json"));
+        var results = await new EvaluationRunner(new EchoReportingAsked(), Options(), "US").Run(set, CancellationToken.None);
+        results.ShouldAllBe(r => r.Status == AssistRunStatuses.Verified && r.InferenceRegion == "us");
+        var table = EvaluationReport.Comparison([(new RunInfo("stub", "claude-opus-5-5", "medium", "us", "USD", DateTimeOffset.UnixEpoch), results)]);
+        table.ShouldContain($"| `claude-opus-5-5` | medium | us | `us` ({set.Count}) | {set.Count} | {set.Count} (100.0%) | 0 (0.0%) | 0 (0.0%) | 0 (0.0%) |");
     }
 
     [Fact]
@@ -202,7 +225,7 @@ public sealed class EvaluationTests
         {
             Sent.Add(request);
             return answer(request) is { } text
-                ? Task.FromResult(new AiModelResponse(text, 120, 30, "claude-opus-5-5", request.PromptVersion == "premium-v1" ? null : "global"))
+                ? Task.FromResult(new AiModelResponse(text, 120, 30, "claude-opus-5-5", request.PromptVersion == "premium-v1" ? "us" : "global"))
                 : throw new AiModelUnavailableException("Down.");
         }
     }
@@ -212,5 +235,15 @@ public sealed class EvaluationTests
     {
         public Task<AiModelResponse> Complete(AiModelRequest request, CancellationToken cancellationToken) =>
             throw new AiModelUnavailableException("Cut short.", 120, 8192);
+    }
+
+    /// <summary>Answers with the facts it was sent, as the evaluation's echo does, and reports inference where it was asked to run, as Claude's API does.</summary>
+    private sealed class EchoReportingAsked : IAiModelProvider
+    {
+        public Task<AiModelResponse> Complete(AiModelRequest request, CancellationToken cancellationToken)
+        {
+            var text = request.Data.Replace(PromptData.Open, "", StringComparison.Ordinal).Replace(PromptData.Close, "", StringComparison.Ordinal).Trim();
+            return Task.FromResult(new AiModelResponse(text, 200, 80, "claude-opus-5-5", request.InferenceGeo));
+        }
     }
 }

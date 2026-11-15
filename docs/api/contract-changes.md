@@ -4,7 +4,10 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 
 ## AI Assist: the residency check, and explanations that name a step (Wave 7 batch 7.3, 15 November 2026)
-- **`POST /assist/explanations/refusals` and `/premiums`:** when the model's provider reports inference somewhere the tenant's setting (`inferenceRegion`) doesn't allow, or doesn't say where, the outcome is `UNAVAILABLE` with the plain facts, as when the model can't be reached (AIA-050). No field or value is new.
+- **`PUT /assist/settings`: `inferenceRegion` is now one of the provider's regions,** `US` or `GLOBAL` (Ade, 15 November); a country code is 422 `VALIDATION_FAILED`, naming the list. **This narrows what was accepted.**
+- **`GET /assist/settings` (and the PUT's answer) gain `inferenceRegionSupported`** (false for a region set earlier as a country code) **and `supportedInferenceRegions`** (the choices, for the settings page to say why and offer them). `residencyAllowsInference` is false while the region isn't supported.
+- **New error code `ASSIST_REGION_NOT_SUPPORTED` (422):** any Assist request from a tenant whose region isn't supported, refused before any model call.
+- **`POST /assist/explanations/refusals` and `/premiums`:** each call asks for the tenant's region; when the provider reports inference somewhere the setting doesn't allow (`GLOBAL` allows any; `US` only `us`), or doesn't say where, the outcome is `UNAVAILABLE` with the plain facts, as when the model can't be reached (AIA-050).
 - **`POST /assist/explanations/premiums`:** an explanation that names a calculation's line by its number ("line 2 applies the table") now passes the number check (AIA-033a), as does a code followed by punctuation ("group G3, then"). Before, such an explanation came back `REJECTED` with the plain facts. No field changed.
 
 ## Premium calculations: a branch scope no longer hides them (15 November 2026)

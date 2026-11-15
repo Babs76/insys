@@ -42,6 +42,11 @@ public static class AssistErrorCodes
     [ErrorCode(422, "error.assist.residency_not_set")]
     public const string ResidencyNotSet = "ASSIST_RESIDENCY_NOT_SET";
 
+    /// <summary>The tenant's inference region isn't one the AI provider can be asked to run in (AIA-050): a setting made before the regions were the provider's.</summary>
+    [ErrorCode(422, "error.assist.region_not_supported", Means = "The region your settings name for AI inference isn't one the AI provider can run in, so no explanation is asked for.",
+        Remedy = "Ask your administrator to choose one of the regions offered in the AI Assist settings, with the legal basis for it.")]
+    public const string RegionNotSupported = "ASSIST_REGION_NOT_SUPPORTED";
+
     /// <summary>The tenant's administrator hasn't switched this feature on.</summary>
     [ErrorCode(422, "error.assist.not_enabled")]
     public const string NotEnabled = "ASSIST_NOT_ENABLED";
@@ -64,7 +69,7 @@ public sealed class AssistTenantSetting : AggregateRoot<Guid>
     /// <summary>The tenant's jurisdiction, as a country code.</summary>
     public string Jurisdiction { get; private set; } = "";
 
-    /// <summary>The country where inference runs, or GLOBAL.</summary>
+    /// <summary>Where the tenant allows inference to run, in the AI provider's terms (Assist:InferenceRegions: US or GLOBAL today). A setting made earlier may hold a country code, which no call can satisfy.</summary>
     public string InferenceRegion { get; private set; } = "";
 
     public string? LegalBasis { get; private set; }

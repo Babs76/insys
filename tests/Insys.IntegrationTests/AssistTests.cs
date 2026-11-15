@@ -84,6 +84,8 @@ public sealed class AssistTests(DatabaseFixture fixture) : IClassFixture<Databas
         offshore.StatusCode.ShouldBe(HttpStatusCode.OK, await offshore.Content.ReadAsStringAsync());
         var view = await offshore.Json();
         (view.GetProperty("jurisdiction").GetString(), view.GetProperty("inferenceRegion").GetString()).ShouldBe(("NG", "GLOBAL"));
+        view.GetProperty("inferenceRegionSupported").GetBoolean().ShouldBeTrue();
+        view.GetProperty("supportedInferenceRegions").EnumerateArray().Select(r => r.GetString()).ShouldBe(["US", "GLOBAL"]);
         view.GetProperty("residencyAllowsInference").GetBoolean().ShouldBeFalse("outside the jurisdiction with no basis");
 
         var etag = offshore.ETag();
@@ -91,10 +93,14 @@ public sealed class AssistTests(DatabaseFixture fixture) : IClassFixture<Databas
         based.StatusCode.ShouldBe(HttpStatusCode.OK, await based.Content.ReadAsStringAsync());
         (await based.Json()).GetProperty("residencyAllowsInference").GetBoolean().ShouldBeTrue();
 
-        (await client.Send(HttpMethod.Put, Settings, new { jurisdiction = "NG", inferenceRegion = "NG", explanationsEnabled = true }, ifMatch: etag)).StatusCode
+        (await client.Send(HttpMethod.Put, Settings, new { jurisdiction = "NG", inferenceRegion = "US", explanationsEnabled = true }, ifMatch: etag)).StatusCode
             .ShouldBe(HttpStatusCode.PreconditionFailed);
-        (await client.Send(HttpMethod.Put, Settings, new { jurisdiction = "NGA", inferenceRegion = "NG", explanationsEnabled = true })).StatusCode
+        (await client.Send(HttpMethod.Put, Settings, new { jurisdiction = "NGA", inferenceRegion = "US", explanationsEnabled = true })).StatusCode
             .ShouldBe(HttpStatusCode.UnprocessableEntity);
+        var country = await client.Send(HttpMethod.Put, Settings, new { jurisdiction = "NG", inferenceRegion = "NG", legalBasis = "NDPA 2023 s41", explanationsEnabled = true },
+            ifMatch: (await client.GetAsync(Settings)).ETag());
+        country.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity, "a region is the AI provider's (US or GLOBAL), not a country (AIA-050)");
+        (await country.Content.ReadAsStringAsync()).ShouldContain("US, GLOBAL");
     }
 
     [Fact]
@@ -114,7 +120,7 @@ public sealed class AssistTests(DatabaseFixture fixture) : IClassFixture<Databas
     private async Task<(Guid Tenant, HttpClient Client, InsysApiFactory Host, StubAiModelProvider Stub)> Ready(long? cap = null)
     {
         var (tenant, client) = await Tenant(entitled: true);
-        (await client.Send(HttpMethod.Put, Settings, new { jurisdiction = "ZA", inferenceRegion = "ZA", explanationsEnabled = true })).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await client.Send(HttpMethod.Put, Settings, new { jurisdiction = "ZA", inferenceRegion = "GLOBAL", legalBasis = "POPIA s72, binding agreement (sample)", explanationsEnabled = true })).StatusCode.ShouldBe(HttpStatusCode.OK);
         if (cap is { } limit)
         {
             await fixture.Database.ExecuteAsOwner("UPDATE assist.tenant_setting SET monthly_token_cap = @c WHERE tenant_id = @t", ("c", limit), ("t", tenant));
@@ -123,7 +129,7 @@ public sealed class AssistTests(DatabaseFixture fixture) : IClassFixture<Databas
         var host = await fixture.Host();
         var stub = (StubAiModelProvider)host.Services.GetRequiredService<IAiModelProvider>();
         stub.Unavailable = false;
-        stub.Region = "ZA";
+        stub.Region = "us";
         stub.Reply = _ => "A fixed explanation.";
         return (tenant, client, host, stub);
     }
@@ -166,31 +172,52 @@ public sealed class AssistTests(DatabaseFixture fixture) : IClassFixture<Databas
     }
 
     [Fact]
-    public async Task ARun_RecordsTheModelThatAnswered_AndWhereInferenceRan_AsTheRouteReportsIt_NeverAssumed_AIA050_AIA075()
+    public async Task ARun_AsksForTheTenantsRegion_AndRecordsTheModelThatAnswered_AndWhereItRan_AsTheRouteReportsIt_AIA050_AIA075()
     {
         var (tenant, _, host, stub) = await Ready();
         var allowed = (await Run(host, tenant, Premium(1240.50m))).Value;
-        allowed.Status.ShouldBe(AssistRunStatuses.Verified);
-        (await Row(allowed.RunId)).ShouldBe(("stub-model", "ZA", "stub", AssistRunStatuses.Verified));
+        allowed.Status.ShouldBe(AssistRunStatuses.Verified, "GLOBAL accepts any region the provider reports");
+        stub.Sent.Last().InferenceGeo.ShouldBe("global", "the tenant's region, in the provider's terms, on the call itself");
+        (await Row(allowed.RunId)).ShouldBe(("stub-model", "us", "stub", AssistRunStatuses.Verified));
     }
 
     [Theory]
-    [InlineData("us")]
-    [InlineData("global")]
-    [InlineData(null)]
-    public async Task AnAnswerFromARegionTheTenantDoesntAllow_IsNotShown_TheRunIsAResidencyMismatch_AndItsTokensCount_AIA050(string? reported)
+    [InlineData("us", AssistRunStatuses.Verified)]
+    [InlineData("US", AssistRunStatuses.Verified)]
+    [InlineData("global", AssistRunStatuses.ResidencyMismatch)]
+    [InlineData("eu", AssistRunStatuses.ResidencyMismatch)]
+    [InlineData(null, AssistRunStatuses.ResidencyMismatch)]
+    public async Task ATenantInTheUs_GetsOnlyAnswersReportedFromTheUs_ElseThePlainFacts_AndTheTokensCount_AIA050(string? reported, string status)
     {
         var (tenant, client, host, stub) = await Ready();
+        await fixture.Database.ExecuteAsOwner("UPDATE assist.tenant_setting SET inference_region = 'US' WHERE tenant_id = @t", ("t", tenant));
         stub.Region = reported;
         stub.Reply = _ => "Your premium is ZAR 1240.50.";
         var outcome = (await Run(host, tenant, Premium(1240.50m))).Value;
 
-        (outcome.Status, outcome.Text).ShouldBe((AssistRunStatuses.ResidencyMismatch, null), "the tenant allows ZA only; a route that says nothing can't show where it ran");
-        (await Row(outcome.RunId)).ShouldBe(("stub-model", reported, "stub", AssistRunStatuses.ResidencyMismatch));
+        stub.Sent.Last().InferenceGeo.ShouldBe("us");
+        outcome.Status.ShouldBe(status);
+        (outcome.Text is null).ShouldBe(status != AssistRunStatuses.Verified, "the text only from where the tenant allows");
+        (await Row(outcome.RunId)).ShouldBe(("stub-model", reported, "stub", status));
         var tokens = await fixture.Database.ScalarAsOwner<long>("SELECT input_tokens + output_tokens FROM assist.run WHERE id = @r", ("r", outcome.RunId));
         tokens.ShouldBeGreaterThan(0);
-        var usage = await (await client.GetAsync("/api/v1/assist/usage")).Json();
-        usage.GetProperty("tokens").GetInt64().ShouldBe(tokens, "the call was made, so it counts against the cap (AIA-073)");
+        (await (await client.GetAsync("/api/v1/assist/usage")).Json()).GetProperty("tokens").GetInt64().ShouldBe(tokens, "the call was made, so it counts against the cap (AIA-073)");
+    }
+
+    [Fact]
+    public async Task ATenantSetToACountry_BeforeRegionsWereTheProviders_IsRefusedWithNoCall_AndTheSettingsSayWhy_AIA050()
+    {
+        var (tenant, client, host, stub) = await Ready();
+        await fixture.Database.ExecuteAsOwner("UPDATE assist.tenant_setting SET inference_region = 'ZA' WHERE tenant_id = @t", ("t", tenant));
+        var calls = stub.Sent.Count;
+
+        var refused = await Run(host, tenant, Premium(100m));
+        refused.Error!.Code.ShouldBe("ASSIST_REGION_NOT_SUPPORTED", "fails closed: no call can run in ZA");
+        stub.Sent.Count.ShouldBe(calls, "no call is made");
+        var view = await (await client.GetAsync(Settings)).Json();
+        (view.GetProperty("inferenceRegion").GetString(), view.GetProperty("inferenceRegionSupported").GetBoolean(), view.GetProperty("residencyAllowsInference").GetBoolean())
+            .ShouldBe(("ZA", false, false));
+        view.GetProperty("supportedInferenceRegions").EnumerateArray().Select(r => r.GetString()).ShouldBe(["US", "GLOBAL"], "what the page offers instead");
     }
 
     private async Task<(string?, string?, string?, string?)> Row(Guid run) => (
@@ -338,11 +365,11 @@ public sealed class AssistTests(DatabaseFixture fixture) : IClassFixture<Databas
     public async Task ChangingSettings_NeedsIfMatch_AndEachETagIsTheCurrentOne()
     {
         var (_, client, _, _) = await Ready();
-        (await client.Send(HttpMethod.Put, Settings, new { jurisdiction = "ZA", inferenceRegion = "ZA", explanationsEnabled = false })).StatusCode.ShouldBe(HttpStatusCode.PreconditionRequired);
+        (await client.Send(HttpMethod.Put, Settings, new { jurisdiction = "ZA", inferenceRegion = "GLOBAL", explanationsEnabled = false })).StatusCode.ShouldBe(HttpStatusCode.PreconditionRequired);
         for (var i = 0; i < 3; i++)
         {
             var etag = (await client.GetAsync(Settings)).ETag();
-            var put = await client.Send(HttpMethod.Put, Settings, new { jurisdiction = "ZA", inferenceRegion = "ZA", explanationsEnabled = i % 2 == 0 }, ifMatch: etag);
+            var put = await client.Send(HttpMethod.Put, Settings, new { jurisdiction = "ZA", inferenceRegion = "GLOBAL", explanationsEnabled = i % 2 == 0 }, ifMatch: etag);
             put.StatusCode.ShouldBe(HttpStatusCode.OK, await put.Content.ReadAsStringAsync());
             put.ETag().ShouldNotBe(etag);
             (await client.GetAsync(Settings)).ETag().ShouldBe(put.ETag());
@@ -380,7 +407,7 @@ public sealed class AssistTests(DatabaseFixture fixture) : IClassFixture<Databas
     public async Task Gate_NoWriteTools_AnOutputThatAsksToActChangesNothing_AIA060()
     {
         typeof(IAiModelProvider).GetMethods().Select(m => m.Name).ShouldBe(["Complete"]);
-        typeof(AiModelRequest).GetProperties().Select(p => p.Name).Order().ShouldBe(["Data", "Instructions", "ModelVersion", "PromptVersion"]);
+        typeof(AiModelRequest).GetProperties().Select(p => p.Name).Order().ShouldBe(["Data", "InferenceGeo", "Instructions", "ModelVersion", "PromptVersion"]);
         // Text, and what the provider reports about the call (7.3: the model that answered and where it ran): nothing that could carry an action.
         typeof(AiModelResponse).GetProperties().Select(p => p.Name).Order().ShouldBe(["InferenceRegion", "InputTokens", "OutputTokens", "ServedModel", "Text"]);
         typeof(AiModelResponse).GetProperties().Where(p => p.Name is "InferenceRegion" or "ServedModel" or "Text").ShouldAllBe(p => p.PropertyType == typeof(string));

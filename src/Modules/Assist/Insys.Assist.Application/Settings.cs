@@ -57,13 +57,17 @@ public interface IAssistRepository
 }
 
 /// <summary>A tenant's settings. Before any are made, the tenant has none, and Assist refuses.</summary>
+/// <param name="InferenceRegionSupported">Whether the AI provider can run in the region set (AIA-050). False for a country code set before the regions were the provider's:
+/// every request is then refused with ASSIST_REGION_NOT_SUPPORTED until a supported region is chosen.</param>
+/// <param name="SupportedInferenceRegions">The regions that may be chosen, in the provider's terms.</param>
 public sealed record AssistSettingsView(Guid Id, string? Jurisdiction, string? InferenceRegion, string? LegalBasis, bool ExplanationsEnabled, long? MonthlyTokenCap, bool ResidencyAllowsInference,
-    long RowVersion)
+    long RowVersion, bool InferenceRegionSupported, IReadOnlyList<string> SupportedInferenceRegions)
 {
-    public static readonly AssistSettingsView None = new(Guid.Empty, null, null, null, false, null, false, 0);
+    public static AssistSettingsView None(AssistOptions options) => new(Guid.Empty, null, null, null, false, null, false, 0, false, options.InferenceRegions);
 
-    public static AssistSettingsView From(AssistTenantSetting s) =>
-        new(s.Id, s.Jurisdiction, s.InferenceRegion, s.LegalBasis, s.ExplanationsEnabled, s.MonthlyTokenCap, s.ResidencyAllowsInference, s.RowVersion);
+    public static AssistSettingsView From(AssistTenantSetting s, AssistOptions options) =>
+        new(s.Id, s.Jurisdiction, s.InferenceRegion, s.LegalBasis, s.ExplanationsEnabled, s.MonthlyTokenCap, s.ResidencyAllowsInference && options.Supports(s.InferenceRegion), s.RowVersion,
+            options.Supports(s.InferenceRegion), options.InferenceRegions);
 }
 
 public sealed record GetAssistSettings : IQuery<AssistSettingsView>;
@@ -106,7 +110,7 @@ internal sealed class AssistSettingsHandlers(IAssistRepository assist, IBusiness
     }
 
     public async Task<Result<AssistSettingsView>> Handle(GetAssistSettings query, CancellationToken cancellationToken) =>
-        await assist.Setting(cancellationToken) is { } setting ? AssistSettingsView.From(setting) : AssistSettingsView.None;
+        await assist.Setting(cancellationToken) is { } setting ? AssistSettingsView.From(setting, options.Value) : AssistSettingsView.None(options.Value);
 
     public async Task<Result<AssistSettingsView>> Handle(SetAssistSettings command, CancellationToken cancellationToken)
     {
@@ -121,6 +125,12 @@ internal sealed class AssistSettingsHandlers(IAssistRepository assist, IBusiness
             return Error.PreconditionFailed(ErrorCodes.PreconditionFailed, "The settings have changed since they were read. Read them again and retry.");
         }
 
+        if (!options.Value.Supports(command.InferenceRegion))
+        {
+            return Error.Validation(ErrorCodes.ValidationFailed,
+                $"inferenceRegion is where the AI provider runs inference, one of {string.Join(", ", options.Value.InferenceRegions)}.");
+        }
+
         var setting = current ?? AssistTenantSetting.Start();
         setting.Change(command.Jurisdiction.ToUpperInvariant(), command.InferenceRegion.ToUpperInvariant(), command.LegalBasis, command.ExplanationsEnabled);
         if (current is null)
@@ -128,6 +138,6 @@ internal sealed class AssistSettingsHandlers(IAssistRepository assist, IBusiness
             assist.Add(setting);
         }
 
-        return AssistSettingsView.From(setting);
+        return AssistSettingsView.From(setting, options.Value);
     }
 }

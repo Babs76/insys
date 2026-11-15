@@ -48,7 +48,7 @@ public sealed class ClaudeModelOptions
     /// <summary>How much the model reasons before answering: low, medium, high, xhigh or max; empty for the model's own default.</summary>
     public string Effort { get; set; } = "medium";
 
-    /// <summary>Where inference must run, when the deployment sets it (the API's inference_geo); empty to leave it to the route. What actually ran is recorded from the answer.</summary>
+    /// <summary>Where inference must run when a call doesn't say (the API's inference_geo); a tenant's call says, from its setting. Empty to leave it to the route.</summary>
     public string InferenceGeo { get; set; } = "";
 
     /// <summary>How long one call may take, with no retry: AI-2 answers in 10 seconds at the 95th percentile (AIA-070), and INSYS never waits on the AI (P8).</summary>
@@ -95,9 +95,10 @@ public sealed class ClaudeModelProvider : IAiModelProvider
             parameters = parameters with { OutputConfig = new OutputConfig { Effort = _options.Effort } };
         }
 
-        if (_options.InferenceGeo.Length > 0)
+        // The tenant's region, else the deployment's (AIA-050). What actually ran is read back from the answer, never assumed.
+        if ((request.InferenceGeo ?? _options.InferenceGeo) is { Length: > 0 } geo)
         {
-            parameters = parameters with { InferenceGeo = _options.InferenceGeo };
+            parameters = parameters with { InferenceGeo = geo };
         }
 
         Message message;

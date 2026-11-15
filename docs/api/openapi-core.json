@@ -47180,7 +47180,9 @@
           "explanationsEnabled",
           "monthlyTokenCap",
           "residencyAllowsInference",
-          "rowVersion"
+          "rowVersion",
+          "inferenceRegionSupported",
+          "supportedInferenceRegions"
         ],
         "type": "object",
         "properties": {
@@ -47228,6 +47230,15 @@
               "string"
             ],
             "format": "int64"
+          },
+          "inferenceRegionSupported": {
+            "type": "boolean"
+          },
+          "supportedInferenceRegions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },

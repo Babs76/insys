@@ -78,9 +78,11 @@ public sealed record CaseResult(string Id, string Kind, string Status, string? T
 
 /// <summary>
 /// Runs every case through <see cref="AssistExchange"/>, the minimiser, model call and verifier a tenant's run uses, one at a time so the latency is each call's
-/// own. Nothing is read from or written to a database, and no cache is used: each case is a fresh call.
+/// own, and applies the tenant's residency rule as a run does (AIA-050): each call asks for <paramref name="region"/>, and an answer reported from elsewhere, or
+/// from nowhere, is a residency mismatch. Nothing is read from or written to a database, and no cache is used: each case is a fresh call.
 /// </summary>
-public sealed class EvaluationRunner(IAiModelProvider provider, AssistOptions options)
+/// <param name="region">The tenant's inference region the evaluation stands for, in the provider's terms (US or GLOBAL).</param>
+public sealed class EvaluationRunner(IAiModelProvider provider, AssistOptions options, string region = AssistRegions.Global)
 {
     public async Task<IReadOnlyList<CaseResult>> Run(EvaluationSet set, CancellationToken cancellationToken)
     {
@@ -102,10 +104,11 @@ public sealed class EvaluationRunner(IAiModelProvider provider, AssistOptions op
 
     private async Task<CaseResult> One(string id, string kind, AssistPromptTemplate template, AllowedFacts facts, CancellationToken cancellationToken)
     {
-        var exchange = await AssistExchange.Send(provider, options.ModelVersion, template.Version, template.Text, facts, cancellationToken);
+        var exchange = await AssistExchange.Send(provider, options.ModelVersion, template.Version, template.Text, facts, cancellationToken, region.ToLowerInvariant());
         var response = exchange.Response;
+        var status = response is not null && !AssistRegions.Allows(region, response.InferenceRegion) ? AssistRunStatuses.ResidencyMismatch : exchange.Status;
         var cost = exchange.InputTokens + exchange.OutputTokens == 0 ? null : options.CostOf(options.ModelVersion, exchange.InputTokens, exchange.OutputTokens);
-        return new CaseResult(id, kind, exchange.Status, response?.Text, exchange.Rejected, exchange.InputTokens, exchange.OutputTokens,
+        return new CaseResult(id, kind, status, response?.Text, exchange.Rejected, exchange.InputTokens, exchange.OutputTokens,
             exchange.Elapsed.TotalSeconds, cost?.Amount, response?.ServedModel, response?.InferenceRegion, exchange.Sent.Text);
     }
 }
@@ -131,8 +134,8 @@ public static class EvaluationReport
             : "- **Price list used:** none is configured for this model, so no cost is given.");
         text.AppendLine("- **Cache:** each case is a fresh call, so the evaluation measures no cache hits. The rate in use comes from tenants' runs (AIA-036).");
         text.AppendLine();
-        text.AppendLine("| Kind | Cases | Verified | Rejected by the verifier | Unavailable | Input tokens, mean | Output tokens, mean | Cost per explanation, mean | Median (s) | p95 (s) | Slowest (s) |");
-        text.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|");
+        text.AppendLine("| Kind | Cases | Verified | Rejected by the verifier | Residency mismatch | Unavailable | Input tokens, mean | Output tokens, mean | Cost per explanation, mean | Median (s) | p95 (s) | Slowest (s) |");
+        text.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|---|");
         foreach (var group in new[] { ("All", results) }.Concat(results.GroupBy(r => r.Kind).OrderBy(g => g.Key, StringComparer.Ordinal).Select(g => (g.Key, (IReadOnlyList<CaseResult>)[.. g]))))
         {
             text.AppendLine(Row(group.Item1, group.Item2, price?.Currency));
@@ -169,7 +172,7 @@ public static class EvaluationReport
         var cost = costs.Count == 0 || currency is null || answered.Count == 0 ? "-" : $"{currency} {(costs.Sum() / answered.Count).ToString("0.000000", CultureInfo.InvariantCulture)}";
         string Seconds(double? value) => value is { } v ? v.ToString("0.00", CultureInfo.InvariantCulture) : "-";
         return string.Create(CultureInfo.InvariantCulture,
-            $"| {name} | {rows.Count} | {rows.Count(r => r.Status == AssistRunStatuses.Verified)} | {rows.Count(r => r.Status == AssistRunStatuses.Rejected)} | {rows.Count(r => r.Status == AssistRunStatuses.Unavailable)} | {Mean(answered.Select(r => r.InputTokens))} | {Mean(answered.Select(r => r.OutputTokens))} | {cost} | {Seconds(Percentile(answered.Select(r => r.Seconds), 50))} | {Seconds(Percentile(answered.Select(r => r.Seconds), 95))} | {Seconds(Percentile(answered.Select(r => r.Seconds), 100))} |");
+            $"| {name} | {rows.Count} | {rows.Count(r => r.Status == AssistRunStatuses.Verified)} | {rows.Count(r => r.Status == AssistRunStatuses.Rejected)} | {rows.Count(r => r.Status == AssistRunStatuses.ResidencyMismatch)} | {rows.Count(r => r.Status == AssistRunStatuses.Unavailable)} | {Mean(answered.Select(r => r.InputTokens))} | {Mean(answered.Select(r => r.OutputTokens))} | {cost} | {Seconds(Percentile(answered.Select(r => r.Seconds), 50))} | {Seconds(Percentile(answered.Select(r => r.Seconds), 95))} | {Seconds(Percentile(answered.Select(r => r.Seconds), 100))} |");
     }
 
     /// <summary>
@@ -181,8 +184,8 @@ public static class EvaluationReport
         var text = new StringBuilder("# AI-2 evaluation: the models compared\n\n");
         text.AppendLine("Sample data only, the same set for each model, one call at a time. Times are each call's own; the target is 10 seconds at the 95th percentile (AIA-070).");
         text.AppendLine();
-        text.AppendLine("| Model | Effort | Region asked | Regions reported | Cases | Verified | Rejected | Unavailable | Median (s) | p95 (s) | Slowest (s) | Over 10 s | Cost per explanation | Cost of the run |");
-        text.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|");
+        text.AppendLine("| Model | Effort | Region asked | Regions reported | Cases | Verified | Rejected | Residency mismatch | Unavailable | Median (s) | p95 (s) | Slowest (s) | Over 10 s | Cost per explanation | Cost of the run |");
+        text.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|");
         foreach (var (run, results) in runs.OrderBy(r => r.Run.Model, StringComparer.Ordinal))
         {
             var answered = results.Where(r => r.Status != AssistRunStatuses.Unavailable).ToList();
@@ -192,7 +195,7 @@ public static class EvaluationReport
             string S(double? v) => v is { } x ? x.ToString("0.00", CultureInfo.InvariantCulture) : "-";
             var perExplanation = answered.Count == 0 || run.Currency is null ? "-" : string.Create(CultureInfo.InvariantCulture, $"{run.Currency} {total / answered.Count:0.000000}");
             text.AppendLine(string.Create(CultureInfo.InvariantCulture,
-                $"| `{run.Model}` | {run.Effort} | {(run.InferenceGeo.Length == 0 ? "none" : run.InferenceGeo)} | {Listed(results.Select(r => r.InferenceRegion))} | {results.Count} | {Share(results.Count(r => r.Status == AssistRunStatuses.Verified))} | {Share(results.Count(r => r.Status == AssistRunStatuses.Rejected))} | {Share(results.Count(r => r.Status == AssistRunStatuses.Unavailable))} | {S(Percentile(seconds, 50))} | {S(Percentile(seconds, 95))} | {S(Percentile(seconds, 100))} | {seconds.Count(x => x > LatencyTargetSeconds)} | {perExplanation} | {(run.Currency is null ? "-" : $"{run.Currency} {total:0.0000}")} |"));
+                $"| `{run.Model}` | {run.Effort} | {(run.InferenceGeo.Length == 0 ? "none" : run.InferenceGeo)} | {Listed(results.Select(r => r.InferenceRegion))} | {results.Count} | {Share(results.Count(r => r.Status == AssistRunStatuses.Verified))} | {Share(results.Count(r => r.Status == AssistRunStatuses.Rejected))} | {Share(results.Count(r => r.Status == AssistRunStatuses.ResidencyMismatch))} | {Share(results.Count(r => r.Status == AssistRunStatuses.Unavailable))} | {S(Percentile(seconds, 50))} | {S(Percentile(seconds, 95))} | {S(Percentile(seconds, 100))} | {seconds.Count(x => x > LatencyTargetSeconds)} | {perExplanation} | {(run.Currency is null ? "-" : $"{run.Currency} {total:0.0000}")} |"));
         }
 
         text.AppendLine();

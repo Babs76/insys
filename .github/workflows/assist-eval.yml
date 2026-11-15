@@ -73,9 +73,11 @@ jobs:
           Assist__Claude__Effort: ${{ inputs.effort }}
           Assist__Claude__InferenceGeo: ${{ inputs.inference_geo }}
           OUT: ${{ runner.temp }}/assist-evaluation/${{ matrix.model }}
+          # The tenant's region the run stands for: the region asked, in INSYS's terms (US or GLOBAL).
+          REGION: ${{ inputs.inference_geo == 'us' && 'US' || 'GLOBAL' }}
         run: |
           dotnet run --project tools/Insys.Assist.Evaluation -c Release -- \
-            --set docs/evaluation/ai2-evaluation-set.json --config src/Host/Insys.Api/appsettings.json --provider claude --out "$OUT"
+            --set docs/evaluation/ai2-evaluation-set.json --config src/Host/Insys.Api/appsettings.json --provider claude --region "${REGION:-GLOBAL}" --out "$OUT"
           cat "$OUT/summary.md" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         if: always()

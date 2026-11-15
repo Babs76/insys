@@ -50,6 +50,7 @@ public static class AssistInfrastructure
         services.AddOptions<AssistOptions>().BindConfiguration("Assist")
             .Validate(o => o.PromptFor(AssistFeatures.ExplainRefusal) is not null && o.PromptFor(AssistFeatures.ExplainPremium) is not null,
                 "Assist:Prompts needs a version and text for EXPLAIN_REFUSAL and EXPLAIN_PREMIUM.")
+            .Validate(o => o.InferenceRegions.Length > 0, "Assist:InferenceRegions needs the regions a tenant may name, in the AI provider's terms.")
             .ValidateOnStart();
         return services;
     }

@@ -58,22 +58,30 @@ IAiModelProvider model = provider switch
     "echo" => new EchoModelProvider(),
     _ => throw new ArgumentException($"--provider is claude or echo, not {provider}."),
 };
-if (provider == "echo")
+if (provider == "echo" && Environment.GetEnvironmentVariable("Assist__ModelVersion") is null)
 {
+    // A dry run of the runner: named echo unless a model is named, so a dry run can stand in for that model's run, its prices and the comparison.
     settings.Assist.ModelVersion = "echo";
+}
+
+// The tenant's region the run stands for (US or GLOBAL), asked for on every call and checked on every answer, as a tenant's run is (AIA-050).
+var region = argument("--region", settings.Claude.InferenceGeo is { Length: > 0 } geo ? geo.ToUpperInvariant() : "GLOBAL");
+if (!settings.Assist.Supports(region))
+{
+    throw new ArgumentException($"--region is one of {string.Join(", ", settings.Assist.InferenceRegions)}, not {region}.");
 }
 
 var output = Directory.CreateDirectory(argument("--out", "assist-evaluation")).FullName;
 var ranAt = DateTimeOffset.UtcNow;
-var results = await new EvaluationRunner(model, settings.Assist).Run(set, CancellationToken.None);
+var results = await new EvaluationRunner(model, settings.Assist, region).Run(set, CancellationToken.None);
 await File.WriteAllTextAsync(Path.Combine(output, "results.json"), JsonSerializer.Serialize(results, EvaluationSet.Json));
 await File.WriteAllTextAsync(Path.Combine(output, "summary.md"), EvaluationReport.Summary(results, settings.Assist, provider, ranAt));
 await File.WriteAllTextAsync(Path.Combine(output, "review.csv"), EvaluationReport.ReviewSheet(results));
 var price = settings.Assist.Prices.GetValueOrDefault(settings.Assist.ModelVersion);
 await File.WriteAllTextAsync(Path.Combine(output, "run.json"), JsonSerializer.Serialize(
-    new RunInfo(provider, settings.Assist.ModelVersion, settings.Claude.Effort, settings.Claude.InferenceGeo, price?.Currency, ranAt), EvaluationSet.Json));
+    new RunInfo(provider, settings.Assist.ModelVersion, settings.Claude.Effort, region.ToLowerInvariant(), price?.Currency, ranAt), EvaluationSet.Json));
 Console.WriteLine($"{results.Count} cases: {results.Count(r => r.Status == "VERIFIED")} verified, {results.Count(r => r.Status == "REJECTED")} rejected, "
-    + $"{results.Count(r => r.Status == "UNAVAILABLE")} unavailable. Reports in {output}.");
+    + $"{results.Count(r => r.Status == "RESIDENCY_MISMATCH")} residency mismatches, {results.Count(r => r.Status == "UNAVAILABLE")} unavailable. Reports in {output}.");
 return results.Count == set.Count ? 0 : 1;
 
 internal static class Arguments
@@ -104,13 +112,14 @@ internal sealed record Settings(AssistOptions Assist, ClaudeModelOptions Claude)
 }
 
 /// <summary>
-/// A provider for checking the runner itself: it answers with the facts it was sent, so every number is in the source and every answer verifies. Not a model.
+/// A provider for checking the runner itself: it answers with the facts it was sent, so every number is in the source and every answer verifies, and reports
+/// inference where it was asked to run, or global, as Claude's API does. Not a model.
 /// </summary>
 internal sealed class EchoModelProvider : IAiModelProvider
 {
     public Task<AiModelResponse> Complete(AiModelRequest request, CancellationToken cancellationToken)
     {
         var text = request.Data.Replace(PromptData.Open, "", StringComparison.Ordinal).Replace(PromptData.Close, "", StringComparison.Ordinal).Trim();
-        return Task.FromResult(new AiModelResponse(text, (request.Instructions.Length + request.Data.Length) / 4, text.Length / 4, "echo", null));
+        return Task.FromResult(new AiModelResponse(text, (request.Instructions.Length + request.Data.Length) / 4, text.Length / 4, "echo", request.InferenceGeo ?? "global"));
     }
 }

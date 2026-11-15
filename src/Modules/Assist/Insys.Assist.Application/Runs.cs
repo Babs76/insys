@@ -49,6 +49,15 @@ public sealed class AssistOptions
     /// </summary>
     public Dictionary<string, AssistPromptTemplate> Prompts { get; set; } = new(StringComparer.Ordinal);
 
+    /// <summary>
+    /// The regions a tenant may name for inference, in the provider's terms (AIA-050): US and GLOBAL for Claude today. A tenant's calls ask for its region, and an
+    /// answer counts only if the provider reports running there (GLOBAL accepts any).
+    /// </summary>
+    public string[] InferenceRegions { get; set; } = [];
+
+    /// <summary>Whether a tenant may name this region.</summary>
+    public bool Supports(string? region) => region is { Length: > 0 } && InferenceRegions.Contains(region, StringComparer.OrdinalIgnoreCase);
+
     /// <summary>The provider's list prices, by model, for each run's cost (D-5, AIA-075). A model with none has no cost recorded.</summary>
     public Dictionary<string, AssistModelPrice> Prices { get; set; } = new(StringComparer.Ordinal);
 
@@ -95,8 +104,9 @@ public sealed record AssistExchangeResult(MinimisedPayload Sent, AiModelResponse
 /// </summary>
 public static class AssistExchange
 {
+    /// <param name="inferenceGeo">Where the call asks inference to run (the tenant's region in the provider's terms); null to leave it to the deployment.</param>
     public static async Task<AssistExchangeResult> Send(IAiModelProvider provider, string model, string promptVersion, string instructions, AllowedFacts facts,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, string? inferenceGeo = null)
     {
         // A second layer behind the allowed fields (addendum §5.4): the minimiser masks identifiers a structured field could still carry.
         var minimised = Minimiser.Minimise(facts.Render());
@@ -105,7 +115,7 @@ public static class AssistExchange
         long failedInput = 0, failedOutput = 0;
         try
         {
-            response = await provider.Complete(new AiModelRequest(model, promptVersion, instructions, PromptData.Delimit(minimised.Text)), cancellationToken);
+            response = await provider.Complete(new AiModelRequest(model, promptVersion, instructions, PromptData.Delimit(minimised.Text), inferenceGeo), cancellationToken);
         }
         catch (AiModelUnavailableException ex)
         {
@@ -138,11 +148,23 @@ public sealed record AssistUsage(long Tokens, long Runs, long Rejected, long Una
 public sealed record AssistCall(AssistRun Run, AssistRunPayload Payload, AssistRunOutcome Outcome);
 
 /// <summary>Whether a run may be made: the settings allow it, and whether the cap is reached (checked only before a call, so a reused explanation still shows).</summary>
-/// <param name="InferenceRegion">Where the tenant's setting allows inference to run (AIA-050): a country code, or GLOBAL.</param>
+/// <param name="InferenceRegion">Where the tenant's setting allows inference to run (AIA-050), in the provider's terms: US or GLOBAL.</param>
 public sealed record AssistAllowance(bool CapReached, string InferenceRegion = "")
 {
-    /// <summary>Whether a call that reports this region ran where the tenant allows: the same region, letter case aside. A call that reports none can't show it did.</summary>
-    public bool Allows(string? reported) => reported is { Length: > 0 } && string.Equals(reported, InferenceRegion, StringComparison.OrdinalIgnoreCase);
+    /// <summary>The region a call asks for, in the provider's terms (inference_geo).</summary>
+    public string InferenceGeo => InferenceRegion.ToLowerInvariant();
+
+    public bool Allows(string? reported) => AssistRegions.Allows(InferenceRegion, reported);
+}
+
+/// <summary>The residency rule on a call's answer (AIA-050, Ade 15 November).</summary>
+public static class AssistRegions
+{
+    public const string Global = "GLOBAL";
+
+    /// <summary>GLOBAL accepts any region the provider reports; any other region only itself, letter case aside. A call that reports none can't show where it ran.</summary>
+    public static bool Allows(string allowed, string? reported) =>
+        reported is { Length: > 0 } && (string.Equals(allowed, Global, StringComparison.OrdinalIgnoreCase) || string.Equals(reported, allowed, StringComparison.OrdinalIgnoreCase));
 }
 
 /// <summary>Reads the tenant's settings and this month's use, in a short read of its own: nothing is held open across the model call (AIA-072).</summary>
@@ -155,6 +177,13 @@ internal sealed class CheckAssistRunHandler(IAssistRepository assist, IOptions<A
         if (await assist.Setting(cancellationToken) is not { ResidencyAllowsInference: true } setting)
         {
             return Error.Validation(AssistErrorCodes.ResidencyNotSet, "AI Assist needs the tenant's jurisdiction, and a legal basis if inference runs outside it (AIA-050).");
+        }
+
+        if (!options.Value.Supports(setting.InferenceRegion))
+        {
+            // A region set before the regions were the provider's (a country code): no call can run there, so none is made.
+            return Error.Validation(AssistErrorCodes.RegionNotSupported,
+                $"The tenant's inference region, {setting.InferenceRegion}, isn't one the AI provider can run in ({string.Join(", ", options.Value.InferenceRegions)}). Choose one in the settings.");
         }
 
         if (query.Feature is AssistFeatures.ExplainRefusal or AssistFeatures.ExplainPremium && !setting.ExplanationsEnabled)
@@ -230,7 +259,7 @@ public sealed class AssistRunner(IDispatcher dispatcher, IAiModelProvider provid
 
         var started = clock.UtcNow;
         var model = options.Value.ModelVersion;
-        var exchange = await AssistExchange.Send(provider, model, request.PromptVersion, request.Instructions, request.Facts, cancellationToken);
+        var exchange = await AssistExchange.Send(provider, model, request.PromptVersion, request.Instructions, request.Facts, cancellationToken, allowance.Value.InferenceGeo);
         var response = exchange.Response;
         // AIA-050: the answer counts only if the provider says it ran where the tenant allows; otherwise its text isn't shown, and its tokens still count.
         var status = response is not null && !allowance.Value.Allows(response.InferenceRegion) ? AssistRunStatuses.ResidencyMismatch : exchange.Status;

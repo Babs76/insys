@@ -30,7 +30,8 @@ namespace Insys.BuildingBlocks.Application.Ai;
 /// <param name="PromptVersion">The prompt template's version, from configuration (AIA-074).</param>
 /// <param name="Instructions">The prompt template's text: INSYS's own words, never record data (AIA-061).</param>
 /// <param name="Data">The minimised data, delimited: never instructions (AIA-061).</param>
-public sealed record AiModelRequest(string ModelVersion, string PromptVersion, string Instructions, string Data);
+/// <param name="InferenceGeo">Where inference must run, in the provider's terms (us, global): the tenant's setting (AIA-050); null to leave it to the deployment.</param>
+public sealed record AiModelRequest(string ModelVersion, string PromptVersion, string Instructions, string Data, string? InferenceGeo = null);
 
 /// <param name="ServedModel">The model the provider says answered, when it says.</param>
 /// <param name="InferenceRegion">Where the provider says inference ran, as it reports it, never assumed (AIA-050); null when it doesn't say.</param>

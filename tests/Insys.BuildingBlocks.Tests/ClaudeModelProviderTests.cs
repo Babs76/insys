@@ -88,6 +88,15 @@ public sealed class ClaudeModelProviderTests
         answer.InferenceRegion.ShouldBe("us");
     }
 
+    [Fact]
+    public async Task TheTenantsRegion_OnTheCall_IsWhatIsAskedFor_OverTheDeploymentsDefault_AIA050()
+    {
+        await using var api = new FakeMessagesApi(Answer("end_turn", """{"input_tokens":10,"output_tokens":5,"inference_geo":"global"}"""));
+        await Provider(api.Url, o => o.InferenceGeo = "us").Complete(new AiModelRequest("claude-opus-5-5", "refusal-v1", Instructions, Data, "global"), CancellationToken.None);
+        using var sent = JsonDocument.Parse(api.Requests.Single());
+        sent.RootElement.GetProperty("inference_geo").GetString().ShouldBe("global");
+    }
+
     [Theory]
     [InlineData("refusal")]
     [InlineData("max_tokens")]
