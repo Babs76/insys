@@ -69,6 +69,7 @@ public static class InfrastructureRegistration
     {
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<IClock, SystemClock>();
+        services.TryAddSingleton<Application.IErrorCatalogue, ErrorCatalogue>();
         services.AddOptions<BusinessDateOptions>().Bind(configuration.GetSection("BusinessDate"));
         services.TryAddSingleton<TenantTimeZones>();
         services.TryAddSingleton<TenantBusinessDates>();

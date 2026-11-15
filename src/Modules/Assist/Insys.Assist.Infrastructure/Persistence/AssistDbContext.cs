@@ -44,6 +44,10 @@ public sealed class AssistDbContext(DbContextOptions<AssistDbContext> options, M
 
     public DbSet<AssistRunPayload> Payloads => Set<AssistRunPayload>();
 
+    public DbSet<AssistExplanation> Explanations => Set<AssistExplanation>();
+
+    public DbSet<AssistExplanationFeedback> Feedback => Set<AssistExplanationFeedback>();
+
     protected override void ConfigureModel(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<AssistTenantSetting>(setting =>
@@ -76,6 +80,30 @@ public sealed class AssistDbContext(DbContextOptions<AssistDbContext> options, M
             payload.Ignore(p => p.HasChanges);
             payload.Ignore(p => p.RowVersion);
             payload.Property(p => p.Masked).HasColumnType("jsonb");
+            payload.HasOne<AssistRun>().WithMany().HasForeignKey(p => new { p.TenantId, p.RunId }).HasPrincipalKey(r => new { r.TenantId, r.Id });
+        });
+
+        modelBuilder.Entity<AssistExplanation>(explanation =>
+        {
+            explanation.ToTable("explanation");
+            explanation.HasKey(e => new { e.TenantId, e.Id });
+            explanation.HasAuditColumns(updatable: false);
+            explanation.Ignore(e => e.DomainEvents);
+            explanation.Ignore(e => e.HasChanges);
+            explanation.Ignore(e => e.RowVersion);
+            explanation.Property(e => e.Facts).HasColumnType("jsonb");
+            // So that the run is written before the explanation that names it (fk_explanation_run).
+            explanation.HasOne<AssistRun>().WithMany().HasForeignKey(e => new { e.TenantId, e.RunId }).HasPrincipalKey(r => new { r.TenantId, r.Id });
+        });
+
+        modelBuilder.Entity<AssistExplanationFeedback>(feedback =>
+        {
+            feedback.ToTable("explanation_feedback");
+            feedback.HasKey(f => new { f.TenantId, f.Id });
+            feedback.HasAuditColumns(updatable: false);
+            feedback.Ignore(f => f.DomainEvents);
+            feedback.Ignore(f => f.HasChanges);
+            feedback.Ignore(f => f.RowVersion);
         });
     }
 }
@@ -89,6 +117,17 @@ internal sealed class AssistRepository(AssistDbContext db) : Application.IAssist
     public void Add(AssistRun run) => db.Runs.Add(run);
 
     public void Add(AssistRunPayload payload) => db.Payloads.Add(payload);
+
+    public void Add(AssistExplanation explanation) => db.Explanations.Add(explanation);
+
+    public void Add(AssistExplanationFeedback feedback) => db.Feedback.Add(feedback);
+
+    public Task<AssistExplanation?> Explained(string cacheKey, CancellationToken cancellationToken) =>
+        db.Explanations.AsNoTracking().Where(e => e.CacheKey == cacheKey && e.Outcome == ExplanationOutcomes.Explained && e.ReusedFrom == null)
+            .OrderByDescending(e => e.Id).FirstOrDefaultAsync(cancellationToken);
+
+    public Task<bool> ExplanationShownTo(Guid id, string actorId, CancellationToken cancellationToken) =>
+        db.Explanations.AnyAsync(e => e.Id == id && EF.Property<string>(e, ModuleDbContext.CreatedBy) == actorId, cancellationToken);
 
     public async Task<Application.AssistUsage> Usage(DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken)
     {

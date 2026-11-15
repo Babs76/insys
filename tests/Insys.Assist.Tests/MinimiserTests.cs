@@ -74,10 +74,6 @@ public sealed class MinimiserTests
     }
 
     [Fact]
-    public void FreeText_LosesEveryCapitalisedWord_AsNoPatternFindsAName() =>
-        Minimiser.MinimiseFreeText("Thandi Dlamini called. Chukwuemeka too.").Text.ShouldBe("[NAME] [NAME] called. [NAME] too.");
-
-    [Fact]
     public void WhatTheCallerKnows_IsMasked_LongestFirst_InAnyCase()
     {
         var known = new Dictionary<string, IReadOnlyCollection<string>> { ["NAME"] = ["Thandi", "Thandi Dlamini"], ["POLICY_NUMBER"] = ["p/77"] };

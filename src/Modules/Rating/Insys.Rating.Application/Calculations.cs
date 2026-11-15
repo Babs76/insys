@@ -308,3 +308,24 @@ public static class RatingValues
         }
     }
 }
+
+/// <summary>IRecordedCalculations for other modules: Rating's own query, in the caller's tenant.</summary>
+public sealed class RecordedCalculations(BuildingBlocks.Application.Messaging.IDispatcher dispatcher) : Contracts.IRecordedCalculations
+{
+    public async Task<Contracts.RecordedCalculation?> Get(Guid calculationId, CancellationToken cancellationToken)
+    {
+        var found = await dispatcher.Query(new GetCalculation(calculationId), cancellationToken);
+        if (found.IsFailure)
+        {
+            return found.Error.Code == ErrorCodes.NotFound ? null : throw new InvalidOperationException($"The calculation could not be read: {found.Error.Code}.");
+        }
+
+        var view = found.Value;
+        var inputs = view.Inputs.ValueKind == JsonValueKind.Object
+            ? view.Inputs.EnumerateObject().Select(p => new Contracts.RecordedCalculationInput(p.Name, p.Value.ValueKind == JsonValueKind.String ? p.Value.GetString()! : p.Value.GetRawText(),
+                p.Value.ValueKind == JsonValueKind.String)).ToList()
+            : [];
+        return new Contracts.RecordedCalculation(view.Id, view.SourceDomain, view.SubjectType, view.ProductCode, view.ProductVersion, view.RatingVersion, view.Premium, view.Currency,
+            view.CalculatedAt, inputs, view.Lines.Select(l => new Contracts.RecordedCalculationLine(l.LineNo, l.Component, l.FactorCode, l.FactorValue, l.Amount)).ToList());
+    }
+}

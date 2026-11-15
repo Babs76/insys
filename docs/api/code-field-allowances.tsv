@@ -9,6 +9,7 @@ core	AnalyticsClaimsIncurredRow.productCode	to declare
 core	AnalyticsWrittenPremiumRow.branchCode	to declare
 core	AnalyticsWrittenPremiumRow.channelCode	to declare
 core	AnalyticsWrittenPremiumRow.productCode	to declare
+core	AssistExplainRefusalBody.recordType	the record type the refusal was about, from the caller: kept for the basis and the audit, never sent to a model; any module's record type, so no one code list (AIA-039)
 core	AuditEventView.eventType	to declare
 core	AuditEventView.targetType	to declare
 core	ClaimsFrameworkAllocateClaimNumber.orgNodeCode	to declare

@@ -42189,6 +42189,224 @@
         ]
       }
     },
+    "/api/v1/assist/explanations/refusals": {
+      "post": {
+        "tags": [
+          "Assist"
+        ],
+        "summary": "Explain a refusal the caller received (AIA-039): its code, the names of its fields in error, the record and the correlation ID",
+        "description": "Built from the error catalogue\u0027s wording for the code; the screen\u0027s messages and record data are never used. When no explanation can be shown, outcome says why and facts hold the plain refusal (AIA-033, P8).",
+        "operationId": "AssistExplainRefusal",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssistExplainRefusalBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistExplanationView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "assist_explain.refusal",
+        "x-function": [
+          "ASSIST_EXPLAIN_REFUSAL"
+        ]
+      }
+    },
+    "/api/v1/assist/explanations/premiums": {
+      "post": {
+        "tags": [
+          "Assist"
+        ],
+        "summary": "Explain a recorded premium calculation (AIA-032), which the caller must be able to read",
+        "description": "Built only from the recorded calculation\u0027s inputs and lines, every amount with its currency. When no explanation can be shown, facts hold the plain breakdown (AIA-033, P8).",
+        "operationId": "AssistExplainPremium",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssistExplainPremiumBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistExplanationView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "assist_explain.premium",
+        "x-function": [
+          "ASSIST_EXPLAIN_PREMIUM"
+        ]
+      }
+    },
+    "/api/v1/assist/explanations/{id}/feedback": {
+      "post": {
+        "tags": [
+          "Assist"
+        ],
+        "summary": "Mark an explanation you were shown helpful, or unhelpful or wrong with a reason (AIA-037)",
+        "description": "Only the user an explanation was shown to marks it, so the route needs no function of its own: anyone else gets 404.",
+        "operationId": "AssistGiveExplanationFeedback",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssistExplanationFeedbackBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "signed-in user"
+      }
+    },
     "/api/v1/analytics/written-premium": {
       "get": {
         "tags": [
@@ -44572,6 +44790,8 @@
                 "AccessReview",
                 "AccountingPeriod",
                 "Approval",
+                "AssistExplanation",
+                "AssistExplanationFeedback",
                 "AssistRun",
                 "AssistRunPayload",
                 "AssistTenantSetting",
@@ -45051,6 +45271,8 @@
                 "AccessReview",
                 "AccountingPeriod",
                 "Approval",
+                "AssistExplanation",
+                "AssistExplanationFeedback",
                 "AssistRun",
                 "AssistRunPayload",
                 "AssistTenantSetting",
@@ -46695,6 +46917,193 @@
           },
           "currency": {
             "type": "string"
+          }
+        }
+      },
+      "AssistExplainPremiumBody": {
+        "required": [
+          "calculationId",
+          "correlationId"
+        ],
+        "type": "object",
+        "properties": {
+          "calculationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "correlationId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
+      "AssistExplainRefusalBody": {
+        "required": [
+          "code",
+          "fields",
+          "recordType",
+          "recordId",
+          "correlationId"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "fields": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "recordType": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "correlationId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
+      "AssistExplanationBasis": {
+        "required": [
+          "kind",
+          "reference",
+          "href",
+          "correlationId"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "reference": {
+            "type": "string"
+          },
+          "href": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "correlationId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
+      "AssistExplanationFactView": {
+        "required": [
+          "name",
+          "value"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        }
+      },
+      "AssistExplanationFeedbackBody": {
+        "required": [
+          "helpful",
+          "reason",
+          "comment"
+        ],
+        "type": "object",
+        "properties": {
+          "helpful": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "comment": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "AssistExplanationView": {
+        "required": [
+          "id",
+          "kind",
+          "outcome",
+          "text",
+          "label",
+          "basedOn",
+          "facts",
+          "reused",
+          "rejectedNumbers"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "text": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "basedOn": {
+            "$ref": "#/components/schemas/AssistExplanationBasis"
+          },
+          "facts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AssistExplanationFactView"
+            }
+          },
+          "reused": {
+            "type": "boolean"
+          },
+          "rejectedNumbers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },

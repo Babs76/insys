@@ -29,6 +29,7 @@ using Insys.Assist.Domain;
 using Insys.BuildingBlocks.Application.Auditing;
 using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Domain;
+using Insys.BuildingBlocks.Application.Messaging;
 using Microsoft.Extensions.Options;
 
 namespace Insys.Assist.Application;
@@ -42,60 +43,104 @@ public sealed class AssistOptions
     public long DefaultMonthlyTokenCap { get; set; } = 100_000;
 }
 
-/// <param name="SourceData">INSYS's own recorded figures: what the verifier compares numbers against.</param>
-/// <param name="UntrustedText">Free text anyone could have typed (a note, a reason, a document's words). It's sent as data, but a number in it doesn't count as a source, or an injected figure would pass the verifier (AIA-061).</param>
-/// <param name="Known">The record's names and numbers, by kind, for the minimiser.</param>
-public sealed record AssistRunRequest(string Feature, string PromptVersion, string Instructions, string SourceData, IReadOnlyDictionary<string, IReadOnlyCollection<string>>? Known = null,
-    Guid? CorrelationId = null, string? UntrustedText = null);
+/// <param name="Instructions">The prompt template's text (<see cref="PromptTemplates"/>): INSYS's own words, never record data (AIA-061).</param>
+/// <param name="Facts">The structured facts, the only data sent (D-15), and what the verifier compares numbers against.</param>
+public sealed record AssistRunRequest(string Feature, string PromptVersion, string Instructions, AllowedFacts Facts, Guid? CorrelationId = null);
 
 /// <param name="Text">The verified output, or null: the caller then shows the plain data (AIA-033), or carries on without (P8).</param>
 public sealed record AssistRunOutcome(Guid RunId, string Status, string? Text, IReadOnlyList<string> RejectedNumbers);
 
 public sealed record AssistUsage(long Tokens, long Runs, long Rejected, long Unavailable);
 
-/// <summary>A run in one transaction, for batch 7.2's explanations. It holds a transaction open across the model call, which 7.2 should weigh against AIA-072.</summary>
-public sealed record RunAssist(AssistRunRequest Request) : BuildingBlocks.Application.Messaging.ICommand<AssistRunOutcome>;
+/// <summary>A model call made and checked, not yet recorded: its run, its payload and how it ended.</summary>
+public sealed record AssistCall(AssistRun Run, AssistRunPayload Payload, AssistRunOutcome Outcome);
 
-internal sealed class RunAssistHandler(AssistRunner runner) : BuildingBlocks.Application.Messaging.ICommandHandler<RunAssist, AssistRunOutcome>
-{
-    public Task<Result<AssistRunOutcome>> Handle(RunAssist command, CancellationToken cancellationToken) => runner.Run(command.Request, cancellationToken);
-}
+/// <summary>Whether a run may be made: the settings allow it, and whether the cap is reached (checked only before a call, so a reused explanation still shows).</summary>
+public sealed record AssistAllowance(bool CapReached);
 
-/// <summary>
-/// One model call, the only way to the provider: settings and cap first, then the minimiser, the call, the verifier and the record. The model's output only ever comes back as text
-/// for the caller to show (AIA-060). A refused run makes no call and records none. The cap is checked before the call, so calls in flight together can pass it by what they use.
-/// </summary>
-public sealed class AssistRunner(IAssistRepository assist, IAiModelProvider provider, IOptions<AssistOptions> options, IClock clock, IBusinessDate businessDate, IExecutionContext execution,
-    IAuditTrail audit)
+/// <summary>Reads the tenant's settings and this month's use, in a short read of its own: nothing is held open across the model call (AIA-072).</summary>
+public sealed record CheckAssistRun(string Feature) : IQuery<AssistAllowance>;
+
+internal sealed class CheckAssistRunHandler(IAssistRepository assist, IOptions<AssistOptions> options, IBusinessDate businessDate) : IQueryHandler<CheckAssistRun, AssistAllowance>
 {
-    public async Task<Result<AssistRunOutcome>> Run(AssistRunRequest request, CancellationToken cancellationToken)
+    public async Task<Result<AssistAllowance>> Handle(CheckAssistRun query, CancellationToken cancellationToken)
     {
         if (await assist.Setting(cancellationToken) is not { ResidencyAllowsInference: true } setting)
         {
             return Error.Validation(AssistErrorCodes.ResidencyNotSet, "AI Assist needs the tenant's jurisdiction, and a legal basis if inference runs outside it (AIA-050).");
         }
 
-        if (request.Feature is AssistFeatures.ExplainRefusal or AssistFeatures.ExplainPremium && !setting.ExplanationsEnabled)
+        if (query.Feature is AssistFeatures.ExplainRefusal or AssistFeatures.ExplainPremium && !setting.ExplanationsEnabled)
         {
             return Error.Validation(AssistErrorCodes.NotEnabled, "The tenant hasn't switched explanations on.");
         }
 
-        var today = businessDate.Today;
-        var used = (await assist.Usage(businessDate.StartOf(new DateOnly(today.Year, today.Month, 1)), businessDate.StartOf(new DateOnly(today.Year, today.Month, 1).AddMonths(1)), cancellationToken)).Tokens;
-        if (used >= (setting.MonthlyTokenCap ?? options.Value.DefaultMonthlyTokenCap))
+        var month = new DateOnly(businessDate.Today.Year, businessDate.Today.Month, 1);
+        var used = (await assist.Usage(businessDate.StartOf(month), businessDate.StartOf(month.AddMonths(1)), cancellationToken)).Tokens;
+        return new AssistAllowance(used >= (setting.MonthlyTokenCap ?? options.Value.DefaultMonthlyTokenCap));
+    }
+}
+
+/// <summary>Records a finished run, its payload and, for an explanation, the explanation, in one short transaction after the call (AIA-072).</summary>
+public sealed record RecordAssistRun(AssistRun? Run, AssistRunPayload? Payload, AssistExplanation? Explanation) : ICommand<Guid>;
+
+internal sealed class RecordAssistRunHandler(IAssistRepository assist, IExecutionContext execution, IAuditTrail audit) : ICommandHandler<RecordAssistRun, Guid>
+{
+    public Task<Result<Guid>> Handle(RecordAssistRun command, CancellationToken cancellationToken)
+    {
+        if (command.Run is { } run)
+        {
+            assist.Add(run);
+            assist.Add(command.Payload!);
+            audit.Record(new AuditEntry("ASSIST", "Run", nameof(AssistRun), run.Id.ToString(), new Dictionary<string, string?>
+            {
+                ["feature"] = run.Feature, ["status"] = run.Status, ["actor"] = execution.ActorId,
+            }));
+        }
+
+        if (command.Explanation is { } explanation)
+        {
+            assist.Add(explanation);
+            audit.Record(new AuditEntry("ASSIST", "Explain", nameof(AssistExplanation), explanation.Id.ToString(), new Dictionary<string, string?>
+            {
+                ["kind"] = explanation.Kind, ["outcome"] = explanation.Outcome, ["reused"] = (explanation.ReusedFrom is not null).ToString(), ["actor"] = execution.ActorId,
+            }));
+        }
+
+        return Task.FromResult(Result<Guid>.Success(command.Explanation?.Id ?? command.Run?.Id ?? Guid.Empty));
+    }
+}
+
+/// <summary>
+/// One model call, the only way to the provider, in three steps so that no transaction is open while the model answers (AIA-072, P8): a short read of the
+/// settings and cap, then the minimiser, the call and the verifier with nothing held, then a short write of the record. The model's output only ever comes back
+/// as text for the caller to show (AIA-060). A refused run makes no call and records none. The cap is checked before the call, so calls in flight together can
+/// pass it by what they use.
+/// </summary>
+public sealed class AssistRunner(IDispatcher dispatcher, IAiModelProvider provider, IOptions<AssistOptions> options, IClock clock)
+{
+    /// <summary>The checks and the call, recording nothing: the caller records the run, with whatever it adds (an explanation).</summary>
+    public async Task<Result<AssistCall>> Call(AssistRunRequest request, CancellationToken cancellationToken)
+    {
+        var allowance = await dispatcher.Query(new CheckAssistRun(request.Feature), cancellationToken);
+        if (allowance.IsFailure)
+        {
+            return allowance.Error;
+        }
+
+        if (allowance.Value.CapReached)
         {
             return Error.Validation(AssistErrorCodes.CapReached, "The tenant's monthly AI Assist cap is reached.");
         }
 
         var started = clock.UtcNow;
-        var minimised = Minimiser.Minimise(request.SourceData, request.Known);
-        var untrusted = Minimiser.MinimiseFreeText(request.UntrustedText ?? "", request.Known);
-        var sent = untrusted.Text.Length == 0 ? minimised.Text : $"{minimised.Text}\n{untrusted.Text}";
+        // A second layer behind the allowed fields (addendum §5.4): the minimiser masks identifiers a structured field could still carry.
+        var minimised = Minimiser.Minimise(request.Facts.Render());
         var model = options.Value.ModelVersion;
         AiModelResponse? response = null;
         try
         {
-            response = await provider.Complete(new AiModelRequest(model, request.PromptVersion, request.Instructions, PromptData.Delimit(sent)), cancellationToken);
+            response = await provider.Complete(new AiModelRequest(model, request.PromptVersion, request.Instructions, PromptData.Delimit(minimised.Text)), cancellationToken);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -105,13 +150,20 @@ public sealed class AssistRunner(IAssistRepository assist, IAiModelProvider prov
         var rejected = response is null ? [] : NumberVerifier.Verify(response.Text, minimised.Text).Rejected;
         var status = response is null ? AssistRunStatuses.Unavailable : rejected.Count > 0 ? AssistRunStatuses.Rejected : AssistRunStatuses.Verified;
         var run = AssistRun.Finish(request.Feature, started, clock.UtcNow, model, request.PromptVersion, status, response?.InputTokens ?? 0, response?.OutputTokens ?? 0, request.CorrelationId);
-        assist.Add(run);
-        assist.Add(AssistRunPayload.For(run.Id, sent, response?.Text,
-            JsonSerializer.Serialize(minimised.Masked.Concat(untrusted.Masked).GroupBy(m => m.Key).ToDictionary(g => g.Key, g => g.Sum(m => m.Value)))));
-        audit.Record(new AuditEntry("ASSIST", "Run", nameof(AssistRun), run.Id.ToString(), new Dictionary<string, string?>
+        var payload = AssistRunPayload.For(run.Id, minimised.Text, response?.Text, JsonSerializer.Serialize(minimised.Masked));
+        return new AssistCall(run, payload, new AssistRunOutcome(run.Id, status, status == AssistRunStatuses.Verified ? response!.Text : null, rejected));
+    }
+
+    /// <summary>A call, recorded on its own.</summary>
+    public async Task<Result<AssistRunOutcome>> Run(AssistRunRequest request, CancellationToken cancellationToken)
+    {
+        var call = await Call(request, cancellationToken);
+        if (call.IsFailure)
         {
-            ["feature"] = request.Feature, ["status"] = status, ["actor"] = execution.ActorId,
-        }));
-        return new AssistRunOutcome(run.Id, status, status == AssistRunStatuses.Verified ? response!.Text : null, rejected);
+            return call.Error;
+        }
+
+        var recorded = await dispatcher.Send(new RecordAssistRun(call.Value.Run, call.Value.Payload, null), cancellationToken);
+        return recorded.IsFailure ? recorded.Error : call.Value.Outcome;
     }
 }

@@ -41,22 +41,28 @@ namespace Insys.BuildingBlocks.Infrastructure.StaticData;
 /// <summary>Error codes for static data governance.</summary>
 public static class StaticDataErrorCodes
 {
-    [ErrorCode(409, "error.static_data.draft_exists")]
+    [ErrorCode(409, "error.static_data.draft_exists", Means = "This code already has a version in progress.",
+        Remedy = "Finish or discard that version first.")]
     public const string DraftExists = "STATIC_DRAFT_EXISTS";
 
-    [ErrorCode(403, "error.static_data.maker_only")]
+    [ErrorCode(403, "error.static_data.maker_only", Means = "Only the person who created the draft can change it, so who made the change stays known.",
+        Remedy = "Ask the draft's maker to change it, or start your own draft once it's finished.")]
     public const string MakerOnly = "STATIC_MAKER_ONLY";
 
-    [ErrorCode(422, "error.static_data.scope_not_allowed")]
+    [ErrorCode(422, "error.static_data.scope_not_allowed", Means = "This table holds only your organisation's own rows, not platform-wide ones.",
+        Remedy = "Make the change in your organisation's rows.")]
     public const string ScopeNotAllowed = "STATIC_SCOPE_NOT_ALLOWED";
 
-    [ErrorCode(422, "error.static_data.retroactive_change")]
+    [ErrorCode(422, "error.static_data.retroactive_change", Means = "The new version would start before the version now in force starts.",
+        Remedy = "Set the start date after the start of the version in force.")]
     public const string RetroactiveChange = "STATIC_RETROACTIVE_CHANGE";
 
-    [ErrorCode(422, "error.static_data.import_rejected")]
+    [ErrorCode(422, "error.static_data.import_rejected", Means = "Some lines of the import have errors, so nothing was saved.",
+        Remedy = "Correct the lines listed and import again.")]
     public const string ImportRejected = "STATIC_IMPORT_REJECTED";
 
-    [ErrorCode(403, "error.static_data.user_required")]
+    [ErrorCode(403, "error.static_data.user_required", Means = "Static data changes are made by identified people, for maker-checker.",
+        Remedy = "Make the change signed in as yourself.")]
     public const string UserRequired = "STATIC_USER_REQUIRED";
 }
 

@@ -723,49 +723,63 @@ public static class Invitation
 
 public static class IdentityErrorCodes
 {
-    [ErrorCode(422, "error.identity.role_not_found")]
+    [ErrorCode(422, "error.identity.role_not_found", Means = "The role has no version in force.",
+        Remedy = "Choose a role in force, or ask your administrator to put it in force first.")]
     public const string RoleNotFound = "ROLE_NOT_FOUND";
 
     /// <summary>External-user access §1: the user already has a link pending or in effect.</summary>
-    [ErrorCode(409, "error.identity.subject_link_exists")]
+    [ErrorCode(409, "error.identity.subject_link_exists", Means = "The user already has a portal link pending or in effect.",
+        Remedy = "Use the existing link, or end it before making another.")]
     public const string SubjectLinkExists = "SUBJECT_LINK_EXISTS";
 
     /// <summary>The user has no link pending or in effect.</summary>
-    [ErrorCode(404, "error.identity.subject_link_not_found")]
+    [ErrorCode(404, "error.identity.subject_link_not_found", Means = "The user has no portal link pending or in effect.",
+        Remedy = "Make the link first.")]
     public const string SubjectLinkNotFound = "SUBJECT_LINK_NOT_FOUND";
 
     /// <summary>The party, intermediary or provider to link to is not in force (or the intermediary is not active and licensed).</summary>
-    [ErrorCode(422, "error.identity.subject_not_found")]
+    [ErrorCode(422, "error.identity.subject_not_found", Means = "The customer, intermediary or provider to link the user to isn't in force, or the intermediary isn't active and licensed.",
+        Remedy = "Check the record to link to, and that it's in force.")]
     public const string SubjectNotFound = "LINK_SUBJECT_NOT_FOUND";
 
-    [ErrorCode(409, "error.identity.role_already_assigned")]
+    [ErrorCode(409, "error.identity.role_already_assigned", Means = "The user already holds this role, or its assignment is waiting for approval.",
+        Remedy = "Nothing to do, or wait for the pending approval.")]
     public const string RoleAlreadyAssigned = "ROLE_ALREADY_ASSIGNED";
 
-    [ErrorCode(404, "error.identity.role_not_assigned")]
+    [ErrorCode(404, "error.identity.role_not_assigned", Means = "The user doesn't hold this role.",
+        Remedy = "Check the user's roles in force.")]
     public const string RoleNotAssigned = "ROLE_NOT_ASSIGNED";
 
-    [ErrorCode(409, "error.identity.mfa_required")]
+    [ErrorCode(409, "error.identity.mfa_required", Means = "This role is privileged and needs the user to be enrolled for a second factor.",
+        Remedy = "Enrol the user for a second factor, then assign the role.")]
     public const string MfaRequired = "MFA_REQUIRED";
 
-    [ErrorCode(409, "error.identity.segregation_of_duties")]
+    [ErrorCode(409, "error.identity.segregation_of_duties", Means = "The role would give the user two duties your organisation keeps apart, such as preparing and releasing the same payment.",
+        Remedy = "Give the role to someone else, or remove the conflicting role first.")]
     public const string SegregationOfDuties = "SEGREGATION_OF_DUTIES";
 
-    [ErrorCode(409, "error.identity.username_taken")]
+    [ErrorCode(409, "error.identity.username_taken", Means = "The username is already in use.",
+        Remedy = "Choose another username.")]
     public const string UsernameTaken = "USERNAME_TAKEN";
 
-    [ErrorCode(422, "error.identity.access_window_too_long")]
+    [ErrorCode(422, "error.identity.access_window_too_long", Means = "Privileged access is granted for a limited time, and the period asked for is longer than allowed.",
+        Remedy = "Ask for a shorter period.")]
     public const string AccessWindowTooLong = "ACCESS_WINDOW_TOO_LONG";
 
-    [ErrorCode(422, "error.identity.nothing_to_review")]
+    [ErrorCode(422, "error.identity.nothing_to_review", Means = "No role assignments fall in the scope of this access review.",
+        Remedy = "Widen the review's scope, or no review is needed.")]
     public const string NothingToReview = "NOTHING_TO_REVIEW";
 
-    [ErrorCode(409, "error.identity.review_incomplete")]
+    [ErrorCode(409, "error.identity.review_incomplete", Means = "Every item must be confirmed or revoked before the review completes.",
+        Remedy = "Decide the remaining items, then complete the review.")]
     public const string ReviewIncomplete = "REVIEW_INCOMPLETE";
 
-    [ErrorCode(409, "error.identity.tenant_not_onboarding")]
+    [ErrorCode(409, "error.identity.tenant_not_onboarding", Means = "First administrators are set up only while the organisation is being onboarded.",
+        Remedy = "For a live organisation, ask for an additional administrator instead.")]
     public const string TenantNotOnboarding = "TENANT_NOT_ONBOARDING";
 
-    [ErrorCode(409, "error.identity.tenant_has_users")]
+    [ErrorCode(409, "error.identity.tenant_has_users", Means = "The organisation already has users, so first administrators can't be set up again.",
+        Remedy = "Ask for an additional administrator instead.")]
     public const string TenantHasUsers = "TENANT_HAS_USERS";
 
 }

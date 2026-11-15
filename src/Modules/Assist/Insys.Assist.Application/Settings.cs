@@ -44,6 +44,16 @@ public interface IAssistRepository
     void Add(AssistRunPayload payload);
 
     Task<AssistUsage> Usage(DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken);
+
+    void Add(AssistExplanation explanation);
+
+    void Add(AssistExplanationFeedback feedback);
+
+    /// <summary>The newest explained explanation with this cache key (AIA-036).</summary>
+    Task<AssistExplanation?> Explained(string cacheKey, CancellationToken cancellationToken);
+
+    /// <summary>Whether the explanation exists and was shown to (recorded by) this user.</summary>
+    Task<bool> ExplanationShownTo(Guid id, string actorId, CancellationToken cancellationToken);
 }
 
 /// <summary>A tenant's settings. Before any are made, the tenant has none, and Assist refuses.</summary>

@@ -373,31 +373,40 @@ public sealed class Approval : AggregateRoot<Guid>
 public static class WorkflowErrorCodes
 {
     /// <summary>Only the person who asked for an approval can withdraw it.</summary>
-    [ErrorCode(403, "error.workflow.not_requester")]
+    [ErrorCode(403, "error.workflow.not_requester", Means = "Only the person who asked for this approval can withdraw it.",
+        Remedy = "Ask the requester to withdraw it, or let a checker decide it.")]
     public const string NotRequester = "APPROVAL_NOT_REQUESTER";
 
-    [ErrorCode(403, "error.workflow.authority_missing")]
+    [ErrorCode(403, "error.workflow.authority_missing", Means = "None of your roles has approval authority for this type of approval.",
+        Remedy = "Ask a colleague who has the authority to decide it, or ask your administrator about yours.")]
     public const string AuthorityMissing = "APPROVAL_AUTHORITY_MISSING";
 
-    [ErrorCode(403, "error.workflow.authority_exceeded")]
+    [ErrorCode(403, "error.workflow.authority_exceeded", Means = "The amount is above the limit of your approval authority.",
+        Remedy = "Ask a colleague whose limit covers the amount to decide it.")]
     public const string AuthorityExceeded = "APPROVAL_AUTHORITY_EXCEEDED";
 
-    [ErrorCode(422, "error.workflow.transition_not_defined")]
+    [ErrorCode(422, "error.workflow.transition_not_defined", Means = "The process doesn't allow a move from its current step to the one asked for.",
+        Remedy = "Open the record to see its current step and the moves it allows.")]
     public const string TransitionNotDefined = "TRANSITION_NOT_DEFINED";
 
-    [ErrorCode(422, "error.workflow.guard_failed")]
+    [ErrorCode(422, "error.workflow.guard_failed", Means = "The condition for moving the process to that step doesn't hold yet.",
+        Remedy = "Complete what the step needs first, then try again.")]
     public const string GuardFailed = "TRANSITION_GUARD_FAILED";
 
-    [ErrorCode(422, "error.workflow.domain_validation_failed")]
+    [ErrorCode(422, "error.workflow.domain_validation_failed", Means = "The record doesn't pass the checks this step of the process requires.",
+        Remedy = "Correct the record as the checks require, then try again.")]
     public const string DomainValidationFailed = "DOMAIN_VALIDATION_FAILED";
 
-    [ErrorCode(422, "error.workflow.definition_invalid")]
+    [ErrorCode(422, "error.workflow.definition_invalid", Means = "The process definition isn't valid, so the process can't be run.",
+        Remedy = "Ask the person who maintains process definitions to correct it.")]
     public const string DefinitionInvalid = "WORKFLOW_DEFINITION_INVALID";
 
-    [ErrorCode(409, "error.workflow.process_not_running")]
+    [ErrorCode(409, "error.workflow.process_not_running", Means = "The process has already ended or hasn't started, so it can't move on.",
+        Remedy = "Open the record to see where it stands.")]
     public const string ProcessNotRunning = "PROCESS_NOT_RUNNING";
 
     /// <summary>OQ-138: the task closes when its record does what it asks (a due diligence review is completed through Party), not by hand.</summary>
-    [ErrorCode(409, "error.workflow.task_closed_by_its_record")]
+    [ErrorCode(409, "error.workflow.task_closed_by_its_record", Means = "This task closes by itself when its record does what the task asks; it can't be closed by hand.",
+        Remedy = "Complete the work on the record; the task then closes.")]
     public const string TaskClosedByItsRecord = "TASK_CLOSED_BY_ITS_RECORD";
 }

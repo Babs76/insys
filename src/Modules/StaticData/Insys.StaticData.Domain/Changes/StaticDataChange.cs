@@ -442,6 +442,7 @@ public sealed class TenantGovernanceSettings : AggregateRoot<Guid>
 
 public static class StaticDataGovernanceCodes
 {
-    [ErrorCode(409, "error.static_data.governance_change_pending")]
+    [ErrorCode(409, "error.static_data.governance_change_pending", Means = "A change to how static data is approved is already waiting for a decision.",
+        Remedy = "Wait for that decision before asking for another.")]
     public const string ChangePending = "GOVERNANCE_CHANGE_PENDING";
 }

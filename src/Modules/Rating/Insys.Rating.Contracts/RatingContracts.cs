@@ -77,3 +77,20 @@ public interface IPremiumSimulator
     /// <summary>Runs every case of the rating test case library for the product version.</summary>
     Task<IReadOnlyList<RatingTestCaseResult>> RunTestCases(string productCode, int productVersion, DateOnly day, CancellationToken cancellationToken);
 }
+
+/// <summary>One recorded input of a calculation: its name, and its value as JSON text (a number, true or false, or a string), as Rating recorded it.</summary>
+public sealed record RecordedCalculationInput(string Name, string Value, bool IsString);
+
+/// <summary>One line of a calculation's breakdown, as Rating recorded it.</summary>
+public sealed record RecordedCalculationLine(int LineNo, string Component, string? FactorCode, string? FactorValue, decimal Amount);
+
+/// <summary>A recorded calculation, for explaining it (AI Assist, AIA-032): never a new calculation or a simulation.</summary>
+public sealed record RecordedCalculation(Guid Id, string SourceDomain, string SubjectType, string ProductCode, int ProductVersion, int RatingVersion, decimal Premium,
+    string Currency, DateTimeOffset CalculatedAt, IReadOnlyList<RecordedCalculationInput> Inputs, IReadOnlyList<RecordedCalculationLine> Lines);
+
+/// <summary>Rating's recorded calculations, read in the caller's tenant (the addendum's public query, ai-assist.md §5).</summary>
+public interface IRecordedCalculations
+{
+    /// <summary>The calculation, or null when the tenant has none with this ID.</summary>
+    Task<RecordedCalculation?> Get(Guid calculationId, CancellationToken cancellationToken);
+}

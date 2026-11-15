@@ -67,24 +67,6 @@ public static partial class Minimiser
         return new MinimisedPayload(text, masked);
     }
 
-    /// <summary>
-    /// Free text can name anyone, and no pattern finds a name it wasn't told: every capitalised word goes as well, at the cost of some of the text's sense (AIA-051). A name written in lower case can still pass, so text from people isn't to be sent to a model without review (addendum §2, D-3).
-    /// </summary>
-    public static MinimisedPayload MinimiseFreeText(string text, IReadOnlyDictionary<string, IReadOnlyCollection<string>>? known = null)
-    {
-        var payload = Minimise(text, known);
-        var masked = new Dictionary<string, int>(payload.Masked, StringComparer.Ordinal);
-        var words = CapitalisedWord().Replace(payload.Text, _ =>
-        {
-            masked["NAME"] = masked.GetValueOrDefault("NAME") + 1;
-            return "[NAME]";
-        });
-        return new MinimisedPayload(words, masked);
-    }
-
-    [GeneratedRegex(@"(?<![\[\p{L}])\p{Lu}[\p{L}'-]*(?![\]\p{L}])")]
-    private static partial Regex CapitalisedWord();
-
     [GeneratedRegex(@"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+")]
     private static partial Regex Email();
 

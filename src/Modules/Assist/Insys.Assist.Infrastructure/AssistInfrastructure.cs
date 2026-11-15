@@ -41,6 +41,7 @@ public static class AssistInfrastructure
         services.AddScoped<IAssistRepository, AssistRepository>();
         services.AddSingleton<IAiModelProvider, NoAiModelProvider>();
         services.AddScoped<AssistRunner>();
+        services.AddScoped<Explainer>();
         services.AddOptions<AssistOptions>().BindConfiguration("Assist");
         return services;
     }
