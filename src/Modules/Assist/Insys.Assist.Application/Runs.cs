@@ -82,7 +82,8 @@ internal sealed class CheckAssistRunHandler(IAssistRepository assist, IOptions<A
 }
 
 /// <summary>Records a finished run, its payload and, for an explanation, the explanation, in one short transaction after the call (AIA-072).</summary>
-public sealed record RecordAssistRun(AssistRun? Run, AssistRunPayload? Payload, AssistExplanation? Explanation) : ICommand<Guid>;
+/// <param name="Audit">What the audit entry adds about the request, such as the record a refusal was about (AIA-039): never sent to a model.</param>
+public sealed record RecordAssistRun(AssistRun? Run, AssistRunPayload? Payload, AssistExplanation? Explanation, IReadOnlyDictionary<string, string?>? Audit = null) : ICommand<Guid>;
 
 internal sealed class RecordAssistRunHandler(IAssistRepository assist, IExecutionContext execution, IAuditTrail audit) : ICommandHandler<RecordAssistRun, Guid>
 {
@@ -101,10 +102,17 @@ internal sealed class RecordAssistRunHandler(IAssistRepository assist, IExecutio
         if (command.Explanation is { } explanation)
         {
             assist.Add(explanation);
-            audit.Record(new AuditEntry("ASSIST", "Explain", nameof(AssistExplanation), explanation.Id.ToString(), new Dictionary<string, string?>
+            var detail = new Dictionary<string, string?>
             {
-                ["kind"] = explanation.Kind, ["outcome"] = explanation.Outcome, ["reused"] = (explanation.ReusedFrom is not null).ToString(), ["actor"] = execution.ActorId,
-            }));
+                ["kind"] = explanation.Kind, ["source"] = explanation.SourceRef, ["outcome"] = explanation.Outcome, ["reused"] = (explanation.ReusedFrom is not null).ToString(),
+                ["actor"] = execution.ActorId,
+            };
+            foreach (var (key, value) in command.Audit ?? new Dictionary<string, string?>())
+            {
+                detail[key] = value;
+            }
+
+            audit.Record(new AuditEntry("ASSIST", "Explain", nameof(AssistExplanation), explanation.Id.ToString(), detail));
         }
 
         return Task.FromResult(Result<Guid>.Success(command.Explanation?.Id ?? command.Run?.Id ?? Guid.Empty));
@@ -147,7 +155,8 @@ public sealed class AssistRunner(IDispatcher dispatcher, IAiModelProvider provid
             // Recorded below: INSYS never waits on the AI (P8), whatever the provider threw.
         }
 
-        var rejected = response is null ? [] : NumberVerifier.Verify(response.Text, minimised.Text).Rejected;
+        // Against the facts' values only, every amount with its currency, so a stated currency must match (addendum §5.1).
+        var rejected = response is null ? [] : NumberVerifier.Verify(response.Text, Minimiser.Minimise(request.Facts.Values()).Text, strictCurrency: true).Rejected;
         var status = response is null ? AssistRunStatuses.Unavailable : rejected.Count > 0 ? AssistRunStatuses.Rejected : AssistRunStatuses.Verified;
         var run = AssistRun.Finish(request.Feature, started, clock.UtcNow, model, request.PromptVersion, status, response?.InputTokens ?? 0, response?.OutputTokens ?? 0, request.CorrelationId);
         var payload = AssistRunPayload.For(run.Id, minimised.Text, response?.Text, JsonSerializer.Serialize(minimised.Masked));

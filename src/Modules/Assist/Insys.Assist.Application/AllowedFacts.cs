@@ -33,9 +33,10 @@ namespace Insys.Assist.Application;
 public sealed record AssistFact(string Name, string Value);
 
 /// <summary>
-/// What a prompt may hold (D-15, addendum §5.4): structured fields only. A value is a code, an amount with its currency, a number, a yes or no, a date, a field's
-/// name, or the error catalogue's own wording. No free text goes in: a value that isn't one of these kinds is left out and counted, never masked and sent.
-/// Every amount carries its currency, so a stated currency in the output is checked against it (addendum §5.1).
+/// What a prompt may hold (D-15, addendum §5.4): structured fields only. A value is a code, an amount with its currency, a number, a yes or no, a date, or the
+/// error catalogue's own wording. A value that isn't one of these kinds is left out and counted, never masked and sent. The form is a backstop, not the guard:
+/// a code-shaped word can still be anything, so callers add only values INSYS itself recorded or configured (an error code, a product, a rating line), never a
+/// value a client chose (a field's name, a rating input, a record type). Every amount carries its currency (addendum §5.1).
 /// </summary>
 public sealed partial class AllowedFacts
 {
@@ -57,14 +58,14 @@ public sealed partial class AllowedFacts
 
     public AllowedFacts Date(string name, DateOnly value) => Add(name, value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
 
-    /// <summary>A field's name, from a refusal's field errors: only the name, never the message the screen shows (AIA-039, D-15).</summary>
-    public AllowedFacts Field(string name, string field) => FieldForm().IsMatch(field) ? Add(name, field) : Exclude();
-
     /// <summary>The error catalogue's own wording (AIA-031): INSYS's text, written beside each code, never a record's or a user's.</summary>
     internal AllowedFacts Wording(string name, string text) => Add(name, text);
 
-    /// <summary>The facts as the model receives them, one per line: what the verifier compares numbers against.</summary>
+    /// <summary>The facts as the model receives them, one per line.</summary>
     public string Render() => string.Join("\n", _facts.Select(f => $"{f.Name}: {f.Value}"));
+
+    /// <summary>The facts' values alone: what the verifier compares numbers against, as a number in a fact's name ("line 2 amount") isn't a figure.</summary>
+    public string Values() => string.Join("\n", _facts.Select(f => f.Value));
 
     private AllowedFacts Add(string name, string value)
     {
@@ -91,7 +92,4 @@ public sealed partial class AllowedFacts
 
     [GeneratedRegex(@"^[A-Z]{3}$")]
     private static partial Regex CurrencyForm();
-
-    [GeneratedRegex(@"^[A-Za-z][A-Za-z0-9_.\[\]]{0,79}$")]
-    private static partial Regex FieldForm();
 }

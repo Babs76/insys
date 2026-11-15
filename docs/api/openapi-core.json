@@ -42195,7 +42195,7 @@
           "Assist"
         ],
         "summary": "Explain a refusal the caller received (AIA-039): its code, the names of its fields in error, the record and the correlation ID",
-        "description": "Built from the error catalogue\u0027s wording for the code; the screen\u0027s messages and record data are never used. When no explanation can be shown, outcome says why and facts hold the plain refusal (AIA-033, P8).",
+        "description": "Built from the error catalogue\u0027s wording for the code. The screen\u0027s messages, the fields\u0027 names and the record are never sent to a model: the record is kept for basedOn and the audit. When no explanation can be shown, outcome says why and facts hold the plain refusal (AIA-033, P8).",
         "operationId": "AssistExplainRefusal",
         "parameters": [
           {
@@ -42267,7 +42267,7 @@
           "Assist"
         ],
         "summary": "Explain a recorded premium calculation (AIA-032), which the caller must be able to read",
-        "description": "Built only from the recorded calculation\u0027s inputs and lines, every amount with its currency. When no explanation can be shown, facts hold the plain breakdown (AIA-033, P8).",
+        "description": "Built only from the recorded calculation\u0027s product and lines (step, configured factor, value used, amount with its currency); not its inputs, and for Health not its factor values (AIA-038). When no explanation can be shown, facts hold the plain breakdown (AIA-033, P8).",
         "operationId": "AssistExplainPremium",
         "parameters": [
           {
@@ -42330,6 +42330,12 @@
         "x-permission": "assist_explain.premium",
         "x-function": [
           "ASSIST_EXPLAIN_PREMIUM"
+        ],
+        "x-additional-permissions": [
+          {
+            "permission": "premium_calculation.read",
+            "when": "explaining a calculation needs reading it"
+          }
         ]
       }
     },
@@ -47006,6 +47012,19 @@
             ]
           },
           "correlationId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "recordType": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordId": {
             "type": [
               "null",
               "string"

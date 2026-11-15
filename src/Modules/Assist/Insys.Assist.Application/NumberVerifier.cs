@@ -60,12 +60,14 @@ public static partial class NumberVerifier
     /// <param name="Value">A percent as its fraction; a date as its yyyyMMdd.</param>
     private sealed record Number(Kind Kind, decimal Value, string? Currency, string Text);
 
-    public static NumberCheck Verify(string output, string source)
+    /// <param name="strictCurrency">For a source that states every amount's currency (AI-2's facts, addendum §5.1): a stated currency then matches only an amount
+    /// stated in that currency, never a plain number, so "USD 100000" doesn't pass on a plain 100000.</param>
+    public static NumberCheck Verify(string output, string source, bool strictCurrency = false)
     {
         var (inSource, sourceRest) = Read(source);
         var sourceTokens = Tokens().Matches(source).Select(m => m.Value).ToHashSet(StringComparer.Ordinal);
         var (inOutput, rest) = Read(output);
-        var rejected = inOutput.Where(n => !inSource.Any(s => Same(n, s))).Select(n => n.Text).ToList();
+        var rejected = inOutput.Where(n => !inSource.Any(s => Same(n, s, strictCurrency))).Select(n => n.Text).ToList();
 
         // Fails closed: any digit left unread, and any number or magnitude word, must stand word for word in the source (addendum §5.1 is about what is read; nothing else may slip past it).
         rejected.AddRange(Tokens().Matches(rest).Select(m => m.Value).Where(t => t.Any(char.IsDigit) && !sourceTokens.Contains(t)));
@@ -73,7 +75,7 @@ public static partial class NumberVerifier
         return new NumberCheck(rejected);
     }
 
-    private static bool Same(Number output, Number source)
+    private static bool Same(Number output, Number source, bool strictCurrency)
     {
         if (output.Kind == Kind.MonthYear)
         {
@@ -98,7 +100,8 @@ public static partial class NumberVerifier
             return output.Value == source.Value && plain.Currency is null && Math.Abs(plain.Value) is > 0 and < 1;
         }
 
-        return output.Value == source.Value && (output.Currency is null || source.Currency is null || output.Currency == source.Currency);
+        return output.Value == source.Value
+            && (output.Currency is null || (strictCurrency ? source.Currency == output.Currency : source.Currency is null || output.Currency == source.Currency));
     }
 
     private static (List<Number> Numbers, string Unread) Read(string text)

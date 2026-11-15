@@ -56,8 +56,8 @@ public sealed record ErrorCodeEntry(string Code, int HttpStatus, string MessageK
 /// <summary>Platform-wide error codes (max 30 characters, the size of error_code).</summary>
 public static class ErrorCodes
 {
-    [ErrorCode(422, "error.request.validation_failed", Means = "The request is missing a required value, or a value isn't in the form or range the record allows.",
-        Remedy = "Correct the fields named in the field errors and send it again.")]
+    [ErrorCode(422, "error.request.validation_failed", Means = "The request is missing a required value, or a value isn't in the form, range or state the action allows.",
+        Remedy = "Correct what the refusal points to, on the form or in its message, and send it again.")]
     public const string ValidationFailed = "VALIDATION_FAILED";
 
     /// <summary>

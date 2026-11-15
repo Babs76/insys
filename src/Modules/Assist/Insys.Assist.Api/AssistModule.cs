@@ -40,7 +40,7 @@ namespace Insys.Assist.Api;
 public sealed record AssistSettingsRequest(string Jurisdiction, string InferenceRegion, string? LegalBasis, bool ExplanationsEnabled);
 
 /// <param name="Code">The refusal's error code.</param>
-/// <param name="Fields">The names of the fields in error, as the refusal's field errors named them; their messages aren't sent (AIA-039, D-15).</param>
+/// <param name="Fields">The names of the fields in error, as the refusal's field errors named them. Only how many there are is sent to a model: the names are the client's (D-15).</param>
 /// <param name="RecordType">The record the refusal was about, by type and ID, for the "Based on" link and the audit; never trusted for its data (AIA-039).</param>
 public sealed record ExplainRefusalBody(string Code, IReadOnlyList<string>? Fields, string? RecordType, Guid? RecordId, Guid? CorrelationId);
 
@@ -98,7 +98,7 @@ public sealed class AssistModule : IModule
             .Produces<ExplanationView>(StatusCodes.Status200OK)
             .WithName("AssistExplainRefusal")
             .WithSummary("Explain a refusal the caller received (AIA-039): its code, the names of its fields in error, the record and the correlation ID")
-            .WithDescription("Built from the error catalogue's wording for the code; the screen's messages and record data are never used. When no explanation can be shown, outcome says why and facts hold the plain refusal (AIA-033, P8).")
+            .WithDescription("Built from the error catalogue's wording for the code. The screen's messages, the fields' names and the record are never sent to a model: the record is kept for basedOn and the audit. When no explanation can be shown, outcome says why and facts hold the plain refusal (AIA-033, P8).")
             .RequirePermission(AssistPermissions.ExplainRefusal)
             .RequireIdempotencyKey();
         explanations.MapPost("/premiums", async (ExplainPremiumBody b, Explainer explainer, CancellationToken ct) =>
@@ -106,8 +106,9 @@ public sealed class AssistModule : IModule
             .Produces<ExplanationView>(StatusCodes.Status200OK)
             .WithName("AssistExplainPremium")
             .WithSummary("Explain a recorded premium calculation (AIA-032), which the caller must be able to read")
-            .WithDescription("Built only from the recorded calculation's inputs and lines, every amount with its currency. When no explanation can be shown, facts hold the plain breakdown (AIA-033, P8).")
+            .WithDescription("Built only from the recorded calculation's product and lines (step, configured factor, value used, amount with its currency); not its inputs, and for Health not its factor values (AIA-038). When no explanation can be shown, facts hold the plain breakdown (AIA-033, P8).")
             .RequirePermission(AssistPermissions.ExplainPremium)
+            .AlsoChecks(Rating.Contracts.RatingPermissions.CalculationRead, "explaining a calculation needs reading it")
             .RequireIdempotencyKey();
         explanations.MapPost("/{id:guid}/feedback", async (Guid id, ExplanationFeedbackBody b, IDispatcher d, CancellationToken ct) =>
                 (await d.Send(new GiveExplanationFeedback(id, b.Helpful, b.Reason, b.Comment), ct)).ToHttp(feedback => Results.Created($"/api/v1/assist/explanations/{id}/feedback/{feedback}", new { id = feedback })))

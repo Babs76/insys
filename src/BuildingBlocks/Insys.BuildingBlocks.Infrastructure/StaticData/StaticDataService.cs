@@ -49,8 +49,8 @@ public static class StaticDataErrorCodes
         Remedy = "Ask the draft's maker to change it, or start your own draft once it's finished.")]
     public const string MakerOnly = "STATIC_MAKER_ONLY";
 
-    [ErrorCode(422, "error.static_data.scope_not_allowed", Means = "This table holds only your organisation's own rows, not platform-wide ones.",
-        Remedy = "Make the change in your organisation's rows.")]
+    [ErrorCode(422, "error.static_data.scope_not_allowed", Means = "The change is at a scope this table doesn't allow: some tables hold only an organisation's own rows, others only platform-wide rows.",
+        Remedy = "Make the change at the table's own scope; platform-wide rows are changed by the platform's administrators.")]
     public const string ScopeNotAllowed = "STATIC_SCOPE_NOT_ALLOWED";
 
     [ErrorCode(422, "error.static_data.retroactive_change", Means = "The new version would start before the version now in force starts.",

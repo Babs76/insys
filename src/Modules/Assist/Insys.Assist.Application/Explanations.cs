@@ -65,8 +65,11 @@ public static class PromptTemplates
 
 public sealed record ExplanationFactView(string Name, string Value);
 
-/// <summary>The recorded data an explanation is based on (AIA-034): its kind, its reference and, for a calculation, the API route that reads it.</summary>
-public sealed record ExplanationBasis(string Kind, string Reference, string? Href, Guid? CorrelationId);
+/// <summary>
+/// The recorded data an explanation is based on (AIA-034): its kind, its reference and, for a calculation, the API route that reads it; for a refusal, the record it
+/// was about as the screen named it, kept for the link and the audit and never sent to a model (AIA-039).
+/// </summary>
+public sealed record ExplanationBasis(string Kind, string Reference, string? Href, Guid? CorrelationId, string? RecordType = null, Guid? RecordId = null);
 
 /// <param name="Outcome">EXPLAINED, or REJECTED, UNAVAILABLE or NO_WORDING, when the plain <paramref name="Facts"/> are shown instead (AIA-033, P8).</param>
 /// <param name="Label">The line the console shows with an explanation (AIA-034).</param>
@@ -146,13 +149,15 @@ public sealed partial class Explainer(AssistRunner runner, IDispatcher dispatche
             return Error.Validation(ErrorCodes.ValidationFailed, "recordType is a record type's code, such as BILLING_ACCOUNT.");
         }
 
-        var facts = new AllowedFacts().Code("code", entry.Code).Number("http status", entry.HttpStatus).Flag("worth retrying", entry.Retryable);
-        foreach (var field in request.Fields ?? [])
+        // Only what INSYS itself holds about the code (D-15). The fields' names are the client's, so only how many there are is sent; the catalogue's status isn't
+        // sent either, as a code can be raised with another (the screen has the one it got).
+        var facts = new AllowedFacts().Code("code", entry.Code).Flag("worth retrying", entry.Retryable);
+        if (request.Fields is { Count: > 0 } fields)
         {
-            facts.Field("field in error", field);
+            facts.Number("fields in error", fields.Count);
         }
 
-        var basis = new ExplanationBasis("REFUSAL", entry.Code, null, request.CorrelationId);
+        var basis = new ExplanationBasis("REFUSAL", entry.Code, null, request.CorrelationId, request.RecordType, request.RecordId);
         if (entry.Means is null)
         {
             // No catalogue wording yet (AIA-031): nothing to ground an explanation in, so no call is made and the plain refusal is shown.
@@ -184,14 +189,12 @@ public sealed partial class Explainer(AssistRunner runner, IDispatcher dispatche
             return Error.NotFound(ErrorCodes.NotFound, "The calculation was not found.");
         }
 
-        // Only the recorded calculation (AIA-032): its product, inputs and lines, every amount with its currency.
+        // Only the recorded calculation (AIA-032), and of it only what Rating itself recorded from the product's configuration: its product and its lines, each with
+        // the step, the configured factor, the table value used and the amount with its currency. The inputs are left out: their names and values are the caller's
+        // (D-15), and the lines show what each one did. For Health, the factor values are left out too, so no clinical detail can appear (AIA-038).
+        var health = calculation.SourceDomain == "HEALTH";
         var facts = new AllowedFacts().Code("product", calculation.ProductCode).Number("product version", calculation.ProductVersion)
             .Number("rating version", calculation.RatingVersion).Code("source", calculation.SourceDomain);
-        foreach (var input in calculation.Inputs)
-        {
-            AddInput(facts, input);
-        }
-
         foreach (var line in calculation.Lines.OrderBy(l => l.LineNo))
         {
             facts.Code($"line {line.LineNo}", line.Component);
@@ -200,9 +203,16 @@ public sealed partial class Explainer(AssistRunner runner, IDispatcher dispatche
                 facts.Code($"line {line.LineNo} factor", line.FactorCode);
             }
 
-            if (line.FactorValue is not null)
+            if (line.FactorValue is { } value && !health)
             {
-                facts.Code($"line {line.LineNo} factor value", line.FactorValue);
+                if (decimal.TryParse(value, System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var number))
+                {
+                    facts.Number($"line {line.LineNo} factor value", number);
+                }
+                else
+                {
+                    facts.Code($"line {line.LineNo} factor value", value);
+                }
             }
 
             facts.Amount($"line {line.LineNo} amount", line.Amount, calculation.Currency);
@@ -212,32 +222,6 @@ public sealed partial class Explainer(AssistRunner runner, IDispatcher dispatche
         var basis = new ExplanationBasis("PREMIUM_CALCULATION", calculation.Id.ToString(), $"/api/v1/rating/calculations/{calculation.Id}", request.CorrelationId);
         return await Explain(AssistFeatures.ExplainPremium, ExplanationKinds.Premium, calculation.Id.ToString(), PromptTemplates.PremiumVersion, PromptTemplates.Premium, facts, basis,
             request.CorrelationId, cancellationToken);
-    }
-
-    /// <summary>A rating input as Rating recorded it: a number, a yes or no, or a code. A string that isn't a code's form is left out, as free text (D-15).</summary>
-    private static void AddInput(AllowedFacts facts, RecordedCalculationInput input)
-    {
-        var name = $"input {input.Name.ToLowerInvariant()}";
-        if (!InputNameForm().IsMatch(input.Name))
-        {
-            facts.Code("input", null);
-        }
-        else if (input.IsString)
-        {
-            facts.Code(name, input.Value);
-        }
-        else if (input.Value is "true" or "false")
-        {
-            facts.Flag(name, input.Value == "true");
-        }
-        else if (decimal.TryParse(input.Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var number))
-        {
-            facts.Number(name, number);
-        }
-        else
-        {
-            facts.Code(name, null);
-        }
     }
 
     private async Task<Result<ExplanationView>> Explain(string feature, string kind, string sourceRef, string promptVersion, string instructions, AllowedFacts facts, ExplanationBasis basis,
@@ -277,7 +261,10 @@ public sealed partial class Explainer(AssistRunner runner, IDispatcher dispatche
         var factViews = facts.Items.Select(f => new ExplanationFactView(f.Name, f.Value)).ToList();
         var explanation = AssistExplanation.Record(kind, sourceRef, key, promptVersion, options.Value.ModelVersion, outcome, JsonSerializer.Serialize(factViews), text, call?.Run.Id,
             reusedFrom, basis.CorrelationId);
-        var recorded = await dispatcher.Send(new RecordAssistRun(call?.Run, call?.Payload, explanation), cancellationToken);
+        var audit = basis.RecordType is null && basis.RecordId is null
+            ? null
+            : new Dictionary<string, string?> { ["recordType"] = basis.RecordType, ["recordId"] = basis.RecordId?.ToString() };
+        var recorded = await dispatcher.Send(new RecordAssistRun(call?.Run, call?.Payload, explanation, audit), cancellationToken);
         return recorded.IsFailure
             ? recorded.Error
             : new ExplanationView(explanation.Id, kind, outcome, explanation.Text, Label, basis, factViews, reusedFrom is not null, rejected);
@@ -289,7 +276,4 @@ public sealed partial class Explainer(AssistRunner runner, IDispatcher dispatche
 
     [GeneratedRegex(@"^[A-Z][A-Z0-9_]{0,39}$")]
     private static partial Regex RecordTypeForm();
-
-    [GeneratedRegex(@"^[A-Za-z][A-Za-z0-9_]{0,39}$")]
-    private static partial Regex InputNameForm();
 }
