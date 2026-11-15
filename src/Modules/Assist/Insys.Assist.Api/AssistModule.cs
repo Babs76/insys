@@ -111,8 +111,8 @@ public sealed class AssistModule : IModule
             .AlsoChecks(Rating.Contracts.RatingPermissions.CalculationRead, "explaining a calculation needs reading it")
             .RequireIdempotencyKey();
         explanations.MapPost("/{id:guid}/feedback", async (Guid id, ExplanationFeedbackBody b, IDispatcher d, CancellationToken ct) =>
-                (await d.Send(new GiveExplanationFeedback(id, b.Helpful, b.Reason, b.Comment), ct)).ToHttp(feedback => Results.Created($"/api/v1/assist/explanations/{id}/feedback/{feedback}", new { id = feedback })))
-            .Produces(StatusCodes.Status201Created)
+                (await d.Send(new GiveExplanationFeedback(id, b.Helpful, b.Reason, b.Comment), ct)).ToHttp(feedback => Results.Created($"/api/v1/assist/explanations/{id}/feedback/{feedback}", new ExplanationFeedbackView(feedback))))
+            .Produces<ExplanationFeedbackView>(StatusCodes.Status201Created)
             .WithName("AssistGiveExplanationFeedback")
             .WithSummary("Mark an explanation you were shown helpful, or unhelpful or wrong with a reason (AIA-037)")
             .WithDescription("Only the user an explanation was shown to marks it, so the route needs no function of its own: anyone else gets 404.")

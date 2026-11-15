@@ -65,6 +65,9 @@ public static class PromptTemplates
 
 public sealed record ExplanationFactView(string Name, string Value);
 
+/// <summary>The feedback recorded (AIA-037).</summary>
+public sealed record ExplanationFeedbackView(Guid Id);
+
 /// <summary>
 /// The recorded data an explanation is based on (AIA-034): its kind, its reference and, for a calculation, the API route that reads it; for a refusal, the record it
 /// was about as the screen named it, kept for the link and the audit and never sent to a model (AIA-039).

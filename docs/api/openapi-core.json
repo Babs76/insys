@@ -42380,7 +42380,14 @@
         },
         "responses": {
           "201": {
-            "description": "Created"
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistExplanationFeedbackView"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Problem401"
@@ -47070,6 +47077,18 @@
               "null",
               "string"
             ]
+          }
+        }
+      },
+      "AssistExplanationFeedbackView": {
+        "required": [
+          "id"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
           }
         }
       },
