@@ -24,8 +24,10 @@
  * UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
  * ============================================================================
  */
+using System.Text.Json;
 using Insys.Assist.Application;
 using Insys.Assist.Contracts;
+using Insys.Assist.Domain;
 using Insys.Assist.Infrastructure;
 using Insys.BuildingBlocks.Api;
 using Insys.BuildingBlocks.Application.Messaging;
@@ -38,6 +40,12 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Insys.Assist.Api;
 
 public sealed record AssistSettingsRequest(string Jurisdiction, string InferenceRegion, string? LegalBasis, bool ExplanationsEnabled);
+
+/// <param name="ReviewDocumentId">The signed review document, stored in Documents, kept as evidence on the version (§5.3).</param>
+public sealed record PackReviewRequest(string Partner, string ReviewerName, DateOnly ReviewedOn, Guid ReviewDocumentId);
+
+/// <param name="ContentHash">The version's content hash as the approver read it on the review sheet: the approval binds to it (§5.3).</param>
+public sealed record PackApprovalRequest(string ContentHash);
 
 /// <param name="Code">The refusal's error code.</param>
 /// <param name="Fields">The names of the fields in error, as the refusal's field errors named them. Only how many there are is sent to a model: the names are the client's (D-15).</param>
@@ -118,5 +126,92 @@ public sealed class AssistModule : IModule
             .WithDescription("Only the user an explanation was shown to marks it, so the route needs no function of its own: anyone else gets 404.")
             .RequireSignedInUser()
             .RequireIdempotencyKey();
+
+        MapPacks(api);
+    }
+
+    /// <summary>
+    /// The starter packs (ai-assist.md §5.2 and §5.3, D-18 and D-19; Ade, 15 November). The platform loads a version for every tenant and records the partner's
+    /// review (ASSIST_OVERLAY_MANAGE); the named lead approves it (ASSIST_OVERLAY_APPROVE). A tenant still onboarding loads its own version
+    /// (ASSIST_TENANT_SETUP_RUN), which its compliance officer approves (ASSIST_OVERLAY_APPROVE_TENANT). Whoever loaded or reviewed a version can't approve it,
+    /// whatever they hold. Each approval names the content hash it approves, and every step is audited.
+    /// </summary>
+    private void MapPacks(IEndpointRouteBuilder api)
+    {
+        var platform = api.MapGroup("/assist/overlays").WithTags(Name);
+        platform.MapPost("/", async (JsonElement file, IDispatcher d, HttpContext http, CancellationToken ct) => Loaded(await d.Send(new LoadStarterPack(PackScopes.AllTenants, file), ct), http))
+            .Produces<StarterPackView>(StatusCodes.Status201Created).ReturnsETag()
+            .WithName("AssistLoadPlatformPack").WithSummary("Load a pack file as a new version for every tenant, DRAFT, with each row's marks and their source (D-20)")
+            .RequirePlatformPermission(AssistPermissions.OverlayManage).RequireIdempotencyKey();
+        platform.MapGet("/", async (string? packCode, IDispatcher d, CancellationToken ct) => (await d.Query(new ListStarterPacks(packCode), ct)).ToHttp(Results.Ok))
+            .Produces<IReadOnlyList<StarterPackView>>(StatusCodes.Status200OK)
+            .WithName("AssistListPlatformPacks").WithSummary("The pack versions, newest first").RequirePlatformPermission(AssistPermissions.OverlayManage);
+        platform.MapGet("/{id:guid}", async (Guid id, IDispatcher d, HttpContext http, CancellationToken ct) => Sheet(await d.Query(new GetStarterPack(id), ct), http))
+            .Produces<StarterPackSheet>(StatusCodes.Status200OK).ReturnsETag()
+            .WithName("AssistGetPlatformPack").WithSummary("A version and its review sheet: every row, its class, both marks and their source").RequirePlatformPermission(AssistPermissions.OverlayManage);
+        platform.MapPost("/{id:guid}/review", async (Guid id, PackReviewRequest r, IDispatcher d, HttpContext http, CancellationToken ct) => await WithVersion(http, expected =>
+                d.Send(new MarkStarterPackReviewed(id, r.Partner, r.ReviewerName, r.ReviewedOn, r.ReviewDocumentId, expected), ct)))
+            .Produces<StarterPackView>(StatusCodes.Status200OK).ReturnsETag()
+            .WithName("AssistReviewPlatformPack").WithSummary("Record the local partner's review, with its signed document as evidence: REVIEWED. Needs If-Match")
+            .RequirePlatformPermission(AssistPermissions.OverlayManage);
+        platform.MapGet("/awaiting-approval", async (IDispatcher d, CancellationToken ct) => (await d.Query(new ListStarterPacks(null, AwaitingApproval: true), ct)).ToHttp(Results.Ok))
+            .Produces<IReadOnlyList<StarterPackView>>(StatusCodes.Status200OK)
+            .WithName("AssistPlatformPacksToApprove").WithSummary("The REVIEWED versions awaiting the lead's approval").RequirePlatformPermission(AssistPermissions.OverlayApprove);
+        platform.MapGet("/{id:guid}/approval", async (Guid id, IDispatcher d, HttpContext http, CancellationToken ct) => Sheet(await d.Query(new GetStarterPack(id), ct), http))
+            .Produces<StarterPackSheet>(StatusCodes.Status200OK).ReturnsETag()
+            .WithName("AssistGetPlatformPackToApprove").WithSummary("A version's review sheet, for the approver to confirm its rows and marks").RequirePlatformPermission(AssistPermissions.OverlayApprove);
+        platform.MapPost("/{id:guid}/approve", async (Guid id, PackApprovalRequest r, IDispatcher d, HttpContext http, CancellationToken ct) => await WithVersion(http, expected =>
+                d.Send(new ApproveStarterPack(id, r.ContentHash, PackScopes.AllTenants, expected), ct)))
+            .Produces<StarterPackView>(StatusCodes.Status200OK).ReturnsETag()
+            .WithName("AssistApprovePlatformPack")
+            .WithSummary("Approve a REVIEWED version for every tenant, naming its content hash. Refused to whoever loaded or reviewed it. Needs If-Match")
+            .RequirePlatformPermission(AssistPermissions.OverlayApprove);
+
+        var tenant = api.MapGroup("/assist/packs").WithTags(Name);
+        tenant.MapPost("/", async (JsonElement file, IDispatcher d, HttpContext http, CancellationToken ct) => Loaded(await d.Send(new LoadStarterPack(PackScopes.TenantOnly, file), ct), http))
+            .Produces<StarterPackView>(StatusCodes.Status201Created).ReturnsETag()
+            .WithName("AssistLoadTenantPack")
+            .WithSummary("Load a pack file as this tenant's own version (TENANT_ONLY, the fallback). Only while the tenant is onboarding, else 409 ASSIST_TENANT_LIVE")
+            .RequirePermission(AssistPermissions.TenantSetupRun).RequireIdempotencyKey();
+        tenant.MapGet("/", async (string? packCode, IDispatcher d, CancellationToken ct) => (await d.Query(new ListStarterPacks(packCode), ct)).ToHttp(Results.Ok))
+            .Produces<IReadOnlyList<StarterPackView>>(StatusCodes.Status200OK)
+            .WithName("AssistListTenantPacks").WithSummary("The versions this tenant may use: those for every tenant, and its own").RequirePermission(AssistPermissions.TenantSetupRun);
+        tenant.MapGet("/{id:guid}", async (Guid id, IDispatcher d, HttpContext http, CancellationToken ct) => Sheet(await d.Query(new GetStarterPack(id), ct), http))
+            .Produces<StarterPackSheet>(StatusCodes.Status200OK).ReturnsETag()
+            .WithName("AssistGetTenantPack").WithSummary("A version and its review sheet").RequirePermission(AssistPermissions.TenantSetupRun);
+        tenant.MapGet("/awaiting-approval", async (IDispatcher d, CancellationToken ct) => (await d.Query(new ListStarterPacks(null, AwaitingApproval: true), ct)).ToHttp(Results.Ok))
+            .Produces<IReadOnlyList<StarterPackView>>(StatusCodes.Status200OK)
+            .WithName("AssistTenantPacksToApprove").WithSummary("This tenant's own versions awaiting its compliance officer's approval").RequirePermission(AssistPermissions.OverlayApproveTenant);
+        tenant.MapGet("/{id:guid}/approval", async (Guid id, IDispatcher d, HttpContext http, CancellationToken ct) => Sheet(await d.Query(new GetStarterPack(id), ct), http))
+            .Produces<StarterPackSheet>(StatusCodes.Status200OK).ReturnsETag()
+            .WithName("AssistGetTenantPackToApprove").WithSummary("A version's review sheet, for the approver to confirm").RequirePermission(AssistPermissions.OverlayApproveTenant);
+        tenant.MapPost("/{id:guid}/approve", async (Guid id, PackApprovalRequest r, IDispatcher d, HttpContext http, CancellationToken ct) => await WithVersion(http, expected =>
+                d.Send(new ApproveStarterPack(id, r.ContentHash, PackScopes.TenantOnly, expected), ct)))
+            .Produces<StarterPackView>(StatusCodes.Status200OK).ReturnsETag()
+            .WithName("AssistApproveTenantPack")
+            .WithSummary("Approve this tenant's own version for its use only (D-19), naming its content hash. Refused to whoever loaded it. Needs If-Match")
+            .RequirePermission(AssistPermissions.OverlayApproveTenant);
+    }
+
+    private static IResult Loaded(BuildingBlocks.Domain.Result<StarterPackView> result, HttpContext http) => result.ToHttp(view =>
+    {
+        Concurrency.SetETag(http, view.RowVersion);
+        return Results.Created($"/api/v1/assist/overlays/{view.Id}", view);
+    });
+
+    private static IResult Sheet(BuildingBlocks.Domain.Result<StarterPackSheet> result, HttpContext http) => result.ToHttp(sheet =>
+    {
+        Concurrency.SetETag(http, sheet.Pack.RowVersion);
+        return Results.Ok(sheet);
+    });
+
+    private static async Task<IResult> WithVersion(HttpContext http, Func<long, Task<BuildingBlocks.Domain.Result<StarterPackView>>> send)
+    {
+        var expected = Concurrency.ExpectedVersion(http.Request);
+        return expected.IsFailure ? Problems.For(expected.Error) : (await send(expected.Value)).ToHttp(view =>
+        {
+            Concurrency.SetETag(http, view.RowVersion);
+            return Results.Ok(view);
+        });
     }
 }

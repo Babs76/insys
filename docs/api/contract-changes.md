@@ -3,6 +3,13 @@
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
 
+
+## AI Assist: starter packs and overlay approval (Wave 7 batch 7.6, 15 November 2026)
+- **New, platform operator API, `/assist/overlays`:** `POST /` (a pack file as JSON; Idempotency-Key; 201 with `StarterPackView` and its ETag) and `GET /`, `GET /{id}` (`StarterPackSheet`: the version and every row with `class`, `regulated`, `regulatedSource`, `tailorable`, `tailorableSource`, `mayBeTailored`, `values`), `POST /{id}/review` (`partner`, `reviewerName`, `reviewedOn`, `reviewDocumentId`; If-Match), all `ASSIST_OVERLAY_MANAGE`; `GET /awaiting-approval`, `GET /{id}/approval` and `POST /{id}/approve` (`contentHash`; If-Match), `ASSIST_OVERLAY_APPROVE`.
+- **New, tenant API, `/assist/packs`:** `POST /` (the tenant's own version, `TENANT_ONLY`; only while onboarding), `GET /`, `GET /{id}`, all `ASSIST_TENANT_SETUP_RUN`; `GET /awaiting-approval`, `GET /{id}/approval`, `POST /{id}/approve`, `ASSIST_OVERLAY_APPROVE_TENANT`.
+- **New functions:** `ASSIST_OVERLAY_MANAGE` (platform) and `ASSIST_OVERLAY_APPROVE_TENANT` (staff), both privileged, in no role template. `ASSIST_OVERLAY_APPROVE` is unchanged.
+- **New error codes:** `ASSIST_PACK_NOT_APPROVED` (422), `ASSIST_PACK_CHANGED` (409, the approval names other content), `ASSIST_TENANT_LIVE` (409). Whoever loaded or reviewed a version gets 403 `MAKER_CHECKER_SAME_PERSON` on approving it.
+
 ## AI Assist: the residency check, and explanations that name a step (Wave 7 batch 7.3, 15 November 2026)
 - **`PUT /assist/settings`: `inferenceRegion` is now one of the provider's regions,** `US` or `GLOBAL` (Ade, 15 November); a country code is 422 `VALIDATION_FAILED`, naming the list. **This narrows what was accepted.**
 - **`GET /assist/settings` (and the PUT's answer) gain `inferenceRegionSupported`** (false for a region set earlier as a country code) **and `supportedInferenceRegions`** (the choices, for the settings page to say why and offer them). `residencyAllowsInference` is false while the region isn't supported.

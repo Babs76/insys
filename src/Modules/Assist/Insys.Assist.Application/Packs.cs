@@ -162,14 +162,23 @@ public sealed record ApproveStarterPack(Guid Id, string ContentHash, string Rout
 
 public sealed record GetStarterPack(Guid Id) : IQuery<StarterPackSheet>;
 
-public sealed record ListStarterPacks(string? PackCode) : IQuery<IReadOnlyList<StarterPackView>>;
+/// <param name="AwaitingApproval">Only the versions this tenant holds that its approver may approve now: REVIEWED for every tenant, or its own DRAFT or REVIEWED.</param>
+public sealed record ListStarterPacks(string? PackCode, bool AwaitingApproval = false) : IQuery<IReadOnlyList<StarterPackView>>;
 
-internal sealed class StarterPackHandlers(IStarterPacks packs, IExecutionContext execution, ITenantContext tenant, IClock clock, IAuditTrail audit)
+internal sealed class StarterPackHandlers(IStarterPacks packs, IExecutionContext execution, ITenantContext tenant, IClock clock, IAuditTrail audit,
+    Tenancy.Contracts.ITenantStatusQuery tenants)
     : ICommandHandler<LoadStarterPack, StarterPackView>, ICommandHandler<MarkStarterPackReviewed, StarterPackView>, ICommandHandler<ApproveStarterPack, StarterPackView>,
         IQueryHandler<GetStarterPack, StarterPackSheet>, IQueryHandler<ListStarterPacks, IReadOnlyList<StarterPackView>>
 {
     public async Task<Result<StarterPackView>> Handle(LoadStarterPack command, CancellationToken cancellationToken)
     {
+        // A tenant's own version, the fallback (D-19), is loaded only while it is onboarding (Ade, 15 November).
+        if (command.Scope == PackScopes.TenantOnly
+            && await tenants.UserAccess(tenant.RequireTenantId(), cancellationToken) != Tenancy.Contracts.TenantUserAccess.ConfigurationOnly)
+        {
+            return Error.Conflict(PackErrorCodes.TenantLive, "A tenant's own overlay is loaded only while the tenant is onboarding.");
+        }
+
         var file = PackFile.Read(command.File);
         if (file.IsFailure)
         {
@@ -251,7 +260,10 @@ internal sealed class StarterPackHandlers(IStarterPacks packs, IExecutionContext
     }
 
     public async Task<Result<IReadOnlyList<StarterPackView>>> Handle(ListStarterPacks query, CancellationToken cancellationToken) =>
-        Result.Success<IReadOnlyList<StarterPackView>>([.. (await packs.List(query.PackCode, cancellationToken)).Select(StarterPackView.From)]);
+        Result.Success<IReadOnlyList<StarterPackView>>([.. (await packs.List(query.PackCode, cancellationToken))
+            .Where(p => !query.AwaitingApproval || (p.TenantId == tenant.TenantId && p.Status != PackStatuses.Approved
+                && (p.Scope == PackScopes.TenantOnly || p.Status == PackStatuses.Reviewed)))
+            .Select(StarterPackView.From)]);
 
     /// <summary>A version this tenant holds, at the version the caller read (If-Match): only the holder reviews or approves it.</summary>
     private async Task<Result<StarterPack>> Own(Guid id, long? expected, CancellationToken cancellationToken)

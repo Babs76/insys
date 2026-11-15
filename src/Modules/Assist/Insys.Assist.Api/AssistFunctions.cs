@@ -30,8 +30,15 @@ using Insys.BuildingBlocks.Api.Functions;
 namespace Insys.Assist.Api;
 
 /// <summary>
-/// AI Assist's six functions (SRS §3, addendum §5.3): off by default, in no role template. Five need the AI_ASSIST feature, except the wizard's, whose pack-only
-/// path needs only its function (AIA-090). ASSIST_OVERLAY_APPROVE is privileged, and only the operator tenant holds it.
+/// AI Assist's eight functions (SRS §3, addendum §5 and §5.3): off by default, in no role template. Five need the AI_ASSIST feature, except the wizard's, whose
+/// pack-only path needs only its function (AIA-090), and the three overlay functions, which use no model.
+/// <list type="bullet">
+/// <item>ASSIST_OVERLAY_MANAGE (platform, privileged): load a pack version and record the partner's review. It never approves (Ade, 15 November).</item>
+/// <item>ASSIST_OVERLAY_APPROVE (platform, privileged): the named lead's approval of a version for every tenant.</item>
+/// <item>ASSIST_OVERLAY_APPROVE_TENANT (staff, privileged): the fallback, a tenant's compliance officer approving its own version (D-19).</item>
+/// </list>
+/// Whoever loaded or reviewed a version can't approve it, whatever functions they hold. A tenant loads its own fallback version under ASSIST_TENANT_SETUP_RUN,
+/// while it is onboarding only.
 /// </summary>
 internal static class AssistFunctions
 {
@@ -42,8 +49,13 @@ internal static class AssistFunctions
         Action("ASSIST_EXPLAIN_REFUSAL", Features.AiAssist, AssistPermissions.ExplainRefusal, ["AssistExplainRefusal"]),
         Action("ASSIST_EXPLAIN_PREMIUM", Features.AiAssist, AssistPermissions.ExplainPremium, ["AssistExplainPremium"]),
         Action("ASSIST_PRODUCT_DRAFT_RUN", Features.AiAssist, AssistPermissions.ProductDraftRun),
-        Action("ASSIST_TENANT_SETUP_RUN", null, AssistPermissions.TenantSetupRun),
-        new FunctionDeclaration("ASSIST_OVERLAY_APPROVE", FunctionKind.Screen, "AI_ASSIST", "Overlays", null, [Audiences.Platform], "assist/overlays", null, true, [], [AssistPermissions.OverlayApprove]),
+        Action("ASSIST_TENANT_SETUP_RUN", null, AssistPermissions.TenantSetupRun, ["AssistLoadTenantPack", "AssistListTenantPacks", "AssistGetTenantPack"]),
+        new FunctionDeclaration("ASSIST_OVERLAY_APPROVE", FunctionKind.Screen, "AI_ASSIST", "Overlays", null, [Audiences.Platform], "assist/overlays", null, true,
+            ["AssistPlatformPacksToApprove", "AssistGetPlatformPackToApprove", "AssistApprovePlatformPack"], [AssistPermissions.OverlayApprove]),
+        new FunctionDeclaration("ASSIST_OVERLAY_MANAGE", FunctionKind.Screen, "AI_ASSIST", "Overlays", null, [Audiences.Platform], "assist/overlays/manage", null, true,
+            ["AssistLoadPlatformPack", "AssistReviewPlatformPack", "AssistListPlatformPacks", "AssistGetPlatformPack"], [AssistPermissions.OverlayManage]),
+        new FunctionDeclaration("ASSIST_OVERLAY_APPROVE_TENANT", FunctionKind.Screen, "AI_ASSIST", "Overlays", null, [Audiences.Staff], "assist/packs/approvals", null, true,
+            ["AssistTenantPacksToApprove", "AssistGetTenantPackToApprove", "AssistApproveTenantPack"], [AssistPermissions.OverlayApproveTenant]),
     ];
 
     private static FunctionDeclaration Action(string code, string? feature, string permission, IReadOnlyList<string>? endpoints = null) =>

@@ -66,6 +66,8 @@ public static class RoleTemplates
     [
         new("TENANT_SWITCH_OFF_MONEY_JOBS", "Stops a tenant's billing and payment jobs (OQ-098)", Flagged: true),
         new("ASSIST_OVERLAY_APPROVE", "Approves a country overlay for every tenant, for the named compliance lead (AI Assist addendum §5.3)", Flagged: true),
+        new("ASSIST_OVERLAY_MANAGE", "Loads a starter pack version for every tenant and records the partner's review; never approves (AI Assist addendum §5.3, Ade 15 November)", Flagged: true),
+        new("ASSIST_OVERLAY_APPROVE_TENANT", "Approves the tenant's own overlay for its use only, the fallback (AI Assist addendum D-19)", Flagged: true),
         new("STATIC_DATA_CHANGE_TIER2_MAKER_CHECKER", "Changes which static data changes need a second person", Flagged: true),
         new("TERMINATE_TENANT", "Ends a tenant for good: its users lose access and its data enters retention", Flagged: true),
         new("CASE_DECIDE_APPEAL", "Decides an appeal against a case's decision (OQ-109)", Flagged: true),

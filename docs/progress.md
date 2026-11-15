@@ -61,6 +61,7 @@
 | Wave 7 batch 7.1 | AI Assist's foundations: the Assist module, settings with jurisdiction and legal basis, feature and functions, the model port with the test stub only, minimiser, number verifier, runs, metering and caps, Phase 1's gate | Merged 2 November 2026 |
 | Wave 7 batch 7.2 | AI-2: refusal and premium explanations from structured fields only (D-15), amounts with their currency, no transaction across the model call (AIA-072), cache, feedback, the plain facts as fallback; the error catalogue's wording for 69 of 260 codes | Merged 15 November 2026 (`c4bad66`) |
 | Wave 7 batch 7.3 | Calculations follow the reader's product scope (AIA-003, `06ecae1`; branch scope not applied until OQ-168, `d79b978`). The Claude adapter behind the SDK guard; prompt templates and prices as configuration (AIA-074, D-5); runs record the model that answered, where inference ran as the route reports it, and their cost; the AI-2 evaluation set (105 cases from the sample tenant) and its runner, with the `assist-eval` workflow | Built on branch `wave7-3b`; the evaluation run against Claude waits for `ASSIST_CLAUDE_API_KEY` in `assist-eval` |
+| Wave 7 batch 7.6 | AI-3's starter packs in Assist's own versioned tables (D-18), the overlay lifecycle with review evidence and a hash-bound approval (§5.3), the fallback's tenant approval (D-19), explicit and interim marks (D-20), two new privileged functions | First part built on branch `wave7-6`; the questionnaire and assembly to come |
 
 ## Phase 1 review items
 

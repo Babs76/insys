@@ -26,7 +26,7 @@
  */
 namespace Insys.Assist.Contracts;
 
-/// <summary>The permissions of AI Assist's six functions (SRS §3).</summary>
+/// <summary>The permissions of AI Assist's eight functions (SRS §3, addendum §5 and §5.3).</summary>
 public static class AssistPermissions
 {
     public const string SettingsManage = "assist_settings.manage";
@@ -35,4 +35,10 @@ public static class AssistPermissions
     public const string ProductDraftRun = "assist_product_draft.run";
     public const string TenantSetupRun = "assist_tenant_setup.run";
     public const string OverlayApprove = "assist_overlay.approve";
+
+    /// <summary>Loading a pack version and recording the partner's review, on the platform (Ade, 15 November). Never approving.</summary>
+    public const string OverlayManage = "assist_overlay.manage";
+
+    /// <summary>The fallback's approval (D-19): a tenant's compliance officer approving its own TENANT_ONLY version.</summary>
+    public const string OverlayApproveTenant = "assist_overlay.approve_tenant";
 }

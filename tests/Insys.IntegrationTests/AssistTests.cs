@@ -104,11 +104,17 @@ public sealed class AssistTests(DatabaseFixture fixture) : IClassFixture<Databas
     }
 
     [Fact]
-    public async Task SixFunctions_AreInTheCatalogue_InNoRoleTemplate_AndOverlayApprovalIsPrivileged_ForThePlatformOnly()
+    public async Task EightFunctions_AreInTheCatalogue_InNoRoleTemplate_AndTheOverlayFunctionsArePrivileged()
     {
-        var functions = new[] { "ASSIST_SETTINGS_MANAGE", "ASSIST_EXPLAIN_REFUSAL", "ASSIST_EXPLAIN_PREMIUM", "ASSIST_PRODUCT_DRAFT_RUN", "ASSIST_TENANT_SETUP_RUN", "ASSIST_OVERLAY_APPROVE" };
-        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM iam.ref_function_catalogue WHERE tenant_id IS NULL AND function_code = ANY(@f)", ("f", functions))).ShouldBe(6L);
-        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM iam.ref_function_catalogue WHERE tenant_id IS NULL AND function_code LIKE 'ASSIST%'")).ShouldBe(6L, "and no others");
+        var functions = new[] { "ASSIST_SETTINGS_MANAGE", "ASSIST_EXPLAIN_REFUSAL", "ASSIST_EXPLAIN_PREMIUM", "ASSIST_PRODUCT_DRAFT_RUN", "ASSIST_TENANT_SETUP_RUN", "ASSIST_OVERLAY_APPROVE",
+            "ASSIST_OVERLAY_MANAGE", "ASSIST_OVERLAY_APPROVE_TENANT" };
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM iam.ref_function_catalogue WHERE tenant_id IS NULL AND function_code = ANY(@f)", ("f", functions))).ShouldBe(8L);
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM iam.ref_function_catalogue WHERE tenant_id IS NULL AND function_code LIKE 'ASSIST%'")).ShouldBe(8L, "and no others");
+        foreach (var (code, audience) in new[] { ("ASSIST_OVERLAY_MANAGE", "PLATFORM"), ("ASSIST_OVERLAY_APPROVE_TENANT", "STAFF") })
+        {
+            (await fixture.Database.ScalarAsOwner<string>("SELECT privileged::text || ':' || array_to_string(audiences, ',') FROM iam.ref_function_catalogue WHERE tenant_id IS NULL AND function_code = @c",
+                ("c", code))).ShouldBe($"true:{audience}", code);
+        }
         await fixture.Host();
         var catalogue = FunctionRegistry.All();
         RoleTemplates.All.SelectMany(t => RoleTemplates.Expand(t, catalogue)).Select(f => f.Code).Where(c => c.StartsWith("ASSIST", StringComparison.Ordinal)).ShouldBeEmpty();
@@ -286,10 +292,15 @@ public sealed class AssistTests(DatabaseFixture fixture) : IClassFixture<Databas
             """)).ShouldBe(0L, "row-level security is forced on every table");
         (await fixture.Database.ScalarAsOwner<long>("""
             SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-            WHERE n.nspname = 'assist' AND c.relkind = 'r' AND NOT EXISTS (
+            WHERE n.nspname = 'assist' AND c.relkind = 'r' AND c.relname NOT IN ('starter_pack', 'starter_pack_value') AND NOT EXISTS (
               SELECT 1 FROM pg_policies p WHERE p.schemaname = 'assist' AND p.tablename = c.relname AND p.cmd = 'ALL'
                 AND p.qual LIKE '%tenant_id%app.tenant_id%' AND p.with_check LIKE '%tenant_id%app.tenant_id%')
             """)).ShouldBe(0L, "every table's policy is the tenant's, for reads and for writes");
+        // The starter packs alone (D-18): a platform version is read by every tenant, and every write is the tenant's own.
+        (await fixture.Database.ScalarAsOwner<long>("""
+            SELECT count(*) FROM pg_policies WHERE schemaname = 'assist' AND tablename IN ('starter_pack', 'starter_pack_value')
+              AND ((cmd = 'SELECT' AND qual NOT LIKE '%ALL_TENANTS%') OR (cmd IN ('INSERT', 'UPDATE') AND with_check NOT LIKE '%tenant_id%app.tenant_id%') OR cmd IN ('ALL', 'DELETE'))
+            """)).ShouldBe(0L, "the packs' reads are every tenant's for a platform version and the holder's otherwise; their writes are the holder's only");
         (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM pg_roles WHERE rolname = 'insys_assist' AND (rolsuper OR rolbypassrls)")).ShouldBe(0L);
 
         var c = TestContext.Current.CancellationToken;

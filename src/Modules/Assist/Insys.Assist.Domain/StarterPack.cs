@@ -76,6 +76,11 @@ public static class PackErrorCodes
     [ErrorCode(409, "error.assist.pack_changed", Means = "The approval was for different content from the version as it now stands.",
         Remedy = "Read the version again, check its review sheet, and approve the content it now has.")]
     public const string Changed = "ASSIST_PACK_CHANGED";
+
+    /// <summary>A tenant loads its own overlay only while it is onboarding (Ade, 15 November).</summary>
+    [ErrorCode(409, "error.assist.tenant_live", Means = "A tenant's own overlay is loaded only while the tenant is onboarding, and this one is live.",
+        Remedy = "Use an overlay approved for every tenant, or change configuration through the normal change process.")]
+    public const string TenantLive = "ASSIST_TENANT_LIVE";
 }
 
 /// <summary>

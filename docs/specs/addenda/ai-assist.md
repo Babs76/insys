@@ -101,6 +101,19 @@ Read against main.
 
 **Functions:** `ASSIST_PRODUCT_DRAFT_RUN`, `ASSIST_EXPLAIN_REFUSAL`, `ASSIST_EXPLAIN_PREMIUM`, `ASSIST_SETTINGS_MANAGE`, `ASSIST_TENANT_SETUP_RUN`, under feature `AI_ASSIST`, off by default, in no role template. The pack-only path needs the function but not the entitlement (AIA-080, AIA-090).
 
+**The functions as built (batch 7.6), all in no role template; the SRS §3 table picks up the last three in its next revision:**
+| Function | Audience | Privileged | What it allows |
+|---|---|---|---|
+| `ASSIST_SETTINGS_MANAGE` | Staff | No | The tenant's settings and usage |
+| `ASSIST_EXPLAIN_REFUSAL`, `ASSIST_EXPLAIN_PREMIUM` | Staff | No | AI-2's explanations |
+| `ASSIST_PRODUCT_DRAFT_RUN` | Staff | No | AI-1's drafts (7.4) |
+| `ASSIST_TENANT_SETUP_RUN` | Staff | No | The wizard (AI-3), and loading the tenant's own fallback overlay, only while it is onboarding (Ade, 15 November) |
+| `ASSIST_OVERLAY_MANAGE` | Platform | Yes | Loading a pack version for every tenant and recording the partner's review. It never approves (Ade, 15 November) |
+| `ASSIST_OVERLAY_APPROVE` | Platform | Yes | The named lead's approval of a version for every tenant |
+| `ASSIST_OVERLAY_APPROVE_TENANT` | Staff | Yes | The fallback: the tenant's compliance officer approving its own version for its use only (D-19) |
+
+Whoever loaded a version or recorded its review can't approve it, whatever functions they hold.
+
 **Touching existing modules, read hooks only (§9.2), except:**
 - **Product Factory:** the provenance report on a version.
 - **Rating:** a public query for a recorded calculation, through Contracts.
