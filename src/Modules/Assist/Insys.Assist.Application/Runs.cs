@@ -26,24 +26,98 @@
  */
 using System.Text.Json;
 using Insys.Assist.Domain;
+using Insys.BuildingBlocks.Application.Ai;
 using Insys.BuildingBlocks.Application.Auditing;
 using Insys.BuildingBlocks.Application.Context;
-using Insys.BuildingBlocks.Domain;
 using Insys.BuildingBlocks.Application.Messaging;
+using Insys.BuildingBlocks.Domain;
 using Microsoft.Extensions.Options;
 
 namespace Insys.Assist.Application;
 
 public sealed class AssistOptions
 {
-    /// <summary>Configuration, not code (AIA-074). "stub" in batch 7.1, as no real model exists yet.</summary>
+    /// <summary>The model asked, from configuration (AIA-074): "stub" where no real model is connected.</summary>
     public string ModelVersion { get; set; } = "stub";
 
     /// <summary>The cap for a tenant the operator hasn't set one for: low until batch 7.3's measured cost (addendum §6).</summary>
     public long DefaultMonthlyTokenCap { get; set; } = 100_000;
+
+    /// <summary>
+    /// The prompt templates, by feature, as configuration (AIA-074; SRS §7.1): each a version and its text, INSYS's own words with no record data (AIA-061).
+    /// A change of text needs a new version, and goes through the evaluation set before release.
+    /// </summary>
+    public Dictionary<string, AssistPromptTemplate> Prompts { get; set; } = new(StringComparer.Ordinal);
+
+    /// <summary>The provider's list prices, by model, for each run's cost (D-5, AIA-075). A model with none has no cost recorded.</summary>
+    public Dictionary<string, AssistModelPrice> Prices { get; set; } = new(StringComparer.Ordinal);
+
+    /// <summary>The template configured for a feature, or null when there is none.</summary>
+    public AssistPromptTemplate? PromptFor(string feature) =>
+        Prompts.TryGetValue(feature, out var template) && template is { Version.Length: > 0, Text.Length: > 0 } ? template : null;
+
+    /// <summary>A run's cost at the configured list price, rounded to six places, with its currency; null when the model has no price.</summary>
+    public (decimal Amount, string Currency)? CostOf(string model, long inputTokens, long outputTokens) =>
+        Prices.TryGetValue(model, out var price) && price.Currency is { Length: 3 }
+            ? (Math.Round((inputTokens * price.InputPerMillionTokens + outputTokens * price.OutputPerMillionTokens) / 1_000_000m, 6, MidpointRounding.ToEven), price.Currency)
+            : null;
 }
 
-/// <param name="Instructions">The prompt template's text (<see cref="PromptTemplates"/>): INSYS's own words, never record data (AIA-061).</param>
+/// <summary>One prompt template: its version, recorded on every run and in the cache key (AIA-036), and its text.</summary>
+public sealed class AssistPromptTemplate
+{
+    public string Version { get; set; } = "";
+
+    public string Text { get; set; } = "";
+}
+
+/// <summary>A model's list price per million tokens, with its currency and where it was taken from (D-5).</summary>
+public sealed class AssistModelPrice
+{
+    public decimal InputPerMillionTokens { get; set; }
+
+    public decimal OutputPerMillionTokens { get; set; }
+
+    public string Currency { get; set; } = "";
+
+    /// <summary>The price list used and its date, as text, for the cost report.</summary>
+    public string Source { get; set; } = "";
+}
+
+/// <summary>What one exchange with the model gave: the payload sent, the answer (null when the provider failed), the numbers rejected and the status.</summary>
+public sealed record AssistExchangeResult(MinimisedPayload Sent, AiModelResponse? Response, IReadOnlyList<string> Rejected, string Status, TimeSpan Elapsed);
+
+/// <summary>
+/// The exchange itself, with nothing read or written (AIA-072): the minimiser, the call and the verifier. The runner and the evaluation (batch 7.3) both use it, so
+/// the evaluation measures exactly what a tenant's run does.
+/// </summary>
+public static class AssistExchange
+{
+    public static async Task<AssistExchangeResult> Send(IAiModelProvider provider, string model, string promptVersion, string instructions, AllowedFacts facts,
+        CancellationToken cancellationToken)
+    {
+        // A second layer behind the allowed fields (addendum §5.4): the minimiser masks identifiers a structured field could still carry.
+        var minimised = Minimiser.Minimise(facts.Render());
+        var timer = System.Diagnostics.Stopwatch.StartNew();
+        AiModelResponse? response = null;
+        try
+        {
+            response = await provider.Complete(new AiModelRequest(model, promptVersion, instructions, PromptData.Delimit(minimised.Text)), cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Recorded by the caller as UNAVAILABLE: INSYS never waits on the AI (P8), whatever the provider threw.
+        }
+
+        timer.Stop();
+        // Against the facts' values only, every amount with its currency, so a stated currency must match (addendum §5.1).
+        var rejected = response is null ? [] : NumberVerifier.Verify(response.Text, Minimiser.Minimise(facts.Values()).Text, strictCurrency: true).Rejected;
+        var status = response is null ? AssistRunStatuses.Unavailable : rejected.Count > 0 ? AssistRunStatuses.Rejected : AssistRunStatuses.Verified;
+        return new AssistExchangeResult(minimised, response, rejected, status, timer.Elapsed);
+    }
+}
+
+/// <param name="Instructions">The prompt template's text (<see cref="AssistOptions.Prompts"/>): INSYS's own words, never record data (AIA-061).</param>
 /// <param name="Facts">The structured facts, the only data sent (D-15), and what the verifier compares numbers against.</param>
 public sealed record AssistRunRequest(string Feature, string PromptVersion, string Instructions, AllowedFacts Facts, Guid? CorrelationId = null);
 
@@ -142,24 +216,15 @@ public sealed class AssistRunner(IDispatcher dispatcher, IAiModelProvider provid
         }
 
         var started = clock.UtcNow;
-        // A second layer behind the allowed fields (addendum §5.4): the minimiser masks identifiers a structured field could still carry.
-        var minimised = Minimiser.Minimise(request.Facts.Render());
         var model = options.Value.ModelVersion;
-        AiModelResponse? response = null;
-        try
-        {
-            response = await provider.Complete(new AiModelRequest(model, request.PromptVersion, request.Instructions, PromptData.Delimit(minimised.Text)), cancellationToken);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            // Recorded below: INSYS never waits on the AI (P8), whatever the provider threw.
-        }
-
-        // Against the facts' values only, every amount with its currency, so a stated currency must match (addendum §5.1).
-        var rejected = response is null ? [] : NumberVerifier.Verify(response.Text, Minimiser.Minimise(request.Facts.Values()).Text, strictCurrency: true).Rejected;
-        var status = response is null ? AssistRunStatuses.Unavailable : rejected.Count > 0 ? AssistRunStatuses.Rejected : AssistRunStatuses.Verified;
-        var run = AssistRun.Finish(request.Feature, started, clock.UtcNow, model, request.PromptVersion, status, response?.InputTokens ?? 0, response?.OutputTokens ?? 0, request.CorrelationId);
-        var payload = AssistRunPayload.For(run.Id, minimised.Text, response?.Text, JsonSerializer.Serialize(minimised.Masked));
+        var exchange = await AssistExchange.Send(provider, model, request.PromptVersion, request.Instructions, request.Facts, cancellationToken);
+        var response = exchange.Response;
+        var cost = response is null ? null : options.Value.CostOf(model, response.InputTokens, response.OutputTokens);
+        var run = AssistRun.Finish(request.Feature, started, clock.UtcNow, model, request.PromptVersion, exchange.Status, response?.InputTokens ?? 0, response?.OutputTokens ?? 0,
+            request.CorrelationId, response?.ServedModel, response?.InferenceRegion, cost?.Amount, cost?.Currency);
+        var payload = AssistRunPayload.For(run.Id, exchange.Sent.Text, response?.Text, JsonSerializer.Serialize(exchange.Sent.Masked));
+        var status = exchange.Status;
+        var rejected = exchange.Rejected;
         return new AssistCall(run, payload, new AssistRunOutcome(run.Id, status, status == AssistRunStatuses.Verified ? response!.Text : null, rejected));
     }
 

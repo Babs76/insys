@@ -40,6 +40,8 @@ public sealed class ErrorCatalogue : IErrorCatalogue
 
     public ErrorCodeEntry? Find(string code) => _entries.Value.GetValueOrDefault(code);
 
+    public IReadOnlyList<ErrorCodeEntry> All => [.. _entries.Value.Values.OrderBy(e => e.Code, StringComparer.Ordinal)];
+
     private static IReadOnlyDictionary<string, ErrorCodeEntry> Load()
     {
         var assemblies = Directory.GetFiles(AppContext.BaseDirectory, "Insys.*.dll")

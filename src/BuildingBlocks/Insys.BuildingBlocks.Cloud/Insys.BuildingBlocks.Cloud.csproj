@@ -36,5 +36,7 @@
     <PackageReference Include="HuaweiCloud.SDK.Kms" />
     <!-- Apache-2.0 (Amazon). OBS is reached through its S3-compatible API. -->
     <PackageReference Include="AWSSDK.S3" />
+    <!-- Apache-2.0 (Anthropic). The Claude API, for AI Assist (Wave 7, ai-assist.md §5): only this project may reference it (ADR-027's SDK guard). -->
+    <PackageReference Include="Anthropic" />
   </ItemGroup>
 </Project>

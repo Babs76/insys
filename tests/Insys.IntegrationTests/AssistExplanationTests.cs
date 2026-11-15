@@ -26,6 +26,7 @@
  */
 using System.Net;
 using Insys.Assist.Application;
+using Insys.BuildingBlocks.Application.Ai;
 using Insys.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
@@ -107,7 +108,7 @@ public sealed class AssistExplanationTests(DatabaseFixture fixture) : IClassFixt
             ("t", tenant))).ShouldBe(record.ToString(), "the record is kept for the audit");
 
         var sent = stub.Sent.Last();
-        sent.Instructions.ShouldBe(PromptTemplates.Refusal);
+        sent.Instructions.ShouldBe(AssistTests.Template(host, Insys.Assist.Domain.AssistFeatures.ExplainRefusal).Text);
         sent.Data.ShouldContain("code: MAKER_CHECKER_SAME_PERSON");
         sent.Data.ShouldContain("what it means: You made or requested this, and the same person can't also approve it.");
         sent.Data.ShouldContain("what to do next: Ask another person with approval authority to decide it.");

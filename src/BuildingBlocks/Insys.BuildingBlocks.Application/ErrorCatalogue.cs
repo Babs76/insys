@@ -35,4 +35,7 @@ namespace Insys.BuildingBlocks.Application;
 public interface IErrorCatalogue
 {
     ErrorCodeEntry? Find(string code);
+
+    /// <summary>Every code, ordered by code: for the AI-2 evaluation set (batch 7.3).</summary>
+    IReadOnlyList<ErrorCodeEntry> All { get; }
 }

@@ -25,9 +25,12 @@
  * ============================================================================
  */
 using Insys.Assist.Application;
+using Insys.Assist.Domain;
 using Insys.Assist.Infrastructure.Persistence;
+using Insys.BuildingBlocks.Application.Ai;
 using Insys.BuildingBlocks.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Insys.Assist.Infrastructure;
 
@@ -39,10 +42,15 @@ public static class AssistInfrastructure
         services.AddModuleDbContext<AssistDbContext>(schema, "Assist");
         services.AddModuleHandlers<AssistDbContext>(typeof(GetAssistSettings).Assembly);
         services.AddScoped<IAssistRepository, AssistRepository>();
-        services.AddSingleton<IAiModelProvider, NoAiModelProvider>();
+        // No model unless the deployment connects one (the Cloud adapter project registers Claude when Assist:Provider is claude).
+        services.TryAddSingleton<IAiModelProvider, NoAiModelProvider>();
         services.AddScoped<AssistRunner>();
         services.AddScoped<Explainer>();
-        services.AddOptions<AssistOptions>().BindConfiguration("Assist");
+        // The prompt templates are configuration (AIA-074): the host doesn't start without one for each AI-2 feature.
+        services.AddOptions<AssistOptions>().BindConfiguration("Assist")
+            .Validate(o => o.PromptFor(AssistFeatures.ExplainRefusal) is not null && o.PromptFor(AssistFeatures.ExplainPremium) is not null,
+                "Assist:Prompts needs a version and text for EXPLAIN_REFUSAL and EXPLAIN_PREMIUM.")
+            .ValidateOnStart();
         return services;
     }
 }

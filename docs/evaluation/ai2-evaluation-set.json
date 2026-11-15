@@ -1,0 +1,1927 @@
+{
+  "description": "AI-2 evaluation set (ai-assist.md \u00A76): the error catalogue\u0027s worded refusals and the sample tenant\u0027s product premiums. Sample data only; the rates are invented.",
+  "refusals": [
+    {
+      "id": "R-001",
+      "code": "ACCESS_WINDOW_TOO_LONG",
+      "retryable": false,
+      "means": "Privileged access is granted for a limited time, and the period asked for is longer than allowed.",
+      "remedy": "Ask for a shorter period.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-002",
+      "code": "APPROVAL_AUTHORITY_EXCEEDED",
+      "retryable": false,
+      "means": "The amount is above the limit of your approval authority.",
+      "remedy": "Ask a colleague whose limit covers the amount to decide it.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-003",
+      "code": "APPROVAL_AUTHORITY_MISSING",
+      "retryable": false,
+      "means": "None of your roles has approval authority for this type of approval.",
+      "remedy": "Ask a colleague who has the authority to decide it, or ask your administrator about yours.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-004",
+      "code": "APPROVAL_NOT_REQUESTER",
+      "retryable": false,
+      "means": "Only the person who asked for this approval can withdraw it.",
+      "remedy": "Ask the requester to withdraw it, or let a checker decide it.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-005",
+      "code": "CALLBACK_REPLAYED",
+      "retryable": false,
+      "means": "This callback was already received.",
+      "remedy": "Nothing to do: the first one was recorded.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-006",
+      "code": "CALLBACK_SIGNATURE_INVALID",
+      "retryable": false,
+      "means": "A provider\u0027s callback wasn\u0027t accepted, as its signature, key, timestamp or token isn\u0027t valid.",
+      "remedy": "Check the provider\u0027s endpoint set-up with your integration administrator.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-007",
+      "code": "CHANNEL_APPROVAL_REQUIRED",
+      "retryable": false,
+      "means": "The channel requires an approval for this transaction, and the transaction has no approval step.",
+      "remedy": "Make the transaction on a channel that doesn\u0027t require approval, or ask your administrator to change the channel\u0027s setting.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-008",
+      "code": "CHANNEL_NOT_ALLOWED",
+      "retryable": false,
+      "means": "Your roles may not make this transaction, for this product, on this channel.",
+      "remedy": "Ask your administrator whether the channel\u0027s permissions should allow it, or use another channel that does.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-009",
+      "code": "CHANNEL_NOT_ENABLED",
+      "retryable": false,
+      "means": "The application you\u0027re using isn\u0027t on a channel your organisation has enabled for this.",
+      "remedy": "Use the application your organisation has enabled for it, or ask your administrator to enable the channel.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-010",
+      "code": "CLAIM_EVENT_DATE_IN_FUTURE",
+      "retryable": false,
+      "means": "The claim\u0027s event date is after today\u0027s business date.",
+      "remedy": "Correct the event date.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-011",
+      "code": "CONCURRENCY_CONFLICT",
+      "retryable": true,
+      "means": "Someone else changed the record at the same moment.",
+      "remedy": "Try again; if it repeats, open the record again first.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-012",
+      "code": "CURRENCY_MISMATCH",
+      "retryable": false,
+      "means": "The amounts are in different currencies, which this action doesn\u0027t allow.",
+      "remedy": "Use amounts in the record\u0027s currency.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-013",
+      "code": "DATABASE_BUSY",
+      "retryable": true,
+      "means": "The service is too busy to take the request just now.",
+      "remedy": "Try again shortly.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-014",
+      "code": "DATABASE_RULE_VIOLATED",
+      "retryable": false,
+      "means": "The change breaks a rule the records must always keep.",
+      "remedy": "Check the values against the related records; if they look right, report it to support with the reference.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-015",
+      "code": "DISCLOSURE_REQUIRED",
+      "retryable": false,
+      "means": "A mandatory notice hasn\u0027t been acknowledged at this point of the process.",
+      "remedy": "Record the customer\u0027s acknowledgement of the notice, then try again.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-016",
+      "code": "DOMAIN_VALIDATION_FAILED",
+      "retryable": false,
+      "means": "The record doesn\u0027t pass the checks this step of the process requires.",
+      "remedy": "Correct the record as the checks require, then try again.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-017",
+      "code": "DUE_DILIGENCE_NOT_CLEARED",
+      "retryable": false,
+      "means": "The party hasn\u0027t been cleared by customer due diligence for this step, so INSYS won\u0027t go on with it.",
+      "remedy": "Ask a compliance officer to complete the outstanding due diligence items for the party; the step can then be done.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-018",
+      "code": "DUPLICATE_RECORD",
+      "retryable": false,
+      "means": "A record with the same identifying values already exists.",
+      "remedy": "Look for the existing record and work on it, or change the identifying values.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-019",
+      "code": "EXTERNAL_USER_NOT_ALLOWED",
+      "retryable": false,
+      "means": "Portal users can use only their own portal\u0027s functions.",
+      "remedy": "Use the portal for this, or contact the insurer.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-020",
+      "code": "FEATURE_NOT_ENTITLED",
+      "retryable": false,
+      "means": "Your organisation isn\u0027t entitled to the feature this action belongs to.",
+      "remedy": "Ask your tenant administrator; the entitlement is set by the platform operator.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-021",
+      "code": "FORBIDDEN",
+      "retryable": false,
+      "means": "You aren\u0027t allowed to do this.",
+      "remedy": "Ask your administrator whether your role should allow it.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-022",
+      "code": "FUNCTION_DISABLED",
+      "retryable": false,
+      "means": "This action is switched off for your organisation, or isn\u0027t available on the platform.",
+      "remedy": "Ask your tenant administrator whether it should be switched on.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-023",
+      "code": "FUNCTION_NOT_GRANTED",
+      "retryable": false,
+      "means": "None of your roles in force grants this action.",
+      "remedy": "Ask your tenant administrator for a role that includes it, or ask a colleague who holds it.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-024",
+      "code": "GOVERNANCE_CHANGE_PENDING",
+      "retryable": false,
+      "means": "A change to how static data is approved is already waiting for a decision.",
+      "remedy": "Wait for that decision before asking for another.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-025",
+      "code": "IDEMPOTENCY_IN_PROGRESS",
+      "retryable": true,
+      "means": "The same request is still being processed.",
+      "remedy": "Wait a moment, then check the record before trying again.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-026",
+      "code": "IDEMPOTENCY_KEY_REQUIRED",
+      "retryable": false,
+      "means": "The request was sent without the key that stops it being made twice.",
+      "remedy": "Send it again from the application; this is a technical step it should add.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-027",
+      "code": "IDEMPOTENCY_KEY_REUSED",
+      "retryable": false,
+      "means": "The request\u0027s key was already used for a different request.",
+      "remedy": "Start the action again, so a new key is used.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-028",
+      "code": "IDEMPOTENCY_RESPONSE_NOT_KEPT",
+      "retryable": false,
+      "means": "A repeat of a request whose answer showed a secret once: the secret isn\u0027t kept, so it can\u0027t be shown again.",
+      "remedy": "If the secret was lost, issue a new one.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-029",
+      "code": "IDENTITY_NOT_LINKED",
+      "retryable": false,
+      "means": "Your sign-in identity is still being set up.",
+      "remedy": "Wait a moment and try again; it works once the set-up has finished.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-030",
+      "code": "INTERNAL_ERROR",
+      "retryable": true,
+      "means": "Something went wrong inside INSYS, not with what you entered.",
+      "remedy": "Try again; if it repeats, report it to support with the reference.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-031",
+      "code": "INVALID_STATE_TRANSITION",
+      "retryable": false,
+      "means": "The record isn\u0027t in a state that allows this action: it has already moved on, or hasn\u0027t reached the step yet.",
+      "remedy": "Open the record again to see its current status, and take the action that status allows.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-032",
+      "code": "LINK_SUBJECT_NOT_FOUND",
+      "retryable": false,
+      "means": "The customer, intermediary or provider to link the user to isn\u0027t in force, or the intermediary isn\u0027t active and licensed.",
+      "remedy": "Check the record to link to, and that it\u0027s in force.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-033",
+      "code": "MAKER_CHECKER_SAME_PERSON",
+      "retryable": false,
+      "means": "You made or requested this, and the same person can\u0027t also approve it.",
+      "remedy": "Ask another person with approval authority to decide it.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-034",
+      "code": "MFA_REQUIRED",
+      "retryable": false,
+      "means": "This role is privileged and needs the user to be enrolled for a second factor.",
+      "remedy": "Enrol the user for a second factor, then assign the role.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-035",
+      "code": "NOTHING_TO_REVIEW",
+      "retryable": false,
+      "means": "No role assignments fall in the scope of this access review.",
+      "remedy": "Widen the review\u0027s scope, or no review is needed.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-036",
+      "code": "NOT_FOUND",
+      "retryable": false,
+      "means": "The record wasn\u0027t found, or you aren\u0027t allowed to see it.",
+      "remedy": "Check the reference. If you should be able to see it, ask your administrator about your access.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-037",
+      "code": "NOT_READY",
+      "retryable": true,
+      "means": "The service is starting up.",
+      "remedy": "Try again shortly.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-038",
+      "code": "OPERATOR_TENANT_NOT_BUSINESS",
+      "retryable": false,
+      "means": "The platform operator\u0027s organisation holds no business records, so this action isn\u0027t available there.",
+      "remedy": "Use an insurer\u0027s tenant for business work.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-039",
+      "code": "OUT_OF_SCOPE",
+      "retryable": false,
+      "means": "The record is outside the products or organisation units your role covers.",
+      "remedy": "Ask a colleague whose scope covers it, or ask your administrator to widen your scope.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-040",
+      "code": "PORTAL_MFA_REQUIRED",
+      "retryable": false,
+      "means": "This portal needs a second factor, and your sign-in didn\u0027t include one.",
+      "remedy": "Sign in again and complete the one-time code step.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-041",
+      "code": "PORTAL_UNDER_REVIEW",
+      "retryable": false,
+      "means": "The step waits on a review of the customer\u0027s details.",
+      "remedy": "Nothing to do now; the step becomes available once the review is finished.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-042",
+      "code": "PRECONDITION_FAILED",
+      "retryable": false,
+      "means": "The record changed after you opened it, so your change wasn\u0027t saved.",
+      "remedy": "Open the record again to see the latest version, then make your change on it.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-043",
+      "code": "PRECONDITION_REQUIRED",
+      "retryable": false,
+      "means": "The change needs the version of the record it\u0027s made on.",
+      "remedy": "Open the record again and make the change from there.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-044",
+      "code": "PROCESS_NOT_RUNNING",
+      "retryable": false,
+      "means": "The process has already ended or hasn\u0027t started, so it can\u0027t move on.",
+      "remedy": "Open the record to see where it stands.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-045",
+      "code": "RATE_LIMITED",
+      "retryable": true,
+      "means": "Too many requests in a short time.",
+      "remedy": "Wait a moment and try again.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-046",
+      "code": "REVIEW_INCOMPLETE",
+      "retryable": false,
+      "means": "Every item must be confirmed or revoked before the review completes.",
+      "remedy": "Decide the remaining items, then complete the review.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-047",
+      "code": "ROLE_ALREADY_ASSIGNED",
+      "retryable": false,
+      "means": "The user already holds this role, or its assignment is waiting for approval.",
+      "remedy": "Nothing to do, or wait for the pending approval.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-048",
+      "code": "ROLE_NOT_ASSIGNED",
+      "retryable": false,
+      "means": "The user doesn\u0027t hold this role.",
+      "remedy": "Check the user\u0027s roles in force.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-049",
+      "code": "ROLE_NOT_FOUND",
+      "retryable": false,
+      "means": "The role has no version in force.",
+      "remedy": "Choose a role in force, or ask your administrator to put it in force first.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-050",
+      "code": "SEGREGATION_OF_DUTIES",
+      "retryable": false,
+      "means": "The role would give the user two duties your organisation keeps apart, such as preparing and releasing the same payment.",
+      "remedy": "Give the role to someone else, or remove the conflicting role first.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-051",
+      "code": "STATIC_DRAFT_EXISTS",
+      "retryable": false,
+      "means": "This code already has a version in progress.",
+      "remedy": "Finish or discard that version first.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-052",
+      "code": "STATIC_IMPORT_REJECTED",
+      "retryable": false,
+      "means": "Some lines of the import have errors, so nothing was saved.",
+      "remedy": "Correct the lines listed and import again.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-053",
+      "code": "STATIC_MAKER_ONLY",
+      "retryable": false,
+      "means": "Only the person who created the draft can change it, so who made the change stays known.",
+      "remedy": "Ask the draft\u0027s maker to change it, or start your own draft once it\u0027s finished.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-054",
+      "code": "STATIC_RETROACTIVE_CHANGE",
+      "retryable": false,
+      "means": "The new version would start before the version now in force starts.",
+      "remedy": "Set the start date after the start of the version in force.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-055",
+      "code": "STATIC_SCOPE_NOT_ALLOWED",
+      "retryable": false,
+      "means": "The change is at a scope this table doesn\u0027t allow: some tables hold only an organisation\u0027s own rows, others only platform-wide rows.",
+      "remedy": "Make the change at the table\u0027s own scope; platform-wide rows are changed by the platform\u0027s administrators.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-056",
+      "code": "STATIC_USER_REQUIRED",
+      "retryable": false,
+      "means": "Static data changes are made by identified people, for maker-checker.",
+      "remedy": "Make the change signed in as yourself.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-057",
+      "code": "SUBJECT_LINK_EXISTS",
+      "retryable": false,
+      "means": "The user already has a portal link pending or in effect.",
+      "remedy": "Use the existing link, or end it before making another.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-058",
+      "code": "SUBJECT_LINK_NOT_FOUND",
+      "retryable": false,
+      "means": "The user has no portal link pending or in effect.",
+      "remedy": "Make the link first.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-059",
+      "code": "TASK_CLOSED_BY_ITS_RECORD",
+      "retryable": false,
+      "means": "This task closes by itself when its record does what the task asks; it can\u0027t be closed by hand.",
+      "remedy": "Complete the work on the record; the task then closes.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-060",
+      "code": "TENANT_CONTEXT_MISSING",
+      "retryable": false,
+      "means": "The request didn\u0027t say which organisation it\u0027s for.",
+      "remedy": "Sign in again; if it persists, report it to support with the reference.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-061",
+      "code": "TENANT_HAS_USERS",
+      "retryable": false,
+      "means": "The organisation already has users, so first administrators can\u0027t be set up again.",
+      "remedy": "Ask for an additional administrator instead.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-062",
+      "code": "TENANT_NOT_ACTIVE",
+      "retryable": false,
+      "means": "Your organisation is still being set up, so business actions aren\u0027t open yet.",
+      "remedy": "Only set-up and configuration work is possible until the organisation is activated.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-063",
+      "code": "TENANT_NOT_ONBOARDING",
+      "retryable": false,
+      "means": "First administrators are set up only while the organisation is being onboarded.",
+      "remedy": "For a live organisation, ask for an additional administrator instead.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-064",
+      "code": "TRANSITION_GUARD_FAILED",
+      "retryable": false,
+      "means": "The condition for moving the process to that step doesn\u0027t hold yet.",
+      "remedy": "Complete what the step needs first, then try again.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-065",
+      "code": "TRANSITION_NOT_DEFINED",
+      "retryable": false,
+      "means": "The process doesn\u0027t allow a move from its current step to the one asked for.",
+      "remedy": "Open the record to see its current step and the moves it allows.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-066",
+      "code": "UNAUTHENTICATED",
+      "retryable": false,
+      "means": "You aren\u0027t signed in, or your sign-in has expired.",
+      "remedy": "Sign in again.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-067",
+      "code": "USERNAME_TAKEN",
+      "retryable": false,
+      "means": "The username is already in use.",
+      "remedy": "Choose another username.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-068",
+      "code": "VALIDATION_FAILED",
+      "retryable": false,
+      "means": "The request is missing a required value, or a value isn\u0027t in the form, range or state the action allows.",
+      "remedy": "Correct what the refusal points to, on the form or in its message, and send it again.",
+      "fieldsInError": 2
+    },
+    {
+      "id": "R-069",
+      "code": "WORKFLOW_DEFINITION_INVALID",
+      "retryable": false,
+      "means": "The process definition isn\u0027t valid, so the process can\u0027t be run.",
+      "remedy": "Ask the person who maintains process definitions to correct it.",
+      "fieldsInError": 0
+    }
+  ],
+  "calculations": [
+    {
+      "id": "C-001",
+      "sourceDomain": "GENERAL",
+      "productCode": "OFT-MOTOR",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 800.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 25000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-MOT-BASE",
+          "factorValue": "G3",
+          "amount": 750.00
+        },
+        {
+          "lineNo": 3,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 800.0000
+        },
+        {
+          "lineNo": 4,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 800.0000
+        }
+      ]
+    },
+    {
+      "id": "C-002",
+      "sourceDomain": "GENERAL",
+      "productCode": "OFT-MOTOR",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 1550.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 50000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-MOT-BASE",
+          "factorValue": "G3",
+          "amount": 1500.00
+        },
+        {
+          "lineNo": 3,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 1550.0000
+        },
+        {
+          "lineNo": 4,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 1550.0000
+        }
+      ]
+    },
+    {
+      "id": "C-003",
+      "sourceDomain": "GENERAL",
+      "productCode": "OFT-MOTOR",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 2300.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 75000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-MOT-BASE",
+          "factorValue": "G3",
+          "amount": 2250.00
+        },
+        {
+          "lineNo": 3,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 2300.0000
+        },
+        {
+          "lineNo": 4,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 2300.0000
+        }
+      ]
+    },
+    {
+      "id": "C-004",
+      "sourceDomain": "GENERAL",
+      "productCode": "OFT-MOTOR",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 3050.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 100000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-MOT-BASE",
+          "factorValue": "G3",
+          "amount": 3000.00
+        },
+        {
+          "lineNo": 3,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 3050.0000
+        },
+        {
+          "lineNo": 4,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 3050.0000
+        }
+      ]
+    },
+    {
+      "id": "C-005",
+      "sourceDomain": "GENERAL",
+      "productCode": "OFT-MOTOR",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 4550.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 150000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-MOT-BASE",
+          "factorValue": "G3",
+          "amount": 4500.00
+        },
+        {
+          "lineNo": 3,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 4550.0000
+        },
+        {
+          "lineNo": 4,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 4550.0000
+        }
+      ]
+    },
+    {
+      "id": "C-006",
+      "sourceDomain": "GENERAL",
+      "productCode": "OFT-MOTOR",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 6050.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 200000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-MOT-BASE",
+          "factorValue": "G3",
+          "amount": 6000.00
+        },
+        {
+          "lineNo": 3,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 6050.0000
+        },
+        {
+          "lineNo": 4,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 6050.0000
+        }
+      ]
+    },
+    {
+      "id": "C-007",
+      "sourceDomain": "GENERAL",
+      "productCode": "OFT-MOTOR",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 7550.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 250000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-MOT-BASE",
+          "factorValue": "G3",
+          "amount": 7500.00
+        },
+        {
+          "lineNo": 3,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 7550.0000
+        },
+        {
+          "lineNo": 4,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 7550.0000
+        }
+      ]
+    },
+    {
+      "id": "C-008",
+      "sourceDomain": "GENERAL",
+      "productCode": "OFT-MOTOR",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 10550.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 350000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-MOT-BASE",
+          "factorValue": "G3",
+          "amount": 10500.00
+        },
+        {
+          "lineNo": 3,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 10550.0000
+        },
+        {
+          "lineNo": 4,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 10550.0000
+        }
+      ]
+    },
+    {
+      "id": "C-009",
+      "sourceDomain": "GENERAL",
+      "productCode": "OFT-HOME",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 550.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 250000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-HOM-BASE",
+          "factorValue": "BRICK",
+          "amount": 500.000
+        },
+        {
+          "lineNo": 3,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 550.0000
+        },
+        {
+          "lineNo": 4,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 550.0000
+        }
+      ]
+    },
+    {
+      "id": "C-010",
+      "sourceDomain": "GENERAL",
+      "productCode": "OFT-HOME",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 1050.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 500000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-HOM-BASE",
+          "factorValue": "BRICK",
+          "amount": 1000.000
+        },
+        {
+          "lineNo": 3,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 1050.0000
+        },
+        {
+          "lineNo": 4,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 1050.0000
+        }
+      ]
+    },
+    {
+      "id": "C-011",
+      "sourceDomain": "GENERAL",
+      "productCode": "OFT-HOME",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 2050.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 1000000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-HOM-BASE",
+          "factorValue": "BRICK",
+          "amount": 2000.000
+        },
+        {
+          "lineNo": 3,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 2050.0000
+        },
+        {
+          "lineNo": 4,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 2050.0000
+        }
+      ]
+    },
+    {
+      "id": "C-012",
+      "sourceDomain": "GENERAL",
+      "productCode": "OFT-HOME",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 3050.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 1500000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-HOM-BASE",
+          "factorValue": "BRICK",
+          "amount": 3000.000
+        },
+        {
+          "lineNo": 3,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 3050.0000
+        },
+        {
+          "lineNo": 4,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 3050.0000
+        }
+      ]
+    },
+    {
+      "id": "C-013",
+      "sourceDomain": "GENERAL",
+      "productCode": "OFT-HOME",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 4050.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 2000000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-HOM-BASE",
+          "factorValue": "BRICK",
+          "amount": 4000.000
+        },
+        {
+          "lineNo": 3,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 4050.0000
+        },
+        {
+          "lineNo": 4,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 4050.0000
+        }
+      ]
+    },
+    {
+      "id": "C-014",
+      "sourceDomain": "GENERAL",
+      "productCode": "OFT-HOME",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 1550.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 250000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-HOM-BASE",
+          "factorValue": "THATCH",
+          "amount": 1500.000
+        },
+        {
+          "lineNo": 3,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 1550.0000
+        },
+        {
+          "lineNo": 4,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 1550.0000
+        }
+      ]
+    },
+    {
+      "id": "C-015",
+      "sourceDomain": "GENERAL",
+      "productCode": "OFT-HOME",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 3050.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 500000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-HOM-BASE",
+          "factorValue": "THATCH",
+          "amount": 3000.000
+        },
+        {
+          "lineNo": 3,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 3050.0000
+        },
+        {
+          "lineNo": 4,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 3050.0000
+        }
+      ]
+    },
+    {
+      "id": "C-016",
+      "sourceDomain": "GENERAL",
+      "productCode": "OFT-HOME",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 6050.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 1000000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-HOM-BASE",
+          "factorValue": "THATCH",
+          "amount": 6000.000
+        },
+        {
+          "lineNo": 3,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 6050.0000
+        },
+        {
+          "lineNo": 4,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 6050.0000
+        }
+      ]
+    },
+    {
+      "id": "C-017",
+      "sourceDomain": "GENERAL",
+      "productCode": "OFT-HOME",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 9050.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 1500000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-HOM-BASE",
+          "factorValue": "THATCH",
+          "amount": 9000.000
+        },
+        {
+          "lineNo": 3,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 9050.0000
+        },
+        {
+          "lineNo": 4,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 9050.0000
+        }
+      ]
+    },
+    {
+      "id": "C-018",
+      "sourceDomain": "GENERAL",
+      "productCode": "OFT-HOME",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 12050.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 2000000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-HOM-BASE",
+          "factorValue": "THATCH",
+          "amount": 12000.000
+        },
+        {
+          "lineNo": 3,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 12050.0000
+        },
+        {
+          "lineNo": 4,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 12050.0000
+        }
+      ]
+    },
+    {
+      "id": "C-019",
+      "sourceDomain": "LIFE",
+      "productCode": "OFT-FUNERAL",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 70.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 10000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-FUN-BASE",
+          "factorValue": "18-40",
+          "amount": 20.000
+        },
+        {
+          "lineNo": 3,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 70.0000
+        },
+        {
+          "lineNo": 4,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 70.0000
+        }
+      ]
+    },
+    {
+      "id": "C-020",
+      "sourceDomain": "LIFE",
+      "productCode": "OFT-FUNERAL",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 90.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 20000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-FUN-BASE",
+          "factorValue": "18-40",
+          "amount": 40.000
+        },
+        {
+          "lineNo": 3,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 90.0000
+        },
+        {
+          "lineNo": 4,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 90.0000
+        }
+      ]
+    },
+    {
+      "id": "C-021",
+      "sourceDomain": "LIFE",
+      "productCode": "OFT-FUNERAL",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 110.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 30000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-FUN-BASE",
+          "factorValue": "18-40",
+          "amount": 60.000
+        },
+        {
+          "lineNo": 3,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 110.0000
+        },
+        {
+          "lineNo": 4,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 110.0000
+        }
+      ]
+    },
+    {
+      "id": "C-022",
+      "sourceDomain": "LIFE",
+      "productCode": "OFT-FUNERAL",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 150.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 50000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-FUN-BASE",
+          "factorValue": "18-40",
+          "amount": 100.000
+        },
+        {
+          "lineNo": 3,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 150.0000
+        },
+        {
+          "lineNo": 4,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 150.0000
+        }
+      ]
+    },
+    {
+      "id": "C-023",
+      "sourceDomain": "LIFE",
+      "productCode": "OFT-FUNERAL",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 100.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 10000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-FUN-BASE",
+          "factorValue": "41-65",
+          "amount": 50.000
+        },
+        {
+          "lineNo": 3,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 100.0000
+        },
+        {
+          "lineNo": 4,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 100.0000
+        }
+      ]
+    },
+    {
+      "id": "C-024",
+      "sourceDomain": "LIFE",
+      "productCode": "OFT-FUNERAL",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 150.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 20000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-FUN-BASE",
+          "factorValue": "41-65",
+          "amount": 100.000
+        },
+        {
+          "lineNo": 3,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 150.0000
+        },
+        {
+          "lineNo": 4,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 150.0000
+        }
+      ]
+    },
+    {
+      "id": "C-025",
+      "sourceDomain": "LIFE",
+      "productCode": "OFT-FUNERAL",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 200.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 30000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-FUN-BASE",
+          "factorValue": "41-65",
+          "amount": 150.000
+        },
+        {
+          "lineNo": 3,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 200.0000
+        },
+        {
+          "lineNo": 4,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 200.0000
+        }
+      ]
+    },
+    {
+      "id": "C-026",
+      "sourceDomain": "LIFE",
+      "productCode": "OFT-FUNERAL",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 300.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 50000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-FUN-BASE",
+          "factorValue": "41-65",
+          "amount": 250.000
+        },
+        {
+          "lineNo": 3,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 300.0000
+        },
+        {
+          "lineNo": 4,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 300.0000
+        }
+      ]
+    },
+    {
+      "id": "C-027",
+      "sourceDomain": "LIFE",
+      "productCode": "OFT-TERM",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 150.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 250000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-TRM-BASE",
+          "factorValue": "18-40",
+          "amount": 100.0000
+        },
+        {
+          "lineNo": 3,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 150.0000
+        },
+        {
+          "lineNo": 4,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 150.0000
+        }
+      ]
+    },
+    {
+      "id": "C-028",
+      "sourceDomain": "LIFE",
+      "productCode": "OFT-TERM",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 250.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 500000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-TRM-BASE",
+          "factorValue": "18-40",
+          "amount": 200.0000
+        },
+        {
+          "lineNo": 3,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 250.0000
+        },
+        {
+          "lineNo": 4,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 250.0000
+        }
+      ]
+    },
+    {
+      "id": "C-029",
+      "sourceDomain": "LIFE",
+      "productCode": "OFT-TERM",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 450.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 1000000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-TRM-BASE",
+          "factorValue": "18-40",
+          "amount": 400.0000
+        },
+        {
+          "lineNo": 3,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 450.0000
+        },
+        {
+          "lineNo": 4,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 450.0000
+        }
+      ]
+    },
+    {
+      "id": "C-030",
+      "sourceDomain": "LIFE",
+      "productCode": "OFT-TERM",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 350.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 250000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-TRM-BASE",
+          "factorValue": "41-65",
+          "amount": 300.0000
+        },
+        {
+          "lineNo": 3,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 350.0000
+        },
+        {
+          "lineNo": 4,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 350.0000
+        }
+      ]
+    },
+    {
+      "id": "C-031",
+      "sourceDomain": "LIFE",
+      "productCode": "OFT-TERM",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 650.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 500000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-TRM-BASE",
+          "factorValue": "41-65",
+          "amount": 600.0000
+        },
+        {
+          "lineNo": 3,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 650.0000
+        },
+        {
+          "lineNo": 4,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 650.0000
+        }
+      ]
+    },
+    {
+      "id": "C-032",
+      "sourceDomain": "LIFE",
+      "productCode": "OFT-TERM",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 1250.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 1000000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-TRM-BASE",
+          "factorValue": "41-65",
+          "amount": 1200.0000
+        },
+        {
+          "lineNo": 3,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 1250.0000
+        },
+        {
+          "lineNo": 4,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 1250.0000
+        }
+      ]
+    },
+    {
+      "id": "C-033",
+      "sourceDomain": "HEALTH",
+      "productCode": "OFT-HEALTH",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 550.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 50000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-HLT-BASE",
+          "factorValue": "ESS",
+          "amount": 500.00
+        },
+        {
+          "lineNo": 3,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 550.0000
+        },
+        {
+          "lineNo": 4,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 550.0000
+        }
+      ]
+    },
+    {
+      "id": "C-034",
+      "sourceDomain": "HEALTH",
+      "productCode": "OFT-HEALTH",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 1050.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 100000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-HLT-BASE",
+          "factorValue": "ESS",
+          "amount": 1000.00
+        },
+        {
+          "lineNo": 3,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 1050.0000
+        },
+        {
+          "lineNo": 4,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 1050.0000
+        }
+      ]
+    },
+    {
+      "id": "C-035",
+      "sourceDomain": "HEALTH",
+      "productCode": "OFT-HEALTH",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 1050.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 50000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-HLT-BASE",
+          "factorValue": "PLUS",
+          "amount": 1000.00
+        },
+        {
+          "lineNo": 3,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 1050.0000
+        },
+        {
+          "lineNo": 4,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 1050.0000
+        }
+      ]
+    },
+    {
+      "id": "C-036",
+      "sourceDomain": "HEALTH",
+      "productCode": "OFT-HEALTH",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 2050.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 100000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-HLT-BASE",
+          "factorValue": "PLUS",
+          "amount": 2000.00
+        },
+        {
+          "lineNo": 3,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 2050.0000
+        },
+        {
+          "lineNo": 4,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 2050.0000
+        }
+      ]
+    }
+  ]
+}

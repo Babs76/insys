@@ -89,7 +89,7 @@ public sealed class InsysApiFactory(TestDatabase database, IReadOnlyDictionary<s
         }
 
         // No real model in tests (SRS §9.2): this is the only place the stub is registered.
-        builder.ConfigureTestServices(services => services.AddSingleton<Insys.Assist.Application.IAiModelProvider, StubAiModelProvider>());
+        builder.ConfigureTestServices(services => services.AddSingleton<Insys.BuildingBlocks.Application.Ai.IAiModelProvider, StubAiModelProvider>());
 
         // A fixed clock, for business date tests (ADR-025): every IClock and token check in the host reads it.
         if (time is not null)

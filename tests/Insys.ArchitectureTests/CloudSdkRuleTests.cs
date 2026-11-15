@@ -28,14 +28,14 @@ using Insys.Testing;
 
 namespace Insys.ArchitectureTests;
 
-/// <summary>ADR-027: only the Cloud adapter project knows which cloud it is on, so a new deployment target touches nothing else.</summary>
+/// <summary>ADR-027: only the Cloud adapter project knows which cloud it is on, so a new deployment target touches nothing else. The same holds for the AI model's SDK (ai-assist.md §5).</summary>
 public sealed class CloudSdkRuleTests
 {
     private const string AdapterProject = "Insys.BuildingBlocks.Cloud";
 
-    private static readonly string[] Packages = ["AWSSDK.", "HuaweiCloud.", "Azure.", "Microsoft.Azure.", "AlibabaCloud.", "Aliyun.", "Google.Cloud.", "VaultSharp", "Minio"];
+    private static readonly string[] Packages = ["AWSSDK.", "HuaweiCloud.", "Azure.", "Microsoft.Azure.", "AlibabaCloud.", "Aliyun.", "Google.Cloud.", "VaultSharp", "Minio", "Anthropic"];
 
-    private static readonly string[] Namespaces = ["using Amazon", "using HuaweiCloud", "using Azure.", "using AlibabaCloud", "using Aliyun", "using Google.Cloud", "using VaultSharp"];
+    private static readonly string[] Namespaces = ["using Amazon", "using HuaweiCloud", "using Azure.", "using AlibabaCloud", "using Aliyun", "using Google.Cloud", "using VaultSharp", "using Anthropic"];
 
     private static IEnumerable<string> Files(string pattern) =>
         new[] { "src", "tools" }.SelectMany(top => Directory.EnumerateFiles(Path.Combine(RepositoryPaths.Root, top), pattern, SearchOption.AllDirectories))

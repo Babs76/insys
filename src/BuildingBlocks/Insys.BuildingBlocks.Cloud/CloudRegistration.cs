@@ -24,6 +24,7 @@
  * UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
  * ============================================================================
  */
+using Insys.BuildingBlocks.Application.Ai;
 using Insys.BuildingBlocks.Application.Security;
 using Insys.BuildingBlocks.Application.Storage;
 using Insys.BuildingBlocks.Infrastructure;
@@ -84,6 +85,18 @@ public static class CloudRegistration
         if (CloudSettings.ObjectStoreProvider(configuration) is not null)
         {
             services.AddSingleton<IObjectStore, S3ObjectStore>();
+        }
+
+        // AI Assist's model (ai-assist.md D-1): Claude when the deployment says so, otherwise none, so every run ends UNAVAILABLE (P8).
+        services.AddOptions<ClaudeModelOptions>().Bind(configuration.GetSection("Assist:Claude"));
+        if (string.Equals(configuration["Assist:Provider"], "claude", StringComparison.OrdinalIgnoreCase))
+        {
+            if (string.IsNullOrWhiteSpace(configuration["Assist:Claude:ApiKey"]))
+            {
+                throw new InvalidOperationException("Assist:Provider \"claude\" needs Assist:Claude:ApiKey, from the deployment's secret store.");
+            }
+
+            services.AddSingleton<IAiModelProvider, ClaudeModelProvider>();
         }
 
         return services;

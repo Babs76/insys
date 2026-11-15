@@ -67,5 +67,7 @@
       <!-- Cloud adapters (Phase 8 Workstream D). Licences checked on nuget.org: both Apache-2.0. -->
     <PackageVersion Include="HuaweiCloud.SDK.Kms" Version="3.1.213" />
     <PackageVersion Include="AWSSDK.S3" Version="4.0.104.2" />
+    <!-- Apache-2.0 (Anthropic), the official C# SDK for the Claude API. 13.3.0 of 23 October 2026: the newest release at least two weeks old on 15 November 2026. -->
+    <PackageVersion Include="Anthropic" Version="13.3.0" />
   </ItemGroup>
 </Project>

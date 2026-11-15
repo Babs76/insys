@@ -143,4 +143,15 @@ public sealed class NumberVerifierTests
         NumberVerifier.Verify("Rule AIA033 says so.", "See rule AIA033 here.").Passes.ShouldBeTrue();
         NumberVerifier.Verify("Rule AIA033 says so.", "").Passes.ShouldBeFalse();
     }
+
+    [Theory]
+    [InlineData("The rate for group G3, then the fee.")]
+    [InlineData("It uses group G3.")]
+    [InlineData("Its group (G3) sets the rate.")]
+    [InlineData("Its group is \u201CG3\u201D.")]
+    public void ACodeWithDigits_IsItselfWhateverPunctuationFollowsIt(string output)
+    {
+        NumberVerifier.Verify(output, "line 2 factor value: G3").Passes.ShouldBeTrue();
+        NumberVerifier.Verify(output.Replace("G3", "G4", StringComparison.Ordinal), "line 2 factor value: G3").Passes.ShouldBeFalse("G4 isn't in the source");
+    }
 }

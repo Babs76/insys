@@ -234,6 +234,7 @@
     <Project Path="tests/Insys.Testing/Insys.Testing.csproj" />
   </Folder>
   <Folder Name="/tools/">
+    <Project Path="tools/Insys.Assist.Evaluation/Insys.Assist.Evaluation.csproj" />
     <Project Path="tools/Insys.DbMigrator/Insys.DbMigrator.csproj" />
     <Project Path="tools/Insys.Seed/Insys.Seed.csproj" />
     <Project Path="tools/Insys.Regen/Insys.Regen.csproj" />

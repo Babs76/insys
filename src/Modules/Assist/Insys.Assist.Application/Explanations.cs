@@ -43,24 +43,71 @@ namespace Insys.Assist.Application;
 /// The prompt templates (AIA-074): INSYS's own words, with a version each, never interpolated with data (AIA-061). Batch 7.3 moves them into configuration and
 /// tunes them on the AI-2 evaluation set; these are the first versions, used with the test stub.
 /// </summary>
-public static class PromptTemplates
+/// <summary>
+/// The facts an explanation is built from, the only data sent (D-15), shared by the Explainer and the evaluation (batch 7.3) so that both send the same.
+/// </summary>
+public static class ExplanationFacts
 {
-    public const string RefusalVersion = "refusal-v1";
-    public const string PremiumVersion = "premium-v1";
+    /// <summary>
+    /// Only what INSYS itself holds about the code (D-15). The fields' names are the client's, so only how many there are is sent; the catalogue's status isn't
+    /// sent either, as a code can be raised with another (the screen has the one it got). The wording is added only where the catalogue has it (AIA-031).
+    /// </summary>
+    public static AllowedFacts Refusal(ErrorCodeEntry entry, int fieldsInError)
+    {
+        var facts = new AllowedFacts().Code("code", entry.Code).Flag("worth retrying", entry.Retryable);
+        if (fieldsInError > 0)
+        {
+            facts.Number("fields in error", fieldsInError);
+        }
 
-    public const string Refusal = """
-        You explain to an insurance company's staff member why INSYS refused what they asked, using only the facts between the data tags.
-        Write plain English, at most 120 words. Say what the refusal means for them, then what to do next.
-        Use no number, amount, date or name that isn't in the facts, and keep every amount's currency as given.
-        Never say that you can change, approve or retry anything: you can only explain.
-        """;
+        if (entry.Means is { Length: > 0 } means)
+        {
+            facts.Wording("what it means", means);
+            if (entry.Remedy is { Length: > 0 } remedy)
+            {
+                facts.Wording("what to do next", remedy);
+            }
+        }
 
-    public const string Premium = """
-        You explain to an insurance company's staff member how INSYS calculated a recorded premium, using only the facts between the data tags.
-        Write plain English, at most 150 words. Walk through the lines of the calculation in order, then state the premium.
-        Use no number, amount, date or name that isn't in the facts, and keep every amount's currency as given. Don't add or round anything.
-        Never say that you can change, approve or recalculate anything: you can only explain.
-        """;
+        return facts;
+    }
+
+    /// <summary>
+    /// Only the recorded calculation (AIA-032), and of it only what Rating itself recorded from the product's configuration: its product and its lines, each with
+    /// the step, the configured factor, the table value used and the amount with its currency. The inputs are left out: their names and values are the caller's
+    /// (D-15), and the lines show what each one did. For Health, the factor values are left out too, so no clinical detail can appear (AIA-038).
+    /// </summary>
+    public static AllowedFacts Premium(RecordedCalculation calculation)
+    {
+        var health = calculation.SourceDomain == "HEALTH";
+        var facts = new AllowedFacts().Code("product", calculation.ProductCode).Number("product version", calculation.ProductVersion)
+            .Number("rating version", calculation.RatingVersion).Code("source", calculation.SourceDomain);
+        foreach (var line in calculation.Lines.OrderBy(l => l.LineNo))
+        {
+            facts.Code($"line {line.LineNo}", line.Component);
+            if (line.FactorCode is not null)
+            {
+                facts.Code($"line {line.LineNo} factor", line.FactorCode);
+            }
+
+            if (line.FactorValue is { } value && !health)
+            {
+                if (decimal.TryParse(value, System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var number))
+                {
+                    facts.Number($"line {line.LineNo} factor value", number);
+                }
+                else
+                {
+                    facts.Code($"line {line.LineNo} factor value", value);
+                }
+            }
+
+            facts.Amount($"line {line.LineNo} amount", line.Amount, calculation.Currency);
+        }
+
+        // The lines are steps an explanation walks through by number (AIA-033a).
+        return facts.Amount("premium", calculation.Premium, calculation.Currency).Steps(calculation.Lines.Count == 0 ? 0 : calculation.Lines.Max(l => l.LineNo));
+    }
 }
 
 public sealed record ExplanationFactView(string Name, string Value);
@@ -152,31 +199,18 @@ public sealed partial class Explainer(AssistRunner runner, IDispatcher dispatche
             return Error.Validation(ErrorCodes.ValidationFailed, "recordType is a record type's code, such as BILLING_ACCOUNT.");
         }
 
-        // Only what INSYS itself holds about the code (D-15). The fields' names are the client's, so only how many there are is sent; the catalogue's status isn't
-        // sent either, as a code can be raised with another (the screen has the one it got).
-        var facts = new AllowedFacts().Code("code", entry.Code).Flag("worth retrying", entry.Retryable);
-        if (request.Fields is { Count: > 0 } fields)
-        {
-            facts.Number("fields in error", fields.Count);
-        }
-
+        var facts = ExplanationFacts.Refusal(entry, request.Fields?.Count ?? 0);
+        var template = Template(AssistFeatures.ExplainRefusal);
         var basis = new ExplanationBasis("REFUSAL", entry.Code, null, request.CorrelationId, request.RecordType, request.RecordId);
         if (entry.Means is null)
         {
             // No catalogue wording yet (AIA-031): nothing to ground an explanation in, so no call is made and the plain refusal is shown.
             var allowed = await dispatcher.Query(new CheckAssistRun(AssistFeatures.ExplainRefusal), cancellationToken);
-            return allowed.IsFailure ? allowed.Error : await Record(ExplanationKinds.Refusal, entry.Code, CacheKey(AssistFeatures.ExplainRefusal, PromptTemplates.RefusalVersion, facts),
-                PromptTemplates.RefusalVersion, ExplanationOutcomes.NoWording, facts, null, null, null, basis, [], cancellationToken);
+            return allowed.IsFailure ? allowed.Error : await Record(ExplanationKinds.Refusal, entry.Code, CacheKey(AssistFeatures.ExplainRefusal, template.Version, facts),
+                template.Version, ExplanationOutcomes.NoWording, facts, null, null, null, basis, [], cancellationToken);
         }
 
-        facts.Wording("what it means", entry.Means);
-        if (entry.Remedy is { Length: > 0 } remedy)
-        {
-            facts.Wording("what to do next", remedy);
-        }
-
-        return await Explain(AssistFeatures.ExplainRefusal, ExplanationKinds.Refusal, entry.Code, PromptTemplates.RefusalVersion, PromptTemplates.Refusal, facts, basis, request.CorrelationId,
-            cancellationToken);
+        return await Explain(AssistFeatures.ExplainRefusal, ExplanationKinds.Refusal, entry.Code, template, facts, basis, request.CorrelationId, cancellationToken);
     }
 
     public async Task<Result<ExplanationView>> Premium(ExplainPremiumRequest request, CancellationToken cancellationToken)
@@ -192,44 +226,21 @@ public sealed partial class Explainer(AssistRunner runner, IDispatcher dispatche
             return Error.NotFound(ErrorCodes.NotFound, "The calculation was not found.");
         }
 
-        // Only the recorded calculation (AIA-032), and of it only what Rating itself recorded from the product's configuration: its product and its lines, each with
-        // the step, the configured factor, the table value used and the amount with its currency. The inputs are left out: their names and values are the caller's
-        // (D-15), and the lines show what each one did. For Health, the factor values are left out too, so no clinical detail can appear (AIA-038).
-        var health = calculation.SourceDomain == "HEALTH";
-        var facts = new AllowedFacts().Code("product", calculation.ProductCode).Number("product version", calculation.ProductVersion)
-            .Number("rating version", calculation.RatingVersion).Code("source", calculation.SourceDomain);
-        foreach (var line in calculation.Lines.OrderBy(l => l.LineNo))
-        {
-            facts.Code($"line {line.LineNo}", line.Component);
-            if (line.FactorCode is not null)
-            {
-                facts.Code($"line {line.LineNo} factor", line.FactorCode);
-            }
-
-            if (line.FactorValue is { } value && !health)
-            {
-                if (decimal.TryParse(value, System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var number))
-                {
-                    facts.Number($"line {line.LineNo} factor value", number);
-                }
-                else
-                {
-                    facts.Code($"line {line.LineNo} factor value", value);
-                }
-            }
-
-            facts.Amount($"line {line.LineNo} amount", line.Amount, calculation.Currency);
-        }
-
-        facts.Amount("premium", calculation.Premium, calculation.Currency);
+        var facts = ExplanationFacts.Premium(calculation);
         var basis = new ExplanationBasis("PREMIUM_CALCULATION", calculation.Id.ToString(), $"/api/v1/rating/calculations/{calculation.Id}", request.CorrelationId);
-        return await Explain(AssistFeatures.ExplainPremium, ExplanationKinds.Premium, calculation.Id.ToString(), PromptTemplates.PremiumVersion, PromptTemplates.Premium, facts, basis,
+        return await Explain(AssistFeatures.ExplainPremium, ExplanationKinds.Premium, calculation.Id.ToString(), Template(AssistFeatures.ExplainPremium), facts, basis,
             request.CorrelationId, cancellationToken);
     }
 
-    private async Task<Result<ExplanationView>> Explain(string feature, string kind, string sourceRef, string promptVersion, string instructions, AllowedFacts facts, ExplanationBasis basis,
+    /// <summary>The feature's configured template (AIA-074); its presence is checked when the host starts.</summary>
+    private AssistPromptTemplate Template(string feature) =>
+        options.Value.PromptFor(feature) ?? throw new InvalidOperationException($"No prompt template is configured for {feature} (Assist:Prompts).");
+
+    private async Task<Result<ExplanationView>> Explain(string feature, string kind, string sourceRef, AssistPromptTemplate template, AllowedFacts facts, ExplanationBasis basis,
         Guid? correlationId, CancellationToken cancellationToken)
     {
+        var promptVersion = template.Version;
+        var instructions = template.Text;
         var allowed = await dispatcher.Query(new CheckAssistRun(feature), cancellationToken);
         if (allowed.IsFailure)
         {

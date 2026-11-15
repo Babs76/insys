@@ -65,15 +65,20 @@ public static partial class NumberVerifier
     public static NumberCheck Verify(string output, string source, bool strictCurrency = false)
     {
         var (inSource, sourceRest) = Read(source);
-        var sourceTokens = Tokens().Matches(source).Select(m => m.Value).ToHashSet(StringComparer.Ordinal);
+        var sourceTokens = Tokens().Matches(source).Select(m => Bare(m.Value)).ToHashSet(StringComparer.Ordinal);
         var (inOutput, rest) = Read(output);
         var rejected = inOutput.Where(n => !inSource.Any(s => Same(n, s, strictCurrency))).Select(n => n.Text).ToList();
 
         // Fails closed: any digit left unread, and any number or magnitude word, must stand word for word in the source (addendum §5.1 is about what is read; nothing else may slip past it).
-        rejected.AddRange(Tokens().Matches(rest).Select(m => m.Value).Where(t => t.Any(char.IsDigit) && !sourceTokens.Contains(t)));
+        // A word's own punctuation isn't part of it: "G3," in a sentence is the code G3.
+        rejected.AddRange(Tokens().Matches(rest).Select(m => Bare(m.Value)).Where(t => t.Any(char.IsDigit) && !sourceTokens.Contains(t)));
         rejected.AddRange(Words().Matches(rest).Select(m => m.Value).Where(w => !Words().Matches(sourceRest).Any(s => s.Value.Equals(w, StringComparison.OrdinalIgnoreCase))));
         return new NumberCheck(rejected);
     }
+
+    private static readonly char[] Punctuation = [',', '.', ';', ':', '!', '?', '(', ')', '[', ']', '"', '\'', '\u2018', '\u2019', '\u201C', '\u201D'];
+
+    private static string Bare(string token) => token.Trim(Punctuation);
 
     private static bool Same(Number output, Number source, bool strictCurrency)
     {

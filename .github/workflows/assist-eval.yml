@@ -1,0 +1,77 @@
+# ============================================================================
+# OPENFACTOR TECHNOLOGY GROUP
+# CONFIDENTIAL AND PROPRIETARY SOFTWARE
+# ============================================================================
+# Copyright (c) 2026 OpenFactor Technology Group.
+# All rights reserved.
+# PRODUCT       : INSYS
+# COMPONENT     : Assist.Evaluation
+# CONFIDENTIALITY AND INTELLECTUAL PROPERTY NOTICE
+# This source code and its associated documentation contain confidential and
+# proprietary information belonging to OpenFactor Technology Group or its
+# applicable intellectual property rights holder.
+# This material is provided solely for authorised development, maintenance,
+# operation or evaluation purposes, as applicable. No person may reproduce,
+# modify, distribute, disclose, publish or otherwise use this material except
+# as expressly permitted by an applicable written agreement or licence.
+# No ownership rights or licence to any intellectual property are granted
+# by the inclusion of this notice, except as expressly provided in an
+# applicable written agreement or licence.
+# Third-party software, open-source components and customer-owned materials
+# remain subject to their respective ownership rights and applicable licences
+# or agreements.
+# UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
+# ============================================================================
+name: assist-eval
+
+# The AI-2 evaluation against Claude (ai-assist.md §6 and §7, batch 7.3), run by hand only: no real model is called in CI (AI Assist SRS §9.2).
+# It runs in the Environment assist-eval, whose required reviewer approves each run, and reads the key from its secret ASSIST_CLAUDE_API_KEY.
+# Sample data only: docs/evaluation/ai2-evaluation-set.json, the error catalogue's wording and the sample products' invented rates. The reports
+# (summary.md, review.csv for the domain expert, results.json) are the run's artifact; the summary is also the run's summary page.
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: The model to ask (Assist:ModelVersion)
+        default: claude-opus-5-5
+      effort:
+        description: low, medium, high, xhigh or max
+        default: medium
+      inference_geo:
+        description: Where inference must run (inference_geo), or empty to leave it to the route; what ran is recorded either way
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: assist-eval
+  cancel-in-progress: false
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    environment: assist-eval
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+      - name: Evaluate
+        env:
+          Assist__Claude__ApiKey: ${{ secrets.ASSIST_CLAUDE_API_KEY }}
+          Assist__ModelVersion: ${{ inputs.model }}
+          Assist__Claude__Effort: ${{ inputs.effort }}
+          Assist__Claude__InferenceGeo: ${{ inputs.inference_geo }}
+        run: |
+          dotnet run --project tools/Insys.Assist.Evaluation -c Release -- \
+            --set docs/evaluation/ai2-evaluation-set.json --config src/Host/Insys.Api/appsettings.json --provider claude --out "$RUNNER_TEMP/assist-evaluation"
+          cat "$RUNNER_TEMP/assist-evaluation/summary.md" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: assist-evaluation-${{ github.run_id }}
+          path: ${{ runner.temp }}/assist-evaluation
+          retention-days: 30
+          if-no-files-found: ignore

@@ -28,6 +28,7 @@ using System.Net;
 using Insys.Assist.Application;
 using Insys.Assist.Domain;
 using Insys.BuildingBlocks.Api.Functions;
+using Insys.BuildingBlocks.Application.Ai;
 using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Messaging;
 using Insys.BuildingBlocks.Domain;
@@ -122,6 +123,7 @@ public sealed class AssistTests(DatabaseFixture fixture) : IClassFixture<Databas
         var host = await fixture.Host();
         var stub = (StubAiModelProvider)host.Services.GetRequiredService<IAiModelProvider>();
         stub.Unavailable = false;
+        stub.Region = null;
         stub.Reply = _ => "A fixed explanation.";
         return (tenant, client, host, stub);
     }
@@ -131,9 +133,14 @@ public sealed class AssistTests(DatabaseFixture fixture) : IClassFixture<Databas
     {
         await using var scope = host.Services.CreateAsyncScope();
         scope.ServiceProvider.GetRequiredService<ExecutionScope>().InitialiseForService(tenant, "assist-test", Guid.CreateVersion7(), null);
+        var template = Template(host, AssistFeatures.ExplainPremium);
         return await scope.ServiceProvider.GetRequiredService<AssistRunner>().Run(
-            new AssistRunRequest(AssistFeatures.ExplainPremium, PromptTemplates.PremiumVersion, PromptTemplates.Premium, facts), CancellationToken.None);
+            new AssistRunRequest(AssistFeatures.ExplainPremium, template.Version, template.Text, facts), CancellationToken.None);
     }
+
+    /// <summary>The template the host is configured with (AIA-074).</summary>
+    internal static AssistPromptTemplate Template(InsysApiFactory host, string feature) =>
+        host.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<AssistOptions>>().Value.PromptFor(feature)!;
 
     private static AllowedFacts Premium(decimal premium) => new AllowedFacts().Amount("premium", premium, "ZAR");
 
@@ -156,6 +163,23 @@ public sealed class AssistTests(DatabaseFixture fixture) : IClassFixture<Databas
         var usage = await (await client.GetAsync("/api/v1/assist/usage")).Json();
         (usage.GetProperty("runs").GetInt64(), usage.GetProperty("monthlyTokenCap").GetInt64()).ShouldBe((1L, 100_000L));
         usage.GetProperty("tokens").GetInt64().ShouldBeGreaterThan(0);
+    }
+
+    [Fact]
+    public async Task ARun_RecordsTheModelThatAnswered_AndWhereInferenceRan_AsTheRouteReportsIt_NeverAssumed_AIA050_AIA075()
+    {
+        var (tenant, _, host, stub) = await Ready();
+        stub.Region = "eu";
+        var reported = (await Run(host, tenant, Premium(1240.50m))).Value;
+        stub.Region = null;
+        var unreported = (await Run(host, tenant, Premium(1240.50m))).Value;
+
+        async Task<(string?, string?, string?)> Row(Guid run) => (
+            await fixture.Database.ScalarAsOwner<string?>("SELECT served_model FROM assist.run WHERE id = @r", ("r", run)),
+            await fixture.Database.ScalarAsOwner<string?>("SELECT inference_region FROM assist.run WHERE id = @r", ("r", run)),
+            await fixture.Database.ScalarAsOwner<string>("SELECT model_version FROM assist.run WHERE id = @r", ("r", run)));
+        (await Row(reported.RunId)).ShouldBe(("stub-model", "eu", "stub"));
+        (await Row(unreported.RunId)).ShouldBe(("stub-model", null, "stub"), "a region the route doesn't report stays unknown");
     }
 
     [Fact]
@@ -327,7 +351,7 @@ public sealed class AssistTests(DatabaseFixture fixture) : IClassFixture<Databas
         outcome.Status.ShouldBe(AssistRunStatuses.Rejected, "the number it was told to give isn't in the data");
         outcome.Text.ShouldBeNull();
         var sent = stub.Sent.Last();
-        sent.Instructions.ShouldBe(PromptTemplates.Premium, "never interpolated with record data");
+        sent.Instructions.ShouldBe(Template(host, AssistFeatures.ExplainPremium).Text, "never interpolated with record data");
         sent.Data.ShouldNotContain(injected);
         sent.Data.ShouldNotContain("8001015009087");
         sent.Data.ShouldStartWith(PromptData.Open);

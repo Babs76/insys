@@ -34,5 +34,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\Modules\Assist\Insys.Assist.Application\Insys.Assist.Application.csproj" />
+    <ProjectReference Include="..\..\tools\Insys.Assist.Evaluation\Insys.Assist.Evaluation.csproj" />
   </ItemGroup>
 </Project>

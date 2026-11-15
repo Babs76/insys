@@ -182,6 +182,9 @@ public sealed class OftzaSeedTests(DatabaseFixture fixture) : IClassFixture<Data
         (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM iam.user_role_assignment r JOIN iam.user_account u ON u.tenant_id = r.tenant_id AND u.id = r.user_id WHERE r.tenant_id = @t AND u.username LIKE 'oftza-admin-%' AND r.role_code <> 'TENANT_ADMIN'", ("t", seed.TenantId))).ShouldBe(0L);
         (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM iam.user_role_assignment WHERE tenant_id = @t AND status = 'PENDING_APPROVAL'", ("t", seed.TenantId))).ShouldBe(0L, "no assignment is left waiting, or bypassed");
 
+        // The AI-2 evaluation set (batch 7.3) is drawn from this tenant: its products' premiums and the catalogue's worded refusals.
+        await AssistEvaluationSet.Check(await fixture.Host(), seed.TenantId, "product01");
+
         var again = await Run();
         again.Seed.TenantId.ShouldBe(seed.TenantId);
         (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM iam.user_account WHERE tenant_id = @t", ("t", seed.TenantId))).ShouldBe(users);

@@ -70,6 +70,10 @@ public sealed class AssistDbContext(DbContextOptions<AssistDbContext> options, M
             run.Ignore(r => r.DomainEvents);
             run.Ignore(r => r.HasChanges);
             run.Ignore(r => r.RowVersion);
+            run.Property(r => r.ServedModel).HasMaxLength(80);
+            run.Property(r => r.InferenceRegion).HasMaxLength(40);
+            run.Property(r => r.Cost).HasPrecision(18, 6);
+            run.Property(r => r.CostCurrency).HasColumnType("char(3)");
         });
         modelBuilder.Entity<AssistRunPayload>(payload =>
         {

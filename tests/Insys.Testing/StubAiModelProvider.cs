@@ -26,6 +26,7 @@
  */
 using System.Collections.Concurrent;
 using Insys.Assist.Application;
+using Insys.BuildingBlocks.Application.Ai;
 
 namespace Insys.Testing;
 
@@ -42,6 +43,9 @@ public sealed class StubAiModelProvider : IAiModelProvider
 
     public bool Unavailable { get; set; }
 
+    /// <summary>Where the stub says inference ran; null, as when a route doesn't say.</summary>
+    public string? Region { get; set; }
+
     public IReadOnlyCollection<AiModelRequest> Sent => _sent;
 
     public Task<AiModelResponse> Complete(AiModelRequest request, CancellationToken cancellationToken)
@@ -53,6 +57,6 @@ public sealed class StubAiModelProvider : IAiModelProvider
 
         _sent.Enqueue(request);
         var text = Reply(request);
-        return Task.FromResult(new AiModelResponse(text, (request.Instructions.Length + request.Data.Length) / 4, text.Length / 4));
+        return Task.FromResult(new AiModelResponse(text, (request.Instructions.Length + request.Data.Length) / 4, text.Length / 4, "stub-model", Region));
     }
 }

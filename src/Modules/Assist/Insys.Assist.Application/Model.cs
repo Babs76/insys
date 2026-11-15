@@ -28,33 +28,6 @@ using System.Text.RegularExpressions;
 
 namespace Insys.Assist.Application;
 
-/// <param name="Instructions">The prompt template's text: INSYS's own words.</param>
-/// <param name="Data">The minimised data, delimited by <see cref="PromptData"/>: never instructions (AIA-061).</param>
-public sealed record AiModelRequest(string ModelVersion, string PromptVersion, string Instructions, string Data);
-
-public sealed record AiModelResponse(string Text, long InputTokens, long OutputTokens);
-
-/// <summary>
-/// The one interface for model calls (SRS §7.1). It sends text and receives text: it has no tools, so the model can't write, approve, pay or send (AIA-060).
-/// Batch 7.1 has only the test stub. A real provider joins the Cloud adapter project in 7.3, behind ADR-027's SDK guard.
-/// </summary>
-public interface IAiModelProvider
-{
-    Task<AiModelResponse> Complete(AiModelRequest request, CancellationToken cancellationToken);
-}
-
-/// <summary>
-/// What runs until batch 7.3's real adapter: no model at all, so every run ends UNAVAILABLE and INSYS carries on (P8). The test stub lives only in Insys.Testing, so no deployment can reach it.
-/// </summary>
-public sealed class NoAiModelProvider : IAiModelProvider
-{
-    public Task<AiModelResponse> Complete(AiModelRequest request, CancellationToken cancellationToken) =>
-        throw new AiModelUnavailableException("No AI model is connected to this deployment.");
-}
-
-/// <summary>A provider's failure: the caller gets ASSIST_UNAVAILABLE, and INSYS carries on (P8).</summary>
-public sealed class AiModelUnavailableException(string message) : Exception(message);
-
 /// <summary>Wraps data so that nothing inside it can close the delimiter and pass as instructions (AIA-061).</summary>
 public static partial class PromptData
 {

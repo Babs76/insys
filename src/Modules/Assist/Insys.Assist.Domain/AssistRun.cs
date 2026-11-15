@@ -77,11 +77,18 @@ public sealed class AssistRun : AggregateRoot<Guid>
 
     public Guid? CorrelationId { get; private set; }
 
+    /// <summary>The model the provider says answered, when it says (AIA-075).</summary>
+    public string? ServedModel { get; private set; }
+
+    /// <summary>Where the provider says inference ran, as it reports it and never assumed (AIA-050); null when it doesn't say.</summary>
+    public string? InferenceRegion { get; private set; }
+
     public static AssistRun Finish(string feature, DateTimeOffset startedAt, DateTimeOffset finishedAt, string modelVersion, string promptVersion, string status, long inputTokens,
-        long outputTokens, Guid? correlationId) => new()
+        long outputTokens, Guid? correlationId, string? servedModel = null, string? inferenceRegion = null, decimal? cost = null, string? costCurrency = null) => new()
         {
             Id = Guid.CreateVersion7(), Feature = feature, StartedAt = startedAt, FinishedAt = finishedAt, ModelVersion = modelVersion, PromptVersion = promptVersion, Status = status,
-            InputTokens = inputTokens, OutputTokens = outputTokens, CorrelationId = correlationId,
+            InputTokens = inputTokens, OutputTokens = outputTokens, CorrelationId = correlationId, ServedModel = servedModel, InferenceRegion = inferenceRegion,
+            Cost = cost is null || costCurrency is null ? null : cost, CostCurrency = cost is null ? null : costCurrency,
         };
 }
 

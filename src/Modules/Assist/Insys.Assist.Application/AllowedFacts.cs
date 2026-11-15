@@ -42,6 +42,8 @@ public sealed partial class AllowedFacts
 {
     private readonly List<AssistFact> _facts = [];
 
+    private int _steps;
+
     public IReadOnlyList<AssistFact> Items => _facts;
 
     /// <summary>Values left out because they weren't of an allowed kind (free text, or a name or value of the wrong form).</summary>
@@ -61,11 +63,24 @@ public sealed partial class AllowedFacts
     /// <summary>The error catalogue's own wording (AIA-031): INSYS's text, written beside each code, never a record's or a user's.</summary>
     internal AllowedFacts Wording(string name, string text) => Add(name, text);
 
+    /// <summary>
+    /// The facts are numbered steps 1 to <paramref name="count"/> ("line 2"): an explanation may name a step by its number (AIA-033a). They count as plain
+    /// numbers only, so "line 2" passes while "ZAR 2" still needs an amount of ZAR 2 (addendum §5.1).
+    /// </summary>
+    public AllowedFacts Steps(int count)
+    {
+        _steps = Math.Max(_steps, count);
+        return this;
+    }
+
     /// <summary>The facts as the model receives them, one per line.</summary>
     public string Render() => string.Join("\n", _facts.Select(f => $"{f.Name}: {f.Value}"));
 
-    /// <summary>The facts' values alone: what the verifier compares numbers against, as a number in a fact's name ("line 2 amount") isn't a figure.</summary>
-    public string Values() => string.Join("\n", _facts.Select(f => f.Value));
+    /// <summary>
+    /// The facts' values alone, and the step numbers: what the verifier compares numbers against, as a number in a fact's name ("line 2 amount") isn't a figure
+    /// unless it is a step's number.
+    /// </summary>
+    public string Values() => string.Join("\n", _facts.Select(f => f.Value).Concat(Enumerable.Range(1, _steps).Select(n => n.ToString(CultureInfo.InvariantCulture))));
 
     private AllowedFacts Add(string name, string value)
     {
