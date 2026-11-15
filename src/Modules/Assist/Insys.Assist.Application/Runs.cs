@@ -138,7 +138,12 @@ public sealed record AssistUsage(long Tokens, long Runs, long Rejected, long Una
 public sealed record AssistCall(AssistRun Run, AssistRunPayload Payload, AssistRunOutcome Outcome);
 
 /// <summary>Whether a run may be made: the settings allow it, and whether the cap is reached (checked only before a call, so a reused explanation still shows).</summary>
-public sealed record AssistAllowance(bool CapReached);
+/// <param name="InferenceRegion">Where the tenant's setting allows inference to run (AIA-050): a country code, or GLOBAL.</param>
+public sealed record AssistAllowance(bool CapReached, string InferenceRegion = "")
+{
+    /// <summary>Whether a call that reports this region ran where the tenant allows: the same region, letter case aside. A call that reports none can't show it did.</summary>
+    public bool Allows(string? reported) => reported is { Length: > 0 } && string.Equals(reported, InferenceRegion, StringComparison.OrdinalIgnoreCase);
+}
 
 /// <summary>Reads the tenant's settings and this month's use, in a short read of its own: nothing is held open across the model call (AIA-072).</summary>
 public sealed record CheckAssistRun(string Feature) : IQuery<AssistAllowance>;
@@ -159,7 +164,7 @@ internal sealed class CheckAssistRunHandler(IAssistRepository assist, IOptions<A
 
         var month = new DateOnly(businessDate.Today.Year, businessDate.Today.Month, 1);
         var used = (await assist.Usage(businessDate.StartOf(month), businessDate.StartOf(month.AddMonths(1)), cancellationToken)).Tokens;
-        return new AssistAllowance(used >= (setting.MonthlyTokenCap ?? options.Value.DefaultMonthlyTokenCap));
+        return new AssistAllowance(used >= (setting.MonthlyTokenCap ?? options.Value.DefaultMonthlyTokenCap), setting.InferenceRegion);
     }
 }
 
@@ -227,11 +232,12 @@ public sealed class AssistRunner(IDispatcher dispatcher, IAiModelProvider provid
         var model = options.Value.ModelVersion;
         var exchange = await AssistExchange.Send(provider, model, request.PromptVersion, request.Instructions, request.Facts, cancellationToken);
         var response = exchange.Response;
+        // AIA-050: the answer counts only if the provider says it ran where the tenant allows; otherwise its text isn't shown, and its tokens still count.
+        var status = response is not null && !allowance.Value.Allows(response.InferenceRegion) ? AssistRunStatuses.ResidencyMismatch : exchange.Status;
         var cost = exchange.InputTokens + exchange.OutputTokens == 0 ? null : options.Value.CostOf(model, exchange.InputTokens, exchange.OutputTokens);
-        var run = AssistRun.Finish(request.Feature, started, clock.UtcNow, model, request.PromptVersion, exchange.Status, exchange.InputTokens, exchange.OutputTokens,
+        var run = AssistRun.Finish(request.Feature, started, clock.UtcNow, model, request.PromptVersion, status, exchange.InputTokens, exchange.OutputTokens,
             request.CorrelationId, response?.ServedModel, response?.InferenceRegion, cost?.Amount, cost?.Currency);
         var payload = AssistRunPayload.For(run.Id, exchange.Sent.Text, response?.Text, JsonSerializer.Serialize(exchange.Sent.Masked));
-        var status = exchange.Status;
         var rejected = exchange.Rejected;
         return new AssistCall(run, payload, new AssistRunOutcome(run.Id, status, status == AssistRunStatuses.Verified ? response!.Text : null, rejected));
     }

@@ -25,6 +25,7 @@
  * ============================================================================
  */
 using System.Net;
+using System.Text.Json;
 using Insys.Assist.Application;
 using Insys.BuildingBlocks.Application.Ai;
 using Insys.Testing;
@@ -58,6 +59,7 @@ public sealed class AssistExplanationTests(DatabaseFixture fixture) : IClassFixt
         (await admin.Send(HttpMethod.Put, "/api/v1/assist/settings", new { jurisdiction = "ZA", inferenceRegion = "ZA", explanationsEnabled = true })).StatusCode.ShouldBe(HttpStatusCode.OK);
         var stub = (StubAiModelProvider)host.Services.GetRequiredService<IAiModelProvider>();
         stub.Unavailable = false;
+        stub.Region = "ZA";
         stub.Reply = _ => "A fixed explanation.";
         return (tenant, admin, host, stub);
     }
@@ -297,6 +299,24 @@ public sealed class AssistExplanationTests(DatabaseFixture fixture) : IClassFixt
         (await byBranch.GetAsync($"/api/v1/rating/calculations/{motor}")).StatusCode.ShouldBe(HttpStatusCode.OK, "a calculation has no branch yet, so a branch scope doesn't hide it");
         (await (await byBranch.Send(HttpMethod.Post, Premiums, new { calculationId = motor }, idempotent: true)).Json()).GetProperty("outcome").GetString().ShouldBe("EXPLAINED");
         (await Listed(byBranch)).ShouldBe([other, motor]);
+    }
+
+    [Fact]
+    public async Task AnExplanationFromARegionTheTenantDoesntAllow_GivesThePlainFacts_AndIsNeverReused_AIA050()
+    {
+        var (tenant, _, host, stub) = await Ready();
+        var calculation = await Calculation(tenant, 4400m, """{"currency":"ZAR"}""");
+        var uw = await User(tenant, host, "ax-geo", "ASSIST_EXPLAIN_PREMIUM", "RATING_CALCULATIONS");
+        stub.Region = "us";
+        var view = await (await uw.Send(HttpMethod.Post, Premiums, new { calculationId = calculation }, idempotent: true)).Json();
+        view.GetProperty("outcome").GetString().ShouldBe("UNAVAILABLE");
+        view.GetProperty("text").ValueKind.ShouldBe(JsonValueKind.Null, "the answer from the US isn't shown to a tenant that allows ZA only");
+        view.GetProperty("facts").EnumerateArray().Any(f => f.GetProperty("name").GetString() == "premium").ShouldBeTrue("the plain facts instead");
+        (await fixture.Database.ScalarAsOwner<string>("SELECT status FROM assist.run WHERE tenant_id = @t ORDER BY started_at DESC LIMIT 1", ("t", tenant))).ShouldBe("RESIDENCY_MISMATCH");
+
+        stub.Region = "ZA";
+        var again = await (await uw.Send(HttpMethod.Post, Premiums, new { calculationId = calculation }, idempotent: true)).Json();
+        (again.GetProperty("outcome").GetString(), again.GetProperty("reused").GetBoolean()).ShouldBe(("EXPLAINED", false), "a mismatched answer is never kept for reuse");
     }
 
     [Fact]

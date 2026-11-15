@@ -45,6 +45,12 @@ public static class AssistRunStatuses
     public const string Rejected = "REJECTED";
 
     public const string Unavailable = "UNAVAILABLE";
+
+    /// <summary>
+    /// The provider says inference ran somewhere the tenant's setting doesn't allow, or doesn't say where (AIA-050): the text isn't shown, the plain facts are,
+    /// and the call's tokens still count.
+    /// </summary>
+    public const string ResidencyMismatch = "RESIDENCY_MISMATCH";
 }
 
 /// <summary>One model call and how it ended (SRS §7.2): metered from its tokens (AIA-073). Written once, when it ends.</summary>

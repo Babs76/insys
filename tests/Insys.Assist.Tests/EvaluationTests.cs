@@ -161,6 +161,24 @@ public sealed class EvaluationTests
     }
 
     [Fact]
+    public void TheComparison_GivesEachModelsVerifiedRate_Rejections_Times_AndCostPerExplanation()
+    {
+        CaseResult Case(string id, string status, double seconds, decimal? cost, params string[] rejected) =>
+            new(id, ExplanationKinds.Premium, status, null, rejected, 100, 50, seconds, cost, "m", "us", "");
+        var opus = (new RunInfo("claude", "claude-opus-5-5", "medium", "us", "USD", DateTimeOffset.UnixEpoch), (IReadOnlyList<CaseResult>)
+            [Case("C-001", AssistRunStatuses.Verified, 4, 0.002m), Case("C-002", AssistRunStatuses.Rejected, 12, 0.002m, "ZAR 900.00"), Case("C-003", AssistRunStatuses.Unavailable, 15, 0.001m)]);
+        var haiku = (new RunInfo("claude", "claude-haiku-5-5", "medium", "us", "USD", DateTimeOffset.UnixEpoch), (IReadOnlyList<CaseResult>)
+            [Case("C-001", AssistRunStatuses.Verified, 1, 0.0001m), Case("C-002", AssistRunStatuses.Verified, 2, 0.0001m), Case("C-003", AssistRunStatuses.Verified, 3, 0.0001m)]);
+        var table = EvaluationReport.Comparison([opus, haiku]);
+
+        table.ShouldContain("| `claude-haiku-5-5` | medium | us | `us` (3) | 3 | 3 (100.0%) | 0 (0.0%) | 0 (0.0%) | 2.00 | 3.00 | 3.00 | 0 | USD 0.000100 | USD 0.0003 |");
+        table.ShouldContain("| `claude-opus-5-5` | medium | us | `us` (3) | 3 | 1 (33.3%) | 1 (33.3%) | 1 (33.3%) | 4.00 | 12.00 | 12.00 | 1 | USD 0.002500 | USD 0.0050 |",
+            customMessage: "times are of the answered calls; the cost of every call, the unavailable one included, over the two explanations given");
+        table.ShouldContain("- **`claude-opus-5-5`:** C-002 (ZAR 900.00).");
+        table.IndexOf("claude-haiku-5-5", StringComparison.Ordinal).ShouldBeLessThan(table.IndexOf("claude-opus-5-5", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void ThePercentile_IsTheNearestRank() =>
         (EvaluationReport.Percentile([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 95), EvaluationReport.Percentile([1, 2, 3], 50), EvaluationReport.Percentile([], 95)).ShouldBe((10, 2, null));
 

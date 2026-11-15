@@ -43,8 +43,8 @@ public sealed class StubAiModelProvider : IAiModelProvider
 
     public bool Unavailable { get; set; }
 
-    /// <summary>Where the stub says inference ran; null, as when a route doesn't say.</summary>
-    public string? Region { get; set; }
+    /// <summary>Where the stub says inference ran: ZA, where the tests' tenants allow it, unless a test says otherwise; null is a route that doesn't say.</summary>
+    public string? Region { get; set; } = "ZA";
 
     public IReadOnlyCollection<AiModelRequest> Sent => _sent;
 

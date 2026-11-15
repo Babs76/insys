@@ -37,6 +37,18 @@ using Microsoft.Extensions.Options;
 // echo provider only, so no real model is called there (AI Assist SRS §9.2). Sample data only.
 //   dotnet run --project tools/Insys.Assist.Evaluation -- --set docs/evaluation/ai2-evaluation-set.json --provider echo|claude --out <folder>
 var argument = Arguments.Parse(args);
+if (Array.IndexOf(args, "--compare") is var at and >= 0)
+{
+    // --compare <folder> <folder> ... --out <folder>: each folder is one run's reports.
+    var folders = args.Skip(at + 1).TakeWhile(a => !a.StartsWith("--", StringComparison.Ordinal)).ToList();
+    var runs = folders.Select(f => (JsonSerializer.Deserialize<RunInfo>(File.ReadAllText(Path.Combine(f, "run.json")), EvaluationSet.Json)!,
+        (IReadOnlyList<CaseResult>)JsonSerializer.Deserialize<List<CaseResult>>(File.ReadAllText(Path.Combine(f, "results.json")), EvaluationSet.Json)!)).ToList();
+    var into = Directory.CreateDirectory(argument("--out", "assist-comparison")).FullName;
+    await File.WriteAllTextAsync(Path.Combine(into, "comparison.md"), EvaluationReport.Comparison(runs));
+    Console.WriteLine($"{runs.Count} runs compared in {into}.");
+    return 0;
+}
+
 var set = EvaluationSet.Read(argument("--set", "docs/evaluation/ai2-evaluation-set.json"));
 var settings = Settings.Read(argument("--config", "src/Host/Insys.Api/appsettings.json"));
 var provider = argument("--provider", "echo");
@@ -57,6 +69,9 @@ var results = await new EvaluationRunner(model, settings.Assist).Run(set, Cancel
 await File.WriteAllTextAsync(Path.Combine(output, "results.json"), JsonSerializer.Serialize(results, EvaluationSet.Json));
 await File.WriteAllTextAsync(Path.Combine(output, "summary.md"), EvaluationReport.Summary(results, settings.Assist, provider, ranAt));
 await File.WriteAllTextAsync(Path.Combine(output, "review.csv"), EvaluationReport.ReviewSheet(results));
+var price = settings.Assist.Prices.GetValueOrDefault(settings.Assist.ModelVersion);
+await File.WriteAllTextAsync(Path.Combine(output, "run.json"), JsonSerializer.Serialize(
+    new RunInfo(provider, settings.Assist.ModelVersion, settings.Claude.Effort, settings.Claude.InferenceGeo, price?.Currency, ranAt), EvaluationSet.Json));
 Console.WriteLine($"{results.Count} cases: {results.Count(r => r.Status == "VERIFIED")} verified, {results.Count(r => r.Status == "REJECTED")} rejected, "
     + $"{results.Count(r => r.Status == "UNAVAILABLE")} unavailable. Reports in {output}.");
 return results.Count == set.Count ? 0 : 1;

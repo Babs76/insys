@@ -28,3 +28,7 @@
 -- reports it and never assumed; null when it doesn't say, or no call was made. The run stays insert-only.
 ALTER TABLE assist.run ADD COLUMN served_model varchar(80);
 ALTER TABLE assist.run ADD COLUMN inference_region varchar(40);
+-- A call whose reported region the tenant's setting doesn't allow, or that reports none, is RESIDENCY_MISMATCH (AIA-050): its text isn't shown.
+ALTER TABLE assist.run ALTER COLUMN status TYPE varchar(20);
+ALTER TABLE assist.run DROP CONSTRAINT ck_run_status;
+ALTER TABLE assist.run ADD CONSTRAINT ck_run_status CHECK (status IN ('VERIFIED', 'REJECTED', 'UNAVAILABLE', 'RESIDENCY_MISMATCH'));

@@ -123,7 +123,7 @@ public sealed class AssistTests(DatabaseFixture fixture) : IClassFixture<Databas
         var host = await fixture.Host();
         var stub = (StubAiModelProvider)host.Services.GetRequiredService<IAiModelProvider>();
         stub.Unavailable = false;
-        stub.Region = null;
+        stub.Region = "ZA";
         stub.Reply = _ => "A fixed explanation.";
         return (tenant, client, host, stub);
     }
@@ -169,18 +169,35 @@ public sealed class AssistTests(DatabaseFixture fixture) : IClassFixture<Databas
     public async Task ARun_RecordsTheModelThatAnswered_AndWhereInferenceRan_AsTheRouteReportsIt_NeverAssumed_AIA050_AIA075()
     {
         var (tenant, _, host, stub) = await Ready();
-        stub.Region = "eu";
-        var reported = (await Run(host, tenant, Premium(1240.50m))).Value;
-        stub.Region = null;
-        var unreported = (await Run(host, tenant, Premium(1240.50m))).Value;
-
-        async Task<(string?, string?, string?)> Row(Guid run) => (
-            await fixture.Database.ScalarAsOwner<string?>("SELECT served_model FROM assist.run WHERE id = @r", ("r", run)),
-            await fixture.Database.ScalarAsOwner<string?>("SELECT inference_region FROM assist.run WHERE id = @r", ("r", run)),
-            await fixture.Database.ScalarAsOwner<string>("SELECT model_version FROM assist.run WHERE id = @r", ("r", run)));
-        (await Row(reported.RunId)).ShouldBe(("stub-model", "eu", "stub"));
-        (await Row(unreported.RunId)).ShouldBe(("stub-model", null, "stub"), "a region the route doesn't report stays unknown");
+        var allowed = (await Run(host, tenant, Premium(1240.50m))).Value;
+        allowed.Status.ShouldBe(AssistRunStatuses.Verified);
+        (await Row(allowed.RunId)).ShouldBe(("stub-model", "ZA", "stub", AssistRunStatuses.Verified));
     }
+
+    [Theory]
+    [InlineData("us")]
+    [InlineData("global")]
+    [InlineData(null)]
+    public async Task AnAnswerFromARegionTheTenantDoesntAllow_IsNotShown_TheRunIsAResidencyMismatch_AndItsTokensCount_AIA050(string? reported)
+    {
+        var (tenant, client, host, stub) = await Ready();
+        stub.Region = reported;
+        stub.Reply = _ => "Your premium is ZAR 1240.50.";
+        var outcome = (await Run(host, tenant, Premium(1240.50m))).Value;
+
+        (outcome.Status, outcome.Text).ShouldBe((AssistRunStatuses.ResidencyMismatch, null), "the tenant allows ZA only; a route that says nothing can't show where it ran");
+        (await Row(outcome.RunId)).ShouldBe(("stub-model", reported, "stub", AssistRunStatuses.ResidencyMismatch));
+        var tokens = await fixture.Database.ScalarAsOwner<long>("SELECT input_tokens + output_tokens FROM assist.run WHERE id = @r", ("r", outcome.RunId));
+        tokens.ShouldBeGreaterThan(0);
+        var usage = await (await client.GetAsync("/api/v1/assist/usage")).Json();
+        usage.GetProperty("tokens").GetInt64().ShouldBe(tokens, "the call was made, so it counts against the cap (AIA-073)");
+    }
+
+    private async Task<(string?, string?, string?, string?)> Row(Guid run) => (
+        await fixture.Database.ScalarAsOwner<string?>("SELECT served_model FROM assist.run WHERE id = @r", ("r", run)),
+        await fixture.Database.ScalarAsOwner<string?>("SELECT inference_region FROM assist.run WHERE id = @r", ("r", run)),
+        await fixture.Database.ScalarAsOwner<string>("SELECT model_version FROM assist.run WHERE id = @r", ("r", run)),
+        await fixture.Database.ScalarAsOwner<string>("SELECT status FROM assist.run WHERE id = @r", ("r", run)));
 
     [Fact]
     public async Task OutputWithANumberNotInTheSource_IsNotReturned_AndIsKeptForEvaluation_AIA033()

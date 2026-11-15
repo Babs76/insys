@@ -69,6 +69,9 @@ public sealed record CalculationCase(string Id, string SourceDomain, string Prod
         new(Guid.Empty, SourceDomain, "EVALUATION", ProductCode, ProductVersion, RatingVersion, Premium, Currency, DateTimeOffset.UnixEpoch, [], Lines);
 }
 
+/// <summary>What a run asked for, kept beside its results so runs can be compared.</summary>
+public sealed record RunInfo(string Provider, string Model, string Effort, string InferenceGeo, string? Currency, DateTimeOffset RanAt);
+
 /// <summary>One case's outcome.</summary>
 public sealed record CaseResult(string Id, string Kind, string Status, string? Text, IReadOnlyList<string> RejectedNumbers, long InputTokens, long OutputTokens,
     double Seconds, decimal? Cost, string? ServedModel, string? InferenceRegion, string Facts);
@@ -128,8 +131,8 @@ public static class EvaluationReport
             : "- **Price list used:** none is configured for this model, so no cost is given.");
         text.AppendLine("- **Cache:** each case is a fresh call, so the evaluation measures no cache hits. The rate in use comes from tenants' runs (AIA-036).");
         text.AppendLine();
-        text.AppendLine("| Kind | Cases | Verified | Rejected by the verifier | Unavailable | Input tokens, mean | Output tokens, mean | Cost per explanation, mean | Latency p50 (s) | Latency p95 (s) |");
-        text.AppendLine("|---|---|---|---|---|---|---|---|---|---|");
+        text.AppendLine("| Kind | Cases | Verified | Rejected by the verifier | Unavailable | Input tokens, mean | Output tokens, mean | Cost per explanation, mean | Median (s) | p95 (s) | Slowest (s) |");
+        text.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|");
         foreach (var group in new[] { ("All", results) }.Concat(results.GroupBy(r => r.Kind).OrderBy(g => g.Key, StringComparer.Ordinal).Select(g => (g.Key, (IReadOnlyList<CaseResult>)[.. g]))))
         {
             text.AppendLine(Row(group.Item1, group.Item2, price?.Currency));
@@ -166,7 +169,43 @@ public static class EvaluationReport
         var cost = costs.Count == 0 || currency is null || answered.Count == 0 ? "-" : $"{currency} {(costs.Sum() / answered.Count).ToString("0.000000", CultureInfo.InvariantCulture)}";
         string Seconds(double? value) => value is { } v ? v.ToString("0.00", CultureInfo.InvariantCulture) : "-";
         return string.Create(CultureInfo.InvariantCulture,
-            $"| {name} | {rows.Count} | {rows.Count(r => r.Status == AssistRunStatuses.Verified)} | {rows.Count(r => r.Status == AssistRunStatuses.Rejected)} | {rows.Count(r => r.Status == AssistRunStatuses.Unavailable)} | {Mean(answered.Select(r => r.InputTokens))} | {Mean(answered.Select(r => r.OutputTokens))} | {cost} | {Seconds(Percentile(answered.Select(r => r.Seconds), 50))} | {Seconds(Percentile(answered.Select(r => r.Seconds), 95))} |");
+            $"| {name} | {rows.Count} | {rows.Count(r => r.Status == AssistRunStatuses.Verified)} | {rows.Count(r => r.Status == AssistRunStatuses.Rejected)} | {rows.Count(r => r.Status == AssistRunStatuses.Unavailable)} | {Mean(answered.Select(r => r.InputTokens))} | {Mean(answered.Select(r => r.OutputTokens))} | {cost} | {Seconds(Percentile(answered.Select(r => r.Seconds), 50))} | {Seconds(Percentile(answered.Select(r => r.Seconds), 95))} | {Seconds(Percentile(answered.Select(r => r.Seconds), 100))} |");
+    }
+
+    /// <summary>
+    /// The models side by side (Ade, 15 November: he picks the model from this): per model, the verified rate, the numbers the verifier rejected, the time per
+    /// answer (median and slowest) against AIA-070's 10 seconds, and the cost per explanation, from each run's folder (results.json and run.json).
+    /// </summary>
+    public static string Comparison(IReadOnlyList<(RunInfo Run, IReadOnlyList<CaseResult> Results)> runs)
+    {
+        var text = new StringBuilder("# AI-2 evaluation: the models compared\n\n");
+        text.AppendLine("Sample data only, the same set for each model, one call at a time. Times are each call's own; the target is 10 seconds at the 95th percentile (AIA-070).");
+        text.AppendLine();
+        text.AppendLine("| Model | Effort | Region asked | Regions reported | Cases | Verified | Rejected | Unavailable | Median (s) | p95 (s) | Slowest (s) | Over 10 s | Cost per explanation | Cost of the run |");
+        text.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|");
+        foreach (var (run, results) in runs.OrderBy(r => r.Run.Model, StringComparer.Ordinal))
+        {
+            var answered = results.Where(r => r.Status != AssistRunStatuses.Unavailable).ToList();
+            var seconds = answered.Select(r => r.Seconds).ToList();
+            var total = results.Where(r => r.Cost is not null).Sum(r => r.Cost!.Value);
+            string Share(int n) => results.Count == 0 ? "-" : string.Create(CultureInfo.InvariantCulture, $"{n} ({100.0 * n / results.Count:0.0}%)");
+            string S(double? v) => v is { } x ? x.ToString("0.00", CultureInfo.InvariantCulture) : "-";
+            var perExplanation = answered.Count == 0 || run.Currency is null ? "-" : string.Create(CultureInfo.InvariantCulture, $"{run.Currency} {total / answered.Count:0.000000}");
+            text.AppendLine(string.Create(CultureInfo.InvariantCulture,
+                $"| `{run.Model}` | {run.Effort} | {(run.InferenceGeo.Length == 0 ? "none" : run.InferenceGeo)} | {Listed(results.Select(r => r.InferenceRegion))} | {results.Count} | {Share(results.Count(r => r.Status == AssistRunStatuses.Verified))} | {Share(results.Count(r => r.Status == AssistRunStatuses.Rejected))} | {Share(results.Count(r => r.Status == AssistRunStatuses.Unavailable))} | {S(Percentile(seconds, 50))} | {S(Percentile(seconds, 95))} | {S(Percentile(seconds, 100))} | {seconds.Count(x => x > LatencyTargetSeconds)} | {perExplanation} | {(run.Currency is null ? "-" : $"{run.Currency} {total:0.0000}")} |"));
+        }
+
+        text.AppendLine();
+        text.AppendLine("## Numbers the verifier rejected, by model");
+        foreach (var (run, results) in runs.OrderBy(r => r.Run.Model, StringComparer.Ordinal))
+        {
+            var rejected = results.Where(r => r.Status == AssistRunStatuses.Rejected).ToList();
+            text.AppendLine(CultureInfo.InvariantCulture, $"- **`{run.Model}`:** {(rejected.Count == 0 ? "none" : string.Join("; ", rejected.Select(r => $"{r.Id} ({string.Join(", ", r.RejectedNumbers)})")))}.");
+        }
+
+        text.AppendLine();
+        text.AppendLine("Correctness, clarity and what an explanation reveals need the domain expert's review of each model's `review.csv` (SRS §5.3); this table doesn't measure them.");
+        return text.ToString();
     }
 
     /// <summary>The nearest-rank percentile, or null with nothing to rank.</summary>

@@ -3,7 +3,8 @@
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
 
-## AI Assist: explanations that name a step are no longer rejected (Wave 7 batch 7.3, 15 November 2026)
+## AI Assist: the residency check, and explanations that name a step (Wave 7 batch 7.3, 15 November 2026)
+- **`POST /assist/explanations/refusals` and `/premiums`:** when the model's provider reports inference somewhere the tenant's setting (`inferenceRegion`) doesn't allow, or doesn't say where, the outcome is `UNAVAILABLE` with the plain facts, as when the model can't be reached (AIA-050). No field or value is new.
 - **`POST /assist/explanations/premiums`:** an explanation that names a calculation's line by its number ("line 2 applies the table") now passes the number check (AIA-033a), as does a code followed by punctuation ("group G3, then"). Before, such an explanation came back `REJECTED` with the plain facts. No field changed.
 
 ## Premium calculations: a branch scope no longer hides them (15 November 2026)
