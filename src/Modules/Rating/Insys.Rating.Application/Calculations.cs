@@ -238,16 +238,28 @@ internal sealed class RunRatingTestCasesHandler(IRatingTestCases cases, PremiumR
         inputs.ValueKind == JsonValueKind.Object && inputs.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
 }
 
-internal sealed class GetCalculationHandler(IPremiumCalculationQueries queries) : IQueryHandler<GetCalculation, CalculationView>
+/// <summary>
+/// One recorded calculation, in the reader's product scope (F103, addenda/access-scopes.md §1 and §4): a calculation knows its product, so outside the scope of
+/// premium_calculation.read it isn't found (404), as another tenant's isn't. The scope is that permission's own, not the request's, so a module reading through
+/// IRecordedCalculations (AI Assist) gets the reader's scope too (AIA-003). It has no organisation node.
+/// </summary>
+internal sealed class GetCalculationHandler(IPremiumCalculationQueries queries, IExecutionContext execution) : IQueryHandler<GetCalculation, CalculationView>
 {
     public async Task<Result<CalculationView>> Handle(GetCalculation query, CancellationToken cancellationToken) =>
-        await queries.Get(query.Id, cancellationToken) is { } view ? view : Error.NotFound(ErrorCodes.NotFound, "The calculation was not found.");
+        await queries.Get(query.Id, cancellationToken) is { } view && execution.ScopeFor(RatingPermissions.CalculationRead).Allows(view.ProductCode, null)
+            ? view
+            : Error.NotFound(ErrorCodes.NotFound, "The calculation was not found.");
 }
 
-internal sealed class ListCalculationsHandler(IPremiumCalculationQueries queries) : IQueryHandler<ListCalculations, IReadOnlyList<CalculationView>>
+/// <summary>A subject's calculations in the reader's product scope (F103). A subject is rated for one product, so the filter keeps all of a page or none of it, and paging holds.</summary>
+internal sealed class ListCalculationsHandler(IPremiumCalculationQueries queries, IExecutionContext execution) : IQueryHandler<ListCalculations, IReadOnlyList<CalculationView>>
 {
-    public async Task<Result<IReadOnlyList<CalculationView>>> Handle(ListCalculations query, CancellationToken cancellationToken) =>
-        Result.Success(await queries.ForSubject(query.SubjectType, query.SubjectId, query.BeforeId, query.Limit, cancellationToken));
+    public async Task<Result<IReadOnlyList<CalculationView>>> Handle(ListCalculations query, CancellationToken cancellationToken)
+    {
+        var scope = execution.ScopeFor(RatingPermissions.CalculationRead);
+        var views = await queries.ForSubject(query.SubjectType, query.SubjectId, query.BeforeId, query.Limit, cancellationToken);
+        return Result.Success<IReadOnlyList<CalculationView>>(views.Where(v => scope.Allows(v.ProductCode, null)).ToList());
+    }
 }
 
 public static class CalculationViews

@@ -3,6 +3,10 @@
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
 
+## Premium calculations follow the reader's product scope (Wave 7 batch 7.3, 15 November 2026)
+- **`GET /rating/calculations/{id}` and `GET /rating/calculations?subjectType&subjectId`** now apply the product scope of `premium_calculation.read` (F103, `addenda/access-scopes.md` §1): a calculation of a product outside the reader's scope isn't found (404), and isn't listed. Before, any holder of the permission read every product's. Unscoped readers see no change.
+- **`POST /assist/explanations/premiums`** follows it: refused in the same way (404), with no stored explanation returned and no model call (AIA-003).
+
 ## AI Assist: AI-2's explanations (Wave 7 batch 7.2, 15 November 2026)
 All three routes are off unless the tenant is entitled to `AI_ASSIST` and has switched explanations on (`PUT /assist/settings`); staff only (D-3).
 - **`POST /assist/explanations/refusals` (new, `ASSIST_EXPLAIN_REFUSAL`, Idempotency-Key):** `code` (an error catalogue code), `fields` (the names of the fields in error, at most 30; only how many there are is sent to a model), `recordType`, `recordId` and `correlationId`, kept for `basedOn` and the audit and never sent (AIA-039, D-15). An unknown code is 422 `VALIDATION_FAILED`.

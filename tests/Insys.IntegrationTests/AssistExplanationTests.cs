@@ -241,6 +241,35 @@ public sealed class AssistExplanationTests(DatabaseFixture fixture) : IClassFixt
         (await staff.Send(HttpMethod.Post, Premiums, new { calculationId = theirs }, idempotent: true)).StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
+    /// <summary>
+    /// AIA-003: the calculation as the user may read it. A user whose role is scoped to another product isn't shown the calculation (404, F103) and isn't shown
+    /// its explanation either, the same way, though an explanation of it is already stored: no cached text, and no call.
+    /// </summary>
+    [Fact]
+    public async Task AUserRefusedTheCalculation_IsRefusedItsExplanation_TheSameWay_AndGetsNoStoredOne_AIA003_F103()
+    {
+        var (tenant, _, host, stub) = await Ready();
+        var calculation = await Calculation(tenant, 4100m, """{"currency":"ZAR"}""");
+        var uw = await User(tenant, host, "ax-sc-all", "ASSIST_EXPLAIN_PREMIUM", "RATING_CALCULATIONS");
+        (await (await uw.Send(HttpMethod.Post, Premiums, new { calculationId = calculation }, idempotent: true)).Json()).GetProperty("outcome").GetString().ShouldBe("EXPLAINED");
+        var calls = stub.Sent.Count;
+
+        var other = await fixture.Database.UserWithFunctions(tenant, "ax-sc-other", "ASSIST_EXPLAIN_PREMIUM", "RATING_CALCULATIONS");
+        await fixture.Database.ExecuteAsOwner("UPDATE iam.user_role_assignment SET scope_products = ARRAY['OFT-OTHER'] WHERE user_id = @u", ("u", other));
+        var scoped = host.ClientFor(tenant, "ax-sc-other");
+        (await scoped.GetAsync($"/api/v1/rating/calculations/{calculation}")).StatusCode.ShouldBe(HttpStatusCode.NotFound, "outside the reader's product scope");
+        var refused = await scoped.Send(HttpMethod.Post, Premiums, new { calculationId = calculation }, idempotent: true);
+        refused.StatusCode.ShouldBe(HttpStatusCode.NotFound, "refused the same way as the calculation");
+        (await refused.Content.ReadAsStringAsync()).ShouldNotContain("A fixed explanation");
+        stub.Sent.Count.ShouldBe(calls, "no call is made for them");
+
+        var own = await fixture.Database.UserWithFunctions(tenant, "ax-sc-own", "ASSIST_EXPLAIN_PREMIUM", "RATING_CALCULATIONS");
+        await fixture.Database.ExecuteAsOwner("UPDATE iam.user_role_assignment SET scope_products = ARRAY['OFT-GD1001'] WHERE user_id = @u", ("u", own));
+        var inScope = host.ClientFor(tenant, "ax-sc-own");
+        (await inScope.GetAsync($"/api/v1/rating/calculations/{calculation}")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await (await inScope.Send(HttpMethod.Post, Premiums, new { calculationId = calculation }, idempotent: true)).Json()).GetProperty("reused").GetBoolean().ShouldBeTrue();
+    }
+
     [Fact]
     public async Task NothingIsHeldOpen_WhileTheModelAnswers_AIA072()
     {
