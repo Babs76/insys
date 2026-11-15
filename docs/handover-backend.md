@@ -2,8 +2,12 @@
 
 **The Mac session resumed on 14 November 2026, after the cloud session (4 to 6 November).** The go-live register is written, and so is how to continue. The state of branches is under "State at the stop", with the cloud session's changes under "The cloud session (4 November)". **What happened since, and the recovery Ade decides on, are under "OpenBao sealed, its key lost (6 to 14 November)", next.**
 
+## Two changes of plan (Ade, 15 November 2026)
+- **The Preview's `reset` is postponed** until the development work is finished and full demo testing starts. The Preview stays as it is and in use for demos; its encrypted fields stay unreadable until then, which is accepted. Only the SSH key swap goes ahead (`rotate-ssh-key`, run 43639005340, when Ade approves it); nothing else runs on the Preview without Ade's say. Go-live register row 38 keeps the reset and the restore rehearsal. **When it's taken up again, assess two paths without running anything:** a clean `reset`, or replacing only OpenBao and keeping the databases.
+- **Wave 7's pause is lifted.** Its condition was met: the Preview has been live since early November and in use for demos. Batch 7.2 starts on 15 November, in the D-8 order (`docs/specs/addenda/ai-assist.md`), with the must-dos of the 7.1 review below.
+
 ## OpenBao sealed, its key lost (6 to 14 November)
-**The Preview's OpenBao is sealed and can't be unsealed: the only way back is `reset`.** Ade decides when. No `preview` run has been started since, and none runs without Ade's approval.
+**The Preview's OpenBao is sealed and can't be unsealed: the only way back is a new OpenBao.** The `reset` is postponed (Ade, 15 November, above). No `preview` run has been started since, and none runs without Ade's approval.
 
 ### What happened
 - **6 November:** `upgrade` run 42190162209 (d488b32, chart revision 5) and `check` run 42286802427 passed. The `backup` run 42299623098 was dispatched at 21:47 UTC on 298ba30.
@@ -130,7 +134,7 @@ That rehearsal is also the first real test that the new file's key unseals.
 **Decided by Ade, 2 November 2026; it comes before everything else.** A hosted environment for OpenFactor's functional team, with all built functionality, sample data only, and every external integration stubbed and clearly labelled. Not production.
 
 - **Order:** Workstream F is done; the Preview is built but not yet provisioned (`docs/plans/insys-preview.md`, Built so far). Ade's secrets, variables and the console's image access are set, and the environment's reviewer rule is saved. The `check` runs passed. The first `provision` stopped on Hetzner's account core limit (see "The first provision" below).
-- **Wave 7 is paused after 7.1** until the Preview is live. Batch 7.2 doesn't start before then.
+- **Wave 7's pause after 7.1 is lifted (Ade, 15 November):** the Preview has been live since early November. Batch 7.2 starts on 15 November.
 - **The plan is [`docs/plans/insys-preview.md`](plans/insys-preview.md): one Hetzner server, k3s, the ADR-027 chart. Signed by Ade, 2 November, with decisions recorded at its top.** It starts after Workstream F. The restore rehearsal comes before the team gets access.
 - **Never handle Ade's secrets.** The Hetzner API token goes in GitHub, set by Ade, never in a file, chat or session. Generated passwords, and OpenBao's unseal keys and root token, are only ever written encrypted to Ade's key, as this repository is public; the unseal keys and root token are never stored on the server or in GitHub. Nothing sensitive goes in logs or artifacts.
 
@@ -240,6 +244,7 @@ Everything found between INSYS and a first live customer, at `91cb494` plus the 
 | 35 | The sign-in page's name in production (Ade, 3 November). With `keycloak.realmDisplayName` empty, the realm file's own name shows: production's sign-in page would say "INSYS Core (local development)". Needed: a proper name in production's values, and production's deployment running `deploy/keycloak/realm-name.sh` as the Preview's does, since the chart's import names only a new realm | under 0.5 (Est) | The production name | Yes |
 | 36 | Keycloak user provisioning in production (cloud session, 5 November). The API makes each INSYS user's Keycloak account through the realm's confidential client `insys-user-admin` (`Identity:Keycloak`), and without its address and the client's secret every new user's identity parks as `KEYCLOAK_UNAVAILABLE`, as the Preview's first administrators did (`rotate-passwords` run 41983797927). The chart now sets the address when it runs Keycloak (`http://<release>-keycloak:8080`) and reads the secret from the Secret's `keycloakUserAdminSecret`; the Preview copies Keycloak's generated secret there on the server (`deploy/keycloak/user-admin-secret.sh`). Needed: production's deployment sets `identity.keycloak.baseUrl` for its Keycloak and puts the client's secret in its secret store, through the same key, never in values or a log; and the runbook says how the secret is rotated | under 0.5 (Est), plus the runbook | Production's Keycloak (row 2) | **Yes** |
 | 37 | Document storage's keys in production (cloud session, 5 November). The chart's in-cluster SeaweedFS took its S3 keys from the chart's values, which are empty wherever the Secret is made outside the chart, while the API signs with the Secret's keys: on the Preview the first document upload failed (`rotate-passwords` run 42080719155, 500). Fixed in the chart (SeaweedFS reads the Secret's `objectStoreAccessKey` and `objectStoreSecretKey`), with the smoke test now making the Secret outside the chart and `preview.sh`'s `storage_check` storing, reading back and deleting an object with the API's keys. Needed: production's object store is given real keys from its secret store, the same ones the API's Secret holds, never values or empty ones; a check like `storage_check` after each deployment; and the runbook says how the keys are rotated on both sides together | under 0.5 (Est), plus the runbook | Production's object store (row 2) | **Yes** |
+| 38 | The Preview's reset and restore rehearsal (Ade, 15 November). OpenBao is sealed with its key lost (6 to 14 November), so encrypted fields on the Preview are unreadable. The `reset` is postponed until development is finished and full demo testing starts; then assess, without running anything first, a clean `reset` against replacing only OpenBao and keeping the databases, and run the restore rehearsal (`docs/preview/restore.md`). The rehearsal is the first real recovery evidence for row 3 | 0.5–1 (Est), plus the run and Ade's checks | The end of development; Ade | No for production; **Yes** before the team's full demo testing |
 | **Markets** | | | | |
 | 24 | Nigeria blockers: retention defaults, default time zone, age of majority. **Descoped by Ade, 2 November: deferred until a first Nigerian customer is chosen; not started.** Appeal routes are static data and stay, as they serve every market (V0126); the Nigerian route itself waits on row 25 | 2–3 (Est, from the 3–4 in the survey) | A first Nigerian customer being chosen | **If** the first customer is Nigerian |
 | 25 | Nigeria: "no premium, no cover" domain review; starter pack review sheet and partner sign-off | Unknown until reviewed | Nigerian compliance partner; compliance lead | **If** the first customer is Nigerian |
@@ -249,7 +254,7 @@ Everything found between INSYS and a first live customer, at `91cb494` plus the 
 | **Demos** | | | | |
 | 30 | Workstream F: OFT Insurance South Africa sample data, tenant `OFTZA` (`docs/plans/workstream-f-oftza-seed.md`). Needed for demos and the front end's Phase 13 exit | 8–12 (Est), with the sample tenant block | Batch 7.1 merged; signed by Ade, 2 November | No |
 | **AI Assist** | | | | |
-| 29 | Wave 7: AI Assist. Started by Ade's decision of 2 November; paused after 7.1 until the Preview is live | 64–85 (Doc) | Provider contract; evaluation documents (D-7) | **No**: it ships switched off and INSYS works without it. A tenant set up through AI-3 must pass readiness first (AIA-085) |
+| 29 | Wave 7: AI Assist. Started by Ade's decision of 2 November; paused after 7.1 until the Preview was live; resumed 15 November with batch 7.2 | 64–85 (Doc) | Provider contract; evaluation documents (D-7) | **No**: it ships switched off and INSYS works without it. A tenant set up through AI-3 must pass readiness first (AIA-085) |
 
 The front end's own go-live work isn't in this register.
 
@@ -268,7 +273,7 @@ They are also in `CLAUDE.md`.
 - Merge without asking only when it's built with its test, green on the exact head, and needs no decision from Ade.
 - Decisions for Ade go in reports. **Ade decides the first customer after his trip,** and coordinates remotely.
 - **Only one back-end session works at a time.** The Mac session stops before a cloud one starts.
-- **Wave 7 is paused after 7.1 until the INSYS Preview is live (Ade, 2 November).** It then resumes in the D-8 order: 7.2, 7.3, 7.6, 7.7, 7.4, 7.5, 7.8. Nigeria's row 24 stays deferred until a first Nigerian customer is chosen.
+- **Wave 7 resumed on 15 November (Ade), the Preview having been live since early November,** in the D-8 order: 7.2, 7.3, 7.6, 7.7, 7.4, 7.5, 7.8. Nigeria's row 24 stays deferred until a first Nigerian customer is chosen.
 - **The Mac session stops on Wednesday 4 November 2026:** nothing new after 07:00, the handover merged and checked by 10:00. A cloud session continues from this document and GitHub.
 
 ### Running tests
@@ -406,7 +411,7 @@ If every item arrives on time, the build ends about 16 December; each phase's ex
 | `product-capability-inventory`, `docs-inventory-fixes` | Merged (298ba30, 20dafe7) | The capability inventory, for the product guide |
 | `preview-seal-backup` | Pushed 14 November; merges on green CI and smoke on its exact head | The backup's dump listing fixed, `check` reports OpenBao's seal and closes SSH, the file kept 90 days with a warning when it has no key, and this handover |
 | `preview-seal-guard` | Pushed 14 November; merges on green CI and smoke on its exact head (a fix after a failed approved run: Ade said apply it) | `diagnose`, `os-update`, security updates kept but no automatic reboots or restarts on the server, check reporting pending restarts, and the nightly backup failing and emailing on a seal |
-| Next | **Ade decides on `reset`** ("OpenBao sealed, its key lost"), after `check` once `preview-seal-backup` is on main. Then the restore rehearsal | |
+| Next | **Wave 7, batch 7.2 (from 15 November).** On the Preview only the key swap (`rotate-ssh-key`, when Ade approves run 43639005340); the `reset` and the restore rehearsal are postponed (Ade, 15 November; register row 38) | |
 
 ### The cloud session (4 November)
 The Mac session stopped; a Claude Code cloud session took over at about 13:40 UTC, while Ade travels. Ade approves every `preview` run himself.

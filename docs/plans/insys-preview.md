@@ -2,6 +2,8 @@
 
 **Status: signed by Ade, with the decisions below, 2 November 2026. Nothing here is built, and no server exists.** Workstream F's remaining slices come first; Wave 7 is paused after 7.1 until the Preview is live.
 
+**Ade, 15 November 2026:** the Preview has been live since early November and in use for demos, so Wave 7 resumes. Its OpenBao is sealed with its key lost (`docs/handover-backend.md`), and **the `reset` is postponed** until the development work is finished and full demo testing starts: until then the Preview stays as it is, and its encrypted fields stay unreadable, which is accepted. Only the SSH key swap goes ahead. When the reset is taken up, two paths are assessed first, without running anything: a clean `reset`, or replacing only OpenBao and keeping the databases. Go-live register row 38.
+
 **What it is:** a hosted environment for OpenFactor's functional team, with all built functionality, sample data only, and every external integration stubbed and labelled. Not production.
 
 ## Ade's decisions at signing
@@ -167,7 +169,7 @@ Working days for one engineer. My estimates, made without building it, so low to
 2. The chart work, then the workflow, on branches merged as usual.
 3. Ade creates the secrets, then runs `provision` and creates the DNS records.
 4. Accounts, the restore rehearsal, and a walk through the flows as generic users, all before the team gets access; Ade already holds the encrypted file from step 3.
-5. Wave 7 resumes with batch 7.2.
+5. Wave 7 resumes with batch 7.2: **done, 15 November (Ade).** The restore rehearsal waits with the postponed reset (register row 38).
 
 ## Making the age key (Ade)
 On your own machine; with Homebrew on a Mac:
