@@ -84,7 +84,7 @@ BEGIN
   FOR t IN
     SELECT n.nspname, c.relname, r.role_name FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
     JOIN (VALUES ('assist', 'run', 'insys_assist'), ('assist', 'explanation', 'insys_assist'), ('assist', 'explanation_feedback', 'insys_assist'),
-                 ('assist', 'starter_pack_value', 'insys_assist'),
+                 ('assist', 'starter_pack_value', 'insys_assist'), ('assist', 'setup_answer', 'insys_assist'),
                  ('finance', 'journal', 'insys_finance'), ('finance', 'subledger_entry', 'insys_finance'),
                  ('claims', 'claim_financial_movement', 'insys_claims'), ('payment', 'payment_status_history', 'insys_payment'),
                  ('life', 'policy_status_history', 'insys_life'), ('life', 'claim_status_history', 'insys_life'),

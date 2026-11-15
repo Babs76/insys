@@ -47,6 +47,9 @@ public sealed record PackReviewRequest(string Partner, string ReviewerName, Date
 /// <param name="ContentHash">The version's content hash as the approver read it on the review sheet: the approval binds to it (§5.3).</param>
 public sealed record PackApprovalRequest(string ContentHash);
 
+/// <param name="Decision">ACCEPTED or REJECTED. A Missing value can't be accepted.</param>
+public sealed record SetupDecisionRequest(string Decision, string? Note);
+
 /// <param name="Code">The refusal's error code.</param>
 /// <param name="Fields">The names of the fields in error, as the refusal's field errors named them. Only how many there are is sent to a model: the names are the client's (D-15).</param>
 /// <param name="RecordType">The record the refusal was about, by type and ID, for the "Based on" link and the audit; never trusted for its data (AIA-039).</param>
@@ -128,6 +131,58 @@ public sealed class AssistModule : IModule
             .RequireIdempotencyKey();
 
         MapPacks(api);
+        MapTenantSetups(api);
+    }
+
+    /// <summary>
+    /// AI-3's wizard, its pack-only path (AI Assist SRS §5A.3 and §5A.5; AIA-090): the questionnaire, the draft assembled from the packs with each value flagged
+    /// Pack or Missing, and the reviewer's decision on each. Only while the tenant is onboarding (AIA-086). Submitting it as the SETUP change set is batch 7.7.
+    /// </summary>
+    private void MapTenantSetups(IEndpointRouteBuilder api)
+    {
+        var setups = api.MapGroup("/assist/tenant-setups").WithTags(Name);
+        setups.MapPost("/", async (SetupAnswers answers, IDispatcher d, HttpContext http, CancellationToken ct) => (await d.Send(new StartTenantSetup(answers), ct)).ToHttp(view =>
+            {
+                Concurrency.SetETag(http, view.RowVersion);
+                return Results.Created($"/api/v1/assist/tenant-setups/{view.Id}", view);
+            }))
+            .Produces<SetupRunView>(StatusCodes.Status201Created).ReturnsETag()
+            .WithName("AssistStartTenantSetup")
+            .WithSummary("Start the wizard with the questionnaire's answers: the draft is assembled from the packs, each value Pack or Missing (AIA-082). Onboarding only")
+            .RequirePermission(AssistPermissions.TenantSetupRun).RequireIdempotencyKey();
+        setups.MapGet("/{id:guid}", async (Guid id, IDispatcher d, HttpContext http, CancellationToken ct) => (await d.Query(new GetTenantSetup(id), ct)).ToHttp(view =>
+            {
+                Concurrency.SetETag(http, view.RowVersion);
+                return Results.Ok(view);
+            }))
+            .Produces<SetupRunView>(StatusCodes.Status200OK).ReturnsETag()
+            .WithName("AssistGetTenantSetup").WithSummary("The setup: its answers, the pack versions used (AIA-089), and every value with its flag and decision")
+            .RequirePermission(AssistPermissions.TenantSetupRun);
+        setups.MapPut("/{id:guid}/answers", async (Guid id, SetupAnswers answers, IDispatcher d, HttpContext http, CancellationToken ct) =>
+            {
+                var expected = Concurrency.ExpectedVersion(http.Request);
+                return expected.IsFailure ? Problems.For(expected.Error) : (await d.Send(new AnswerTenantSetup(id, answers, expected.Value), ct)).ToHttp(view =>
+                {
+                    Concurrency.SetETag(http, view.RowVersion);
+                    return Results.Ok(view);
+                });
+            })
+            .Produces<SetupRunView>(StatusCodes.Status200OK).ReturnsETag()
+            .WithName("AssistAnswerTenantSetup")
+            .WithSummary("Change the answers: a new answers version, and only the values they change are re-drafted (AIA-081). Needs If-Match")
+            .RequirePermission(AssistPermissions.TenantSetupRun);
+        setups.MapPost("/{id:guid}/items/{itemId:guid}/decision", async (Guid id, Guid itemId, SetupDecisionRequest r, IDispatcher d, HttpContext http, CancellationToken ct) =>
+            {
+                var expected = Concurrency.ExpectedVersion(http.Request);
+                return expected.IsFailure ? Problems.For(expected.Error) : (await d.Send(new DecideSetupItem(id, itemId, r.Decision, r.Note, expected.Value), ct)).ToHttp(view =>
+                {
+                    Concurrency.SetETag(http, view.RowVersion);
+                    return Results.Ok(view);
+                });
+            })
+            .Produces<SetupItemView>(StatusCodes.Status200OK).ReturnsETag()
+            .WithName("AssistDecideSetupItem").WithSummary("Accept or reject a drafted value; a Missing one can't be accepted. Needs the value's If-Match")
+            .RequirePermission(AssistPermissions.TenantSetupRun);
     }
 
     /// <summary>

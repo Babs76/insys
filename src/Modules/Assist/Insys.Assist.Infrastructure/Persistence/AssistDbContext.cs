@@ -52,6 +52,12 @@ public sealed class AssistDbContext(DbContextOptions<AssistDbContext> options, M
 
     public DbSet<StarterPackValue> PackValues => Set<StarterPackValue>();
 
+    public DbSet<SetupRun> SetupRuns => Set<SetupRun>();
+
+    public DbSet<SetupAnswer> SetupAnswers => Set<SetupAnswer>();
+
+    public DbSet<SetupItem> SetupItems => Set<SetupItem>();
+
     protected override void ConfigureModel(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<AssistTenantSetting>(setting =>
@@ -138,7 +144,58 @@ public sealed class AssistDbContext(DbContextOptions<AssistDbContext> options, M
             // So that the version is written before its rows (fk_starter_pack_value_pack).
             value.HasOne<StarterPack>().WithMany().HasForeignKey(v => new { v.TenantId, v.PackId }).HasPrincipalKey(p => new { p.TenantId, p.Id });
         });
+
+        // AI-3's setup runs (§5A.5): a run, its answers by version, its draft's items.
+        modelBuilder.Entity<SetupRun>(run =>
+        {
+            run.ToTable("setup_run");
+            run.HasKey(r => new { r.TenantId, r.Id });
+            run.HasAuditColumns();
+            run.Ignore(r => r.DomainEvents);
+            run.Ignore(r => r.HasChanges);
+        });
+        modelBuilder.Entity<SetupAnswer>(answer =>
+        {
+            answer.ToTable("setup_answer");
+            answer.HasKey(a => new { a.TenantId, a.Id });
+            answer.HasAuditColumns(updatable: false);
+            answer.Ignore(a => a.DomainEvents);
+            answer.Ignore(a => a.HasChanges);
+            answer.Ignore(a => a.RowVersion);
+            answer.Property(a => a.Answers).HasColumnType("jsonb");
+            answer.HasOne<SetupRun>().WithMany().HasForeignKey(a => new { a.TenantId, a.RunId }).HasPrincipalKey(r => new { r.TenantId, r.Id });
+        });
+        modelBuilder.Entity<SetupItem>(item =>
+        {
+            item.ToTable("setup_item");
+            item.HasKey(i => new { i.TenantId, i.Id });
+            item.HasAuditColumns();
+            item.Ignore(i => i.DomainEvents);
+            item.Ignore(i => i.HasChanges);
+            item.Property(i => i.Values).HasColumnType("jsonb");
+            item.HasOne<SetupRun>().WithMany().HasForeignKey(i => new { i.TenantId, i.RunId }).HasPrincipalKey(r => new { r.TenantId, r.Id });
+        });
     }
+}
+
+internal sealed class SetupRuns(AssistDbContext db) : Application.ISetupRuns
+{
+    public void Add(SetupRun run) => db.SetupRuns.Add(run);
+
+    public void Add(SetupAnswer answer) => db.SetupAnswers.Add(answer);
+
+    public void Add(SetupItem item) => db.SetupItems.Add(item);
+
+    public Task<SetupRun?> Run(Guid id, CancellationToken cancellationToken) => db.SetupRuns.SingleOrDefaultAsync(r => r.Id == id, cancellationToken);
+
+    public Task<SetupAnswer?> Answers(Guid runId, int version, CancellationToken cancellationToken) =>
+        db.SetupAnswers.AsNoTracking().SingleOrDefaultAsync(a => a.RunId == runId && a.Version == version, cancellationToken);
+
+    public async Task<IReadOnlyList<SetupItem>> Items(Guid runId, CancellationToken cancellationToken) =>
+        await db.SetupItems.Where(i => i.RunId == runId).ToListAsync(cancellationToken);
+
+    public Task<SetupItem?> Item(Guid runId, Guid itemId, CancellationToken cancellationToken) =>
+        db.SetupItems.SingleOrDefaultAsync(i => i.RunId == runId && i.Id == itemId, cancellationToken);
 }
 
 /// <summary>

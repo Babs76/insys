@@ -78,4 +78,55 @@ public sealed class PackFileTests
         pack.Approve("lead", "h", PackScopes.AllTenants, DateTimeOffset.UnixEpoch).IsSuccess.ShouldBeTrue();
         pack.Status.ShouldBe(PackStatuses.Approved);
     }
+
+    private static StarterPackValue Row(Guid pack, int line, string table, string code, bool regulated, string values) =>
+        StarterPackValue.For(pack, PackScopes.AllTenants, line, table, code, regulated ? "FINANCE" : "OPERATIONAL", regulated, MarkSources.Interim, false, MarkSources.Default, values, null, null, null);
+
+    [Fact]
+    public void TheAssembly_LayersBaseCountryAndLine_ALaterRowReplacingAnEarlierOne_AndCopiesValuesAsTheyAre_AIA082_AIA087()
+    {
+        var basePack = StarterPack.Load("base", PackKinds.Base, 1, null, null, null, PackScopes.AllTenants, "h", 2, "p").Value;
+        var country = StarterPack.Load("NG", PackKinds.Country, 1, null, "NG", null, PackScopes.AllTenants, "h", 2, "p").Value;
+        var drafted = SetupAssembly.Assemble(
+        [
+            new AssemblyLayer(basePack, [Row(basePack.Id, 1, "t", "A", false, """{"x":1}"""), Row(basePack.Id, 2, "t", "B", true, """{"rate":0.1}""")], true),
+            new AssemblyLayer(country, [Row(country.Id, 1, "t", "B", true, """{"rate":0.2}"""), Row(country.Id, 2, "t", "C", true, """{"rate":""}""")], false),
+        ]);
+        drafted.Select(d => (d.Code, d.Flag, d.Values, d.SourcePackId == country.Id, d.MissingReason)).ShouldBe(
+        [
+            ("A", ItemFlags.Pack, """{"x":1}""", false, (string?)null),
+            ("B", ItemFlags.Missing, (string?)null, true, MissingReasons.NotApproved),
+            ("C", ItemFlags.Missing, (string?)null, true, MissingReasons.NotApproved),
+        ], "the country's row replaces the base's; unapproved, its regulated values are never filled, not even with the base's");
+
+        var approved = SetupAssembly.Assemble([new AssemblyLayer(country, [Row(country.Id, 1, "t", "B", true, """{"rate":0.2}"""), Row(country.Id, 2, "t", "C", true, """{"rate":""}""")], true)]);
+        approved.Select(d => (d.Code, d.Flag, d.MissingReason)).ShouldBe([("B", ItemFlags.Pack, (string?)null), ("C", ItemFlags.Missing, MissingReasons.NoValue)]);
+    }
+
+    [Fact]
+    public void TheVersionChosen_IsThePlatformsApproved_ElseTheTenantsOwnApproved_ElseTheNewestDraft()
+    {
+        var tenant = Guid.CreateVersion7();
+        StarterPack Pack(int version, string scope, bool approved)
+        {
+            var p = StarterPack.Load("NG", PackKinds.Country, version, null, "NG", null, scope, "h", 1, "loader").Value;
+            if (scope == PackScopes.AllTenants && approved)
+            {
+                p.MarkReviewed("reviewer", "P", "N", new DateOnly(2026, 11, 14), Guid.CreateVersion7());
+            }
+
+            if (approved)
+            {
+                p.Approve("lead", "h", scope, DateTimeOffset.UnixEpoch).IsSuccess.ShouldBeTrue();
+            }
+
+            return p;
+        }
+
+        var answers = new SetupAnswers("NG", ["GENERAL"]);
+        var draft = Pack(3, PackScopes.AllTenants, false);
+        var platform = Pack(2, PackScopes.AllTenants, true);
+        SetupAssembly.Choose([draft, platform], answers, tenant).Single().ShouldBe(platform);
+        SetupAssembly.Choose([draft], answers, tenant).Single().ShouldBe(draft);
+    }
 }

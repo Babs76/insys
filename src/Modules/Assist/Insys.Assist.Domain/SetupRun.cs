@@ -1,0 +1,195 @@
+/*
+ * ============================================================================
+ * OPENFACTOR TECHNOLOGY GROUP
+ * CONFIDENTIAL AND PROPRIETARY SOFTWARE
+ * ============================================================================
+ * Copyright (c) 2026 OpenFactor Technology Group.
+ * All rights reserved.
+ * PRODUCT       : INSYS
+ * COMPONENT     : Assist
+ * CONFIDENTIALITY AND INTELLECTUAL PROPERTY NOTICE
+ * This source code and its associated documentation contain confidential and
+ * proprietary information belonging to OpenFactor Technology Group or its
+ * applicable intellectual property rights holder.
+ * This material is provided solely for authorised development, maintenance,
+ * operation or evaluation purposes, as applicable. No person may reproduce,
+ * modify, distribute, disclose, publish or otherwise use this material except
+ * as expressly permitted by an applicable written agreement or licence.
+ * No ownership rights or licence to any intellectual property are granted
+ * by the inclusion of this notice, except as expressly provided in an
+ * applicable written agreement or licence.
+ * Third-party software, open-source components and customer-owned materials
+ * remain subject to their respective ownership rights and applicable licences
+ * or agreements.
+ * UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
+ * ============================================================================
+ */
+using Insys.BuildingBlocks.Domain;
+
+namespace Insys.Assist.Domain;
+
+/// <summary>Where a draft value came from (AIA-084).</summary>
+public static class ItemFlags
+{
+    public const string Pack = "PACK";
+    public const string Tailored = "TAILORED";
+    public const string Mapped = "MAPPED";
+    public const string Missing = "MISSING";
+}
+
+/// <summary>Why a value is Missing.</summary>
+public static class MissingReasons
+{
+    /// <summary>A regulated value from an overlay not approved for this tenant (ASSIST_PACK_NOT_APPROVED, AIA-082): never filled.</summary>
+    public const string NotApproved = "NOT_APPROVED";
+
+    /// <summary>The pack leaves a regulated value empty: only the tenant, or a reviewed overlay, can give it.</summary>
+    public const string NoValue = "NO_VALUE";
+}
+
+public static class ItemDecisions
+{
+    public const string Accepted = "ACCEPTED";
+    public const string Rejected = "REJECTED";
+}
+
+public static class SetupStatuses
+{
+    public const string Draft = "DRAFT";
+    public const string Submitted = "SUBMITTED";
+}
+
+/// <summary>
+/// A run of AI-3's wizard on a tenant still onboarding (AI Assist SRS §5A): its questionnaire answers, versioned (AIA-081), the pack versions the draft was
+/// assembled from (AIA-089) and its status. The draft's values are its <see cref="SetupItem"/>s. Nothing here changes the tenant's configuration: the SETUP
+/// change set does, in 7.7, after a second person's approval.
+/// </summary>
+public sealed class SetupRun : AggregateRoot<Guid>
+{
+    private SetupRun()
+    {
+    }
+
+    public string Status { get; private set; } = SetupStatuses.Draft;
+
+    /// <summary>Who ran the wizard: never the one who approves its change set (AIA-086).</summary>
+    public string StartedBy { get; private set; } = "";
+
+    public int AnswersVersion { get; private set; }
+
+    /// <summary>The pack versions the draft was assembled from, in layer order (AIA-089).</summary>
+    public Guid[] PackIds { get; private set; } = [];
+
+    public DateTimeOffset AssembledAt { get; private set; }
+
+    public static SetupRun Start(string startedBy, IReadOnlyList<Guid> packIds, DateTimeOffset at) =>
+        new() { Id = Guid.CreateVersion7(), StartedBy = startedBy, AnswersVersion = 1, PackIds = [.. packIds], AssembledAt = at };
+
+    /// <summary>New answers re-draft the run (AIA-081): a draft only.</summary>
+    public Result Reanswer(IReadOnlyList<Guid> packIds, DateTimeOffset at)
+    {
+        if (Status != SetupStatuses.Draft)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, "Only a draft setup takes new answers.");
+        }
+
+        (AnswersVersion, PackIds, AssembledAt) = (AnswersVersion + 1, [.. packIds], at);
+        MarkChanged();
+        return Result.Success();
+    }
+}
+
+/// <summary>One version of a run's questionnaire answers, kept as given (AIA-081).</summary>
+public sealed class SetupAnswer : AggregateRoot<Guid>
+{
+    private SetupAnswer()
+    {
+    }
+
+    public Guid RunId { get; private set; }
+
+    public int Version { get; private set; }
+
+    public string Answers { get; private set; } = "{}";
+
+    public static SetupAnswer For(Guid runId, int version, string answers) => new() { Id = Guid.CreateVersion7(), RunId = runId, Version = version, Answers = answers };
+}
+
+/// <summary>One value of a run's draft: its table and code, where it came from (AIA-084), and the reviewer's decision on it.</summary>
+public sealed class SetupItem : AggregateRoot<Guid>
+{
+    private SetupItem()
+    {
+    }
+
+    public Guid RunId { get; private set; }
+
+    public string TableName { get; private set; } = "";
+
+    public string RowCode { get; private set; } = "";
+
+    public string Class { get; private set; } = "";
+
+    public bool Regulated { get; private set; }
+
+    public string Flag { get; private set; } = ItemFlags.Pack;
+
+    /// <summary>The value as JSON; null when Missing.</summary>
+    public string? Values { get; private set; }
+
+    public Guid? SourcePackId { get; private set; }
+
+    public int? SourceLineNo { get; private set; }
+
+    public string? MissingReason { get; private set; }
+
+    public string? Decision { get; private set; }
+
+    public string? DecidedBy { get; private set; }
+
+    public DateTimeOffset? DecidedAt { get; private set; }
+
+    public string? DecisionNote { get; private set; }
+
+    /// <summary>The answers version that last drafted it.</summary>
+    public int AnswersVersion { get; private set; }
+
+    public static SetupItem Draft(Guid runId, int answersVersion, string table, string code, string @class, bool regulated, string flag, string? values, Guid? sourcePackId,
+        int? sourceLineNo, string? missingReason) => new()
+        {
+            Id = Guid.CreateVersion7(), RunId = runId, AnswersVersion = answersVersion, TableName = table, RowCode = code, Class = @class, Regulated = regulated, Flag = flag,
+            Values = values, SourcePackId = sourcePackId, SourceLineNo = sourceLineNo, MissingReason = missingReason,
+        };
+
+    /// <summary>Whether a new draft of the same row would be this one (AIA-081: changing an answer re-drafts only what it affects).</summary>
+    public bool Same(string flag, string? values, Guid? sourcePackId, int? sourceLineNo) =>
+        Flag == flag && Values == values && SourcePackId == sourcePackId && SourceLineNo == sourceLineNo;
+
+    /// <summary>A re-draft of the row: its decision goes, as the value it decided on did.</summary>
+    public void Redraft(int answersVersion, string @class, bool regulated, string flag, string? values, Guid? sourcePackId, int? sourceLineNo, string? missingReason)
+    {
+        (AnswersVersion, Class, Regulated, Flag, Values, SourcePackId, SourceLineNo, MissingReason) = (answersVersion, @class, regulated, flag, values, sourcePackId, sourceLineNo, missingReason);
+        (Decision, DecidedBy, DecidedAt, DecisionNote) = (null, null, null, null);
+        MarkChanged();
+    }
+
+    /// <summary>The reviewer's decision (§5A.5). A Missing value can't be accepted: there is nothing to accept.</summary>
+    public Result Decide(string decision, string? note, string by, DateTimeOffset at)
+    {
+        if (decision is not (ItemDecisions.Accepted or ItemDecisions.Rejected))
+        {
+            return Error.Validation(ErrorCodes.ValidationFailed, "decision is ACCEPTED or REJECTED.");
+        }
+
+        if (decision == ItemDecisions.Accepted && Flag == ItemFlags.Missing)
+        {
+            return Error.Validation(PackErrorCodes.NotApproved, MissingReason == MissingReasons.NotApproved
+                ? "A regulated value from an overlay not approved for this tenant can't be accepted."
+                : "A value the pack leaves empty can't be accepted.");
+        }
+
+        (Decision, DecisionNote, DecidedBy, DecidedAt) = (decision, string.IsNullOrWhiteSpace(note) ? null : note.Trim(), by, at);
+        MarkChanged();
+        return Result.Success();
+    }
+}
