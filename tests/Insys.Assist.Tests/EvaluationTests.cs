@@ -57,17 +57,48 @@ public sealed class EvaluationTests
     public void AnExplanation_MayNameAStepByItsNumber_ButAStepNumberIsNeverAnAmount_AIA033a()
     {
         var source = ExplanationFacts.Premium(Motor).Values();
-        NumberVerifier.Verify("Line 2 applies the rate for group G3, line 3 adds the fee and line 4 rounds the premium to ZAR 800.00.", source, strictCurrency: true)
+        var steps = ExplanationFacts.Premium(Motor).StepNumbers;
+        NumberVerifier.Verify("Line 2 applies the rate for group G3, line 3 adds the fee and line 4 rounds the premium to ZAR 800.00.", source, strictCurrency: true, steps)
             .Rejected.ShouldBeEmpty();
-        NumberVerifier.Verify("Line 2 adds ZAR 2.00.", source, strictCurrency: true).Rejected.ShouldBe(["ZAR 2.00"]);
-        NumberVerifier.Verify("Line 5 adds nothing.", source, strictCurrency: true).Rejected.ShouldBe(["5"], "there is no fifth step");
+        NumberVerifier.Verify("Lines 2 and 3 set the premium, lines 1, 2 and 3 come first, steps 2 to 4 follow and step 4 rounds it.", source, strictCurrency: true, steps)
+            .Rejected.ShouldBeEmpty();
+        NumberVerifier.Verify("Lines 2 and 7 set the premium.", source, strictCurrency: true, steps).Rejected.ShouldBe(["2", "7"], "a list with a step that isn't there is no step list");
+        NumberVerifier.Verify("Line 2 adds ZAR 2.00.", source, strictCurrency: true, steps).Rejected.ShouldBe(["ZAR 2.00"]);
+        NumberVerifier.Verify("Line 5 adds nothing.", source, strictCurrency: true, steps).Rejected.ShouldBe(["5"], "there is no fifth step");
+    }
+
+    [Theory]
+    [InlineData("Line 2 multiplies the base by a factor of 3.", "3")]
+    [InlineData("The plan loads the premium by 2.", "2")]
+    [InlineData("Line 3 applies a loading of .50.", ".50")]
+    [InlineData("Line 3 applies a loading of ,50.", ",50")]
+    [InlineData("Line 3 applies a loading of '.5'.", ".5")]
+    [InlineData("Line 2.5 applies the table.", "2.5")]
+    public void AStepNumber_PassesOnlyRightAfterLineOrStep_AndAPointOrCommaIsNeverTrimmedOffAFigure_AIA033a(string output, string rejected) =>
+        NumberVerifier.Verify(output, ExplanationFacts.Premium(Motor).Values(), strictCurrency: true, ExplanationFacts.Premium(Motor).StepNumbers).Rejected.ShouldContain(rejected);
+
+    [Fact]
+    public void SparseLineNumbers_AreTheOnlyStepsThatPass()
+    {
+        var sparse = Motor with { Lines = [new(10, "TABLE", "OFT-MOT-BASE", "G3", 750m), new(20, "FEE", "POLICY_FEE", "50", 800m)] };
+        var facts = ExplanationFacts.Premium(sparse);
+        NumberVerifier.Verify("Line 10 applies the table and line 20 adds the fee.", facts.Values(), strictCurrency: true, facts.StepNumbers).Rejected.ShouldBeEmpty();
+        NumberVerifier.Verify("Line 15 adds nothing.", facts.Values(), strictCurrency: true, facts.StepNumbers).Rejected.ShouldBe(["15"]);
+    }
+
+    [Fact]
+    public async Task ACallThatEndedUnavailableButWasBilled_IsStillMeteredAndCosted_AIA073_AIA075()
+    {
+        var exchange = await AssistExchange.Send(new Refusing(), "claude-opus-5-5", "premium-v1", "Explain.", ExplanationFacts.Premium(Motor), CancellationToken.None);
+        (exchange.Status, exchange.InputTokens, exchange.OutputTokens).ShouldBe((AssistRunStatuses.Unavailable, 120L, 8192L));
+        Options().CostOf("claude-opus-5-5", exchange.InputTokens, exchange.OutputTokens).ShouldBe((0.164320m, "USD"));
     }
 
     [Fact]
     public void ARefusalHasNoSteps_SoNoBareNumberPassesOnIt()
     {
         var facts = ExplanationFacts.Refusal(new("CURRENCY_MISMATCH", 422, "x", false, "", "The currencies differ.", "Use one currency."), 0);
-        NumberVerifier.Verify("Step 2 is to use one currency.", facts.Values(), strictCurrency: true).Rejected.ShouldBe(["2"]);
+        NumberVerifier.Verify("Step 2 is to use one currency.", facts.Values(), strictCurrency: true, facts.StepNumbers).Rejected.ShouldBe(["2"]);
     }
 
     [Fact]
@@ -156,5 +187,12 @@ public sealed class EvaluationTests
                 ? Task.FromResult(new AiModelResponse(text, 120, 30, "claude-opus-5-5", request.PromptVersion == "premium-v1" ? null : "global"))
                 : throw new AiModelUnavailableException("Down.");
         }
+    }
+
+    /// <summary>A provider that was billed for a call it couldn't finish: an answer cut short at the token limit.</summary>
+    private sealed class Refusing : IAiModelProvider
+    {
+        public Task<AiModelResponse> Complete(AiModelRequest request, CancellationToken cancellationToken) =>
+            throw new AiModelUnavailableException("Cut short.", 120, 8192);
     }
 }

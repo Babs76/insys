@@ -106,7 +106,7 @@ public static class ExplanationFacts
         }
 
         // The lines are steps an explanation walks through by number (AIA-033a).
-        return facts.Amount("premium", calculation.Premium, calculation.Currency).Steps(calculation.Lines.Count == 0 ? 0 : calculation.Lines.Max(l => l.LineNo));
+        return facts.Amount("premium", calculation.Premium, calculation.Currency).Steps(calculation.Lines.Select(l => l.LineNo));
     }
 }
 

@@ -51,6 +51,8 @@ concurrency:
 jobs:
   evaluate:
     runs-on: ubuntu-latest
+    # From main only: a branch's code never runs with the key. Ade can also limit the Environment to main in its settings.
+    if: github.ref == 'refs/heads/main'
     environment: assist-eval
     timeout-minutes: 60
     steps:

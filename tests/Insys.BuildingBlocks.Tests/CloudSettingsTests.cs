@@ -24,6 +24,7 @@
  * UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
  * ============================================================================
  */
+using Insys.BuildingBlocks.Application.Ai;
 using Insys.BuildingBlocks.Application.Security;
 using Insys.BuildingBlocks.Application.Storage;
 using Insys.BuildingBlocks.Cloud;
@@ -121,5 +122,15 @@ public sealed class CloudSettingsTests
             CloudSettings.KmsProvider(configuration);
             CloudSettings.ObjectStoreProvider(configuration);
         }).Message.ShouldContain(message);
+    }
+
+    [Fact]
+    public void AssistsModel_IsClaudeOnlyWhenTheDeploymentSaysSo_AndThenNeedsItsKey_AIA053()
+    {
+        Registered(Config()).Any(d => d.ServiceType == typeof(IAiModelProvider)).ShouldBeFalse("no model: the Assist module's default, none, applies");
+        Registered(Config(("Assist:Provider", "none"))).Any(d => d.ServiceType == typeof(IAiModelProvider)).ShouldBeFalse();
+        using var provider = Registered(Config(("Assist:Provider", "claude"), ("Assist:Claude:ApiKey", "test-key-not-real"))).BuildServiceProvider();
+        provider.GetRequiredService<IAiModelProvider>().ShouldBeOfType<ClaudeModelProvider>();
+        Should.Throw<InvalidOperationException>(() => Registered(Config(("Assist:Provider", "claude")))).Message.ShouldContain("Assist:Claude:ApiKey");
     }
 }

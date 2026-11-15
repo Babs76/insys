@@ -53,7 +53,7 @@ public sealed class ClaudeModelProviderTests
         using var sent = JsonDocument.Parse(api.Requests.Single());
         var body = sent.RootElement;
         body.GetProperty("model").GetString().ShouldBe("claude-opus-5-5");
-        body.GetProperty("max_tokens").GetInt32().ShouldBe(1024);
+        body.GetProperty("max_tokens").GetInt32().ShouldBe(8192, "room for the reasoning the model always does");
         SystemText(body).ShouldBe(Instructions);
         var messages = body.GetProperty("messages");
         messages.GetArrayLength().ShouldBe(1);
@@ -94,7 +94,8 @@ public sealed class ClaudeModelProviderTests
     public async Task ARefusal_OrAnAnswerCutShort_IsUnavailable_SoThePlainBreakdownIsShown_P8(string stopReason)
     {
         await using var api = new FakeMessagesApi(Answer(stopReason, """{"input_tokens":10,"output_tokens":5}"""));
-        await Should.ThrowAsync<AiModelUnavailableException>(() => Provider(api.Url).Complete(new AiModelRequest("claude-opus-5-5", "refusal-v1", Instructions, Data), CancellationToken.None));
+        var error = await Should.ThrowAsync<AiModelUnavailableException>(() => Provider(api.Url).Complete(new AiModelRequest("claude-opus-5-5", "refusal-v1", Instructions, Data), CancellationToken.None));
+        (error.InputTokens, error.OutputTokens).ShouldBe((10L, 5L), "a call that was billed is still metered (AIA-073)");
     }
 
     [Fact]
@@ -104,7 +105,8 @@ public sealed class ClaudeModelProviderTests
         var error = await Should.ThrowAsync<AiModelUnavailableException>(() =>
             Provider(api.Url).Complete(new AiModelRequest("claude-opus-5-5", "refusal-v1", Instructions, Data), CancellationToken.None));
         error.Message.ShouldNotContain("CURRENCY_MISMATCH");
-        api.Requests.Count.ShouldBe(1, "a request refused as invalid isn't retried");
+        error.InnerException.ShouldBeNull("the API's own error can echo the request");
+        api.Requests.Count.ShouldBe(1, "no call is retried: AI-2 answers in 10 seconds (AIA-070)");
     }
 
     [Fact]

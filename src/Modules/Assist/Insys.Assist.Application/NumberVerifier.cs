@@ -62,8 +62,16 @@ public static partial class NumberVerifier
 
     /// <param name="strictCurrency">For a source that states every amount's currency (AI-2's facts, addendum §5.1): a stated currency then matches only an amount
     /// stated in that currency, never a plain number, so "USD 100000" doesn't pass on a plain 100000.</param>
-    public static NumberCheck Verify(string output, string source, bool strictCurrency = false)
+    /// <param name="steps">The step numbers the source has ("line 2"): named right after "line" or "step", they aren't figures (AIA-033a).</param>
+    public static NumberCheck Verify(string output, string source, bool strictCurrency = false, IReadOnlySet<int>? steps = null)
     {
+        if (steps is { Count: > 0 })
+        {
+            // "line 2", "lines 2 and 3", "steps 2 to 4": every number named must be a step, or none of them is taken as one.
+            output = StepReference().Replace(output, m =>
+                m.Groups["number"].Captures.All(c => int.TryParse(c.Value, NumberStyles.None, CultureInfo.InvariantCulture, out var n) && steps.Contains(n)) ? m.Groups["word"].Value : m.Value);
+        }
+
         var (inSource, sourceRest) = Read(source);
         var sourceTokens = Tokens().Matches(source).Select(m => Bare(m.Value)).ToHashSet(StringComparer.Ordinal);
         var (inOutput, rest) = Read(output);
@@ -76,9 +84,12 @@ public static partial class NumberVerifier
         return new NumberCheck(rejected);
     }
 
-    private static readonly char[] Punctuation = [',', '.', ';', ':', '!', '?', '(', ')', '[', ']', '"', '\'', '\u2018', '\u2019', '\u201C', '\u201D'];
+    private static readonly char[] After = [',', '.', ';', ':', '!', '?', ')', ']', '"', '\'', '\u2019', '\u201D'];
 
-    private static string Bare(string token) => token.Trim(Punctuation);
+    private static readonly char[] Before = ['(', '[', '"', '\'', '\u2018', '\u201C'];
+
+    /// <summary>A word without the punctuation around it: what follows it, and quotes or brackets before it. Never a leading point or comma, so ".50" stays ".50".</summary>
+    private static string Bare(string token) => token.TrimEnd(After).TrimStart(Before);
 
     private static bool Same(Number output, Number source, bool strictCurrency)
     {
@@ -172,6 +183,9 @@ public static partial class NumberVerifier
 
     [GeneratedRegex(@"[^\s]+")]
     private static partial Regex Tokens();
+
+    [GeneratedRegex(@"\b(?<word>(?:line|step)s?)\s+(?<number>\d{1,3})(?:(?:\s*,\s*|\s+and\s+|\s+to\s+|\s*-\s*)(?<number>\d{1,3}))*\b(?![.,]\d)", RegexOptions.IgnoreCase)]
+    private static partial Regex StepReference();
 
     /// <summary>"One" is ordinary English; every other number word and magnitude says a figure the verifier can't compare.</summary>
     [GeneratedRegex(@"\b(two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|billion|trillion|half|quarter|double|twice|triple)\b", RegexOptions.IgnoreCase)]

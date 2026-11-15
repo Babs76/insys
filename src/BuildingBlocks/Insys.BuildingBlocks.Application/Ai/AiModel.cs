@@ -54,5 +54,13 @@ public sealed class NoAiModelProvider : IAiModelProvider
         throw new AiModelUnavailableException("No AI model is connected to this deployment.");
 }
 
-/// <summary>A provider's failure: the caller gets ASSIST_UNAVAILABLE, and INSYS carries on (P8). Its message never carries record data.</summary>
-public sealed class AiModelUnavailableException(string message, Exception? inner = null) : Exception(message, inner);
+/// <summary>
+/// A provider's failure: the caller gets ASSIST_UNAVAILABLE, and INSYS carries on (P8). It never carries record data or the provider's own error, whose text can
+/// echo the request (AIA-051); only what the call used, when the provider says, so a refusal or an answer cut short is still metered (AIA-073).
+/// </summary>
+public sealed class AiModelUnavailableException(string message, long inputTokens = 0, long outputTokens = 0) : Exception(message)
+{
+    public long InputTokens { get; } = inputTokens;
+
+    public long OutputTokens { get; } = outputTokens;
+}

@@ -42,7 +42,7 @@ public sealed partial class AllowedFacts
 {
     private readonly List<AssistFact> _facts = [];
 
-    private int _steps;
+    private readonly SortedSet<int> _steps = [];
 
     public IReadOnlyList<AssistFact> Items => _facts;
 
@@ -64,23 +64,23 @@ public sealed partial class AllowedFacts
     internal AllowedFacts Wording(string name, string text) => Add(name, text);
 
     /// <summary>
-    /// The facts are numbered steps 1 to <paramref name="count"/> ("line 2"): an explanation may name a step by its number (AIA-033a). They count as plain
-    /// numbers only, so "line 2" passes while "ZAR 2" still needs an amount of ZAR 2 (addendum §5.1).
+    /// The facts' numbered steps ("line 2"): an explanation may name a step by its number, right after "line" or "step" and nowhere else (AIA-033a), so
+    /// "line 2" passes while "a factor of 2" and "ZAR 2.00" still need a fact with that value (addendum §5.1).
     /// </summary>
-    public AllowedFacts Steps(int count)
+    public AllowedFacts Steps(IEnumerable<int> numbers)
     {
-        _steps = Math.Max(_steps, count);
+        _steps.UnionWith(numbers.Where(n => n > 0));
         return this;
     }
+
+    /// <summary>The step numbers an explanation may name.</summary>
+    public IReadOnlySet<int> StepNumbers => _steps;
 
     /// <summary>The facts as the model receives them, one per line.</summary>
     public string Render() => string.Join("\n", _facts.Select(f => $"{f.Name}: {f.Value}"));
 
-    /// <summary>
-    /// The facts' values alone, and the step numbers: what the verifier compares numbers against, as a number in a fact's name ("line 2 amount") isn't a figure
-    /// unless it is a step's number.
-    /// </summary>
-    public string Values() => string.Join("\n", _facts.Select(f => f.Value).Concat(Enumerable.Range(1, _steps).Select(n => n.ToString(CultureInfo.InvariantCulture))));
+    /// <summary>The facts' values alone: what the verifier compares numbers against, as a number in a fact's name ("line 2 amount") isn't a figure.</summary>
+    public string Values() => string.Join("\n", _facts.Select(f => f.Value));
 
     private AllowedFacts Add(string name, string value)
     {

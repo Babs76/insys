@@ -85,7 +85,9 @@ public sealed class AssistModelPrice
 }
 
 /// <summary>What one exchange with the model gave: the payload sent, the answer (null when the provider failed), the numbers rejected and the status.</summary>
-public sealed record AssistExchangeResult(MinimisedPayload Sent, AiModelResponse? Response, IReadOnlyList<string> Rejected, string Status, TimeSpan Elapsed);
+/// <param name="InputTokens">What the call used, from the answer, or from the provider's failure when it says (a refusal or an answer cut short is still billed).</param>
+public sealed record AssistExchangeResult(MinimisedPayload Sent, AiModelResponse? Response, IReadOnlyList<string> Rejected, string Status, TimeSpan Elapsed, long InputTokens = 0,
+    long OutputTokens = 0);
 
 /// <summary>
 /// The exchange itself, with nothing read or written (AIA-072): the minimiser, the call and the verifier. The runner and the evaluation (batch 7.3) both use it, so
@@ -100,9 +102,15 @@ public static class AssistExchange
         var minimised = Minimiser.Minimise(facts.Render());
         var timer = System.Diagnostics.Stopwatch.StartNew();
         AiModelResponse? response = null;
+        long failedInput = 0, failedOutput = 0;
         try
         {
             response = await provider.Complete(new AiModelRequest(model, promptVersion, instructions, PromptData.Delimit(minimised.Text)), cancellationToken);
+        }
+        catch (AiModelUnavailableException ex)
+        {
+            // UNAVAILABLE (P8), with what the call used when the provider says, so the cap and the cost still count it (AIA-073, AIA-075).
+            (failedInput, failedOutput) = (ex.InputTokens, ex.OutputTokens);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -111,9 +119,9 @@ public static class AssistExchange
 
         timer.Stop();
         // Against the facts' values only, every amount with its currency, so a stated currency must match (addendum §5.1).
-        var rejected = response is null ? [] : NumberVerifier.Verify(response.Text, Minimiser.Minimise(facts.Values()).Text, strictCurrency: true).Rejected;
+        var rejected = response is null ? [] : NumberVerifier.Verify(response.Text, Minimiser.Minimise(facts.Values()).Text, strictCurrency: true, facts.StepNumbers).Rejected;
         var status = response is null ? AssistRunStatuses.Unavailable : rejected.Count > 0 ? AssistRunStatuses.Rejected : AssistRunStatuses.Verified;
-        return new AssistExchangeResult(minimised, response, rejected, status, timer.Elapsed);
+        return new AssistExchangeResult(minimised, response, rejected, status, timer.Elapsed, response?.InputTokens ?? failedInput, response?.OutputTokens ?? failedOutput);
     }
 }
 
@@ -219,8 +227,8 @@ public sealed class AssistRunner(IDispatcher dispatcher, IAiModelProvider provid
         var model = options.Value.ModelVersion;
         var exchange = await AssistExchange.Send(provider, model, request.PromptVersion, request.Instructions, request.Facts, cancellationToken);
         var response = exchange.Response;
-        var cost = response is null ? null : options.Value.CostOf(model, response.InputTokens, response.OutputTokens);
-        var run = AssistRun.Finish(request.Feature, started, clock.UtcNow, model, request.PromptVersion, exchange.Status, response?.InputTokens ?? 0, response?.OutputTokens ?? 0,
+        var cost = exchange.InputTokens + exchange.OutputTokens == 0 ? null : options.Value.CostOf(model, exchange.InputTokens, exchange.OutputTokens);
+        var run = AssistRun.Finish(request.Feature, started, clock.UtcNow, model, request.PromptVersion, exchange.Status, exchange.InputTokens, exchange.OutputTokens,
             request.CorrelationId, response?.ServedModel, response?.InferenceRegion, cost?.Amount, cost?.Currency);
         var payload = AssistRunPayload.For(run.Id, exchange.Sent.Text, response?.Text, JsonSerializer.Serialize(exchange.Sent.Masked));
         var status = exchange.Status;

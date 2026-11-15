@@ -101,8 +101,8 @@ public sealed class EvaluationRunner(IAiModelProvider provider, AssistOptions op
     {
         var exchange = await AssistExchange.Send(provider, options.ModelVersion, template.Version, template.Text, facts, cancellationToken);
         var response = exchange.Response;
-        var cost = response is null ? null : options.CostOf(options.ModelVersion, response.InputTokens, response.OutputTokens);
-        return new CaseResult(id, kind, exchange.Status, response?.Text, exchange.Rejected, response?.InputTokens ?? 0, response?.OutputTokens ?? 0,
+        var cost = exchange.InputTokens + exchange.OutputTokens == 0 ? null : options.CostOf(options.ModelVersion, exchange.InputTokens, exchange.OutputTokens);
+        return new CaseResult(id, kind, exchange.Status, response?.Text, exchange.Rejected, exchange.InputTokens, exchange.OutputTokens,
             exchange.Elapsed.TotalSeconds, cost?.Amount, response?.ServedModel, response?.InferenceRegion, exchange.Sent.Text);
     }
 }
@@ -160,9 +160,10 @@ public static class EvaluationReport
     private static string Row(string name, IReadOnlyList<CaseResult> rows, string? currency)
     {
         var answered = rows.Where(r => r.Status != AssistRunStatuses.Unavailable).ToList();
-        var costs = answered.Where(r => r.Cost is not null).Select(r => r.Cost!.Value).ToList();
+        // Cost per explanation: what every call cost, those that ended unavailable included, over the explanations given.
+        var costs = rows.Where(r => r.Cost is not null).Select(r => r.Cost!.Value).ToList();
         string Mean(IEnumerable<long> values) => answered.Count == 0 ? "-" : values.Average().ToString("0", CultureInfo.InvariantCulture);
-        var cost = costs.Count == 0 || currency is null ? "-" : $"{currency} {(costs.Sum() / costs.Count).ToString("0.000000", CultureInfo.InvariantCulture)}";
+        var cost = costs.Count == 0 || currency is null || answered.Count == 0 ? "-" : $"{currency} {(costs.Sum() / answered.Count).ToString("0.000000", CultureInfo.InvariantCulture)}";
         string Seconds(double? value) => value is { } v ? v.ToString("0.00", CultureInfo.InvariantCulture) : "-";
         return string.Create(CultureInfo.InvariantCulture,
             $"| {name} | {rows.Count} | {rows.Count(r => r.Status == AssistRunStatuses.Verified)} | {rows.Count(r => r.Status == AssistRunStatuses.Rejected)} | {rows.Count(r => r.Status == AssistRunStatuses.Unavailable)} | {Mean(answered.Select(r => r.InputTokens))} | {Mean(answered.Select(r => r.OutputTokens))} | {cost} | {Seconds(Percentile(answered.Select(r => r.Seconds), 50))} | {Seconds(Percentile(answered.Select(r => r.Seconds), 95))} |");
