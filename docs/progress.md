@@ -58,6 +58,8 @@
 | 10 Waves 3 to 6 | Later batches are recorded in `docs/reports/`. Wave 6 was finished by 1 November 2026, with five functions deferred (F063, F079, F089–F091); the current position is in `docs/traceability/functional-coverage.md` | Done (UTC+14 sweep at `91cb494`: 605 of 607, both failures passed on rerun) |
 | INSYS Preview | One Hetzner CPX42 in fsn1 with k3s and the chart (`docs/plans/insys-preview.md`), at 2.31.133.22. The API reads Keycloak in the cluster (7cb08d0); staging certificates on both hosts after Traefik got the TLS-ALPN-01 challenge (a119091, `upgrade` 41855917495); the console with the banner (d0460bf) | `rotate-passwords` failed before the seed (41929744851); fixed in e0ee1b4; `rotate-passwords` 41937659695 waits for Ade. Then the accounts, the console's upgrade, production certificates, the restore rehearsal and the walk-through. See the handover |
 | Nigeria blockers | Appeal routes as static data, with the preferred lines (V0126). Reactivating a tenant that names the simulator is refused where it is refused | Appeal routes done; retention defaults, time zone default and age of majority not started |
+| Wave 7 batch 7.1 | AI Assist's foundations: the Assist module, settings with jurisdiction and legal basis, feature and functions, the model port with the test stub only, minimiser, number verifier, runs, metering and caps, Phase 1's gate | Merged 2 November 2026 |
+| Wave 7 batch 7.2 | AI-2: refusal and premium explanations from structured fields only (D-15), amounts with their currency, no transaction across the model call (AIA-072), cache, feedback, the plain facts as fallback; the error catalogue's wording for 69 of 260 codes | Branch `wave7-2`, 15 November 2026 |
 
 ## Phase 1 review items
 

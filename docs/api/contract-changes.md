@@ -3,6 +3,17 @@
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
 
+## AI Assist: AI-2's explanations (Wave 7 batch 7.2, 15 November 2026)
+All three routes are off unless the tenant is entitled to `AI_ASSIST` and has switched explanations on (`PUT /assist/settings`); staff only (D-3).
+- **`POST /assist/explanations/refusals` (new, `ASSIST_EXPLAIN_REFUSAL`, Idempotency-Key):** `code` (an error catalogue code), `fields` (the names of the fields in error, at most 30; their messages aren't sent), `recordType`, `recordId` and `correlationId`, for the basis and the audit only (AIA-039). An unknown code is 422 `VALIDATION_FAILED`.
+- **`POST /assist/explanations/premiums` (new, `ASSIST_EXPLAIN_PREMIUM`, Idempotency-Key):** `calculationId`, `correlationId`. The caller must also be able to read premium calculations (`premium_calculation.read`, function `RATING_CALCULATIONS`), or 403 `FUNCTION_NOT_GRANTED`; an unknown calculation is 404.
+- **Both return `ExplanationView`:** `id`, `kind` (`REFUSAL` or `PREMIUM`), `outcome`, `text`, `label` (always "AI-generated explanation of a recorded INSYS decision", AIA-034), `basedOn` (`kind`, `reference`, `href` for a calculation, `correlationId`), `facts` (the plain structured facts, `name` and `value`), `reused` and `rejectedNumbers`.
+  - `outcome` `EXPLAINED`: show `text` with the label and the `basedOn` link.
+  - `REJECTED` (the verifier found a number not in the facts, AIA-033), `UNAVAILABLE` (no model answered, P8) or `NO_WORDING` (the code has no catalogue wording yet, so no call was made): `text` is null; show `facts` as the plain refusal or breakdown.
+  - Errors: `ASSIST_NOT_ENABLED`, `ASSIST_RESIDENCY_NOT_SET`, `ASSIST_CAP_REACHED` (only when a new call is needed: a reused explanation still shows).
+- **`POST /assist/explanations/{id}/feedback` (new, signed-in user, Idempotency-Key):** `helpful`, `reason` (`WRONG`, `UNCLEAR`, `INCOMPLETE` or `OTHER`, needed when not helpful), `comment` (at most 500 characters, never sent to a model). 201. Only the user an explanation was shown to marks it; anyone else gets 404 (AIA-037).
+
+
 ## The environment and its stubs, for the INSYS Preview (3 November 2026)
 - **`GET /platform/environment` (new):** any signed-in user, staff or portal. `environment` (`ASPNETCORE_ENVIRONMENT`, such as `Preview`), `nonProduction` (true everywhere but Production) and `stubs`: each integration a stub answers, with its `area` (`EMAIL`, `SMS`, `PUSH`, `WHATSAPP`, `PAYMENTS`, `SCREENING`, `IDENTITY_VERIFICATION`, `REINSURER`, `REGULATOR`, `GENERAL_LEDGER`) and a sentence saying what it does instead. For the console's permanent banner and its list of stubs (`docs/plans/insys-preview.md`); the front end's part is a request.
 

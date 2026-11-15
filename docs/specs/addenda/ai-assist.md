@@ -28,6 +28,7 @@ The SRS's principles P1 to P8 and its requirements AIA-001 to AIA-091 stand as w
 | D-8 | AI-3's build order | **Decided, 1 Nov:** AI-3 is split: 7.1 to 7.3, then 7.6 and 7.7, then 7.4 and 7.5, then 7.8 (§6) |
 | D-15 | Free text and prompts (AIA-051) | **Decided, 2 Nov:** no free text goes to a model until real name detection exists. AI-2's prompts are built only from allowed structured fields: the code, the catalogue entry, field errors, the record's permitted fields, and the rating calculation's recorded inputs and lines. Any free-text field is excluded, not masked (§5.4) |
 | D-16 | Documents for AI-1 and AI-3 | **Open, for Ade, needed before 7.4 and 7.8.** Recommended: a document is allowed when the uploader confirms it holds no customer personal data, with the confirmation recorded on the run, after the malware scan, and with the minimiser as a backstop. For AI-3's tenant documents, the template asks for role titles, not people's names |
+| D-17 | AIA-072 and the model call | **Decided in batch 7.2 (15 Nov), from the 7.1 review:** no transaction is open while the model answers. A run is a short read (settings, cap, cache), the call with nothing held, then a short command recording the run and the explanation; `RunAssist` is gone. The cost: two calls in flight together can pass the cap by what they use, as before |
 | D-10 | Who approves each country overlay | **Decided, 1 Nov:** two keys, a local compliance partner reviewing and a named OpenFactor compliance lead approving in INSYS; each insurer's compliance officer confirms its own tenant's values. Fallback without a partner: the first customer's compliance team approves for its own tenant only (§5.3) |
 
 **What D-1 means for AI-2:** Claude runs globally or in the US, not in South Africa. AI-2 can be built first, but for each jurisdiction it waits to be switched on until compliance confirms the legal basis (POPIA s72 in South Africa) and the contract sets zero retention and no training (AIA-052). The route is a per-deployment setting of the adapter.
@@ -132,6 +133,10 @@ No pattern finds a name it wasn't told, so masking can't meet AIA-051 for free t
 - removes `UntrustedText` and `MinimiseFreeText` from the runner, which were built in 7.1 before this decision.
 
 The minimiser stays as a second layer. AI-1 and AI-3 read documents, so D-16 must be decided before their batches.
+
+**Built in batch 7.2 (15 November):** `AllowedFacts` takes only codes, amounts with their currency, numbers, yes or no, dates, field names and the error catalogue's own wording; any other value is left out and counted, never masked and sent. The screen's field-error messages aren't sent, only the fields' names: they are text from the client (AIA-039). Prompt templates are INSYS's own words, never interpolated (AIA-061); 7.3 moves them into configuration.
+
+**Not yet in 7.2 (OQ-166, OQ-167):** a refusal is explained from its code, the catalogue's wording and the fields' names; the record's state as the user may read it (AIA-039) waits on read hooks per record type. Of 260 error codes, 69 have catalogue wording; the rest are shown plain, with no call.
 
 ### 5.2 AI-3 and the starter packs
 - **Format:** [`docs/specs/starter-packs`](../starter-packs/README.md) has the structure, drafted: base, country and line overlays. It needs a `tailorable` mark per value (AIA-082). In the build, packs become versioned static data (`starter_pack`, `starter_pack_value`).

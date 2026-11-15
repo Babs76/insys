@@ -330,6 +330,29 @@ All on `wave7-1-fixes`, as one head, as the review's fixes touch every slice. Ch
 - Over-masking fails safe but costs use: amounts of 8 digits or more are masked, and so explanations of them fall back to the plain breakdown. The verifier's space grouping can join `Step 1 240` into 1240.
 - `run_payload` can still be updated and deleted by the module role; a retention job should have its own path.
 
+### Wave 7, batch 7.2 (15 November 2026, branch `wave7-2`)
+**Built:** AI-2's refusal and premium explanations (`docs/api/contract-changes.md`), with the three must-dos of the 7.1 review:
+- **Structured fields only (D-15):** `AllowedFacts`; `UntrustedText` and `MinimiseFreeText` removed; the injection gate test moved to what's left (a code or a field's name), and the prompt's instructions are always the template's own words.
+- **The currency beside every amount** sent and checked: a stated `USD 3050` against `ZAR 3050.00` is rejected (`AssistExplanationTests`).
+- **AIA-072, decided (addendum D-17):** no transaction is open while the model answers. Shown by a test that counts the module role's idle-in-transaction sessions from inside the model call: none.
+
+Also: the cache (AIA-036), feedback by the user shown the explanation (AIA-037), the label and basis (AIA-034), the plain facts when no text can be shown (AIA-033, P8), Rating's `IRecordedCalculations` contract, and the error catalogue's `Means` and `Remedy` for 69 of 260 codes. **Open:** OQ-166 (the record's state for refusals, AIA-039) and OQ-167 (the rest of the wording).
+
+### Wave 7: the plan to 7.8, in the D-8 order (15 November 2026)
+**What it's based on:** 7.1 was estimated at 8 to 10 days and took about half a day (its commits run from 09:54 to 12:23 on 2 November, review fixes included); 7.2 (6 to 8 days) was built in one session on 15 November. One engineer here is an AI session, so build time is far below the estimates, and the dates are set by CI (about 45 minutes a run), review and what waits on Ade. Building is planned at about a quarter of the estimate, rounded up, which is cautious against two batches. **Dates are working days and assume each item marked "Ade" arrives by the date shown; a late one moves that batch, not the build of the others.**
+
+| Batch | What | Build | Waits on Ade |
+|---|---|---|---|
+| 7.2 | AI-2 refusals and premiums | 15 to 16 Nov: review, fixes, CI, report | Merge approval |
+| 7.3 | Claude adapter, prompt templates as configuration, the AI-2 evaluation set (about 100 refusals and calculations from the sample tenant), its run, cost per explanation (D-5) | 17 to 19 Nov | **By 17 Nov:** the API account, its key in GitHub (set by Ade), and the region (D-1, AIA-050). A domain expert's review of the evaluation's results (SRS §5.3), about half a day. The provider contract's zero retention and no training (AIA-052) before any tenant switches AI-2 on, not before the evaluation on sample data |
+| 7.6 | AI-3 packs, versions, overlay approval (§5.3), questionnaire, deterministic assembly, loading a pack | 20 to 25 Nov | The first overlay's two keys (D-10): the partner's review and the compliance lead's approval, for 3A to be usable. Not needed to build |
+| 7.7 | `SETUP` change set, completeness check, activation guard (option C) | 26 Nov to 1 Dec | None |
+| 7.4 | Scanner port and quarantine (ClamAV as a separate service), AI-1 extraction and drafts, the job acting for the user | 2 to 8 Dec | **D-16 by 2 Dec.** The security review of the job acting for the user before it merges (addendum §4) |
+| 7.5 | AI-1 review, provenance, simulation cases, evaluation | 9 to 11 Dec | **D-7's documents by 9 Dec:** one line's real product documents, with the insurer's written permission |
+| 7.8 | AI-3 tailoring and document mapping, evaluation | 14 to 16 Dec | D-16; sample tenant documents for AI-3's evaluation |
+
+If every item arrives on time, the build ends about 16 December; each phase's exit still needs its evaluation targets met (addendum §6).
+
 ### Open items
 - **The front end's BR-144, BR-145 and BR-140 (14 November): open questions OQ-163 to OQ-165** in `docs/decisions/open-questions.md`. OQ-163: a partly paid Life claim recovers nothing until fully paid (BR-144, accepted as specified; Ade to decide whether each payment should recover). OQ-164: a rated premium is annual in General and per instalment in Life; for Ade and the actuary, with a proposal to state the basis on the rating result and test case. OQ-165: the proposed `IPortalRoles` contract so readiness names portal roles no portal channel covers (BR-140); not built.
 - **Keycloak's email (Ade, 6 November): Google Workspace's SMTP relay, not Mailpit.** `preview.sh` sets the realm's SMTP server on every `provision`, `reset` and `upgrade` (`deploy/keycloak/realm-smtp.sh`: smtp-relay.gmail.com, 587, STARTTLS, from insys-preview@openfactorgroup.com, no authentication; the relay admits the server's address), checks that the server reaches port 587, and reports the parked unsent invitations. A test email: `deploy/keycloak/smtp-test.sh` on the server, with the address typed at a silent prompt, put on Keycloak's admin account only for the test and removed straight after.
