@@ -20,7 +20,7 @@
 | `base.json` | `workflow.ref_business_calendars` | `CAL` | `CAL` | `holiday_calendar` and `time_zone` added as null: required, and the row's note says they come from the country overlay. Until one gives them, the import refuses the row |
 | `base.json` | `workflow.cfg_case_types` | `COMPLAINT, COMPLAINT_REVIEW` | `COMPLAINT`, `COMPLAINT_REVIEW` | split into one row per case type; `case_type_code` added; COMPLAINT takes `link_types` [POLICY, CLAIM] and `requires_category` false from the seed; `appeal_route` added as null on both (the note: from the country overlay), and COMPLAINT_REVIEW's `link_types` and `requires_category` as null (no source). COMPLIANCE rows, so both stay Missing |
 | `base.json` | `workflow.cfg_delegation_and_approval_authority` | `APPROVER_*` | `AUTH-{type} (28 rows)` | "every type the tenant can raise" (`types`, not a field) becomes one row per approval type, the 28 declared at this commit, as the seed seeds them; `transaction_type` added; `limit_value` added as null (the note: from the country overlay). FINANCE rows, so they stay Missing |
-| `base.json` | `iam.cfg_roles_and_permission_sets` | `APPROVER` | `APPROVER` | `functions` (not a field) renamed `permissions`: the list holds permission codes (approval.approve, static_data.approve…), the field the table has |
+| `base.json` | `iam.cfg_roles_and_permission_sets` | `APPROVER` | `APPROVER` | `functions` (not a field) removed from the values, and its list kept in the row's `note`. The list holds permission codes, and `permissions` is retired (ADR-026: a role's grants are role-function assignments, which the pack doesn't hold). Which functions to grant is a permissions decision, not format, so the role loads with no grants |
 | `base.json` | `communication.cfg_notification_types` | `CASE_*` | `CASE_ACKNOWLEDGED`, `CASE_UPDATE`, `CASE_DECISION` | split into one row per notification type; `types` (not a field) becomes each row's `type_code` |
 | `base.json` | `communication.cfg_notification_templates` | `CASE_*_EN` | `CASE_ACKNOWLEDGED_EN`, `CASE_UPDATE_EN`, `CASE_DECISION_EN` | split into one template per notification type; `subjects` (not a field) becomes each row's `subject`; `type_code` added |
 | `base.json` | `document.ref_document_categories` | `POLICY_SCHEDULE, REMITTANCE_ADVICE` | `POLICY_SCHEDULE`, `REMITTANCE_ADVICE` | split into one row per record, each record's values from under its code (not a field); added: `allowed_roles` as null (required, no source: who may see a category is the tenant's), `category_code`, `label` written from the code |
@@ -31,6 +31,9 @@
 | `base.json` | `claims.cfg_claim_numbering_schemes` | `CLM, LIF` | `CLM`, `LIF` | split into one row per record, each record's values from under its code (not a field) |
 | `base.json` | `claims.ref_claim_decision_reason_codes` | `SETTLE, PART-EXCL` | `SETTLE`, `PART-EXCL` | split into one row per record, each record's values from under its code (not a field) |
 | `overlays/line-general-motor.json` | `rating.cfg_rating_tables` | `BASE` | `BASE` | `table_code` added (the row code) |
+
+## Not corrected: content, for Ade and compliance
+- **`communication.cfg_notification_templates` `CASE_ACKNOWLEDGED_EN`, `CASE_UPDATE_EN`, `CASE_DECISION_EN`:** the body `{subject}. Sign in to see it.` uses `{subject}`, which these notification types don't offer. They offer sender_identity, portal_link, case_number, case_type, expected_date, decision_reasons, review_options, ombud_details and representations_deadline, so the import refuses the body. It is compliance wording, a value, so it isn't changed here.
 
 ## Not corrected: the country overlays, for Ade
 
