@@ -655,17 +655,9 @@
       "code": "APPROVER",
       "class": "OPERATIONAL",
       "values": {
-        "role_code": "APPROVER",
-        "permissions": [
-          "approval.approve",
-          "static_data.approve",
-          "due_diligence.approve_enhanced",
-          "due_diligence.override_risk",
-          "due_diligence.unblock",
-          "general_policy.non_renew"
-        ]
+        "role_code": "APPROVER"
       },
-      "note": "Extracted from the seed's CLERK role, which combines duties. Split it by real role before use (OQ-111)."
+      "note": "Extracted from the seed's CLERK role, which combines duties. Split it by real role before use (OQ-111). Its grants aren't loaded: `permissions` is retired (ADR-026), and a role's grants are role-function assignments, which this pack doesn't hold. The seed grants CLERK the functions within: approval.approve, static_data.approve, due_diligence.approve_enhanced, due_diligence.override_risk, due_diligence.unblock, general_policy.non_renew."
     },
     {
       "table": "communication.cfg_notification_types",
