@@ -234,6 +234,121 @@ public sealed class AssistSetupSubmissionTests(DatabaseFixture fixture) : IClass
         approved.StatusCode.ShouldBe(HttpStatusCode.NoContent, await approved.Content.ReadAsStringAsync());
     }
 
+    /// <summary>
+    /// Sample values for every field the corrected base and motor packs leave null (format-corrections-2026-11-16.md): the tenant's own overlay gives them
+    /// in this test, approved by its compliance officer (the fallback, D-19). Sample data only; none is a real limit, route or calendar.
+    /// </summary>
+    private static readonly Dictionary<string, object> Samples = new()
+    {
+        ["target_system"] = "SAMPLE-LEDGER", ["schedule"] = "DAILY", ["holiday_calendar"] = "ZA", ["time_zone"] = "Africa/Johannesburg", ["appeal_route"] = "PPR_NFO",
+        ["link_types"] = new[] { "POLICY" }, ["requires_category"] = false, ["limit_value"] = 1000, ["role_code"] = "APPROVER", ["max_sum_assured"] = 1000000,
+        ["allowed_roles"] = new[] { "APPROVER" }, ["merge_fields"] = new[] { "policy.number" },
+    };
+
+    /// <summary>The pack rows with a null the corrections added, again, with the samples in place of their nulls; or every row, filled, when <paramref name="all"/>.</summary>
+    private static List<System.Text.Json.Nodes.JsonObject> Filled(string file, bool all)
+    {
+        var rows = new List<System.Text.Json.Nodes.JsonObject>();
+        foreach (var row in File(file).GetProperty("rows").EnumerateArray())
+        {
+            var node = System.Text.Json.Nodes.JsonNode.Parse(row.GetRawText())!.AsObject();
+            var values = node["values"]!.AsObject();
+            // Only the nulls the corrections added; an optional field left empty (the root node's parent) stays so.
+            var nulls = values.Where(v => v.Value is null && Samples.ContainsKey(v.Key)).Select(v => v.Key).ToList();
+            foreach (var key in nulls)
+            {
+                values[key] = JsonSerializer.SerializeToNode(Samples[key]);
+                node["note"] = "Sample value for the test, in place of the pack's null.";
+            }
+
+            if (all || nulls.Count > 0)
+            {
+                rows.Add(node);
+            }
+        }
+
+        return rows;
+    }
+
+    [Fact]
+    public async Task TheFullBaseAndMotorSet_IsSubmittedApprovedAndApplied_EveryTableAfterTheTablesItRefersTo_AIA086_OQ178_OQ179()
+    {
+        var host = await fixture.Host();
+        await fixture.Database.UserWithFunctions(DatabaseFixture.Operator, "ss-mgr", "ASSIST_OVERLAY_MANAGE");
+        await fixture.Database.UserWithFunctions(DatabaseFixture.Operator, "ss-lead", "ASSIST_OVERLAY_APPROVE");
+        var manager = host.ClientFor(DatabaseFixture.Operator, "ss-mgr");
+        var lead = host.ClientFor(DatabaseFixture.Operator, "ss-lead");
+        // The platform approves the base for every tenant. The motor line is the tenant's own (the fallback, D-19): a value a platform line leaves empty can't
+        // be given by a tenant while that line is approved (the country layer comes before the lines), so AM comes from the tenant's own motor version.
+        foreach (var file in new[] { "base.json" })
+        {
+            var loaded = await manager.Send(HttpMethod.Post, "/api/v1/assist/overlays", File(file), idempotent: true);
+            loaded.StatusCode.ShouldBe(HttpStatusCode.Created, await loaded.Content.ReadAsStringAsync());
+            var view = await loaded.Json();
+            var reviewed = await manager.Send(HttpMethod.Post, $"/api/v1/assist/overlays/{view.GetProperty("id").GetGuid()}/review",
+                new { partner = "Sample Partners (sample)", reviewerName = "C. Reviewer (sample)", reviewedOn = "2026-11-14", reviewDocumentId = Guid.CreateVersion7() }, ifMatch: loaded.ETag());
+            (await lead.Send(HttpMethod.Post, $"/api/v1/assist/overlays/{view.GetProperty("id").GetGuid()}/approve", new { contentHash = view.GetProperty("contentHash").GetString() },
+                ifMatch: reviewed.ETag())).StatusCode.ShouldBe(HttpStatusCode.OK);
+        }
+
+        var (tenant, user) = await Customer();
+        var loader = await user("ss-loader", ["ASSIST_TENANT_SETUP_RUN"]);
+        var officer = await user("ss-officer", ["ASSIST_OVERLAY_APPROVE_TENANT"]);
+        var motor = File("overlays/line-general-motor.json");
+        foreach (var pack in new[]
+                 {
+                     JsonSerializer.SerializeToElement(new { pack = "XQ", kind = "COUNTRY", status = "DRAFT", rows = Filled("base.json", all: false) }),
+                     JsonSerializer.SerializeToElement(new { pack = motor.GetProperty("pack").GetString(), kind = "LINE", status = "DRAFT", rows = Filled("overlays/line-general-motor.json", all: true) }),
+                 })
+        {
+            var own = await loader.Send(HttpMethod.Post, "/api/v1/assist/packs", pack, idempotent: true);
+            own.StatusCode.ShouldBe(HttpStatusCode.Created, await own.Content.ReadAsStringAsync());
+            var ownView = await own.Json();
+            (await officer.Send(HttpMethod.Post, $"/api/v1/assist/packs/{ownView.GetProperty("id").GetGuid()}/approve", new { contentHash = ownView.GetProperty("contentHash").GetString() },
+                ifMatch: own.ETag())).StatusCode.ShouldBe(HttpStatusCode.OK);
+        }
+
+        var wizard = await user("ss-runner", ["ASSIST_TENANT_SETUP_RUN"]);
+        var (id, run) = await AcceptAll(wizard, new { country = "XQ", lines = new[] { "GENERAL" } });
+        run.GetProperty("missing").GetInt32().ShouldBe(0, "every value the packs leave empty comes from the tenant's approved overlay: "
+            + string.Join(", ", run.GetProperty("values").EnumerateArray().Where(v => v.GetProperty("flag").GetString() == "MISSING")
+                .Select(v => $"{v.GetProperty("table").GetString()} {v.GetProperty("code").GetString()} {v.GetProperty("missingReason").GetString()}")));
+        var check = await (await wizard.GetAsync($"{Setups}/{id}/completeness")).Json();
+        check.GetProperty("ready").GetBoolean().ShouldBeTrue(check.ToString());
+
+        var submitted = await Submit(wizard, id);
+        submitted.StatusCode.ShouldBe(HttpStatusCode.OK, await submitted.Content.ReadAsStringAsync());
+        var view7 = await submitted.Json();
+        var setId = view7.GetProperty("setId").GetGuid();
+        var order = view7.GetProperty("batches").EnumerateArray().Select(b => b.GetProperty("table").GetString()!).ToList();
+        order.Count.ShouldBe(check.GetProperty("tables").GetInt32());
+        foreach (var table in order)
+        {
+            foreach (var referred in Insys.BuildingBlocks.Application.StaticDataReferences.Refers.GetValueOrDefault(table, []).Where(order.Contains))
+            {
+                order.IndexOf(referred).ShouldBeLessThan(order.IndexOf(table), $"{table} refers to {referred}");
+            }
+        }
+
+        await host.DrainOutbox();
+        string[] approves = await fixture.Database.ScalarAsOwner<string[]>("SELECT array_agg(DISTINCT code ORDER BY code) FROM iam.ref_function_catalogue WHERE code ~ '^SD_.*_APPROVE$'") ?? [];
+        var checker = await user("ss-checker", ["WORKFLOW_APPROVALS", "WORKFLOW_APPROVE", .. approves]);
+        var approved = await checker.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{await SetApproval(tenant, setId)}/approve", ifMatch: "\"1\"");
+        approved.StatusCode.ShouldBe(HttpStatusCode.NoContent, await approved.Content.ReadAsStringAsync());
+        for (var i = 0; i < 3 * order.Count && await SetStatus(tenant, setId) != "APPLIED"; i++)
+        {
+            await host.DrainOutbox();
+        }
+
+        (await SetStatus(tenant, setId)).ShouldBe("APPLIED");
+        (await fixture.Database.ScalarAsOwner<string>("SELECT string_agg(table_name, ',' ORDER BY applied_at, seq) FROM sdm.setup_change_set_batch WHERE tenant_id = @t AND set_id = @s",
+            ("t", tenant), ("s", setId))).ShouldBe(string.Join(",", order), "applied in that order");
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM sdm.change_request WHERE tenant_id = @t AND setup_set_id = @s AND status = 'ACTIVE'", ("t", tenant), ("s", setId)))
+            .ShouldBe(order.Count);
+        (await fixture.Database.ScalarAsOwner<string>("SELECT record_status FROM rules.cfg_authority_matrices WHERE tenant_id = @t AND code = 'AM'", ("t", tenant)))
+            .ShouldBe("PUBLISHED", "AM came only from the tenant's own approved motor version");
+    }
+
     [Fact]
     public async Task ASetupWithABlocker_IsRefused_ASSIST_SETUP_NOT_READY_ListingEachBlocker_AndNothingIsLoaded_AIA085()
     {
