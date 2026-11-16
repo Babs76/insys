@@ -96,8 +96,63 @@ foreach (var group in entities.GroupBy(e => e.Module.Name))
     Console.WriteLine($"{group.Key}: {ordered.Count} tables");
 }
 
+// AIA-086, OQ-178: which tables each table refers to, from the catalogue's Ref fields and docs/specs/static-data-references.json, so a SETUP change set
+// applies a table after those it refers to. Every Ref type must be in the map (null when it isn't static data), so a new one can't go unordered.
+using (var map = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "docs", "specs", "static-data-references.json"))))
+{
+    var types = map.RootElement.GetProperty("types").EnumerateObject().ToDictionary(p => p.Name, p => p.Value.ValueKind == JsonValueKind.Null ? null : p.Value.GetString(), StringComparer.Ordinal);
+    var overrides = map.RootElement.GetProperty("fields").EnumerateObject().ToDictionary(p => p.Name, p => p.Value.ValueKind == JsonValueKind.Null ? null : p.Value.GetString(), StringComparer.Ordinal);
+    var known = entities.Select(e => e.Table.FullName).ToHashSet(StringComparer.Ordinal);
+    var references = new SortedDictionary<string, SortedSet<string>>(StringComparer.Ordinal);
+    var unmapped = new SortedSet<string>(StringComparer.Ordinal);
+    foreach (var item in catalogue.RootElement.GetProperty("entities").EnumerateArray().Concat(additions.RootElement.GetProperty("entities").EnumerateArray()))
+    {
+        var table = item.GetProperty("table").GetString()!;
+        if (!known.Contains(table) || !item.TryGetProperty("fields", out var fields))
+        {
+            continue;
+        }
+
+        foreach (var field in fields.EnumerateArray())
+        {
+            if (!field.TryGetProperty("logicalType", out var logical) || RefType(logical.GetString() ?? "") is not { } type)
+            {
+                continue;
+            }
+
+            var key = $"{table}.{field.GetProperty("name").GetString()}";
+            if (!overrides.TryGetValue(key, out var target) && !types.TryGetValue(type, out target))
+            {
+                unmapped.Add($"{type} ({key})");
+                continue;
+            }
+
+            if (target is not null && target != table && known.Contains(target))
+            {
+                (references.TryGetValue(table, out var set) ? set : references[table] = new SortedSet<string>(StringComparer.Ordinal)).Add(target);
+            }
+        }
+    }
+
+    if (unmapped.Count > 0)
+    {
+        throw new InvalidOperationException("Reference types missing from docs/specs/static-data-references.json:\n  " + string.Join("\n  ", unmapped));
+    }
+
+    var generated = Path.Combine(root, "src", "BuildingBlocks", "Insys.BuildingBlocks.Application", "Generated");
+    Sync(generated, new Dictionary<string, string> { [Path.Combine(generated, "StaticDataReferences.g.cs")] = Emit.References(references) });
+    Console.WriteLine($"References: {references.Count} tables refer to others.");
+}
+
 Console.WriteLine($"Generated {entities.Count} static data tables.");
 return 0;
+
+// "Ref Account", "List<Ref Role>", "Ref Channel (empty = all)", "Ref Notification type[]": the type named.
+static string? RefType(string logical)
+{
+    var match = System.Text.RegularExpressions.Regex.Match(logical.Replace("List<", "", StringComparison.Ordinal).TrimEnd('>'), @"^Ref ([A-Za-z /]+?)(\[\])?(\s*\(.*\))?$");
+    return match.Success ? match.Groups[1].Value.Trim() : null;
+}
 
 static string EntityCode(string table) =>
     table.Length <= 40 ? table : $"{table[..31]}_{Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(table)))[..8]}";
@@ -211,6 +266,30 @@ internal static class Emit
         #nullable enable
 
         """;
+
+    /// <summary>The tables each static data table refers to (AIA-086, OQ-178), for the order a SETUP change set is applied in.</summary>
+    public static string References(SortedDictionary<string, SortedSet<string>> references)
+    {
+        var s = new StringBuilder(Header("BuildingBlocks.Application"));
+        s.AppendLine("namespace Insys.BuildingBlocks.Application;");
+        s.AppendLine();
+        s.AppendLine("/// <summary>");
+        s.AppendLine("/// The static data tables each table refers to, from the catalogue's Ref fields (docs/specs/static-data-references.json maps each type to its table). A");
+        s.AppendLine("/// table's own rows referring to each other aren't listed: one batch is one transaction.");
+        s.AppendLine("/// </summary>");
+        s.AppendLine("public static class StaticDataReferences");
+        s.AppendLine("{");
+        s.AppendLine("    public static readonly IReadOnlyDictionary<string, string[]> Refers = new Dictionary<string, string[]>(StringComparer.Ordinal)");
+        s.AppendLine("    {");
+        foreach (var (table, targets) in references)
+        {
+            s.AppendLine($"        [\"{table}\"] = [{string.Join(", ", targets.Select(t => $"\"{t}\""))}],");
+        }
+
+        s.AppendLine("    };");
+        s.AppendLine("}");
+        return s.ToString();
+    }
 
     public static string Entity(Entity entity)
     {

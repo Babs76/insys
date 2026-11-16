@@ -266,15 +266,14 @@ internal sealed class SetupSubmissionHandlers(ISetupRuns runs, IStarterPacks pac
         return new SetupCompletenessView(run.Id, run.Status, blockers.Count == 0, batches.Count, batches.Sum(b => b.Lines.Count), blockers, warnings);
     }
 
-    /// <summary>The accepted values in the draft, one batch per table, in dependency order (<see cref="SetupOrder"/>); lines in code order.</summary>
+    /// <summary>The accepted values in the draft, one batch per table, in dependency order (<see cref="SetupOrder.Sort"/>); lines in code order.</summary>
     private static List<(string Table, IReadOnlyList<SetupLine> Lines)> Batches(SetupRun run, IReadOnlyList<SetupItem> items)
     {
         var reason = $"AI-3 tenant setup {run.Id:D}, attempt {(run.Attempt == 0 ? 1 : run.Attempt).ToString(System.Globalization.CultureInfo.InvariantCulture)} (AIA-086)";
-        return [.. items.Where(i => i.InDraft && i.Decision == ItemDecisions.Accepted && i.Flag != ItemFlags.Missing && i.Values is not null)
-            .GroupBy(i => i.TableName)
-            .OrderBy(g => SetupOrder.Of(g.Key)).ThenBy(g => g.Key, StringComparer.Ordinal)
-            .Select(g => (g.Key, (IReadOnlyList<SetupLine>)[.. g.OrderBy(i => i.RowCode, StringComparer.Ordinal)
-                .Select((i, n) => new SetupLine(n + 1, i.RowCode, JsonDocument.Parse(i.Values!).RootElement.Clone(), reason))]))];
+        var groups = items.Where(i => i.InDraft && i.Decision == ItemDecisions.Accepted && i.Flag != ItemFlags.Missing && i.Values is not null)
+            .GroupBy(i => i.TableName).ToDictionary(g => g.Key, g => g.ToList(), StringComparer.Ordinal);
+        return [.. SetupOrder.Sort(groups.Keys).Select(table => (table, (IReadOnlyList<SetupLine>)[.. groups[table].OrderBy(i => i.RowCode, StringComparer.Ordinal)
+            .Select((i, n) => new SetupLine(n + 1, i.RowCode, JsonDocument.Parse(i.Values!).RootElement.Clone(), reason))]))];
     }
 
     private async Task<Error?> Onboarding(CancellationToken cancellationToken) =>

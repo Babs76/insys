@@ -69,17 +69,41 @@ public interface ISetupImports
 }
 
 /// <summary>
-/// The dependency order a SETUP change set is applied in (AIA-086): reference data (ref_), then master data (mst_), then configuration (cfg_), which refers to
-/// both, then by name. No check at submission or activation reads another table today, so the order decides only what a tenant part-way through the set
-/// holds. TODO(spec): the catalogue's "Ref" fields name domain types, not tables, so configuration that refers to other configuration isn't ordered by its
-/// references (OQ-178).
+/// The dependency order a SETUP change set is applied in (AIA-086, OQ-178): every table after the tables of the set it refers to, from the catalogue's Ref
+/// fields (<see cref="StaticDataReferences"/>). Where nothing orders two tables, reference data (ref_) goes before master data (mst_), then configuration
+/// (cfg_), then by name. Tables that refer to each other round a cycle are put in that same fallback order, as nothing can put each after the others.
 /// </summary>
 public static class SetupOrder
 {
+    /// <summary>The fallback rank: reference data 0, master data 1, configuration 2.</summary>
     public static int Of(string table)
     {
         var name = table[(table.IndexOf('.', StringComparison.Ordinal) + 1)..];
         return name.StartsWith("ref_", StringComparison.Ordinal) ? 0 : name.StartsWith("mst_", StringComparison.Ordinal) ? 1 : 2;
+    }
+
+    /// <summary>The tables in the order they are applied: a topological order of their references within the set, ties broken by <see cref="Of"/> and name.</summary>
+    public static IReadOnlyList<string> Sort(IEnumerable<string> tables, IReadOnlyDictionary<string, string[]>? references = null)
+    {
+        references ??= StaticDataReferences.Refers;
+        var set = tables.Distinct(StringComparer.Ordinal).ToList();
+        var waitingOn = set.ToDictionary(t => t, t => (references.TryGetValue(t, out var r) ? r : []).Where(x => x != t && set.Contains(x)).ToHashSet(StringComparer.Ordinal),
+            StringComparer.Ordinal);
+        var order = new List<string>();
+        while (waitingOn.Count > 0)
+        {
+            var ready = waitingOn.Where(w => w.Value.Count == 0).Select(w => w.Key).ToList();
+            // A cycle: the rest refer round to each other, so the fallback order decides the next.
+            var next = (ready.Count > 0 ? ready : [.. waitingOn.Keys]).OrderBy(t => Of(t)).ThenBy(t => t, StringComparer.Ordinal).First();
+            order.Add(next);
+            waitingOn.Remove(next);
+            foreach (var rest in waitingOn.Values)
+            {
+                rest.Remove(next);
+            }
+        }
+
+        return order;
     }
 
     /// <summary>The batch's stable id in a setup: the same run, attempt and table always give the same batch, so a retry finds what it imported.</summary>
