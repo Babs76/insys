@@ -183,6 +183,34 @@ public sealed class AssistModule : IModule
             .Produces<SetupItemView>(StatusCodes.Status200OK).ReturnsETag()
             .WithName("AssistDecideSetupItem").WithSummary("Accept or reject a drafted value; a Missing one can't be accepted. Needs the value's If-Match")
             .RequirePermission(AssistPermissions.TenantSetupRun);
+        setups.MapGet("/{id:guid}/completeness", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new CheckTenantSetup(id), ct)).ToHttp(Results.Ok))
+            .Produces<SetupCompletenessView>(StatusCodes.Status200OK)
+            .WithName("AssistCheckTenantSetup")
+            .WithSummary("The completeness check before submission (AIA-085): every value decided, none Missing, regulated values from approved overlays, and each accepted value as its table's import would take it, saving nothing")
+            .RequirePermission(AssistPermissions.TenantSetupRun);
+        setups.MapPost("/{id:guid}/submit", async (Guid id, IDispatcher d, HttpContext http, CancellationToken ct) =>
+            {
+                var expected = Concurrency.ExpectedVersion(http.Request);
+                if (expected.IsFailure)
+                {
+                    return Problems.For(expected.Error);
+                }
+
+                // Two steps (AIA-086): the check and the lock commit first, so a submission that stops part-way is resumed by submitting again.
+                var begun = await d.Send(new BeginSetupSubmission(id, expected.Value), ct);
+                return begun.IsFailure ? begun.ToHttp(Results.Ok) : (await d.Send(new CompleteSetupSubmission(id), ct)).ToHttp(view =>
+                {
+                    Concurrency.SetETag(http, view.RowVersion);
+                    return Results.Ok(view);
+                });
+            })
+            .Produces<SetupSubmissionView>(StatusCodes.Status200OK).ReturnsETag()
+            .WithName("AssistSubmitTenantSetup")
+            .WithSummary("Submit the setup as one SETUP change set (AIA-086): one import batch per table, in dependency order, for one approval by a second person. Only whoever ran the wizard submits; resumable. Needs If-Match")
+            .WithDescription("Refused with ASSIST_SETUP_NOT_READY while the completeness check has blockers, and with ASSIST_TENANT_LIVE once the tenant is live. "
+                + "The set's approval is a STATIC_DATA_T1 approval of business reference type STATIC_DATA_SETUP; its batches are IMPORT change requests under /static-data/change-requests. "
+                + "Once every batch is in force the setup is APPLIED; a set not approved discards its drafts and returns the setup to DRAFT.")
+            .RequirePermission(AssistPermissions.TenantSetupRun).RequireIdempotencyKey();
     }
 
     /// <summary>

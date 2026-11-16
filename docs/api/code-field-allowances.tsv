@@ -12,6 +12,7 @@ core	AnalyticsWrittenPremiumRow.productCode	to declare
 core	AssistExplainRefusalBody.recordType	the record type the refusal was about, from the caller: kept for the basis and the audit, never sent to a model; any module's record type, so no one code list (AIA-039)
 core	AssistExplanationBasis.recordType	the record type a refusal was about, echoed from the caller's request (AssistExplainRefusalBody.recordType): any module's record type, so no one code list (AIA-039)
 core	AssistStarterPackView.packCode	a starter pack's own code, from its pack file (base, a country such as NG, a line such as GENERAL_MOTOR): packs are reference data held by Assist (D-18), not a code list
+core	AssistSetupFinding.rowCode	a static data row's own code from the setup's draft (any table's, as its pack gives it): rows of many tables, so no one code list (AIA-085)
 core	AuditEventView.eventType	to declare
 core	AuditEventView.targetType	to declare
 core	ClaimsFrameworkAllocateClaimNumber.orgNodeCode	to declare

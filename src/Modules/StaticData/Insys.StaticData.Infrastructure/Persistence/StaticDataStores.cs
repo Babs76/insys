@@ -55,6 +55,13 @@ internal sealed class ChangeRequestRepository(StaticDataDbContext db) : IChangeR
     public Task<TenantGovernanceSettings?> Settings(CancellationToken cancellationToken) => db.Settings.SingleOrDefaultAsync(cancellationToken);
 
     public void Add(TenantGovernanceSettings settings) => db.Settings.Add(settings);
+
+    public Task<SetupChangeSet?> SetupSet(Guid id, CancellationToken cancellationToken) => db.SetupSets.SingleOrDefaultAsync(s => s.Id == id, cancellationToken);
+
+    public void Add(SetupChangeSet set) => db.SetupSets.Add(set);
+
+    public async Task<IReadOnlyList<StaticDataChange>> SetupBatches(Guid setId, CancellationToken cancellationToken) =>
+        await db.Changes.Where(c => c.SetupSetId == setId).ToListAsync(cancellationToken);
 }
 
 internal sealed class ChangeRequestQueries(StaticDataDbContext db) : IChangeRequestQueries
@@ -112,7 +119,7 @@ internal sealed class StaticDataEventMapper : IDomainEventMapper
     {
         Domain.Changes.StaticDataChangeApproved approved when Import(approved.RecordRef) is { } import =>
             new BuildingBlocks.Contracts.StaticData.StaticDataImportApproved(approved.ChangeRequestId, import.BatchId, Record(approved.RecordRef), import.LineCount,
-                import.Hash, approved.CheckerId, approved.OccurredAt),
+                import.Hash, approved.CheckerId, approved.OccurredAt, import.SetupSetId),
         Domain.Changes.StaticDataChangeApproved approved =>
             new BuildingBlocks.Contracts.StaticData.StaticDataChangeApproved(approved.ChangeRequestId, Record(approved.RecordRef), approved.CheckerId, approved.OccurredAt),
         Domain.Changes.StaticDataApprovalNeeded needed =>
@@ -123,19 +130,25 @@ internal sealed class StaticDataEventMapper : IDomainEventMapper
                 requested.RequestedBy, null, null, "Switch Tier 2 maker-checker off"),
         Domain.Changes.StaticDataChangeRejected rejected when Import(rejected.RecordRef) is { } import =>
             new BuildingBlocks.Contracts.StaticData.StaticDataImportNotApproved(rejected.ChangeRequestId, import.BatchId, Record(rejected.RecordRef), rejected.CheckerId,
-                rejected.Reason),
+                rejected.Reason, import.SetupSetId),
+        Domain.Changes.SetupApprovalNeeded needed =>
+            new BuildingBlocks.Contracts.Approvals.ApprovalRequested(Contracts.SetupChangeSets.BusinessRefType, needed.SetId, needed.ApprovalType, needed.MakerId, null, null,
+                $"Tenant setup: {needed.Batches.ToString(System.Globalization.CultureInfo.InvariantCulture)} tables as one change (AIA-086)", needed.Hash),
+        Domain.Changes.SetupChangeSetCompleted completed => new Contracts.SetupChangeSetApplied(completed.SetId, completed.SourceRef, completed.CheckerId, completed.OccurredAt),
+        Domain.Changes.SetupChangeSetEnded ended => new Contracts.SetupChangeSetNotApproved(ended.SetId, ended.SourceRef, ended.Ending, ended.Reason),
         Domain.Changes.StaticDataChangeRejected rejected =>
             new BuildingBlocks.Contracts.StaticData.StaticDataChangeRejected(rejected.ChangeRequestId, Record(rejected.RecordRef), rejected.CheckerId, rejected.Reason),
         _ => null,
     };
 
-    /// <summary>An IMPORT change's after (BR-016): its import, line count and hash; null for a change of one version.</summary>
-    private static (Guid BatchId, int LineCount, string Hash)? Import(string json)
+    /// <summary>An IMPORT change's after (BR-016): its import, line count and hash, and its SETUP change set if it has one; null for a change of one version.</summary>
+    private static (Guid BatchId, int LineCount, string Hash, Guid? SetupSetId)? Import(string json)
     {
         using var after = JsonDocument.Parse(json);
         var root = after.RootElement;
         return root.TryGetProperty("batchId", out var batch) && root.TryGetProperty("lineCount", out var count) && root.TryGetProperty("hash", out var hash)
-            ? (batch.GetGuid(), count.GetInt32(), hash.GetString()!)
+            ? (batch.GetGuid(), count.GetInt32(), hash.GetString()!,
+                root.TryGetProperty("setupSetId", out var set) && set.ValueKind == JsonValueKind.String ? set.GetGuid() : null)
             : null;
     }
 

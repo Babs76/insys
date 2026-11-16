@@ -110,6 +110,9 @@ public sealed class StaticDataChange : AggregateRoot<Guid>
     /// <summary>For an IMPORT change: the hash of the import's lines when submitted, which the approval is bound to.</summary>
     public string? ImportHash { get; private set; }
 
+    /// <summary>For a batch of a SETUP change set (AIA-086): the set, whose one approval decides it.</summary>
+    public Guid? SetupSetId { get; private set; }
+
     public const string ImportAction = "IMPORT";
 
     public static string KeyFor(string code, int version, bool global) => $"{(global ? "G:" : "")}{code}@{version}";
@@ -159,6 +162,33 @@ public sealed class StaticDataChange : AggregateRoot<Guid>
             requiresChecker, approvalType, now);
         change.ImportBatchId = batchId;
         change.ImportHash = Guard.MaxLength(Guard.NotNullOrWhiteSpace(hash), 64);
+        return change;
+    }
+
+    /// <summary>
+    /// AIA-086: a batch of a SETUP change set, submitted as an import (BR-016) but with no approval of its own: it waits for the set's one approval, which
+    /// approves it in the set's order (<see cref="ApproveChange"/>), or for the set's ending (<see cref="RejectChange"/>).
+    /// </summary>
+    public static StaticDataChange SubmitSetupBatch(Guid id, string entityCode, Guid batchId, string hash, string after, Guid makerId, DateOnly effectiveFrom, string reason,
+        Guid setId)
+    {
+        var change = new StaticDataChange
+        {
+            Id = Guard.NotEmpty(id),
+            RequestNumber = References.Of("CR-", id, 19),
+            EntityCode = Guard.MaxLength(Guard.NotNullOrWhiteSpace(entityCode), 40),
+            RecordKey = References.Of("IB-", batchId, 19),
+            Action = ImportAction,
+            After = after,
+            MakerId = makerId,
+            EffectiveFrom = effectiveFrom,
+            Reason = string.IsNullOrWhiteSpace(reason) ? "(no reason given)" : reason,
+            Status = ChangeStatus.PendingApproval,
+            ImportBatchId = batchId,
+            ImportHash = Guard.MaxLength(Guard.NotNullOrWhiteSpace(hash), 64),
+            SetupSetId = Guard.NotEmpty(setId),
+        };
+        change.MarkChanged();
         return change;
     }
 

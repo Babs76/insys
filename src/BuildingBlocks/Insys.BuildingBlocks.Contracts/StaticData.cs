@@ -70,16 +70,31 @@ public sealed record StaticDataImportRejected(
 /// BR-016: an import submitted as one change. Record is its first line, which names the table (and whether the rows are
 /// global); LineCount and Hash bind the approval to the complete import.
 /// </summary>
+/// <param name="SetupSetId">
+/// For a batch of a SETUP change set (AIA-086): the set it belongs to. Its change request takes no approval of its own: the set's one approval decides it.
+/// </param>
 [IntegrationEvent("sdm.StaticDataImportSubmitted")]
 public sealed record StaticDataImportSubmitted(
-    Guid ChangeRequestId, Guid BatchId, StaticRecordRef Record, int LineCount, string Hash, Guid MakerId, int Tier, string Scope, DateOnly EffectiveFrom, string Reason)
+    Guid ChangeRequestId, Guid BatchId, StaticRecordRef Record, int LineCount, string Hash, Guid MakerId, int Tier, string Scope, DateOnly EffectiveFrom, string Reason,
+    Guid? SetupSetId = null)
     : IIntegrationEvent;
 
 /// <summary>BR-016: the import's one approval; the owning module approves every line, only if they still hash the same.</summary>
+/// <param name="SetupSetId">
+/// For a batch of a SETUP change set (AIA-086): the owning module also puts every line in force in the same transaction, then reports
+/// <see cref="StaticDataSetupBatchApplied"/>, so the set applies its next batch.
+/// </param>
 [IntegrationEvent("sdm.StaticDataImportApproved")]
-public sealed record StaticDataImportApproved(Guid ChangeRequestId, Guid BatchId, StaticRecordRef Record, int LineCount, string Hash, Guid CheckerId, DateTimeOffset ApprovedAt)
+public sealed record StaticDataImportApproved(Guid ChangeRequestId, Guid BatchId, StaticRecordRef Record, int LineCount, string Hash, Guid CheckerId, DateTimeOffset ApprovedAt,
+    Guid? SetupSetId = null)
     : IIntegrationEvent;
 
 /// <summary>BR-016: the import was not approved (rejected, expired or withdrawn); every line returns to draft.</summary>
+/// <param name="SetupSetId">For a batch of a SETUP change set that wasn't approved: its drafts are discarded, so the setup can be submitted again.</param>
 [IntegrationEvent("sdm.StaticDataImportNotApproved")]
-public sealed record StaticDataImportNotApproved(Guid ChangeRequestId, Guid BatchId, StaticRecordRef Record, Guid CheckerId, string Reason) : IIntegrationEvent;
+public sealed record StaticDataImportNotApproved(Guid ChangeRequestId, Guid BatchId, StaticRecordRef Record, Guid CheckerId, string Reason, Guid? SetupSetId = null)
+    : IIntegrationEvent;
+
+/// <summary>AIA-086: the owning module put a SETUP change set's batch in force, every line in one transaction.</summary>
+[IntegrationEvent("sdm.StaticDataSetupBatchApplied")]
+public sealed record StaticDataSetupBatchApplied(Guid SetupSetId, Guid ChangeRequestId, Guid BatchId, string EntityCode, int LineCount) : IIntegrationEvent;

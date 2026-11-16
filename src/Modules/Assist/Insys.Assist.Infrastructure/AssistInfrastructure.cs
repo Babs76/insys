@@ -44,6 +44,10 @@ public static class AssistInfrastructure
         services.AddScoped<IAssistRepository, AssistRepository>();
         services.AddScoped<IStarterPacks, StarterPacks>();
         services.AddScoped<ISetupRuns, SetupRuns>();
+        // AIA-086: a setup submitted as a SETUP change set, which Static Data records and puts to one approval; the run follows the set's outcome.
+        services.AddDomainEventMapper<AssistEventMapper>(schema);
+        services.AddIntegrationEventHandler<StaticData.Contracts.SetupChangeSetApplied, SetupChangeSetOutcomes, AssistDbContext>(schema, "SetupApplied");
+        services.AddIntegrationEventHandler<StaticData.Contracts.SetupChangeSetNotApproved, SetupChangeSetOutcomes, AssistDbContext>(schema, "SetupNotApproved");
         // No model unless the deployment connects one (the Cloud adapter project registers Claude when Assist:Provider is claude).
         services.TryAddSingleton<IAiModelProvider, NoAiModelProvider>();
         services.AddScoped<AssistRunner>();
@@ -56,4 +60,15 @@ public static class AssistInfrastructure
             .ValidateOnStart();
         return services;
     }
+}
+
+/// <summary>Assist's domain events that other modules hear.</summary>
+internal sealed class AssistEventMapper : BuildingBlocks.Application.Messaging.IDomainEventMapper
+{
+    public BuildingBlocks.Contracts.IIntegrationEvent? Map(BuildingBlocks.Domain.IDomainEvent domainEvent) => domainEvent switch
+    {
+        SetupChangeSetReady ready => new StaticData.Contracts.SetupChangeSetRequested(ready.SetId, ready.RunId, ready.MakerId,
+            [.. ready.Batches.Select(b => new StaticData.Contracts.SetupChangeSetBatch(b.Seq, b.Table, b.EntityCode, b.BatchId, b.ChangeRequestId, b.Lines, b.Hash))]),
+        _ => null,
+    };
 }

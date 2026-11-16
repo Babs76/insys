@@ -31,6 +31,7 @@ using Insys.BuildingBlocks.Contracts.StaticData;
 using Insys.BuildingBlocks.Domain;
 using Insys.BuildingBlocks.Infrastructure.Persistence;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Insys.BuildingBlocks.Infrastructure.StaticData;
 
@@ -103,6 +104,8 @@ public static class StaticDataRegistration
         services.AddSingleton(new ModuleStaticDataTables(descriptors.FirstOrDefault()?.ModuleRoute ?? schema, descriptors));
         services.AddScoped<StaticDataContextFactory<TDbContext>>();
         services.AddScoped<StaticDataService<TDbContext>>();
+        services.AddScoped<IModuleSetupImports, ModuleSetupImports<TDbContext>>();
+        services.TryAddScoped<Application.ISetupImports, SetupImports>();
         services.AddIntegrationEventHandler<StaticDataChangeApproved, StaticDataApprovalHandler<TDbContext>, TDbContext>(schema);
         services.AddIntegrationEventHandler<StaticDataChangeRejected, StaticDataRejectionHandler<TDbContext>, TDbContext>(schema);
         services.AddIntegrationEventHandler<StaticDataImportApproved, StaticDataImportDecisions<TDbContext>, TDbContext>(schema, "Approved");

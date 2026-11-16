@@ -86,6 +86,10 @@ public static class PackErrorCodes
     [ErrorCode(409, "error.assist.tenant_live", Means = "A tenant's own overlay is loaded only while the tenant is onboarding, and this one is live.",
         Remedy = "Use an overlay approved for every tenant, or change configuration through the normal change process.")]
     public const string TenantLive = "ASSIST_TENANT_LIVE";
+
+    [ErrorCode(422, "error.assist.setup_not_ready", Means = "The setup can't be submitted yet: a value is missing or undecided, a regulated value isn't from an overlay approved for your tenant, or a table refuses a value.",
+        Remedy = "Read the setup's completeness check, correct each blocker it lists, and submit again.")]
+    public const string SetupNotReady = "ASSIST_SETUP_NOT_READY";
 }
 
 /// <summary>

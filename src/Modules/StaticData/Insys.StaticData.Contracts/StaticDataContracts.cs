@@ -77,3 +77,52 @@ public interface ILanguageRegister
 {
     Task<bool> Exists(string languageCode, DateOnly day, CancellationToken cancellationToken);
 }
+
+/// <summary>
+/// AIA-086 (D-11): a tenant's setup applied as one SETUP change set. Its batches are imports through the existing path (BR-016), one per table; the set has one
+/// approval, of the strictest tier (Tier 1), bound to a hash of every batch, and is applied batch by batch in dependency order.
+/// </summary>
+public static class SetupChangeSets
+{
+    /// <summary>The set's approval in Workflow: one for every batch. Its records are the batches' change requests, so it opens on the change request screen.</summary>
+    public const string BusinessRefType = "STATIC_DATA_SETUP";
+
+    /// <summary>Tier 1, the strictest: a set holds Tier 1 tables, and Tier 1 always needs a checker other than the maker (SDM-003).</summary>
+    public static string ApprovalType => StaticDataApprovals.ApprovalType(1);
+
+    /// <summary>A set's statuses: SUBMITTED (waiting for its approval), APPLYING (approved, its batches going in force in order), APPLIED, NOT_APPROVED.</summary>
+    public const string Submitted = "SUBMITTED";
+    public const string Applying = "APPLYING";
+    public const string Applied = "APPLIED";
+    public const string NotApproved = "NOT_APPROVED";
+}
+
+/// <summary>One batch of a set: a table's import, already submitted to the set, in the order it is applied.</summary>
+public sealed record SetupChangeSetBatch(int Seq, string Table, string EntityCode, Guid BatchId, Guid ChangeRequestId, int Lines, string Hash);
+
+/// <summary>
+/// A SETUP change set to record and put to one approval (AIA-086), from the module that assembled it (Assist's wizard). Every batch has been imported and
+/// submitted to the set. The maker is whoever ran the wizard, so Workflow refuses them as the checker.
+/// </summary>
+/// <param name="SourceRef">The setup it came from (an Assist setup run).</param>
+[BuildingBlocks.Contracts.IntegrationEvent("sdm.SetupChangeSetRequested")]
+public sealed record SetupChangeSetRequested(Guid SetId, Guid SourceRef, Guid MakerId, IReadOnlyList<SetupChangeSetBatch> Batches) : BuildingBlocks.Contracts.IIntegrationEvent;
+
+/// <summary>Every batch of the set is in force.</summary>
+[BuildingBlocks.Contracts.IntegrationEvent("sdm.SetupChangeSetApplied")]
+public sealed record SetupChangeSetApplied(Guid SetId, Guid SourceRef, Guid CheckerId, DateTimeOffset AppliedAt) : BuildingBlocks.Contracts.IIntegrationEvent;
+
+/// <summary>The set wasn't approved (rejected, expired or withdrawn): its drafts are discarded and nothing of it is in force.</summary>
+/// <param name="Ending">REJECTED, EXPIRED or WITHDRAWN.</param>
+[BuildingBlocks.Contracts.IntegrationEvent("sdm.SetupChangeSetNotApproved")]
+public sealed record SetupChangeSetNotApproved(Guid SetId, Guid SourceRef, string Ending, string Reason) : BuildingBlocks.Contracts.IIntegrationEvent;
+
+/// <param name="Open">Sets submitted or partly applied: the tenant can't go live while there is one (AIA-086).</param>
+/// <param name="Applied">Sets applied in full: onboarding steps finished before one must pass their readiness again before go-live (AIA-085).</param>
+public sealed record SetupChangeSetState(int Open, int Applied, DateTimeOffset? LastAppliedAt);
+
+/// <summary>Public query interface: a tenant's SETUP change sets, read on Static Data's own connection.</summary>
+public interface ISetupChangeSetState
+{
+    Task<SetupChangeSetState> For(Guid tenantId, CancellationToken cancellationToken);
+}

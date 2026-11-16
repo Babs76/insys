@@ -56,8 +56,22 @@ public static class ItemDecisions
 public static class SetupStatuses
 {
     public const string Draft = "DRAFT";
+
+    /// <summary>The completeness check passed and the values are locked; the batches are being loaded into the SETUP change set (AIA-086). Resumable.</summary>
+    public const string Submitting = "SUBMITTING";
+
+    /// <summary>The SETUP change set waits for its approval, or is being applied.</summary>
     public const string Submitted = "SUBMITTED";
+
+    /// <summary>The SETUP change set is in force.</summary>
+    public const string Applied = "APPLIED";
 }
+
+/// <summary>One table's batch, loaded and submitted to the run's SETUP change set (AIA-086), in the order it is applied.</summary>
+public sealed record SetupBatchLoaded(int Seq, string Table, string EntityCode, Guid BatchId, Guid ChangeRequestId, int Lines, string Hash);
+
+/// <summary>Every batch is loaded: Static Data records the set and puts it to one approval.</summary>
+public sealed record SetupChangeSetReady(Guid SetId, Guid RunId, Guid MakerId, IReadOnlyList<SetupBatchLoaded> Batches, DateTimeOffset OccurredAt) : IDomainEvent;
 
 /// <summary>
 /// A run of AI-3's wizard on a tenant still onboarding (AI Assist SRS §5A): its questionnaire answers, versioned (AIA-081), the pack versions the draft was
@@ -82,8 +96,80 @@ public sealed class SetupRun : AggregateRoot<Guid>
 
     public DateTimeOffset AssembledAt { get; private set; }
 
+    /// <summary>How many times the run has been submitted; each attempt's batches have their own ids (AIA-086).</summary>
+    public int Attempt { get; private set; }
+
+    /// <summary>The SETUP change set the run is submitted as; cleared if the set is not approved.</summary>
+    public Guid? SetId { get; private set; }
+
+    /// <summary>Who submitted it: whoever ran the wizard, so never its approver (AIA-086).</summary>
+    public string? SubmittedBy { get; private set; }
+
+    public DateTimeOffset? SubmittedAt { get; private set; }
+
     public static SetupRun Start(string startedBy, IReadOnlyList<Guid> packIds, DateTimeOffset at) =>
         new() { Id = Guid.CreateVersion7(), StartedBy = startedBy, AnswersVersion = 1, PackIds = [.. packIds], AssembledAt = at };
+
+    /// <summary>
+    /// AIA-086: the run is submitted as a SETUP change set, by whoever ran the wizard only, so its maker is never its approver. The values are locked from now
+    /// on; a set not approved returns the run to draft.
+    /// </summary>
+    public Result BeginSubmission(string by, DateTimeOffset at)
+    {
+        if (by != StartedBy)
+        {
+            return Error.Forbidden(ErrorCodes.Forbidden, "A setup is submitted by whoever ran the wizard, so a second person approves it.");
+        }
+
+        if (Status != SetupStatuses.Draft)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, $"The setup is {Status}; only a draft is submitted.");
+        }
+
+        (Status, Attempt, SetId, SubmittedBy, SubmittedAt) = (SetupStatuses.Submitting, Attempt + 1, Guid.CreateVersion7(), by, at);
+        MarkChanged();
+        return Result.Success();
+    }
+
+    /// <summary>Every batch is loaded: the set is requested from Static Data, which puts it to one approval.</summary>
+    public Result Submitted(IReadOnlyList<SetupBatchLoaded> batches, DateTimeOffset at)
+    {
+        if (Status != SetupStatuses.Submitting || SetId is not { } setId || !Guid.TryParse(SubmittedBy, out var maker))
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, $"The setup is {Status}.");
+        }
+
+        Status = SetupStatuses.Submitted;
+        Raise(new SetupChangeSetReady(setId, Id, maker, batches, at));
+        MarkChanged();
+        return Result.Success();
+    }
+
+    /// <summary>The set the run was submitted as is in force. A redelivery changes nothing.</summary>
+    public bool Applied(Guid setId)
+    {
+        if (SetId != setId || Status == SetupStatuses.Applied)
+        {
+            return false;
+        }
+
+        Status = SetupStatuses.Applied;
+        MarkChanged();
+        return true;
+    }
+
+    /// <summary>The set wasn't approved: its drafts are discarded, and the run is a draft again, to be corrected and submitted as a new attempt.</summary>
+    public bool NotApproved(Guid setId)
+    {
+        if (SetId != setId || Status is not (SetupStatuses.Submitting or SetupStatuses.Submitted))
+        {
+            return false;
+        }
+
+        (Status, SetId, SubmittedBy, SubmittedAt) = (SetupStatuses.Draft, null, null, null);
+        MarkChanged();
+        return true;
+    }
 
     /// <summary>New answers re-draft the run (AIA-081): a draft only.</summary>
     public Result Reanswer(IReadOnlyList<Guid> packIds, DateTimeOffset at)

@@ -410,6 +410,36 @@ Also: the cache (AIA-036), feedback by the user shown the explanation (AIA-037),
   - Decisions are audited and refused once the tenant is live; accepting a value the pack leaves empty is 422 `VALIDATION_FAILED` (not the overlay code); a tenant's own pack's Location is its own route.
 - **Tests:** `AssistSetupTests` (7, on the real base, NG and motor packs: the pack-only path with NG unapproved and AI not entitled, decisions and re-answering, the tenant's own approved NG filling its regulated values, a live tenant refused, bad answers, insert-only answers), `PackFileTests` (9 now).
 
+### Wave 7, batch 7.7 (branch `wave7-7`)
+The SETUP change set (AIA-085, AIA-086; D-11, D-12 option C). Contract note: "AI Assist: the SETUP change set".
+- **Where it lives:**
+  - The set and its batches are in Static Data (`sdm.setup_change_set`, `sdm.setup_change_set_batch`, V0136).
+  - Each batch is an ordinary BR-016 import in its own module. Its `IMPORT` change request carries `setup_set_id` and takes no approval of its own.
+  - Assist assembles and submits; Tenancy guards activation.
+- **The port (`ISetupImports`, BuildingBlocks):** every module's tables, each on its own context and role (ADR-001). `Check` tries the lines and rolls back. `ImportToSet` imports with a batch id chosen by the set and submits it. A pack's snake_case column names map onto the input fields; a field the table lacks is an error, never dropped.
+- **Completeness (AIA-085):** deterministic. Every value in the draft decided, none Missing, every accepted regulated value from an overlay approved for the tenant now, every table owned and open to tenant rows (G tables are the platform's, §4.6), every line as its import takes it. Findings name the table, row and field, never a value.
+- **Submission:**
+  - Two commands behind one route. The first checks and locks (`SUBMITTING`); the second loads each batch in dependency order (OQ-178), then requests the set.
+  - Batch ids are fixed per run, attempt and table, so submitting again after a failure resumes it and does nothing twice.
+  - Only whoever ran the wizard submits, so they are the maker and Workflow refuses them as the checker.
+- **Approval and apply:**
+  - One Workflow approval: `STATIC_DATA_T1`, business reference `STATIC_DATA_SETUP`, subject hash over every batch's hash. No new approval type, function or role template, so roles that approve Tier 1 static data approve sets.
+  - On the grant, the first batch's change request is approved. Its module approves its lines (the lines' hash checked) and puts them in force in one transaction, then reports `StaticDataSetupBatchApplied`, and the next batch follows.
+  - A batch's change request that arrives late is approved when its turn comes. A mismatch parks (`APPROVAL_NOT_APPLIED`) rather than applying different contents.
+  - Not approved (rejected, expired, withdrawn): every batch's drafts are deleted (drafts only, SDM-007), and the run returns to `DRAFT` for a new attempt.
+- **Activation guard (option C):**
+  - `ActivateTenant` is refused (409 `ONBOARDING_INCOMPLETE`) while a set is open.
+  - Once a set is applied, every step's readiness runs again before go-live (422 `ONBOARDING_STEP_NOT_READY`, `STEP.CHECK`). This is a little wider than AIA-085's "steps completed before the set", and those completed after pass again.
+  - Readiness `SETUP_CHANGE_SET` (`END_TO_END_TESTS`) blocks while a set is open.
+- **Found by the completeness check, for Ade (OQ-179):** the draft packs can't be loaded as they stand. Some rows hold several records, some lack required fields, and some name fields their tables don't have. The tests use a small sample pack.
+- **A fix on the way:** an import and its submission in one request hashed the import's tracked copies, not the stored rows, so the approval never matched. `ImportToSet` clears the tracker between them. Separate requests, as the per-table routes make them, were never affected.
+- **Tests:** `AssistSetupSubmissionTests` (5):
+  - one set, approved once by a second person (the runner refused), applied in order;
+  - blockers listed and nothing loaded;
+  - runner only, onboarding only;
+  - not approved, drafts discarded, a new attempt;
+  - the activation guard while open, and the re-run once applied, against a tenant with no set.
+
 ### Scope batch 1 (16 November 2026, branch `scope-batch-1`)
 The first of the five fix batches from the scope sweeps (`docs/reviews/read-scope-sweep.md`, `docs/reviews/write-scope-sweep.md`), in Ade's order: approvals with no scope source, and the unscoped writes. Contract note: "Scope batch 1" in `docs/api/contract-changes.md`.
 - **Approvals.** Every declared business reference type now has an `IApprovalScopeSource` in its module, or is declared unscoped with its reason (`ApprovalKinds.Unscoped`: parties, users, static data, the Finance period, the commission statement). New sources:

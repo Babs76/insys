@@ -48,6 +48,8 @@ public sealed class StaticDataDbContext(DbContextOptions<StaticDataDbContext> op
 
     public DbSet<TenantGovernanceSettings> Settings => Set<TenantGovernanceSettings>();
 
+    public DbSet<SetupChangeSet> SetupSets => Set<SetupChangeSet>();
+
     protected override void ConfigureModel(ModelBuilder modelBuilder)
     {
         StaticDataStaticData.Configure(modelBuilder);
@@ -67,6 +69,33 @@ public sealed class StaticDataDbContext(DbContextOptions<StaticDataDbContext> op
             change.Property(c => c.After).HasColumnType("jsonb");
             change.Property(c => c.Status).HasConversion(new UpperCaseEnumConverter<ChangeStatus>()).HasMaxLength(15);
             change.Property(c => c.ImportHash).HasColumnType("char(64)");
+            change.Property(c => c.SetupSetId).HasColumnName("setup_set_id");
+        });
+
+        modelBuilder.Entity<SetupChangeSet>(set =>
+        {
+            set.ToTable("setup_change_set");
+            set.HasKey(x => new { x.TenantId, x.Id });
+            set.HasAuditColumns();
+            set.Ignore(x => x.DomainEvents);
+            set.Ignore(x => x.HasChanges);
+            set.Ignore(x => x.IsOpen);
+            set.Property(x => x.SetNumber).HasMaxLength(20);
+            set.Property(x => x.Hash).HasColumnType("char(64)");
+            set.Property(x => x.Status).HasMaxLength(12);
+            set.Property(x => x.Ending).HasMaxLength(10);
+            set.HasMany(x => x.Batches).WithOne().HasForeignKey(b => new { b.TenantId, b.SetId });
+            set.Navigation(x => x.Batches).UsePropertyAccessMode(PropertyAccessMode.Field).AutoInclude();
+        });
+
+        modelBuilder.Entity<SetupChangeSetBatchEntry>(batch =>
+        {
+            batch.ToTable("setup_change_set_batch");
+            batch.HasKey(b => new { b.TenantId, b.Id });
+            batch.HasAuditColumns();
+            batch.Property(b => b.TableName).HasMaxLength(80);
+            batch.Property(b => b.EntityCode).HasMaxLength(40);
+            batch.Property(b => b.Hash).HasColumnType("char(64)");
         });
 
         modelBuilder.Entity<ImportBatch>(batch =>

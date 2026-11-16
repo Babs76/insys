@@ -1377,3 +1377,13 @@ Raised by the read-scope sweep (`docs/reviews/read-scope-sweep.md`, at `06ecae1`
 - Today cases with no product or node, approvals of types with no `IApprovalScopeSource`, and payments whose reference no source covers are visible to, and decidable by, every holder of the permission.
 
 **OQ-177: Health provider recoveries and credit notes refuse a restricted reader with 403. Decided: follow §4, 404 for one record and filtering for lists.**
+
+**OQ-178: in what order are a SETUP change set's tables applied (AIA-086, "in dependency order")? Open. Interim: reference data, then master data, then configuration, then by name.**
+- The catalogue's `Ref` fields name domain types (`Ref Account`, `Ref Channel`), not tables, so configuration that refers to other configuration (a notification template to its type, a posting rule to an account) isn't ordered by its references.
+- No check at submission or activation reads another table today, so the order decides only what a tenant part-way through the set holds, and never whether a batch is refused. A check that does read another table must come with a table-level order.
+- To decide: a mapping from each `Ref` type to its table, kept with the catalogue, from which the order is computed.
+
+**OQ-179: the draft starter packs can't be loaded as they stand (found by 7.7's completeness check). Open: a change to `docs/specs/starter-packs`, for Ade.**
+- In `base.json` with `line-general-motor.json`, with every value accepted, 16 of the 27 tables have rows the import refuses (checked 16 November, before any database check, which runs only once the fields pass). Some rows hold several records (codes `MONTHLY, ANNUAL`, `CASE_*`, `PR-*`, `(per provider)`), with each record's values under a key of its code. Some leave out fields the table requires (`workflow.cfg_case_types` has no `case_type_code`, `link_types`, `requires_category` or `appeal_route`). Some name fields the table doesn't have (`finance.cfg_posting_rules.transaction_types`).
+- `rules.cfg_authority_matrices` `AM` is regulated and empty, so it is Missing even with every overlay approved.
+- Until the packs hold one row per record with the table's own column names, a setup from them stops at `ASSIST_SETUP_NOT_READY`. The check lists each row and field. The batch's tests use a small sample pack that loads.

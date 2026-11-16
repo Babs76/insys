@@ -241,7 +241,8 @@ internal sealed class CompleteOnboardingStepHandler(ITenantRepository tenants, O
     }
 }
 
-internal sealed class ChangeTenantStatusHandler(ITenantRepository tenants, IExecutionContext execution, IClock clock, IAuditTrail audit, Payments.Contracts.ITenantPaymentProviders providers)
+internal sealed class ChangeTenantStatusHandler(ITenantRepository tenants, IExecutionContext execution, IClock clock, IAuditTrail audit, Payments.Contracts.ITenantPaymentProviders providers,
+    StaticData.Contracts.ISetupChangeSetState setups, OnboardingReadiness readiness)
     : ICommandHandler<ChangeTenantStatus, long>
 {
     public async Task<Result<long>> Handle(ChangeTenantStatus command, CancellationToken cancellationToken)
@@ -267,6 +268,12 @@ internal sealed class ChangeTenantStatusHandler(ITenantRepository tenants, IExec
                 "The tenant's provider register or callback endpoints name a provider that is not allowed in this environment.");
         }
 
+        if (command.Action == TenantStatusAction.Activate && tenant.Value.Status == TenantStatus.Onboarding
+            && await SetupGuard(tenant.Value, cancellationToken) is { } refused)
+        {
+            return refused;
+        }
+
         var now = clock.UtcNow;
         var operation = $"{command.Action}Tenant";
         audit.Record(new AuditEntry("TENANT", operation, nameof(Tenant), command.TenantId.ToString(),
@@ -279,6 +286,34 @@ internal sealed class ChangeTenantStatusHandler(ITenantRepository tenants, IExec
             _ => tenant.Value.TerminateTenant(operatorId.Value, command.Reason, now),
         };
         return result.IsFailure ? result.Error : tenant.Value.RowVersion;
+    }
+
+    /// <summary>
+    /// The activation guard for a tenant set up by a SETUP change set (AIA-085, AIA-086, option C). It can't go live while a set waits for its approval or is
+    /// partly applied; and once one is applied, every onboarding step's readiness is run again, as steps completed before the set was applied were checked
+    /// without it. Steps completed after it pass again unless something changed since.
+    /// </summary>
+    private async Task<Error?> SetupGuard(Tenant tenant, CancellationToken cancellationToken)
+    {
+        var state = await setups.For(tenant.Id, cancellationToken);
+        if (state.Open > 0)
+        {
+            return Error.Conflict(TenancyErrorCodes.OnboardingIncomplete,
+                "A SETUP change set is waiting for its approval or partly applied; the tenant goes live only once it is applied in full (AIA-086).");
+        }
+
+        if (state.Applied == 0)
+        {
+            return null;
+        }
+
+        var view = await readiness.For(tenant, cancellationToken);
+        var failing = view.Steps.SelectMany(s => s.Checks.Where(c => !c.Ready && !c.Advisory).Select(c => (s.Step, Check: c))).ToList();
+        return failing.Count == 0
+            ? null
+            : Error.Validation(TenancyErrorCodes.OnboardingStepNotReady,
+                $"The tenant was set up by a SETUP change set, so every onboarding step's readiness runs again before go-live (AIA-085); not ready: {string.Join(", ", failing.Select(f => $"{f.Step} {f.Check.Code}"))}.",
+                failing.ToDictionary(f => $"{f.Step}.{f.Check.Code}", f => f.Check.Missing.ToArray()));
     }
 }
 

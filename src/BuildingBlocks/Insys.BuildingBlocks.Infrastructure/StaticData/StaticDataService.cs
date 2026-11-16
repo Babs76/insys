@@ -381,7 +381,7 @@ public sealed class StaticDataService<TDbContext>(
     /// so every rejected line is reported, not just the first.
     /// </summary>
     public async Task<Result<(int Count, Guid BatchId)>> Import<TEntity, TInput>(StaticDataDescriptor descriptor, IReadOnlyList<TInput> lines, string fileRef, bool global,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, Guid? batchId = null)
         where TEntity : StaticRecord<TInput>, new()
         where TInput : StaticRecordInput
     {
@@ -390,6 +390,70 @@ public sealed class StaticDataService<TDbContext>(
             return userError;
         }
 
+        var batch = batchId ?? Guid.CreateVersion7();
+        await using var lease = Lease(global);
+        var context = lease.Context;
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        var errors = await Stage<TEntity, TInput>(context, transaction, descriptor, lines, global, batch, cancellationToken);
+        var submittedBy = Guid.Parse(execution.ActorId);
+        if (errors.Count > 0)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            context.ChangeTracker.Clear();
+            await using var report = await context.Database.BeginTransactionAsync(cancellationToken);
+            context.Publish(new StaticDataImportRejected(batch, descriptor.EntityCode, fileRef, lines.Count, submittedBy, errors),
+                "ImportBatch", batch, clock.UtcNow);
+            await context.SaveChangesAsync(cancellationToken);
+            await report.CommitAsync(cancellationToken);
+            return Error.Validation(StaticDataErrorCodes.ImportRejected, $"The import was rejected: {errors.Count} line error(s). Nothing was saved.",
+                errors.GroupBy(e => $"line {e.Line}").ToDictionary(g => g.Key, g => g.Select(e => $"{e.Field}: {e.Message}").ToArray()));
+        }
+
+        context.Publish(new StaticDataImportCompleted(batch, descriptor.EntityCode, fileRef, lines.Count, submittedBy), "ImportBatch", batch, clock.UtcNow);
+        context.PublishAudit([new AuditEntry("STATIC_DATA", "CommitImport", descriptor.EntityCode, batch.ToString(),
+            new Dictionary<string, string?> { ["rows"] = lines.Count.ToString(System.Globalization.CultureInfo.InvariantCulture), ["global"] = global.ToString() })],
+            AuditOutcome.Success);
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return (lines.Count, batch);
+    }
+
+    /// <summary>
+    /// AIA-085: the lines as an import would take them, saving nothing. Every check the import makes is made, the database's own included: the lines are
+    /// inserted in a transaction that is then rolled back, and no event is raised.
+    /// </summary>
+    public async Task<IReadOnlyList<ImportLineError>> CheckImport<TEntity, TInput>(StaticDataDescriptor descriptor, IReadOnlyList<TInput> lines, CancellationToken cancellationToken)
+        where TEntity : StaticRecord<TInput>, new()
+        where TInput : StaticRecordInput
+    {
+        if (RequireUser() is { } userError)
+        {
+            return [new ImportLineError(0, "user", userError.Message)];
+        }
+
+        await using var lease = Lease(global: false);
+        var context = lease.Context;
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            return await Stage<TEntity, TInput>(context, transaction, descriptor, lines, global: false, Guid.CreateVersion7(), cancellationToken);
+        }
+        finally
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            context.ChangeTracker.Clear();
+        }
+    }
+
+    /// <summary>
+    /// The import's checks and inserts, in the caller's transaction: each line is validated, then inserted under a savepoint so every rejected line is
+    /// reported, not just the first. The caller commits or rolls back.
+    /// </summary>
+    private async Task<List<ImportLineError>> Stage<TEntity, TInput>(TDbContext context, IDbContextTransaction transaction, StaticDataDescriptor descriptor,
+        IReadOnlyList<TInput> lines, bool global, Guid batchId, CancellationToken cancellationToken)
+        where TEntity : StaticRecord<TInput>, new()
+        where TInput : StaticRecordInput
+    {
         var errors = new List<ImportLineError>();
         for (var i = 0; i < lines.Count; i++)
         {
@@ -405,69 +469,88 @@ public sealed class StaticDataService<TDbContext>(
             }
         }
 
-        var batchId = Guid.CreateVersion7();
-        await using var lease = Lease(global);
-        var context = lease.Context;
-        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
-        var existingCodes = await Scoped(context.Set<TEntity>(), global).Select(r => r.Code).Distinct().ToListAsync(cancellationToken);
-        if (errors.Count == 0)
+        if (errors.Count > 0)
         {
-            for (var i = 0; i < lines.Count; i++)
-            {
-                if (existingCodes.Contains(lines[i].Code) || lines.Take(i).Any(l => l.Code == lines[i].Code))
-                {
-                    errors.Add(new ImportLineError(i + 1, "code", "The code already exists; change existing codes through a new version."));
-                    continue;
-                }
+            return errors;
+        }
 
-                var entity = new TEntity
-                {
-                    Id = Guid.CreateVersion7(),
-                    TenantId = global ? null : context.CurrentTenantId,
-                    Code = lines[i].Code,
-                    Version = 1,
-                    EffectiveFrom = lines[i].EffectiveFrom ?? businessDate.Today,
-                    RecordStatus = descriptor.Lifecycle.Draft,
-                    ImportBatchId = batchId,
-                };
-                entity.ApplyCommon(lines[i]);
-                entity.ApplyFields(lines[i], protector);
-                await transaction.CreateSavepointAsync("line", cancellationToken);
-                context.Set<TEntity>().Add(entity);
-                try
-                {
-                    await context.SaveChangesAsync(cancellationToken);
-                }
-                catch (DbUpdateException ex) when (ex.InnerException is PostgresException postgres)
-                {
-                    await transaction.RollbackToSavepointAsync("line", cancellationToken);
-                    context.Entry(entity).State = EntityState.Detached;
-                    errors.Add(new ImportLineError(i + 1, postgres.ColumnName ?? postgres.ConstraintName ?? "row", DescribeDatabaseError(postgres)));
-                }
+        var existingCodes = await Scoped(context.Set<TEntity>(), global).Select(r => r.Code).Distinct().ToListAsync(cancellationToken);
+        for (var i = 0; i < lines.Count; i++)
+        {
+            if (existingCodes.Contains(lines[i].Code) || lines.Take(i).Any(l => l.Code == lines[i].Code))
+            {
+                errors.Add(new ImportLineError(i + 1, "code", "The code already exists; change existing codes through a new version."));
+                continue;
+            }
+
+            var entity = new TEntity
+            {
+                Id = Guid.CreateVersion7(),
+                TenantId = global ? null : context.CurrentTenantId,
+                Code = lines[i].Code,
+                Version = 1,
+                EffectiveFrom = lines[i].EffectiveFrom ?? businessDate.Today,
+                RecordStatus = descriptor.Lifecycle.Draft,
+                ImportBatchId = batchId,
+            };
+            entity.ApplyCommon(lines[i]);
+            entity.ApplyFields(lines[i], protector);
+            await transaction.CreateSavepointAsync("line", cancellationToken);
+            context.Set<TEntity>().Add(entity);
+            try
+            {
+                await context.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateException ex) when (ex.InnerException is PostgresException postgres)
+            {
+                await transaction.RollbackToSavepointAsync("line", cancellationToken);
+                context.Entry(entity).State = EntityState.Detached;
+                errors.Add(new ImportLineError(i + 1, postgres.ColumnName ?? postgres.ConstraintName ?? "row", DescribeDatabaseError(postgres)));
             }
         }
 
-        var submittedBy = Guid.Parse(execution.ActorId);
-        if (errors.Count > 0)
+        return errors;
+    }
+
+    /// <summary>
+    /// AIA-086: one table's batch of a SETUP change set, imported as drafts and submitted to the set (BR-016), with the batch's id chosen by the set. Resumable:
+    /// lines already imported in the batch are submitted, and a batch already submitted is returned as it stands, so a retry does nothing twice.
+    /// </summary>
+    public async Task<Result<StaticImportSubmission>> ImportToSet<TEntity, TInput>(StaticDataDescriptor descriptor, IReadOnlyList<TInput> lines, Guid batchId, Guid setId,
+        CancellationToken cancellationToken)
+        where TEntity : StaticRecord<TInput>, new()
+        where TInput : StaticRecordInput
+    {
+        if (RequireUser() is { } userError)
         {
-            await transaction.RollbackAsync(cancellationToken);
-            context.ChangeTracker.Clear();
-            await using var report = await context.Database.BeginTransactionAsync(cancellationToken);
-            context.Publish(new StaticDataImportRejected(batchId, descriptor.EntityCode, fileRef, lines.Count, submittedBy, errors),
-                "ImportBatch", batchId, clock.UtcNow);
-            await context.SaveChangesAsync(cancellationToken);
-            await report.CommitAsync(cancellationToken);
-            return Error.Validation(StaticDataErrorCodes.ImportRejected, $"The import was rejected: {errors.Count} line error(s). Nothing was saved.",
-                errors.GroupBy(e => $"line {e.Line}").ToDictionary(g => g.Key, g => g.Select(e => $"{e.Field}: {e.Message}").ToArray()));
+            return userError;
         }
 
-        context.Publish(new StaticDataImportCompleted(batchId, descriptor.EntityCode, fileRef, lines.Count, submittedBy), "ImportBatch", batchId, clock.UtcNow);
-        context.PublishAudit([new AuditEntry("STATIC_DATA", "CommitImport", descriptor.EntityCode, batchId.ToString(),
-            new Dictionary<string, string?> { ["rows"] = lines.Count.ToString(System.Globalization.CultureInfo.InvariantCulture), ["global"] = global.ToString() })],
-            AuditOutcome.Success);
-        await context.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
-        return (lines.Count, batchId);
+        List<TEntity> existing;
+        await using (var read = await ReadOnly(tenantDb, cancellationToken))
+        {
+            existing = await Scoped(tenantDb.Set<TEntity>().AsNoTracking(), global: false).Where(r => r.ImportBatchId == batchId).OrderBy(r => r.Code).ThenBy(r => r.Version)
+                .ToListAsync(cancellationToken);
+        }
+
+        if (existing.Count > 0 && existing.All(l => l.RecordStatus == descriptor.Lifecycle.PendingApproval && l.ChangeRequestId is not null))
+        {
+            return new StaticImportSubmission(batchId, existing[0].ChangeRequestId!.Value, existing.Count, ImportHash(existing));
+        }
+
+        if (existing.Count == 0)
+        {
+            var imported = await Import<TEntity, TInput>(descriptor, lines, $"SETUP:{setId}", global: false, cancellationToken, batchId);
+            if (imported.IsFailure)
+            {
+                return imported.Error;
+            }
+
+            // The submission hashes the lines as stored, which its approval compares with; not the import's copies still tracked here.
+            tenantDb.ChangeTracker.Clear();
+        }
+
+        return await SubmitImport<TEntity>(descriptor, batchId, global: false, cancellationToken, setId);
     }
 
     /// <summary>BR-016: an import's lines (its drafts, or the versions they became), in code order, for the maker and the checker.</summary>
@@ -487,7 +570,8 @@ public sealed class StaticDataService<TDbContext>(
     /// approval is bound to the hash of the complete import. Raises StaticDataImportSubmitted; the Static Data module
     /// records the change request and asks Workflow for one approval of the table's tier.
     /// </summary>
-    public async Task<Result<StaticImportSubmission>> SubmitImport<TEntity>(StaticDataDescriptor descriptor, Guid batchId, bool global, CancellationToken cancellationToken)
+    public async Task<Result<StaticImportSubmission>> SubmitImport<TEntity>(StaticDataDescriptor descriptor, Guid batchId, bool global, CancellationToken cancellationToken,
+        Guid? setupSetId = null)
         where TEntity : StaticRecord
     {
         if (RequireUser() is { } userError)
@@ -538,10 +622,10 @@ public sealed class StaticDataService<TDbContext>(
         var hash = ImportHash(lines);
         var maker = Guid.Parse(execution.ActorId);
         context.Publish(new StaticDataImportSubmitted(changeRequestId, batchId, Ref(descriptor, lines[0]), lines.Count, hash, maker, descriptor.Tier,
-            descriptor.Scope.ToString(), lines.Min(l => l.EffectiveFrom), lines[0].ChangeReason ?? ""), "ImportBatch", batchId, clock.UtcNow);
+            descriptor.Scope.ToString(), lines.Min(l => l.EffectiveFrom), lines[0].ChangeReason ?? "", setupSetId), "ImportBatch", batchId, clock.UtcNow);
         context.PublishAudit([new AuditEntry("STATIC_DATA", "SubmitImport", descriptor.EntityCode, batchId.ToString(),
             new Dictionary<string, string?> { ["changeRequest"] = changeRequestId.ToString(), ["lines"] = lines.Count.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                ["hash"] = hash, ["global"] = global.ToString() })], AuditOutcome.Success);
+                ["hash"] = hash, ["global"] = global.ToString(), ["setupSet"] = setupSetId?.ToString() })], AuditOutcome.Success);
         try
         {
             await context.SaveChangesAsync(cancellationToken);
@@ -565,7 +649,8 @@ public sealed class StaticDataService<TDbContext>(
         {
             var lines = await db.Set<TEntity>().Where(r => r.ChangeRequestId == approved.ChangeRequestId).OrderBy(r => r.Code).ThenBy(r => r.Version)
                 .ToListAsync(cancellationToken);
-            if (lines.Count > 0 && lines.All(l => l.RecordStatus == descriptor.Lifecycle.Approved))
+            var done = approved.SetupSetId is null ? descriptor.Lifecycle.Approved : descriptor.Lifecycle.Active;
+            if (lines.Count > 0 && lines.All(l => l.RecordStatus == done))
             {
                 return;
             }
@@ -582,6 +667,24 @@ public sealed class StaticDataService<TDbContext>(
                 line.ApprovedAt = approved.ApprovedAt;
                 line.ApprovedBy = approved.CheckerId.ToString();
             }
+
+            // AIA-086: a SETUP change set's batch is put in force as it is approved, every line in this one transaction (SDM-009 for each), and the set is
+            // told so it applies its next batch, in dependency order.
+            if (approved.SetupSetId is { } setId)
+            {
+                foreach (var line in lines)
+                {
+                    line.RecordStatus = descriptor.Lifecycle.Active;
+                    db.Publish(new StaticDataVersionActivated(line.ChangeRequestId, Ref(descriptor, line), line.EffectiveFrom, line.EffectiveTo), descriptor.EntityName,
+                        line.Id, clock.UtcNow);
+                }
+
+                db.Publish(new StaticDataSetupBatchApplied(setId, approved.ChangeRequestId, approved.BatchId, descriptor.EntityCode, lines.Count), "ImportBatch",
+                    approved.BatchId, clock.UtcNow);
+                db.PublishAudit([new AuditEntry("STATIC_DATA", "ApplySetupBatch", descriptor.EntityCode, approved.BatchId.ToString(),
+                    new Dictionary<string, string?> { ["setupSet"] = setId.ToString(), ["lines"] = lines.Count.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                        ["checker"] = approved.CheckerId.ToString() })], AuditOutcome.Success);
+            }
         }, cancellationToken);
 
     /// <summary>BR-016: an import not approved (rejected, expired, withdrawn) returns every line to draft, as a whole. Idempotent.</summary>
@@ -589,11 +692,25 @@ public sealed class StaticDataService<TDbContext>(
         where TEntity : StaticRecord =>
         await ApplyDecision<TEntity>(rejected.Record, async db =>
         {
-            foreach (var line in await db.Set<TEntity>().Where(r => r.ChangeRequestId == rejected.ChangeRequestId && r.RecordStatus == descriptor.Lifecycle.PendingApproval)
-                         .ToListAsync(cancellationToken))
+            var pending = db.Set<TEntity>().Where(r => r.ChangeRequestId == rejected.ChangeRequestId && r.RecordStatus == descriptor.Lifecycle.PendingApproval);
+            if (rejected.SetupSetId is null)
             {
-                line.RecordStatus = descriptor.Lifecycle.Draft;
+                foreach (var line in await pending.ToListAsync(cancellationToken))
+                {
+                    line.RecordStatus = descriptor.Lifecycle.Draft;
+                }
+
+                return;
             }
+
+            // AIA-086: a SETUP change set not approved leaves nothing behind. Its drafts are discarded (only a draft may be deleted, SDM-007), so the setup
+            // can be submitted again; the import and its change request stay on record.
+            var draft = descriptor.Lifecycle.Draft;
+            await pending.ExecuteUpdateAsync(u => u.SetProperty(r => r.RecordStatus, draft), cancellationToken);
+            var discarded = await db.Set<TEntity>().Where(r => r.ChangeRequestId == rejected.ChangeRequestId && r.RecordStatus == draft).ExecuteDeleteAsync(cancellationToken);
+            db.PublishAudit([new AuditEntry("STATIC_DATA", "DiscardSetupBatch", descriptor.EntityCode, rejected.BatchId.ToString(),
+                new Dictionary<string, string?> { ["setupSet"] = rejected.SetupSetId.ToString(), ["lines"] = discarded.ToString(System.Globalization.CultureInfo.InvariantCulture) })],
+                AuditOutcome.Success);
         }, cancellationToken);
 
     /// <summary>BR-016: an approved import is put in force as a whole, every line in one transaction (SDM-009 for each).</summary>

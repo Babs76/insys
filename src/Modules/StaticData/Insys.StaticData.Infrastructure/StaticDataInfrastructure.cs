@@ -44,6 +44,9 @@ public static class StaticDataInfrastructure
         // F103 (access-scopes.md §1): static data isn't scoped.
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Unscoped(Insys.StaticData.Contracts.StaticDataApprovals.BusinessRefType, "static data: configuration, not a scoped record");
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Unscoped(Insys.StaticData.Contracts.StaticDataApprovals.GovernanceBusinessRefType, "static data governance: configuration");
+        // AIA-086: a SETUP change set's one approval, of Tier 1; its records are its batches' change requests.
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.StaticData.Contracts.SetupChangeSets.BusinessRefType, "STATIC_DATA_CHANGE_REQUESTS", Insys.StaticData.Contracts.SetupChangeSets.ApprovalType);
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.Unscoped(Insys.StaticData.Contracts.SetupChangeSets.BusinessRefType, "a tenant's setup: static data configuration, not a scoped record");
         services.AddModuleDbContext<StaticDataDbContext>(StaticDataDbContext.SchemaName, "StaticData");
         services.AddStaticData<StaticDataDbContext>(StaticDataDbContext.SchemaName, StaticDataStaticData.Descriptors);
         services.AddModuleHandlers<StaticDataDbContext>(typeof(ListChangeRequests).Assembly);
@@ -62,6 +65,10 @@ public static class StaticDataInfrastructure
         services.AddIntegrationEventHandler<StaticDataCodeDeprecated, StaticDataGovernancePolicies, StaticDataDbContext>(schema, "Deprecated");
         services.AddIntegrationEventHandler<StaticDataImportCompleted, StaticDataGovernancePolicies, StaticDataDbContext>(schema, "ImportCompleted");
         services.AddIntegrationEventHandler<StaticDataImportRejected, StaticDataGovernancePolicies, StaticDataDbContext>(schema, "ImportRejected");
+        services.AddIntegrationEventHandler<Contracts.SetupChangeSetRequested, StaticDataGovernancePolicies, StaticDataDbContext>(schema, "SetupRequested");
+        services.AddIntegrationEventHandler<StaticDataSetupBatchApplied, StaticDataGovernancePolicies, StaticDataDbContext>(schema, "SetupBatchApplied");
+        services.AddSingleton<Contracts.ISetupChangeSetState, SetupChangeSetStateQuery>();
+        services.AddSingleton<BuildingBlocks.Application.IReadinessCheck, SetupChangeSetReadiness>(); // AIA-086: a blocker while a set is open
         // Onboarding readiness (addenda/onboarding-readiness.md §2): the configuration this module owns.
         BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddStaticReadiness(services, Persistence.StaticDataDbContext.SchemaName, StaticDataStaticData.Descriptors,
             new BuildingBlocks.Infrastructure.Readiness.StaticCheck("PLATFORM_REFERENCE_DATA", "GLOBAL_REFERENCE_DATA", "refdata.ref_currencies", "Global currencies, countries, languages and time zones", null, GlobalRows: true),

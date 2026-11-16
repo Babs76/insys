@@ -54,6 +54,13 @@ public interface IChangeRequestRepository
     Task<TenantGovernanceSettings?> Settings(CancellationToken cancellationToken);
 
     void Add(TenantGovernanceSettings settings);
+
+    Task<SetupChangeSet?> SetupSet(Guid id, CancellationToken cancellationToken);
+
+    void Add(SetupChangeSet set);
+
+    /// <summary>The change requests submitted to a SETUP change set, one per batch.</summary>
+    Task<IReadOnlyList<StaticDataChange>> SetupBatches(Guid setId, CancellationToken cancellationToken);
 }
 
 /// <param name="PendingTier2MakerChecker">False while a switch-off waits for a second person's approval; otherwise null.</param>
@@ -224,7 +231,9 @@ public sealed class StaticDataGovernancePolicies(IChangeRequestRepository change
     IIntegrationEventHandler<StaticDataVersionActivated>,
     IIntegrationEventHandler<StaticDataCodeDeprecated>,
     IIntegrationEventHandler<StaticDataImportCompleted>,
-    IIntegrationEventHandler<StaticDataImportRejected>
+    IIntegrationEventHandler<StaticDataImportRejected>,
+    IIntegrationEventHandler<SetupChangeSetRequested>,
+    IIntegrationEventHandler<StaticDataSetupBatchApplied>
 {
     public static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
@@ -253,6 +262,29 @@ public sealed class StaticDataGovernancePolicies(IChangeRequestRepository change
         after["batchId"] = submitted.BatchId;
         after["lineCount"] = submitted.LineCount;
         after["hash"] = submitted.Hash;
+        if (submitted.SetupSetId is { } setId)
+        {
+            // AIA-086: a SETUP change set's batch waits for the set's one approval. It may arrive after the set was decided: then it is applied in its turn,
+            // or discarded with the set.
+            after["setupSetId"] = setId;
+            var batch = StaticDataChange.SubmitSetupBatch(submitted.ChangeRequestId, record.EntityCode, submitted.BatchId, submitted.Hash, after.ToJsonString(Json),
+                submitted.MakerId, submitted.EffectiveFrom, submitted.Reason, setId);
+            changes.Add(batch);
+            if (await changes.SetupSet(setId, cancellationToken) is { } set)
+            {
+                if (set.Status == SetupSetStatuses.NotApproved)
+                {
+                    batch.RejectChange(Guid.Empty, "The setup change set was not approved.", clock.UtcNow);
+                }
+                else
+                {
+                    ApproveNext(set, [batch]);
+                }
+            }
+
+            return;
+        }
+
         var tier2MakerChecker = (await changes.Settings(cancellationToken))?.Tier2MakerChecker ?? true;
         changes.Add(StaticDataChange.SubmitImport(submitted.ChangeRequestId, record.EntityCode, submitted.BatchId, submitted.Hash, after.ToJsonString(Json),
             submitted.MakerId, submitted.EffectiveFrom, submitted.Reason, MakerCheckerPolicy.RequiresChecker(submitted.Tier, tier2MakerChecker),
@@ -268,6 +300,12 @@ public sealed class StaticDataGovernancePolicies(IChangeRequestRepository change
     /// </summary>
     public async Task Handle(ApprovalGranted granted, EventEnvelope envelope, CancellationToken cancellationToken)
     {
+        if (granted.BusinessRefType == SetupChangeSets.BusinessRefType)
+        {
+            await GrantSetup(granted, cancellationToken);
+            return;
+        }
+
         if (granted.BusinessRefType == StaticDataApprovals.BusinessRefType && await changes.Get(granted.BusinessRefId, cancellationToken) is { } change
             && !change.ApprovalApplied(granted.CheckerId)
             && change.ApproveChange(granted.CheckerId, requiresDifferentChecker: true, clock.UtcNow).IsFailure)
@@ -284,6 +322,12 @@ public sealed class StaticDataGovernancePolicies(IChangeRequestRepository change
     /// <summary>Workflow rejected the change: RejectChange, and the owning module returns the version to draft.</summary>
     public async Task Handle(ApprovalRejected rejected, EventEnvelope envelope, CancellationToken cancellationToken)
     {
+        if (rejected.BusinessRefType == SetupChangeSets.BusinessRefType)
+        {
+            await EndSetup(rejected, cancellationToken);
+            return;
+        }
+
         // Every ending (rejected, expired, withdrawn) rejects the change; one already rejected is a redelivery (D-5: any other refusal parks).
         if (rejected.BusinessRefType == StaticDataApprovals.BusinessRefType && await changes.Get(rejected.BusinessRefId, cancellationToken) is { } change
             && change.Status != ChangeStatus.Rejected
@@ -295,6 +339,103 @@ public sealed class StaticDataGovernancePolicies(IChangeRequestRepository change
         if (await DecideGovernance(rejected.BusinessRefType, rejected.BusinessRefId, approved: false, rejected.CheckerId, cancellationToken) is { IsFailure: true })
         {
             throw NotApplied(rejected);
+        }
+    }
+
+    /// <summary>
+    /// AIA-086: a SETUP change set requested by the module that assembled it. Recorded with its batches and their hash, and put to one approval of the
+    /// strictest tier, bound to that hash. A redelivery changes nothing.
+    /// </summary>
+    public async Task Handle(SetupChangeSetRequested requested, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (await changes.SetupSet(requested.SetId, cancellationToken) is not null)
+        {
+            return;
+        }
+
+        var set = SetupChangeSet.Submit(requested.SetId, requested.SourceRef, requested.MakerId,
+            [.. requested.Batches.Select(b => new SetupBatchSubmitted(b.Seq, b.Table, b.EntityCode, b.BatchId, b.ChangeRequestId, b.Lines, b.Hash))],
+            SetupChangeSets.ApprovalType, clock.UtcNow);
+        if (set.IsFailure)
+        {
+            throw new PrerequisiteMissingException(PrerequisiteCodes.ApprovalNotApplied, $"SETUP:{requested.SetId}");
+        }
+
+        changes.Add(set.Value);
+    }
+
+    /// <summary>A batch of a set is in force in its module: the set records it and approves the next batch, or completes.</summary>
+    public async Task Handle(StaticDataSetupBatchApplied applied, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (await changes.SetupSet(applied.SetupSetId, cancellationToken) is not { } set)
+        {
+            throw new PrerequisiteMissingException(PrerequisiteCodes.ApprovalNotApplied, $"SETUP:{applied.SetupSetId}");
+        }
+
+        if (set.BatchApplied(applied.BatchId, clock.UtcNow).IsFailure)
+        {
+            throw new PrerequisiteMissingException(PrerequisiteCodes.ApprovalNotApplied, $"SETUP:{applied.SetupSetId}:{applied.BatchId}");
+        }
+
+        ApproveNext(set, await changes.SetupBatches(set.Id, cancellationToken));
+    }
+
+    /// <summary>
+    /// The set's one approval (AIA-086): refused to the maker, and applied only to the contents it was given for (its hash, and each batch's change request
+    /// with the lines' hash it was submitted with). The first batch is approved now; each later one when the one before is in force.
+    /// </summary>
+    private async Task GrantSetup(ApprovalGranted granted, CancellationToken cancellationToken)
+    {
+        if (await changes.SetupSet(granted.BusinessRefId, cancellationToken) is not { } set)
+        {
+            throw NotApplied(granted);
+        }
+
+        if (set.ApprovalApplied(granted.CheckerId))
+        {
+            return;
+        }
+
+        var batches = await changes.SetupBatches(set.Id, cancellationToken);
+        if (batches.Any(c => set.Batches.SingleOrDefault(b => b.ChangeRequestId == c.Id) is not { } b || b.Hash != c.ImportHash || b.BatchId != c.ImportBatchId)
+            || set.Approve(granted.CheckerId, granted.SubjectHash, clock.UtcNow).IsFailure)
+        {
+            throw NotApplied(granted);
+        }
+
+        ApproveNext(set, batches);
+    }
+
+    /// <summary>
+    /// The batch whose turn it is, when its change request has arrived and still names the lines the set was approved for: approved by the set's checker,
+    /// and the owning module then puts it in force (StaticDataImportApproved with the set). A change request that names other lines is never approved.
+    /// </summary>
+    private void ApproveNext(SetupChangeSet set, IReadOnlyList<StaticDataChange> batches)
+    {
+        if (set.Next() is not { } next || batches.SingleOrDefault(c => c.Id == next.ChangeRequestId) is not { } change || change.Status != ChangeStatus.PendingApproval)
+        {
+            return;
+        }
+
+        if (change.ImportHash != next.Hash || change.ImportBatchId != next.BatchId
+            || change.ApproveChange(set.CheckerId!.Value, requiresDifferentChecker: true, clock.UtcNow).IsFailure)
+        {
+            throw new PrerequisiteMissingException(PrerequisiteCodes.ApprovalNotApplied, $"SETUP:{set.Id}:{next.BatchId}");
+        }
+    }
+
+    /// <summary>The set wasn't approved (rejected, expired, withdrawn): nothing of it applies, and each batch's drafts are discarded.</summary>
+    private async Task EndSetup(ApprovalRejected rejected, CancellationToken cancellationToken)
+    {
+        if (await changes.SetupSet(rejected.BusinessRefId, cancellationToken) is not { } set
+            || set.NotApproved(rejected.Ending, rejected.CheckerId, rejected.Reason, clock.UtcNow).IsFailure)
+        {
+            throw NotApplied(rejected);
+        }
+
+        foreach (var change in (await changes.SetupBatches(set.Id, cancellationToken)).Where(c => c.Status == ChangeStatus.PendingApproval))
+        {
+            change.RejectChange(rejected.CheckerId, rejected.Reason, clock.UtcNow);
         }
     }
 
