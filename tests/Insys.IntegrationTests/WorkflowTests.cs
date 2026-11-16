@@ -312,6 +312,24 @@ public sealed class WorkflowTests(DatabaseFixture fixture) : IClassFixture<Datab
         (await Requested(ProductFactory.Contracts.ProductApprovals.BusinessRefType, version, ProductFactory.Contracts.ProductApprovals.ApprovalType))
             .ShouldBe($"True|{product}||False", "a product version's approval is scoped by its product alone");
         (await Requested(StaticDataApprovals.BusinessRefType, Guid.CreateVersion7(), StaticDataApprovals.ApprovalType(1))).ShouldBe("False||", "static data is declared unscoped");
+
+        // A refund is paid from the whole account: one scope when every schedule shares it, otherwise unrestricted checkers only.
+        var rows = new RowFiller(db, DateTimeOffset.UtcNow);
+        async Task<Guid> Refund(params string[] products)
+        {
+            var account = await rows.Insert(DatabaseFixture.TenantA, "billing.billing_account", ("status", "ACTIVE"));
+            foreach (var p in products)
+            {
+                await rows.Insert(DatabaseFixture.TenantA, "billing.premium_schedule", ("billing_account_id", account), ("product_code", p), ("org_node_code", "BR-A"));
+            }
+
+            return await rows.Insert(DatabaseFixture.TenantA, "billing.refund_request", ("billing_account_id", account), ("amount", 100m), ("currency", "ZAR"),
+                ("reason_code", "OVERPAID"), ("status", "REQUESTED"));
+        }
+
+        var refund = (Billing.Contracts.BillingApprovals.RefundBusinessRefType, Billing.Contracts.BillingApprovals.RefundApprovalType);
+        (await Requested(refund.Item1, await Refund("GEN-HOME", "GEN-HOME"), refund.Item2)).ShouldBe("True|GEN-HOME|BR-A", "the account's one scope");
+        (await Requested(refund.Item1, await Refund("GEN-HOME", "GEN-MOTOR"), refund.Item2)).ShouldBe("True||", "an account across scopes fails closed");
     }
 
     /// <summary>

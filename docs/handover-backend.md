@@ -416,16 +416,17 @@ The first of the five fix batches from the scope sweeps (`docs/reviews/read-scop
   - Documents' legal holds and record holds (the held record);
   - ProductFactory's product version (its product, by product only, `org_node_applies` false, V0135);
   - Health's recoveries and credit notes (unrestricted checkers only).
+- **Approvals already waiting** of the newly sourced types are scoped by V0135's backfill (product versions by product; the rest fail closed). The backfill has no test of its own; it runs in every test database's migrations.
 - **Fail closed (OQ-176).** A refund across scopes, a held record with several scopes, or a record not found is decided only by an unrestricted checker. So is a type with neither a source nor an unscoped declaration: the approval is scoped to nothing (`ScopeTo(null, null)`).
 - **Who decides.** `decidable=true` and the decision use the scope of `approval.approve`. The list and `WaitingFromOthers` filter in the query, product-only approvals with the checker's scope less its nodes.
 - **Writes.**
-  - Payments: create, resolve, reverse, allocate (`PaymentScopes.MayChange`, fail closed for a payment with no record). Allocation is checked before Billing plans over the account, so the planner needs no change: the account-wide check covers every invoice it can choose.
+  - Payments: create, resolve, reverse, allocate (`PaymentScopes.MayChange`, fail closed for a payment with no record). A commission payout is exempt only against a commission statement, and needs `commission_payout.read` (the review's finding: the purpose alone had lifted the check). Allocation is checked before Billing plans over the account, so the planner needs no change: the account-wide check covers every invoice it can choose.
   - Reconciliation exceptions: assign and resolve, through their payment (OQ-170).
   - General assessments and recoveries: loaded in their claim's scope (`GeneralStores.InClaimScope`).
   - `POST /claims/claims`: the product and node checked; `ByDomainClaim` scoped.
   - Health staff claims: the membership's scope; the provider portal is left to its relationship check (OQ-175).
   - `POST /rating/calculations`: product only.
-- **Interpretations to confirm with Ade:** Health recoveries and credit notes go to unrestricted checkers only (they are provider-level, across products). A payment with no record is changed only by an unrestricted caller. Payment and exception **reads** are unchanged here and come with the paging batch.
+- **Interpretations to confirm with Ade:** Health recoveries and credit notes go to unrestricted checkers only (they are provider-level, across products). A payment with no record is changed only by an unrestricted caller. A hold on a party: its release goes to unrestricted checkers only (the hold's record has no scope), though party approvals are unscoped. Claim registration applies the caller's scope with no portal exemption; no portal route reaches it today (OQ-175). Payment and exception **reads** are unchanged here and come with the paging batch.
 - **Tests (each fails without its fix, checked by undoing the fix):**
   - `WorkflowTests`: the coverage of every type; the fail-closed and product-version scoping through a real `ApprovalRequested`; product-only and unresolved approvals; deciding by the approve scope.
   - `WriteScopeTests`: 6 tests, one per write group.

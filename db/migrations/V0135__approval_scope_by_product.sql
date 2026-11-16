@@ -28,3 +28,20 @@
 -- version), is judged by the checker's product scope only: a branch-limited checker isn't refused it for want of a node. Existing approvals keep the full rule.
 ALTER TABLE workflow.approval ADD COLUMN org_node_applies boolean NOT NULL DEFAULT true;
 COMMENT ON COLUMN workflow.approval.org_node_applies IS 'False for a record scoped by product only (a product version, OQ-173): the checker''s organisation scope does not apply.';
+
+-- OQ-176, fail closed for approvals already waiting: the types that had no scope source until now are scoped. A product version's takes its product, by
+-- product only; the rest are scoped to nothing, so only a checker with unrestricted scope sees and decides them. Decided approvals are left as they were.
+DO $$
+DECLARE t uuid;
+BEGIN
+  FOR t IN SELECT id FROM tenant.tenant LOOP
+    PERFORM set_config('app.tenant_id', t::text, true);
+    UPDATE workflow.approval a SET is_scoped = true, product_code = v.product_code, org_node_code = NULL, org_node_applies = false
+    FROM product.cfg_product_definitions_and_versions v
+    WHERE a.business_ref_type = 'PRODUCT_VERSION' AND a.status = 'REQUESTED' AND NOT a.is_scoped AND v.tenant_id = a.tenant_id AND v.id = a.business_ref_id;
+    UPDATE workflow.approval SET is_scoped = true, product_code = NULL, org_node_code = NULL
+    WHERE status = 'REQUESTED' AND NOT is_scoped
+      AND business_ref_type IN ('PRODUCT_VERSION', 'REFUND_REQUEST', 'PAYMENT', 'CASE_REDRESS', 'DOCUMENT_LEGAL_HOLD', 'RECORD_LEGAL_HOLD', 'GENERAL_RENEWAL',
+                                'HEALTH_RECOVERY', 'HEALTH_CREDIT_NOTE');
+  END LOOP;
+END $$;

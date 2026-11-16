@@ -731,7 +731,8 @@ public sealed class PaymentScopes(IEnumerable<IBusinessRecordScopes> sources, IT
 
     /// <summary>
     /// Whether the caller may change the payment (F103; OQ-176, fail closed): all of its record must be in their scope. A payment with no record, or
-    /// against a record no source covers, is changed only by a caller with unrestricted scope. A commission payout isn't scoped (OQ-174).
+    /// against a record no source covers, is changed only by a caller with unrestricted scope. A commission payout isn't scoped (OQ-174), but needs
+    /// commission_payout.read.
     /// </summary>
     public Task<bool> MayChange(Payment payment, CancellationToken cancellationToken) =>
         MayChange(payment.Purpose, payment.BusinessRefType, payment.BusinessRefId, cancellationToken);
@@ -739,9 +740,15 @@ public sealed class PaymentScopes(IEnumerable<IBusinessRecordScopes> sources, IT
     /// <inheritdoc cref="MayChange(Payment, CancellationToken)"/>
     public async Task<bool> MayChange(string purpose, string? businessRefType, Guid? businessRefId, CancellationToken cancellationToken)
     {
-        if (execution.CurrentScope.IsUnrestricted || purpose == PaymentPurposes.Commission)
+        if (execution.CurrentScope.IsUnrestricted)
         {
             return true;
+        }
+
+        // A commission payout pays a commission statement, which isn't scoped (OQ-174): changed by a caller who may see commission payouts, as reads are.
+        if (purpose == PaymentPurposes.Commission && businessRefType == Distribution.Contracts.DistributionApprovals.StatementBusinessRefType)
+        {
+            return execution.HasPermission(PaymentPermissions.CommissionPayoutRead);
         }
 
         if (businessRefType is null || businessRefId is not { } id || sources.FirstOrDefault(s => s.Covers(businessRefType)) is not { } source)

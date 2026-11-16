@@ -88,6 +88,14 @@ public sealed class WriteScopeTests(DatabaseFixture fixture) : IClassFixture<Dat
         }, idempotent: true);
         made.StatusCode.ShouldBe(HttpStatusCode.Forbidden, await made.Content.ReadAsStringAsync());
         (await made.Code()).ShouldBe("OUT_OF_SCOPE");
+
+        // Labelling it a commission payout doesn't lift the check: only a payout against a commission statement is outside branch scope (OQ-174).
+        var labelled = await client.Send(HttpMethod.Post, "/api/v1/payments/payments", new
+        {
+            direction = "In", purpose = "COMMISSION", methodCode = "EFT", amount = 100m, currency = "ZAR", businessRefType = "INVOICE", businessRefId = motor,
+        }, idempotent: true);
+        labelled.StatusCode.ShouldBe(HttpStatusCode.Forbidden, await labelled.Content.ReadAsStringAsync());
+        (await labelled.Code()).ShouldBe("OUT_OF_SCOPE");
     }
 
     /// <summary>OQ-170: a reconciliation exception is acted on through the payment it references; one with no payment, by an unrestricted caller only (OQ-176).</summary>
@@ -163,6 +171,15 @@ public sealed class WriteScopeTests(DatabaseFixture fixture) : IClassFixture<Dat
         refused.StatusCode.ShouldBe(HttpStatusCode.Forbidden, await refused.Content.ReadAsStringAsync());
         (await refused.Code()).ShouldBe("OUT_OF_SCOPE");
         (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM health.medical_claim WHERE membership_id = @m", ("m", outside))).ShouldBe(0);
+
+        var inside = await _rows.Insert(T, "health.membership", ("status", "ACTIVE"), ("product_code", "WS-HEALTH"), ("member_number", $"WS{Random.Shared.Next(1_000_000, 9_999_999)}"));
+        var own = await client.Send(HttpMethod.Post, "/api/v1/health/claims", new
+        {
+            source = "MEMBER", membershipId = inside, patientPartyId = await fixture.Database.ScalarAsOwner<Guid>("SELECT principal_party_id FROM health.membership WHERE id = @m", ("m", inside)),
+            serviceDate = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-3), formatCode = "API", currency = "ZAR",
+            lines = new[] { new { tariffCode = "0190", quantity = 1, claimedAmount = 650m } },
+        }, idempotent: true);
+        own.StatusCode.ShouldBe(HttpStatusCode.Created, await own.Content.ReadAsStringAsync());
     }
 
     /// <summary>F103, OQ-168: a premium calculation is made only for a product in the caller's scope, judged by product only.</summary>
