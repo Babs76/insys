@@ -7,9 +7,10 @@
   "rows": [
     {
       "table": "tenant.cfg_locale_defaults",
-      "code": "LOCALE",
       "class": "FINANCE",
+      "code": "LOCALE",
       "values": {
+        "tenant": null,
         "base_currency": "ZAR",
         "languages": [
           "en"
@@ -29,15 +30,6 @@
       }
     },
     {
-      "table": "refdata.ref_public_holiday_calendars",
-      "code": "ZA",
-      "class": "OPERATIONAL",
-      "values": {
-        "country": "ZA"
-      },
-      "note": "No rows in the seed. Holiday dates must be loaded."
-    },
-    {
       "table": "workflow.cfg_case_types",
       "code": "COMPLAINT",
       "class": "COMPLIANCE",
@@ -49,29 +41,332 @@
     },
     {
       "table": "workflow.cfg_case_timelines",
-      "code": "COMPLAINT_ACKNOWLEDGE, COMPLAINT_RESOLVE",
       "class": "COMPLIANCE",
+      "code": "COMPLAINT_ACKNOWLEDGE",
       "values": {
-        "ACKNOWLEDGE": "P2D",
-        "RESOLVE": "P42D (seed, calendar days); P30D (live run, business days)"
+        "case_type_code": "COMPLAINT",
+        "step": "ACKNOWLEDGE",
+        "duration": "P2D",
+        "basis": "CALENDAR",
+        "extension_allowed": false
       },
       "note": "THE TWO SOURCES DIFFER. Compliance must say which is right for ZA; nothing was resolved here."
     },
     {
-      "table": "workflow.cfg_delegation_and_approval_authority",
-      "code": "APPROVER_*",
-      "class": "FINANCE",
+      "table": "workflow.cfg_case_timelines",
+      "class": "COMPLIANCE",
+      "code": "COMPLAINT_RESOLVE",
       "values": {
-        "limit_value": "1000000 (5000000 for LIFE_UNDERWRITING)",
-        "currency": "ZAR"
+        "case_type_code": "COMPLAINT",
+        "step": "RESOLVE",
+        "duration": null,
+        "basis": null,
+        "extension_allowed": null
+      },
+      "note": "THE TWO SOURCES DIFFER. Compliance must say which is right for ZA; nothing was resolved here. Two sources differ: P42D (seed, calendar days); P30D (live run, business days). Compliance settles it, so the duration is null."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "code": "AUTH-BANK_ACCOUNT_VERIFICATION",
+      "values": {
+        "currency": "ZAR",
+        "limit_value": 1000000
+      },
+      "note": "From the live run. The seed's 1000 is a test value."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "code": "AUTH-CASE_REDRESS",
+      "values": {
+        "currency": "ZAR",
+        "limit_value": 1000000
+      },
+      "note": "From the live run. The seed's 1000 is a test value."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "code": "AUTH-CLAIM_PAYMENT",
+      "values": {
+        "currency": "ZAR",
+        "limit_value": 1000000
+      },
+      "note": "From the live run. The seed's 1000 is a test value."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "code": "AUTH-CLAIM_SETTLEMENT",
+      "values": {
+        "currency": "ZAR",
+        "limit_value": 1000000
+      },
+      "note": "From the live run. The seed's 1000 is a test value."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "code": "AUTH-COMMISSION_STATEMENT",
+      "values": {
+        "currency": "ZAR",
+        "limit_value": 1000000
+      },
+      "note": "From the live run. The seed's 1000 is a test value."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "code": "AUTH-DUE_DILIGENCE_ENHANCED",
+      "values": {
+        "currency": "ZAR",
+        "limit_value": 1000000
+      },
+      "note": "From the live run. The seed's 1000 is a test value."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "code": "AUTH-DUE_DILIGENCE_RISK_OVERRIDE",
+      "values": {
+        "currency": "ZAR",
+        "limit_value": 1000000
+      },
+      "note": "From the live run. The seed's 1000 is a test value."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "code": "AUTH-DUE_DILIGENCE_UNBLOCK",
+      "values": {
+        "currency": "ZAR",
+        "limit_value": 1000000
+      },
+      "note": "From the live run. The seed's 1000 is a test value."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "code": "AUTH-ENDORSEMENT",
+      "values": {
+        "currency": "ZAR",
+        "limit_value": 1000000
+      },
+      "note": "From the live run. The seed's 1000 is a test value."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "code": "AUTH-EXTERNAL_SUBJECT_LINK",
+      "values": {
+        "currency": "ZAR",
+        "limit_value": 1000000
+      },
+      "note": "From the live run. The seed's 1000 is a test value."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "code": "AUTH-GENERAL_NON_RENEWAL",
+      "values": {
+        "currency": "ZAR",
+        "limit_value": 1000000
+      },
+      "note": "From the live run. The seed's 1000 is a test value."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "code": "AUTH-LEGAL_HOLD_RELEASE",
+      "values": {
+        "currency": "ZAR",
+        "limit_value": 1000000
+      },
+      "note": "From the live run. The seed's 1000 is a test value."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "code": "AUTH-LIFE_CLAIM",
+      "values": {
+        "currency": "ZAR",
+        "limit_value": 1000000
+      },
+      "note": "From the live run. The seed's 1000 is a test value."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "code": "AUTH-LIFE_UNDERWRITING",
+      "values": {
+        "currency": "ZAR",
+        "limit_value": 5000000
+      },
+      "note": "From the live run. The seed's 1000 is a test value."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "code": "AUTH-PARTY_MATCH_RESOLUTION",
+      "values": {
+        "currency": "ZAR",
+        "limit_value": 1000000
+      },
+      "note": "From the live run. The seed's 1000 is a test value."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "code": "AUTH-PAYOUT_RELEASE",
+      "values": {
+        "currency": "ZAR",
+        "limit_value": 1000000
+      },
+      "note": "From the live run. The seed's 1000 is a test value."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "code": "AUTH-PERIOD_REOPEN",
+      "values": {
+        "currency": "ZAR",
+        "limit_value": 1000000
+      },
+      "note": "From the live run. The seed's 1000 is a test value."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "code": "AUTH-PRIVILEGED_ROLE",
+      "values": {
+        "currency": "ZAR",
+        "limit_value": 1000000
+      },
+      "note": "From the live run. The seed's 1000 is a test value."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "code": "AUTH-PRODUCT_PUBLICATION",
+      "values": {
+        "currency": "ZAR",
+        "limit_value": 1000000
+      },
+      "note": "From the live run. The seed's 1000 is a test value."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "code": "AUTH-PROVIDER_CREDIT_NOTE",
+      "values": {
+        "currency": "ZAR",
+        "limit_value": 1000000
+      },
+      "note": "From the live run. The seed's 1000 is a test value."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "code": "AUTH-PROVIDER_PAYMENT_RUN",
+      "values": {
+        "currency": "ZAR",
+        "limit_value": 1000000
+      },
+      "note": "From the live run. The seed's 1000 is a test value."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "code": "AUTH-PROVIDER_RECOVERY_FINDING",
+      "values": {
+        "currency": "ZAR",
+        "limit_value": 1000000
+      },
+      "note": "From the live run. The seed's 1000 is a test value."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "code": "AUTH-PROVIDER_RECOVERY_WRITE_OFF",
+      "values": {
+        "currency": "ZAR",
+        "limit_value": 1000000
+      },
+      "note": "From the live run. The seed's 1000 is a test value."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "code": "AUTH-REFUND",
+      "values": {
+        "currency": "ZAR",
+        "limit_value": 1000000
+      },
+      "note": "From the live run. The seed's 1000 is a test value."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "code": "AUTH-STATIC_DATA_T1",
+      "values": {
+        "currency": "ZAR",
+        "limit_value": 1000000
+      },
+      "note": "From the live run. The seed's 1000 is a test value."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "code": "AUTH-STATIC_DATA_T2",
+      "values": {
+        "currency": "ZAR",
+        "limit_value": 1000000
+      },
+      "note": "From the live run. The seed's 1000 is a test value."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "code": "AUTH-TENANT_ADMINISTRATOR",
+      "values": {
+        "currency": "ZAR",
+        "limit_value": 1000000
+      },
+      "note": "From the live run. The seed's 1000 is a test value."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "code": "AUTH-UNKNOWN_PAYMENT_RESOLUTION",
+      "values": {
+        "currency": "ZAR",
+        "limit_value": 1000000
       },
       "note": "From the live run. The seed's 1000 is a test value."
     },
     {
       "table": "payment.ref_payment_methods",
-      "code": "COLLECT, PAY",
       "class": "FINANCE",
+      "code": "COLLECT",
       "values": {
+        "method_code": "COLLECT",
+        "direction": "COLLECT",
+        "currencies": [
+          "ZAR"
+        ],
+        "countries": [
+          "ZA"
+        ]
+      }
+    },
+    {
+      "table": "payment.ref_payment_methods",
+      "class": "FINANCE",
+      "code": "PAY",
+      "values": {
+        "method_code": "PAY",
+        "direction": "PAY",
         "currencies": [
           "ZAR"
         ],
@@ -82,9 +377,10 @@
     },
     {
       "table": "billing.ref_collection_methods",
-      "code": "DEBIT_ORDER",
       "class": "OPERATIONAL",
+      "code": "DEBIT_ORDER",
       "values": {
+        "method_code": "DEBIT_ORDER",
         "payment_method": "COLLECT",
         "lead_time": "P2D",
         "label": "Debit order"
@@ -92,9 +388,13 @@
     },
     {
       "table": "payment.mst_tenant_bank_accounts",
-      "code": "BANK",
       "class": "FINANCE",
+      "code": "BANK",
       "values": {
+        "account_ref": null,
+        "bank": null,
+        "account_number": null,
+        "gl_account": null,
         "currency": "ZAR",
         "purpose": "COLLECTIONS"
       },
@@ -102,9 +402,10 @@
     },
     {
       "table": "rating.cfg_rounding_and_currency_precision_rules",
-      "code": "ZAR-2DP",
       "class": "FINANCE",
+      "code": "ZAR-2DP",
       "values": {
+        "rule_code": "ZAR-2DP",
         "currency": "ZAR",
         "step": 0.01,
         "method": "HALF_UP",
@@ -113,26 +414,71 @@
     },
     {
       "table": "party.ref_identity_document_types",
-      "code": "ZA-PASSPORT",
       "class": "COMPLIANCE",
+      "code": "ZA-PASSPORT",
       "values": {
         "country": "ZA",
         "doc_type": "PASSPORT",
         "format_pattern": "[A-Z][A-Z0-9]{6,8}",
         "check_digit_rule": "NONE",
-        "issuer": "DHA"
+        "issuer": "DHA",
+        "label": "Passport"
       },
       "note": "The live run's only row. A South African ID number row is needed for real use."
     },
     {
       "table": "channel.cfg_disclosure_and_notice_texts",
-      "code": "DISC-QUOTE, -ISSUE, -RENEWAL, -CLAIM",
       "class": "COMPLIANCE",
+      "code": "DISC-QUOTE",
       "values": {
         "notice_type": "POLICY_TERMS",
         "jurisdiction": "ZA",
         "language": "en",
-        "text": "Terms"
+        "text": "Terms",
+        "display_point": "QUOTE",
+        "text_version": null
+      },
+      "note": "PLACEHOLDER text from the seed."
+    },
+    {
+      "table": "channel.cfg_disclosure_and_notice_texts",
+      "class": "COMPLIANCE",
+      "code": "DISC-ISSUE",
+      "values": {
+        "notice_type": "POLICY_TERMS",
+        "jurisdiction": "ZA",
+        "language": "en",
+        "text": "Terms",
+        "display_point": "ISSUE",
+        "text_version": null
+      },
+      "note": "PLACEHOLDER text from the seed."
+    },
+    {
+      "table": "channel.cfg_disclosure_and_notice_texts",
+      "class": "COMPLIANCE",
+      "code": "DISC-RENEWAL",
+      "values": {
+        "notice_type": "POLICY_TERMS",
+        "jurisdiction": "ZA",
+        "language": "en",
+        "text": "Terms",
+        "display_point": "RENEWAL",
+        "text_version": null
+      },
+      "note": "PLACEHOLDER text from the seed."
+    },
+    {
+      "table": "channel.cfg_disclosure_and_notice_texts",
+      "class": "COMPLIANCE",
+      "code": "DISC-CLAIM",
+      "values": {
+        "notice_type": "POLICY_TERMS",
+        "jurisdiction": "ZA",
+        "language": "en",
+        "text": "Terms",
+        "display_point": "CLAIM",
+        "text_version": null
       },
       "note": "PLACEHOLDER text from the seed."
     },
@@ -144,16 +490,31 @@
         "gates_enabled": true,
         "adverse_media_enabled": false
       }
+    }
+  ],
+  "pending": [
+    {
+      "table": "refdata.ref_public_holiday_calendars",
+      "was": "ZA",
+      "class": "OPERATIONAL",
+      "values": {
+        "country": "ZA"
+      },
+      "note": "No rows in the seed. Holiday dates must be loaded.",
+      "basis_to_check": null,
+      "why": "a platform-wide table (one row per holiday date), and no dates are given yet"
     },
     {
       "table": "party.cfg_record_retention_policies",
-      "code": "(platform default)",
+      "was": "(platform default)",
       "class": "COMPLIANCE",
       "values": {
         "jurisdiction": "ZA",
         "retention": "P7Y"
       },
-      "note": "V0064 and V0114 working defaults (OQ-120, OQ-054), awaiting compliance."
+      "note": "V0064 and V0114 working defaults (OQ-120, OQ-054), awaiting compliance.",
+      "basis_to_check": null,
+      "why": "no record yet: the row names what to review (retention)"
     }
   ]
 }

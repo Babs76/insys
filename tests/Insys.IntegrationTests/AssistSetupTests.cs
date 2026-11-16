@@ -116,7 +116,7 @@ public sealed class AssistSetupTests(DatabaseFixture fixture) : IClassFixture<Da
         started.StatusCode.ShouldBe(HttpStatusCode.Created, await started.Content.ReadAsStringAsync());
         var run = await started.Json();
 
-        run.GetProperty("packIds").EnumerateArray().Select(p => p.GetGuid()).ShouldBe([_base!.Value, _ng!.Value, _motor!.Value], "base, then the country, then the line (AIA-089)");
+        run.GetProperty("packIds").EnumerateArray().Select(p => p.GetGuid()).ShouldBe([_base!.Value, _motor!.Value, _ng!.Value], "base, then the line, then the country (AIA-089; the order decided 16 November, OQ-181)");
         var values = Values(run).ToList();
         var fromNg = values.Where(v => v.GetProperty("sourcePackId").GetGuid() == _ng).ToList();
         fromNg.Where(v => v.GetProperty("regulated").GetBoolean())

@@ -443,7 +443,7 @@ The SETUP change set (AIA-085, AIA-086; D-11, D-12 option C). Contract note: "AI
   - Every change is in `docs/specs/starter-packs/format-corrections-2026-11-16.md`.
   - Not corrected: the country overlays (merge or replace, OQ-181), the case templates' wording and the APPROVER role's grants (OQ-182).
 - **The order (OQ-178, Ade):** derived from the references (`SetupOrder.Sort`, `StaticDataReferences.g.cs` from `docs/specs/static-data-references.json`).
-- **The full set:** `TheFullBaseAndMotorSet_…` runs base and motor (27 tables, 77 values) through submit, approval and apply. The platform approves the base; the tenant's own approved overlays give the pack's nulls and `AM`, because a platform line's empty value can't be given otherwise (OQ-181).
+- **The full set:** `TheFullBaseAndMotorSet_…` runs base and motor (27 tables, 77 values) through submit, approval and apply. Since the layers were decided (OQ-181), both are platform-approved, and the tenant's own overlay gives their nulls and `AM`.
 - **A fix on the way:** an import and its submission in one request hashed the import's tracked copies, not the stored rows, so the approval never matched. `ImportToSet` clears the tracker between them. Separate requests, as the per-table routes make them, were never affected.
 - **Tests:** `AssistSetupSubmissionTests` (8), `SetupOrderTests` (3):
   - one set, approved once by a second person (the runner refused), applied in order;
@@ -454,6 +454,20 @@ The SETUP change set (AIA-085, AIA-086; D-11, D-12 option C). Contract note: "AI
   - not approved, drafts discarded, a new attempt;
   - a submission stopped part-way: locked, blocking go-live, withdrawn by its submitter only, what it loaded discarded;
   - the activation guard while open, and the re-run once applied, against a tenant with no set.
+
+### The wizard's layers (16 November 2026, branch `setup-layers`; OQ-181, OQ-182, Ade)
+- **`SetupAssembly.Choose`:** base, lines, then country (after its region), each the platform's newest approved version, else its newest draft. Then come the tenant's own versions of those packs as fill layers: approved, else the newest draft.
+- **`SetupAssembly.Assemble`:**
+  - Rows merge field by field, and a null means "no change". A null adds no field, except in the layer that brings the row, where it marks a required value still to give.
+  - A regulated field from an unapproved version is never used (NOT_APPROVED), even over an earlier layer's value.
+  - A fill layer only sets empty fields and may add rows. A draft fill never gives a regulated value.
+  - Marks only tighten.
+- **`SetupItem.Same`** compares values as JSON (through `SetupAssembly.SameValues`, as the domain uses no JSON library), because a stored value comes back from jsonb in its own key order. Comparing text re-drafted unchanged values.
+- **Packs:** NG and ZA corrected for merging, their placeholders moved to `pending`. The case templates' bodies are null, with proposals in their notes for compliance. `APPROVER` has no grants. All listed in `docs/specs/starter-packs/format-corrections-2026-11-16.md`.
+- **Tests:**
+  - `PackFileTests`: merging and NOT_APPROVED; a line's null doesn't erase the country's or the tenant's value; the tenant's overlay fills only empty values and never overrides a platform-approved regulated one; the layer order.
+  - `AssistSetupTests`: the expected order updated.
+  - The full base-and-motor set, with both platform-approved, the tenant's overlay filling AM, and a tenant change to `PR-1` refused.
 
 ### Scope batch 1 (16 November 2026, branch `scope-batch-1`)
 The first of the five fix batches from the scope sweeps (`docs/reviews/read-scope-sweep.md`, `docs/reviews/write-scope-sweep.md`), in Ade's order: approvals with no scope source, and the unscoped writes. Contract note: "Scope batch 1" in `docs/api/contract-changes.md`.

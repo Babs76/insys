@@ -707,9 +707,9 @@
         "channel": "EMAIL",
         "language": "en",
         "subject": "We have received your case",
-        "body": "{subject}. Sign in to see it."
+        "body": null
       },
-      "note": "English neutral wording. Compliance reviews it per country; languages come from overlays."
+      "note": "FOR COMPLIANCE REVIEW (OQ-182). Proposed body, using only the merge fields CASE_ACKNOWLEDGED offers: \"We have received your case {case_number} ({case_type}). We expect to reply by {expected_date}. You can follow it at {portal_link}. {sender_identity}\". The earlier draft, \"{subject}. Sign in to see it.\", named {subject}, which the type doesn't offer. Until compliance reviews it, the body is null, so the template is Missing. English neutral wording; compliance reviews it per country; languages come from overlays."
     },
     {
       "table": "communication.cfg_notification_templates",
@@ -720,9 +720,9 @@
         "channel": "EMAIL",
         "language": "en",
         "subject": "An update on your case",
-        "body": "{subject}. Sign in to see it."
+        "body": null
       },
-      "note": "English neutral wording. Compliance reviews it per country; languages come from overlays."
+      "note": "FOR COMPLIANCE REVIEW (OQ-182). Proposed body, using only the merge fields CASE_UPDATE offers: \"There is an update on your case {case_number}. Sign in to see it: {portal_link}. {sender_identity}\". The earlier draft, \"{subject}. Sign in to see it.\", named {subject}, which the type doesn't offer. Until compliance reviews it, the body is null, so the template is Missing. English neutral wording; compliance reviews it per country; languages come from overlays."
     },
     {
       "table": "communication.cfg_notification_templates",
@@ -733,9 +733,9 @@
         "channel": "EMAIL",
         "language": "en",
         "subject": "A decision on your case",
-        "body": "{subject}. Sign in to see it."
+        "body": null
       },
-      "note": "English neutral wording. Compliance reviews it per country; languages come from overlays."
+      "note": "FOR COMPLIANCE REVIEW (OQ-182). Proposed body, using only the merge fields CASE_DECISION offers: \"We have decided your case {case_number}. Our reasons: {decision_reasons}. {review_options} {ombud_details} Sign in to see the decision: {portal_link}. {sender_identity}\". The earlier draft, \"{subject}. Sign in to see it.\", named {subject}, which the type doesn't offer. Until compliance reviews it, the body is null, so the template is Missing. English neutral wording; compliance reviews it per country; languages come from overlays."
     },
     {
       "table": "document.ref_document_categories",
