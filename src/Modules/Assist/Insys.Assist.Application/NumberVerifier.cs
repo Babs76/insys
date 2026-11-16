@@ -65,6 +65,10 @@ public static partial class NumberVerifier
     /// <param name="steps">The step numbers the source has ("line 2"): named right after "line" or "step", they aren't figures (AIA-033a).</param>
     public static NumberCheck Verify(string output, string source, bool strictCurrency = false, IReadOnlySet<int>? steps = null)
     {
+        // AIA-033a: list numbers don't trigger a rejection. A list marker at the start of a line ("1. Open the version", "2) Ask again"), as markdown numbers a list,
+        // isn't a figure; a figure later on the same line is still checked.
+        output = ListMarker().Replace(output, "${indent}");
+
         if (steps is { Count: > 0 })
         {
             // "line 2", "lines 2 and 3", "steps 2 to 4": every number named must be a step, or none of them is taken as one.
@@ -183,6 +187,10 @@ public static partial class NumberVerifier
 
     [GeneratedRegex(@"[^\s]+")]
     private static partial Regex Tokens();
+
+    /// <summary>A markdown list number at the start of a line: one or two digits, then "." or ")", then a space. "1.5" or "800. " isn't one.</summary>
+    [GeneratedRegex(@"^(?<indent>[ \t]*)[0-9]{1,2}[.)](?=[ \t])", RegexOptions.Multiline)]
+    private static partial Regex ListMarker();
 
     [GeneratedRegex(@"\b(?<word>(?:line|step)s?)\s+(?<number>\d{1,3})(?:(?:\s*,\s*|\s+and\s+|\s+to\s+|\s*-\s*)(?<number>\d{1,3}))*\b(?![.,]\d)", RegexOptions.IgnoreCase)]
     private static partial Regex StepReference();

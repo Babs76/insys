@@ -154,4 +154,20 @@ public sealed class NumberVerifierTests
         NumberVerifier.Verify(output, "line 2 factor value: G3").Passes.ShouldBeTrue();
         NumberVerifier.Verify(output.Replace("G3", "G4", StringComparison.Ordinal), "line 2 factor value: G3").Passes.ShouldBeFalse("G4 isn't in the source");
     }
+
+    /// <summary>AIA-033a: list numbers don't trigger a rejection. A markdown list marker at the start of a line ("1." or "2)") isn't a figure; a figure after it is checked.</summary>
+    [Theory]
+    [InlineData("1. Open the version.\n2. Check its review sheet.\n3) Approve it.")]
+    [InlineData("Do this:\n  1. Open the version.\n  10. Approve it.")]
+    [InlineData("1.\tOpen the version.")]
+    public void AListMarkerAtTheStartOfALine_IsNotAFigure_AIA033a(string output) =>
+        NumberVerifier.Verify(output, "what to do next: Open the version and approve it.").Rejected.ShouldBeEmpty();
+
+    [Theory]
+    [InlineData("1. The base rate is ZAR 750.00.\n2. The fee brings it to ZAR 900.00.", "ZAR 900.00")]
+    [InlineData("Open it as 1. Then approve it.", "1.")]
+    [InlineData("1.5 is the factor.", "1.5")]
+    [InlineData("900. That is the premium.", "900.")]
+    public void AFigure_IsStillChecked_OnAListedLine_OrMidLine_OrWhenItOnlyLooksLikeAMarker_AIA033a(string output, string rejected) =>
+        NumberVerifier.Verify(output, "line 2 amount: ZAR 750.00\nline 3 amount: ZAR 800.00").Rejected.ShouldContain(r => r.StartsWith(rejected.TrimEnd('.'), StringComparison.Ordinal));
 }

@@ -4,6 +4,10 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 
 
+## AI Assist: list numbers no longer reject an explanation, and templates v2 (16 November 2026)
+- **`POST /assist/explanations/refusals` and `/premiums`:** an explanation that numbers its points as a list ("1. Open the version", "2) Ask again") now passes the number check (AIA-033a). In the first evaluation run every rejection was such a list marker or a number word, so these came back `REJECTED` with the plain facts. A figure on a listed line is still checked. A number written in words is still rejected.
+- **Prompt templates `refusal-v2` and `premium-v2`:** they also ask the model not to say how many lines or steps there are, and not to write numbers in words. Explanations stored under v1 aren't reused for v2; each is made again when next asked. No field changed.
+
 ## Scope batch 1: approvals and writes follow the record's scope (F103, OQ-170, OQ-173, OQ-176; 16 November 2026)
 No field, route or error code is new. What changes is who gets 403 `OUT_OF_SCOPE`, 404, or an empty list. Unscoped users see no change.
 - **Approvals (`/workflow/approvals`):** approvals about refunds, non-renewals, case redress, legal holds and record holds, payments' unknown outcomes, product versions, and Health recoveries and credit notes now carry their record's scope. A checker sees one, and `decidable=true` offers it, only when their scope covers that record. `GET /{id}` is 404 and `POST /{id}/approve` and `/reject` are 403 `OUT_OF_SCOPE` outside it.
