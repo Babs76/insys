@@ -159,11 +159,32 @@ public sealed class StaticDataModule : IModule
 internal sealed class StaticDataApprovalFunctions(IStaticDataChangeLookup lookup, IEnumerable<ModuleStaticDataTables> modules)
     : Workflow.Contracts.IApprovalFunctionSource
 {
-    public bool Covers(string businessRefType) => businessRefType == StaticDataApprovals.BusinessRefType;
+    public bool Covers(string businessRefType) => businessRefType is StaticDataApprovals.BusinessRefType or SetupChangeSets.BusinessRefType;
 
     public async Task<string?> FunctionFor(Guid tenantId, string businessRefType, Guid businessRefId, CancellationToken cancellationToken) =>
-        await lookup.EntityCode(tenantId, businessRefId, cancellationToken) is { } entity
-        && modules.SelectMany(m => m.Descriptors).FirstOrDefault(d => d.EntityCode == entity) is { } descriptor
-            ? StaticDataFunctions.Approve(descriptor)
-            : null;
+        (await FunctionsFor(tenantId, businessRefType, businessRefId, cancellationToken))?.FirstOrDefault();
+
+    /// <summary>
+    /// A change: its table's approve function. A SETUP change set (AIA-086): the approve function of every table it loads, each of them, as approving each
+    /// batch alone would need; null when the set or a table isn't found, so the approval is refused.
+    /// </summary>
+    public async Task<IReadOnlyList<string>?> FunctionsFor(Guid tenantId, string businessRefType, Guid businessRefId, CancellationToken cancellationToken)
+    {
+        var entities = businessRefType == SetupChangeSets.BusinessRefType
+            ? await lookup.SetupEntityCodes(tenantId, businessRefId, cancellationToken)
+            : await lookup.EntityCode(tenantId, businessRefId, cancellationToken) is { } one ? [one] : [];
+        var descriptors = modules.SelectMany(m => m.Descriptors).ToList();
+        var functions = new SortedSet<string>(StringComparer.Ordinal);
+        foreach (var entity in entities)
+        {
+            if (descriptors.FirstOrDefault(d => d.EntityCode == entity) is not { } descriptor)
+            {
+                return null;
+            }
+
+            functions.Add(StaticDataFunctions.Approve(descriptor));
+        }
+
+        return functions.Count == 0 ? null : [.. functions];
+    }
 }

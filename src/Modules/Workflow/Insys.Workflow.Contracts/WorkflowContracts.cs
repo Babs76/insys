@@ -94,6 +94,13 @@ public interface IApprovalFunctionSource
 
     /// <summary>The function code, or null when the record is not found: the approval is then refused, never decided without the check.</summary>
     Task<string?> FunctionFor(Guid tenantId, string businessRefType, Guid businessRefId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Every function the checker must hold, each of them, not any one: a record one approval decides across several modules (a SETUP change set, AIA-086)
+    /// needs each module's. Null when the record is not found. By default, the one <see cref="FunctionFor"/> names.
+    /// </summary>
+    async Task<IReadOnlyList<string>?> FunctionsFor(Guid tenantId, string businessRefType, Guid businessRefId, CancellationToken cancellationToken) =>
+        await FunctionFor(tenantId, businessRefType, businessRefId, cancellationToken) is { } function ? [function] : null;
 }
 
 /// <summary>

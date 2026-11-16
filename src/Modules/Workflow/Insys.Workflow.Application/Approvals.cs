@@ -276,14 +276,18 @@ public sealed class ApprovalDecision(IUserRoleQuery roles, IAuthorityReader auth
 
         foreach (var source in functionSources.Where(s => s.Covers(approval.BusinessRefType)))
         {
-            if (await source.FunctionFor(tenant.RequireTenantId(), approval.BusinessRefType, approval.BusinessRefId, cancellationToken) is not { } function)
+            if (await source.FunctionsFor(tenant.RequireTenantId(), approval.BusinessRefType, approval.BusinessRefId, cancellationToken) is not { Count: > 0 } required)
             {
                 return (ErrorCodes.FunctionNotGranted, null);
             }
 
-            if (functions.Refusal([function]) is { } code)
+            // Each of them: a SETUP change set's approver holds every table's approve function, as approving each batch alone would need.
+            foreach (var function in required)
             {
-                return (code, function);
+                if (functions.Refusal([function]) is { } code)
+                {
+                    return (code, function);
+                }
             }
         }
 

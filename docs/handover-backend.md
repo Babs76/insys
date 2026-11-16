@@ -423,7 +423,8 @@ The SETUP change set (AIA-085, AIA-086; D-11, D-12 option C). Contract note: "AI
   - Batch ids are fixed per run, attempt and table, so submitting again after a failure resumes it and does nothing twice.
   - Only whoever ran the wizard submits, so they are the maker and Workflow refuses them as the checker.
 - **Approval and apply:**
-  - One Workflow approval: `STATIC_DATA_T1`, business reference `STATIC_DATA_SETUP`, subject hash over every batch's hash. No new approval type, function or role template, so roles that approve Tier 1 static data approve sets.
+  - One Workflow approval: `STATIC_DATA_T1`, business reference `STATIC_DATA_SETUP`, subject hash over every batch's hash. No new approval type, function or role template.
+  - **The function check (Ade, 16 November):** the approver holds `SD_{module}_APPROVE` for every catalogue module the set's tables belong to, each of them (`IApprovalFunctionSource.FunctionsFor`; Workflow checks each, where a route's functions are "any one"). Before this, no source covered `STATIC_DATA_SETUP`, so only `WORKFLOW_APPROVE`, authority and maker-checker applied.
   - On the grant, the first batch's change request is approved. Its module approves its lines (the lines' hash checked) and puts them in force in one transaction, then reports `StaticDataSetupBatchApplied`, and the next batch follows.
   - A batch's change request that arrives late is approved when its turn comes. A mismatch parks (`APPROVAL_NOT_APPLIED`) rather than applying different contents.
   - Not approved (rejected, expired, withdrawn): every batch's drafts are deleted (drafts only, SDM-007), and the run returns to `DRAFT` for a new attempt.
@@ -439,10 +440,11 @@ The SETUP change set (AIA-085, AIA-086; D-11, D-12 option C). Contract note: "AI
   - **Still open, for Ade:** an approved set that a batch can't complete (its stored lines no longer match what was approved) stays `APPLYING` and blocks go-live. Nothing in the code changes a submitted batch's lines, so this needs an outside change. A way out (abandoning the rest of the set, with what is in force kept) needs a function and so a decision: OQ-180.
 - **Found by the completeness check, for Ade (OQ-179):** the draft packs can't be loaded as they stand. Some rows hold several records, some lack required fields, and some name fields their tables don't have. The tests use a small sample pack.
 - **A fix on the way:** an import and its submission in one request hashed the import's tracked copies, not the stored rows, so the approval never matched. `ImportToSet` clears the tracker between them. Separate requests, as the per-table routes make them, were never affected.
-- **Tests:** `AssistSetupSubmissionTests` (6):
+- **Tests:** `AssistSetupSubmissionTests` (7):
   - one set, approved once by a second person (the runner refused), applied in order;
   - blockers listed and nothing loaded;
   - runner only, onboarding only;
+  - an approver missing one module's approve function refused, and not offered the set;
   - not approved, drafts discarded, a new attempt;
   - a submission stopped part-way: locked, blocking go-live, withdrawn by its submitter only, what it loaded discarded;
   - the activation guard while open, and the re-run once applied, against a tenant with no set.

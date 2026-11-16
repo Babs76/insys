@@ -206,6 +206,35 @@ public sealed class AssistSetupSubmissionTests(DatabaseFixture fixture) : IClass
     }
 
     [Fact]
+    public async Task ASetsApprover_HoldsTheApproveFunctionOfEveryModuleItTouches_AndMissingOneIsRefused_ADR026_SRS002_AIA086()
+    {
+        await Platform(SamplePack("7"));
+        var (tenant, user) = await Customer();
+        var wizard = await user("ss-runner", ["ASSIST_TENANT_SETUP_RUN"]);
+        var (id, _) = await AcceptAll(wizard, new { country = "XQ", lines = new[] { "LIFE" } });
+        var setId = (await (await Submit(wizard, id)).Json()).GetProperty("setId").GetGuid();
+        var host = await fixture.Host();
+        await host.DrainOutbox();
+        var approval = await SetApproval(tenant, setId);
+
+        // The four tables' catalogue modules: claims framework, tenant management, portals and channels, identity and access management.
+        string[] approves = ["SD_SHARED_CLAIMS_FRAMEWORK_APPROVE", "SD_TENANT_MANAGEMENT_APPROVE", "SD_PORTALS_AND_PARTNER_CHANNELS_APPROVE", "SD_IDENTITY_AND_ACCESS_MANAGEMENT_APPROVE"];
+        var partial = await user("ss-partial", ["WORKFLOW_APPROVALS", "WORKFLOW_APPROVE", .. approves[..3]]);
+        var refused = await partial.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval}/approve", ifMatch: "\"1\"");
+        refused.StatusCode.ShouldBe(HttpStatusCode.Forbidden, await refused.Content.ReadAsStringAsync());
+        var problem = await refused.Json();
+        problem.GetProperty("code").GetString().ShouldBe("FUNCTION_NOT_GRANTED");
+        problem.GetProperty("detail").GetString()!.ShouldContain("SD_IDENTITY_AND_ACCESS_MANAGEMENT_APPROVE");
+        (await SetStatus(tenant, setId)).ShouldBe("SUBMITTED");
+        var listed = await (await partial.GetAsync("/api/v1/workflow/approvals?decidable=true")).Json();
+        listed.ToString().ShouldNotContain(approval.ToString(), customMessage: "it isn't offered to them to decide either");
+
+        var full = await user("ss-full", ["WORKFLOW_APPROVALS", "WORKFLOW_APPROVE", .. approves]);
+        var approved = await full.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval}/approve", ifMatch: "\"1\"");
+        approved.StatusCode.ShouldBe(HttpStatusCode.NoContent, await approved.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
     public async Task ASetupWithABlocker_IsRefused_ASSIST_SETUP_NOT_READY_ListingEachBlocker_AndNothingIsLoaded_AIA085()
     {
         object unknownField = new { table = "billing.ref_billing_frequencies", code = "WEEKLY2", @class = "OPERATIONAL", values = new { label = "Weekly", periods_per_year = 52, colour = "blue" } };

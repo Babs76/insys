@@ -63,6 +63,9 @@ public interface IStaticDataChangeLookup
 
     /// <summary>The entity code of the table a change request (a change of one version, or an import) is for; null when there is no such change request.</summary>
     Task<string?> EntityCode(Guid tenantId, Guid changeRequestId, CancellationToken cancellationToken);
+
+    /// <summary>The entity codes of the tables a SETUP change set loads, one per batch; empty when there is no such set.</summary>
+    Task<IReadOnlyList<string>> SetupEntityCodes(Guid tenantId, Guid setId, CancellationToken cancellationToken);
 }
 
 /// <summary>Public query interface: the public holidays of a holiday calendar (refdata.ref_public_holiday_calendars), as observed.</summary>
