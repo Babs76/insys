@@ -75,7 +75,11 @@ var output = Directory.CreateDirectory(argument("--out", "assist-evaluation")).F
 var ranAt = DateTimeOffset.UtcNow;
 var results = await new EvaluationRunner(model, settings.Assist, region).Run(set, CancellationToken.None);
 await File.WriteAllTextAsync(Path.Combine(output, "results.json"), JsonSerializer.Serialize(results, EvaluationSet.Json));
-await File.WriteAllTextAsync(Path.Combine(output, "summary.md"), EvaluationReport.Summary(results, settings.Assist, provider, ranAt));
+var summary = EvaluationReport.Summary(results, settings.Assist, provider, ranAt);
+await File.WriteAllTextAsync(Path.Combine(output, "summary.md"), summary);
+
+// The job's log carries the summary and every rejected case with its causes (Ade, 16 November), so they are read without the artifacts. Sample data only.
+Console.WriteLine(EvaluationReport.Log(results, summary));
 await File.WriteAllTextAsync(Path.Combine(output, "review.csv"), EvaluationReport.ReviewSheet(results));
 var price = settings.Assist.Prices.GetValueOrDefault(settings.Assist.ModelVersion);
 await File.WriteAllTextAsync(Path.Combine(output, "run.json"), JsonSerializer.Serialize(

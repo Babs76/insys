@@ -28,6 +28,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using Insys.Assist.Application;
 using Insys.Assist.Domain;
 using Insys.BuildingBlocks.Application.Ai;
@@ -114,7 +115,7 @@ public sealed class EvaluationRunner(IAiModelProvider provider, AssistOptions op
 }
 
 /// <summary>The evaluation's reports: the summary for D-5 and SRS §5.3, and the sheet a domain expert fills in.</summary>
-public static class EvaluationReport
+public static partial class EvaluationReport
 {
     /// <summary>SRS AIA-070: AI-2 answers in 10 seconds or less at the 95th percentile.</summary>
     public const double LatencyTargetSeconds = 10;
@@ -210,6 +211,95 @@ public static class EvaluationReport
         text.AppendLine("Correctness, clarity and what an explanation reveals need the domain expert's review of each model's `review.csv` (SRS §5.3); this table doesn't measure them.");
         return text.ToString();
     }
+
+    /// <summary>
+    /// What the job's log carries (Ade, 16 November), so the causes can be read without the artifacts: the summary, then every case the verifier rejected with what
+    /// it explains (the error code, or the calculation's product), the facts sent, the model's answer, and each rejected number with why it was refused. The why is
+    /// the evaluation tool's own reading of the number against the facts, after the check, and never feeds back into it. Sample data only, so the log can carry it.
+    /// </summary>
+    public static string Log(IReadOnlyList<CaseResult> results, string summary)
+    {
+        var text = new StringBuilder(summary);
+        var rejected = results.Where(r => r.Status == AssistRunStatuses.Rejected).ToList();
+        text.AppendLine();
+        text.AppendLine(CultureInfo.InvariantCulture, $"## Rejected cases ({rejected.Count})");
+        foreach (var r in rejected)
+        {
+            text.AppendLine();
+            text.AppendLine(CultureInfo.InvariantCulture, $"### {r.Id} ({r.Kind}): {Subject(r.Facts)}");
+            text.AppendLine(CultureInfo.InvariantCulture, $"- Time {r.Seconds.ToString("0.00", CultureInfo.InvariantCulture)} s; tokens {r.InputTokens} in, {r.OutputTokens} out; cost {(r.Cost is { } c ? c.ToString("0.000000", CultureInfo.InvariantCulture) : "-")}");
+            text.AppendLine("- Rejected, and why (the tool's reading, not the check's):");
+            foreach (var number in r.RejectedNumbers)
+            {
+                text.AppendLine(CultureInfo.InvariantCulture, $"  - `{number}`: {WhyRejected(number, r.Facts)}");
+            }
+
+            text.AppendLine("- Facts sent:");
+            foreach (var line in r.Facts.ReplaceLineEndings("\n").Split('\n', StringSplitOptions.RemoveEmptyEntries))
+            {
+                text.AppendLine(CultureInfo.InvariantCulture, $"    {line}");
+            }
+
+            text.AppendLine("- The model's answer:");
+            foreach (var line in (r.Text ?? "(none)").ReplaceLineEndings("\n").Split('\n'))
+            {
+                text.AppendLine(CultureInfo.InvariantCulture, $"    {line}");
+            }
+        }
+
+        return text.ToString();
+    }
+
+    /// <summary>The case's subject from its facts: the error code of a refusal, or the product and premium of a calculation.</summary>
+    private static string Subject(string facts)
+    {
+        var lines = facts.ReplaceLineEndings("\n").Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        var picked = lines.Where(l => l.StartsWith("code", StringComparison.OrdinalIgnoreCase) || l.StartsWith("product", StringComparison.OrdinalIgnoreCase)
+            || l.StartsWith("premium", StringComparison.OrdinalIgnoreCase)).Take(3).ToList();
+        return picked.Count > 0 ? string.Join("; ", picked) : (lines.FirstOrDefault() ?? "");
+    }
+
+    /// <summary>
+    /// Why a rejected number was refused, read by the evaluation tool against the facts sent: a number word (the check never compares those), a code or reference not
+    /// word for word in the facts, a percentage the facts don't hold, a figure whose digits are in the facts but written differently (another currency, none, or another
+    /// kind of number), or a figure not in the facts at all. A diagnosis to find causes; the check's verdict stands either way.
+    /// </summary>
+    public static string WhyRejected(string number, string facts)
+    {
+        if (!number.Any(char.IsDigit))
+        {
+            return "a number word or magnitude; the check never compares these (addendum §5.1), so any one is refused";
+        }
+
+        if (number.Any(char.IsLetter) && !number.Contains(' ', StringComparison.Ordinal) && !MoneyPrefix().IsMatch(number))
+        {
+            return "a code or reference with digits, not word for word in the facts";
+        }
+
+        var digits = Digits().Match(number.Replace(",", "", StringComparison.Ordinal).Replace(" ", "", StringComparison.Ordinal)).Value;
+        if (digits.Length == 0 || !decimal.TryParse(digits, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var value))
+        {
+            return "not read as a number";
+        }
+
+        var inFacts = Digits().Matches(facts.Replace(",", "", StringComparison.Ordinal)).Any(m => decimal.TryParse(m.Value, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var v) && v == value);
+        if (number.Contains('%', StringComparison.Ordinal) || number.Contains("percent", StringComparison.OrdinalIgnoreCase))
+        {
+            return inFacts
+                ? "a percentage whose digits are in the facts, but not as that percentage or its fraction"
+                : "a percentage not in the facts";
+        }
+
+        return inFacts
+            ? "the digits are in the facts, but written differently there: with another currency or none, or as another kind of number (a date, a step, a percentage)"
+            : "a figure not in the facts: a sum, a rounding, or a number the model brought in";
+    }
+
+    [GeneratedRegex(@"[0-9]+(?:\.[0-9]+)?")]
+    private static partial Regex Digits();
+
+    [GeneratedRegex(@"^-?(?:US\$|A\$|R|[A-Z]{3}|[a-z]{3})[0-9]")]
+    private static partial Regex MoneyPrefix();
 
     /// <summary>The nearest-rank percentile, or null with nothing to rank.</summary>
     public static double? Percentile(IEnumerable<double> values, int percentile)

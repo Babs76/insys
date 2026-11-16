@@ -179,6 +179,34 @@ public sealed class EvaluationTests
         table.IndexOf("claude-haiku-5-5", StringComparison.Ordinal).ShouldBeLessThan(table.IndexOf("claude-opus-5-5", StringComparison.Ordinal));
     }
 
+    /// <summary>Ade, 16 November: the job's log carries each rejected case, what it explains, the facts sent, the answer and why each number was refused.</summary>
+    [Fact]
+    public void TheLog_CarriesEachRejectedCase_WithItsFacts_Answer_AndWhyEachNumberWasRefused()
+    {
+        var facts = ExplanationFacts.Premium(Motor).Values();
+        var rejected = new CaseResult("C-002", ExplanationKinds.Premium, AssistRunStatuses.Rejected, "The premium is about ZAR 900.", ["ZAR 900"], 100, 50, 3.5, 0.002m, "m", "us",
+            Minimiser.Minimise(facts).Text);
+        var verified = rejected with { Id = "C-001", Status = AssistRunStatuses.Verified, RejectedNumbers = [] };
+        var log = EvaluationReport.Log([verified, rejected], "# summary\n");
+
+        log.ShouldStartWith("# summary");
+        log.ShouldContain("## Rejected cases (1)");
+        log.ShouldContain("### C-002 (PREMIUM)");
+        log.ShouldContain("  - `ZAR 900`: a figure not in the facts");
+        log.ShouldContain("    The premium is about ZAR 900.");
+        log.ShouldContain("OFT-MOTOR", customMessage: "the facts sent, so the calculation is named");
+        log.ShouldNotContain("### C-001", customMessage: "only rejected cases are listed");
+    }
+
+    [Theory]
+    [InlineData("twice", "a number word")]
+    [InlineData("G7", "a code or reference")]
+    [InlineData("ZAR 1,234.56", "a figure not in the facts")]
+    [InlineData("USD 800.00", "the digits are in the facts, but written differently")]
+    [InlineData("80%", "a percentage not in the facts")]
+    public void WhyANumberWasRefused_IsReadAgainstTheFactsSent(string number, string reason) =>
+        EvaluationReport.WhyRejected(number, "premium: ZAR 800.00\nline 1: base rate ZAR 800.00").ShouldStartWith(reason);
+
     [Fact]
     public async Task ARunForAUsTenant_AsksForTheUs_AndAnAnswerReportedFromElsewhere_IsAResidencyMismatch_AIA050()
     {
