@@ -208,6 +208,21 @@ Working days for one engineer, with moderate confidence, excluding provider cont
 
 **What batch 7.3 reports for D-5:** cost per explanation, in tokens and money, split by refusal and premium, with the cache hit rate, the model and the prompt version, and the price list used. It comes from the evaluation run, so it's a measured figure on test data, to be read as such. From it Ade sets the fair-use cap and the rate above it. Until then the cap (AIA-073) is the operator's, set low. **INSYS meters usage and gives a monthly usage report per tenant; billing is outside INSYS (Ade, 1 November).** AI-1 and AI-3 are metered too, so onboarding fees can be checked against cost.
 
+**AI-2 evaluation results (batch 7.3, measured on the 110-case evaluation set; sample data, to be read as such):**
+| Run | Model | Verified | Rejected, all for a number word | Median / p95 / slowest (s) | Cost per explanation, mean |
+|---|---|---|---|---|---|
+| 43904917124 (16 November, main `10ea4cf`; templates `refusal-v2`, `premium-v2`) | `claude-opus-5-5` | 108 of 110 | 2 (`twice`) | 3.38 / 6.66 / 8.08 | USD 0.0077 |
+| | `claude-sonnet-5-5` | 107 of 110 | 3 (`two`) | 2.47 / 3.30 / 3.80 | USD 0.0026 |
+| | `claude-haiku-5-5` | 90 of 110 | 20 (`two` 19 times, `four` 4 times) | 1.49 / 5.03 / 5.56 | USD 0.00023 |
+
+- **What was rejected:** no figure was wrong. Every rejection was a number word, which the verifier refuses whatever it says (§5.1), so no explanation with a number not in the source was shown (SRS §5.3, first target: met).
+- **Where it ran:** inference ran in `us` for every case, as the provider reported it (AIA-050), with `inference_geo` `us`.
+- **Prices and time:** cost is at the configured list prices (`Assist:Prices`, as listed on 3 November 2026), with effort `medium`. Every p95 is under the 10 s target.
+- **The first run** (43862166993, main `3da6665`, v1 templates) verified 68, 44 and 78 respectively. All 140 rejections were list markers or number words, fixed by `verifier-lists` and the v2 templates.
+- **Not yet measured:** the other §5.3 targets, explanations reviewed correct and complete by a domain expert (95%) and rated easy to understand (90%), wait on that review.
+
+**Provisional choice for AI-2 (Ade, 16 November): `claude-sonnet-5-5`,** pending the domain expert's review (SRS §5.3). It is near Opus on verification (107 against 108 of 110), at about a third of the cost and half the p95. No default is changed: `Assist:Model` stays unset until the review.
+
 **Roadmap phases and gates (SRS §9), in build order:**
 | Phase | What | Batches | Gate |
 |---|---|---|---|
