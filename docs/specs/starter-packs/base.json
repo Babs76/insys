@@ -6,7 +6,7 @@
     "tests/Insys.Testing/OnboardingSeed.cs (SeedReadyTenant)",
     "insys-console e2e/live/readiness.ts (the live run)"
   ],
-  "excluded": "The SIMULATOR provider, its callback endpoint, the test products and all test people.",
+  "excluded": "The SIMULATOR provider, its callback endpoint, the test products and all test people. Payment status mappings: one row per real provider status, so none for the simulator (payment.ref_payment_status_mappings).",
   "rows": [
     {
       "table": "tenant.mst_organisation_structure",
@@ -64,24 +64,155 @@
     },
     {
       "table": "finance.cfg_posting_rules",
-      "code": "PR-*",
+      "code": "PR-1",
       "class": "FINANCE",
       "values": {
-        "transaction_types": [
-          "PREMIUM_DUE",
-          "PAYMENT_RECEIVED",
-          "REFUND_PAID",
-          "CLAIM_RESERVE_UP",
-          "CLAIM_RESERVE_DOWN",
-          "CLAIM_PAID",
-          "CLAIM_PAID_REVERSED",
-          "RECOVERY_RAISED",
-          "RECOVERY_OFFSET",
-          "RECOVERY_REPAID",
-          "RECOVERY_WRITTEN_OFF",
-          "RECOVERY_REVERSED",
-          "RECOVERY_SETTLED"
-        ],
+        "rule_code": "PR-1",
+        "transaction_type": "PREMIUM_DUE",
+        "debit_account": "1100",
+        "credit_account": "1100"
+      },
+      "note": "PLACEHOLDER: every rule debits and credits one account, so journals balance and mean nothing."
+    },
+    {
+      "table": "finance.cfg_posting_rules",
+      "code": "PR-2",
+      "class": "FINANCE",
+      "values": {
+        "rule_code": "PR-2",
+        "transaction_type": "PAYMENT_RECEIVED",
+        "debit_account": "1100",
+        "credit_account": "1100"
+      },
+      "note": "PLACEHOLDER: every rule debits and credits one account, so journals balance and mean nothing."
+    },
+    {
+      "table": "finance.cfg_posting_rules",
+      "code": "PR-3",
+      "class": "FINANCE",
+      "values": {
+        "rule_code": "PR-3",
+        "transaction_type": "REFUND_PAID",
+        "debit_account": "1100",
+        "credit_account": "1100"
+      },
+      "note": "PLACEHOLDER: every rule debits and credits one account, so journals balance and mean nothing."
+    },
+    {
+      "table": "finance.cfg_posting_rules",
+      "code": "PR-4",
+      "class": "FINANCE",
+      "values": {
+        "rule_code": "PR-4",
+        "transaction_type": "CLAIM_RESERVE_UP",
+        "debit_account": "1100",
+        "credit_account": "1100"
+      },
+      "note": "PLACEHOLDER: every rule debits and credits one account, so journals balance and mean nothing."
+    },
+    {
+      "table": "finance.cfg_posting_rules",
+      "code": "PR-5",
+      "class": "FINANCE",
+      "values": {
+        "rule_code": "PR-5",
+        "transaction_type": "CLAIM_RESERVE_DOWN",
+        "debit_account": "1100",
+        "credit_account": "1100"
+      },
+      "note": "PLACEHOLDER: every rule debits and credits one account, so journals balance and mean nothing."
+    },
+    {
+      "table": "finance.cfg_posting_rules",
+      "code": "PR-6",
+      "class": "FINANCE",
+      "values": {
+        "rule_code": "PR-6",
+        "transaction_type": "CLAIM_PAID",
+        "debit_account": "1100",
+        "credit_account": "1100"
+      },
+      "note": "PLACEHOLDER: every rule debits and credits one account, so journals balance and mean nothing."
+    },
+    {
+      "table": "finance.cfg_posting_rules",
+      "code": "PR-7",
+      "class": "FINANCE",
+      "values": {
+        "rule_code": "PR-7",
+        "transaction_type": "CLAIM_PAID_REVERSED",
+        "debit_account": "1100",
+        "credit_account": "1100"
+      },
+      "note": "PLACEHOLDER: every rule debits and credits one account, so journals balance and mean nothing."
+    },
+    {
+      "table": "finance.cfg_posting_rules",
+      "code": "PR-8",
+      "class": "FINANCE",
+      "values": {
+        "rule_code": "PR-8",
+        "transaction_type": "RECOVERY_RAISED",
+        "debit_account": "1100",
+        "credit_account": "1100"
+      },
+      "note": "PLACEHOLDER: every rule debits and credits one account, so journals balance and mean nothing."
+    },
+    {
+      "table": "finance.cfg_posting_rules",
+      "code": "PR-9",
+      "class": "FINANCE",
+      "values": {
+        "rule_code": "PR-9",
+        "transaction_type": "RECOVERY_OFFSET",
+        "debit_account": "1100",
+        "credit_account": "1100"
+      },
+      "note": "PLACEHOLDER: every rule debits and credits one account, so journals balance and mean nothing."
+    },
+    {
+      "table": "finance.cfg_posting_rules",
+      "code": "PR-10",
+      "class": "FINANCE",
+      "values": {
+        "rule_code": "PR-10",
+        "transaction_type": "RECOVERY_REPAID",
+        "debit_account": "1100",
+        "credit_account": "1100"
+      },
+      "note": "PLACEHOLDER: every rule debits and credits one account, so journals balance and mean nothing."
+    },
+    {
+      "table": "finance.cfg_posting_rules",
+      "code": "PR-11",
+      "class": "FINANCE",
+      "values": {
+        "rule_code": "PR-11",
+        "transaction_type": "RECOVERY_WRITTEN_OFF",
+        "debit_account": "1100",
+        "credit_account": "1100"
+      },
+      "note": "PLACEHOLDER: every rule debits and credits one account, so journals balance and mean nothing."
+    },
+    {
+      "table": "finance.cfg_posting_rules",
+      "code": "PR-12",
+      "class": "FINANCE",
+      "values": {
+        "rule_code": "PR-12",
+        "transaction_type": "RECOVERY_REVERSED",
+        "debit_account": "1100",
+        "credit_account": "1100"
+      },
+      "note": "PLACEHOLDER: every rule debits and credits one account, so journals balance and mean nothing."
+    },
+    {
+      "table": "finance.cfg_posting_rules",
+      "code": "PR-13",
+      "class": "FINANCE",
+      "values": {
+        "rule_code": "PR-13",
+        "transaction_type": "RECOVERY_SETTLED",
         "debit_account": "1100",
         "credit_account": "1100"
       },
@@ -92,7 +223,10 @@
       "code": "GL",
       "class": "FINANCE",
       "values": {
-        "format": "CSV"
+        "layout_code": "GL",
+        "format": "CSV",
+        "target_system": null,
+        "schedule": null
       }
     },
     {
@@ -108,7 +242,9 @@
           "THU",
           "FRI"
         ],
-        "hours": "08:00-17:00"
+        "hours": "08:00-17:00",
+        "holiday_calendar": null,
+        "time_zone": null
       },
       "note": "holiday_calendar and time_zone come from the country overlay."
     },
@@ -143,27 +279,373 @@
     },
     {
       "table": "workflow.cfg_case_types",
-      "code": "COMPLAINT, COMPLAINT_REVIEW",
+      "code": "COMPLAINT",
       "class": "COMPLIANCE",
       "values": {
+        "case_type_code": "COMPLAINT",
         "family": "COMPLAINT",
         "process_code": "COMPLAINT_HANDLING",
+        "link_types": [
+          "POLICY",
+          "CLAIM"
+        ],
+        "requires_category": false,
         "review_case_type_code": "COMPLAINT_REVIEW",
         "notification_types": [
           "CASE_ACKNOWLEDGED",
           "CASE_UPDATE",
           "CASE_DECISION"
-        ]
+        ],
+        "appeal_route": null
+      },
+      "note": "appeal_route, ombud_scheme_codes and the timelines come from the country overlay."
+    },
+    {
+      "table": "workflow.cfg_case_types",
+      "code": "COMPLAINT_REVIEW",
+      "class": "COMPLIANCE",
+      "values": {
+        "case_type_code": "COMPLAINT_REVIEW",
+        "family": "COMPLAINT",
+        "process_code": "COMPLAINT_HANDLING",
+        "link_types": null,
+        "requires_category": null,
+        "appeal_route": null
       },
       "note": "appeal_route, ombud_scheme_codes and the timelines come from the country overlay."
     },
     {
       "table": "workflow.cfg_delegation_and_approval_authority",
-      "code": "APPROVER_*",
+      "code": "AUTH-BANK_ACCOUNT_VERIFICATION",
       "class": "FINANCE",
       "values": {
         "role_code": "APPROVER",
-        "types": "every type the tenant can raise",
+        "transaction_type": "BANK_ACCOUNT_VERIFICATION",
+        "limit_value": null,
+        "delegation_allowed": false
+      },
+      "note": "limit_value and currency come from the country overlay: a limit means nothing without its currency."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "code": "AUTH-CASE_REDRESS",
+      "class": "FINANCE",
+      "values": {
+        "role_code": "APPROVER",
+        "transaction_type": "CASE_REDRESS",
+        "limit_value": null,
+        "delegation_allowed": false
+      },
+      "note": "limit_value and currency come from the country overlay: a limit means nothing without its currency."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "code": "AUTH-CLAIM_PAYMENT",
+      "class": "FINANCE",
+      "values": {
+        "role_code": "APPROVER",
+        "transaction_type": "CLAIM_PAYMENT",
+        "limit_value": null,
+        "delegation_allowed": false
+      },
+      "note": "limit_value and currency come from the country overlay: a limit means nothing without its currency."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "code": "AUTH-CLAIM_SETTLEMENT",
+      "class": "FINANCE",
+      "values": {
+        "role_code": "APPROVER",
+        "transaction_type": "CLAIM_SETTLEMENT",
+        "limit_value": null,
+        "delegation_allowed": false
+      },
+      "note": "limit_value and currency come from the country overlay: a limit means nothing without its currency."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "code": "AUTH-COMMISSION_STATEMENT",
+      "class": "FINANCE",
+      "values": {
+        "role_code": "APPROVER",
+        "transaction_type": "COMMISSION_STATEMENT",
+        "limit_value": null,
+        "delegation_allowed": false
+      },
+      "note": "limit_value and currency come from the country overlay: a limit means nothing without its currency."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "code": "AUTH-DUE_DILIGENCE_ENHANCED",
+      "class": "FINANCE",
+      "values": {
+        "role_code": "APPROVER",
+        "transaction_type": "DUE_DILIGENCE_ENHANCED",
+        "limit_value": null,
+        "delegation_allowed": false
+      },
+      "note": "limit_value and currency come from the country overlay: a limit means nothing without its currency."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "code": "AUTH-DUE_DILIGENCE_RISK_OVERRIDE",
+      "class": "FINANCE",
+      "values": {
+        "role_code": "APPROVER",
+        "transaction_type": "DUE_DILIGENCE_RISK_OVERRIDE",
+        "limit_value": null,
+        "delegation_allowed": false
+      },
+      "note": "limit_value and currency come from the country overlay: a limit means nothing without its currency."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "code": "AUTH-DUE_DILIGENCE_UNBLOCK",
+      "class": "FINANCE",
+      "values": {
+        "role_code": "APPROVER",
+        "transaction_type": "DUE_DILIGENCE_UNBLOCK",
+        "limit_value": null,
+        "delegation_allowed": false
+      },
+      "note": "limit_value and currency come from the country overlay: a limit means nothing without its currency."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "code": "AUTH-ENDORSEMENT",
+      "class": "FINANCE",
+      "values": {
+        "role_code": "APPROVER",
+        "transaction_type": "ENDORSEMENT",
+        "limit_value": null,
+        "delegation_allowed": false
+      },
+      "note": "limit_value and currency come from the country overlay: a limit means nothing without its currency."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "code": "AUTH-EXTERNAL_SUBJECT_LINK",
+      "class": "FINANCE",
+      "values": {
+        "role_code": "APPROVER",
+        "transaction_type": "EXTERNAL_SUBJECT_LINK",
+        "limit_value": null,
+        "delegation_allowed": false
+      },
+      "note": "limit_value and currency come from the country overlay: a limit means nothing without its currency."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "code": "AUTH-GENERAL_NON_RENEWAL",
+      "class": "FINANCE",
+      "values": {
+        "role_code": "APPROVER",
+        "transaction_type": "GENERAL_NON_RENEWAL",
+        "limit_value": null,
+        "delegation_allowed": false
+      },
+      "note": "limit_value and currency come from the country overlay: a limit means nothing without its currency."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "code": "AUTH-LEGAL_HOLD_RELEASE",
+      "class": "FINANCE",
+      "values": {
+        "role_code": "APPROVER",
+        "transaction_type": "LEGAL_HOLD_RELEASE",
+        "limit_value": null,
+        "delegation_allowed": false
+      },
+      "note": "limit_value and currency come from the country overlay: a limit means nothing without its currency."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "code": "AUTH-LIFE_CLAIM",
+      "class": "FINANCE",
+      "values": {
+        "role_code": "APPROVER",
+        "transaction_type": "LIFE_CLAIM",
+        "limit_value": null,
+        "delegation_allowed": false
+      },
+      "note": "limit_value and currency come from the country overlay: a limit means nothing without its currency."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "code": "AUTH-LIFE_UNDERWRITING",
+      "class": "FINANCE",
+      "values": {
+        "role_code": "APPROVER",
+        "transaction_type": "LIFE_UNDERWRITING",
+        "limit_value": null,
+        "delegation_allowed": false
+      },
+      "note": "limit_value and currency come from the country overlay: a limit means nothing without its currency."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "code": "AUTH-PARTY_MATCH_RESOLUTION",
+      "class": "FINANCE",
+      "values": {
+        "role_code": "APPROVER",
+        "transaction_type": "PARTY_MATCH_RESOLUTION",
+        "limit_value": null,
+        "delegation_allowed": false
+      },
+      "note": "limit_value and currency come from the country overlay: a limit means nothing without its currency."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "code": "AUTH-PAYOUT_RELEASE",
+      "class": "FINANCE",
+      "values": {
+        "role_code": "APPROVER",
+        "transaction_type": "PAYOUT_RELEASE",
+        "limit_value": null,
+        "delegation_allowed": false
+      },
+      "note": "limit_value and currency come from the country overlay: a limit means nothing without its currency."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "code": "AUTH-PERIOD_REOPEN",
+      "class": "FINANCE",
+      "values": {
+        "role_code": "APPROVER",
+        "transaction_type": "PERIOD_REOPEN",
+        "limit_value": null,
+        "delegation_allowed": false
+      },
+      "note": "limit_value and currency come from the country overlay: a limit means nothing without its currency."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "code": "AUTH-PRIVILEGED_ROLE",
+      "class": "FINANCE",
+      "values": {
+        "role_code": "APPROVER",
+        "transaction_type": "PRIVILEGED_ROLE",
+        "limit_value": null,
+        "delegation_allowed": false
+      },
+      "note": "limit_value and currency come from the country overlay: a limit means nothing without its currency."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "code": "AUTH-PRODUCT_PUBLICATION",
+      "class": "FINANCE",
+      "values": {
+        "role_code": "APPROVER",
+        "transaction_type": "PRODUCT_PUBLICATION",
+        "limit_value": null,
+        "delegation_allowed": false
+      },
+      "note": "limit_value and currency come from the country overlay: a limit means nothing without its currency."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "code": "AUTH-PROVIDER_CREDIT_NOTE",
+      "class": "FINANCE",
+      "values": {
+        "role_code": "APPROVER",
+        "transaction_type": "PROVIDER_CREDIT_NOTE",
+        "limit_value": null,
+        "delegation_allowed": false
+      },
+      "note": "limit_value and currency come from the country overlay: a limit means nothing without its currency."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "code": "AUTH-PROVIDER_PAYMENT_RUN",
+      "class": "FINANCE",
+      "values": {
+        "role_code": "APPROVER",
+        "transaction_type": "PROVIDER_PAYMENT_RUN",
+        "limit_value": null,
+        "delegation_allowed": false
+      },
+      "note": "limit_value and currency come from the country overlay: a limit means nothing without its currency."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "code": "AUTH-PROVIDER_RECOVERY_FINDING",
+      "class": "FINANCE",
+      "values": {
+        "role_code": "APPROVER",
+        "transaction_type": "PROVIDER_RECOVERY_FINDING",
+        "limit_value": null,
+        "delegation_allowed": false
+      },
+      "note": "limit_value and currency come from the country overlay: a limit means nothing without its currency."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "code": "AUTH-PROVIDER_RECOVERY_WRITE_OFF",
+      "class": "FINANCE",
+      "values": {
+        "role_code": "APPROVER",
+        "transaction_type": "PROVIDER_RECOVERY_WRITE_OFF",
+        "limit_value": null,
+        "delegation_allowed": false
+      },
+      "note": "limit_value and currency come from the country overlay: a limit means nothing without its currency."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "code": "AUTH-REFUND",
+      "class": "FINANCE",
+      "values": {
+        "role_code": "APPROVER",
+        "transaction_type": "REFUND",
+        "limit_value": null,
+        "delegation_allowed": false
+      },
+      "note": "limit_value and currency come from the country overlay: a limit means nothing without its currency."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "code": "AUTH-STATIC_DATA_T1",
+      "class": "FINANCE",
+      "values": {
+        "role_code": "APPROVER",
+        "transaction_type": "STATIC_DATA_T1",
+        "limit_value": null,
+        "delegation_allowed": false
+      },
+      "note": "limit_value and currency come from the country overlay: a limit means nothing without its currency."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "code": "AUTH-STATIC_DATA_T2",
+      "class": "FINANCE",
+      "values": {
+        "role_code": "APPROVER",
+        "transaction_type": "STATIC_DATA_T2",
+        "limit_value": null,
+        "delegation_allowed": false
+      },
+      "note": "limit_value and currency come from the country overlay: a limit means nothing without its currency."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "code": "AUTH-TENANT_ADMINISTRATOR",
+      "class": "FINANCE",
+      "values": {
+        "role_code": "APPROVER",
+        "transaction_type": "TENANT_ADMINISTRATOR",
+        "limit_value": null,
+        "delegation_allowed": false
+      },
+      "note": "limit_value and currency come from the country overlay: a limit means nothing without its currency."
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "code": "AUTH-UNKNOWN_PAYMENT_RESOLUTION",
+      "class": "FINANCE",
+      "values": {
+        "role_code": "APPROVER",
+        "transaction_type": "UNKNOWN_PAYMENT_RESOLUTION",
+        "limit_value": null,
         "delegation_allowed": false
       },
       "note": "limit_value and currency come from the country overlay: a limit means nothing without its currency."
@@ -174,7 +656,7 @@
       "class": "OPERATIONAL",
       "values": {
         "role_code": "APPROVER",
-        "functions": [
+        "permissions": [
           "approval.approve",
           "static_data.approve",
           "due_diligence.approve_enhanced",
@@ -187,14 +669,36 @@
     },
     {
       "table": "communication.cfg_notification_types",
-      "code": "CASE_*",
+      "code": "CASE_ACKNOWLEDGED",
       "class": "OPERATIONAL",
       "values": {
-        "types": [
-          "CASE_ACKNOWLEDGED",
-          "CASE_UPDATE",
-          "CASE_DECISION"
+        "type_code": "CASE_ACKNOWLEDGED",
+        "category": "SERVICE",
+        "channels": [
+          "EMAIL"
         ],
+        "portal_visible": true
+      }
+    },
+    {
+      "table": "communication.cfg_notification_types",
+      "code": "CASE_UPDATE",
+      "class": "OPERATIONAL",
+      "values": {
+        "type_code": "CASE_UPDATE",
+        "category": "SERVICE",
+        "channels": [
+          "EMAIL"
+        ],
+        "portal_visible": true
+      }
+    },
+    {
+      "table": "communication.cfg_notification_types",
+      "code": "CASE_DECISION",
+      "class": "OPERATIONAL",
+      "values": {
+        "type_code": "CASE_DECISION",
         "category": "SERVICE",
         "channels": [
           "EMAIL"
@@ -204,62 +708,107 @@
     },
     {
       "table": "communication.cfg_notification_templates",
-      "code": "CASE_*_EN",
+      "code": "CASE_ACKNOWLEDGED_EN",
       "class": "COMPLIANCE",
       "values": {
+        "type_code": "CASE_ACKNOWLEDGED",
         "channel": "EMAIL",
         "language": "en",
-        "subjects": {
-          "CASE_ACKNOWLEDGED": "We have received your case",
-          "CASE_UPDATE": "An update on your case",
-          "CASE_DECISION": "A decision on your case"
-        },
+        "subject": "We have received your case",
+        "body": "{subject}. Sign in to see it."
+      },
+      "note": "English neutral wording. Compliance reviews it per country; languages come from overlays."
+    },
+    {
+      "table": "communication.cfg_notification_templates",
+      "code": "CASE_UPDATE_EN",
+      "class": "COMPLIANCE",
+      "values": {
+        "type_code": "CASE_UPDATE",
+        "channel": "EMAIL",
+        "language": "en",
+        "subject": "An update on your case",
+        "body": "{subject}. Sign in to see it."
+      },
+      "note": "English neutral wording. Compliance reviews it per country; languages come from overlays."
+    },
+    {
+      "table": "communication.cfg_notification_templates",
+      "code": "CASE_DECISION_EN",
+      "class": "COMPLIANCE",
+      "values": {
+        "type_code": "CASE_DECISION",
+        "channel": "EMAIL",
+        "language": "en",
+        "subject": "A decision on your case",
         "body": "{subject}. Sign in to see it."
       },
       "note": "English neutral wording. Compliance reviews it per country; languages come from overlays."
     },
     {
       "table": "document.ref_document_categories",
-      "code": "POLICY_SCHEDULE, REMITTANCE_ADVICE",
+      "code": "POLICY_SCHEDULE",
       "class": "OPERATIONAL",
       "values": {
-        "POLICY_SCHEDULE": {
-          "classification": "PERSONAL",
-          "domain": "ALL"
-        },
-        "REMITTANCE_ADVICE": {
-          "classification": "CONFIDENTIAL",
-          "domain": "HEALTH"
-        }
+        "category_code": "POLICY_SCHEDULE",
+        "label": "Policy schedule",
+        "classification": "PERSONAL",
+        "domain": "ALL",
+        "allowed_roles": null
+      }
+    },
+    {
+      "table": "document.ref_document_categories",
+      "code": "REMITTANCE_ADVICE",
+      "class": "OPERATIONAL",
+      "values": {
+        "category_code": "REMITTANCE_ADVICE",
+        "label": "Remittance advice",
+        "classification": "CONFIDENTIAL",
+        "domain": "HEALTH",
+        "allowed_roles": null
       }
     },
     {
       "table": "document.cfg_document_templates",
-      "code": "TPL-1, TPL-RA",
+      "code": "TPL-1",
       "class": "OPERATIONAL",
       "values": {
+        "template_code": "TPL-1",
         "language": "en",
-        "TPL-1": {
-          "document_type": "POLICY_SCHEDULE",
-          "body_ref": "templates/policy-schedule"
-        },
-        "TPL-RA": {
-          "document_type": "REMITTANCE_ADVICE",
-          "body_ref": "templates/remittance-advice"
-        }
+        "document_type": "POLICY_SCHEDULE",
+        "body_ref": "templates/policy-schedule",
+        "merge_fields": null
+      }
+    },
+    {
+      "table": "document.cfg_document_templates",
+      "code": "TPL-RA",
+      "class": "OPERATIONAL",
+      "values": {
+        "template_code": "TPL-RA",
+        "language": "en",
+        "document_type": "REMITTANCE_ADVICE",
+        "body_ref": "templates/remittance-advice",
+        "merge_fields": null
       }
     },
     {
       "table": "billing.ref_billing_frequencies",
-      "code": "MONTHLY, ANNUAL",
+      "code": "MONTHLY",
       "class": "OPERATIONAL",
       "values": {
-        "MONTHLY": {
-          "periods_per_year": 12
-        },
-        "ANNUAL": {
-          "periods_per_year": 1
-        }
+        "label": "Monthly",
+        "periods_per_year": 12
+      }
+    },
+    {
+      "table": "billing.ref_billing_frequencies",
+      "code": "ANNUAL",
+      "class": "OPERATIONAL",
+      "values": {
+        "label": "Annual",
+        "periods_per_year": 1
       }
     },
     {
@@ -275,62 +824,67 @@
     },
     {
       "table": "billing.cfg_arrears_ageing_buckets",
-      "code": "B1, B2",
+      "code": "B1",
       "class": "OPERATIONAL",
       "values": {
-        "B1": {
-          "days_from": 1,
-          "days_to": 30,
-          "action": "REMINDER"
-        },
-        "B2": {
-          "days_from": 31,
-          "days_to": 9999,
-          "action": "LAPSE"
-        }
+        "bucket_code": "B1",
+        "days_from": 1,
+        "days_to": 30,
+        "action": "REMINDER"
       },
       "note": "A lapse has legal effect in some markets; each country overlay may replace B2."
     },
     {
-      "table": "payment.ref_payment_status_mappings",
-      "code": "(per provider)",
+      "table": "billing.cfg_arrears_ageing_buckets",
+      "code": "B2",
       "class": "OPERATIONAL",
       "values": {
-        "note": "One row per real provider status. The seed has only the simulator's."
+        "bucket_code": "B2",
+        "days_from": 31,
+        "days_to": 9999,
+        "action": "LAPSE"
+      },
+      "note": "A lapse has legal effect in some markets; each country overlay may replace B2."
+    },
+    {
+      "table": "claims.cfg_claim_numbering_schemes",
+      "code": "CLM",
+      "class": "OPERATIONAL",
+      "values": {
+        "domain": "GENERAL",
+        "prefix": "CLM",
+        "sequence_length": 8,
+        "check_digit": "NONE"
       }
     },
     {
       "table": "claims.cfg_claim_numbering_schemes",
-      "code": "CLM, LIF",
+      "code": "LIF",
       "class": "OPERATIONAL",
       "values": {
-        "CLM": {
-          "domain": "GENERAL",
-          "prefix": "CLM",
-          "sequence_length": 8,
-          "check_digit": "NONE"
-        },
-        "LIF": {
-          "domain": "LIFE",
-          "prefix": "LIF",
-          "sequence_length": 8,
-          "check_digit": "NONE"
-        }
+        "domain": "LIFE",
+        "prefix": "LIF",
+        "sequence_length": 8,
+        "check_digit": "NONE"
       }
     },
     {
       "table": "claims.ref_claim_decision_reason_codes",
-      "code": "SETTLE, PART-EXCL",
+      "code": "SETTLE",
       "class": "COMPLIANCE",
       "values": {
-        "SETTLE": {
-          "decision_type": "APPROVE",
-          "customer_wording": "Your claim is approved and will be paid."
-        },
-        "PART-EXCL": {
-          "decision_type": "PARTIAL",
-          "customer_wording": "Part of the claim is excluded under the policy."
-        }
+        "decision_type": "APPROVE",
+        "customer_wording": "Your claim is approved and will be paid."
+      },
+      "note": "customer_wording has one language per row: see the survey, §4."
+    },
+    {
+      "table": "claims.ref_claim_decision_reason_codes",
+      "code": "PART-EXCL",
+      "class": "COMPLIANCE",
+      "values": {
+        "decision_type": "PARTIAL",
+        "customer_wording": "Part of the claim is excluded under the policy."
       },
       "note": "customer_wording has one language per row: see the survey, §4."
     },

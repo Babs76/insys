@@ -11,6 +11,11 @@ A tenant's starting data is three layers. A later layer replaces a row with the 
 
 Every row has a `class`: `OPERATIONAL`, `FINANCE` or `COMPLIANCE`. Review sheets list only FINANCE and COMPLIANCE rows.
 
+**Row format (corrected 16 November, [the list](format-corrections-2026-11-16.md)):**
+- One row holds one record, and `code` is that record's code.
+- `values` holds its fields under the table's own column names, every field the table requires included. A field with no value yet is `null`.
+- A note for the reviewer goes in the row's `note`, never in `values`.
+
 Every row is to carry two marks (D-20, Ade 15 November): `regulated` (true when only an approved overlay may supply it, AIA-082) and `tailorable` (true when AI may tailor it, 7.8). **No row in these drafts has them yet.** Until it does, INSYS reads a missing `tailorable` as false and a missing `regulated` from the class (FINANCE or COMPLIANCE is regulated), and records that the mark is the interim reading; the overlay review sheet shows each row's marks and their source for the reviewer and the approver to confirm. AI never tailors a row whose mark is the interim reading.
 
 Target markets in order, with the overlays each needs:
