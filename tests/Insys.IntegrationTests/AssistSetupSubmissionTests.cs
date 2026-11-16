@@ -27,6 +27,7 @@
 using System.Net;
 using System.Text.Json;
 using Insys.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 using Xunit;
 
@@ -300,6 +301,62 @@ public sealed class AssistSetupSubmissionTests(DatabaseFixture fixture) : IClass
         second.GetProperty("setId").GetGuid().ShouldNotBe(setId);
         second.GetProperty("batches").EnumerateArray().Select(b => b.GetProperty("batchId").GetGuid())
             .ShouldNotContain(b => first.GetProperty("batches").EnumerateArray().Any(f => f.GetProperty("batchId").GetGuid() == b), "each attempt's batches are its own");
+    }
+
+    [Fact]
+    public async Task ASubmissionThatStopsPartWay_StaysLocked_BlocksGoLive_AndIsWithdrawnBySubmitter_DiscardingWhatItLoaded_AIA086()
+    {
+        await Platform(SamplePack("6"));
+        var (tenant, user) = await Customer();
+        var wizard = await user("ss-runner", ["ASSIST_TENANT_SETUP_RUN"]);
+        var other = await user("ss-other", ["ASSIST_TENANT_SETUP_RUN"]);
+        var (id, _) = await AcceptAll(wizard, new { country = "XQ", lines = new[] { "LIFE" } });
+
+        // The last table refuses this attempt's own batch, not the check's trial insert: the submission stops after loading the other three.
+        var lastBatch = Insys.BuildingBlocks.Application.SetupOrder.BatchId(id, 1, "iam.cfg_authentication_and_session_policies");
+        await fixture.Database.ExecuteAsOwner($"""
+            CREATE FUNCTION iam.ss_refuse_batch() RETURNS trigger LANGUAGE plpgsql AS $$
+            BEGIN IF NEW.import_batch_id = '{lastBatch}' THEN RAISE EXCEPTION 'refused for the test' USING ERRCODE = 'check_violation'; END IF; RETURN NEW; END $$;
+            CREATE TRIGGER ss_refuse_batch BEFORE INSERT ON iam.cfg_authentication_and_session_policies FOR EACH ROW EXECUTE FUNCTION iam.ss_refuse_batch();
+            """);
+        try
+        {
+            var stopped = await Submit(wizard, id);
+            stopped.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity, await stopped.Content.ReadAsStringAsync());
+            var run = await wizard.GetAsync($"{Setups}/{id}");
+            (await run.Json()).GetProperty("status").GetString().ShouldBe("SUBMITTING", "the values stay locked; submitting again resumes");
+            var host = await fixture.Host();
+            await host.DrainOutbox();
+            (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM sdm.change_request WHERE tenant_id = @t AND setup_set_id IS NOT NULL AND status = 'PENDING_APPROVAL'",
+                ("t", tenant))).ShouldBe(3L);
+            var state = await host.Services.GetRequiredService<Insys.StaticData.Contracts.ISetupChangeSetState>().For(tenant, CancellationToken.None);
+            state.Open.ShouldBe(1, "loaded batches with no set recorded yet still block go-live");
+
+            // Only the submitter withdraws it; then what it loaded is discarded, and the setup is a draft again.
+            var byOther = await other.Send(HttpMethod.Post, $"{Setups}/{id}/submission/withdraw", ifMatch: run.ETag());
+            (await byOther.Code()).ShouldBe("FORBIDDEN");
+            var withdrawn = await wizard.Send(HttpMethod.Post, $"{Setups}/{id}/submission/withdraw", ifMatch: run.ETag());
+            withdrawn.StatusCode.ShouldBe(HttpStatusCode.OK, await withdrawn.Content.ReadAsStringAsync());
+            (await withdrawn.Json()).GetProperty("status").GetString().ShouldBe("DRAFT");
+            for (var i = 0; i < 5; i++)
+            {
+                await host.DrainOutbox();
+            }
+
+            (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM sdm.change_request WHERE tenant_id = @t AND setup_set_id IS NOT NULL AND status = 'REJECTED'", ("t", tenant)))
+                .ShouldBe(3L);
+            foreach (var table in new[] { "claims.ref_reserve_types", "tenant.mst_organisation_structure", "channel.cfg_channel_definitions" })
+            {
+                (await fixture.Database.ScalarAsOwner<long>($"SELECT count(*) FROM {table} WHERE tenant_id = @t", ("t", tenant))).ShouldBe(0L, $"{table}: discarded");
+            }
+
+            (await host.Services.GetRequiredService<Insys.StaticData.Contracts.ISetupChangeSetState>().For(tenant, CancellationToken.None)).Open.ShouldBe(0);
+            (await fixture.Database.ScalarAsOwner<string>("SELECT status || ' ' || ending FROM sdm.setup_change_set WHERE tenant_id = @t", ("t", tenant))).ShouldBe("NOT_APPROVED WITHDRAWN");
+        }
+        finally
+        {
+            await fixture.Database.ExecuteAsOwner("DROP TRIGGER ss_refuse_batch ON iam.cfg_authentication_and_session_policies; DROP FUNCTION iam.ss_refuse_batch();");
+        }
     }
 
     [Fact]

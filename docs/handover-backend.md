@@ -431,13 +431,20 @@ The SETUP change set (AIA-085, AIA-086; D-11, D-12 option C). Contract note: "AI
   - `ActivateTenant` is refused (409 `ONBOARDING_INCOMPLETE`) while a set is open.
   - Once a set is applied, every step's readiness runs again before go-live (422 `ONBOARDING_STEP_NOT_READY`, `STEP.CHECK`). This is a little wider than AIA-085's "steps completed before the set", and those completed after pass again.
   - Readiness `SETUP_CHANGE_SET` (`END_TO_END_TESTS`) blocks while a set is open.
+- **The review's fixes (16 November), each but the first with a test:**
+  - **A late batch could stall the set.** If its change request arrived while the set was being approved or applied, neither side saw the other. The late batch now moves the set's version, so the two conflict and one is retried. No test: it is a race.
+  - **A submission could be stuck part-way.** One batch refused on every attempt left the run `SUBMITTING` and the earlier batches pending for good. The submitter now withdraws it (`…/submission/withdraw`): the loaded batches' change requests are rejected and their drafts discarded, and the set is recorded `NOT_APPROVED`/`WITHDRAWN`, so a batch that arrives later is discarded too. The completeness check also runs each table's submission rules now.
+  - **The activation guard missed sets not yet recorded.** It now also counts loaded batches whose set isn't recorded (readiness `LOADING`), and the set's approval isn't applied once the tenant is live.
+  - **A decision could slip in beside the lock.** Deciding a value now moves the run's version.
+  - **Still open, for Ade:** an approved set that a batch can't complete (its stored lines no longer match what was approved) stays `APPLYING` and blocks go-live. Nothing in the code changes a submitted batch's lines, so this needs an outside change. A way out (abandoning the rest of the set, with what is in force kept) needs a function and so a decision: OQ-180.
 - **Found by the completeness check, for Ade (OQ-179):** the draft packs can't be loaded as they stand. Some rows hold several records, some lack required fields, and some name fields their tables don't have. The tests use a small sample pack.
 - **A fix on the way:** an import and its submission in one request hashed the import's tracked copies, not the stored rows, so the approval never matched. `ImportToSet` clears the tracker between them. Separate requests, as the per-table routes make them, were never affected.
-- **Tests:** `AssistSetupSubmissionTests` (5):
+- **Tests:** `AssistSetupSubmissionTests` (6):
   - one set, approved once by a second person (the runner refused), applied in order;
   - blockers listed and nothing loaded;
   - runner only, onboarding only;
   - not approved, drafts discarded, a new attempt;
+  - a submission stopped part-way: locked, blocking go-live, withdrawn by its submitter only, what it loaded discarded;
   - the activation guard while open, and the re-run once applied, against a tenant with no set.
 
 ### Scope batch 1 (16 November 2026, branch `scope-batch-1`)

@@ -12,14 +12,18 @@ New routes and one error code; no existing field changes.
   - 403 `FORBIDDEN` for anyone but whoever ran the wizard.
   - 409 `ASSIST_TENANT_LIVE` once the tenant is live.
   - A submission that stops part-way leaves the setup `SUBMITTING` (its values locked); submitting again resumes it.
+- **`POST /assist/tenant-setups/{id}/submission/withdraw`** (`ASSIST_TENANT_SETUP_RUN`, If-Match): the submitter withdraws a submission that stopped part-way (`SUBMITTING`). The batches it loaded are discarded and the setup is `DRAFT` again. 403 `FORBIDDEN` for anyone else; 409 `INVALID_STATE_TRANSITION` once the set is requested (Workflow ends a requested set).
+- **Deciding a value** (`POST /assist/tenant-setups/{id}/items/{itemId}/decision`) now moves the setup's ETag too, so a submission names the setup as reviewed.
+- **The completeness check** also runs each table's own submission rules, so a submission stops part-way less often.
 - **A setup's `status`** gains `SUBMITTING`, `SUBMITTED` and `APPLIED`. A set not approved returns it to `DRAFT`, with its drafts discarded, to be submitted again as a new attempt.
 - **The approval (`/workflow/approvals`):** one approval for the whole set, `approvalType` `STATIC_DATA_T1`, new `businessRefType` `STATIC_DATA_SETUP`, opening on the change request screen. Whoever ran the wizard can't decide it (403 `MAKER_CHECKER_SAME_PERSON`). Once it is granted, the batches go in force one after another.
 - **Change requests (`/static-data/change-requests`):** each batch is an `IMPORT` change request. It is `PENDING_APPROVAL` with no approval of its own until the set is decided, then `APPROVED` and `ACTIVE` in its turn, or `REJECTED` with the set.
 - **Tenant activation (`POST /tenancy/tenants/{id}/activate`):**
-  - 409 `ONBOARDING_INCOMPLETE` while a SETUP change set waits for its approval or is partly applied.
+  - 409 `ONBOARDING_INCOMPLETE` while a SETUP change set waits for its approval or is partly applied, or while a submission's batches are loaded and its set isn't recorded yet. The set's approval isn't applied once the tenant is live.
   - Once one is applied, every onboarding step's readiness runs again, and a check not ready is 422 `ONBOARDING_STEP_NOT_READY`, named `STEP.CHECK`.
   - Tenants with no SETUP change set see no change.
-- **Readiness:** `END_TO_END_TESTS` gains `SETUP_CHANGE_SET`, a blocker while a set is open.
+- **Readiness:** `END_TO_END_TESTS` gains `SETUP_CHANGE_SET`, a blocker while a set is open (a submission still loading shows as `LOADING`).
+- **The AI-2 evaluation set** gains the refusal `ASSIST_SETUP_NOT_READY`, worded in the catalogue. The refusal cases after it are renumbered, from `R-010` onwards. Runs made before this commit (43862166993, 43904917124) use the old numbers.
 
 ## AI Assist: list numbers no longer reject an explanation, and templates v2 (16 November 2026)
 - **`POST /assist/explanations/refusals` and `/premiums`:** an explanation that numbers its points as a list ("1. Open the version", "2) Ask again") now passes the number check (AIA-033a). In the first evaluation run every rejection was such a list marker or a number word, so these came back `REJECTED` with the plain facts. A figure on a listed line is still checked. A number written in words is still rejected.

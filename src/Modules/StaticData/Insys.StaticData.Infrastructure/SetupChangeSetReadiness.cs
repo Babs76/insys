@@ -34,7 +34,8 @@ using Npgsql;
 namespace Insys.StaticData.Infrastructure;
 
 /// <summary>
-/// Onboarding readiness SETUP_CHANGE_SET (END_TO_END_TESTS), a blocker (AIA-086, option C): no SETUP change set waiting for its approval or partly applied.
+/// Onboarding readiness SETUP_CHANGE_SET (END_TO_END_TESTS), a blocker (AIA-086, option C): no SETUP change set waiting for its approval or partly applied,
+/// and no submission whose batches are loaded but whose set isn't recorded yet (LOADING).
 /// The tenant can't go live while one is open; activation refuses it too, whenever the step was completed.
 /// </summary>
 internal sealed class SetupChangeSetReadiness([FromKeyedServices(StaticDataDbContext.SchemaName)] NpgsqlDataSource dataSource) : IReadinessCheck
@@ -48,7 +49,12 @@ internal sealed class SetupChangeSetReadiness([FromKeyedServices(StaticDataDbCon
     {
         var open = await ReadinessSql.InTenant(dataSource, context.TenantId, (connection, transaction) => ReadinessSql.Strings(connection, transaction,
             """
-            SELECT set_number || ' ' || status FROM sdm.setup_change_set WHERE tenant_id = @t AND status IN ('SUBMITTED', 'APPLYING') ORDER BY set_number
+            SELECT set_number || ' ' || status FROM sdm.setup_change_set WHERE tenant_id = @t AND status IN ('SUBMITTED', 'APPLYING')
+            UNION ALL
+            SELECT DISTINCT 'SC-' || setup_set_id::text || ' LOADING' FROM sdm.change_request c
+            WHERE c.tenant_id = @t AND c.setup_set_id IS NOT NULL AND c.status = 'PENDING_APPROVAL'
+              AND NOT EXISTS (SELECT 1 FROM sdm.setup_change_set s WHERE s.tenant_id = c.tenant_id AND s.id = c.setup_set_id)
+            ORDER BY 1
             """, cancellationToken, ("t", context.TenantId)), cancellationToken);
         return [ReadinessResult.Of(Step, Code,
             "No SETUP change set waiting for its approval or partly applied: the tenant's setup is applied in full before go-live (AIA-086)", open)];
@@ -64,8 +70,12 @@ internal sealed class SetupChangeSetStateQuery([FromKeyedServices(StaticDataDbCo
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
         await TenantSession.SetTenant(connection, transaction, tenantId, cancellationToken);
         await using var command = new NpgsqlCommand("""
-            SELECT count(*) FILTER (WHERE status IN ('SUBMITTED', 'APPLYING')), count(*) FILTER (WHERE status = 'APPLIED'), max(applied_at)
-            FROM sdm.setup_change_set WHERE tenant_id = @t
+            SELECT (SELECT count(*) FROM sdm.setup_change_set WHERE tenant_id = @t AND status IN ('SUBMITTED', 'APPLYING'))
+                 + (SELECT count(DISTINCT c.setup_set_id) FROM sdm.change_request c
+                    WHERE c.tenant_id = @t AND c.setup_set_id IS NOT NULL AND c.status = 'PENDING_APPROVAL'
+                      AND NOT EXISTS (SELECT 1 FROM sdm.setup_change_set s WHERE s.tenant_id = c.tenant_id AND s.id = c.setup_set_id)),
+                   (SELECT count(*) FROM sdm.setup_change_set WHERE tenant_id = @t AND status = 'APPLIED'),
+                   (SELECT max(applied_at) FROM sdm.setup_change_set WHERE tenant_id = @t)
             """, connection, transaction);
         command.Parameters.AddWithValue("t", tenantId);
         Contracts.SetupChangeSetState state;

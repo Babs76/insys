@@ -155,6 +155,27 @@ public sealed class SetupChangeSet : AggregateRoot<Guid>
         return set;
     }
 
+    /// <summary>
+    /// A submission withdrawn before its set was requested (AIA-086: the batches loaded so far are discarded). Recorded as a set not approved, with no batch, so
+    /// a batch that arrives later is discarded too.
+    /// </summary>
+    public static SetupChangeSet Withdrawn(Guid id, Guid sourceRef, Guid makerId, DateTimeOffset now)
+    {
+        var set = new SetupChangeSet
+        {
+            Id = Guard.NotEmpty(id), SetNumber = References.Of("SC-", id, 19), SourceRef = sourceRef, MakerId = makerId, Hash = HashOf([]),
+            Status = SetupSetStatuses.NotApproved, Ending = "WITHDRAWN",
+        };
+        set.MarkChanged();
+        return set;
+    }
+
+    /// <summary>
+    /// A batch's change request arrived while the set is being decided or applied. The set's version moves, so this and the set's own decision or progress
+    /// can't both commit unseen by the other: one is retried, and sees the batch (a lost wakeup otherwise leaves the set APPLYING).
+    /// </summary>
+    public void BatchArrived() => MarkChanged();
+
     /// <summary>Whether this checker's approval is already applied: a redelivery changes nothing.</summary>
     public bool ApprovalApplied(Guid checkerId) => Status is SetupSetStatuses.Applying or SetupSetStatuses.Applied && CheckerId == checkerId;
 

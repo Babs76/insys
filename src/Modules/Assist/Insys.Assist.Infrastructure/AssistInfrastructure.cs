@@ -69,6 +69,7 @@ internal sealed class AssistEventMapper : BuildingBlocks.Application.Messaging.I
     {
         SetupChangeSetReady ready => new StaticData.Contracts.SetupChangeSetRequested(ready.SetId, ready.RunId, ready.MakerId,
             [.. ready.Batches.Select(b => new StaticData.Contracts.SetupChangeSetBatch(b.Seq, b.Table, b.EntityCode, b.BatchId, b.ChangeRequestId, b.Lines, b.Hash))]),
+        SetupSubmissionWithdrawn withdrawn => new StaticData.Contracts.SetupChangeSetWithdrawn(withdrawn.SetId, withdrawn.RunId, withdrawn.MakerId),
         _ => null,
     };
 }

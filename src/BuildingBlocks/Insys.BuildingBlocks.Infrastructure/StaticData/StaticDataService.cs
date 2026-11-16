@@ -436,7 +436,7 @@ public sealed class StaticDataService<TDbContext>(
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
         try
         {
-            return await Stage<TEntity, TInput>(context, transaction, descriptor, lines, global: false, Guid.CreateVersion7(), cancellationToken);
+            return await Stage<TEntity, TInput>(context, transaction, descriptor, lines, global: false, Guid.CreateVersion7(), cancellationToken, checkSubmission: true);
         }
         finally
         {
@@ -450,7 +450,7 @@ public sealed class StaticDataService<TDbContext>(
     /// reported, not just the first. The caller commits or rolls back.
     /// </summary>
     private async Task<List<ImportLineError>> Stage<TEntity, TInput>(TDbContext context, IDbContextTransaction transaction, StaticDataDescriptor descriptor,
-        IReadOnlyList<TInput> lines, bool global, Guid batchId, CancellationToken cancellationToken)
+        IReadOnlyList<TInput> lines, bool global, Guid batchId, CancellationToken cancellationToken, bool checkSubmission = false)
         where TEntity : StaticRecord<TInput>, new()
         where TInput : StaticRecordInput
     {
@@ -506,6 +506,14 @@ public sealed class StaticDataService<TDbContext>(
                 await transaction.RollbackToSavepointAsync("line", cancellationToken);
                 context.Entry(entity).State = EntityState.Detached;
                 errors.Add(new ImportLineError(i + 1, postgres.ColumnName ?? postgres.ConstraintName ?? "row", DescribeDatabaseError(postgres)));
+                continue;
+            }
+
+            // AIA-085: a check made before a SETUP submission makes the submission's own checks too (the module's rules for the table and across its rows),
+            // so a batch isn't refused part-way through a submission for a reason the check could have seen.
+            if (checkSubmission && await CheckSubmission(context, descriptor, entity, cancellationToken) is { } refused)
+            {
+                errors.Add(new ImportLineError(i + 1, refused.Details?.Keys.FirstOrDefault() ?? "row", refused.Message));
             }
         }
 

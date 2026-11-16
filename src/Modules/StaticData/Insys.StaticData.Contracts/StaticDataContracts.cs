@@ -108,6 +108,13 @@ public sealed record SetupChangeSetBatch(int Seq, string Table, string EntityCod
 [BuildingBlocks.Contracts.IntegrationEvent("sdm.SetupChangeSetRequested")]
 public sealed record SetupChangeSetRequested(Guid SetId, Guid SourceRef, Guid MakerId, IReadOnlyList<SetupChangeSetBatch> Batches) : BuildingBlocks.Contracts.IIntegrationEvent;
 
+/// <summary>
+/// A submission withdrawn by its maker before its set was requested (one of its batches refused on every attempt): the batches already submitted to it are
+/// rejected and their drafts discarded, and no set is put to approval.
+/// </summary>
+[BuildingBlocks.Contracts.IntegrationEvent("sdm.SetupChangeSetWithdrawn")]
+public sealed record SetupChangeSetWithdrawn(Guid SetId, Guid SourceRef, Guid MakerId) : BuildingBlocks.Contracts.IIntegrationEvent;
+
 /// <summary>Every batch of the set is in force.</summary>
 [BuildingBlocks.Contracts.IntegrationEvent("sdm.SetupChangeSetApplied")]
 public sealed record SetupChangeSetApplied(Guid SetId, Guid SourceRef, Guid CheckerId, DateTimeOffset AppliedAt) : BuildingBlocks.Contracts.IIntegrationEvent;
@@ -117,7 +124,10 @@ public sealed record SetupChangeSetApplied(Guid SetId, Guid SourceRef, Guid Chec
 [BuildingBlocks.Contracts.IntegrationEvent("sdm.SetupChangeSetNotApproved")]
 public sealed record SetupChangeSetNotApproved(Guid SetId, Guid SourceRef, string Ending, string Reason) : BuildingBlocks.Contracts.IIntegrationEvent;
 
-/// <param name="Open">Sets submitted or partly applied: the tenant can't go live while there is one (AIA-086).</param>
+/// <param name="Open">
+/// Sets submitted or partly applied, and submissions whose batches are submitted but whose set isn't recorded yet: the tenant can't go live while there is
+/// one (AIA-086).
+/// </param>
 /// <param name="Applied">Sets applied in full: onboarding steps finished before one must pass their readiness again before go-live (AIA-085).</param>
 public sealed record SetupChangeSetState(int Open, int Applied, DateTimeOffset? LastAppliedAt);
 

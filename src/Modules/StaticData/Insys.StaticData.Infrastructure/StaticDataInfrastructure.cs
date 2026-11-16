@@ -66,6 +66,7 @@ public static class StaticDataInfrastructure
         services.AddIntegrationEventHandler<StaticDataImportCompleted, StaticDataGovernancePolicies, StaticDataDbContext>(schema, "ImportCompleted");
         services.AddIntegrationEventHandler<StaticDataImportRejected, StaticDataGovernancePolicies, StaticDataDbContext>(schema, "ImportRejected");
         services.AddIntegrationEventHandler<Contracts.SetupChangeSetRequested, StaticDataGovernancePolicies, StaticDataDbContext>(schema, "SetupRequested");
+        services.AddIntegrationEventHandler<Contracts.SetupChangeSetWithdrawn, StaticDataGovernancePolicies, StaticDataDbContext>(schema, "SetupWithdrawn");
         services.AddIntegrationEventHandler<StaticDataSetupBatchApplied, StaticDataGovernancePolicies, StaticDataDbContext>(schema, "SetupBatchApplied");
         services.AddSingleton<Contracts.ISetupChangeSetState, SetupChangeSetStateQuery>();
         services.AddSingleton<BuildingBlocks.Application.IReadinessCheck, SetupChangeSetReadiness>(); // AIA-086: a blocker while a set is open

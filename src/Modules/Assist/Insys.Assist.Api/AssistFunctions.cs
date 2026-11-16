@@ -50,7 +50,7 @@ internal static class AssistFunctions
         Action("ASSIST_EXPLAIN_PREMIUM", Features.AiAssist, AssistPermissions.ExplainPremium, ["AssistExplainPremium"]),
         Action("ASSIST_PRODUCT_DRAFT_RUN", Features.AiAssist, AssistPermissions.ProductDraftRun),
         Action("ASSIST_TENANT_SETUP_RUN", null, AssistPermissions.TenantSetupRun, ["AssistLoadTenantPack", "AssistListTenantPacks", "AssistGetTenantPack",
-            "AssistStartTenantSetup", "AssistGetTenantSetup", "AssistAnswerTenantSetup", "AssistDecideSetupItem", "AssistCheckTenantSetup", "AssistSubmitTenantSetup"]),
+            "AssistStartTenantSetup", "AssistGetTenantSetup", "AssistAnswerTenantSetup", "AssistDecideSetupItem", "AssistCheckTenantSetup", "AssistSubmitTenantSetup", "AssistWithdrawTenantSetupSubmission"]),
         new FunctionDeclaration("ASSIST_OVERLAY_APPROVE", FunctionKind.Screen, "AI_ASSIST", "Overlays", null, [Audiences.Platform], "assist/overlays", null, true,
             ["AssistPlatformPacksToApprove", "AssistGetPlatformPackToApprove", "AssistApprovePlatformPack"], [AssistPermissions.OverlayApprove]),
         new FunctionDeclaration("ASSIST_OVERLAY_MANAGE", FunctionKind.Screen, "AI_ASSIST", "Overlays", null, [Audiences.Platform], "assist/overlays/manage", null, true,

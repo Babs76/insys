@@ -68,12 +68,41 @@ public sealed record BeginSetupSubmission(Guid Id, long ExpectedVersion) : IComm
 /// </summary>
 public sealed record CompleteSetupSubmission(Guid Id) : ICommand<SetupSubmissionView>;
 
+/// <summary>The submitter withdraws a submission that stopped part-way: the batches loaded are discarded, and the setup is a draft again.</summary>
+public sealed record WithdrawSetupSubmission(Guid Id, long ExpectedVersion) : ICommand<SetupSubmissionView>, IVersionedCommand;
+
 /// <summary>The SETUP change set (AIA-085, AIA-086). Only while the tenant is onboarding.</summary>
 internal sealed class SetupSubmissionHandlers(ISetupRuns runs, IStarterPacks packs, ISetupImports imports, IExecutionContext execution, ITenantContext tenant, IClock clock,
     IAuditTrail audit, Tenancy.Contracts.ITenantStatusQuery tenants)
     : IQueryHandler<CheckTenantSetup, SetupCompletenessView>, ICommandHandler<BeginSetupSubmission, SetupSubmissionView>,
-        ICommandHandler<CompleteSetupSubmission, SetupSubmissionView>
+        ICommandHandler<CompleteSetupSubmission, SetupSubmissionView>, ICommandHandler<WithdrawSetupSubmission, SetupSubmissionView>
 {
+    public async Task<Result<SetupSubmissionView>> Handle(WithdrawSetupSubmission command, CancellationToken cancellationToken)
+    {
+        if (await runs.Run(command.Id, cancellationToken) is not { } run)
+        {
+            return Error.NotFound(ErrorCodes.NotFound, "The setup was not found.");
+        }
+
+        if (run.RowVersion != command.ExpectedVersion)
+        {
+            return Error.PreconditionFailed(ErrorCodes.PreconditionFailed, "The setup has changed since it was read. Read it again.");
+        }
+
+        var setId = run.SetId;
+        var withdrawn = run.WithdrawSubmission(execution.ActorId, clock.UtcNow);
+        if (withdrawn.IsFailure)
+        {
+            return withdrawn.Error;
+        }
+
+        audit.Record(new AuditEntry("ASSIST", "WithdrawSetupSubmission", nameof(SetupRun), run.Id.ToString(), new Dictionary<string, string?>
+        {
+            ["attempt"] = run.Attempt.ToString(System.Globalization.CultureInfo.InvariantCulture), ["set"] = setId?.ToString(),
+        }));
+        return View(run, []);
+    }
+
     public async Task<Result<SetupCompletenessView>> Handle(CheckTenantSetup query, CancellationToken cancellationToken)
     {
         if (await runs.Run(query.Id, cancellationToken) is not { } run)

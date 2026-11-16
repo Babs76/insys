@@ -43241,6 +43241,77 @@
         ]
       }
     },
+    "/api/v1/assist/tenant-setups/{id}/submission/withdraw": {
+      "post": {
+        "tags": [
+          "Assist"
+        ],
+        "summary": "Withdraw a submission that stopped part-way (SUBMITTING): the batches loaded so far are discarded and the setup is a draft again. Submitter only. Needs If-Match",
+        "operationId": "AssistWithdrawTenantSetupSubmission",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistSetupSubmissionView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "assist_tenant_setup.run",
+        "x-function": [
+          "ASSIST_TENANT_SETUP_RUN"
+        ]
+      }
+    },
     "/api/v1/analytics/written-premium": {
       "get": {
         "tags": [

@@ -211,6 +211,19 @@ public sealed class AssistModule : IModule
                 + "The set's approval is a STATIC_DATA_T1 approval of business reference type STATIC_DATA_SETUP; its batches are IMPORT change requests under /static-data/change-requests. "
                 + "Once every batch is in force the setup is APPLIED; a set not approved discards its drafts and returns the setup to DRAFT.")
             .RequirePermission(AssistPermissions.TenantSetupRun).RequireIdempotencyKey();
+        setups.MapPost("/{id:guid}/submission/withdraw", async (Guid id, IDispatcher d, HttpContext http, CancellationToken ct) =>
+            {
+                var expected = Concurrency.ExpectedVersion(http.Request);
+                return expected.IsFailure ? Problems.For(expected.Error) : (await d.Send(new WithdrawSetupSubmission(id, expected.Value), ct)).ToHttp(view =>
+                {
+                    Concurrency.SetETag(http, view.RowVersion);
+                    return Results.Ok(view);
+                });
+            })
+            .Produces<SetupSubmissionView>(StatusCodes.Status200OK).ReturnsETag()
+            .WithName("AssistWithdrawTenantSetupSubmission")
+            .WithSummary("Withdraw a submission that stopped part-way (SUBMITTING): the batches loaded so far are discarded and the setup is a draft again. Submitter only. Needs If-Match")
+            .RequirePermission(AssistPermissions.TenantSetupRun);
     }
 
     /// <summary>

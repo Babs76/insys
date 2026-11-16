@@ -1387,3 +1387,9 @@ Raised by the read-scope sweep (`docs/reviews/read-scope-sweep.md`, at `06ecae1`
 - In `base.json` with `line-general-motor.json`, with every value accepted, 16 of the 27 tables have rows the import refuses (checked 16 November, before any database check, which runs only once the fields pass). Some rows hold several records (codes `MONTHLY, ANNUAL`, `CASE_*`, `PR-*`, `(per provider)`), with each record's values under a key of its code. Some leave out fields the table requires (`workflow.cfg_case_types` has no `case_type_code`, `link_types`, `requires_category` or `appeal_route`). Some name fields the table doesn't have (`finance.cfg_posting_rules.transaction_types`).
 - `rules.cfg_authority_matrices` `AM` is regulated and empty, so it is Missing even with every overlay approved.
 - Until the packs hold one row per record with the table's own column names, a setup from them stops at `ASSIST_SETUP_NOT_READY`. The check lists each row and field. The batch's tests use a small sample pack that loads.
+
+**OQ-180: how does a SETUP change set that can't finish applying end? Open, for Ade.**
+- Once approved, a set's batches go in force one by one. A batch whose stored lines no longer match what was approved is refused (its delivery parks, `APPROVAL_NOT_APPLIED`), so the set stays `APPLYING`, and the activation guard and readiness block go-live.
+- Nothing in INSYS changes a submitted batch's lines, so this needs an outside change (a direct database edit), but then there is no way out.
+- To decide: whether, and by whom, the rest of such a set is abandoned (what is already in force stays, as posted static data is never undone), and which function allows it. It's a permission, so it isn't built.
+

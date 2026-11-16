@@ -223,7 +223,7 @@ internal sealed class ListImportBatchesHandler(IChangeRequestQueries queries) : 
 /// delivery changes nothing (INT-005); a change request in an unexpected state is left as it is, except that an approval's
 /// ending (rejected, expired, withdrawn) it would not take parks the delivery (D-5, ADR-022).
 /// </summary>
-public sealed class StaticDataGovernancePolicies(IChangeRequestRepository changes, IClock clock) :
+public sealed class StaticDataGovernancePolicies(IChangeRequestRepository changes, IClock clock, Tenancy.Contracts.ITenantStatusQuery tenants) :
     IIntegrationEventHandler<StaticDataChangeSubmitted>,
     IIntegrationEventHandler<StaticDataImportSubmitted>,
     IIntegrationEventHandler<ApprovalGranted>,
@@ -233,6 +233,7 @@ public sealed class StaticDataGovernancePolicies(IChangeRequestRepository change
     IIntegrationEventHandler<StaticDataImportCompleted>,
     IIntegrationEventHandler<StaticDataImportRejected>,
     IIntegrationEventHandler<SetupChangeSetRequested>,
+    IIntegrationEventHandler<SetupChangeSetWithdrawn>,
     IIntegrationEventHandler<StaticDataSetupBatchApplied>
 {
     public static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
@@ -278,6 +279,7 @@ public sealed class StaticDataGovernancePolicies(IChangeRequestRepository change
                 }
                 else
                 {
+                    set.BatchArrived();
                     ApproveNext(set, [batch]);
                 }
             }
@@ -302,7 +304,7 @@ public sealed class StaticDataGovernancePolicies(IChangeRequestRepository change
     {
         if (granted.BusinessRefType == SetupChangeSets.BusinessRefType)
         {
-            await GrantSetup(granted, cancellationToken);
+            await GrantSetup(granted, envelope, cancellationToken);
             return;
         }
 
@@ -364,6 +366,30 @@ public sealed class StaticDataGovernancePolicies(IChangeRequestRepository change
         changes.Add(set.Value);
     }
 
+    /// <summary>
+    /// A submission withdrawn before its set was requested: every batch already submitted to it is rejected, so its module discards its drafts, and the set is
+    /// recorded as not approved, so a batch that arrives later is discarded too. A set already requested isn't withdrawn here: Workflow ends its approval.
+    /// </summary>
+    public async Task Handle(SetupChangeSetWithdrawn withdrawn, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (await changes.SetupSet(withdrawn.SetId, cancellationToken) is { } existing)
+        {
+            if (existing.Status != SetupSetStatuses.NotApproved)
+            {
+                throw new PrerequisiteMissingException(PrerequisiteCodes.ApprovalEndingNotApplied, $"SETUP:{withdrawn.SetId}");
+            }
+        }
+        else
+        {
+            changes.Add(SetupChangeSet.Withdrawn(withdrawn.SetId, withdrawn.SourceRef, withdrawn.MakerId, clock.UtcNow));
+        }
+
+        foreach (var change in (await changes.SetupBatches(withdrawn.SetId, cancellationToken)).Where(c => c.Status == ChangeStatus.PendingApproval))
+        {
+            change.RejectChange(Guid.Empty, "The setup's submission was withdrawn.", clock.UtcNow);
+        }
+    }
+
     /// <summary>A batch of a set is in force in its module: the set records it and approves the next batch, or completes.</summary>
     public async Task Handle(StaticDataSetupBatchApplied applied, EventEnvelope envelope, CancellationToken cancellationToken)
     {
@@ -384,7 +410,7 @@ public sealed class StaticDataGovernancePolicies(IChangeRequestRepository change
     /// The set's one approval (AIA-086): refused to the maker, and applied only to the contents it was given for (its hash, and each batch's change request
     /// with the lines' hash it was submitted with). The first batch is approved now; each later one when the one before is in force.
     /// </summary>
-    private async Task GrantSetup(ApprovalGranted granted, CancellationToken cancellationToken)
+    private async Task GrantSetup(ApprovalGranted granted, EventEnvelope envelope, CancellationToken cancellationToken)
     {
         if (await changes.SetupSet(granted.BusinessRefId, cancellationToken) is not { } set)
         {
@@ -394,6 +420,12 @@ public sealed class StaticDataGovernancePolicies(IChangeRequestRepository change
         if (set.ApprovalApplied(granted.CheckerId))
         {
             return;
+        }
+
+        // AIA-086: only for a tenant still onboarding; a live tenant keeps per-table imports. Refused, the approval isn't applied and the set stays SUBMITTED.
+        if (await tenants.UserAccess(envelope.TenantId, cancellationToken) != Tenancy.Contracts.TenantUserAccess.ConfigurationOnly)
+        {
+            throw NotApplied(granted);
         }
 
         var batches = await changes.SetupBatches(set.Id, cancellationToken);

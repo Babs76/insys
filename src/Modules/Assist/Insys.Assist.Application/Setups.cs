@@ -297,6 +297,8 @@ internal sealed class TenantSetupHandlers(ISetupRuns runs, IStarterPacks packs, 
             return decided.Error;
         }
 
+        run.ValueDecided();
+
         audit.Record(new AuditEntry("ASSIST", "DecideSetupItem", nameof(SetupItem), item.Id.ToString(), new Dictionary<string, string?>
         {
             ["run"] = run.Id.ToString(), ["table"] = item.TableName, ["code"] = item.RowCode, ["decision"] = item.Decision, ["flag"] = item.Flag,

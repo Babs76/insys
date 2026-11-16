@@ -73,6 +73,9 @@ public sealed record SetupBatchLoaded(int Seq, string Table, string EntityCode, 
 /// <summary>Every batch is loaded: Static Data records the set and puts it to one approval.</summary>
 public sealed record SetupChangeSetReady(Guid SetId, Guid RunId, Guid MakerId, IReadOnlyList<SetupBatchLoaded> Batches, DateTimeOffset OccurredAt) : IDomainEvent;
 
+/// <summary>The submission is withdrawn before its set was requested: the batches loaded so far are discarded by their modules.</summary>
+public sealed record SetupSubmissionWithdrawn(Guid SetId, Guid RunId, Guid MakerId, DateTimeOffset OccurredAt) : IDomainEvent;
+
 /// <summary>
 /// A run of AI-3's wizard on a tenant still onboarding (AI Assist SRS §5A): its questionnaire answers, versioned (AIA-081), the pack versions the draft was
 /// assembled from (AIA-089) and its status. The draft's values are its <see cref="SetupItem"/>s. Nothing here changes the tenant's configuration: the SETUP
@@ -144,6 +147,34 @@ public sealed class SetupRun : AggregateRoot<Guid>
         MarkChanged();
         return Result.Success();
     }
+
+    /// <summary>
+    /// The submitter withdraws a submission that stopped part-way (a batch refused on every attempt), before its set was requested. The batches loaded so far
+    /// are discarded and the run is a draft again, to be corrected and submitted as a new attempt.
+    /// </summary>
+    public Result WithdrawSubmission(string by, DateTimeOffset at)
+    {
+        if (Status != SetupStatuses.Submitting || SetId is not { } setId || !Guid.TryParse(SubmittedBy, out var maker))
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, $"The setup is {Status}; only a submission that stopped part-way is withdrawn. A submitted set is ended in Workflow.");
+        }
+
+        if (by != SubmittedBy)
+        {
+            return Error.Forbidden(ErrorCodes.Forbidden, "Only whoever submitted the setup withdraws its submission.");
+        }
+
+        Raise(new SetupSubmissionWithdrawn(setId, Id, maker, at));
+        (Status, SetId, SubmittedBy, SubmittedAt) = (SetupStatuses.Draft, null, null, null);
+        MarkChanged();
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// A value of the draft was decided. The run's version moves with it, so a decision can't slip in beside the submission's check and lock unseen: one of
+    /// the two is refused as a conflict.
+    /// </summary>
+    public void ValueDecided() => MarkChanged();
 
     /// <summary>The set the run was submitted as is in force. A redelivery changes nothing.</summary>
     public bool Applied(Guid setId)
