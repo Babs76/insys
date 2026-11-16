@@ -48130,6 +48130,7 @@
           "decidedBy",
           "decisionNote",
           "answersVersion",
+          "inDraft",
           "rowVersion"
         ],
         "type": "object",
@@ -48210,6 +48211,9 @@
               "string"
             ],
             "format": "int32"
+          },
+          "inDraft": {
+            "type": "boolean"
           },
           "rowVersion": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",

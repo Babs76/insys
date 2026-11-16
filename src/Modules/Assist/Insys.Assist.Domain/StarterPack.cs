@@ -77,6 +77,11 @@ public static class PackErrorCodes
         Remedy = "Read the version again, check its review sheet, and approve the content it now has.")]
     public const string Changed = "ASSIST_PACK_CHANGED";
 
+    /// <summary>The approval is of a version that isn't its pack's newest, or by someone who prepared, reviewed or used the pack (§5.3).</summary>
+    [ErrorCode(409, "error.assist.pack_not_newest", Means = "Only a pack's newest version can be approved, so that a correction isn't overtaken by the version it corrects.",
+        Remedy = "Approve the newest version, after reading its review sheet.")]
+    public const string NotNewest = "ASSIST_PACK_NOT_NEWEST";
+
     /// <summary>A tenant loads its own overlay only while it is onboarding (Ade, 15 November).</summary>
     [ErrorCode(409, "error.assist.tenant_live", Means = "A tenant's own overlay is loaded only while the tenant is onboarding, and this one is live.",
         Remedy = "Use an overlay approved for every tenant, or change configuration through the normal change process.")]

@@ -105,3 +105,32 @@ CREATE POLICY read_platform_and_own ON assist.starter_pack_value FOR SELECT
 CREATE POLICY own_insert ON assist.starter_pack_value FOR INSERT WITH CHECK (tenant_id = current_setting('app.tenant_id')::uuid);
 COMMENT ON COLUMN assist.starter_pack_value.regulated_source IS 'EXPLICIT: the row says. INTERIM: read from the class, FINANCE or COMPLIANCE (D-20); never tailored.';
 COMMENT ON COLUMN assist.starter_pack_value.tailorable_source IS 'EXPLICIT: the row says. DEFAULT: no mark, so not tailorable (D-20).';
+
+-- After loading, a version's identity and content never change, and its status only moves forward (§5.3); its rows are added only with it, while it is a
+-- draft that hasn't all its rows. So an approval binds to what was reviewed, whatever a holder's UPDATE could otherwise reach.
+CREATE FUNCTION assist.guard_starter_pack() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF (NEW.tenant_id, NEW.pack_code, NEW.kind, NEW.version, NEW.builds_on, NEW.country, NEW.line, NEW.scope, NEW.content_hash, NEW.row_count, NEW.prepared_by)
+     IS DISTINCT FROM (OLD.tenant_id, OLD.pack_code, OLD.kind, OLD.version, OLD.builds_on, OLD.country, OLD.line, OLD.scope, OLD.content_hash, OLD.row_count, OLD.prepared_by) THEN
+    RAISE EXCEPTION 'A starter pack version''s identity and content never change: load a new version.';
+  END IF;
+  IF OLD.status = 'APPROVED' OR (OLD.status = 'REVIEWED' AND NEW.status = 'DRAFT') THEN
+    RAISE EXCEPTION 'A starter pack version''s status only moves forward.';
+  END IF;
+  RETURN NEW;
+END $$;
+CREATE TRIGGER guard_starter_pack BEFORE UPDATE ON assist.starter_pack FOR EACH ROW EXECUTE FUNCTION assist.guard_starter_pack();
+
+CREATE FUNCTION assist.guard_starter_pack_value() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE parent assist.starter_pack%ROWTYPE;
+BEGIN
+  SELECT * INTO parent FROM assist.starter_pack WHERE tenant_id = NEW.tenant_id AND id = NEW.pack_id;
+  IF parent.status <> 'DRAFT' OR parent.reviewed_by IS NOT NULL
+     OR (SELECT count(*) FROM assist.starter_pack_value WHERE tenant_id = NEW.tenant_id AND pack_id = NEW.pack_id) >= parent.row_count
+     OR NEW.scope <> parent.scope THEN
+    RAISE EXCEPTION 'A starter pack version''s rows are added only with it.';
+  END IF;
+  RETURN NEW;
+END $$;
+CREATE TRIGGER guard_starter_pack_value BEFORE INSERT ON assist.starter_pack_value FOR EACH ROW EXECUTE FUNCTION assist.guard_starter_pack_value();
+

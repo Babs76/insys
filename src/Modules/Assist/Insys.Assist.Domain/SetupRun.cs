@@ -154,6 +154,9 @@ public sealed class SetupItem : AggregateRoot<Guid>
     /// <summary>The answers version that last drafted it.</summary>
     public int AnswersVersion { get; private set; }
 
+    /// <summary>Whether the current answers still bring the row. Once they don't, it is kept, rejected and never decided again (AIA-081).</summary>
+    public bool InDraft { get; private set; } = true;
+
     public static SetupItem Draft(Guid runId, int answersVersion, string table, string code, string @class, bool regulated, string flag, string? values, Guid? sourcePackId,
         int? sourceLineNo, string? missingReason) => new()
         {
@@ -169,13 +172,25 @@ public sealed class SetupItem : AggregateRoot<Guid>
     public void Redraft(int answersVersion, string @class, bool regulated, string flag, string? values, Guid? sourcePackId, int? sourceLineNo, string? missingReason)
     {
         (AnswersVersion, Class, Regulated, Flag, Values, SourcePackId, SourceLineNo, MissingReason) = (answersVersion, @class, regulated, flag, values, sourcePackId, sourceLineNo, missingReason);
-        (Decision, DecidedBy, DecidedAt, DecisionNote) = (null, null, null, null);
+        (Decision, DecidedBy, DecidedAt, DecisionNote, InDraft) = (null, null, null, null, true);
         MarkChanged();
     }
 
-    /// <summary>The reviewer's decision (§5A.5). A Missing value can't be accepted: there is nothing to accept.</summary>
+    /// <summary>The current answers no longer bring the row: it is rejected and leaves the draft, its value kept for the record.</summary>
+    public void LeaveDraft(string by, DateTimeOffset at)
+    {
+        (Decision, DecisionNote, DecidedBy, DecidedAt, InDraft) = (ItemDecisions.Rejected, "No longer drafted from the answers.", by, at, false);
+        MarkChanged();
+    }
+
+    /// <summary>The reviewer's decision (§5A.5). A Missing value can't be accepted: there is nothing to accept. A value out of the draft isn't decided again.</summary>
     public Result Decide(string decision, string? note, string by, DateTimeOffset at)
     {
+        if (!InDraft)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, "The current answers no longer bring this value, so it isn't decided again.");
+        }
+
         if (decision is not (ItemDecisions.Accepted or ItemDecisions.Rejected))
         {
             return Error.Validation(ErrorCodes.ValidationFailed, "decision is ACCEPTED or REJECTED.");
@@ -183,9 +198,9 @@ public sealed class SetupItem : AggregateRoot<Guid>
 
         if (decision == ItemDecisions.Accepted && Flag == ItemFlags.Missing)
         {
-            return Error.Validation(PackErrorCodes.NotApproved, MissingReason == MissingReasons.NotApproved
-                ? "A regulated value from an overlay not approved for this tenant can't be accepted."
-                : "A value the pack leaves empty can't be accepted.");
+            return MissingReason == MissingReasons.NotApproved
+                ? Error.Validation(PackErrorCodes.NotApproved, "A regulated value from an overlay not approved for this tenant can't be accepted.")
+                : Error.Validation(ErrorCodes.ValidationFailed, "A value the pack leaves empty can't be accepted: it is Missing.");
         }
 
         (Decision, DecisionNote, DecidedBy, DecidedAt) = (decision, string.IsNullOrWhiteSpace(note) ? null : note.Trim(), by, at);

@@ -213,4 +213,77 @@ public sealed class AssistPackTests(DatabaseFixture fixture) : IClassFixture<Dat
             (await fixture.Database.ScalarAsOwner<bool>($"SELECT has_table_privilege('insys_assist', 'assist.starter_pack_value', '{privilege}')")).ShouldBeFalse(privilege);
         }
     }
+
+    private static object Review => new { partner = "Sample Partners (sample)", reviewerName = "D. Reviewer (sample)", reviewedOn = "2026-11-14", reviewDocumentId = Guid.CreateVersion7() };
+
+    private static object Line(string code) => new { pack = code, kind = "LINE", rows = new[] { new { table = "general.cfg_sample", code = "A", @class = "OPERATIONAL", values = new { x = 1 } } } };
+
+    [Fact]
+    public async Task ReloadingByAnotherPerson_DoesntMakeTheFirstLoaderAnApprover_AndOnlyTheNewestVersionIsApproved_AndOnlyOnce_S53()
+    {
+        var a = await Operator("pk-rl-a", "ASSIST_OVERLAY_MANAGE", "ASSIST_OVERLAY_APPROVE");
+        var b = await Operator("pk-rl-b", "ASSIST_OVERLAY_MANAGE");
+        var lead = await Operator("pk-rl-lead", "ASSIST_OVERLAY_APPROVE");
+        var v1 = await a.Send(HttpMethod.Post, Platform, Line("RELOAD_LINE"), idempotent: true);
+        var v1View = await v1.Json();
+        var v2 = await b.Send(HttpMethod.Post, Platform, Line("RELOAD_LINE"), idempotent: true);
+        var v2View = await v2.Json();
+        v2View.GetProperty("version").GetInt32().ShouldBe(2);
+
+        var r1 = await b.Send(HttpMethod.Post, $"{Platform}/{v1View.GetProperty("id").GetGuid()}/review", Review, ifMatch: v1.ETag());
+        var old = await lead.Send(HttpMethod.Post, $"{Platform}/{v1View.GetProperty("id").GetGuid()}/approve", new { contentHash = v1View.GetProperty("contentHash").GetString() }, ifMatch: r1.ETag());
+        (old.StatusCode, await old.Code()).ShouldBe((HttpStatusCode.Conflict, "ASSIST_PACK_NOT_NEWEST"), "a correction isn't overtaken by the version it corrects");
+
+        var r2 = await lead.Send(HttpMethod.Post, $"{Platform}/{v2View.GetProperty("id").GetGuid()}/review", Review, ifMatch: v2.ETag());
+        r2.StatusCode.ShouldBe(HttpStatusCode.Forbidden, "the lead holds no ASSIST_OVERLAY_MANAGE");
+        r2 = await b.Send(HttpMethod.Post, $"{Platform}/{v2View.GetProperty("id").GetGuid()}/review", Review, ifMatch: v2.ETag());
+        var byA = await a.Send(HttpMethod.Post, $"{Platform}/{v2View.GetProperty("id").GetGuid()}/approve", new { contentHash = v2View.GetProperty("contentHash").GetString() }, ifMatch: r2.ETag());
+        (byA.StatusCode, await byA.Code()).ShouldBe((HttpStatusCode.Forbidden, "MAKER_CHECKER_SAME_PERSON"), "A loaded the pack's first version");
+
+        var c = await Operator("pk-rl-c", "ASSIST_OVERLAY_MANAGE");
+        var v3 = await c.Send(HttpMethod.Post, Platform, Line("RELOAD_LINE"), idempotent: true);
+        var v3View = await v3.Json();
+        var r3 = await b.Send(HttpMethod.Post, $"{Platform}/{v3View.GetProperty("id").GetGuid()}/review", Review, ifMatch: v3.ETag());
+        var ok = await lead.Send(HttpMethod.Post, $"{Platform}/{v3View.GetProperty("id").GetGuid()}/approve", new { contentHash = v3View.GetProperty("contentHash").GetString() }, ifMatch: r3.ETag());
+        ok.StatusCode.ShouldBe(HttpStatusCode.OK, await ok.Content.ReadAsStringAsync());
+        var again = await lead.Send(HttpMethod.Post, $"{Platform}/{v3View.GetProperty("id").GetGuid()}/approve", new { contentHash = v3View.GetProperty("contentHash").GetString() }, ifMatch: ok.ETag());
+        (again.StatusCode, await again.Code()).ShouldBe((HttpStatusCode.Conflict, "INVALID_STATE_TRANSITION"));
+    }
+
+    [Fact]
+    public async Task AVersionIsApprovedOnlyThroughItsOwnRoute_AndItsContentCantChangeInTheDatabase_S53()
+    {
+        var manager = await Operator("pk-rt-mgr", "ASSIST_OVERLAY_MANAGE");
+        var loaded = await manager.Send(HttpMethod.Post, Platform, Line("ROUTE_LINE"), idempotent: true);
+        var view = await loaded.Json();
+        var id = view.GetProperty("id").GetGuid();
+        var (_, user) = await Customer(onboarding: true);
+        var officer = await user("pk-rt-officer", ["ASSIST_OVERLAY_APPROVE_TENANT"]);
+        (await officer.Send(HttpMethod.Post, $"{Tenant}/{id}/approve", new { contentHash = view.GetProperty("contentHash").GetString() }, ifMatch: loaded.ETag()))
+            .StatusCode.ShouldBe(HttpStatusCode.NotFound, "a tenant's officer approves only its own tenant's versions");
+
+        await Should.ThrowAsync<Npgsql.PostgresException>(() => fixture.Database.ExecuteAsOwner("UPDATE assist.starter_pack SET content_hash = repeat('0', 64) WHERE id = @i", ("i", id)));
+        await Should.ThrowAsync<Npgsql.PostgresException>(() => fixture.Database.ExecuteAsOwner("UPDATE assist.starter_pack SET scope = 'TENANT_ONLY' WHERE id = @i", ("i", id)));
+        await Should.ThrowAsync<Npgsql.PostgresException>(() => fixture.Database.ExecuteAsOwner("""
+            INSERT INTO assist.starter_pack_value (tenant_id, id, created_at, created_by, pack_id, scope, line_no, table_name, row_code, class, regulated, regulated_source, tailorable,
+              tailorable_source, values)
+            SELECT tenant_id, gen_random_uuid(), now(), 'test', id, scope, 99, 'x', 'Y', 'FINANCE', true, 'EXPLICIT', false, 'DEFAULT', '{}'::jsonb FROM assist.starter_pack WHERE id = @i
+            """, ("i", id)));
+    }
+
+    [Fact]
+    public async Task WhoeverRanASetupWithAVersion_CantApproveIt_S53()
+    {
+        var (_, user) = await Customer(onboarding: true);
+        var loader = await user("pk-ws-loader", ["ASSIST_TENANT_SETUP_RUN"]);
+        var runner = await user("pk-ws-runner", ["ASSIST_TENANT_SETUP_RUN", "ASSIST_OVERLAY_APPROVE_TENANT"]);
+        var loaded = await loader.Send(HttpMethod.Post, Tenant, new { pack = "XW", kind = "COUNTRY", rows = new[] { new { table = "t", code = "A", @class = "OPERATIONAL", values = new { x = 1 } } } },
+            idempotent: true);
+        var view = await loaded.Json();
+        (await runner.Send(HttpMethod.Post, "/api/v1/assist/tenant-setups", new { country = "XW", lines = new[] { "GENERAL" } }, idempotent: true)).StatusCode.ShouldBe(HttpStatusCode.Created);
+        var refused = await runner.Send(HttpMethod.Post, $"{Tenant}/{view.GetProperty("id").GetGuid()}/approve", new { contentHash = view.GetProperty("contentHash").GetString() },
+            ifMatch: loaded.ETag());
+        (refused.StatusCode, await refused.Code()).ShouldBe((HttpStatusCode.Forbidden, "MAKER_CHECKER_SAME_PERSON"), "whoever ran the wizard with it can't approve it");
+    }
 }
+

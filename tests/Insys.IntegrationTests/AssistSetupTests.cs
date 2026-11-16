@@ -45,7 +45,7 @@ public sealed class AssistSetupTests(DatabaseFixture fixture) : IClassFixture<Da
 
     private Guid? _base, _motor, _ng;
 
-    /// <summary>The platform's packs, once: base and the motor line approved after review, NG left a draft.</summary>
+    /// <summary>The platform's packs, loaded for each test (xUnit makes a new instance per test): base and the motor line approved after review, NG left a draft. Each test's are the newest.</summary>
     private async Task Platform()
     {
         if (_base is not null)
@@ -158,6 +158,13 @@ public sealed class AssistSetupTests(DatabaseFixture fixture) : IClassFixture<Da
         (await fixture.Database.ScalarAsOwner<string>("SELECT decision FROM assist.setup_item WHERE id = @i", ("i", missing.GetProperty("id").GetGuid())))
             .ShouldBe("REJECTED", "a value the new answers no longer bring is rejected");
         (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM assist.setup_answer WHERE run_id = @r", ("r", id))).ShouldBe(2L, "each answers version is kept");
+        var gone = Values(after).Single(v => v.GetProperty("id").GetGuid() == missing.GetProperty("id").GetGuid());
+        (gone.GetProperty("inDraft").GetBoolean(), gone.GetProperty("decision").GetString()).ShouldBe((false, "REJECTED"));
+        after.GetProperty("items").GetInt32().ShouldBe(Values(after).Count(v => v.GetProperty("inDraft").GetBoolean()), "the counts are of the draft");
+        var again = await wizard.Send(HttpMethod.Post, $"{Setups}/{id}/items/{missing.GetProperty("id").GetGuid()}/decision", new { decision = "REJECTED" }, ifMatch: Version(gone));
+        (again.StatusCode, await again.Code()).ShouldBe((HttpStatusCode.Conflict, "INVALID_STATE_TRANSITION"), "a value out of the draft isn't decided again");
+        var same = await (await wizard.GetAsync($"{Setups}/{id}")).Json();
+        (same.GetProperty("missing").GetInt32(), same.GetProperty("items").GetInt32()).ShouldBe((after.GetProperty("missing").GetInt32(), after.GetProperty("items").GetInt32()), "GET and PUT agree");
     }
 
     [Fact]
@@ -179,6 +186,22 @@ public sealed class AssistSetupTests(DatabaseFixture fixture) : IClassFixture<Da
         regulated.ShouldAllBe(v => v.GetProperty("missingReason").ValueKind != JsonValueKind.String || v.GetProperty("missingReason").GetString() == "NO_VALUE",
             "approved, so a value is filled where the pack gives one; the skeleton's empty ones stay Missing");
         run.GetProperty("notApproved").GetInt32().ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task AnUnapprovedVersionsOwnMarks_AreNotTrusted_SoAFinanceRowItCallsUnregulatedIsStillMissing_D20()
+    {
+        var (_, user) = await Customer();
+        var wizard = await user("su-marks", ["ASSIST_TENANT_SETUP_RUN"]);
+        (await wizard.Send(HttpMethod.Post, "/api/v1/assist/packs", new
+        {
+            pack = "XQ", kind = "COUNTRY",
+            rows = new object[] { new { table = "finance.cfg_sample", code = "RATE", @class = "FINANCE", regulated = false, tailorable = true, values = new { rate = 0.2 } } },
+        }, idempotent: true)).StatusCode.ShouldBe(HttpStatusCode.Created);
+        var run = await (await wizard.Send(HttpMethod.Post, Setups, new { country = "XQ", lines = new[] { "GENERAL" } }, idempotent: true)).Json();
+        var rate = Values(run).Single(v => v.GetProperty("code").GetString() == "RATE");
+        (rate.GetProperty("regulated").GetBoolean(), rate.GetProperty("flag").GetString(), rate.GetProperty("missingReason").GetString()).ShouldBe((true, "MISSING", "NOT_APPROVED"),
+            "nobody confirmed its mark, so its class decides");
     }
 
     [Fact]

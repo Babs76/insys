@@ -129,4 +129,17 @@ public sealed class PackFileTests
         SetupAssembly.Choose([draft, platform], answers, tenant).Single().ShouldBe(platform);
         SetupAssembly.Choose([draft], answers, tenant).Single().ShouldBe(draft);
     }
+
+    [Fact]
+    public void ARowRegulatedInALowerLayer_StaysRegulated_ThoughAnApprovedOverlayMarksItOtherwise_D20()
+    {
+        var basePack = StarterPack.Load("base", PackKinds.Base, 1, null, null, null, PackScopes.AllTenants, "h", 1, "p").Value;
+        var line = StarterPack.Load("L", PackKinds.Line, 1, null, null, "GENERAL", PackScopes.AllTenants, "h", 1, "p").Value;
+        var explicitFalse = StarterPackValue.For(line.Id, PackScopes.AllTenants, 1, "t", "B", "FINANCE", false, MarkSources.Explicit, false, MarkSources.Default, """{"rate":""}""", null, null, null);
+        var drafted = SetupAssembly.Assemble([
+            new AssemblyLayer(basePack, [Row(basePack.Id, 1, "t", "B", true, """{"rate":0.1}""")], true),
+            new AssemblyLayer(line, [explicitFalse], true)]);
+        drafted.Single().ShouldSatisfyAllConditions(d => d.Regulated.ShouldBeTrue(), d => d.MissingReason.ShouldBe(MissingReasons.NoValue));
+    }
 }
+

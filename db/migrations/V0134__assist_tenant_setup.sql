@@ -88,16 +88,19 @@ CREATE TABLE assist.setup_item (
   decided_at                 timestamptz,
   decision_note              varchar(500),
   answers_version            integer NOT NULL,
+  in_draft                   boolean NOT NULL,
   CONSTRAINT pk_setup_item PRIMARY KEY (tenant_id, id),
   CONSTRAINT uq_setup_item_row UNIQUE (tenant_id, run_id, table_name, row_code),
   CONSTRAINT fk_setup_item_run FOREIGN KEY (tenant_id, run_id) REFERENCES assist.setup_run (tenant_id, id),
   CONSTRAINT ck_setup_item_flag CHECK (flag IN ('PACK', 'TAILORED', 'MAPPED', 'MISSING')),
   CONSTRAINT ck_setup_item_decision CHECK (decision IS NULL OR decision IN ('ACCEPTED', 'REJECTED')),
   CONSTRAINT ck_setup_item_missing CHECK ((flag = 'MISSING') = (missing_reason IS NOT NULL)),
-  CONSTRAINT ck_setup_item_not_accepted_missing CHECK (NOT (flag = 'MISSING' AND decision = 'ACCEPTED'))
+  CONSTRAINT ck_setup_item_not_accepted_missing CHECK (NOT (flag = 'MISSING' AND decision = 'ACCEPTED')),
+  CONSTRAINT ck_setup_item_out_of_draft CHECK (in_draft OR decision = 'REJECTED')
 );
 ALTER TABLE assist.setup_item ENABLE ROW LEVEL SECURITY;
 ALTER TABLE assist.setup_item FORCE ROW LEVEL SECURITY;
 CREATE POLICY tenant_isolation ON assist.setup_item
   USING (tenant_id = current_setting('app.tenant_id')::uuid) WITH CHECK (tenant_id = current_setting('app.tenant_id')::uuid);
+COMMENT ON COLUMN assist.setup_item.in_draft IS 'False once the answers no longer bring the row: kept, rejected, and never decided again (AIA-081).';
 COMMENT ON COLUMN assist.setup_item.missing_reason IS 'NOT_APPROVED: a regulated value from an overlay not approved for this tenant (ASSIST_PACK_NOT_APPROVED). NO_VALUE: the pack leaves it empty.';

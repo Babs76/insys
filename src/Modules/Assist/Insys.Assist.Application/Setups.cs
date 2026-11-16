@@ -60,7 +60,9 @@ public sealed record AssemblyLayer(StarterPack Pack, IReadOnlyList<StarterPackVa
 /// The deterministic assembly (AIA-082, AIA-087): the base pack, then the country's overlay (after the regional one it builds on), then each line's; a later
 /// layer's row replaces an earlier one with the same table and code. No value is computed: each is copied from its pack, or left Missing.
 /// <list type="bullet">
-/// <item>A regulated row from a version not approved for this tenant is Missing (NOT_APPROVED, ASSIST_PACK_NOT_APPROVED), its value not filled.</item>
+/// <item>A regulated row from a version not approved for this tenant is Missing (NOT_APPROVED, ASSIST_PACK_NOT_APPROVED), its value not filled. In such a
+/// version, a FINANCE or COMPLIANCE row is regulated whatever its mark says, as nobody has confirmed the mark (D-20); and a row regulated in a lower layer
+/// stays regulated, so an overlay can't unmark what the base marks.</item>
 /// <item>A regulated row the pack leaves empty (a null or empty value) is Missing (NO_VALUE): only a reviewed overlay or the tenant can give it.</item>
 /// <item>Anything else is Pack, copied as it is.</item>
 /// </list>
@@ -69,27 +71,29 @@ public static class SetupAssembly
 {
     public static IReadOnlyList<DraftValue> Assemble(IReadOnlyList<AssemblyLayer> layers)
     {
-        var rows = new Dictionary<(string, string), (AssemblyLayer Layer, StarterPackValue Row)>();
+        var rows = new Dictionary<(string, string), (AssemblyLayer Layer, StarterPackValue Row, bool Regulated)>();
         var order = new List<(string, string)>();
         foreach (var layer in layers)
         {
             foreach (var row in layer.Rows.OrderBy(r => r.LineNo))
             {
                 var key = (row.TableName, row.RowCode);
+                var below = rows.TryGetValue(key, out var earlier) && earlier.Regulated;
                 if (!rows.ContainsKey(key))
                 {
                     order.Add(key);
                 }
 
-                rows[key] = (layer, row);
+                var regulated = row.Regulated || below || (!layer.ApprovedForTenant && row.Class is "FINANCE" or "COMPLIANCE");
+                rows[key] = (layer, row, regulated);
             }
         }
 
         return [.. order.Select(key =>
         {
-            var (layer, row) = rows[key];
-            var missing = !row.Regulated ? null : !layer.ApprovedForTenant ? MissingReasons.NotApproved : Empty(row.Values) ? MissingReasons.NoValue : null;
-            return new DraftValue(row.TableName, row.RowCode, row.Class, row.Regulated, missing is null ? ItemFlags.Pack : ItemFlags.Missing, missing is null ? row.Values : null,
+            var (layer, row, regulated) = rows[key];
+            var missing = !regulated ? null : !layer.ApprovedForTenant ? MissingReasons.NotApproved : Empty(row.Values) ? MissingReasons.NoValue : null;
+            return new DraftValue(row.TableName, row.RowCode, row.Class, regulated, missing is null ? ItemFlags.Pack : ItemFlags.Missing, missing is null ? row.Values : null,
                 layer.Pack.Id, row.LineNo, missing);
         })];
     }
@@ -146,15 +150,16 @@ public static class SetupAssembly
         pack.Status == PackStatuses.Approved && (pack.Scope == PackScopes.AllTenants || pack.TenantId == tenant);
 }
 
+/// <param name="InDraft">False once the answers no longer bring the row: kept, rejected, never decided again.</param>
 public sealed record SetupItemView(Guid Id, string Table, string Code, string Class, bool Regulated, string Flag, JsonElement? Values, Guid? SourcePackId, int? SourceLineNo,
-    string? MissingReason, string? Decision, string? DecidedBy, string? DecisionNote, int AnswersVersion, long RowVersion)
+    string? MissingReason, string? Decision, string? DecidedBy, string? DecisionNote, int AnswersVersion, bool InDraft, long RowVersion)
 {
     public static SetupItemView From(SetupItem i) => new(i.Id, i.TableName, i.RowCode, i.Class, i.Regulated, i.Flag,
         i.Values is null ? null : JsonDocument.Parse(i.Values).RootElement.Clone(), i.SourcePackId, i.SourceLineNo, i.MissingReason, i.Decision, i.DecidedBy, i.DecisionNote,
-        i.AnswersVersion, i.RowVersion);
+        i.AnswersVersion, i.InDraft, i.RowVersion);
 }
 
-/// <summary>A run, its answers, its packs and its items, with how many are Missing and how many of those because an overlay isn't approved.</summary>
+/// <summary>A run, its answers, its packs and all its items; the counts are of the items in the draft: how many, how many Missing, how many because an overlay isn't approved.</summary>
 public sealed record SetupRunView(Guid Id, string Status, string StartedBy, int AnswersVersion, JsonElement Answers, IReadOnlyList<Guid> PackIds, DateTimeOffset AssembledAt,
     int Items, int Missing, int NotApproved, IReadOnlyList<SetupItemView> Values, long RowVersion);
 
@@ -234,19 +239,18 @@ internal sealed class TenantSetupHandlers(ISetupRuns runs, IStarterPacks packs, 
         }
 
         runs.Add(SetupAnswer.For(run.Id, run.AnswersVersion, Serialised(command.Answers)));
-        // AIA-081: only what the new answers change is re-drafted; an unchanged value keeps its decision. A value the answers no longer bring is rejected.
-        var existing = (await runs.Items(run.Id, cancellationToken)).ToDictionary(i => (i.TableName, i.RowCode));
-        var items = new List<SetupItem>();
+        // AIA-081: only what the new answers change is re-drafted; an unchanged value keeps its decision. A value the answers no longer bring leaves the draft.
+        var all = await runs.Items(run.Id, cancellationToken);
+        var existing = all.ToDictionary(i => (i.TableName, i.RowCode));
+        var items = new List<SetupItem>(all);
         foreach (var d in drafted)
         {
             if (existing.Remove((d.Table, d.Code), out var item))
             {
-                if (!item.Same(d.Flag, d.Values, d.SourcePackId, d.SourceLineNo))
+                if (!item.InDraft || !item.Same(d.Flag, d.Values, d.SourcePackId, d.SourceLineNo) || item.Regulated != d.Regulated)
                 {
                     item.Redraft(run.AnswersVersion, d.Class, d.Regulated, d.Flag, d.Values, d.SourcePackId, d.SourceLineNo, d.MissingReason);
                 }
-
-                items.Add(item);
             }
             else
             {
@@ -256,9 +260,9 @@ internal sealed class TenantSetupHandlers(ISetupRuns runs, IStarterPacks packs, 
             }
         }
 
-        foreach (var gone in existing.Values.Where(i => i.Decision != ItemDecisions.Rejected))
+        foreach (var gone in existing.Values.Where(i => i.InDraft))
         {
-            gone.Decide(ItemDecisions.Rejected, "No longer drafted from the answers.", execution.ActorId, clock.UtcNow);
+            gone.LeaveDraft(execution.ActorId, clock.UtcNow);
         }
 
         Audit("AnswerTenantSetup", run);
@@ -267,6 +271,11 @@ internal sealed class TenantSetupHandlers(ISetupRuns runs, IStarterPacks packs, 
 
     public async Task<Result<SetupItemView>> Handle(DecideSetupItem command, CancellationToken cancellationToken)
     {
+        if (await tenants.UserAccess(tenant.RequireTenantId(), cancellationToken) != Tenancy.Contracts.TenantUserAccess.ConfigurationOnly)
+        {
+            return Error.Conflict(PackErrorCodes.TenantLive, "The setup wizard runs only while the tenant is onboarding.");
+        }
+
         if (await runs.Run(command.Id, cancellationToken) is not { } run || await runs.Item(run.Id, command.ItemId, cancellationToken) is not { } item)
         {
             return Error.NotFound(ErrorCodes.NotFound, "The setup or its value was not found.");
@@ -283,7 +292,16 @@ internal sealed class TenantSetupHandlers(ISetupRuns runs, IStarterPacks packs, 
         }
 
         var decided = item.Decide(command.Decision, command.Note, execution.ActorId, clock.UtcNow);
-        return decided.IsFailure ? decided.Error : SetupItemView.From(item);
+        if (decided.IsFailure)
+        {
+            return decided.Error;
+        }
+
+        audit.Record(new AuditEntry("ASSIST", "DecideSetupItem", nameof(SetupItem), item.Id.ToString(), new Dictionary<string, string?>
+        {
+            ["run"] = run.Id.ToString(), ["table"] = item.TableName, ["code"] = item.RowCode, ["decision"] = item.Decision, ["flag"] = item.Flag,
+        }));
+        return SetupItemView.From(item);
     }
 
     public async Task<Result<SetupRunView>> Handle(GetTenantSetup query, CancellationToken cancellationToken)
@@ -333,7 +351,9 @@ internal sealed class TenantSetupHandlers(ISetupRuns runs, IStarterPacks packs, 
         }));
 
     private static SetupRunView View(SetupRun run, SetupAnswers answers, IReadOnlyList<SetupItem> items) =>
-        new(run.Id, run.Status, run.StartedBy, run.AnswersVersion, JsonSerializer.SerializeToElement(answers, Json), run.PackIds, run.AssembledAt, items.Count,
-            items.Count(i => i.Flag == ItemFlags.Missing), items.Count(i => i.MissingReason == MissingReasons.NotApproved),
-            [.. items.OrderBy(i => i.TableName, StringComparer.Ordinal).ThenBy(i => i.RowCode, StringComparer.Ordinal).Select(SetupItemView.From)], run.RowVersion);
+        new(run.Id, run.Status, run.StartedBy, run.AnswersVersion, JsonSerializer.SerializeToElement(answers, Json), run.PackIds, run.AssembledAt, items.Count(i => i.InDraft),
+            items.Count(i => i.InDraft && i.Flag == ItemFlags.Missing), items.Count(i => i.InDraft && i.MissingReason == MissingReasons.NotApproved),
+            // A value this command changed is saved at its next version, which is what a client's If-Match must name.
+            [.. items.OrderBy(i => i.TableName, StringComparer.Ordinal).ThenBy(i => i.RowCode, StringComparer.Ordinal)
+                .Select(i => SetupItemView.From(i) with { RowVersion = i.RowVersion + (i.HasChanges ? 1 : 0) })], run.RowVersion);
 }

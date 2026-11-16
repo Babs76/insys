@@ -225,6 +225,12 @@ internal sealed class StarterPacks(AssistDbContext db, BuildingBlocks.Applicatio
     public async Task<int> LastVersion(string packCode, CancellationToken cancellationToken) =>
         await db.Packs.Where(p => p.PackCode == packCode).Select(p => (int?)p.Version).MaxAsync(cancellationToken) ?? 0;
 
+    public Task<bool> PreparedOrReviewedAny(string packCode, string actor, CancellationToken cancellationToken) =>
+        db.Packs.AnyAsync(p => p.PackCode == packCode && (p.PreparedBy == actor || p.ReviewedBy == actor), cancellationToken);
+
+    public Task<bool> UsedInSetupBy(Guid packId, string actor, CancellationToken cancellationToken) =>
+        db.SetupRuns.AnyAsync(r => r.StartedBy == actor && r.PackIds.Contains(packId), cancellationToken);
+
     public void Add(StarterPack pack, IReadOnlyList<StarterPackValue> rows)
     {
         db.Packs.Add(pack);

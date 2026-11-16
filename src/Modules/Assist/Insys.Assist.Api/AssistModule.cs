@@ -194,7 +194,7 @@ public sealed class AssistModule : IModule
     private void MapPacks(IEndpointRouteBuilder api)
     {
         var platform = api.MapGroup("/assist/overlays").WithTags(Name);
-        platform.MapPost("/", async (JsonElement file, IDispatcher d, HttpContext http, CancellationToken ct) => Loaded(await d.Send(new LoadStarterPack(PackScopes.AllTenants, file), ct), http))
+        platform.MapPost("/", async (JsonElement file, IDispatcher d, HttpContext http, CancellationToken ct) => Loaded(await d.Send(new LoadStarterPack(PackScopes.AllTenants, file), ct), http, "overlays"))
             .Produces<StarterPackView>(StatusCodes.Status201Created).ReturnsETag()
             .WithName("AssistLoadPlatformPack").WithSummary("Load a pack file as a new version for every tenant, DRAFT, with each row's marks and their source (D-20)")
             .RequirePlatformPermission(AssistPermissions.OverlayManage).RequireIdempotencyKey();
@@ -223,7 +223,7 @@ public sealed class AssistModule : IModule
             .RequirePlatformPermission(AssistPermissions.OverlayApprove);
 
         var tenant = api.MapGroup("/assist/packs").WithTags(Name);
-        tenant.MapPost("/", async (JsonElement file, IDispatcher d, HttpContext http, CancellationToken ct) => Loaded(await d.Send(new LoadStarterPack(PackScopes.TenantOnly, file), ct), http))
+        tenant.MapPost("/", async (JsonElement file, IDispatcher d, HttpContext http, CancellationToken ct) => Loaded(await d.Send(new LoadStarterPack(PackScopes.TenantOnly, file), ct), http, "packs"))
             .Produces<StarterPackView>(StatusCodes.Status201Created).ReturnsETag()
             .WithName("AssistLoadTenantPack")
             .WithSummary("Load a pack file as this tenant's own version (TENANT_ONLY, the fallback). Only while the tenant is onboarding, else 409 ASSIST_TENANT_LIVE")
@@ -248,10 +248,10 @@ public sealed class AssistModule : IModule
             .RequirePermission(AssistPermissions.OverlayApproveTenant);
     }
 
-    private static IResult Loaded(BuildingBlocks.Domain.Result<StarterPackView> result, HttpContext http) => result.ToHttp(view =>
+    private static IResult Loaded(BuildingBlocks.Domain.Result<StarterPackView> result, HttpContext http, string route) => result.ToHttp(view =>
     {
         Concurrency.SetETag(http, view.RowVersion);
-        return Results.Created($"/api/v1/assist/overlays/{view.Id}", view);
+        return Results.Created($"/api/v1/assist/{route}/{view.Id}", view);
     });
 
     private static IResult Sheet(BuildingBlocks.Domain.Result<StarterPackSheet> result, HttpContext http) => result.ToHttp(sheet =>

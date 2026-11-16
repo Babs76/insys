@@ -78,44 +78,60 @@ public sealed record PackFile(string PackCode, string Kind, string? BuildsOn, st
             read.Add(new PackRow(line, table, rowCode, @class,
                 regulated ?? @class is "FINANCE" or "COMPLIANCE", regulated is null ? MarkSources.Interim : MarkSources.Explicit,
                 tailorable ?? false, tailorable is null ? MarkSources.Default : MarkSources.Explicit,
-                Canonical(JsonNode.Parse(values.GetRawText())), Text(row, "status"), Text(row, "note"), Text(row, "basis_to_check")));
+                PackHash.Canonical(values.GetRawText()), Text(row, "status"), Text(row, "note"), Text(row, "basis_to_check")));
         }
 
         return new PackFile(code, kind, Text(file, "builds_on"), kind is PackKinds.Country && code.Length == 2 ? code.ToUpperInvariant() : null,
             kind == PackKinds.Line ? code.Split('_')[0].ToUpperInvariant() : null, read);
     }
 
-    /// <summary>
-    /// The version's content hash (§5.3): its header and every row, its marks and their sources, in order. An approval names it, so it approves exactly what the
-    /// review sheet showed.
-    /// </summary>
-    public string Hash(int version, string scope)
-    {
-        var text = new StringBuilder(string.Create(CultureInfo.InvariantCulture, $"{PackCode}|{Kind}|{version}|{scope}|{BuildsOn}|{Country}|{Line}\n"));
-        foreach (var r in Rows)
-        {
-            text.Append(CultureInfo.InvariantCulture, $"{r.LineNo}|{r.Table}|{r.Code}|{r.Class}|{r.Regulated}|{r.RegulatedSource}|{r.Tailorable}|{r.TailorableSource}|{r.Values}\n");
-        }
-
-        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(text.ToString()))).ToLowerInvariant();
-    }
+    /// <summary>The version's content hash (§5.3), as <see cref="PackHash"/> computes it.</summary>
+    public string Hash(int version, string scope) => PackHash.Of(PackCode, Kind, version, scope, BuildsOn, Country, Line,
+        Rows.Select(r => new PackHash.Row(r.LineNo, r.Table, r.Code, r.Class, r.Regulated, r.RegulatedSource, r.Tailorable, r.TailorableSource, r.Values, r.RowStatus, r.Note, r.BasisToCheck)));
 
     private static string? Text(JsonElement e, string name) => e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
 
     private static (bool? Value, string? Error) Mark(JsonElement row, string name) =>
         !row.TryGetProperty(name, out var v) || v.ValueKind == JsonValueKind.Null ? (null, null)
         : v.ValueKind is JsonValueKind.True or JsonValueKind.False ? (v.GetBoolean(), null) : (null, name);
+}
 
-    /// <summary>The values with their keys sorted, so the same values always hash the same.</summary>
-    private static string Canonical(JsonNode? node) => Sorted(node)?.ToJsonString() ?? "null";
+/// <summary>
+/// A version's content hash (§5.3): its header and every row in order, everything the review sheet shows of it, its marks and their sources, values in a
+/// canonical order. Computed when the file is loaded, and again from the stored rows at approval, so an approval binds to exactly what was reviewed.
+/// </summary>
+public static class PackHash
+{
+    public sealed record Row(int LineNo, string Table, string Code, string Class, bool Regulated, string RegulatedSource, bool Tailorable, string TailorableSource, string Values,
+        string? RowStatus, string? Note, string? BasisToCheck);
+
+    public static string Of(string packCode, string kind, int version, string scope, string? buildsOn, string? country, string? line, IEnumerable<Row> rows)
+    {
+        static string F(string? v) => v is null ? "\u0000" : v.Replace("|", "\\|", StringComparison.Ordinal).Replace("\n", "\\n", StringComparison.Ordinal);
+        var text = new StringBuilder(string.Create(CultureInfo.InvariantCulture, $"{F(packCode)}|{kind}|{version}|{scope}|{F(buildsOn)}|{F(country)}|{F(line)}\n"));
+        foreach (var r in rows.OrderBy(r => r.LineNo))
+        {
+            text.Append(CultureInfo.InvariantCulture,
+                $"{r.LineNo}|{F(r.Table)}|{F(r.Code)}|{r.Class}|{r.Regulated}|{r.RegulatedSource}|{r.Tailorable}|{r.TailorableSource}|{F(Canonical(r.Values))}|{F(r.RowStatus)}|{F(r.Note)}|{F(r.BasisToCheck)}\n");
+        }
+
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(text.ToString()))).ToLowerInvariant();
+    }
+
+    /// <summary>JSON with its object keys sorted and no spacing, so the same values hash the same as read from a file or from the database's jsonb.</summary>
+    public static string Canonical(string json) => Sorted(JsonNode.Parse(json))?.ToJsonString() ?? "null";
 
     private static JsonNode? Sorted(JsonNode? node) => node switch
     {
         JsonObject o => new JsonObject(o.OrderBy(p => p.Key, StringComparer.Ordinal).Select(p => KeyValuePair.Create(p.Key, Sorted(p.Value)))),
         JsonArray a => new JsonArray([.. a.Select(Sorted)]),
         null => null,
+        JsonValue v when v.TryGetValue<decimal>(out var number) && v.GetValueKind() == JsonValueKind.Number => JsonValue.Create(number),
         _ => JsonNode.Parse(node.ToJsonString()),
     };
+
+    public static string Of(StarterPack pack, IReadOnlyList<StarterPackValue> rows) => Of(pack.PackCode, pack.Kind, pack.Version, pack.Scope, pack.BuildsOn, pack.Country, pack.Line,
+        rows.Select(r => new Row(r.LineNo, r.TableName, r.RowCode, r.Class, r.Regulated, r.RegulatedSource, r.Tailorable, r.TailorableSource, r.Values, r.RowStatus, r.Note, r.BasisToCheck)));
 }
 
 /// <summary>A version as listed.</summary>
@@ -149,6 +165,12 @@ public interface IStarterPacks
     /// <summary>The highest version number of a pack held by this tenant.</summary>
     Task<int> LastVersion(string packCode, CancellationToken cancellationToken);
 
+    /// <summary>Whether this person loaded or reviewed any version of the pack held by this tenant (§5.3: reloading doesn't make a new person of them).</summary>
+    Task<bool> PreparedOrReviewedAny(string packCode, string actor, CancellationToken cancellationToken);
+
+    /// <summary>Whether this person ran a setup that used the version (§5.3: whoever ran the wizard can't approve).</summary>
+    Task<bool> UsedInSetupBy(Guid packId, string actor, CancellationToken cancellationToken);
+
     void Add(StarterPack pack, IReadOnlyList<StarterPackValue> rows);
 }
 
@@ -166,7 +188,7 @@ public sealed record GetStarterPack(Guid Id) : IQuery<StarterPackSheet>;
 public sealed record ListStarterPacks(string? PackCode, bool AwaitingApproval = false) : IQuery<IReadOnlyList<StarterPackView>>;
 
 internal sealed class StarterPackHandlers(IStarterPacks packs, IExecutionContext execution, ITenantContext tenant, IClock clock, IAuditTrail audit,
-    Tenancy.Contracts.ITenantStatusQuery tenants)
+    Tenancy.Contracts.ITenantStatusQuery tenants, Microsoft.Extensions.Options.IOptions<PlatformOptions> platform)
     : ICommandHandler<LoadStarterPack, StarterPackView>, ICommandHandler<MarkStarterPackReviewed, StarterPackView>, ICommandHandler<ApproveStarterPack, StarterPackView>,
         IQueryHandler<GetStarterPack, StarterPackSheet>, IQueryHandler<ListStarterPacks, IReadOnlyList<StarterPackView>>
 {
@@ -177,6 +199,12 @@ internal sealed class StarterPackHandlers(IStarterPacks packs, IExecutionContext
             && await tenants.UserAccess(tenant.RequireTenantId(), cancellationToken) != Tenancy.Contracts.TenantUserAccess.ConfigurationOnly)
         {
             return Error.Conflict(PackErrorCodes.TenantLive, "A tenant's own overlay is loaded only while the tenant is onboarding.");
+        }
+
+        // A version for every tenant is held by the operator tenant alone (D-18): the platform's routes say so, and this says it again.
+        if (command.Scope == PackScopes.AllTenants && (platform.Value.OperatorTenantId == Guid.Empty || tenant.TenantId != platform.Value.OperatorTenantId))
+        {
+            return Error.Forbidden(ErrorCodes.Forbidden, "A version for every tenant is loaded by the platform operator only.");
         }
 
         var file = PackFile.Read(command.File);
@@ -234,7 +262,27 @@ internal sealed class StarterPackHandlers(IStarterPacks packs, IExecutionContext
             return found.Error;
         }
 
-        var approved = found.Value.Approve(execution.ActorId, command.ContentHash, command.Route, clock.UtcNow);
+        var pack = found.Value;
+        // §5.3: only the pack's newest version, so a correction isn't overtaken by the version it corrects.
+        if (await packs.LastVersion(pack.PackCode, cancellationToken) != pack.Version)
+        {
+            return Error.Conflict(PackErrorCodes.NotNewest, "Only a pack's newest version can be approved.");
+        }
+
+        // Whoever loaded or reviewed any version of the pack, or ran a setup that used this one, can't approve it (§5.3), whatever functions they hold.
+        if (await packs.PreparedOrReviewedAny(pack.PackCode, execution.ActorId, cancellationToken) || await packs.UsedInSetupBy(pack.Id, execution.ActorId, cancellationToken))
+        {
+            return Error.Forbidden(ErrorCodes.MakerCheckerSamePerson, "Whoever loaded or reviewed a version of this pack, or ran a setup with it, can't approve it.");
+        }
+
+        // The hash again, from the rows as stored: the approval binds to what is there now, all of it (§5.3).
+        var rows = await packs.Rows(pack.Id, cancellationToken);
+        if (rows.Count != pack.RowCount || PackHash.Of(pack, rows) != pack.ContentHash)
+        {
+            return Error.Conflict(PackErrorCodes.Changed, "The version's rows aren't the content that was loaded.");
+        }
+
+        var approved = pack.Approve(execution.ActorId, command.ContentHash, command.Route, clock.UtcNow);
         if (approved.IsFailure)
         {
             return approved.Error;
