@@ -31,7 +31,7 @@ using Npgsql;
 
 namespace Insys.General.Infrastructure.Persistence;
 
-/// <summary>The scope of the General records approvals are about (F103): an endorsement's policy, and a claim's settlement.</summary>
+/// <summary>The scope of the General records approvals are about (F103): an endorsement's policy, a claim's settlement, and a non-renewal's policy.</summary>
 internal sealed class GeneralApprovalScopes([FromKeyedServices(GeneralDbContext.SchemaName)] NpgsqlDataSource dataSource) : IApprovalScopeSource
 {
     public bool Covers(string businessRefType) => Sql(businessRefType) is not null;
@@ -48,6 +48,10 @@ internal sealed class GeneralApprovalScopes([FromKeyedServices(GeneralDbContext.
             """,
         Contracts.GeneralApprovals.SettlementBusinessRefType => """
             SELECT product_code, org_node_code FROM general.claim WHERE id = @id
+            """,
+        // A non-renewal is about its policy (F103, OQ-176).
+        Contracts.GeneralApprovals.NonRenewalBusinessRefType => """
+            SELECT p.product_code, p.org_node_code FROM general.renewal r JOIN general.policy p ON p.tenant_id = r.tenant_id AND p.id = r.policy_id WHERE r.id = @id
             """,
         _ => null,
     };

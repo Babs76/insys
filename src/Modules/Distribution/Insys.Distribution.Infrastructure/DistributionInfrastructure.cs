@@ -46,6 +46,8 @@ public static class DistributionInfrastructure
     {
         // Its approval kinds and the screens that open their records (BR-005).
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Distribution.Contracts.DistributionApprovals.StatementBusinessRefType, "COMMISSION_STATEMENTS", Insys.Distribution.Contracts.DistributionApprovals.StatementApprovalType);
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.Unscoped(Insys.Distribution.Contracts.DistributionApprovals.StatementBusinessRefType,
+            "commission statements are payouts, outside branch scope (access-scopes.md, OQ-174)");
         // ADR-026 §2: this module's event consumers run under its JOB function.
         BuildingBlocks.Application.Context.JobFunctions.ForConsumers(Persistence.DistributionDbContext.SchemaName, "DISTRIBUTION_EVENT_PROCESSING");
         const string schema = DistributionDbContext.SchemaName;

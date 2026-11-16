@@ -383,10 +383,16 @@ public sealed class PaymentStarter(BuildingBlocks.Application.Context.ISampleTen
     }
 }
 
-internal sealed class InitiatePaymentHandler(PaymentStarter starter, IAuditTrail audit) : ICommandHandler<InitiatePayment, PaymentView>
+internal sealed class InitiatePaymentHandler(PaymentStarter starter, PaymentScopes scopes, IAuditTrail audit) : ICommandHandler<InitiatePayment, PaymentView>
 {
     public async Task<Result<PaymentView>> Handle(InitiatePayment command, CancellationToken cancellationToken)
     {
+        // F103, OQ-176: a payment is made only against a record wholly in the caller's scope.
+        if (!await scopes.MayChange(command.Purpose, command.BusinessRefType, command.BusinessRefId, cancellationToken))
+        {
+            return Error.Forbidden(ErrorCodes.OutOfScope, "The payment's record is outside your scope.");
+        }
+
         var payment = await starter.Start(command, cancellationToken);
         if (payment.IsSuccess)
         {
@@ -412,7 +418,7 @@ internal sealed class MarkUnknownHandler(IPaymentRepository payments, IBusinessD
     }
 }
 
-internal sealed class ResolveUnknownHandler(IPaymentRepository payments, IExecutionContext execution, IBusinessDate businessDate, IClock clock, IAuditTrail audit)
+internal sealed class ResolveUnknownHandler(IPaymentRepository payments, PaymentScopes scopes, IExecutionContext execution, IBusinessDate businessDate, IClock clock, IAuditTrail audit)
     : ICommandHandler<ResolveUnknown, PaymentView>
 {
     public async Task<Result<PaymentView>> Handle(ResolveUnknown command, CancellationToken cancellationToken)
@@ -426,6 +432,11 @@ internal sealed class ResolveUnknownHandler(IPaymentRepository payments, IExecut
         if (await payments.Get(command.PaymentId, cancellationToken) is not { } payment)
         {
             return Error.NotFound(ErrorCodes.NotFound, "The payment was not found.");
+        }
+
+        if (!await scopes.MayChange(payment, cancellationToken))
+        {
+            return Error.Forbidden(ErrorCodes.OutOfScope, "The payment is for a record outside your scope.");
         }
 
         // BR-042: as succeeded, one person decides only on a matched bank statement line; otherwise a second person approves.
@@ -444,7 +455,7 @@ internal sealed class ResolveUnknownHandler(IPaymentRepository payments, IExecut
     }
 }
 
-internal sealed class ReversePaymentHandler(IPaymentRepository payments, IExecutionContext execution, IBusinessDate businessDate, IClock clock, IAuditTrail audit)
+internal sealed class ReversePaymentHandler(IPaymentRepository payments, PaymentScopes scopes, IExecutionContext execution, IBusinessDate businessDate, IClock clock, IAuditTrail audit)
     : ICommandHandler<ReversePayment, PaymentView>
 {
     public async Task<Result<PaymentView>> Handle(ReversePayment command, CancellationToken cancellationToken)
@@ -460,6 +471,11 @@ internal sealed class ReversePaymentHandler(IPaymentRepository payments, IExecut
             return Error.NotFound(ErrorCodes.NotFound, "The payment was not found.");
         }
 
+        if (!await scopes.MayChange(payment, cancellationToken))
+        {
+            return Error.Forbidden(ErrorCodes.OutOfScope, "The payment is for a record outside your scope.");
+        }
+
         audit.Record(new AuditEntry("PAYMENT", "ReversePayment", nameof(Payment), payment.Id.ToString(), new Dictionary<string, string?> { ["reason"] = command.Reason }));
         var result = payment.ReversePayment(command.Reason, businessDate.Today, clock.UtcNow);
         return result.IsFailure ? result.Error : PaymentView.From(payment);
@@ -467,7 +483,7 @@ internal sealed class ReversePaymentHandler(IPaymentRepository payments, IExecut
 }
 
 /// <summary>Command AllocatePayment: Billing's allocation plan applied to a received payment (BIL-003).</summary>
-internal sealed class AllocatePaymentHandler(IPaymentRepository payments, IAllocationPlanner planner, ITenantContext tenant, IBusinessDate businessDate, IClock clock)
+internal sealed class AllocatePaymentHandler(IPaymentRepository payments, PaymentScopes scopes, IAllocationPlanner planner, ITenantContext tenant, IBusinessDate businessDate, IClock clock)
     : ICommandHandler<AllocatePayment, PaymentView>
 {
     public async Task<Result<PaymentView>> Handle(AllocatePayment command, CancellationToken cancellationToken)
@@ -475,6 +491,11 @@ internal sealed class AllocatePaymentHandler(IPaymentRepository payments, IAlloc
         if (await payments.Get(command.PaymentId, cancellationToken) is not { } payment)
         {
             return Error.NotFound(ErrorCodes.NotFound, "The payment was not found.");
+        }
+
+        if (!await scopes.MayChange(payment, cancellationToken))
+        {
+            return Error.Forbidden(ErrorCodes.OutOfScope, "The payment is for a record outside your scope.");
         }
 
         var result = await Allocation.Allocate(payment, planner, tenant, clock, businessDate, cancellationToken);
@@ -613,7 +634,7 @@ internal sealed class ImportStatementHandler(IPaymentRepository payments, IPayme
     }
 }
 
-internal sealed class AssignExceptionHandler(IPaymentRepository payments, IExecutionContext execution) : ICommandHandler<AssignException, ExceptionView>
+internal sealed class AssignExceptionHandler(IPaymentRepository payments, PaymentScopes scopes, IExecutionContext execution) : ICommandHandler<AssignException, ExceptionView>
 {
     public async Task<Result<ExceptionView>> Handle(AssignException command, CancellationToken cancellationToken)
     {
@@ -628,12 +649,17 @@ internal sealed class AssignExceptionHandler(IPaymentRepository payments, IExecu
             return Error.NotFound(ErrorCodes.NotFound, "The reconciliation exception was not found.");
         }
 
+        if (!await scopes.MayChange(exception, payments, cancellationToken))
+        {
+            return Error.Forbidden(ErrorCodes.OutOfScope, "The exception's payment is for a record outside your scope.");
+        }
+
         var result = exception.AssignException(user.Value);
         return result.IsFailure ? result.Error : await ExceptionView.Of(exception, payments, cancellationToken);
     }
 }
 
-internal sealed class ResolveExceptionHandler(IPaymentRepository payments, IExecutionContext execution, IAuditTrail audit, IClock clock) : ICommandHandler<ResolveException, ExceptionView>
+internal sealed class ResolveExceptionHandler(IPaymentRepository payments, PaymentScopes scopes, IExecutionContext execution, IAuditTrail audit, IClock clock) : ICommandHandler<ResolveException, ExceptionView>
 {
     public async Task<Result<ExceptionView>> Handle(ResolveException command, CancellationToken cancellationToken)
     {
@@ -646,6 +672,11 @@ internal sealed class ResolveExceptionHandler(IPaymentRepository payments, IExec
         if (await payments.Exception(command.ExceptionId, cancellationToken) is not { } exception)
         {
             return Error.NotFound(ErrorCodes.NotFound, "The reconciliation exception was not found.");
+        }
+
+        if (!await scopes.MayChange(exception, payments, cancellationToken))
+        {
+            return Error.Forbidden(ErrorCodes.OutOfScope, "The exception's payment is for a record outside your scope.");
         }
 
         // An unknown outcome is resolved on the payment first (ResolveUnknown); the exception then records who closed it.
@@ -697,6 +728,38 @@ public sealed class PaymentScopes(IEnumerable<IBusinessRecordScopes> sources, IT
 
         return (visible, visible.Count < payments.Count);
     }
+
+    /// <summary>
+    /// Whether the caller may change the payment (F103; OQ-176, fail closed): all of its record must be in their scope. A payment with no record, or
+    /// against a record no source covers, is changed only by a caller with unrestricted scope. A commission payout isn't scoped (OQ-174).
+    /// </summary>
+    public Task<bool> MayChange(Payment payment, CancellationToken cancellationToken) =>
+        MayChange(payment.Purpose, payment.BusinessRefType, payment.BusinessRefId, cancellationToken);
+
+    /// <inheritdoc cref="MayChange(Payment, CancellationToken)"/>
+    public async Task<bool> MayChange(string purpose, string? businessRefType, Guid? businessRefId, CancellationToken cancellationToken)
+    {
+        if (execution.CurrentScope.IsUnrestricted || purpose == PaymentPurposes.Commission)
+        {
+            return true;
+        }
+
+        if (businessRefType is null || businessRefId is not { } id || sources.FirstOrDefault(s => s.Covers(businessRefType)) is not { } source)
+        {
+            return false;
+        }
+
+        var scopes = await source.ScopesOf(tenant.RequireTenantId(), businessRefType, id, cancellationToken);
+        return scopes is { Count: > 0 } && scopes.All(s => execution.CurrentScope.Allows(s.ProductCode, s.OrgNodeCode));
+    }
+
+    /// <summary>
+    /// Whether the caller may act on a reconciliation exception (OQ-170): through the payment it references. One with no payment (an unmatched
+    /// statement line) is for a caller with unrestricted scope only (OQ-176).
+    /// </summary>
+    public async Task<bool> MayChange(ReconciliationException exception, IPaymentRepository payments, CancellationToken cancellationToken) =>
+        execution.CurrentScope.IsUnrestricted
+        || (exception.PaymentId is { } paymentId && await payments.Get(paymentId, cancellationToken) is { } payment && await MayChange(payment, cancellationToken));
 
     public async Task<bool> Covers(string? businessRefType, Guid? businessRefId, CancellationToken cancellationToken)
     {

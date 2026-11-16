@@ -41,24 +41,31 @@ namespace Insys.Payments.Infrastructure.Persistence;
 internal sealed class PayoutApprovalScopes([FromKeyedServices(PaymentsDbContext.SchemaName)] NpgsqlDataSource dataSource, IEnumerable<IBusinessRecordScopes> sources)
     : IApprovalScopeSource
 {
-    public bool Covers(string businessRefType) => businessRefType == PaymentApprovals.PayoutBusinessRefType;
+    public bool Covers(string businessRefType) => businessRefType is PaymentApprovals.PayoutBusinessRefType or PaymentApprovals.PaymentBusinessRefType;
 
+    /// <summary>A batch's approval, as above; a payment's own (an unknown outcome resolved, PAY-005) the same way, from the one record it pays (OQ-176).</summary>
     public async Task<RecordScope?> ScopeOf(Guid tenantId, string businessRefType, Guid businessRefId, CancellationToken cancellationToken)
     {
-        var items = await RecordScopeReader.ReadAll(dataSource, tenantId,
-            "SELECT business_ref_type, business_ref_id::text FROM payment.payment WHERE payout_batch_id = @id", businessRefId, cancellationToken);
+        var items = await RecordScopeReader.ReadAll(dataSource, tenantId, businessRefType == PaymentApprovals.PaymentBusinessRefType
+            ? "SELECT business_ref_type, business_ref_id::text FROM payment.payment WHERE id = @id"
+            : "SELECT business_ref_type, business_ref_id::text FROM payment.payment WHERE payout_batch_id = @id", businessRefId, cancellationToken);
+        if (items.Count == 0)
+        {
+            return RecordScope.UnrestrictedOnly;
+        }
+
         var scopes = new HashSet<(string?, string?)>();
         foreach (var (type, id) in items)
         {
             if (type is null || id is null || sources.FirstOrDefault(s => s.Covers(type)) is not { } source
                 || await source.ScopesOf(tenantId, type, Guid.Parse(id), cancellationToken) is not { } covered)
             {
-                return new RecordScope(null, null);
+                return RecordScope.UnrestrictedOnly;
             }
 
             scopes.UnionWith(covered.Select(c => (c.ProductCode, c.OrgNodeCode)));
         }
 
-        return scopes.Count == 1 ? new RecordScope(scopes.Single().Item1, scopes.Single().Item2) : new RecordScope(null, null);
+        return scopes.Count == 1 ? new RecordScope(scopes.Single().Item1, scopes.Single().Item2) : RecordScope.UnrestrictedOnly;
     }
 }

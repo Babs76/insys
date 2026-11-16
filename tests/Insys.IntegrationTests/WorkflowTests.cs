@@ -26,6 +26,7 @@
  */
 using System.Net;
 using System.Text.Json;
+using Insys.BuildingBlocks.Application.Messaging;
 using Insys.BuildingBlocks.Contracts.Approvals;
 using Insys.Life.Contracts;
 using Insys.StaticData.Contracts;
@@ -258,6 +259,146 @@ public sealed class WorkflowTests(DatabaseFixture fixture) : IClassFixture<Datab
 
         await Refused(client, $"{Approvals}/{outside}", "OUT_OF_SCOPE");
         (await client.Send(HttpMethod.Post, $"{Approvals}/{inside}/approve", ifMatch: "\"1\"")).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+    }
+
+    /// <summary>
+    /// F103, OQ-176: every business reference type a module declares has a scope source in its module, or is declared unscoped with its reason (a party,
+    /// a user, static data). A new type with neither fails here before it can reach a branch-limited checker unscoped.
+    /// </summary>
+    [Fact]
+    public void EveryApprovalReferenceType_HasAScopeSource_OrIsDeclaredUnscoped_F103_OQ176()
+    {
+        var sources = _factory.Services.GetServices<IApprovalScopeSource>().ToList();
+        ApprovalKinds.BusinessRefTypes.Where(t => !sources.Any(s => s.Covers(t)) && !ApprovalKinds.UnscopedTypes.ContainsKey(t))
+            .ShouldBeEmpty("each needs a scope source, or ApprovalKinds.Unscoped with its reason");
+        ApprovalKinds.UnscopedTypes.Keys.Where(t => sources.Any(s => s.Covers(t))).ShouldBeEmpty("a type is either scoped by a source or declared unscoped, not both");
+    }
+
+    /// <summary>
+    /// F103, OQ-176 (fail closed): an approval about a record whose scope can't be settled (a refund across accounts, a provider's recovery, a record
+    /// not found) is scoped to no product or node, so only a checker with unrestricted scope sees and decides it. OQ-173: a product version's approval
+    /// carries its product, judged by product only. A type declared unscoped (static data) stays unscoped.
+    /// </summary>
+    [Fact]
+    public async Task ApprovalsWhoseScopeCantBeSettled_AreForUnrestrictedCheckersOnly_AndAProductVersionsByItsProduct_F103_OQ173_OQ176()
+    {
+        var db = fixture.Database;
+        var product = "SCP-" + Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
+        var version = Guid.CreateVersion7();
+        await db.ExecuteAsOwner("""
+            INSERT INTO product.cfg_product_definitions_and_versions (tenant_id, id, code, version, effective_from, record_status, created_by, change_reason,
+                                                                     product_code, domain, name, coverages, family_code, class_code, cover_starts_on)
+            VALUES (@t, @id, @p, 1, DATE '2026-01-01', 'DRAFT', 'seed', 'scope test', @p, 'GENERAL', 'Scope test', ARRAY['OWN_DAMAGE'], 'GEN-MOTOR', 'MOTOR', 'ISSUE')
+            """, ("t", DatabaseFixture.TenantA), ("id", version), ("p", product));
+
+        var failClosed = new (string RefType, string ApprovalType)[]
+        {
+            (Billing.Contracts.BillingApprovals.RefundBusinessRefType, Billing.Contracts.BillingApprovals.RefundApprovalType),
+            (Payments.Contracts.PaymentApprovals.PaymentBusinessRefType, Payments.Contracts.PaymentApprovals.UnknownResolutionApprovalType),
+            (CaseApprovals.RedressBusinessRefType, CaseApprovals.RedressApprovalType),
+            (Documents.Contracts.DocumentApprovals.LegalHoldBusinessRefType, Documents.Contracts.DocumentApprovals.LegalHoldReleaseType),
+            (Documents.Contracts.DocumentApprovals.RecordHoldBusinessRefType, Documents.Contracts.DocumentApprovals.LegalHoldReleaseType),
+            (General.Contracts.GeneralApprovals.NonRenewalBusinessRefType, General.Contracts.GeneralApprovals.NonRenewalApprovalType),
+            (Health.Contracts.HealthApprovals.RecoveryBusinessRefType, Health.Contracts.HealthApprovals.RecoveryWriteOffApprovalType),
+            (Health.Contracts.HealthApprovals.CreditNoteBusinessRefType, Health.Contracts.HealthApprovals.CreditNoteApprovalType),
+            (ProductFactory.Contracts.ProductApprovals.BusinessRefType, ProductFactory.Contracts.ProductApprovals.ApprovalType),
+        };
+        foreach (var (refType, approvalType) in failClosed)
+        {
+            // None of these records exists, so none has a scope to give: each is held for unrestricted checkers.
+            (await Requested(refType, Guid.CreateVersion7(), approvalType)).ShouldBe("True||", $"{refType} fails closed");
+        }
+
+        (await Requested(ProductFactory.Contracts.ProductApprovals.BusinessRefType, version, ProductFactory.Contracts.ProductApprovals.ApprovalType))
+            .ShouldBe($"True|{product}||False", "a product version's approval is scoped by its product alone");
+        (await Requested(StaticDataApprovals.BusinessRefType, Guid.CreateVersion7(), StaticDataApprovals.ApprovalType(1))).ShouldBe("False||", "static data is declared unscoped");
+    }
+
+    /// <summary>
+    /// OQ-173: an approval scoped by product only is seen and decided by a branch-limited checker who holds that product, and not by one who doesn't.
+    /// OQ-176: an approval scoped to no product or node is seen and decided only by a checker with unrestricted scope.
+    /// </summary>
+    [Fact]
+    public async Task ProductOnlyApprovals_FollowTheProductScope_AndUnresolvedOnes_OnlyUnrestrictedCheckers_OQ173_OQ176()
+    {
+        var db = fixture.Database;
+        var checker = await db.UserWithPermissions(DatabaseFixture.TenantA, "wf-branch-home", All);
+        var authorityRole = await db.RoleWithPermissions(DatabaseFixture.TenantA);
+        await db.AssignRole(DatabaseFixture.TenantA, checker, authorityRole);
+        await Authority(authorityRole, 50_000m);
+        await db.ExecuteAsOwner("UPDATE iam.user_role_assignment SET scope_products = ARRAY['GEN-HOME'], scope_branches = ARRAY['BR-A'] WHERE user_id = @u", ("u", checker));
+        var ownProduct = await SeedApproval(100m, "PRODUCT_VERSION");
+        var otherProduct = await SeedApproval(100m, "PRODUCT_VERSION");
+        var unresolved = await SeedApproval(100m);
+        await db.ExecuteAsOwner("UPDATE workflow.approval SET is_scoped = true, product_code = 'GEN-HOME', org_node_applies = false WHERE id = @a", ("a", ownProduct));
+        await db.ExecuteAsOwner("UPDATE workflow.approval SET is_scoped = true, product_code = 'GEN-MOTOR', org_node_applies = false WHERE id = @a", ("a", otherProduct));
+        await db.ExecuteAsOwner("UPDATE workflow.approval SET is_scoped = true WHERE id = @a", ("a", unresolved));
+
+        var client = _factory.ClientFor(DatabaseFixture.TenantA, "wf-branch-home");
+        (await client.GetAsync($"{Approvals}/{ownProduct}")).StatusCode.ShouldBe(HttpStatusCode.OK, "a product version has no node: the checker's branch limit doesn't apply");
+        (await client.GetAsync($"{Approvals}/{otherProduct}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await client.GetAsync($"{Approvals}/{unresolved}")).StatusCode.ShouldBe(HttpStatusCode.NotFound, "an unresolved scope is for unrestricted checkers only");
+        foreach (var (approval, shown) in new[] { (ownProduct, 1), (otherProduct, 0), (unresolved, 0) })
+        {
+            var businessRef = await db.ScalarAsOwner<Guid>("SELECT business_ref_id FROM workflow.approval WHERE id = @a", ("a", approval));
+            (await (await client.GetAsync($"{Approvals}?businessRefId={businessRef}")).Json()).GetProperty("items").GetArrayLength().ShouldBe(shown, "filtered in the query");
+            (await (await client.GetAsync($"{Approvals}?businessRefId={businessRef}&decidable=true")).Json()).GetProperty("items").GetArrayLength().ShouldBe(shown);
+        }
+
+        await Refused(client, $"{Approvals}/{otherProduct}", "OUT_OF_SCOPE");
+        await Refused(client, $"{Approvals}/{unresolved}", "OUT_OF_SCOPE");
+        (await client.Send(HttpMethod.Post, $"{Approvals}/{ownProduct}/approve", ifMatch: "\"1\"")).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+
+        var unrestricted = _factory.ClientFor(DatabaseFixture.TenantA, "wf-senior");
+        (await unrestricted.GetAsync($"{Approvals}/{unresolved}")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await unrestricted.Send(HttpMethod.Post, $"{Approvals}/{unresolved}/approve", ifMatch: "\"1\"")).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+    }
+
+    /// <summary>
+    /// F103: whether a checker can decide an approval is judged by the scope of their approval.approve permission, not of approval.read: a checker who
+    /// reads every approval but approves only within a product is not offered (decidable=true) or allowed one outside it.
+    /// </summary>
+    [Fact]
+    public async Task Deciding_IsJudgedByTheApproveScope_NotTheReadScope_F103()
+    {
+        var db = fixture.Database;
+        var checker = await db.UserWithPermissions(DatabaseFixture.TenantA, "wf-reads-all", WorkflowPermissions.ApprovalRead);
+        var approveRole = await db.RoleWithPermissions(DatabaseFixture.TenantA, WorkflowPermissions.ApprovalRead, WorkflowPermissions.ApprovalApprove);
+        await db.AssignRole(DatabaseFixture.TenantA, checker, approveRole);
+        await Authority(approveRole, 50_000m);
+        await db.ExecuteAsOwner("UPDATE iam.user_role_assignment SET scope_products = ARRAY['GEN-HOME'] WHERE user_id = @u AND role_code = @r",
+            ("u", checker), ("r", approveRole));
+        var outside = await SeedApproval(100m);
+        var inside = await SeedApproval(100m);
+        foreach (var (approval, product) in new[] { (outside, "GEN-MOTOR"), (inside, "GEN-HOME") })
+        {
+            await db.ExecuteAsOwner("UPDATE workflow.approval SET is_scoped = true, product_code = @p, org_node_code = 'BR-A' WHERE id = @a", ("p", product), ("a", approval));
+        }
+
+        var client = _factory.ClientFor(DatabaseFixture.TenantA, "wf-reads-all");
+        (await client.GetAsync($"{Approvals}/{outside}")).StatusCode.ShouldBe(HttpStatusCode.OK, "the read scope is unrestricted");
+        foreach (var (approval, decidable) in new[] { (outside, 0), (inside, 1) })
+        {
+            var businessRef = await db.ScalarAsOwner<Guid>("SELECT business_ref_id FROM workflow.approval WHERE id = @a", ("a", approval));
+            (await (await client.GetAsync($"{Approvals}?businessRefId={businessRef}&decidable=true")).Json()).GetProperty("items").GetArrayLength()
+                .ShouldBe(decidable, "decidable follows approval.approve's scope");
+        }
+
+        await Refused(client, $"{Approvals}/{outside}", "OUT_OF_SCOPE");
+        (await client.Send(HttpMethod.Post, $"{Approvals}/{inside}/approve", ifMatch: "\"1\"")).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+    }
+
+    /// <summary>Delivers an ApprovalRequested to Workflow as the outbox would; returns the stored approval's is_scoped|product|node[|org_node_applies].</summary>
+    private async Task<string> Requested(string refType, Guid refId, string approvalType)
+    {
+        var requested = new ApprovalRequested(refType, refId, approvalType, _maker, 100m, "ZAR", "Scope test");
+        var envelope = new BuildingBlocks.Contracts.EventEnvelope(Guid.CreateVersion7(), DatabaseFixture.TenantA, "workflow.ApprovalRequested", 1, DateTimeOffset.UtcNow,
+            "ScopeTest", refId, Guid.CreateVersion7(), null, JsonSerializer.SerializeToElement(requested, JsonSerializerOptions.Web));
+        await _factory.Services.GetRequiredService<IEventBus>().Publish(envelope, CancellationToken.None);
+        return await fixture.Database.ScalarAsOwner<string>("""
+            SELECT is_scoped::text || '|' || coalesce(product_code, '') || '|' || coalesce(org_node_code, '') || CASE WHEN org_node_applies THEN '' ELSE '|False' END
+            FROM workflow.approval WHERE tenant_id = @t AND business_ref_id = @r
+            """, ("t", DatabaseFixture.TenantA), ("r", refId)) is { } row ? row.Replace("true", "True").Replace("false", "False") : "missing";
     }
 
     private async Task<(string Url, Guid TaskId)> Start(HttpClient client, string processCode)

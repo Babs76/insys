@@ -113,8 +113,25 @@ internal sealed class GeneralRepository(GeneralDbContext db, IExecutionContext e
 
     private GeneralClaim? Scoped(GeneralClaim? claim) => execution.InScope(claim, claim?.ProductCode, claim?.OrgNodeCode);
 
-    public Task<LossAssessment?> Assessment(Guid id, CancellationToken cancellationToken) =>
-        db.Assessments.Include(a => a.Estimates).SingleOrDefaultAsync(a => a.Id == id, cancellationToken);
+    public async Task<LossAssessment?> Assessment(Guid id, CancellationToken cancellationToken) =>
+        await InClaimScope(await db.Assessments.Include(a => a.Estimates).SingleOrDefaultAsync(a => a.Id == id, cancellationToken), a => a.ClaimId, cancellationToken);
+
+    /// <summary>
+    /// A claim's child record (an assessment or a recovery) in the claim's scope (F103 §1): a read outside it finds nothing, and a change is refused
+    /// with OUT_OF_SCOPE.
+    /// </summary>
+    private async Task<T?> InClaimScope<T>(T? record, Func<T, Guid> claimOf, CancellationToken cancellationToken)
+        where T : class
+    {
+        if (record is null)
+        {
+            return null;
+        }
+
+        var claimId = claimOf(record);
+        var owner = await db.Claims.AsNoTracking().Where(c => c.Id == claimId).Select(c => new { c.ProductCode, c.OrgNodeCode }).SingleAsync(cancellationToken);
+        return execution.InScope(record, owner.ProductCode, owner.OrgNodeCode);
+    }
 
     public async Task<IReadOnlyList<LossAssessment>> Assessments(Guid claimId, CancellationToken cancellationToken)
     {
@@ -123,8 +140,8 @@ internal sealed class GeneralRepository(GeneralDbContext db, IExecutionContext e
         return stored.Concat(added).Distinct().ToList();
     }
 
-    public Task<RecoveryCase?> Recovery(Guid id, CancellationToken cancellationToken) =>
-        db.Recoveries.Include(r => r.Salvage).SingleOrDefaultAsync(r => r.Id == id, cancellationToken);
+    public async Task<RecoveryCase?> Recovery(Guid id, CancellationToken cancellationToken) =>
+        await InClaimScope(await db.Recoveries.Include(r => r.Salvage).SingleOrDefaultAsync(r => r.Id == id, cancellationToken), r => r.ClaimId, cancellationToken);
 
     public async Task<IReadOnlyList<Guid>> PoliciesToStart(DateOnly day, int limit, CancellationToken cancellationToken) =>
         await db.Policies.AsNoTracking().Where(p => p.Status == PolicyStatus.Issued && p.PeriodStart <= day && (p.CoverStartsOn == "ISSUE" || p.FirstPaidOn != null)).OrderBy(p => p.Id).Select(p => p.Id).Take(limit)

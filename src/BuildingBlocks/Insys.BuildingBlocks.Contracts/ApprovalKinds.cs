@@ -67,6 +67,17 @@ public static class ApprovalKinds
         }
     }
 
+    private static readonly ConcurrentDictionary<string, string> UnscopedReasons = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// The business reference type's approvals are deliberately not scoped (F103, OQ-176), and why: its records belong to no product or branch (static
+    /// data, a party, a user). Every other declared type has a scope source in its module, which a test checks.
+    /// </summary>
+    public static void Unscoped(string businessRefType, string reason) => UnscopedReasons[businessRefType] = reason;
+
+    /// <summary>The types declared unscoped, with their reasons.</summary>
+    public static IReadOnlyDictionary<string, string> UnscopedTypes => UnscopedReasons;
+
     public static IReadOnlyList<string> ApprovalTypes => [.. Types.Keys.Order(StringComparer.Ordinal)];
 
     public static IReadOnlyList<string> BusinessRefTypes => [.. Screens.Keys.Order(StringComparer.Ordinal)];

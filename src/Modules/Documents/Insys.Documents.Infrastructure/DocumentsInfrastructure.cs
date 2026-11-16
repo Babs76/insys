@@ -63,6 +63,7 @@ public static class DocumentsInfrastructure
         {
             services.AddSingleton<IDocumentStorage, FileSystemDocumentStorage>();
         }
+        services.AddSingleton<Workflow.Contracts.IApprovalScopeSource, DocumentApprovalScopes>();
         services.AddSingleton<IDocumentRenderer, PlainTextDocumentRenderer>();
         services.AddSingleton<IDocumentDelivery, StubDocumentDelivery>();
         services.AddScoped<DocumentGenerator>();

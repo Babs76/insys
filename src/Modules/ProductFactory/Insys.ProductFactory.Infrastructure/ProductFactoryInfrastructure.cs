@@ -50,6 +50,7 @@ public static class ProductFactoryInfrastructure
         services.AddScoped<IProductList, ProductList>();
         services.AddScoped<ISimulationRuns, SimulationRunStore>();
         services.AddScoped<IProductCatalogue, ProductCatalogue>();
+        services.AddSingleton<Workflow.Contracts.IApprovalScopeSource, ProductApprovalScopes>();
         services.AddSingleton<SellableProducts>();
         services.AddSingleton<ISellableProducts>(sp => sp.GetRequiredService<SellableProducts>());
         services.AddSingleton<IPublishedProducts>(sp => sp.GetRequiredService<SellableProducts>());

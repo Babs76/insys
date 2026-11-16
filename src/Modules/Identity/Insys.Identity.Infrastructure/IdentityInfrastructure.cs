@@ -46,6 +46,10 @@ public static class IdentityInfrastructure
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.RaisedWith(BuildingBlocks.Contracts.Approvals.ApprovalKinds.PlatformOperator,
             Insys.Identity.Contracts.IdentityApprovals.TenantAdministratorApprovalType);
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Identity.Contracts.IdentityApprovals.SubjectLinkBusinessRefType, "IDENTITY_USERS", Insys.Identity.Contracts.IdentityApprovals.SubjectLinkApprovalType);
+        // F103 (OQ-176): a user's access is no product's or branch's record.
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.Unscoped(Insys.Identity.Contracts.IdentityApprovals.BusinessRefType, "a user's role assignment: identity, not a scoped record");
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.Unscoped(Insys.Identity.Contracts.IdentityApprovals.TenantAdministratorBusinessRefType, "a tenant's first administrators, in the operator tenant");
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.Unscoped(Insys.Identity.Contracts.IdentityApprovals.SubjectLinkBusinessRefType, "an external user's link to their party");
         services.AddModuleDbContext<IdentityDbContext>(IdentityDbContext.SchemaName, "Identity");
         services.AddStaticData<IdentityDbContext>(IdentityDbContext.SchemaName, IdentityStaticData.Descriptors);
         services.AddSingleton<IStaticRecordValidator, StaticData.RoleDefinitionValidator>();

@@ -103,8 +103,11 @@ internal sealed class ClaimsRepository(ClaimsFrameworkDbContext db, IExecutionCo
         return execution.InScope(claim, claim?.ProductCode, claim?.OrgNodeCode);
     }
 
-    public Task<ClaimRegistration?> ByDomainClaim(string domain, Guid domainClaimId, CancellationToken cancellationToken) =>
-        Claims().SingleOrDefaultAsync(c => c.Domain == domain && c.DomainClaimId == domainClaimId, cancellationToken);
+    public async Task<ClaimRegistration?> ByDomainClaim(string domain, Guid domainClaimId, CancellationToken cancellationToken)
+    {
+        var claim = await Claims().SingleOrDefaultAsync(c => c.Domain == domain && c.DomainClaimId == domainClaimId, cancellationToken);
+        return execution.InScope(claim, claim?.ProductCode, claim?.OrgNodeCode);
+    }
 
     public async Task<IReadOnlyList<FinancialMovement>> Movements(string claimNumber, CancellationToken cancellationToken)
     {

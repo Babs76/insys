@@ -53,7 +53,7 @@ internal sealed class BillingRecordScopes([FromKeyedServices(BillingDbContext.Sc
         return scopes.Select(s => ((string?)s.Product, (string?)s.OrgNode)).ToList();
     }
 
-    private static string? Sql(string businessRefType) => businessRefType switch
+    internal static string? Sql(string businessRefType) => businessRefType switch
     {
         "INVOICE" => "SELECT product_code, org_node_code FROM billing.invoice WHERE id = @id",
         "BILLING_ACCOUNT" => AccountSchedules,
@@ -61,4 +61,19 @@ internal sealed class BillingRecordScopes([FromKeyedServices(BillingDbContext.Sc
             "SELECT s.product_code, s.org_node_code FROM billing.refund_request r JOIN billing.premium_schedule s ON s.tenant_id = r.tenant_id AND s.billing_account_id = r.billing_account_id WHERE r.id = @id",
         _ => null,
     };
+}
+
+/// <summary>
+/// The scope of a refund's approval (F103, OQ-081, OQ-176): a refund is paid from the whole account's credit, so it is the account's one scope when every
+/// schedule on it shares one; otherwise, or with no schedule at all, only a checker with unrestricted scope sees and decides it.
+/// </summary>
+internal sealed class BillingApprovalScopes([FromKeyedServices(BillingDbContext.SchemaName)] NpgsqlDataSource dataSource) : Workflow.Contracts.IApprovalScopeSource
+{
+    public bool Covers(string businessRefType) => businessRefType == Contracts.BillingApprovals.RefundBusinessRefType;
+
+    public async Task<Workflow.Contracts.RecordScope?> ScopeOf(Guid tenantId, string businessRefType, Guid businessRefId, CancellationToken cancellationToken)
+    {
+        var scopes = (await RecordScopeReader.ReadAll(dataSource, tenantId, BillingRecordScopes.Sql(businessRefType)!, businessRefId, cancellationToken)).Distinct().ToList();
+        return scopes is [var only] ? new Workflow.Contracts.RecordScope(only.Product, only.OrgNode) : Workflow.Contracts.RecordScope.UnrestrictedOnly;
+    }
 }

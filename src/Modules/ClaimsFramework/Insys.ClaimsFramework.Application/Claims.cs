@@ -337,10 +337,17 @@ internal static class Loaded
         new(claim.ClaimNumber, claim.Domain, currency, await claims.Movements(claim.ClaimNumber, cancellationToken));
 }
 
-internal sealed class AllocateClaimNumberHandler(IClaimsRepository claims, IClaimsCodes codes, IBusinessDate businessDate, IClock clock) : ICommandHandler<AllocateClaimNumber, ClaimView>
+internal sealed class AllocateClaimNumberHandler(IClaimsRepository claims, IClaimsCodes codes, IExecutionContext execution, IBusinessDate businessDate, IClock clock)
+    : ICommandHandler<AllocateClaimNumber, ClaimView>
 {
     public async Task<Result<ClaimView>> Handle(AllocateClaimNumber command, CancellationToken cancellationToken)
     {
+        // F103 §2: a claim is registered only at a product and node in the caller's scope; it takes its domain claim's, so nothing is placed for it.
+        if (!execution.CurrentScope.Allows(command.ProductCode, command.OrgNodeCode))
+        {
+            return Error.Forbidden(ErrorCodes.OutOfScope, "The claim's product or organisation node is outside your scope.");
+        }
+
         if (await claims.ByDomainClaim(command.Domain, command.DomainClaimId, cancellationToken) is { } existing)
         {
             return ClaimView.From(existing);

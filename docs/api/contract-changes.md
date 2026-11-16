@@ -4,6 +4,20 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 
 
+## Scope batch 1: approvals and writes follow the record's scope (F103, OQ-170, OQ-173, OQ-176; 16 November 2026)
+No field, route or error code is new. What changes is who gets 403 `OUT_OF_SCOPE`, 404, or an empty list. Unscoped users see no change.
+- **Approvals (`/workflow/approvals`):** approvals about refunds, non-renewals, case redress, legal holds and record holds, payments' unknown outcomes, product versions, and Health recoveries and credit notes now carry their record's scope. A checker sees one, and `decidable=true` offers it, only when their scope covers that record. `GET /{id}` is 404 and `POST /{id}/approve` and `/reject` are 403 `OUT_OF_SCOPE` outside it.
+  - **A product version's approval** is judged by product only, so a branch-limited checker who holds the product decides it (OQ-173).
+  - **Fail closed (OQ-176):** when the record's scope can't be settled (a refund on an account whose schedules span scopes, a provider's recovery or credit note, a record not found), only a checker with unrestricted scope sees and decides it. Approvals about parties, users, static data, Finance periods and commission statements stay unscoped.
+  - **`decidable=true`** is now judged by the scope of `approval.approve`, not `approval.read`. A checker who reads everything but approves within one product is offered only that product's approvals.
+  - Approvals that were already waiting keep the scope they were created with.
+- **Payments (`/payments/payments`):** `POST /` (create), `POST /{id}/resolve`, `/reverse` and `/allocate` are 403 `OUT_OF_SCOPE` unless the payment's whole record (invoice, billing account or refund) is in the caller's scope. A payment with no record, or against a record no module scopes, is changed only by an unrestricted caller (OQ-176). Commission payouts aren't scoped (OQ-174). Reads of payments are unchanged in this batch.
+- **Reconciliation exceptions (`/payments/reconciliation-exceptions/{id}/assign` and `/resolve`):** 403 `OUT_OF_SCOPE` unless the payment the exception references is in scope. One with no payment (an unmatched statement line) is for unrestricted callers only (OQ-170). The exception list isn't filtered yet; it comes in a later batch.
+- **General assessments and recoveries** (`/general/assessments/{id}/start`, `/accept`, `/further-work`, `/estimates`, `/report`; `/general/recoveries/{id}/demand`, `/write-off`, `/close`, `/salvage`, `/salvage/{itemId}/dispose`, `/recovered`): 403 `OUT_OF_SCOPE` outside the claim's scope. Their reads were already 404 outside it.
+- **`POST /claims/claims`:** 403 `OUT_OF_SCOPE` when the `productCode` and `orgNodeCode` aren't in the caller's scope. A repeat for an existing claim outside the scope is also 403.
+- **`POST /health/claims` (staff):** 403 `OUT_OF_SCOPE` when the membership is outside the caller's scope. The provider portal's route is unchanged; it is limited by relationship (OQ-175).
+- **`POST /rating/calculations`:** 403 `OUT_OF_SCOPE` for a product outside the caller's product scope (by product only, as its reads are, OQ-168).
+
 ## AI Assist: starter packs and overlay approval (Wave 7 batch 7.6, 15 November 2026)
 - **New, platform operator API, `/assist/overlays`:** `POST /` (a pack file as JSON; Idempotency-Key; 201 with `StarterPackView` and its ETag) and `GET /`, `GET /{id}` (`StarterPackSheet`: the version and every row with `class`, `regulated`, `regulatedSource`, `tailorable`, `tailorableSource`, `mayBeTailored`, `values`), `POST /{id}/review` (`partner`, `reviewerName`, `reviewedOn`, `reviewDocumentId`; If-Match), all `ASSIST_OVERLAY_MANAGE`; `GET /awaiting-approval`, `GET /{id}/approval` and `POST /{id}/approve` (`contentHash`; If-Match), `ASSIST_OVERLAY_APPROVE`.
 - **New, tenant API, `/assist/packs`:** `POST /` (the tenant's own version, `TENANT_ONLY`; only while onboarding), `GET /`, `GET /{id}`, all `ASSIST_TENANT_SETUP_RUN`; `GET /awaiting-approval`, `GET /{id}/approval`, `POST /{id}/approve`, `ASSIST_OVERLAY_APPROVE_TENANT`.

@@ -113,12 +113,18 @@ public interface IApprovalAuthoritySource
 }
 
 /// <summary>The product and organisation node of the record an approval is about (F103, addenda/access-scopes.md §4).</summary>
-public sealed record RecordScope(string? ProductCode, string? OrgNodeCode);
+/// <param name="OrgNodeApplies">False for a record scoped by product only, which has no node of its own (a product version, OQ-173).</param>
+public sealed record RecordScope(string? ProductCode, string? OrgNodeCode, bool OrgNodeApplies = true)
+{
+    /// <summary>Only a checker with unrestricted scope sees and decides it (OQ-176: fail closed), as for a record spanning several scopes.</summary>
+    public static readonly RecordScope UnrestrictedOnly = new(null, null);
+}
 
 /// <summary>
 /// A module whose records are scoped (F103) says which product and node the record behind one of its approval types
 /// belongs to. Workflow records it with the approval, and a checker sees and decides only approvals about records in their
-/// scope. Approvals of other types (static data, product versions, payouts) are not scoped.
+/// scope. Every declared business reference type is either covered by a source or declared unscoped by its module, with its
+/// reason (ApprovalKinds.Unscoped; OQ-176), which a test checks.
 /// </summary>
 public interface IApprovalScopeSource
 {

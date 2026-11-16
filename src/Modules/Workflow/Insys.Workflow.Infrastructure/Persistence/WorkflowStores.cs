@@ -68,12 +68,7 @@ internal sealed class ApprovalQueries(WorkflowDbContext db, IExecutionContext ex
     public async Task<IReadOnlyList<ApprovalView>> List(string? status, string? businessRefType, Guid? businessRefId, Guid? afterId, int limit,
         CancellationToken cancellationToken)
     {
-        var query = db.Approvals.AsNoTracking();
-        if (!execution.CurrentScope.IsUnrestricted)
-        {
-            var inScope = db.Approvals.AsNoTracking().InScope(execution.CurrentScope, a => a.ProductCode, a => a.OrgNodeCode).Select(a => a.Id);
-            query = query.Where(a => !a.IsScoped || inScope.Contains(a.Id));
-        }
+        var query = InScope(db.Approvals.AsNoTracking());
 
         if (status is not null && Enum.TryParse<ApprovalStatus>(status, ignoreCase: true, out var parsed))
         {
@@ -100,19 +95,31 @@ internal sealed class ApprovalQueries(WorkflowDbContext db, IExecutionContext ex
 
     public async Task<ApprovalView?> Get(Guid id, CancellationToken cancellationToken) =>
         await db.Approvals.AsNoTracking().SingleOrDefaultAsync(a => a.Id == id, cancellationToken) is { } approval
-        && (!approval.IsScoped || execution.CurrentScope.Allows(approval.ProductCode, approval.OrgNodeCode))
+        && execution.CurrentScope.Covers(approval)
             ? View(approval)
             : null;
+
+    /// <summary>
+    /// The approvals in the caller's scope (F103), in the query so paging holds: an unscoped one, one whose record is in scope, and one scoped by product alone
+    /// (OQ-173) whose product is. One scoped to neither product nor node is an unrestricted caller's only (OQ-176).
+    /// </summary>
+    private IQueryable<Approval> InScope(IQueryable<Approval> query)
+    {
+        var scope = execution.CurrentScope;
+        if (scope.IsUnrestricted)
+        {
+            return query;
+        }
+
+        var byRecord = db.Approvals.AsNoTracking().Where(a => a.OrgNodeApplies).InScope(scope, a => a.ProductCode, a => a.OrgNodeCode).Select(a => a.Id);
+        var byProduct = db.Approvals.AsNoTracking().Where(a => !a.OrgNodeApplies).InScope(scope.WithoutOrgNodes(), a => a.ProductCode, a => a.OrgNodeCode).Select(a => a.Id);
+        return query.Where(a => !a.IsScoped || byRecord.Contains(a.Id) || byProduct.Contains(a.Id));
+    }
 
     public async Task<IReadOnlyList<Approval>> WaitingFromOthers(Guid userId, string? businessRefType, Guid? businessRefId, Guid? afterId, int limit,
         CancellationToken cancellationToken)
     {
-        var query = db.Approvals.AsNoTracking().Where(a => a.Status == ApprovalStatus.Requested && a.MakerId != userId);
-        if (!execution.CurrentScope.IsUnrestricted)
-        {
-            var inScope = db.Approvals.AsNoTracking().InScope(execution.CurrentScope, a => a.ProductCode, a => a.OrgNodeCode).Select(a => a.Id);
-            query = query.Where(a => !a.IsScoped || inScope.Contains(a.Id));
-        }
+        var query = InScope(db.Approvals.AsNoTracking().Where(a => a.Status == ApprovalStatus.Requested && a.MakerId != userId));
 
         query = businessRefType is null ? query : query.Where(a => a.BusinessRefType == businessRefType);
         query = businessRefId is null ? query : query.Where(a => a.BusinessRefId == businessRefId);

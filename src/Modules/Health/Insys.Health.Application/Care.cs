@@ -481,11 +481,19 @@ internal sealed class ReadAuthorisationClinicalHandler(IHealthRepository health,
 /// scores reach an indicator's threshold, a fraud case opens (as the Claims Framework reads them). An indicator that
 /// cannot be evaluated is logged and skipped.
 /// </summary>
-internal sealed class SubmitMedicalClaimHandler(IHealthRepository health, IHealthCodes codes, IBusinessDate businessDate, IClock clock, IAuditTrail audit, ILogger<SubmitMedicalClaimHandler> logger)
+internal sealed class SubmitMedicalClaimHandler(IHealthRepository health, IHealthCodes codes, IExecutionContext execution, IBusinessDate businessDate, IClock clock, IAuditTrail audit,
+    ILogger<SubmitMedicalClaimHandler> logger)
     : ICommandHandler<SubmitMedicalClaim, MedicalClaimView>
 {
     public async Task<Result<MedicalClaimView>> Handle(SubmitMedicalClaim command, CancellationToken cancellationToken)
     {
+        // F103: staff submit a claim only on a membership in their scope (the scoped load refuses one outside it with OUT_OF_SCOPE). A portal user is
+        // limited by their relationship to the member instead, checked by the portal route (OQ-175).
+        if (execution.External is null)
+        {
+            await health.Membership(command.MembershipId, cancellationToken);
+        }
+
         var id = Guid.CreateVersion7();
         var claim = MedicalClaim.SubmitClaim(id, Numbers.Of("MC", id, 25), command.Source, command.ProviderId, command.MembershipId, command.PatientPartyId,
             command.ServiceDate, command.FormatCode, command.Currency, command.PreauthorisationId, command.Lines, businessDate.Today, clock.UtcNow);

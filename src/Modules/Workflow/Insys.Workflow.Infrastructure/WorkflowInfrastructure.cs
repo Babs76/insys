@@ -46,6 +46,7 @@ public static class WorkflowInfrastructure
         {
             ["CASE"] = "SELECT product_code, org_node_code FROM workflow.service_case WHERE id = @id",
         });
+        services.AddSingleton<Contracts.IApprovalScopeSource, CaseApprovalScopes>();
         services.AddStaticData<WorkflowDbContext>(schema, WorkflowStaticData.Descriptors);
         services.AddModuleHandlers<WorkflowDbContext>(typeof(StartProcess).Assembly);
         services.AddDomainEventMapper<WorkflowEventMapper>(schema);

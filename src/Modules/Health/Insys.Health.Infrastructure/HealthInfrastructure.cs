@@ -82,6 +82,7 @@ public static class HealthInfrastructure
         services.AddSingleton<BuildingBlocks.Contracts.IBusinessRecordScopes, HealthRemittanceScopes>();
         services.AddSingleton<Contracts.IProviderDirectory, ProviderDirectory>();
         services.AddSingleton<Workflow.Contracts.IApprovalScopeSource, PaymentRunApprovalScopes>();
+        services.AddSingleton<Workflow.Contracts.IApprovalScopeSource, ProviderAccountApprovalScopes>();
         services.AddHealthChecks().AddCheck<PlanProductsHealthCheck>("health-plan-products");
         services.AddScoped<IHealthCodes, HealthCodes>();
         // F028: a warning: with no measure configured, providers' months are shown but never judged.

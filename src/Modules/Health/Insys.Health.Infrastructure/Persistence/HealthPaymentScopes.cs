@@ -71,6 +71,18 @@ internal sealed class PaymentRunApprovalScopes([FromKeyedServices(HealthDbContex
     }
 }
 
+/// <summary>
+/// The scope of a provider recovery's or credit note's approval (OQ-176: fail closed): a provider-level record across every product and branch the provider
+/// serves, so only a checker with unrestricted scope sees and decides it.
+/// </summary>
+internal sealed class ProviderAccountApprovalScopes : IApprovalScopeSource
+{
+    public bool Covers(string businessRefType) => businessRefType is HealthApprovals.RecoveryBusinessRefType or HealthApprovals.CreditNoteBusinessRefType;
+
+    public Task<RecordScope?> ScopeOf(Guid tenantId, string businessRefType, Guid businessRefId, CancellationToken cancellationToken) =>
+        Task.FromResult<RecordScope?>(RecordScope.UnrestrictedOnly);
+}
+
 /// <summary>A provider's standing in the register (health.mst_provider_register), on Health's own connection.</summary>
 internal sealed class ProviderDirectory([FromKeyedServices(HealthDbContext.SchemaName)] NpgsqlDataSource dataSource) : IProviderDirectory
 {

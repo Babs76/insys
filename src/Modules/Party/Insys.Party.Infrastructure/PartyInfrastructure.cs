@@ -50,6 +50,16 @@ public static class PartyInfrastructure
             Insys.Party.Contracts.PartyApprovals.RiskClassOverrideType);
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Party.Contracts.PartyApprovals.UnblockBusinessRefType, "PARTY_DUE_DILIGENCE",
             Insys.Party.Contracts.PartyApprovals.UnblockType);
+        // F103 (access-scopes.md §1, OQ-176): parties are shared across products (PTY-003), so their approvals aren't scoped.
+        foreach (var type in new[]
+                 {
+                     Insys.Party.Contracts.PartyApprovals.BankAccountBusinessRefType, Insys.Party.Contracts.PartyApprovals.MatchBusinessRefType,
+                     Insys.Party.Contracts.PartyApprovals.SearchLogHoldBusinessRefType, Insys.Party.Contracts.PartyApprovals.DueDiligenceBusinessRefType,
+                     Insys.Party.Contracts.PartyApprovals.RiskOverrideBusinessRefType, Insys.Party.Contracts.PartyApprovals.UnblockBusinessRefType,
+                 })
+        {
+            BuildingBlocks.Contracts.Approvals.ApprovalKinds.Unscoped(type, "a party's record: parties are shared across products (PTY-003)");
+        }
         services.AddModuleDbContext<PartyDbContext>(PartyDbContext.SchemaName, "Party");
         // D-34: a legal hold on a party itself; a party has no product or node.
         services.AddLegalHoldTargets(PartyDbContext.SchemaName, new Dictionary<string, string>

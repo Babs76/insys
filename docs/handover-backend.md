@@ -406,6 +406,30 @@ Also: the cache (AIA-036), feedback by the user shown the explanation (AIA-037),
   - Decisions are audited and refused once the tenant is live; accepting a value the pack leaves empty is 422 `VALIDATION_FAILED` (not the overlay code); a tenant's own pack's Location is its own route.
 - **Tests:** `AssistSetupTests` (7, on the real base, NG and motor packs: the pack-only path with NG unapproved and AI not entitled, decisions and re-answering, the tenant's own approved NG filling its regulated values, a live tenant refused, bad answers, insert-only answers), `PackFileTests` (9 now).
 
+### Scope batch 1 (16 November 2026, branch `scope-batch-1`)
+The first of the five fix batches from the scope sweeps (`docs/reviews/read-scope-sweep.md`, `docs/reviews/write-scope-sweep.md`), in Ade's order: approvals with no scope source, and the unscoped writes. Contract note: "Scope batch 1" in `docs/api/contract-changes.md`.
+- **Approvals.** Every declared business reference type now has an `IApprovalScopeSource` in its module, or is declared unscoped with its reason (`ApprovalKinds.Unscoped`: parties, users, static data, the Finance period, the commission statement). New sources:
+  - General's non-renewal (its renewal's policy);
+  - Billing's refund (the account's one scope);
+  - Payments' unknown outcome (the payment's record);
+  - Workflow's case redress (the case);
+  - Documents' legal holds and record holds (the held record);
+  - ProductFactory's product version (its product, by product only, `org_node_applies` false, V0135);
+  - Health's recoveries and credit notes (unrestricted checkers only).
+- **Fail closed (OQ-176).** A refund across scopes, a held record with several scopes, or a record not found is decided only by an unrestricted checker. So is a type with neither a source nor an unscoped declaration: the approval is scoped to nothing (`ScopeTo(null, null)`).
+- **Who decides.** `decidable=true` and the decision use the scope of `approval.approve`. The list and `WaitingFromOthers` filter in the query, product-only approvals with the checker's scope less its nodes.
+- **Writes.**
+  - Payments: create, resolve, reverse, allocate (`PaymentScopes.MayChange`, fail closed for a payment with no record). Allocation is checked before Billing plans over the account, so the planner needs no change: the account-wide check covers every invoice it can choose.
+  - Reconciliation exceptions: assign and resolve, through their payment (OQ-170).
+  - General assessments and recoveries: loaded in their claim's scope (`GeneralStores.InClaimScope`).
+  - `POST /claims/claims`: the product and node checked; `ByDomainClaim` scoped.
+  - Health staff claims: the membership's scope; the provider portal is left to its relationship check (OQ-175).
+  - `POST /rating/calculations`: product only.
+- **Interpretations to confirm with Ade:** Health recoveries and credit notes go to unrestricted checkers only (they are provider-level, across products). A payment with no record is changed only by an unrestricted caller. Payment and exception **reads** are unchanged here and come with the paging batch.
+- **Tests (each fails without its fix, checked by undoing the fix):**
+  - `WorkflowTests`: the coverage of every type; the fail-closed and product-version scoping through a real `ApprovalRequested`; product-only and unresolved approvals; deciding by the approve scope.
+  - `WriteScopeTests`: 6 tests, one per write group.
+
 ### Wave 7: the plan to 7.8, in the D-8 order (15 November 2026)
 **What it's based on:** 7.1 was estimated at 8 to 10 days and took about half a day (its commits run from 09:54 to 12:23 on 2 November, review fixes included); 7.2 (6 to 8 days) was built in one session on 15 November. One engineer here is an AI session, so build time is far below the estimates, and the dates are set by CI (about 45 minutes a run), review and what waits on Ade. Building is planned at about a quarter of the estimate, rounded up, which is cautious against two batches. **Dates are working days and assume each item marked "Ade" arrives by the date shown; a late one moves that batch, not the build of the others.**
 

@@ -140,12 +140,22 @@ public sealed class Approval : AggregateRoot<Guid>
 
     public string? OrgNodeCode { get; private set; }
 
-    /// <summary>Records the scope of the record the approval is about (F103), once, as it is requested.</summary>
-    public void ScopeTo(string? productCode, string? orgNodeCode)
+    /// <summary>
+    /// Whether a checker's organisation scope applies: false for a record that has no node of its own and is scoped by product only (a product version,
+    /// OQ-173), so a branch-limited checker is judged by product alone.
+    /// </summary>
+    public bool OrgNodeApplies { get; private set; } = true;
+
+    /// <summary>
+    /// Records the scope of the record the approval is about (F103), once, as it is requested. Neither a product nor a node means only a checker with
+    /// unrestricted scope sees and decides it (OQ-176: fail closed).
+    /// </summary>
+    public void ScopeTo(string? productCode, string? orgNodeCode, bool orgNodeApplies = true)
     {
         IsScoped = true;
         ProductCode = productCode is null ? null : Guard.MaxLength(productCode, 15);
         OrgNodeCode = orgNodeCode is null ? null : Guard.MaxLength(orgNodeCode, 15);
+        OrgNodeApplies = orgNodeApplies;
     }
 
     /// <summary>Command RequestApproval.</summary>

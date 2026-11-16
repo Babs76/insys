@@ -40,6 +40,13 @@ using Microsoft.Extensions.Options;
 
 namespace Insys.Workflow.Application;
 
+/// <summary>Whether a scope covers the record an approval is about (F103): by product alone where the record has no node of its own (OQ-173).</summary>
+public static class ApprovalScopeChecks
+{
+    public static bool Covers(this AccessScope scope, Approval approval) =>
+        !approval.IsScoped || (approval.OrgNodeApplies ? scope : scope.WithoutOrgNodes()).Allows(approval.ProductCode, approval.OrgNodeCode);
+}
+
 public sealed class ApprovalOptions
 {
     /// <summary>How long an approval waits when its type has no expiry in force (workflow.cfg_approval_expiry); not specified, so 14 days.</summary>
@@ -210,7 +217,7 @@ public sealed class ApprovalDecision(IUserRoleQuery roles, IAuthorityReader auth
         audit.Record(new AuditEntry("APPROVAL", approve ? "Approve" : "Reject", nameof(Approval), approval.Id.ToString(),
             new Dictionary<string, string?> { ["type"] = approval.ApprovalType, ["businessRef"] = $"{approval.BusinessRefType}:{approval.BusinessRefId}" }));
         // F103 (addenda/access-scopes.md §4): the checker's scope for deciding approvals covers the record the approval is about.
-        if (approval.IsScoped && !execution.CurrentScope.Allows(approval.ProductCode, approval.OrgNodeCode))
+        if (!execution.ScopeFor(WorkflowPermissions.ApprovalApprove).Covers(approval))
         {
             return Error.Forbidden(ErrorCodes.OutOfScope, "The record this approval is about is outside your scope.");
         }
@@ -245,10 +252,11 @@ public sealed class ApprovalDecision(IUserRoleQuery roles, IAuthorityReader auth
 
     /// <summary>
     /// Whether the checker could approve the approval now (BR-004), by the same rules as approving: scope, the permission
-    /// the requester named, not their own, not expired, and authority for the type and amount.
+    /// the requester named, not their own, not expired, and authority for the type and amount. The scope is approval.approve's, whatever route asks
+    /// (decidable=true is a read under approval.read).
     /// </summary>
     public async Task<bool> CanApprove(Approval approval, Guid checkerId, CancellationToken cancellationToken) =>
-        (!approval.IsScoped || execution.CurrentScope.Allows(approval.ProductCode, approval.OrgNodeCode))
+        execution.ScopeFor(WorkflowPermissions.ApprovalApprove).Covers(approval)
         && (approval.RequiredPermission is not { } permission || execution.HasPermission(permission))
         && await FunctionRefusal(approval, cancellationToken) is null
         && !await Excluded(approval, checkerId, cancellationToken)
@@ -597,11 +605,16 @@ public sealed class RequestApprovalPolicy(IApprovalRepository approvals, IClock 
             now + (await expiry.For(requested.ApprovalType, businessDate.Today, cancellationToken) ?? options.Value.DefaultExpiry), requested.SubjectHash,
             requested.RequiredPermission);
 
-        // F103 (addenda/access-scopes.md §4): an approval about a scoped record carries that record's product and node.
+        // F103 (addenda/access-scopes.md §4): an approval about a scoped record carries that record's product and node. OQ-176, fail closed: a type no
+        // source covers and its module hasn't declared unscoped is decided only by a checker with unrestricted scope.
         if (scopes.FirstOrDefault(s => s.Covers(requested.BusinessRefType)) is { } source)
         {
             var scope = await source.ScopeOf(tenant.RequireTenantId(), requested.BusinessRefType, requested.BusinessRefId, cancellationToken);
-            approval.ScopeTo(scope?.ProductCode, scope?.OrgNodeCode);
+            approval.ScopeTo(scope?.ProductCode, scope?.OrgNodeCode, scope?.OrgNodeApplies ?? true);
+        }
+        else if (!BuildingBlocks.Contracts.Approvals.ApprovalKinds.UnscopedTypes.ContainsKey(requested.BusinessRefType))
+        {
+            approval.ScopeTo(null, null);
         }
 
         approvals.Add(approval);

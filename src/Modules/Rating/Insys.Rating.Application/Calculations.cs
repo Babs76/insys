@@ -147,11 +147,17 @@ public sealed class PremiumRater(IRatingConfigurationReader configuration, IBusi
 }
 
 /// <summary>A premium rated on the values its caller gives. Audited (IAM-006), as an underwriter may rate the quote they issue (role templates, A).</summary>
-internal sealed class CalculatePremiumHandler(PremiumRater rater, IPremiumCalculationRepository calculations, IClock clock, IAuditTrail audit)
+internal sealed class CalculatePremiumHandler(PremiumRater rater, IPremiumCalculationRepository calculations, IExecutionContext execution, IClock clock, IAuditTrail audit)
     : ICommandHandler<CalculatePremium, CalculationView>
 {
     public async Task<Result<CalculationView>> Handle(CalculatePremium command, CancellationToken cancellationToken)
     {
+        // F103: a calculation is made only for a product in the caller's scope, judged by product only as its reads are (OQ-168).
+        if (!execution.CurrentScope.WithoutOrgNodes().Allows(command.Rating.ProductCode, null))
+        {
+            return Error.Forbidden(ErrorCodes.OutOfScope, "The product is outside your scope.");
+        }
+
         var rated = await rater.Rate(command.Rating, cancellationToken);
         if (rated.IsFailure)
         {
