@@ -7,26 +7,21 @@
   "rows": [
     {
       "table": "tenant.cfg_locale_defaults",
-      "code": "LOCALE (non-regulated part)",
-      "class": "OPERATIONAL",
+      "class": "FINANCE",
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "ISO 4217: NGN, 2 minor units. Whether USD policies are in scope.",
+      "code": "LOCALE",
       "values": {
+        "tenant": null,
         "languages": [
           "en"
         ],
         "default_language": "en",
         "time_zone": "Africa/Lagos",
-        "country": "NG"
-      }
-    },
-    {
-      "table": "tenant.cfg_locale_defaults",
-      "code": "LOCALE (currency)",
-      "class": "FINANCE",
-      "values": {
+        "country": "NG",
         "base_currency": "NGN"
       },
-      "status": "DRAFT-FOR-REVIEW",
-      "basis_to_check": "ISO 4217: NGN, 2 minor units. Whether USD policies are in scope."
+      "note": " Joined with the non-regulated part (languages, time zone, country), as one record; the row is FINANCE, so all of it is reviewed with the currency. `tenant` is the tenant's own code."
     },
     {
       "table": "workflow.ref_business_calendars",
@@ -36,16 +31,6 @@
         "holiday_calendar": "NG",
         "time_zone": "Africa/Lagos"
       }
-    },
-    {
-      "table": "refdata.ref_public_holiday_calendars",
-      "code": "NG",
-      "class": "OPERATIONAL",
-      "values": {
-        "country": "NG",
-        "dates": null
-      },
-      "note": "Load per year. Several depend on sighting of the moon, so dates are confirmed late."
     },
     {
       "table": "workflow.cfg_case_types",
@@ -61,42 +46,461 @@
     },
     {
       "table": "workflow.cfg_case_timelines",
-      "code": "COMPLAINT_ACKNOWLEDGE, COMPLAINT_RESOLVE",
       "class": "COMPLIANCE",
-      "values": {
-        "ACKNOWLEDGE": null,
-        "RESOLVE": null
-      },
       "status": "DRAFT-FOR-REVIEW",
-      "basis_to_check": "NAICOM guidelines on complaint handling."
+      "basis_to_check": "NAICOM guidelines on complaint handling.",
+      "code": "COMPLAINT_ACKNOWLEDGE",
+      "values": {
+        "case_type_code": "COMPLAINT",
+        "step": "ACKNOWLEDGE",
+        "duration": null,
+        "basis": null,
+        "extension_allowed": null
+      }
+    },
+    {
+      "table": "workflow.cfg_case_timelines",
+      "class": "COMPLIANCE",
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "NAICOM guidelines on complaint handling.",
+      "code": "COMPLAINT_RESOLVE",
+      "values": {
+        "case_type_code": "COMPLAINT",
+        "step": "RESOLVE",
+        "duration": null,
+        "basis": null,
+        "extension_allowed": null
+      }
     },
     {
       "table": "channel.cfg_disclosure_and_notice_texts",
-      "code": "DISC-QUOTE, -ISSUE, -RENEWAL, -CLAIM",
       "class": "COMPLIANCE",
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "NAICOM market conduct rules; which disclosures, at which points.",
+      "code": "DISC-QUOTE",
       "values": {
         "notice_type": null,
         "jurisdiction": "NG",
         "language": "en",
-        "text": null
-      },
+        "text": null,
+        "display_point": "QUOTE",
+        "text_version": null
+      }
+    },
+    {
+      "table": "channel.cfg_disclosure_and_notice_texts",
+      "class": "COMPLIANCE",
       "status": "DRAFT-FOR-REVIEW",
-      "basis_to_check": "NAICOM market conduct rules; which disclosures, at which points."
+      "basis_to_check": "NAICOM market conduct rules; which disclosures, at which points.",
+      "code": "DISC-ISSUE",
+      "values": {
+        "notice_type": null,
+        "jurisdiction": "NG",
+        "language": "en",
+        "text": null,
+        "display_point": "ISSUE",
+        "text_version": null
+      }
+    },
+    {
+      "table": "channel.cfg_disclosure_and_notice_texts",
+      "class": "COMPLIANCE",
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "NAICOM market conduct rules; which disclosures, at which points.",
+      "code": "DISC-RENEWAL",
+      "values": {
+        "notice_type": null,
+        "jurisdiction": "NG",
+        "language": "en",
+        "text": null,
+        "display_point": "RENEWAL",
+        "text_version": null
+      }
+    },
+    {
+      "table": "channel.cfg_disclosure_and_notice_texts",
+      "class": "COMPLIANCE",
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "NAICOM market conduct rules; which disclosures, at which points.",
+      "code": "DISC-CLAIM",
+      "values": {
+        "notice_type": null,
+        "jurisdiction": "NG",
+        "language": "en",
+        "text": null,
+        "display_point": "CLAIM",
+        "text_version": null
+      }
     },
     {
       "table": "communication.cfg_notification_templates",
-      "code": "CLAIM_DECISION_RIGHTS",
       "class": "COMPLIANCE",
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "What a decline must tell the customer in Nigeria.",
+      "code": "CLAIM_DECISION_RIGHTS",
       "values": {
+        "type_code": null,
+        "channel": null,
         "language": "en",
         "body": null
+      }
+    },
+    {
+      "table": "party.cfg_due_diligence_settings",
+      "code": "GATES",
+      "class": "COMPLIANCE",
+      "values": {
+        "gates_enabled": null,
+        "adverse_media_enabled": null
       },
       "status": "DRAFT-FOR-REVIEW",
-      "basis_to_check": "What a decline must tell the customer in Nigeria."
+      "basis_to_check": "Money Laundering (Prevention and Prohibition) Act; NAICOM AML/CFT rules; NFIU reporting."
+    },
+    {
+      "table": "rating.cfg_rounding_and_currency_precision_rules",
+      "class": "FINANCE",
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "Whether regulator or tax rules set a rounding method.",
+      "code": "NGN-2DP",
+      "values": {
+        "rule_code": "NGN-2DP",
+        "currency": "NGN",
+        "step": 0.01,
+        "method": "HALF_UP",
+        "stage": "FINAL_PREMIUM"
+      }
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "Tenant's board-approved limits. ZA figures must not carry over: the values differ by orders of magnitude.",
+      "code": "AUTH-BANK_ACCOUNT_VERIFICATION",
+      "values": {
+        "currency": "NGN"
+      }
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "Tenant's board-approved limits. ZA figures must not carry over: the values differ by orders of magnitude.",
+      "code": "AUTH-CASE_REDRESS",
+      "values": {
+        "currency": "NGN"
+      }
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "Tenant's board-approved limits. ZA figures must not carry over: the values differ by orders of magnitude.",
+      "code": "AUTH-CLAIM_PAYMENT",
+      "values": {
+        "currency": "NGN"
+      }
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "Tenant's board-approved limits. ZA figures must not carry over: the values differ by orders of magnitude.",
+      "code": "AUTH-CLAIM_SETTLEMENT",
+      "values": {
+        "currency": "NGN"
+      }
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "Tenant's board-approved limits. ZA figures must not carry over: the values differ by orders of magnitude.",
+      "code": "AUTH-COMMISSION_STATEMENT",
+      "values": {
+        "currency": "NGN"
+      }
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "Tenant's board-approved limits. ZA figures must not carry over: the values differ by orders of magnitude.",
+      "code": "AUTH-DUE_DILIGENCE_ENHANCED",
+      "values": {
+        "currency": "NGN"
+      }
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "Tenant's board-approved limits. ZA figures must not carry over: the values differ by orders of magnitude.",
+      "code": "AUTH-DUE_DILIGENCE_RISK_OVERRIDE",
+      "values": {
+        "currency": "NGN"
+      }
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "Tenant's board-approved limits. ZA figures must not carry over: the values differ by orders of magnitude.",
+      "code": "AUTH-DUE_DILIGENCE_UNBLOCK",
+      "values": {
+        "currency": "NGN"
+      }
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "Tenant's board-approved limits. ZA figures must not carry over: the values differ by orders of magnitude.",
+      "code": "AUTH-ENDORSEMENT",
+      "values": {
+        "currency": "NGN"
+      }
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "Tenant's board-approved limits. ZA figures must not carry over: the values differ by orders of magnitude.",
+      "code": "AUTH-EXTERNAL_SUBJECT_LINK",
+      "values": {
+        "currency": "NGN"
+      }
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "Tenant's board-approved limits. ZA figures must not carry over: the values differ by orders of magnitude.",
+      "code": "AUTH-GENERAL_NON_RENEWAL",
+      "values": {
+        "currency": "NGN"
+      }
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "Tenant's board-approved limits. ZA figures must not carry over: the values differ by orders of magnitude.",
+      "code": "AUTH-LEGAL_HOLD_RELEASE",
+      "values": {
+        "currency": "NGN"
+      }
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "Tenant's board-approved limits. ZA figures must not carry over: the values differ by orders of magnitude.",
+      "code": "AUTH-LIFE_CLAIM",
+      "values": {
+        "currency": "NGN"
+      }
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "Tenant's board-approved limits. ZA figures must not carry over: the values differ by orders of magnitude.",
+      "code": "AUTH-LIFE_UNDERWRITING",
+      "values": {
+        "currency": "NGN"
+      }
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "Tenant's board-approved limits. ZA figures must not carry over: the values differ by orders of magnitude.",
+      "code": "AUTH-PARTY_MATCH_RESOLUTION",
+      "values": {
+        "currency": "NGN"
+      }
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "Tenant's board-approved limits. ZA figures must not carry over: the values differ by orders of magnitude.",
+      "code": "AUTH-PAYOUT_RELEASE",
+      "values": {
+        "currency": "NGN"
+      }
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "Tenant's board-approved limits. ZA figures must not carry over: the values differ by orders of magnitude.",
+      "code": "AUTH-PERIOD_REOPEN",
+      "values": {
+        "currency": "NGN"
+      }
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "Tenant's board-approved limits. ZA figures must not carry over: the values differ by orders of magnitude.",
+      "code": "AUTH-PRIVILEGED_ROLE",
+      "values": {
+        "currency": "NGN"
+      }
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "Tenant's board-approved limits. ZA figures must not carry over: the values differ by orders of magnitude.",
+      "code": "AUTH-PRODUCT_PUBLICATION",
+      "values": {
+        "currency": "NGN"
+      }
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "Tenant's board-approved limits. ZA figures must not carry over: the values differ by orders of magnitude.",
+      "code": "AUTH-PROVIDER_CREDIT_NOTE",
+      "values": {
+        "currency": "NGN"
+      }
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "Tenant's board-approved limits. ZA figures must not carry over: the values differ by orders of magnitude.",
+      "code": "AUTH-PROVIDER_PAYMENT_RUN",
+      "values": {
+        "currency": "NGN"
+      }
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "Tenant's board-approved limits. ZA figures must not carry over: the values differ by orders of magnitude.",
+      "code": "AUTH-PROVIDER_RECOVERY_FINDING",
+      "values": {
+        "currency": "NGN"
+      }
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "Tenant's board-approved limits. ZA figures must not carry over: the values differ by orders of magnitude.",
+      "code": "AUTH-PROVIDER_RECOVERY_WRITE_OFF",
+      "values": {
+        "currency": "NGN"
+      }
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "Tenant's board-approved limits. ZA figures must not carry over: the values differ by orders of magnitude.",
+      "code": "AUTH-REFUND",
+      "values": {
+        "currency": "NGN"
+      }
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "Tenant's board-approved limits. ZA figures must not carry over: the values differ by orders of magnitude.",
+      "code": "AUTH-STATIC_DATA_T1",
+      "values": {
+        "currency": "NGN"
+      }
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "Tenant's board-approved limits. ZA figures must not carry over: the values differ by orders of magnitude.",
+      "code": "AUTH-STATIC_DATA_T2",
+      "values": {
+        "currency": "NGN"
+      }
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "Tenant's board-approved limits. ZA figures must not carry over: the values differ by orders of magnitude.",
+      "code": "AUTH-TENANT_ADMINISTRATOR",
+      "values": {
+        "currency": "NGN"
+      }
+    },
+    {
+      "table": "workflow.cfg_delegation_and_approval_authority",
+      "class": "FINANCE",
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "Tenant's board-approved limits. ZA figures must not carry over: the values differ by orders of magnitude.",
+      "code": "AUTH-UNKNOWN_PAYMENT_RESOLUTION",
+      "values": {
+        "currency": "NGN"
+      }
+    },
+    {
+      "table": "payment.ref_payment_methods",
+      "class": "FINANCE",
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "Whether cash-before-cover (\"no premium, no cover\") rules out arrears-based cover.",
+      "code": "COLLECT",
+      "values": {
+        "method_code": "COLLECT",
+        "direction": "COLLECT",
+        "currencies": [
+          "NGN"
+        ],
+        "countries": [
+          "NG"
+        ]
+      }
+    },
+    {
+      "table": "payment.ref_payment_methods",
+      "class": "FINANCE",
+      "status": "DRAFT-FOR-REVIEW",
+      "basis_to_check": "Whether cash-before-cover (\"no premium, no cover\") rules out arrears-based cover.",
+      "code": "PAY",
+      "values": {
+        "method_code": "PAY",
+        "direction": "PAY",
+        "currencies": [
+          "NGN"
+        ],
+        "countries": [
+          "NG"
+        ]
+      }
+    }
+  ],
+  "pending": [
+    {
+      "table": "refdata.ref_public_holiday_calendars",
+      "was": "NG",
+      "class": "OPERATIONAL",
+      "values": {
+        "country": "NG",
+        "dates": null
+      },
+      "note": "Load per year. Several depend on sighting of the moon, so dates are confirmed late.",
+      "basis_to_check": null,
+      "why": "a platform-wide table (one row per holiday date), and no dates are given yet"
     },
     {
       "table": "party.ref_identity_document_types",
-      "code": "(rows)",
+      "was": "(rows)",
       "class": "COMPLIANCE",
       "values": {
         "candidates": [
@@ -111,78 +515,73 @@
         "check_digit_rule": null,
         "issuer": null
       },
-      "status": "DRAFT-FOR-REVIEW",
-      "basis_to_check": "Which documents NAICOM and NFIU rules accept; formats."
-    },
-    {
-      "table": "party.cfg_due_diligence_settings",
-      "code": "GATES",
-      "class": "COMPLIANCE",
-      "values": {
-        "gates_enabled": null,
-        "adverse_media_enabled": null
-      },
-      "status": "DRAFT-FOR-REVIEW",
-      "basis_to_check": "Money Laundering (Prevention and Prohibition) Act; NAICOM AML/CFT rules; NFIU reporting."
+      "note": null,
+      "basis_to_check": "Which documents NAICOM and NFIU rules accept; formats.",
+      "why": "candidate document types for review, not records yet (which ones exist is compliance's)"
     },
     {
       "table": "party.cfg_consent_purposes",
-      "code": "(rows)",
+      "was": "(rows)",
       "class": "COMPLIANCE",
       "values": {
         "jurisdiction": "NG",
         "purposes": null
       },
-      "status": "DRAFT-FOR-REVIEW",
-      "basis_to_check": "Nigeria Data Protection Act 2023; NDPC."
+      "note": null,
+      "basis_to_check": "Nigeria Data Protection Act 2023; NDPC.",
+      "why": "no record yet: the row names what to review (purposes)"
     },
     {
       "table": "party.cfg_record_retention_policies",
-      "code": "(rows)",
+      "was": "(rows)",
       "class": "COMPLIANCE",
       "values": {
         "jurisdiction": "NG",
         "retention": null
       },
-      "status": "DRAFT-FOR-REVIEW",
-      "basis_to_check": "Retention periods in insurance, AML, tax and data protection law. The platform default is the ZA working value: this row must replace it."
+      "note": null,
+      "basis_to_check": "Retention periods in insurance, AML, tax and data protection law. The platform default is the ZA working value: this row must replace it.",
+      "why": "no record yet: the row names what to review (retention)"
     },
     {
       "table": "audit.cfg_audit_retention_policies",
-      "code": "(rows)",
+      "was": "(rows)",
       "class": "COMPLIANCE",
       "values": {
         "jurisdiction": "NG",
         "retention": null
       },
-      "status": "DRAFT-FOR-REVIEW",
-      "basis_to_check": "As above."
+      "note": null,
+      "basis_to_check": "As above.",
+      "why": "no record yet: the row names what to review (retention)"
     },
     {
       "table": "document.cfg_retention_schedules",
-      "code": "(rows)",
+      "was": "(rows)",
       "class": "COMPLIANCE",
       "values": {
         "jurisdiction": "NG",
         "retention": null
       },
-      "status": "DRAFT-FOR-REVIEW",
-      "basis_to_check": "As above."
+      "note": null,
+      "basis_to_check": "As above.",
+      "why": "no record yet: the row names what to review (retention)"
     },
     {
       "table": "reporting.cfg_compliance_register_entries",
-      "code": "(rows)",
+      "was": "(rows)",
       "class": "COMPLIANCE",
       "values": {
         "jurisdiction": "NG",
         "entries": null
       },
-      "status": "DRAFT-FOR-REVIEW",
-      "basis_to_check": "NAICOM returns and their deadlines."
+      "note": null,
+      "basis_to_check": "NAICOM returns and their deadlines.",
+      "why": "no record yet: the row names what to review (entries)"
     },
     {
       "table": "rating.cfg_premium_tax_and_levy_rates",
-      "code": "(rows)",
+      "was": "(rows)",
       "class": "FINANCE",
       "values": {
         "tax_code": null,
@@ -191,12 +590,13 @@
         "base": null,
         "rounding": "NGN-2DP"
       },
-      "status": "DRAFT-FOR-REVIEW",
-      "basis_to_check": "VAT treatment of each insurance class; NAICOM levy; any other levy."
+      "note": null,
+      "basis_to_check": "VAT treatment of each insurance class; NAICOM levy; any other levy.",
+      "why": "no record yet: the row names what to review (tax_code, rate, base, rounding)"
     },
     {
       "table": "finance.cfg_tax_codes_on_financial_transactions",
-      "code": "(rows)",
+      "was": "(rows)",
       "class": "FINANCE",
       "values": {
         "tax_code": null,
@@ -204,62 +604,19 @@
         "rate": null,
         "account": null
       },
-      "status": "DRAFT-FOR-REVIEW",
-      "basis_to_check": "VAT and withholding on commission and on fees."
-    },
-    {
-      "table": "rating.cfg_rounding_and_currency_precision_rules",
-      "code": "NGN-2DP",
-      "class": "FINANCE",
-      "values": {
-        "currency": "NGN",
-        "step": 0.01,
-        "method": "HALF_UP",
-        "stage": "FINAL_PREMIUM"
-      },
-      "status": "DRAFT-FOR-REVIEW",
-      "basis_to_check": "Whether regulator or tax rules set a rounding method."
-    },
-    {
-      "table": "workflow.cfg_delegation_and_approval_authority",
-      "code": "APPROVER_*",
-      "class": "FINANCE",
-      "values": {
-        "limit_value": null,
-        "currency": "NGN"
-      },
-      "status": "DRAFT-FOR-REVIEW",
-      "basis_to_check": "Tenant's board-approved limits. ZA figures must not carry over: the values differ by orders of magnitude."
-    },
-    {
-      "table": "payment.ref_payment_methods",
-      "code": "COLLECT, PAY",
-      "class": "FINANCE",
-      "values": {
-        "currencies": [
-          "NGN"
-        ],
-        "countries": [
-          "NG"
-        ]
-      },
-      "status": "DRAFT-FOR-REVIEW",
-      "basis_to_check": "Whether cash-before-cover (\"no premium, no cover\") rules out arrears-based cover."
+      "note": null,
+      "basis_to_check": "VAT and withholding on commission and on fees.",
+      "why": "no record yet: the row names what to review (tax_code, rate, account)"
     },
     {
       "table": "billing.cfg_arrears_ageing_buckets",
-      "code": "B1, B2",
-      "class": "FINANCE",
-      "values": {
-        "note": "Replaces the base pack if premium must be paid before cover."
-      },
-      "note": "The base pack lets premium run in arrears. If the rule applies, General needs checking against it: grace, instalments, and cover before payment.",
-      "status": "DRAFT-FOR-REVIEW",
-      "basis_to_check": "NAICOM \"no premium, no cover\" rule."
+      "was": "B1, B2",
+      "note": "Replaces the base pack if premium must be paid before cover.",
+      "why": "a note on the base's buckets, not a value"
     },
     {
       "table": "billing.ref_collection_methods",
-      "code": "(rows)",
+      "was": "(rows)",
       "class": "OPERATIONAL",
       "values": {
         "candidates": [
@@ -270,30 +627,32 @@
         ],
         "lead_time": null
       },
-      "note": "Depends on the chosen provider."
+      "note": "Depends on the chosen provider.",
+      "basis_to_check": null,
+      "why": "no record yet: the row names what to review (candidates, lead_time)"
     },
     {
       "table": "reinsurance.cfg_treaty_definitions",
-      "code": "(rows)",
+      "was": "(rows)",
       "class": "FINANCE",
       "values": {
         "capacity": null,
         "currency": null
       },
       "note": "capacity has no currency column.",
-      "status": "DRAFT-FOR-REVIEW",
-      "basis_to_check": "Local-content rules on placing reinsurance abroad."
+      "basis_to_check": "Local-content rules on placing reinsurance abroad.",
+      "why": "no record yet: the row names what to review (capacity, currency)"
     },
     {
       "table": "general.cfg_settlement_authority_limits",
-      "code": "(rows)",
+      "was": "(rows)",
       "class": "FINANCE",
       "values": {
         "limit_value": null
       },
       "note": "limit_value has no currency column.",
-      "status": "DRAFT-FOR-REVIEW",
-      "basis_to_check": "Tenant's limits."
+      "basis_to_check": "Tenant's limits.",
+      "why": "no record yet: the row names what to review (limit_value)"
     }
   ]
 }

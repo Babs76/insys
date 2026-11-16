@@ -291,9 +291,9 @@ public sealed class AssistSetupSubmissionTests(DatabaseFixture fixture) : IClass
         await fixture.Database.UserWithFunctions(DatabaseFixture.Operator, "ss-lead", "ASSIST_OVERLAY_APPROVE");
         var manager = host.ClientFor(DatabaseFixture.Operator, "ss-mgr");
         var lead = host.ClientFor(DatabaseFixture.Operator, "ss-lead");
-        // The platform approves the base for every tenant. The motor line is the tenant's own (the fallback, D-19): a value a platform line leaves empty can't
-        // be given by a tenant while that line is approved (the country layer comes before the lines), so AM comes from the tenant's own motor version.
-        foreach (var file in new[] { "base.json" })
+        // The platform approves the base and the motor line for every tenant. The tenant's own overlay, approved by its compliance officer (D-19), comes last
+        // (OQ-181): it fills what they leave empty, AM among them, and can't change what they give.
+        foreach (var file in new[] { "base.json", "overlays/line-general-motor.json" })
         {
             var loaded = await manager.Send(HttpMethod.Post, "/api/v1/assist/overlays", File(file), idempotent: true);
             loaded.StatusCode.ShouldBe(HttpStatusCode.Created, await loaded.Content.ReadAsStringAsync());
@@ -307,11 +307,13 @@ public sealed class AssistSetupSubmissionTests(DatabaseFixture fixture) : IClass
         var (tenant, user) = await Customer();
         var loader = await user("ss-loader", ["ASSIST_TENANT_SETUP_RUN"]);
         var officer = await user("ss-officer", ["ASSIST_OVERLAY_APPROVE_TENANT"]);
-        var motor = File("overlays/line-general-motor.json");
+        var overrideAttempt = System.Text.Json.Nodes.JsonNode.Parse("""
+            {"table":"finance.cfg_posting_rules","code":"PR-1","class":"FINANCE","values":{"debit_account":"9999"},"note":"Tries to change a platform-approved regulated value."}
+            """)!.AsObject();
         foreach (var pack in new[]
                  {
-                     JsonSerializer.SerializeToElement(new { pack = "XQ", kind = "COUNTRY", status = "DRAFT", rows = Filled("base.json", all: false).Concat(Templates()) }),
-                     JsonSerializer.SerializeToElement(new { pack = motor.GetProperty("pack").GetString(), kind = "LINE", status = "DRAFT", rows = Filled("overlays/line-general-motor.json", all: true) }),
+                     JsonSerializer.SerializeToElement(new { pack = "XQ", kind = "COUNTRY", status = "DRAFT",
+                         rows = Filled("base.json", all: false).Concat(Filled("overlays/line-general-motor.json", all: false)).Concat(Templates()).Append(overrideAttempt) }),
                  })
         {
             var own = await loader.Send(HttpMethod.Post, "/api/v1/assist/packs", pack, idempotent: true);
@@ -323,6 +325,11 @@ public sealed class AssistSetupSubmissionTests(DatabaseFixture fixture) : IClass
 
         var wizard = await user("ss-runner", ["ASSIST_TENANT_SETUP_RUN"]);
         var (id, run) = await AcceptAll(wizard, new { country = "XQ", lines = new[] { "GENERAL" } });
+        var pr1 = run.GetProperty("values").EnumerateArray().Single(v => v.GetProperty("table").GetString() == "finance.cfg_posting_rules" && v.GetProperty("code").GetString() == "PR-1");
+        pr1.GetProperty("values").GetProperty("debit_account").GetString().ShouldBe("1100", "the tenant's overlay can't override a platform-approved regulated value");
+        var am = run.GetProperty("values").EnumerateArray().Single(v => v.GetProperty("code").GetString() == "AM");
+        (am.GetProperty("flag").GetString(), am.GetProperty("values").GetProperty("role_code").GetString()).ShouldBe(("PACK", "APPROVER"),
+            "the motor line's null AM no longer erases the value the tenant's overlay gives");
         run.GetProperty("missing").GetInt32().ShouldBe(0, "every value the packs leave empty comes from the tenant's approved overlay: "
             + string.Join(", ", run.GetProperty("values").EnumerateArray().Where(v => v.GetProperty("flag").GetString() == "MISSING")
                 .Select(v => $"{v.GetProperty("table").GetString()} {v.GetProperty("code").GetString()} {v.GetProperty("missingReason").GetString()}")));
@@ -359,7 +366,7 @@ public sealed class AssistSetupSubmissionTests(DatabaseFixture fixture) : IClass
         (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM sdm.change_request WHERE tenant_id = @t AND setup_set_id = @s AND status = 'ACTIVE'", ("t", tenant), ("s", setId)))
             .ShouldBe(order.Count);
         (await fixture.Database.ScalarAsOwner<string>("SELECT record_status FROM rules.cfg_authority_matrices WHERE tenant_id = @t AND code = 'AM'", ("t", tenant)))
-            .ShouldBe("PUBLISHED", "AM came only from the tenant's own approved motor version");
+            .ShouldBe("PUBLISHED", "AM came only from the tenant's own approved overlay");
     }
 
     [Fact]

@@ -1395,13 +1395,19 @@ Raised by the read-scope sweep (`docs/reviews/read-scope-sweep.md`, at `06ecae1`
 - Nothing in INSYS changes a submitted batch's lines, so this needs an outside change (a direct database edit), but then there is no way out.
 - To decide: whether, and by whom, the rest of such a set is abandoned (what is already in force stays, as posted static data is never undone), and which function allows it. It's a permission, so it isn't built.
 
-**OQ-181: how does an overlay give a value an earlier or later layer leaves empty? Open, for Ade.**
+**OQ-181: how does an overlay give a value an earlier or later layer leaves empty? Decided (Ade, 16 November): merge field by field, where a null means "no change". The layers are base, lines, then country, then the tenant's own approved overlay, which fills only values still empty and never replaces a regulated value from a platform-approved version.**
+- Built on branch `setup-layers` (`SetupAssembly`), with the NG and ZA overlays corrected for it.
+- Interpretation: a tenant's own version still in draft fills as a platform draft does, never with a regulated value. That is how 7.6 used a tenant's draft, and it keeps "whoever ran a setup with it can't approve it".
+- As first recorded:
 - **Merge or replace.** The country overlays (`ng.json`, `za.json`) are written to merge their fields into the base row; for example, the calendar row gives only `holiday_calendar` and `time_zone`. The assembly (7.6) replaces the whole row instead, so as written they drop the base row's other fields. Either (a) overlays hold complete rows, a format correction, or (b) the assembly merges fields, a change to 7.6.
 - **A line's empty regulated value.** The layers are base, then country, then lines. While the platform's version of a line is approved, a tenant's own version of it isn't used (7.6, "newest approved for every tenant, else the tenant's own"). So a regulated value that the platform line leaves empty, such as the motor line's `rules.cfg_authority_matrices` `AM`, can't be given by any tenant overlay, and every setup with that line stops at Missing.
 - 7.7's full-set test therefore uses the fallback route (D-19): the platform approves only the base, and the tenant's own motor version, approved by its compliance officer, gives `AM`.
 - To decide: whether a tenant's own approved overlay may give the values a platform layer leaves empty, and in which layer.
 
-**OQ-182: the case notification templates' wording and the APPROVER role's grants (from the format correction). Open, for compliance and Ade.**
+**OQ-182: the case notification templates' wording and the APPROVER role's grants (from the format correction). Decided (Ade, 16 November):**
+- **Templates:** proposed wording, using only the merge fields the types offer, is in each template's note, marked for compliance review. The body stays null, and so Missing, until compliance reviews it.
+- **APPROVER:** the pack keeps no grants. The tenant administrator grants its functions during onboarding.
+- As first recorded:
 - `CASE_ACKNOWLEDGED_EN`, `CASE_UPDATE_EN` and `CASE_DECISION_EN` use `{subject}` in their body, which these types don't offer, so the import refuses them. It's wording, so it wasn't changed.
 - The base's `APPROVER` role loads with no grants. Its list of permission codes is in the row's note. Which functions it gets (ADR-026) is a permissions decision.
 

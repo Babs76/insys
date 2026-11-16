@@ -53,48 +53,156 @@ public sealed record SetupAnswers(string Country, IReadOnlyList<string> Lines, I
 /// <summary>One drafted value, before it is stored.</summary>
 public sealed record DraftValue(string Table, string Code, string Class, bool Regulated, string Flag, string? Values, Guid? SourcePackId, int? SourceLineNo, string? MissingReason);
 
-/// <summary>A pack version as the assembly uses it: its rows, and whether it is approved for this tenant.</summary>
-public sealed record AssemblyLayer(StarterPack Pack, IReadOnlyList<StarterPackValue> Rows, bool ApprovedForTenant);
+/// <summary>A pack version as the assembly uses it: its rows, whether it is approved for this tenant, and whether it only fills values still empty.</summary>
+/// <param name="Fill">The tenant's own approved version (Ade, 16 November, OQ-181): applied last, it fills only values still empty, never replacing one.</param>
+public sealed record AssemblyLayer(StarterPack Pack, IReadOnlyList<StarterPackValue> Rows, bool ApprovedForTenant, bool Fill = false);
+
+/// <summary>A version the draft uses, and whether as a fill layer (the tenant's own approved, last).</summary>
+public sealed record ChosenPack(StarterPack Pack, bool Fill);
 
 /// <summary>
-/// The deterministic assembly (AIA-082, AIA-087): the base pack, then the country's overlay (after the regional one it builds on), then each line's; a later
-/// layer's row replaces an earlier one with the same table and code. No value is computed: each is copied from its pack, or left Missing.
+/// The deterministic assembly (AIA-082, AIA-087; layers and merging decided by Ade, 16 November, OQ-181). No value is computed: each is copied from a pack,
+/// or left empty.
 /// <list type="bullet">
-/// <item>A regulated row from a version not approved for this tenant is Missing (NOT_APPROVED, ASSIST_PACK_NOT_APPROVED), its value not filled. In such a
-/// version, a FINANCE or COMPLIANCE row is regulated whatever its mark says, as nobody has confirmed the mark (D-20); and a row regulated in a lower layer
-/// stays regulated, so an overlay can't unmark what the base marks.</item>
-/// <item>A regulated row the pack leaves empty (a null or empty value) is Missing (NO_VALUE): only a reviewed overlay or the tenant can give it.</item>
-/// <item>Anything else is Pack, copied as it is.</item>
+/// <item>The layers are the base, then each line, then the country (after the regional overlay it builds on), each the platform's version; then the tenant's
+/// own approved versions of the same packs, last.</item>
+/// <item>A later layer's row merges into the earlier one with the same table and code, field by field. A null in a row means "no change", never "set to
+/// null", so a line's empty value never erases what another layer gives.</item>
+/// <item>A regulated field from a version not approved for this tenant is never used (NOT_APPROVED, ASSIST_PACK_NOT_APPROVED): the field is left empty,
+/// even where an earlier layer gave it. In such a version a FINANCE or COMPLIANCE row is regulated whatever its mark (D-20), and a row regulated in a lower
+/// layer stays regulated.</item>
+/// <item>The tenant's own layers only fill fields still empty, so they never replace a value, a regulated one from a platform-approved version least of
+/// all. They may add rows no other layer has. A tenant's draft fills as a platform draft does: never with a regulated value.</item>
+/// <item>A regulated row with a field still empty (a null or empty text) is Missing: NOT_APPROVED if an unapproved version's value was left out, else
+/// NO_VALUE. Anything else is Pack.</item>
 /// </list>
 /// </summary>
 public static class SetupAssembly
 {
+    private sealed class Draft(string @class)
+    {
+        public string Class { get; set; } = @class;
+        public bool Regulated { get; set; }
+        public Dictionary<string, System.Text.Json.Nodes.JsonNode?> Fields { get; } = new(StringComparer.Ordinal);
+        public List<string> Order { get; } = [];
+        public HashSet<string> NotApproved { get; } = new(StringComparer.Ordinal);
+        public Guid SourcePackId { get; set; }
+        public int SourceLineNo { get; set; }
+
+        public bool IsEmpty(string field) => Fields[field] is null || (Fields[field] is System.Text.Json.Nodes.JsonValue v && v.TryGetValue<string>(out var text) && text.Length == 0);
+    }
+
+    /// <summary>
+    /// A layer names a field with no value, and changes nothing. Why it is still empty: a regulated value an unapproved version leaves empty is NOT_APPROVED;
+    /// once an approved version names it empty too, it is NO_VALUE, as no approved value exists.
+    /// </summary>
+    private static void Unset(Draft draft, string field, AssemblyLayer layer)
+    {
+        if (!draft.Fields.ContainsKey(field) || !draft.IsEmpty(field))
+        {
+            return;
+        }
+
+        if (layer.ApprovedForTenant)
+        {
+            draft.NotApproved.Remove(field);
+        }
+        else if (draft.Regulated)
+        {
+            draft.NotApproved.Add(field);
+        }
+    }
+
     public static IReadOnlyList<DraftValue> Assemble(IReadOnlyList<AssemblyLayer> layers)
     {
-        var rows = new Dictionary<(string, string), (AssemblyLayer Layer, StarterPackValue Row, bool Regulated)>();
+        var rows = new Dictionary<(string, string), Draft>();
         var order = new List<(string, string)>();
         foreach (var layer in layers)
         {
             foreach (var row in layer.Rows.OrderBy(r => r.LineNo))
             {
                 var key = (row.TableName, row.RowCode);
-                var below = rows.TryGetValue(key, out var earlier) && earlier.Regulated;
-                if (!rows.ContainsKey(key))
+                var created = !rows.TryGetValue(key, out var draft);
+                if (created)
                 {
+                    rows[key] = draft = new Draft(row.Class);
                     order.Add(key);
                 }
 
-                var regulated = row.Regulated || below || (!layer.ApprovedForTenant && row.Class is "FINANCE" or "COMPLIANCE");
-                rows[key] = (layer, row, regulated);
+                // Marks only ever tighten: a row regulated below stays so, and an unapproved version's FINANCE or COMPLIANCE row is regulated (D-20).
+                draft!.Regulated = draft.Regulated || row.Regulated || (!layer.ApprovedForTenant && row.Class is "FINANCE" or "COMPLIANCE");
+                if (!layer.Fill)
+                {
+                    draft.Class = row.Class;
+                }
+
+                using var document = JsonDocument.Parse(row.Values);
+                if (document.RootElement.ValueKind != JsonValueKind.Object)
+                {
+                    continue;
+                }
+
+                var contributed = false;
+                foreach (var field in document.RootElement.EnumerateObject())
+                {
+                    // "No change": a null adds nothing, unless this layer brings the row, whose nulls mark the values still to be given.
+                    if (field.Value.ValueKind == JsonValueKind.Null && !created)
+                    {
+                        Unset(draft, field.Name, layer);
+                        continue;
+                    }
+
+                    if (!draft.Fields.ContainsKey(field.Name))
+                    {
+                        draft.Fields[field.Name] = null;
+                        draft.Order.Add(field.Name);
+                    }
+
+                    if (field.Value.ValueKind == JsonValueKind.Null)
+                    {
+                        Unset(draft, field.Name, layer);
+                        continue;
+                    }
+
+                    if (layer.Fill && !draft.IsEmpty(field.Name))
+                    {
+                        continue; // never replaces a value
+                    }
+
+                    if (draft.Regulated && !layer.ApprovedForTenant)
+                    {
+                        draft.Fields[field.Name] = null;
+                        draft.NotApproved.Add(field.Name);
+                        contributed = true;
+                        continue;
+                    }
+
+                    draft.Fields[field.Name] = System.Text.Json.Nodes.JsonNode.Parse(field.Value.GetRawText());
+                    draft.NotApproved.Remove(field.Name);
+                    contributed = true;
+                }
+
+                if (contributed || draft.SourcePackId == Guid.Empty)
+                {
+                    (draft.SourcePackId, draft.SourceLineNo) = (layer.Pack.Id, row.LineNo);
+                }
             }
         }
 
         return [.. order.Select(key =>
         {
-            var (layer, row, regulated) = rows[key];
-            var missing = !regulated ? null : !layer.ApprovedForTenant ? MissingReasons.NotApproved : Empty(row.Values) ? MissingReasons.NoValue : null;
-            return new DraftValue(row.TableName, row.RowCode, row.Class, regulated, missing is null ? ItemFlags.Pack : ItemFlags.Missing, missing is null ? row.Values : null,
-                layer.Pack.Id, row.LineNo, missing);
+            var draft = rows[key];
+            var empty = draft.Order.Where(draft.IsEmpty).ToList();
+            var missing = !draft.Regulated || (empty.Count > 0 || draft.Fields.Count == 0) is false ? null
+                : empty.Any(draft.NotApproved.Contains) ? MissingReasons.NotApproved : MissingReasons.NoValue;
+            var values = new System.Text.Json.Nodes.JsonObject();
+            foreach (var field in draft.Order)
+            {
+                values[field] = draft.Fields[field]?.DeepClone();
+            }
+
+            return new DraftValue(key.Item1, key.Item2, draft.Class, draft.Regulated, missing is null ? ItemFlags.Pack : ItemFlags.Missing,
+                missing is null ? values.ToJsonString() : null, draft.SourcePackId, draft.SourceLineNo, missing);
         })];
     }
 
@@ -108,43 +216,63 @@ public static class SetupAssembly
     }
 
     /// <summary>
-    /// The versions a tenant's draft uses, in layer order: for each pack, the newest approved for every tenant, else the newest the tenant approved for itself,
-    /// else the newest it may read (whose regulated rows are then Missing).
+    /// The versions a tenant's draft uses, in layer order (Ade, 16 November, OQ-181): the base, each line, the regional overlay and the country, each the
+    /// platform's newest approved version, else its newest draft (whose regulated values are then left empty); then, as fill layers, the tenant's own newest
+    /// approved version of each of those packs, else its newest draft, whose regulated values are never used either (NOT_APPROVED).
     /// </summary>
-    public static IReadOnlyList<StarterPack> Choose(IReadOnlyList<StarterPack> readable, SetupAnswers answers, Guid tenant)
+    public static IReadOnlyList<ChosenPack> Choose(IReadOnlyList<StarterPack> readable, SetupAnswers answers, Guid tenant)
     {
-        StarterPack? Best(Func<StarterPack, bool> which)
+        var codes = new List<string>();
+        void Add(string? code)
         {
-            var candidates = readable.Where(which).ToList();
-            return candidates.Where(p => p.Status == PackStatuses.Approved && p.Scope == PackScopes.AllTenants).MaxBy(p => p.Version)
-                ?? candidates.Where(p => p.Status == PackStatuses.Approved && p.TenantId == tenant).MaxBy(p => p.Version)
-                ?? candidates.MaxBy(p => (p.TenantId == tenant ? 1 : 0, p.Version));
-        }
-
-        var chosen = new List<StarterPack>();
-        if (Best(p => p.Kind == PackKinds.Base) is { } basePack)
-        {
-            chosen.Add(basePack);
-        }
-
-        if (Best(p => p.Kind == PackKinds.Country && string.Equals(p.Country, answers.Country, StringComparison.OrdinalIgnoreCase)) is { } country)
-        {
-            if (country.BuildsOn is { } region && Best(p => p.PackCode == region) is { } regional)
+            if (code is not null && !codes.Contains(code, StringComparer.Ordinal))
             {
-                chosen.Add(regional);
+                codes.Add(code);
             }
-
-            chosen.Add(country);
         }
 
+        Add(readable.Where(p => p.Kind == PackKinds.Base).Select(p => p.PackCode).Order(StringComparer.Ordinal).FirstOrDefault());
         foreach (var line in answers.Lines.Select(l => l.ToUpperInvariant()).Distinct().Order(StringComparer.Ordinal))
         {
-            chosen.AddRange(readable.Where(p => p.Kind == PackKinds.Line && p.Line == line).Select(p => p.PackCode).Distinct().Order(StringComparer.Ordinal)
-                .Select(code => Best(p => p.PackCode == code)).OfType<StarterPack>());
+            foreach (var code in readable.Where(p => p.Kind == PackKinds.Line && p.Line == line).Select(p => p.PackCode).Distinct().Order(StringComparer.Ordinal))
+            {
+                Add(code);
+            }
+        }
+
+        var country = readable.Where(p => p.Kind == PackKinds.Country && string.Equals(p.Country, answers.Country, StringComparison.OrdinalIgnoreCase))
+            .Select(p => p.PackCode).Distinct().Order(StringComparer.Ordinal).FirstOrDefault();
+        if (country is not null && readable.Where(p => p.PackCode == country).Select(p => p.BuildsOn).FirstOrDefault(b => b is not null) is { } region)
+        {
+            Add(region);
+        }
+
+        Add(country);
+        var chosen = new List<ChosenPack>();
+        foreach (var code in codes)
+        {
+            var platform = readable.Where(p => p.PackCode == code && p.Scope == PackScopes.AllTenants).ToList();
+            if ((platform.Where(p => p.Status == PackStatuses.Approved).MaxBy(p => p.Version) ?? platform.MaxBy(p => p.Version)) is { } layer)
+            {
+                chosen.Add(new ChosenPack(layer, Fill: false));
+            }
+        }
+
+        foreach (var code in codes)
+        {
+            var mine = readable.Where(p => p.PackCode == code && p.TenantId == tenant && p.Scope != PackScopes.AllTenants).ToList();
+            if ((mine.Where(p => p.Status == PackStatuses.Approved).MaxBy(p => p.Version) ?? mine.MaxBy(p => p.Version)) is { } own)
+            {
+                chosen.Add(new ChosenPack(own, Fill: true));
+            }
         }
 
         return chosen;
     }
+
+    /// <summary>The same values as JSON, whatever the order of their keys: a stored value comes back in jsonb's order.</summary>
+    public static bool SameValues(string? a, string? b) =>
+        a == b || (a is not null && b is not null && System.Text.Json.Nodes.JsonNode.DeepEquals(System.Text.Json.Nodes.JsonNode.Parse(a), System.Text.Json.Nodes.JsonNode.Parse(b)));
 
     public static bool ApprovedFor(StarterPack pack, Guid tenant) =>
         pack.Status == PackStatuses.Approved && (pack.Scope == PackScopes.AllTenants || pack.TenantId == tenant);
@@ -247,7 +375,7 @@ internal sealed class TenantSetupHandlers(ISetupRuns runs, IStarterPacks packs, 
         {
             if (existing.Remove((d.Table, d.Code), out var item))
             {
-                if (!item.InDraft || !item.Same(d.Flag, d.Values, d.SourcePackId, d.SourceLineNo) || item.Regulated != d.Regulated)
+                if (!item.InDraft || !item.Same(d.Flag, d.Values, d.SourcePackId, d.SourceLineNo, SetupAssembly.SameValues) || item.Regulated != d.Regulated)
                 {
                     item.Redraft(run.AnswersVersion, d.Class, d.Regulated, d.Flag, d.Values, d.SourcePackId, d.SourceLineNo, d.MissingReason);
                 }
@@ -338,12 +466,12 @@ internal sealed class TenantSetupHandlers(ISetupRuns runs, IStarterPacks packs, 
         var current = tenant.RequireTenantId();
         var chosen = SetupAssembly.Choose(await packs.List(null, cancellationToken), answers, current);
         var layers = new List<AssemblyLayer>();
-        foreach (var pack in chosen)
+        foreach (var (pack, fill) in chosen)
         {
-            layers.Add(new AssemblyLayer(pack, await packs.Rows(pack.Id, cancellationToken), SetupAssembly.ApprovedFor(pack, current)));
+            layers.Add(new AssemblyLayer(pack, await packs.Rows(pack.Id, cancellationToken), SetupAssembly.ApprovedFor(pack, current), fill));
         }
 
-        return ([.. chosen.Select(p => p.Id)], SetupAssembly.Assemble(layers));
+        return ([.. chosen.Select(c => c.Pack.Id)], SetupAssembly.Assemble(layers));
     }
 
     private void Audit(string operation, SetupRun run) =>

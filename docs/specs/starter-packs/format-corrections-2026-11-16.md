@@ -32,15 +32,60 @@
 | `base.json` | `claims.ref_claim_decision_reason_codes` | `SETTLE, PART-EXCL` | `SETTLE`, `PART-EXCL` | split into one row per record, each record's values from under its code (not a field) |
 | `overlays/line-general-motor.json` | `rating.cfg_rating_tables` | `BASE` | `BASE` | `table_code` added (the row code) |
 
-## Not corrected: content, for Ade and compliance
-- **`communication.cfg_notification_templates` `CASE_ACKNOWLEDGED_EN`, `CASE_UPDATE_EN`, `CASE_DECISION_EN`:** the body `{subject}. Sign in to see it.` uses `{subject}`, which these notification types don't offer. They offer sender_identity, portal_link, case_number, case_type, expected_date, decision_reasons, review_options, ombud_details and representations_deadline, so the import refuses the body. It is compliance wording, a value, so it isn't changed here.
+## The country overlays (Ade, 16 November, OQ-181)
+**Decided:**
+- Overlays merge into the earlier row field by field, and a null in an overlay means "no change", never "set to null".
+- The layers are the base, then the lines, then the country.
+- After them comes the tenant's own approved overlay. It fills only values still empty, and never replaces a regulated value from a platform-approved version.
 
-## Not corrected: the country overlays, for Ade
+`ng.json` and `za.json` rows that give only the fields they change are therefore correct as written (the calendar, the complaint type, the limits' currency). What changed is below.
 
-`overlays/ng.json` and `overlays/za.json` are written to be merged into the base. Their rows give only the fields that differ: the `CAL` calendar row gives `holiday_calendar` and `time_zone`, and the `APPROVER_*` authority row gives `limit_value` and `currency`. The assembly (7.6) and this README say a later layer's row *replaces* the earlier one with the same table and code. So such a row would drop the base row's other fields, and the import would refuse it. NG also holds placeholder rows (`(rows)`, `candidates`, `retention`) that aren't records yet.
+Rows that name what to review but hold no record yet went to a new `pending` list in the file, which isn't loaded. These are candidate document types, retention, register entries, taxes and treaties. Which records exist is compliance's call.
 
-Correcting them needs a decision first:
-- **(a)** overlays hold complete rows (a format correction like this one); or
-- **(b)** the assembly merges an overlay row's fields into the earlier row (a change to 7.6's behaviour).
+`nigeria-review-sheet.csv` was written before this and still lists the old codes.
 
-Until then, only the base and line packs load as they stand.
+| File | Table | Was | Now | What |
+|---|---|---|---|---|
+| `overlays/ng.json` | `tenant.cfg_locale_defaults` | `LOCALE (non-regulated part), LOCALE (currency)` | `LOCALE` | two rows for one record joined as `LOCALE`, FINANCE (the stricter class, as the currency is regulated); `tenant` added as null (the tenant's own code, not a pack's) |
+| `overlays/ng.json` | `refdata.ref_public_holiday_calendars` | `NG` | (removed) | moved to `pending`, not loaded: a platform-wide table (one row per holiday date), and no dates are given yet |
+| `overlays/ng.json` | `workflow.cfg_case_timelines` | `COMPLAINT_ACKNOWLEDGE, COMPLAINT_RESOLVE` | `COMPLAINT_ACKNOWLEDGE`, `COMPLAINT_RESOLVE` | split into one row per step; `case_type_code`, `step` added; `duration` from the step's value where it is one duration; null otherwise (NG gives none; ZA's resolve time has two sources, kept in the note) |
+| `overlays/ng.json` | `channel.cfg_disclosure_and_notice_texts` | `DISC-QUOTE, -ISSUE, -RENEWAL, -CLAIM` | `DISC-QUOTE`, `DISC-ISSUE`, `DISC-RENEWAL`, `DISC-CLAIM` | split into one row per display point; `display_point` from the code; `text_version` added as null |
+| `overlays/ng.json` | `communication.cfg_notification_templates` | `CLAIM_DECISION_RIGHTS` | `CLAIM_DECISION_RIGHTS` | `type_code` and `channel` added as null: required, not given |
+| `overlays/ng.json` | `party.ref_identity_document_types` | `(rows)` | (removed) | moved to `pending`, not loaded: candidate document types for review, not records yet (which ones exist is compliance's) |
+| `overlays/ng.json` | `party.cfg_consent_purposes` | `(rows)` | (removed) | moved to `pending`, not loaded: no record yet: the row names what to review (purposes) |
+| `overlays/ng.json` | `party.cfg_record_retention_policies` | `(rows)` | (removed) | moved to `pending`, not loaded: no record yet: the row names what to review (retention) |
+| `overlays/ng.json` | `audit.cfg_audit_retention_policies` | `(rows)` | (removed) | moved to `pending`, not loaded: no record yet: the row names what to review (retention) |
+| `overlays/ng.json` | `document.cfg_retention_schedules` | `(rows)` | (removed) | moved to `pending`, not loaded: no record yet: the row names what to review (retention) |
+| `overlays/ng.json` | `reporting.cfg_compliance_register_entries` | `(rows)` | (removed) | moved to `pending`, not loaded: no record yet: the row names what to review (entries) |
+| `overlays/ng.json` | `rating.cfg_premium_tax_and_levy_rates` | `(rows)` | (removed) | moved to `pending`, not loaded: no record yet: the row names what to review (tax_code, rate, base, rounding) |
+| `overlays/ng.json` | `finance.cfg_tax_codes_on_financial_transactions` | `(rows)` | (removed) | moved to `pending`, not loaded: no record yet: the row names what to review (tax_code, rate, account) |
+| `overlays/ng.json` | `rating.cfg_rounding_and_currency_precision_rules` | `NGN-2DP` | `NGN-2DP` | `rule_code` added (the row code) |
+| `overlays/ng.json` | `workflow.cfg_delegation_and_approval_authority` | `APPROVER_*` | `AUTH-{type} (28 rows)` | split into one row per approval type, each merging into the base's `AUTH-{type}`; `currency` on each; `limit_value` left out (null: no change) |
+| `overlays/ng.json` | `payment.ref_payment_methods` | `COLLECT, PAY` | `COLLECT`, `PAY` | split into one row per method; `method_code` and `direction` from the code, as the seed has them |
+| `overlays/ng.json` | `billing.cfg_arrears_ageing_buckets` | `B1, B2` | (removed) | removed from the rows: its values held only a note ("Replaces the base pack if premium must be paid before cover."), kept in `pending` |
+| `overlays/ng.json` | `billing.ref_collection_methods` | `(rows)` | (removed) | moved to `pending`, not loaded: no record yet: the row names what to review (candidates, lead_time) |
+| `overlays/ng.json` | `reinsurance.cfg_treaty_definitions` | `(rows)` | (removed) | moved to `pending`, not loaded: no record yet: the row names what to review (capacity, currency) |
+| `overlays/ng.json` | `general.cfg_settlement_authority_limits` | `(rows)` | (removed) | moved to `pending`, not loaded: no record yet: the row names what to review (limit_value) |
+| `overlays/za.json` | `tenant.cfg_locale_defaults` | `LOCALE` | `LOCALE` | `tenant` added as null: the tenant's own code, not a pack's |
+| `overlays/za.json` | `refdata.ref_public_holiday_calendars` | `ZA` | (removed) | moved to `pending`, not loaded: a platform-wide table (one row per holiday date), and no dates are given yet |
+| `overlays/za.json` | `workflow.cfg_case_timelines` | `COMPLAINT_ACKNOWLEDGE, COMPLAINT_RESOLVE` | `COMPLAINT_ACKNOWLEDGE`, `COMPLAINT_RESOLVE` | split into one row per step; `case_type_code`, `step` added; `duration` from the step's value where it is one duration, with `basis` CALENDAR and `extension_allowed` false as the seed has them; null otherwise (NG gives none; ZA's resolve time has two sources, kept in the note) |
+| `overlays/za.json` | `workflow.cfg_delegation_and_approval_authority` | `APPROVER_*` | `AUTH-{type} (28 rows)` | split into one row per approval type, each merging into the base's `AUTH-{type}`; `currency` on each; `limit_value` from the text "1000000 (5000000 for LIFE_UNDERWRITING)": 1000000, and 5000000 for LIFE_UNDERWRITING |
+| `overlays/za.json` | `payment.ref_payment_methods` | `COLLECT, PAY` | `COLLECT`, `PAY` | split into one row per method; `method_code` and `direction` from the code, as the seed has them |
+| `overlays/za.json` | `billing.ref_collection_methods` | `DEBIT_ORDER` | `DEBIT_ORDER` | `method_code` added (the row code) |
+| `overlays/za.json` | `payment.mst_tenant_bank_accounts` | `BANK` | `BANK` | `account_ref`, `bank`, `account_number`, `gl_account` added as null: the tenant's own account |
+| `overlays/za.json` | `rating.cfg_rounding_and_currency_precision_rules` | `ZAR-2DP` | `ZAR-2DP` | `rule_code` added (the row code) |
+| `overlays/za.json` | `party.ref_identity_document_types` | `ZA-PASSPORT` | `ZA-PASSPORT` | `label` written from `doc_type` |
+| `overlays/za.json` | `channel.cfg_disclosure_and_notice_texts` | `DISC-QUOTE, -ISSUE, -RENEWAL, -CLAIM` | `DISC-QUOTE`, `DISC-ISSUE`, `DISC-RENEWAL`, `DISC-CLAIM` | split into one row per display point; `display_point` from the code; `text_version` added as null |
+| `overlays/za.json` | `party.cfg_record_retention_policies` | `(platform default)` | (removed) | moved to `pending`, not loaded: no record yet: the row names what to review (retention) |
+
+## The case notification templates (Ade, 16 November, OQ-182)
+The three base templates' bodies are null, so the templates are Missing until compliance reviews the proposed wording. The proposal is in each row's `note`, marked FOR COMPLIANCE REVIEW, and uses only the merge fields the types offer: sender_identity, portal_link, case_number, case_type, expected_date, decision_reasons, review_options, ombud_details and representations_deadline.
+
+| Template | Proposed body |
+|---|---|
+| `CASE_ACKNOWLEDGED_EN` | We have received your case {case_number} ({case_type}). We expect to reply by {expected_date}. You can follow it at {portal_link}. {sender_identity} |
+| `CASE_UPDATE_EN` | There is an update on your case {case_number}. Sign in to see it: {portal_link}. {sender_identity} |
+| `CASE_DECISION_EN` | We have decided your case {case_number}. Our reasons: {decision_reasons}. {review_options} {ombud_details} Sign in to see the decision: {portal_link}. {sender_identity} |
+
+## The APPROVER role (Ade, 16 November)
+The pack keeps no grants for `APPROVER`. The tenant administrator grants its functions during onboarding, through role-function assignments (ADR-026). The seed's permission list stays in the row's note, for reference only.

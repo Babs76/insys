@@ -4,6 +4,14 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 
 
+## AI Assist: how the wizard layers the packs (OQ-181, Ade, 16 November 2026)
+No field or route is new. What `POST /assist/tenant-setups` and `PUT …/answers` draft changes:
+- **`packIds`** lists the layers in their new order: the base, then each line, then the country, then the tenant's own versions of those packs (approved, else its newest draft).
+- **Merging:** a later layer's row merges into the earlier one field by field, and a null means "no change". So a value's `values` can hold fields from several packs, and `sourcePackId` names the last that gave one.
+- **The tenant's own overlays only fill empty values.** A value a platform-approved version gives is never replaced by the tenant's. A regulated value a platform line leaves empty can now be given by the tenant's approved overlay.
+- **`missingReason`:** NOT_APPROVED when an unapproved version's regulated value was left out, and NO_VALUE once an approved version names the field empty too.
+- **Starter packs:** NG and ZA are corrected for merging, with their placeholder rows moved to an unloaded `pending` list. The three base case templates have a null body, so they are Missing until compliance reviews the proposed wording in their notes. The `APPROVER` role has no grants.
+
 ## AI Assist: the SETUP change set (Wave 7 batch 7.7, 16 November 2026)
 New routes and one error code; no existing field changes.
 - **`GET /assist/tenant-setups/{id}/completeness`** (`ASSIST_TENANT_SETUP_RUN`): the check before submission (AIA-085). It returns `ready`, the number of `tables` and `values` the set would hold, and `blockers` and `warnings`. Each finding has a `code` (`UNDECIDED`, `MISSING`, `NOT_APPROVED`, `UNKNOWN_TABLE`, `GLOBAL_TABLE`, `LINE_REFUSED`, `NOTHING_ACCEPTED`; warning `REJECTED`), the `table`, `rowCode` and `field`, and a message. A finding never carries a value. The check saves nothing: each table's lines are tried and rolled back.

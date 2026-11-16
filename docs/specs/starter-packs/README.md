@@ -3,7 +3,11 @@
 **Status: draft.** A pack is a list of static data rows a new tenant starts from. Each row goes through the governed static data APIs and a second person, as a tenant's own rows do today. Batch 7.6 loads a pack file as a version in Assist's own tables (D-18), for review and approval (§5.3); its rows reach a tenant only through the `SETUP` change set (7.7).
 
 ## Structure
-A tenant's starting data is three layers. A later layer replaces a row with the same table and code.
+A tenant's starting data is layers, in this order (Ade, 16 November, OQ-181): the base, then each line, then the country (after the regional overlay it builds on), each the platform's version. Then come the tenant's own approved overlays.
+
+- **Merging:** a later layer's row merges into the earlier one with the same table and code, field by field. A null means "no change", never "set to null".
+- **The tenant's own overlays:** they only fill values still empty, and never replace a regulated value from a platform-approved version.
+- **Unapproved versions:** a regulated value from a version not approved for the tenant is never used.
 
 1. **`base.json`, country-neutral:** operational defaults, with no currency, country, regulator or legal text.
 2. **Country overlay, `overlays/<country>.json`:** currency, calendar, identity documents, regulated values and texts.

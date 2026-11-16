@@ -282,8 +282,9 @@ public sealed class SetupItem : AggregateRoot<Guid>
         };
 
     /// <summary>Whether a new draft of the same row would be this one (AIA-081: changing an answer re-drafts only what it affects).</summary>
-    public bool Same(string flag, string? values, Guid? sourcePackId, int? sourceLineNo) =>
-        Flag == flag && Values == values && SourcePackId == sourcePackId && SourceLineNo == sourceLineNo;
+    /// <param name="sameValues">How two values compare: as JSON, by the caller, since a stored value comes back in jsonb's order of keys.</param>
+    public bool Same(string flag, string? values, Guid? sourcePackId, int? sourceLineNo, Func<string?, string?, bool> sameValues) =>
+        Flag == flag && sameValues(Values, values) && SourcePackId == sourcePackId && SourceLineNo == sourceLineNo;
 
     /// <summary>A re-draft of the row: its decision goes, as the value it decided on did.</summary>
     public void Redraft(int answersVersion, string @class, bool regulated, string flag, string? values, Guid? sourcePackId, int? sourceLineNo, string? missingReason)
