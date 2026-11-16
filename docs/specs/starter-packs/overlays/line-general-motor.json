@@ -43,6 +43,7 @@
       "code": "BASE",
       "class": "FINANCE",
       "values": {
+        "table_code": "BASE",
         "dimensions": [
           "VEHICLE_GROUP"
         ],
