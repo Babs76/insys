@@ -270,6 +270,19 @@ public sealed class AssistSetupSubmissionTests(DatabaseFixture fixture) : IClass
         return rows;
     }
 
+    /// <summary>
+    /// The case templates again, with the seed's sample body: the base's body names {subject}, which these types don't offer, and it is wording for compliance
+    /// (format-corrections-2026-11-16.md), so the tenant's overlay gives the test's own.
+    /// </summary>
+    private static IEnumerable<System.Text.Json.Nodes.JsonObject> Templates() =>
+        File("base.json").GetProperty("rows").EnumerateArray().Where(r => r.GetProperty("table").GetString() == "communication.cfg_notification_templates").Select(r =>
+        {
+            var node = System.Text.Json.Nodes.JsonNode.Parse(r.GetRawText())!.AsObject();
+            node["values"]!["body"] = "Case {case_number}";
+            node["note"] = "Sample body for the test.";
+            return node;
+        });
+
     [Fact]
     public async Task TheFullBaseAndMotorSet_IsSubmittedApprovedAndApplied_EveryTableAfterTheTablesItRefersTo_AIA086_OQ178_OQ179()
     {
@@ -297,7 +310,7 @@ public sealed class AssistSetupSubmissionTests(DatabaseFixture fixture) : IClass
         var motor = File("overlays/line-general-motor.json");
         foreach (var pack in new[]
                  {
-                     JsonSerializer.SerializeToElement(new { pack = "XQ", kind = "COUNTRY", status = "DRAFT", rows = Filled("base.json", all: false) }),
+                     JsonSerializer.SerializeToElement(new { pack = "XQ", kind = "COUNTRY", status = "DRAFT", rows = Filled("base.json", all: false).Concat(Templates()) }),
                      JsonSerializer.SerializeToElement(new { pack = motor.GetProperty("pack").GetString(), kind = "LINE", status = "DRAFT", rows = Filled("overlays/line-general-motor.json", all: true) }),
                  })
         {

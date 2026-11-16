@@ -438,13 +438,19 @@ The SETUP change set (AIA-085, AIA-086; D-11, D-12 option C). Contract note: "AI
   - **The activation guard missed sets not yet recorded.** It now also counts loaded batches whose set isn't recorded (readiness `LOADING`), and the set's approval isn't applied once the tenant is live.
   - **A decision could slip in beside the lock.** Deciding a value now moves the run's version.
   - **Still open, for Ade:** an approved set that a batch can't complete (its stored lines no longer match what was approved) stays `APPLYING` and blocks go-live. Nothing in the code changes a submitted batch's lines, so this needs an outside change. A way out (abandoning the rest of the set, with what is in force kept) needs a function and so a decision: OQ-180.
-- **Found by the completeness check, for Ade (OQ-179):** the draft packs can't be loaded as they stand. Some rows hold several records, some lack required fields, and some name fields their tables don't have. The tests use a small sample pack.
+- **The packs (OQ-179, Ade, 16 November):**
+  - Format corrected on branch `starter-pack-format`: one record per row, under the table's column names, every required field present, null where there is no source. No regulated value was filled.
+  - Every change is in `docs/specs/starter-packs/format-corrections-2026-11-16.md`.
+  - Not corrected: the country overlays (merge or replace, OQ-181), the case templates' wording and the APPROVER role's grants (OQ-182).
+- **The order (OQ-178, Ade):** derived from the references (`SetupOrder.Sort`, `StaticDataReferences.g.cs` from `docs/specs/static-data-references.json`).
+- **The full set:** `TheFullBaseAndMotorSet_…` runs base and motor (27 tables, 77 values) through submit, approval and apply. The platform approves the base; the tenant's own approved overlays give the pack's nulls and `AM`, because a platform line's empty value can't be given otherwise (OQ-181).
 - **A fix on the way:** an import and its submission in one request hashed the import's tracked copies, not the stored rows, so the approval never matched. `ImportToSet` clears the tracker between them. Separate requests, as the per-table routes make them, were never affected.
-- **Tests:** `AssistSetupSubmissionTests` (7):
+- **Tests:** `AssistSetupSubmissionTests` (8), `SetupOrderTests` (3):
   - one set, approved once by a second person (the runner refused), applied in order;
   - blockers listed and nothing loaded;
   - runner only, onboarding only;
   - an approver missing one module's approve function refused, and not offered the set;
+  - the full base and motor set, applied each table after those it refers to;
   - not approved, drafts discarded, a new attempt;
   - a submission stopped part-way: locked, blocking go-live, withdrawn by its submitter only, what it loaded discarded;
   - the activation guard while open, and the re-run once applied, against a tenant with no set.

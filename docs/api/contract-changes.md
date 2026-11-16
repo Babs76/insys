@@ -23,6 +23,8 @@ New routes and one error code; no existing field changes.
   - Once one is applied, every onboarding step's readiness runs again, and a check not ready is 422 `ONBOARDING_STEP_NOT_READY`, named `STEP.CHECK`.
   - Tenants with no SETUP change set see no change.
 - **Readiness:** `END_TO_END_TESTS` gains `SETUP_CHANGE_SET`, a blocker while a set is open (a submission still loading shows as `LOADING`).
+- **Batch order:** each table after the tables of the set it refers to, from the static data catalogue's references (OQ-178).
+- **Starter packs (`docs/specs/starter-packs`):** the base and motor line hold one record per row now (format only, OQ-179). A setup from them lists far fewer blockers. What remains Missing or refused is listed in `format-corrections-2026-11-16.md`.
 - **The AI-2 evaluation set** gains the refusal `ASSIST_SETUP_NOT_READY`, worded in the catalogue. The refusal cases after it are renumbered, from `R-010` onwards. Runs made before this commit (43862166993, 43904917124) use the old numbers.
 
 ## AI Assist: list numbers no longer reject an explanation, and templates v2 (16 November 2026)

@@ -1378,12 +1378,14 @@ Raised by the read-scope sweep (`docs/reviews/read-scope-sweep.md`, at `06ecae1`
 
 **OQ-177: Health provider recoveries and credit notes refuse a restricted reader with 403. Decided: follow §4, 404 for one record and filtering for lists.**
 
-**OQ-178: in what order are a SETUP change set's tables applied (AIA-086, "in dependency order")? Open. Interim: reference data, then master data, then configuration, then by name.**
+**OQ-178: in what order are a SETUP change set's tables applied (AIA-086, "in dependency order")? Decided (Ade, 16 November): from the references. Each table goes after the tables of the set it refers to; where nothing orders them, reference data, then master data, then configuration, then by name.**
+- Built: `docs/specs/static-data-references.json` maps each catalogue `Ref` type to its table, and the generator emits `StaticDataReferences.g.cs`, failing on an unmapped type. The base and motor packs broke the interim order three times: a reserve type names a posting rule, a notification template its type, and a case type its process. Their full set now applies in the derived order (`AssistSetupSubmissionTests`).
+- Below, as first recorded:
 - The catalogue's `Ref` fields name domain types (`Ref Account`, `Ref Channel`), not tables, so configuration that refers to other configuration (a notification template to its type, a posting rule to an account) isn't ordered by its references.
 - No check at submission or activation reads another table today, so the order decides only what a tenant part-way through the set holds, and never whether a batch is refused. A check that does read another table must come with a table-level order.
 - To decide: a mapping from each `Ref` type to its table, kept with the catalogue, from which the order is computed.
 
-**OQ-179: the draft starter packs can't be loaded as they stand (found by 7.7's completeness check). Open: a change to `docs/specs/starter-packs`, for Ade.**
+**OQ-179: the draft starter packs can't be loaded as they stand (found by 7.7's completeness check). Decided (Ade, 16 November): correct their format, filling in no regulated value. Done for `base.json` and the motor line, listed in `docs/specs/starter-packs/format-corrections-2026-11-16.md`. The country overlays wait on OQ-181.**
 - In `base.json` with `line-general-motor.json`, with every value accepted, 16 of the 27 tables have rows the import refuses (checked 16 November, before any database check, which runs only once the fields pass). Some rows hold several records (codes `MONTHLY, ANNUAL`, `CASE_*`, `PR-*`, `(per provider)`), with each record's values under a key of its code. Some leave out fields the table requires (`workflow.cfg_case_types` has no `case_type_code`, `link_types`, `requires_category` or `appeal_route`). Some name fields the table doesn't have (`finance.cfg_posting_rules.transaction_types`).
 - `rules.cfg_authority_matrices` `AM` is regulated and empty, so it is Missing even with every overlay approved.
 - Until the packs hold one row per record with the table's own column names, a setup from them stops at `ASSIST_SETUP_NOT_READY`. The check lists each row and field. The batch's tests use a small sample pack that loads.
@@ -1392,4 +1394,14 @@ Raised by the read-scope sweep (`docs/reviews/read-scope-sweep.md`, at `06ecae1`
 - Once approved, a set's batches go in force one by one. A batch whose stored lines no longer match what was approved is refused (its delivery parks, `APPROVAL_NOT_APPLIED`), so the set stays `APPLYING`, and the activation guard and readiness block go-live.
 - Nothing in INSYS changes a submitted batch's lines, so this needs an outside change (a direct database edit), but then there is no way out.
 - To decide: whether, and by whom, the rest of such a set is abandoned (what is already in force stays, as posted static data is never undone), and which function allows it. It's a permission, so it isn't built.
+
+**OQ-181: how does an overlay give a value an earlier or later layer leaves empty? Open, for Ade.**
+- **Merge or replace.** The country overlays (`ng.json`, `za.json`) are written to merge their fields into the base row; for example, the calendar row gives only `holiday_calendar` and `time_zone`. The assembly (7.6) replaces the whole row instead, so as written they drop the base row's other fields. Either (a) overlays hold complete rows, a format correction, or (b) the assembly merges fields, a change to 7.6.
+- **A line's empty regulated value.** The layers are base, then country, then lines. While the platform's version of a line is approved, a tenant's own version of it isn't used (7.6, "newest approved for every tenant, else the tenant's own"). So a regulated value that the platform line leaves empty, such as the motor line's `rules.cfg_authority_matrices` `AM`, can't be given by any tenant overlay, and every setup with that line stops at Missing.
+- 7.7's full-set test therefore uses the fallback route (D-19): the platform approves only the base, and the tenant's own motor version, approved by its compliance officer, gives `AM`.
+- To decide: whether a tenant's own approved overlay may give the values a platform layer leaves empty, and in which layer.
+
+**OQ-182: the case notification templates' wording and the APPROVER role's grants (from the format correction). Open, for compliance and Ade.**
+- `CASE_ACKNOWLEDGED_EN`, `CASE_UPDATE_EN` and `CASE_DECISION_EN` use `{subject}` in their body, which these types don't offer, so the import refuses them. It's wording, so it wasn't changed.
+- The base's `APPROVER` role loads with no grants. Its list of permission codes is in the row's note. Which functions it gets (ADR-026) is a permissions decision.
 
