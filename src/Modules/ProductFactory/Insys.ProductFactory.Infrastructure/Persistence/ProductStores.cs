@@ -188,6 +188,13 @@ internal sealed class ProductCatalogue(ProductFactoryDbContext db, IProductVersi
         return new ProductValidationContext(coverages, dependencies, day, superseded?.EffectiveFrom);
     }
 
+    public async Task<IReadOnlyList<string>> CoverageCodes(ProductDomain domain, DateOnly day, CancellationToken cancellationToken)
+    {
+        var line = domain.ToString().ToUpperInvariant();
+        return (await InForce<CoverageAndBenefitLibrary>(day).Where(c => c.Domain.ToUpper() == line).Select(c => c.Code).Distinct().ToListAsync(cancellationToken))
+            .Order(StringComparer.Ordinal).ToList();
+    }
+
     public async Task<bool> SimulationRequired(DateOnly day, CancellationToken cancellationToken)
     {
         // Tenant settings over the global baseline (scope GT); simulation is required when nothing says otherwise (PRD-005).

@@ -119,14 +119,16 @@ public sealed class InsysApiFactory(TestDatabase database, IReadOnlyDictionary<s
         return client;
     }
 
-    /// <summary>Publishes every pending outbox event to its consumers now (the relay is off in tests).</summary>
-    /// <summary>Relays outbox events until none are left, so chains of events (a consumer publishing in turn) complete.</summary>
     /// <summary>The host's malware scanner: set Down to see uploads wait in quarantine.</summary>
     public FakeMalwareScanner Scanner { get; } = new();
 
     /// <summary>Runs the malware scan job once, as its schedule would (AIA-010): uploads leave quarantine, clean or infected.</summary>
     public Task<int> ScanUploads() => Services.GetRequiredService<Insys.Documents.Infrastructure.Scanning.DocumentScanJob>().Run(CancellationToken.None);
 
+    /// <summary>Runs AI-1's job once (AIA-017): each queued run, acting for the user who asked.</summary>
+    public Task<int> RunProductDrafts() => Services.GetRequiredService<Insys.Assist.Infrastructure.ProductDraftJob>().Run(CancellationToken.None);
+
+    /// <summary>Relays outbox events until none are left, so chains of events (a consumer publishing in turn) complete (the relay is off in tests).</summary>
     public async Task<int> DrainOutbox()
     {
         var processor = Services.GetRequiredService<Insys.BuildingBlocks.Infrastructure.Messaging.OutboxProcessor>();

@@ -58,6 +58,12 @@ public sealed class AssistDbContext(DbContextOptions<AssistDbContext> options, M
 
     public DbSet<SetupItem> SetupItems => Set<SetupItem>();
 
+    public DbSet<ProductDraftRun> ProductDraftRuns => Set<ProductDraftRun>();
+
+    public DbSet<ProductDraftDocument> ProductDraftDocuments => Set<ProductDraftDocument>();
+
+    public DbSet<DraftItem> DraftItems => Set<DraftItem>();
+
     protected override void ConfigureModel(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<AssistTenantSetting>(setting =>
@@ -175,7 +181,57 @@ public sealed class AssistDbContext(DbContextOptions<AssistDbContext> options, M
             item.Property(i => i.Values).HasColumnType("jsonb");
             item.HasOne<SetupRun>().WithMany().HasForeignKey(i => new { i.TenantId, i.RunId }).HasPrincipalKey(r => new { r.TenantId, r.Id });
         });
+        modelBuilder.Entity<ProductDraftRun>(run =>
+        {
+            run.ToTable("product_draft_run");
+            run.HasKey(r => new { r.TenantId, r.Id });
+            run.HasAuditColumns();
+            run.Ignore(r => r.DomainEvents);
+            run.Ignore(r => r.HasChanges);
+        });
+        modelBuilder.Entity<ProductDraftDocument>(document =>
+        {
+            document.ToTable("product_draft_document");
+            document.HasKey(d => new { d.TenantId, d.Id });
+            document.HasAuditColumns();
+            document.Ignore(d => d.DomainEvents);
+            document.Ignore(d => d.HasChanges);
+            document.Property(d => d.Sha256).HasColumnType("char(64)");
+            document.Property(d => d.Identifiers).HasColumnType("jsonb");
+            document.HasOne<ProductDraftRun>().WithMany().HasForeignKey(d => new { d.TenantId, d.RunId }).HasPrincipalKey(r => new { r.TenantId, r.Id });
+        });
+        modelBuilder.Entity<DraftItem>(item =>
+        {
+            item.ToTable("draft_item");
+            item.HasKey(i => new { i.TenantId, i.Id });
+            item.HasAuditColumns();
+            item.Ignore(i => i.DomainEvents);
+            item.Ignore(i => i.HasChanges);
+            item.Property(i => i.Value).HasColumnType("jsonb");
+            item.HasOne<ProductDraftRun>().WithMany().HasForeignKey(i => new { i.TenantId, i.RunId }).HasPrincipalKey(r => new { r.TenantId, r.Id });
+        });
     }
+}
+
+internal sealed class ProductDraftRuns(AssistDbContext db) : Application.IProductDraftRuns
+{
+    public void Add(ProductDraftRun run) => db.ProductDraftRuns.Add(run);
+
+    public void Add(ProductDraftDocument document) => db.ProductDraftDocuments.Add(document);
+
+    public void Add(DraftItem item) => db.DraftItems.Add(item);
+
+    public Task<ProductDraftRun?> Run(Guid id, CancellationToken cancellationToken) => db.ProductDraftRuns.SingleOrDefaultAsync(r => r.Id == id, cancellationToken);
+
+    public async Task<IReadOnlyList<ProductDraftDocument>> Documents(Guid runId, CancellationToken cancellationToken) =>
+        await db.ProductDraftDocuments.Where(d => d.RunId == runId).OrderBy(d => d.Id).ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<DraftItem>> Items(Guid runId, CancellationToken cancellationToken) =>
+        await db.DraftItems.AsNoTracking().Where(i => i.RunId == runId).OrderBy(i => i.Id).ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<ProductDraftRun>> Open(int limit, CancellationToken cancellationToken) =>
+        await db.ProductDraftRuns.AsNoTracking().Where(r => r.Status == ProductDraftStatuses.Queued || r.Status == ProductDraftStatuses.Running)
+            .OrderBy(r => r.RequestedAt).Take(limit).ToListAsync(cancellationToken);
 }
 
 internal sealed class SetupRuns(AssistDbContext db) : Application.ISetupRuns

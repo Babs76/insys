@@ -86,3 +86,25 @@ public sealed record DocumentDelivered(Guid DocumentId, string Channel) : IInteg
 
 [IntegrationEvent("document.DocumentDisposed")]
 public sealed record DocumentDisposed(Guid DocumentId) : IIntegrationEvent;
+
+/// <summary>An uploaded document's facts, as Documents holds them, for a module that reads it for its user (AI-1, D-16).</summary>
+/// <param name="ScanStatus">NOT_REQUIRED, PENDING, CLEAN or INFECTED (AIA-010).</param>
+public sealed record DocumentFacts(Guid DocumentId, string? FileName, string MimeType, long SizeBytes, string Sha256, string ScanStatus);
+
+/// <summary>A document's content as the user read it, or the refusal's code and message as the endpoint would give them.</summary>
+public sealed record DocumentRead(DocumentFacts? Facts, byte[]? Content, string? ErrorCode = null, string? Message = null)
+{
+    public bool Succeeded => ErrorCode is null;
+}
+
+/// <summary>
+/// Reads a document for the user the scope acts for, through the same queries and command as <c>GET /documents/documents/{id}</c> and
+/// <c>…/content</c>: the function and permission checked as their endpoints check them, the content released only once the malware scan clears it
+/// (DOCUMENT_QUARANTINED), and a sensitive document's read recorded with its purpose (DOC-003) and audited, as the user's.
+/// </summary>
+public interface IDocumentReader
+{
+    Task<DocumentRead> Facts(Guid documentId, CancellationToken cancellationToken);
+
+    Task<DocumentRead> Read(Guid documentId, string purpose, CancellationToken cancellationToken);
+}

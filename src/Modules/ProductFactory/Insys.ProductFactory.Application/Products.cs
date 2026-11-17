@@ -65,6 +65,9 @@ public interface IProductCatalogue
 
     /// <summary>cfg_product_approval_workflow_settings: whether simulation is required before submission (default true).</summary>
     Task<bool> SimulationRequired(DateOnly day, CancellationToken cancellationToken);
+
+    /// <summary>The coverage and benefit codes of the domain in force on the day (cfg_coverage_and_benefit_library), for AI-1's field list (AIA-012).</summary>
+    Task<IReadOnlyList<string>> CoverageCodes(ProductDomain domain, DateOnly day, CancellationToken cancellationToken);
 }
 
 public interface ISimulationRuns
@@ -141,6 +144,15 @@ public sealed record MakeVersionEffective(Guid VersionId) : ICommand<long>, IRet
 public sealed record GetProductVersion(string ProductCode, int Version) : IQuery<ProductVersionView>;
 
 public sealed record ListProductVersions(string ProductCode) : IQuery<IReadOnlyList<ProductVersionView>>;
+
+/// <summary>The coverage and benefit codes of a domain in force today, for AI-1's field list (AIA-012).</summary>
+public sealed record ListCoverageCodes(ProductDomain Domain) : IQuery<IReadOnlyList<string>>;
+
+internal sealed class ListCoverageCodesHandler(IProductCatalogue catalogue, IBusinessDate businessDate) : IQueryHandler<ListCoverageCodes, IReadOnlyList<string>>
+{
+    public async Task<Result<IReadOnlyList<string>>> Handle(ListCoverageCodes query, CancellationToken cancellationToken) =>
+        Result<IReadOnlyList<string>>.Success(await catalogue.CoverageCodes(query.Domain, businessDate.Today, cancellationToken));
+}
 
 public sealed record ListSimulationRuns(string ProductCode, int Version) : IQuery<IReadOnlyList<SimulationRunView>>;
 

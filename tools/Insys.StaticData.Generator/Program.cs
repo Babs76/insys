@@ -140,7 +140,11 @@ using (var map = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "docs", 
     }
 
     var generated = Path.Combine(root, "src", "BuildingBlocks", "Insys.BuildingBlocks.Application", "Generated");
-    Sync(generated, new Dictionary<string, string> { [Path.Combine(generated, "StaticDataReferences.g.cs")] = Emit.References(references) });
+    Sync(generated, new Dictionary<string, string>
+    {
+        [Path.Combine(generated, "StaticDataReferences.g.cs")] = Emit.References(references),
+        [Path.Combine(generated, "StaticDataFields.g.cs")] = Emit.FieldNames(entities),
+    });
     Console.WriteLine($"References: {references.Count} tables refer to others.");
 }
 
@@ -284,6 +288,28 @@ internal static class Emit
         foreach (var (table, targets) in references)
         {
             s.AppendLine($"        [\"{table}\"] = [{string.Join(", ", targets.Select(t => $"\"{t}\""))}],");
+        }
+
+        s.AppendLine("    };");
+        s.AppendLine("}");
+        return s.ToString();
+    }
+
+    /// <summary>Each table's fields as its API takes them (AIA-012): AI-1's field list is generated from these, never written by hand.</summary>
+    public static string FieldNames(IEnumerable<Entity> entities)
+    {
+        var s = new StringBuilder(Header("BuildingBlocks.Application"));
+        s.AppendLine("namespace Insys.BuildingBlocks.Application;");
+        s.AppendLine();
+        s.AppendLine("/// <summary>Each static data table's fields, by the names its API takes (a row's code aside), from the V0002 DDL and the catalogue.</summary>");
+        s.AppendLine("public static class StaticDataFields");
+        s.AppendLine("{");
+        s.AppendLine("    public static readonly IReadOnlyDictionary<string, string[]> Of = new Dictionary<string, string[]>(StringComparer.Ordinal)");
+        s.AppendLine("    {");
+        foreach (var entity in entities.OrderBy(e => e.Table.FullName, StringComparer.Ordinal))
+        {
+            var names = Fields(entity).Select(f => Names.Camel(f.Property)).Where(n => n != "code");
+            s.AppendLine($"        [\"{entity.Table.FullName}\"] = [{string.Join(", ", names.Select(n => $"\"{n}\""))}],");
         }
 
         s.AppendLine("    };");

@@ -103,6 +103,7 @@ public static class TestTokens
         ["Payments:Jobs:Enabled"] = "false",
         ["Communications:JobEnabled"] = "false",
         ["Documents:Scanner:JobEnabled"] = "false",
+        ["Assist:ProductDrafts:JobEnabled"] = "false",
         ["Party:DueDiligenceJobs:JobEnabled"] = "false",
         ["Analytics:ReleaseTasksEnabled"] = "false",
         ["FieldProtection:ActiveKeyId"] = "test1",

@@ -72,6 +72,7 @@ public static class DocumentsInfrastructure
         services.AddOptions<Scanning.ScannerOptions>().BindConfiguration("Documents:Scanner");
         services.TryAddSingleton<BuildingBlocks.Application.Storage.IMalwareScanner, Scanning.ClamAvScanner>();
         services.AddSingleton<Scanning.DocumentScanJob>();
+        services.AddScoped<Contracts.IDocumentReader, DocumentReader>(); // D-16: a document read for a job's user
         if (!BuildingBlocks.Infrastructure.InfrastructureRegistration.IsBuildTimeDocumentGeneration)
         {
             services.AddHostedService<Scanning.DocumentScanService>();

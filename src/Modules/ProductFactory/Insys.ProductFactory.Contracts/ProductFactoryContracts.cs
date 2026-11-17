@@ -58,3 +58,32 @@ public sealed record ProductVersionPublished(Guid VersionId, string ProductCode,
 
 [IntegrationEvent("product.ProductVersionWithdrawn")]
 public sealed record ProductVersionWithdrawn(Guid VersionId, string ProductCode, int Version, DateOnly EffectiveTo) : IIntegrationEvent;
+
+/// <summary>The product AI-1 drafts a version of (AIA-012): its latest version's own fields, and the coverage codes its domain may use.</summary>
+/// <param name="CoverStartsOn">Issue or FirstPayment.</param>
+/// <param name="ReinstatementArrears">None or Required.</param>
+public sealed record ProductDraftTarget(string ProductCode, string Domain, int LatestVersion, string Name, IReadOnlyList<string> Coverages,
+    IReadOnlyList<string> CoverageCodes, string CoverStartsOn, string ReinstatementArrears);
+
+/// <summary>The version's own fields AI-1 proposes (OQ-184 (a)); a null field keeps the copied version's value.</summary>
+public sealed record ProductDraftFields(string? Name, IReadOnlyList<string>? Coverages, string? CoverStartsOn, string? ReinstatementArrears);
+
+/// <summary>The outcome of a step: the Draft's version number, or the refusal's code and message as the endpoint would give them.</summary>
+public sealed record ProductDraftOutcome(int? Version, string? ErrorCode = null, string? Message = null)
+{
+    public bool Succeeded => ErrorCode is null;
+}
+
+/// <summary>
+/// AI-1's Draft version (AIA-017), made through the same commands as <c>POST …/versions</c> and <c>PUT …/versions/{n}</c>, under the identity of the
+/// scope's user, so their validation, audit and maker-checker apply. Each step is checked as its endpoint is: the function, the permission and the
+/// product's scope (F103). Called only from a scope acting for a user (<c>ActingUserScopes</c>); a service scope is refused.
+/// </summary>
+public interface IProductDrafts
+{
+    /// <summary>The product as the user may read it, or null when it isn't registered or is outside their scope.</summary>
+    Task<ProductDraftTarget?> Describe(string productCode, CancellationToken cancellationToken);
+
+    /// <summary>Creates the next version as a draft copy of the latest, then edits its own fields, each in its own transaction.</summary>
+    Task<ProductDraftOutcome> Create(string productCode, DateOnly effectiveFrom, ProductDraftFields fields, CancellationToken cancellationToken);
+}

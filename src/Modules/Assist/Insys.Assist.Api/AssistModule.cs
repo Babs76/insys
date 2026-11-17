@@ -24,6 +24,7 @@
  * UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
  * ============================================================================
  */
+using System.Security.Claims;
 using System.Text.Json;
 using Insys.Assist.Application;
 using Insys.Assist.Contracts;
@@ -132,12 +133,46 @@ public sealed class AssistModule : IModule
 
         MapPacks(api);
         MapTenantSetups(api);
+        MapProductDrafts(api);
     }
 
     /// <summary>
     /// AI-3's wizard, its pack-only path (AI Assist SRS §5A.3 and §5A.5; AIA-090): the questionnaire, the draft assembled from the packs with each value flagged
     /// Pack or Missing, and the reviewer's decision on each. Only while the tenant is onboarding (AIA-086). Submitting it as the SETUP change set is batch 7.7.
     /// </summary>
+    /// <summary>
+    /// AI-1 (AI Assist SRS §4, batch 7.4): a run for a product with uploaded, clean documents, each confirmed by the user to hold no customer personal data
+    /// (D-16). The run is queued for the job that acts for the user (AIA-017); its Draft version is Product Factory's.
+    /// </summary>
+    private void MapProductDrafts(IEndpointRouteBuilder api)
+    {
+        var drafts = api.MapGroup("/assist/product-drafts").WithTags(Name);
+        drafts.MapPost("/", async (StartProductDraftRequest r, ProductDraftStarter starter, HttpContext http, CancellationToken ct) =>
+            {
+                var subject = http.User.FindFirstValue(InsysClaims.Subject) ?? http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+                return (await starter.Start(r.ProductCode, r.Documents ?? [], subject, ct)).ToHttp(view =>
+                {
+                    Concurrency.SetETag(http, view.RowVersion);
+                    return Results.Accepted($"/api/v1/assist/product-drafts/{view.Id}", view);
+                });
+            })
+            .Produces<ProductDraftRunView>(StatusCodes.Status202Accepted).ReturnsETag()
+            .WithName("AssistStartProductDraft")
+            .WithSummary("Start AI-1 for a product with uploaded documents (AIA-010): PDF, DOCX or XLSX, at most 20 MB each and 10 a run, each cleared by the malware scan and "
+                + "confirmed to hold no customer personal data (D-16). Returns 202 and the run; a job drafts the version as you (AIA-017)")
+            .RequirePermission(AssistPermissions.ProductDraftRun).RequireIdempotencyKey();
+        drafts.MapGet("/{id:guid}", async (Guid id, IDispatcher d, HttpContext http, CancellationToken ct) => (await d.Query(new GetProductDraft(id), ct)).ToHttp(view =>
+            {
+                Concurrency.SetETag(http, view.RowVersion);
+                return Results.Ok(view);
+            }))
+            .Produces<ProductDraftRunView>(StatusCodes.Status200OK).ReturnsETag()
+            .WithName("AssistGetProductDraft")
+            .WithSummary("The run: its status, the Draft version's number, each document with its confirmation and what reading it found, and every proposed value with "
+                + "its flag, citation and INSYS's check (AIA-013, AIA-014, AIA-015)")
+            .RequirePermission(AssistPermissions.ProductDraftRun);
+    }
+
     private void MapTenantSetups(IEndpointRouteBuilder api)
     {
         var setups = api.MapGroup("/assist/tenant-setups").WithTags(Name);
@@ -311,3 +346,6 @@ public sealed class AssistModule : IModule
         });
     }
 }
+
+/// <summary>AI-1's start: the product and its documents, each with the user's confirmation that it holds no customer personal data (D-16).</summary>
+public sealed record StartProductDraftRequest(string ProductCode, IReadOnlyList<DraftDocumentConfirmation> Documents);

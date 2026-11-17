@@ -54,6 +54,38 @@ public static class AssistErrorCodes
     /// <summary>The verifier rejected the model's output, so the caller gets the plain data instead (AIA-033).</summary>
     [ErrorCode(422, "error.assist.output_rejected")]
     public const string OutputRejected = "ASSIST_OUTPUT_REJECTED";
+
+    /// <summary>AI-1 (ai-assist.md §5.5): a document isn't a PDF, DOCX or XLSX by its content, is over 20 MB, or the run names more than 10.</summary>
+    [ErrorCode(422, "error.assist.document_not_allowed")]
+    public const string DocumentNotAllowed = "ASSIST_DOCUMENT_NOT_ALLOWED";
+
+    /// <summary>AI-1 (D-16): the uploader hasn't confirmed that a document holds no customer personal data.</summary>
+    [ErrorCode(422, "error.assist.confirmation_required")]
+    public const string ConfirmationRequired = "ASSIST_CONFIRMATION_REQUIRED";
+
+    /// <summary>AI-1 (D-16): a document's content changed after it was confirmed, so it needs a new confirmation in a new run.</summary>
+    [ErrorCode(409, "error.assist.confirmation_stale")]
+    public const string ConfirmationStale = "ASSIST_CONFIRMATION_STALE";
+
+    /// <summary>AI-1 (D-16, §5.5): the identifier check found an obvious identifier, named by kind and page in the run, never by value.</summary>
+    [ErrorCode(422, "error.assist.document_identifiers")]
+    public const string DocumentIdentifiers = "ASSIST_DOCUMENT_IDENTIFIERS";
+
+    /// <summary>AI-1 (AIA-011): a document couldn't be read at all, or none of its pages has a text layer.</summary>
+    [ErrorCode(422, "error.assist.source_unreadable")]
+    public const string SourceUnreadable = "ASSIST_SOURCE_UNREADABLE";
+
+    /// <summary>AI-1 (AIA-017): the user the run acts for may no longer act (disabled, or their roles changed), so it stopped without writing.</summary>
+    [ErrorCode(403, "error.assist.user_cannot_act")]
+    public const string UserCannotAct = "ASSIST_USER_CANNOT_ACT";
+
+    /// <summary>AI-1: a run stopped part way, its job interrupted; it isn't resumed, so a new run is started.</summary>
+    [ErrorCode(409, "error.assist.run_stalled")]
+    public const string RunStalled = "ASSIST_RUN_STALLED";
+
+    /// <summary>AIA-050: the provider said inference ran outside the tenant's region, so nothing it returned is used.</summary>
+    [ErrorCode(422, "error.assist.residency_mismatch")]
+    public const string ResidencyMismatch = "ASSIST_RESIDENCY_MISMATCH";
 }
 
 /// <summary>

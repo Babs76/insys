@@ -48,7 +48,7 @@ internal static class AssistFunctions
             ["AssistGetSettings", "AssistGetUsage", "AssistSetSettings"], []),
         Action("ASSIST_EXPLAIN_REFUSAL", Features.AiAssist, AssistPermissions.ExplainRefusal, ["AssistExplainRefusal"]),
         Action("ASSIST_EXPLAIN_PREMIUM", Features.AiAssist, AssistPermissions.ExplainPremium, ["AssistExplainPremium"]),
-        Action("ASSIST_PRODUCT_DRAFT_RUN", Features.AiAssist, AssistPermissions.ProductDraftRun),
+        Action("ASSIST_PRODUCT_DRAFT_RUN", Features.AiAssist, AssistPermissions.ProductDraftRun, ["AssistStartProductDraft", "AssistGetProductDraft"]),
         Action("ASSIST_TENANT_SETUP_RUN", null, AssistPermissions.TenantSetupRun, ["AssistLoadTenantPack", "AssistListTenantPacks", "AssistGetTenantPack",
             "AssistStartTenantSetup", "AssistGetTenantSetup", "AssistAnswerTenantSetup", "AssistDecideSetupItem", "AssistCheckTenantSetup", "AssistSubmitTenantSetup", "AssistWithdrawTenantSetupSubmission"]),
         new FunctionDeclaration("ASSIST_OVERLAY_APPROVE", FunctionKind.Screen, "AI_ASSIST", "Overlays", null, [Audiences.Platform], "assist/overlays", null, true,

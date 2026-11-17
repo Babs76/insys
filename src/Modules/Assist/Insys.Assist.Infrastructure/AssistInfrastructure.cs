@@ -53,6 +53,18 @@ public static class AssistInfrastructure
         services.TryAddSingleton<IAiModelProvider, NoAiModelProvider>();
         services.AddScoped<AssistRunner>();
         services.AddScoped<Explainer>();
+        // AI-1 (7.4): runs, extraction, and the job that acts for the user who asked (AIA-017).
+        services.AddScoped<IProductDraftRuns, ProductDraftRuns>();
+        services.AddScoped<ProductDraftStarter>();
+        services.AddSingleton<IDraftDocumentExtractor, Extraction.DraftDocumentExtractor>();
+        services.TryAddSingleton<BuildingBlocks.Application.Context.ActingUserScopes>();
+        services.AddOptions<ProductDraftOptions>().BindConfiguration("Assist:ProductDrafts");
+        services.AddSingleton<ProductDraftWorker>();
+        services.AddSingleton<ProductDraftJob>();
+        if (!BuildingBlocks.Infrastructure.InfrastructureRegistration.IsBuildTimeDocumentGeneration)
+        {
+            services.AddHostedService<ProductDraftService>();
+        }
         // The prompt templates are configuration (AIA-074): the host doesn't start without one for each AI-2 feature.
         services.AddOptions<AssistOptions>().BindConfiguration("Assist")
             .Validate(o => o.PromptFor(AssistFeatures.ExplainRefusal) is not null && o.PromptFor(AssistFeatures.ExplainPremium) is not null,
