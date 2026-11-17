@@ -251,6 +251,18 @@ public sealed class GenerationRequest : Entity<Guid>, ITenantScoped
 /// generated from (DOC-002); access to sensitive documents is recorded (DOC-003); not disposed of before its retention
 /// date or while on legal hold (§18.1).
 /// </summary>
+/// <summary>
+/// Where a document stands with the malware scan (AIA-010, D-14): an upload is PENDING until the scanner says CLEAN or INFECTED, and its content is
+/// released only when CLEAN. A document INSYS generates is NOT_REQUIRED: it isn't an upload.
+/// </summary>
+public static class ScanStatuses
+{
+    public const string NotRequired = "NOT_REQUIRED";
+    public const string Pending = "PENDING";
+    public const string Clean = "CLEAN";
+    public const string Infected = "INFECTED";
+}
+
 public sealed class Document : AggregateRoot<Guid>
 {
     public static readonly StateMachine<DocumentStatus, DocumentTrigger> Lifecycle = new StateMachine<DocumentStatus, DocumentTrigger>()
@@ -299,6 +311,40 @@ public sealed class Document : AggregateRoot<Guid>
 
     public DocumentStatus Status { get; private set; }
 
+    /// <summary>The malware scan (AIA-010): PENDING for an upload until scanned, NOT_REQUIRED for a generated document.</summary>
+    public string ScanStatus { get; private set; } = ScanStatuses.NotRequired;
+
+    public DateTimeOffset? ScannedAt { get; private set; }
+
+    /// <summary>The scanner's name for what it found, for an infected upload; never content.</summary>
+    public string? ScanFinding { get; private set; }
+
+    /// <summary>
+    /// The content may be released (read, downloaded, delivered, sent to a model): only once an upload is clean (AIA-010). Uploads wait in quarantine while
+    /// the scanner is down; an infected one is never released.
+    /// </summary>
+    public Result ContentAvailable() => ScanStatus switch
+    {
+        ScanStatuses.Clean or ScanStatuses.NotRequired => Result.Success(),
+        ScanStatuses.Infected => Error.Conflict(DocumentErrorCodes.Quarantined, "The upload failed the malware scan, so its content is never released."),
+        _ => Error.Conflict(DocumentErrorCodes.Quarantined, "The upload is waiting for its malware scan; its content is released once it is clean."),
+    };
+
+    /// <summary>The scanner's verdict on a pending upload. A redelivery of the same verdict changes nothing.</summary>
+    public Result RecordScan(bool clean, string? finding, DateTimeOffset now)
+    {
+        if (ScanStatus != ScanStatuses.Pending)
+        {
+            return ScanStatus == (clean ? ScanStatuses.Clean : ScanStatuses.Infected)
+                ? Result.Success()
+                : Error.Conflict(ErrorCodes.InvalidStateTransition, $"The document's scan is {ScanStatus}.");
+        }
+
+        (ScanStatus, ScannedAt, ScanFinding) = (clean ? ScanStatuses.Clean : ScanStatuses.Infected, now, clean ? null : Guard.MaxLength(finding ?? "FOUND", 120));
+        MarkChanged();
+        return Result.Success();
+    }
+
     public DateTimeOffset? DisposedAt { get; private set; }
 
     public IReadOnlyList<Delivery> Deliveries => _deliveries;
@@ -307,7 +353,7 @@ public sealed class Document : AggregateRoot<Guid>
 
     /// <summary>Commands GenerateDocument (with a template) and StoreDocument (without): the rendered or uploaded content is already stored.</summary>
     public static Document Create(Guid id, string categoryCode, string classification, StoredContent content, TemplateVersionRef? template, string? productVersionRef,
-        string businessRefType, Guid businessRefId, DateOnly? retentionUntil, DateTimeOffset now, string? fileName = null)
+        string businessRefType, Guid businessRefId, DateOnly? retentionUntil, DateTimeOffset now, string? fileName = null, bool uploaded = false)
     {
         var document = new Document
         {
@@ -326,6 +372,7 @@ public sealed class Document : AggregateRoot<Guid>
             RetentionUntil = retentionUntil,
             FileName = fileName is null ? null : Guard.MaxLength(Guard.NotNullOrWhiteSpace(fileName), 255),
             Status = DocumentStatus.Generated,
+            ScanStatus = uploaded ? ScanStatuses.Pending : ScanStatuses.NotRequired,
         };
         document.Raise(new DocumentGenerated(id, document.CategoryCode, document.BusinessRefType, businessRefId, template?.TemplateCode, template?.Version, now));
         document.MarkChanged();
@@ -477,6 +524,10 @@ public static class DocumentErrorCodes
 {
     [ErrorCode(409, "error.document.on_legal_hold")]
     public const string OnLegalHold = "DOCUMENT_ON_LEGAL_HOLD";
+
+    [ErrorCode(409, "error.document.quarantined", Means = "The uploaded file is held until a malware scan clears it, or it failed the scan.",
+        Remedy = "Wait for the scan, then open it again; a file that failed the scan has to be uploaded again from a clean copy.")]
+    public const string Quarantined = "DOCUMENT_QUARANTINED";
 
     [ErrorCode(409, "error.document.retention_not_ended")]
     public const string RetentionNotEnded = "DOCUMENT_RETENTION_NOT_ENDED";

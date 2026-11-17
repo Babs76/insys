@@ -107,6 +107,12 @@ internal sealed class ReadPortalDocumentContentHandler(IDocumentRepository docum
             return Error.NotFound(ErrorCodes.NotFound, "The document was not found.");
         }
 
+        // AIA-010: an upload's content is released only once the malware scan clears it.
+        if (doc.ContentAvailable() is { IsFailure: true } quarantined)
+        {
+            return quarantined.Error;
+        }
+
         var content = await storage.Get(tenant.RequireTenantId(), doc.StorageUri, cancellationToken);
         if (content is null || Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(content)) != doc.Sha256)
         {

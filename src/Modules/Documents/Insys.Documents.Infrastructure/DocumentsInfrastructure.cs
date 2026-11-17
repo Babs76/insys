@@ -31,6 +31,7 @@ using Insys.Documents.Infrastructure.Persistence;
 using Insys.Documents.Infrastructure.StaticData;
 using Insys.General.Contracts;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Insys.Documents.Infrastructure;
 
@@ -67,6 +68,14 @@ public static class DocumentsInfrastructure
         services.AddSingleton<IDocumentRenderer, PlainTextDocumentRenderer>();
         services.AddSingleton<IDocumentDelivery, StubDocumentDelivery>();
         services.AddScoped<DocumentGenerator>();
+        // AIA-010, D-14: the malware scanner port (ClamAV, a separate service), and the job that clears uploads out of quarantine.
+        services.AddOptions<Scanning.ScannerOptions>().BindConfiguration("Documents:Scanner");
+        services.TryAddSingleton<BuildingBlocks.Application.Storage.IMalwareScanner, Scanning.ClamAvScanner>();
+        services.AddSingleton<Scanning.DocumentScanJob>();
+        if (!BuildingBlocks.Infrastructure.InfrastructureRegistration.IsBuildTimeDocumentGeneration)
+        {
+            services.AddHostedService<Scanning.DocumentScanService>();
+        }
         services.AddScoped<DocumentLanguages>();
         services.AddIntegrationEventHandler<Workflow.Contracts.ApprovalGranted, LegalHoldReleasePolicy, DocumentsDbContext>(DocumentsDbContext.SchemaName, "ApprovalGranted");
         services.AddIntegrationEventHandler<Workflow.Contracts.ApprovalRejected, LegalHoldReleasePolicy, DocumentsDbContext>(DocumentsDbContext.SchemaName, "ApprovalRejected");

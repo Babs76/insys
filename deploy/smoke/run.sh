@@ -40,6 +40,7 @@ diagnose() {
   kubectl describe pod -l app.kubernetes.io/name=api | tail -25 || true
   kubectl logs deploy/insys-api --tail=60 || true
   kubectl logs job/insys-migrate-1 --tail=30 || true
+  kubectl logs deploy/insys-clamav --tail=30 || true
   kubectl describe pod -l app.kubernetes.io/name=console | sed -n '/^Events:/,$p' | tail -15 || true
 }
 trap 'diagnose' ERR
@@ -167,7 +168,19 @@ in_cluster "curl -sI $console/" | tr -d '\r' | grep -i '^content-security-policy
 echo "== A document in the object store"
 content=$(printf 'smoke document' | base64)
 document=$(call POST /documents/documents "{\"categoryCode\":\"KYC\",\"businessRefType\":\"PARTY\",\"businessRefId\":\"$party\",\"mimeType\":\"text/plain\",\"contentBase64\":\"$content\",\"fileName\":\"smoke.txt\"}" | jq -r .id)
+# AIA-010: an upload is held until ClamAV clears it; the scan job runs every 30 seconds. The EICAR test file is held for good.
+status() { in_cluster "curl -s -o /dev/null -w '%{http_code}' -H 'Authorization: Bearer $user' $api$1"; }
+kubectl rollout status deploy/insys-clamav --timeout=900s
+eicar=$(printf '%s' 'X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*' | base64 -w0)
+infected=$(call POST /documents/documents "{\"categoryCode\":\"KYC\",\"businessRefType\":\"PARTY\",\"businessRefId\":\"$party\",\"mimeType\":\"text/plain\",\"contentBase64\":\"$eicar\",\"fileName\":\"eicar.txt\"}" | jq -r .id)
+for _ in $(seq 1 30); do
+  [ "$(call GET "/documents/documents/$document" | jq -r .scanStatus)" = CLEAN ] && [ "$(call GET "/documents/documents/$infected" | jq -r .scanStatus)" != PENDING ] && break
+  sleep 10
+done
+[ "$(call GET "/documents/documents/$document" | jq -r .scanStatus)" = CLEAN ] || fail "ClamAV didn't clear the upload"
 [ "$(call GET "/documents/documents/$document/content?purpose=SMOKE")" = "smoke document" ] || fail "the document didn't read back"
+[ "$(call GET "/documents/documents/$infected" | jq -r .scanStatus)" = INFECTED ] || fail "ClamAV didn't flag the EICAR test file"
+[ "$(status "/documents/documents/$infected/content?purpose=SMOKE")" = 409 ] || fail "the infected upload was released"
 kubectl exec insys-seaweedfs-0 -- sh -c "wget -qO- --header 'Accept: application/json' http://\$(hostname -i):8888/buckets/insys-documents/" | jq -e '.Entries | length > 0' > /dev/null || fail "the bucket holds nothing"
 
 trap - ERR

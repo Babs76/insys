@@ -93,6 +93,7 @@ public sealed class ObjectStoreTests(DatabaseFixture fixture) : IClassFixture<Da
         }, idempotent: true);
         stored.StatusCode.ShouldBe(HttpStatusCode.Created, await stored.Content.ReadAsStringAsync());
         var document = (await stored.Json()).GetProperty("id").GetGuid();
+        await factory.ScanUploads(); // AIA-010: an upload is released once the malware scan clears it
 
         (await (await client.GetAsync($"/api/v1/documents/documents/{document}/content?purpose=TEST")).Content.ReadAsStringAsync()).ShouldBe("stored in OBS");
         var key = $"tenant/{DatabaseFixture.TenantA:N}/documents/{document:N}";

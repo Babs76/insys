@@ -255,6 +255,7 @@ public sealed class SharedServicesTests(DatabaseFixture fixture) : IClassFixture
         }, idempotent: true);
         stored.StatusCode.ShouldBe(HttpStatusCode.Created);
         var id = (await stored.Json()).GetProperty("id").GetGuid();
+        await _factory.ScanUploads(); // AIA-010: an upload is released once the malware scan clears it
         var url = $"/api/v1/documents/documents/{id}/content?purpose=Assess%20claim";
 
         (await (await client.GetAsync(url)).Code()).ShouldBe("DOCUMENT_ROLE_REQUIRED");

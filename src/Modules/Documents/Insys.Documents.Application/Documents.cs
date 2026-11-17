@@ -90,6 +90,45 @@ public interface IDocumentRepository
     void Add(GenerationRequest request);
 
     void Add(AccessRecord record);
+
+    /// <summary>Uploads waiting for their malware scan, oldest first (AIA-010).</summary>
+    Task<IReadOnlyList<PendingScan>> PendingScans(int limit, CancellationToken cancellationToken);
+}
+
+/// <summary>An upload waiting for its malware scan: where its content is and its checksum.</summary>
+public sealed record PendingScan(Guid DocumentId, string StorageUri, string Sha256);
+
+/// <summary>The uploads waiting for their scan, for the scan job (AIA-010).</summary>
+public sealed record ListPendingScans(int Limit) : IQuery<IReadOnlyList<PendingScan>>;
+
+/// <summary>Records the scanner's verdict on an upload. Infected: its content is never released, and the job deletes it.</summary>
+public sealed record RecordScan(Guid DocumentId, bool Clean, string? Finding) : ICommand<bool>;
+
+internal sealed class ScanHandlers(IDocumentRepository documents, IClock clock, IAuditTrail audit)
+    : IQueryHandler<ListPendingScans, IReadOnlyList<PendingScan>>, ICommandHandler<RecordScan, bool>
+{
+    public async Task<Result<IReadOnlyList<PendingScan>>> Handle(ListPendingScans query, CancellationToken cancellationToken) =>
+        Result.Success(await documents.PendingScans(query.Limit, cancellationToken));
+
+    public async Task<Result<bool>> Handle(RecordScan command, CancellationToken cancellationToken)
+    {
+        if (await documents.Get(command.DocumentId, cancellationToken) is not { } document)
+        {
+            return Error.NotFound(ErrorCodes.NotFound, "The document was not found.");
+        }
+
+        var recorded = document.RecordScan(command.Clean, command.Finding, clock.UtcNow);
+        if (recorded.IsFailure)
+        {
+            return recorded.Error;
+        }
+
+        audit.Record(new AuditEntry("DOCUMENT", "RecordScan", nameof(Document), document.Id.ToString(), new Dictionary<string, string?>
+        {
+            ["result"] = document.ScanStatus, ["finding"] = document.ScanFinding,
+        }));
+        return command.Clean;
+    }
 }
 
 public sealed record DeliveryView(Guid Id, [property: OneOf(DeliveryChannels.Email, DeliveryChannels.Sms, DeliveryChannels.Post, DeliveryChannels.Portal)] string Channel, string Recipient, [property: OneOf("SENT", "FAILED")] string Status, string? ProviderRef, DateTimeOffset? SentAt);
@@ -111,7 +150,9 @@ public sealed record LegalHoldView(Guid Id, [property: CodeList(DeliveryChannels
 public sealed record DocumentView(Guid Id, [property: CodeList("document.ref_document_categories", "category_code")] string CategoryCode, string Classification, bool PurposeRequired,
     bool AllowedRoleRequired, DocumentStatus Status, string MimeType, string? FileName, long SizeBytes, string Sha256, string? TemplateCode, int? TemplateVersion,
     string? ProductVersionRef, string BusinessRefType, Guid BusinessRefId, DateOnly? RetentionUntil, bool LegalHold, DateTimeOffset? DisposedAt,
-    IReadOnlyList<DeliveryView> Deliveries, IReadOnlyList<LegalHoldView> Holds, long RowVersion)
+    IReadOnlyList<DeliveryView> Deliveries, IReadOnlyList<LegalHoldView> Holds, long RowVersion,
+    [property: System.ComponentModel.Description("The malware scan (AIA-010): NOT_REQUIRED for a generated document; PENDING while an upload is in quarantine; CLEAN, or INFECTED, never released.")]
+    string ScanStatus = ScanStatuses.NotRequired)
 {
     /// <param name="rejections">Each hold's latest release approval that ended without being granted (OQ-113), by hold.</param>
     public static DocumentView From(Document d, IReadOnlyDictionary<Guid, Workflow.Contracts.LatestRejection?>? rejections = null) => new(d.Id, d.CategoryCode,
@@ -119,7 +160,7 @@ public sealed record DocumentView(Guid Id, [property: CodeList("document.ref_doc
         d.Sha256, d.TemplateCode, d.TemplateVersion, d.ProductVersionRef, d.BusinessRefType, d.BusinessRefId,
         d.RetentionUntil, d.LegalHold, d.DisposedAt,
         d.Deliveries.OrderBy(x => x.Id).Select(x => new DeliveryView(x.Id, x.Channel, x.Recipient, x.Status, x.ProviderRef, x.SentAt)).ToList(),
-        d.Holds.OrderBy(h => h.Id).Select(h => LegalHoldView.From(h, rejections?.GetValueOrDefault(h.Id))).ToList(), d.RowVersion);
+        d.Holds.OrderBy(h => h.Id).Select(h => LegalHoldView.From(h, rejections?.GetValueOrDefault(h.Id))).ToList(), d.RowVersion, d.ScanStatus);
 
     /// <summary>The view with each hold's latest release rejection, from Workflow's approval history (OQ-113).</summary>
     public static async Task<DocumentView> With(Document d, Workflow.Contracts.IApprovalHistory history, CancellationToken cancellationToken)
@@ -305,8 +346,10 @@ internal sealed class StoreDocumentHandler(IDocumentRepository documents, IDocum
 
         var id = Guid.CreateVersion7();
         var stored = await storage.Put(tenant.RequireTenantId(), id, command.Content, command.MimeType, cancellationToken);
+        // AIA-010: an upload is held in quarantine (PENDING) until the scan job clears it.
         var document = Document.Create(id, command.CategoryCode, category.Classification, stored, null, command.ProductVersionRef, command.BusinessRefType,
-            command.BusinessRefId, await catalogue.RetentionUntil(command.CategoryCode, command.Jurisdiction, today, cancellationToken), clock.UtcNow, command.BaseFileName);
+            command.BusinessRefId, await catalogue.RetentionUntil(command.CategoryCode, command.Jurisdiction, today, cancellationToken), clock.UtcNow, command.BaseFileName,
+            uploaded: true);
         documents.Add(document);
         return DocumentView.From(document);
     }
@@ -326,6 +369,12 @@ internal sealed class DeliverDocumentHandler(IDocumentRepository documents, IDoc
         if (!await catalogue.DeliveryChannelExists(command.Channel, businessDate.Today, cancellationToken))
         {
             return Error.Validation(DocumentErrorCodes.CodeNotInForce, $"No delivery channel {command.Channel} is configured.");
+        }
+
+        // AIA-010: an upload is never sent before the malware scan clears it.
+        if (document.Value.ContentAvailable() is { IsFailure: true } quarantined)
+        {
+            return quarantined.Error;
         }
 
         var content = document.Value.Status == DocumentStatus.Disposed ? null : await storage.Get(tenant.RequireTenantId(), document.Value.StorageUri, cancellationToken);
@@ -497,6 +546,12 @@ internal sealed class ReadDocumentContentHandler(IDocumentRepository documents, 
         if (doc.Status == DocumentStatus.Disposed)
         {
             return Error.Conflict(ErrorCodes.InvalidStateTransition, "The document was disposed of.");
+        }
+
+        // AIA-010: an upload's content is released only once the malware scan clears it; nothing is recorded as read before then.
+        if (doc.ContentAvailable() is { IsFailure: true } quarantined)
+        {
+            return quarantined.Error;
         }
 
         if (Classifications.IsSensitive(doc.Classification))

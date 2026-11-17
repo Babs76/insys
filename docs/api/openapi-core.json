@@ -54447,6 +54447,11 @@
               "string"
             ],
             "format": "int64"
+          },
+          "scanStatus": {
+            "type": "string",
+            "description": "The malware scan (AIA-010): NOT_REQUIRED for a generated document; PENDING while an upload is in quarantine; CLEAN, or INFECTED, never released.",
+            "default": "NOT_REQUIRED"
           }
         }
       },

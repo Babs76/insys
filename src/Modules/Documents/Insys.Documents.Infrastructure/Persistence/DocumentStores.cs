@@ -43,6 +43,10 @@ namespace Insys.Documents.Infrastructure.Persistence;
 
 internal sealed class DocumentRepository(DocumentsDbContext db) : IDocumentRepository
 {
+    public async Task<IReadOnlyList<PendingScan>> PendingScans(int limit, CancellationToken cancellationToken) =>
+        await db.Documents.AsNoTracking().Where(d => d.ScanStatus == ScanStatuses.Pending && d.Status != DocumentStatus.Disposed).OrderBy(d => d.Id).Take(limit)
+            .Select(d => new PendingScan(d.Id, d.StorageUri, d.Sha256)).ToListAsync(cancellationToken);
+
     public Task<Document?> Get(Guid id, CancellationToken cancellationToken) =>
         db.Documents.Include(d => d.Deliveries).Include(d => d.Holds).SingleOrDefaultAsync(d => d.Id == id, cancellationToken);
 

@@ -27,7 +27,7 @@ The SRS's principles P1 to P8 and its requirements AIA-001 to AIA-091 stand as w
 | D-7 | Line for AI-1's evaluation set | **Decided, 1 Nov:** the first customer's launch line; otherwise a simple Life funeral or term product with age-band rate tables. The insurer's written permission comes first. Fixed before batch 7.5 |
 | D-8 | AI-3's build order | **Decided, 1 Nov:** AI-3 is split: 7.1 to 7.3, then 7.6 and 7.7, then 7.4 and 7.5, then 7.8 (§6) |
 | D-15 | Free text and prompts (AIA-051) | **Decided, 2 Nov:** no free text goes to a model until real name detection exists. AI-2's prompts are built only from allowed structured fields: the code, the catalogue entry, field errors, the record's permitted fields, and the rating calculation's recorded inputs and lines. Any free-text field is excluded, not masked (§5.4) |
-| D-16 | Documents for AI-1 and AI-3 | **Open, for Ade, needed before 7.4 and 7.8.** Recommended: a document is allowed when the uploader confirms it holds no customer personal data, with the confirmation recorded on the run, after the malware scan, and with the minimiser as a backstop. For AI-3's tenant documents, the template asks for role titles, not people's names |
+| D-16 | Documents for AI-1 and AI-3 | **Decided (Ade, 17 November): as recommended, with additions.** A document reaches a model only after, in this order: the malware scan (AIA-010), a deterministic identifier check that refuses rather than masks, and the uploader's confirmation that it holds no customer personal data. The minimiser stays the backstop. For AI-3's tenant documents, the template asks for role titles, not names. Rules in §5.5 |
 | D-17 | AIA-072 and the model call | **Decided in batch 7.2 (15 Nov), from the 7.1 review:** no transaction is open while the model answers. A run is a short read (settings, cap, cache), the call with nothing held, then a short command recording the run and the explanation; `RunAssist` is gone. The cost: two calls in flight together can pass the cap by what they use, as before |
 | D-18 | Where the starter packs live (§5.2) | **Decided by Ade, 15 November (batch 7.6):** in Assist's own versioned tables (`assist.starter_pack`, `assist.starter_pack_version`, `assist.starter_pack_value`), with the overlay lifecycle of §5.3 there, not in the generic static data framework, whose approval doesn't model a partner's review, its evidence or a hash-bound approval. §5.2's "versioned static data" is read as versioned reference data held by Assist. A pack's rows still reach a tenant only through the `SETUP` change set and the governed import (7.7) |
 | D-19 | The fallback's approval (§5.3) | **Decided by Ade, 15 November (batch 7.6):** a separate privileged tenant-side function, `ASSIST_OVERLAY_APPROVE_TENANT`, in no role template, assigned explicitly to the customer's compliance officer. It approves an overlay version for its own tenant only (`TENANT_ONLY`), never one prepared or marked `REVIEWED` by the same person. The platform's `ASSIST_OVERLAY_APPROVE` stays the normal route |
@@ -153,6 +153,26 @@ The minimiser stays as a second layer. AI-1 and AI-3 read documents, so D-16 mus
 **Built in batch 7.2 (15 November):** `AllowedFacts` takes only codes, amounts with their currency, numbers, yes or no, dates and the error catalogue's own wording; any other value is left out and counted, never masked and sent. Its form is a backstop, not the guard, as a code-shaped word can still be anything: the explanations add only values INSYS itself recorded or configured. A refusal sends its code, whether it is worth retrying, the catalogue's wording and how many fields are in error, never the fields' names, the screen's messages or the record, which are the client's. A premium sends the product and Rating's lines (step, configured factor, value used, amount with its currency), never the inputs, whose names and values are the caller's; for Health, not the factor values either (AIA-038). The verifier compares numbers with the facts' values only, and a stated currency must match an amount in that currency (§5.1, strict for AI-2). Prompt templates are INSYS's own words, never interpolated (AIA-061); 7.3 moves them into configuration.
 
 **Not yet in 7.2 (OQ-166, OQ-167):** a refusal is explained from its code, the catalogue's wording and the fields' names; the record's state as the user may read it (AIA-039) waits on read hooks per record type. Of 260 error codes, 69 have catalogue wording; the rest are shown plain, with no call.
+
+### 5.5 Documents for AI-1 and AI-3 (D-16, Ade, 17 November)
+**Allowed files:**
+- PDF, DOCX and XLSX only, the inputs AIA-011 names. The type is read from the content, not taken from the file name.
+- At most 20 MB a file and 10 files a run.
+- Anything else is refused before it is scanned or read.
+
+**In this order:**
+1. **The malware scan** (AIA-010). Each upload stays quarantined until clean; if the scanner is down, uploads wait.
+2. **The identifier check:** deterministic, on the extracted text. A document holding an obvious identifier is refused for the run, not masked. The refusal names the kind of identifier and the page, never the value. Obvious identifiers are:
+   - an email address;
+   - a South African ID number: 13 digits with a valid date and check digit;
+   - an IBAN that passes its check digits;
+   - a number labelled as an identity or account number: "ID number", "identity number", "national ID", "NIN", "BVN", "passport number", "account number", "account no", "acc no", followed by 6 or more digits.
+
+   The labels are English only (D-4); other languages come with the language work.
+3. **The uploader's confirmation** that the document holds no customer personal data. It names the person (the signed-in user), the document (its id, file name and content hash) and the date, and is recorded on the run and audited. A document whose content changes needs a new confirmation.
+4. **The minimiser**, as the backstop on what is sent (AIA-051).
+
+**AI-3's tenant documents (7.8):** the template asks for role titles, not people's names.
 
 ### 5.2 AI-3 and the starter packs
 - **Format:** [`docs/specs/starter-packs`](../starter-packs/README.md) has the structure, drafted: base, country and line overlays. It needs a `tailorable` mark per value (AIA-082). In the build, packs become versioned static data (`starter_pack`, `starter_pack_value`).

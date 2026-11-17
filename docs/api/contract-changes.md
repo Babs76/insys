@@ -4,6 +4,14 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 
 
+## Documents: uploads are held until a malware scan clears them (Wave 7 batch 7.4, AIA-010)
+- **Every upload starts quarantined.** Its content (`GET /documents/documents/{id}/content`, delivery, and the portal's content read) is refused with **409 `DOCUMENT_QUARANTINED`** until the malware scan clears it, usually within a minute.
+  - A file that fails the scan is never released and its content is deleted. The same 409 applies; the user uploads a clean copy.
+  - Generated documents aren't scanned.
+  - Uploads made before this change are scanned once, so they too are held until then.
+- **New field `scanStatus`** on a document's view: `NOT_REQUIRED` (generated), `PENDING`, `CLEAN` or `INFECTED`. The front end can show a held upload as waiting, and poll the document until it isn't `PENDING`.
+- No other field or route changed.
+
 ## AI Assist: templates v3, and IDENTITY_NOT_LINKED is retryable (17 November 2026)
 - **Prompt templates `refusal-v3` and `premium-v3`** (Ade, from a pre-screen of run 43904917124):
   - They don't say what the assistant can or can't do. v2's "Never say that you can change, approve or retry anything" brought the answer "I can't approve, change or resubmit…" in 64 of Sonnet's 107.

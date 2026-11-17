@@ -68,6 +68,12 @@ spec:
             - {name: Authentication__Issuer, value: {{ . | quote }}}
             {{- end }}
             - {name: Authentication__Audience, value: {{ .Values.authentication.audience | quote }}}
+            {{- $scanner := .Values.scanner.host | default (ternary (printf "%s-clamav" .Release.Name) "" .Values.scanner.enabled) }}
+            {{- if $scanner }}
+            # The malware scanner (AIA-010). Without one, uploads stay quarantined: the scan fails closed.
+            - {name: Documents__Scanner__Host, value: {{ $scanner | quote }}}
+            - {name: Documents__Scanner__Port, value: {{ .Values.scanner.port | quote }}}
+            {{- end }}
             {{- $keycloakAdmin := .Values.identity.keycloak.baseUrl | default (ternary (printf "http://%s-keycloak:8080" .Release.Name) "" .Values.keycloak.enabled) }}
             {{- if $keycloakAdmin }}
             # Keycloak user provisioning, inside the cluster; the client secret from the Secret, optional so the API starts before it's copied there.

@@ -74,5 +74,14 @@ services:
     volumes:
       - ./deploy/keycloak/insys-realm.json:/opt/keycloak/data/import/insys-realm.json:ro
 
+  # The malware scanner for uploaded documents (AIA-010). Uploads stay quarantined until it clears them, so for local work with documents:
+  #   docker compose --profile scanner up -d clamav
+  # and run the API with Documents__Scanner__Host=localhost. It downloads its signatures first, a minute or two.
+  clamav:
+    image: clamav/clamav:1.5.4
+    profiles: ["scanner"]
+    ports:
+      - "${INSYS_CLAMAV_PORT:-3310}:3310"
+
 volumes:
   insys-pgdata:

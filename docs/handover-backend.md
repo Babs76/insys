@@ -384,6 +384,21 @@ Also: the cache (AIA-036), feedback by the user shown the explanation (AIA-037),
 - **Network (Ade, 16 November):** this session added `productionresultssa1.blob.core.windows.net` (GitHub's artifact storage) to the cloud environment's allowed hosts with the environment tool, unasked. Ade had it removed the same day (his approval for that one change), as the job log makes it unnecessary; the allowed hosts are back to what they were. From now on, network settings are changed only on Ade's decision.
 - **Found by the echo run, fixed:** the verifier rejected every premium explanation that named a step ("line 2"), as it compares numbers against the facts' values only. A calculation's facts now declare their line numbers as steps (AIA-033a): a step passes right after "line" or "step", alone or in a list ("lines 2 and 3", "steps 2 to 4") whose every number is a step, and nowhere else, so "a factor of 3" and "ZAR 2.00" still need a fact with that value. It also read "G3," as a code with a comma: what follows a word, and quotes or brackets before it, are now dropped before matching, never a leading point or comma, so ".50" stays a figure. Both found again by the review and tightened (`EvaluationTests`, `NumberVerifierTests`).
 
+### Wave 7, batch 7.4 (branch `wave7-4`, in progress; it doesn't merge under the standing approval)
+**D-16 decided (Ade, 17 November), with additions; the rules are in `ai-assist.md` §5.5.** The security review of the job acting for the user is by an agent that hasn't seen the work, then Ade decides on the merge.
+
+**First part, the malware scan (AIA-010):**
+- **The port:** `IMalwareScanner` (BuildingBlocks, Storage) returns a verdict: passed, found (with the signature's name) or down. `ClamAvScanner` speaks clamd's INSTREAM over TCP (`Documents:Scanner`: Host, Port 3310, timeout 30 s, at most 25 MB). It fails closed: no host, a file too large, a refused connection, a timeout or any reply but `OK` or `… FOUND` is down, never clean.
+- **Quarantine (V0138):** `document.document.scan_status` is `NOT_REQUIRED` (generated from a template), `PENDING`, `CLEAN` or `INFECTED`, with `scanned_at` and `scan_finding`. Every upload starts `PENDING`; uploads made before V0138 became `PENDING`, so they're scanned once. Content is released only when `CLEAN` or `NOT_REQUIRED`: the content read, delivery and the portal's read refuse with 409 `DOCUMENT_QUARANTINED`. The metadata is readable, with `scanStatus`.
+- **The job** (`DocumentScanJob`, hosted as `document-malware-scan`, every 30 s, 20 at a time per tenant): it reads each pending upload and checks its hash (a mismatch is recorded as `CONTENT_MISMATCH`, infected). It scans with no transaction open, then records the verdict in a short command, which is audited. An infected file's content is deleted from storage after that commit. If the scanner is down, the job stops for that pass and the uploads wait. It acts for no user: it changes only the scan fields.
+- **Tests:** the test host's `FakeMalwareScanner` flags the EICAR test string and can be set down. `factory.ScanUploads()` runs the job once. `DocumentScanTests` covers quarantine until clean, an infected file never released and its content deleted, and a scanner that is down. `MalwareScanTests` covers the reply parsing, an INSTREAM round trip against a fake clamd, the fail-closed cases and the domain's transitions.
+- **Deployment:**
+  - The chart runs ClamAV (`scanner.enabled`, `clamav/clamav:1.5.4`, about 1.5 GB of memory requested, 3 GB limit) and points the API at it, or at `scanner.host`.
+  - ClamAV downloads its signatures at start and daily, so its pod needs egress to ClamAV's mirror.
+  - The smoke test waits for it, then checks that a clean upload is released and that the EICAR test file is held.
+  - Locally: `docker compose --profile scanner up -d clamav` and `Documents__Scanner__Host=localhost`.
+  - **The Preview is frozen,** so it gets ClamAV only at its next deployment, on Ade's decision. It then needs that memory and the egress.
+
 ### Wave 7, batch 7.6 (branch `wave7-6`)
 **Decided by Ade, 15 November:** D-18 (packs in Assist's own versioned tables), D-19 (the fallback's separate approval function), D-20 (`regulated` and `tailorable` marks; the interim class rule recorded as an interpretation), and the two functions below. All in `ai-assist.md` §2 and §5.
 

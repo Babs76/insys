@@ -91,6 +91,9 @@ public sealed class InsysApiFactory(TestDatabase database, IReadOnlyDictionary<s
         // No real model in tests (SRS §9.2): this is the only place the stub is registered.
         builder.ConfigureTestServices(services => services.AddSingleton<Insys.BuildingBlocks.Application.Ai.IAiModelProvider, StubAiModelProvider>());
 
+        // No ClamAV in tests (AIA-010): the fake scanner, which flags the EICAR test string. ScanUploads runs the scan job.
+        builder.ConfigureTestServices(services => services.AddSingleton<Insys.BuildingBlocks.Application.Storage.IMalwareScanner>(Scanner));
+
         // A fixed clock, for business date tests (ADR-025): every IClock and token check in the host reads it.
         if (time is not null)
         {
@@ -118,6 +121,12 @@ public sealed class InsysApiFactory(TestDatabase database, IReadOnlyDictionary<s
 
     /// <summary>Publishes every pending outbox event to its consumers now (the relay is off in tests).</summary>
     /// <summary>Relays outbox events until none are left, so chains of events (a consumer publishing in turn) complete.</summary>
+    /// <summary>The host's malware scanner: set Down to see uploads wait in quarantine.</summary>
+    public FakeMalwareScanner Scanner { get; } = new();
+
+    /// <summary>Runs the malware scan job once, as its schedule would (AIA-010): uploads leave quarantine, clean or infected.</summary>
+    public Task<int> ScanUploads() => Services.GetRequiredService<Insys.Documents.Infrastructure.Scanning.DocumentScanJob>().Run(CancellationToken.None);
+
     public async Task<int> DrainOutbox()
     {
         var processor = Services.GetRequiredService<Insys.BuildingBlocks.Infrastructure.Messaging.OutboxProcessor>();
