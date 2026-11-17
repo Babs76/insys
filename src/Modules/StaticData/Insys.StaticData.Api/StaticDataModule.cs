@@ -148,8 +148,50 @@ public sealed class StaticDataModule : IModule
             .WithName("ListImportBatches")
             .WithSummary("List static data import batches and their rejected lines (SDM-012)")
             .RequirePermission(StaticDataGovernancePermissions.ChangeRequestRead);
+
+        // AIA-086, OQ-180: a tenant's SETUP change set, and abandoning one approved that can't finish applying.
+        var sets = governance.MapGroup("/static-data/setup-sets").WithTags(tag);
+        sets.MapGet("/{id:guid}", async (Guid id, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+                (await dispatcher.Query(new GetSetupChangeSet(id), ct)).ToHttp(view =>
+                {
+                    Concurrency.SetETag(http, view.RowVersion);
+                    return Results.Ok(view);
+                }))
+            .Produces<SetupChangeSetView>(StatusCodes.Status200OK).ReturnsETag()
+            .WithName("GetSetupChangeSet")
+            .WithSummary("A SETUP change set (AIA-086): its batches in order, which are in force, its approval, and any abandonment (OQ-180)")
+            .RequirePermission(StaticDataGovernancePermissions.ChangeRequestRead);
+        MapAbandon(sets, "/{id:guid}/abandon", "RequestSetupAbandon",
+            "Ask to abandon an approved SETUP change set that can't finish applying, with a reason (OQ-180). Needs If-Match; a different person approves or declines it",
+            (id, body, expected) => new RequestSetupAbandon(id, body?.Reason ?? "", expected));
+        MapAbandon(sets, "/{id:guid}/abandon/approve", "ApproveSetupAbandon",
+            "Approve abandoning it: the batches in force stay, the rest are discarded, and the setup is a draft again. Never by whoever asked. Needs If-Match",
+            (id, _, expected) => new ApproveSetupAbandon(id, expected));
+        MapAbandon(sets, "/{id:guid}/abandon/decline", "DeclineSetupAbandon",
+            "Decline abandoning it: the set carries on applying. Never by whoever asked. Needs If-Match",
+            (id, _, expected) => new DeclineSetupAbandon(id, expected));
     }
+
+    private static void MapAbandon(RouteGroupBuilder sets, string route, string name, string summary, Func<Guid, SetupAbandonBody?, long, ICommand<SetupChangeSetView>> command) =>
+        sets.MapPost(route, async (Guid id, SetupAbandonBody? body, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+            {
+                var expected = Concurrency.ExpectedVersion(http.Request);
+                return expected.IsFailure ? Problems.For(expected.Error) : (await dispatcher.Send(command(id, body, expected.Value), ct)).ToHttp(view =>
+                {
+                    Concurrency.SetETag(http, view.RowVersion);
+                    return Results.Ok(view);
+                });
+            })
+            .Produces<SetupChangeSetView>(StatusCodes.Status200OK).ReturnsETag().RequireIfMatch()
+            .WithName(name).WithSummary(summary)
+            .WithDescription("Function STATIC_DATA_SETUP_ABANDON (privileged, in no role template). 403 MAKER_CHECKER_SAME_PERSON when whoever asked approves or declines; "
+                + "409 SETUP_TENANT_LIVE once the tenant is live; 409 INVALID_STATE_TRANSITION unless the set is approved and still applying. Every step is audited. "
+                + "Once abandoned, the tenant can't go live until a new set is applied in full.")
+            .RequirePermission(StaticDataGovernancePermissions.SetupAbandon);
 }
+
+/// <param name="Reason">Why the set can't finish applying; required to ask.</param>
+public sealed record SetupAbandonBody(string? Reason);
 
 /// <summary>
 /// The function deciding a static data change approval needs (ADR-026, SRS-002): the approve function of the table the

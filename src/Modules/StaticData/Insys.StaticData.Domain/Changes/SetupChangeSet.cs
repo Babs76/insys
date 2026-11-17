@@ -36,6 +36,9 @@ public static class SetupSetStatuses
     public const string Applying = "APPLYING";
     public const string Applied = "APPLIED";
     public const string NotApproved = "NOT_APPROVED";
+
+    /// <summary>Approved, but abandoned before it finished applying (OQ-180): the batches applied stay applied; the rest are discarded.</summary>
+    public const string Abandoned = "ABANDONED";
 }
 
 /// <summary>One batch as submitted to a set.</summary>
@@ -44,6 +47,10 @@ public sealed record SetupBatchSubmitted(int Seq, string Table, string EntityCod
 public sealed record SetupApprovalNeeded(Guid SetId, string ApprovalType, Guid MakerId, string Hash, int Batches, DateTimeOffset OccurredAt) : IDomainEvent;
 
 public sealed record SetupChangeSetCompleted(Guid SetId, Guid SourceRef, Guid CheckerId, DateTimeOffset OccurredAt) : IDomainEvent;
+
+/// <summary>The set was abandoned (OQ-180). <paramref name="Applied"/> are the batches already in force, which stay; the others are discarded.</summary>
+public sealed record SetupChangeSetAbandonedEvent(Guid SetId, Guid SourceRef, IReadOnlyList<Guid> Applied, IReadOnlyList<Guid> Unapplied, Guid RequestedBy, Guid ApprovedBy,
+    string Reason, DateTimeOffset OccurredAt) : IDomainEvent;
 
 public sealed record SetupChangeSetEnded(Guid SetId, Guid SourceRef, string Ending, string Reason, DateTimeOffset OccurredAt) : IDomainEvent;
 
@@ -121,6 +128,18 @@ public sealed class SetupChangeSet : AggregateRoot<Guid>
 
     public IReadOnlyList<SetupChangeSetBatchEntry> Batches => _batches;
 
+    /// <summary>Who asked to abandon the set, why and when (OQ-180); null when nobody has, or after a decline.</summary>
+    public Guid? AbandonRequestedBy { get; private set; }
+
+    public string? AbandonReason { get; private set; }
+
+    public DateTimeOffset? AbandonRequestedAt { get; private set; }
+
+    /// <summary>Who approved abandoning it: never whoever asked.</summary>
+    public Guid? AbandonedBy { get; private set; }
+
+    public DateTimeOffset? AbandonedAt { get; private set; }
+
     public bool IsOpen => Status is SetupSetStatuses.Submitted or SetupSetStatuses.Applying;
 
     /// <summary>The hash a set's approval is bound to.</summary>
@@ -177,7 +196,7 @@ public sealed class SetupChangeSet : AggregateRoot<Guid>
     public void BatchArrived() => MarkChanged();
 
     /// <summary>Whether this checker's approval is already applied: a redelivery changes nothing.</summary>
-    public bool ApprovalApplied(Guid checkerId) => Status is SetupSetStatuses.Applying or SetupSetStatuses.Applied && CheckerId == checkerId;
+    public bool ApprovalApplied(Guid checkerId) => Status is SetupSetStatuses.Applying or SetupSetStatuses.Applied or SetupSetStatuses.Abandoned && CheckerId == checkerId;
 
     /// <summary>
     /// Workflow's approval: refused to the maker (SRS-002, AIA-086), and unless it was given for this set's hash, so a set that changed needs a new approval.
@@ -226,6 +245,14 @@ public sealed class SetupChangeSet : AggregateRoot<Guid>
             return Result.Success();
         }
 
+        // A batch already on its way when the set was abandoned: in force all the same, so it is listed as applied; nothing follows it.
+        if (Status == SetupSetStatuses.Abandoned)
+        {
+            batch.Applied(now);
+            MarkChanged();
+            return Result.Success();
+        }
+
         if (Next() != batch)
         {
             return Error.Conflict(ErrorCodes.InvalidStateTransition, "A setup change set's batches are applied in their order.");
@@ -240,6 +267,80 @@ public sealed class SetupChangeSet : AggregateRoot<Guid>
 
         MarkChanged();
         return Result.Success();
+    }
+
+    /// <summary>
+    /// OQ-180 (Ade, 17 November): asks to abandon an approved set that can't finish applying. Only while it is applying, with a reason; a different person
+    /// then approves or declines it.
+    /// </summary>
+    public Result RequestAbandon(Guid by, string reason, DateTimeOffset now)
+    {
+        if (by == Guid.Empty)
+        {
+            return Error.Forbidden(ErrorCodes.Forbidden, "A set is abandoned by identified people.");
+        }
+
+        if (Status != SetupSetStatuses.Applying)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, $"The setup change set is {Status}; only one approved and still applying is abandoned.");
+        }
+
+        if (AbandonRequestedBy is not null)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, "Abandoning this set is already waiting for a second person.");
+        }
+
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            return Error.Validation(ErrorCodes.ValidationFailed, "reason is required: why the set can't finish applying.");
+        }
+
+        (AbandonRequestedBy, AbandonReason, AbandonRequestedAt) = (by, Guard.MaxLength(reason.Trim(), 500), now);
+        MarkChanged();
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// A second person approves abandoning the set: never whoever asked (SRS-002). The batches applied stay applied and stay listed; the others are discarded
+    /// by their modules (<see cref="SetupChangeSetAbandonedEvent"/>).
+    /// </summary>
+    public Result ApproveAbandon(Guid by, DateTimeOffset now)
+    {
+        if (Pending(by) is { } refused)
+        {
+            return refused;
+        }
+
+        (Status, AbandonedBy, AbandonedAt) = (SetupSetStatuses.Abandoned, by, now);
+        Raise(new SetupChangeSetAbandonedEvent(Id, SourceRef, [.. _batches.Where(b => b.AppliedAt is not null).OrderBy(b => b.Seq).Select(b => b.BatchId)],
+            [.. _batches.Where(b => b.AppliedAt is null).OrderBy(b => b.Seq).Select(b => b.BatchId)], AbandonRequestedBy!.Value, by, AbandonReason!, now));
+        MarkChanged();
+        return Result.Success();
+    }
+
+    /// <summary>A second person declines it: the set carries on applying, and a new request may follow.</summary>
+    public Result DeclineAbandon(Guid by)
+    {
+        if (Pending(by) is { } refused)
+        {
+            return refused;
+        }
+
+        (AbandonRequestedBy, AbandonReason, AbandonRequestedAt) = (null, null, null);
+        MarkChanged();
+        return Result.Success();
+    }
+
+    private Error? Pending(Guid by)
+    {
+        if (AbandonRequestedBy is not { } requester || Status != SetupSetStatuses.Applying)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, "Nobody has asked to abandon this set.");
+        }
+
+        return by == Guid.Empty ? Error.Forbidden(ErrorCodes.Forbidden, "A set is abandoned by identified people.")
+            : by == requester ? MakerChecker.EnsureDifferentPeople(requester.ToString(), by.ToString()).Error
+            : null;
     }
 
     /// <summary>The approval ended without being granted (rejected, expired, withdrawn): nothing of the set is applied. A rejection by the maker is refused.</summary>

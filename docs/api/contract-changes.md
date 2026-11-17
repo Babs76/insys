@@ -4,6 +4,18 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 
 
+## Static data: abandoning a SETUP change set (OQ-180, Ade, 17 November 2026)
+New routes, function, permission and error code; no existing field changes.
+- **`GET /static-data/setup-sets/{id}`** (`STATIC_DATA_CHANGE_REQUESTS`, `change_request.read`): the set, its batches in order with `appliedAt` for those in force, its approval, and any abandonment (`abandonRequestedBy`, `abandonReason`, `abandonRequestedAt`, `abandonedBy`, `abandonedAt`), with an ETag.
+- **`POST /static-data/setup-sets/{id}/abandon`** (`{ "reason": … }`), **`…/abandon/approve`**, **`…/abandon/decline`**, all If-Match:
+  - Function `STATIC_DATA_SETUP_ABANDON` (privileged, in no role template), permission `setup_change_set.abandon`.
+  - Only an approved set still `APPLYING`; otherwise 409 `INVALID_STATE_TRANSITION`.
+  - 403 `MAKER_CHECKER_SAME_PERSON` when whoever asked approves or declines.
+  - 409 `SETUP_TENANT_LIVE` (new) once the tenant is live.
+- **Once abandoned:** the set's `status` is `ABANDONED`. Batches in force stay, and the others' drafts are discarded. A pending batch's `IMPORT` change request is `REJECTED`. The one whose module refused it stays `APPROVED`, as the domain model has no other way (OQ-183). The Assist setup is `DRAFT` again.
+- **Go-live:** activation is 409 `ONBOARDING_INCOMPLETE` until a new set is applied in full. Readiness `SETUP_CHANGE_SET` lists the abandoned set until then.
+- **The AI-2 evaluation set** gains the refusal `SETUP_TENANT_LIVE`. The refusal cases after it in code order are renumbered.
+
 ## AI Assist: how the wizard layers the packs (OQ-181, Ade, 16 November 2026)
 No field or route is new. What `POST /assist/tenant-setups` and `PUT …/answers` draft changes:
 - **`packIds`** lists the layers in their new order: the base, then each line, then the country, then the tenant's own versions of those packs (approved, else its newest draft).

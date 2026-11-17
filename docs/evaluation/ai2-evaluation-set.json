@@ -451,6 +451,14 @@
     },
     {
       "id": "R-057",
+      "code": "SETUP_TENANT_LIVE",
+      "retryable": false,
+      "means": "A setup change set is abandoned only while the organisation is being onboarded, and this one is live.",
+      "remedy": "Correct a live organisation\u0027s configuration through ordinary changes, one table at a time.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-058",
       "code": "STATIC_DRAFT_EXISTS",
       "retryable": false,
       "means": "This code already has a version in progress.",
@@ -458,7 +466,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-058",
+      "id": "R-059",
       "code": "STATIC_IMPORT_REJECTED",
       "retryable": false,
       "means": "Some lines of the import have errors, so nothing was saved.",
@@ -466,7 +474,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-059",
+      "id": "R-060",
       "code": "STATIC_MAKER_ONLY",
       "retryable": false,
       "means": "Only the person who created the draft can change it, so who made the change stays known.",
@@ -474,7 +482,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-060",
+      "id": "R-061",
       "code": "STATIC_RETROACTIVE_CHANGE",
       "retryable": false,
       "means": "The new version would start before the version now in force starts.",
@@ -482,7 +490,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-061",
+      "id": "R-062",
       "code": "STATIC_SCOPE_NOT_ALLOWED",
       "retryable": false,
       "means": "The change is at a scope this table doesn\u0027t allow: some tables hold only an organisation\u0027s own rows, others only platform-wide rows.",
@@ -490,7 +498,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-062",
+      "id": "R-063",
       "code": "STATIC_USER_REQUIRED",
       "retryable": false,
       "means": "Static data changes are made by identified people, for maker-checker.",
@@ -498,7 +506,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-063",
+      "id": "R-064",
       "code": "SUBJECT_LINK_EXISTS",
       "retryable": false,
       "means": "The user already has a portal link pending or in effect.",
@@ -506,7 +514,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-064",
+      "id": "R-065",
       "code": "SUBJECT_LINK_NOT_FOUND",
       "retryable": false,
       "means": "The user has no portal link pending or in effect.",
@@ -514,7 +522,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-065",
+      "id": "R-066",
       "code": "TASK_CLOSED_BY_ITS_RECORD",
       "retryable": false,
       "means": "This task closes by itself when its record does what the task asks; it can\u0027t be closed by hand.",
@@ -522,7 +530,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-066",
+      "id": "R-067",
       "code": "TENANT_CONTEXT_MISSING",
       "retryable": false,
       "means": "The request didn\u0027t say which organisation it\u0027s for.",
@@ -530,7 +538,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-067",
+      "id": "R-068",
       "code": "TENANT_HAS_USERS",
       "retryable": false,
       "means": "The organisation already has users, so first administrators can\u0027t be set up again.",
@@ -538,7 +546,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-068",
+      "id": "R-069",
       "code": "TENANT_NOT_ACTIVE",
       "retryable": false,
       "means": "Your organisation is still being set up, so business actions aren\u0027t open yet.",
@@ -546,7 +554,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-069",
+      "id": "R-070",
       "code": "TENANT_NOT_ONBOARDING",
       "retryable": false,
       "means": "First administrators are set up only while the organisation is being onboarded.",
@@ -554,7 +562,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-070",
+      "id": "R-071",
       "code": "TRANSITION_GUARD_FAILED",
       "retryable": false,
       "means": "The condition for moving the process to that step doesn\u0027t hold yet.",
@@ -562,7 +570,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-071",
+      "id": "R-072",
       "code": "TRANSITION_NOT_DEFINED",
       "retryable": false,
       "means": "The process doesn\u0027t allow a move from its current step to the one asked for.",
@@ -570,7 +578,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-072",
+      "id": "R-073",
       "code": "UNAUTHENTICATED",
       "retryable": false,
       "means": "You aren\u0027t signed in, or your sign-in has expired.",
@@ -578,7 +586,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-073",
+      "id": "R-074",
       "code": "USERNAME_TAKEN",
       "retryable": false,
       "means": "The username is already in use.",
@@ -586,7 +594,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-074",
+      "id": "R-075",
       "code": "VALIDATION_FAILED",
       "retryable": false,
       "means": "The request is missing a required value, or a value isn\u0027t in the form, range or state the action allows.",
@@ -594,7 +602,7 @@
       "fieldsInError": 2
     },
     {
-      "id": "R-075",
+      "id": "R-076",
       "code": "WORKFLOW_DEFINITION_INVALID",
       "retryable": false,
       "means": "The process definition isn\u0027t valid, so the process can\u0027t be run.",

@@ -302,6 +302,13 @@ internal sealed class ChangeTenantStatusHandler(ITenantRepository tenants, IExec
                 "A SETUP change set is waiting for its approval or partly applied; the tenant goes live only once it is applied in full (AIA-086).");
         }
 
+        // OQ-180: a set abandoned part-applied leaves some of the setup in force; activation waits for a new set to complete.
+        if (state.AbandonedSinceApplied > 0)
+        {
+            return Error.Conflict(TenancyErrorCodes.OnboardingIncomplete,
+                "A SETUP change set was abandoned before it finished; the tenant goes live only once a new set is applied in full (OQ-180).");
+        }
+
         if (state.Applied == 0)
         {
             return null;

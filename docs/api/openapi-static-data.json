@@ -12428,6 +12428,380 @@
         ]
       }
     },
+    "/api/v1/static-data/setup-sets/{id}": {
+      "get": {
+        "tags": [
+          "StaticData governance"
+        ],
+        "summary": "A SETUP change set (AIA-086): its batches in order, which are in force, its approval, and any abandonment (OQ-180)",
+        "operationId": "GetSetupChangeSet",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaticDataSetupChangeSetView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "change_request.read",
+        "x-function": [
+          "STATIC_DATA_CHANGE_REQUESTS"
+        ]
+      }
+    },
+    "/api/v1/static-data/setup-sets/{id}/abandon": {
+      "post": {
+        "tags": [
+          "StaticData governance"
+        ],
+        "summary": "Ask to abandon an approved SETUP change set that can\u0027t finish applying, with a reason (OQ-180). Needs If-Match; a different person approves or declines it",
+        "description": "Function STATIC_DATA_SETUP_ABANDON (privileged, in no role template). 403 MAKER_CHECKER_SAME_PERSON when whoever asked approves or declines; 409 SETUP_TENANT_LIVE once the tenant is live; 409 INVALID_STATE_TRANSITION unless the set is approved and still applying. Every step is audited. Once abandoned, the tenant can\u0027t go live until a new set is applied in full.",
+        "operationId": "RequestSetupAbandon",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/StaticDataSetupAbandonBody"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaticDataSetupChangeSetView"
+                }
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "setup_change_set.abandon",
+        "x-function": [
+          "STATIC_DATA_SETUP_ABANDON"
+        ]
+      }
+    },
+    "/api/v1/static-data/setup-sets/{id}/abandon/approve": {
+      "post": {
+        "tags": [
+          "StaticData governance"
+        ],
+        "summary": "Approve abandoning it: the batches in force stay, the rest are discarded, and the setup is a draft again. Never by whoever asked. Needs If-Match",
+        "description": "Function STATIC_DATA_SETUP_ABANDON (privileged, in no role template). 403 MAKER_CHECKER_SAME_PERSON when whoever asked approves or declines; 409 SETUP_TENANT_LIVE once the tenant is live; 409 INVALID_STATE_TRANSITION unless the set is approved and still applying. Every step is audited. Once abandoned, the tenant can\u0027t go live until a new set is applied in full.",
+        "operationId": "ApproveSetupAbandon",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/StaticDataSetupAbandonBody"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaticDataSetupChangeSetView"
+                }
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "setup_change_set.abandon",
+        "x-function": [
+          "STATIC_DATA_SETUP_ABANDON"
+        ]
+      }
+    },
+    "/api/v1/static-data/setup-sets/{id}/abandon/decline": {
+      "post": {
+        "tags": [
+          "StaticData governance"
+        ],
+        "summary": "Decline abandoning it: the set carries on applying. Never by whoever asked. Needs If-Match",
+        "description": "Function STATIC_DATA_SETUP_ABANDON (privileged, in no role template). 403 MAKER_CHECKER_SAME_PERSON when whoever asked approves or declines; 409 SETUP_TENANT_LIVE once the tenant is live; 409 INVALID_STATE_TRANSITION unless the set is approved and still applying. Every step is audited. Once abandoned, the tenant can\u0027t go live until a new set is applied in full.",
+        "operationId": "DeclineSetupAbandon",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/StaticDataSetupAbandonBody"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaticDataSetupChangeSetView"
+                }
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "setup_change_set.abandon",
+        "x-function": [
+          "STATIC_DATA_SETUP_ABANDON"
+        ]
+      }
+    },
     "/api/v1/party/static/consent-purposes": {
       "get": {
         "tags": [
@@ -281282,6 +281656,195 @@
           },
           "changeReason": {
             "type": "string"
+          }
+        }
+      },
+      "StaticDataSetupAbandonBody": {
+        "required": [
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "StaticDataSetupBatchView": {
+        "required": [
+          "seq",
+          "table",
+          "entityCode",
+          "batchId",
+          "changeRequestId",
+          "lines",
+          "hash",
+          "appliedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "seq": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "table": {
+            "type": "string"
+          },
+          "entityCode": {
+            "type": "string"
+          },
+          "batchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "changeRequestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "lines": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "hash": {
+            "type": "string"
+          },
+          "appliedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "StaticDataSetupChangeSetView": {
+        "required": [
+          "id",
+          "setNumber",
+          "sourceRef",
+          "makerId",
+          "status",
+          "hash",
+          "checkerId",
+          "approvedAt",
+          "appliedAt",
+          "ending",
+          "abandonRequestedBy",
+          "abandonReason",
+          "abandonRequestedAt",
+          "abandonedBy",
+          "abandonedAt",
+          "batches",
+          "rowVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "setNumber": {
+            "type": "string"
+          },
+          "sourceRef": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "makerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string"
+          },
+          "hash": {
+            "type": "string"
+          },
+          "checkerId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "approvedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "appliedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "ending": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "abandonRequestedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "abandonReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "abandonRequestedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "abandonedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "abandonedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "batches": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaticDataSetupBatchView"
+            }
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
           }
         }
       },

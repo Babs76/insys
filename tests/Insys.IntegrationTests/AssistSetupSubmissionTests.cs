@@ -369,6 +369,128 @@ public sealed class AssistSetupSubmissionTests(DatabaseFixture fixture) : IClass
             .ShouldBe("PUBLISHED", "AM came only from the tenant's own approved overlay");
     }
 
+    /// <summary>An approved set that can't finish applying: the third batch's activation is refused in its table, so two batches apply and the set stays APPLYING.</summary>
+    private async Task<(Guid Tenant, Func<string, string[], Task<HttpClient>> User, HttpClient Wizard, Guid Run, Guid SetId)> StuckSet(string suffix)
+    {
+        await Platform(SamplePack(suffix));
+        var (tenant, user) = await Customer();
+        var wizard = await user("ss-runner", ["ASSIST_TENANT_SETUP_RUN"]);
+        var (id, _) = await AcceptAll(wizard, new { country = "XQ", lines = new[] { "LIFE" } });
+        var submitted = await (await Submit(wizard, id)).Json();
+        var setId = submitted.GetProperty("setId").GetGuid();
+        var stuck = submitted.GetProperty("batches").EnumerateArray().Single(b => b.GetProperty("table").GetString() == "channel.cfg_channel_definitions").GetProperty("batchId").GetGuid();
+        await fixture.Database.ExecuteAsOwner($"""
+            CREATE OR REPLACE FUNCTION channel.ss_refuse_activation() RETURNS trigger LANGUAGE plpgsql AS $$
+            BEGIN IF NEW.import_batch_id = '{stuck}' AND NEW.record_status = 'PUBLISHED' THEN RAISE EXCEPTION 'refused for the test' USING ERRCODE = 'check_violation'; END IF; RETURN NEW; END $$;
+            DROP TRIGGER IF EXISTS ss_refuse_activation ON channel.cfg_channel_definitions;
+            CREATE TRIGGER ss_refuse_activation BEFORE UPDATE ON channel.cfg_channel_definitions FOR EACH ROW EXECUTE FUNCTION channel.ss_refuse_activation();
+            """);
+        var host = await fixture.Host();
+        await host.DrainOutbox();
+        await fixture.Database.UserWithPermissions(tenant, "ss-checker", Approving);
+        (await host.ClientFor(tenant, "ss-checker").Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{await SetApproval(tenant, setId)}/approve", ifMatch: "\"1\""))
+            .StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        for (var i = 0; i < 8; i++)
+        {
+            await host.DrainOutbox();
+        }
+
+        (await SetStatus(tenant, setId)).ShouldBe("APPLYING");
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM sdm.setup_change_set_batch WHERE tenant_id = @t AND set_id = @s AND applied_at IS NOT NULL", ("t", tenant), ("s", setId)))
+            .ShouldBe(2L, "reference and master data are in force; the channels can't be");
+        return (tenant, user, wizard, id, setId);
+    }
+
+    private Task DropRefusal() => fixture.Database.ExecuteAsOwner(
+        "DROP TRIGGER IF EXISTS ss_refuse_activation ON channel.cfg_channel_definitions; DROP FUNCTION IF EXISTS channel.ss_refuse_activation();");
+
+    [Fact]
+    public async Task AnApprovedSetThatCantFinish_IsAbandonedOnlyWithASecondPerson_WhatIsInForceStays_AndGoLiveWaitsForANewSet_OQ180()
+    {
+        try
+        {
+            var (tenant, user, wizard, run, setId) = await StuckSet("8");
+            var host = await fixture.Host();
+            var asker = await user("ss-asker", ["STATIC_DATA_SETUP_ABANDON", "STATIC_DATA_CHANGE_REQUESTS"]);
+            var second = await user("ss-second", ["STATIC_DATA_SETUP_ABANDON", "STATIC_DATA_CHANGE_REQUESTS"]);
+            var plain = await user("ss-plain", ["STATIC_DATA_CHANGE_REQUESTS"]);
+            var read = await asker.GetAsync($"/api/v1/static-data/setup-sets/{setId}");
+            read.StatusCode.ShouldBe(HttpStatusCode.OK, await read.Content.ReadAsStringAsync());
+
+            (await plain.Send(HttpMethod.Post, $"/api/v1/static-data/setup-sets/{setId}/abandon", new { reason = "x" }, ifMatch: read.ETag())).StatusCode
+                .ShouldBe(HttpStatusCode.Forbidden, "the function is needed");
+            (await (await asker.Send(HttpMethod.Post, $"/api/v1/static-data/setup-sets/{setId}/abandon", new { reason = " " }, ifMatch: read.ETag())).Code())
+                .ShouldBe("VALIDATION_FAILED", "a reason is required");
+            var asked = await asker.Send(HttpMethod.Post, $"/api/v1/static-data/setup-sets/{setId}/abandon", new { reason = "Sample: the channel table refuses the batch" },
+                ifMatch: read.ETag());
+            asked.StatusCode.ShouldBe(HttpStatusCode.OK, await asked.Content.ReadAsStringAsync());
+
+            var bySelf = await asker.Send(HttpMethod.Post, $"/api/v1/static-data/setup-sets/{setId}/abandon/approve", ifMatch: asked.ETag());
+            (bySelf.StatusCode, await bySelf.Code()).ShouldBe((HttpStatusCode.Forbidden, "MAKER_CHECKER_SAME_PERSON"), "whoever asked can't approve");
+            (await (await asker.Send(HttpMethod.Post, $"/api/v1/static-data/setup-sets/{setId}/abandon/decline", ifMatch: asked.ETag())).Code())
+                .ShouldBe("MAKER_CHECKER_SAME_PERSON", "nor decline");
+
+            var approved = await second.Send(HttpMethod.Post, $"/api/v1/static-data/setup-sets/{setId}/abandon/approve", ifMatch: asked.ETag());
+            approved.StatusCode.ShouldBe(HttpStatusCode.OK, await approved.Content.ReadAsStringAsync());
+            var view = await approved.Json();
+            view.GetProperty("status").GetString().ShouldBe("ABANDONED");
+            view.GetProperty("batches").EnumerateArray().Where(b => b.GetProperty("appliedAt").ValueKind == JsonValueKind.String).Select(b => b.GetProperty("table").GetString())
+                .ShouldBe(["claims.ref_reserve_types", "tenant.mst_organisation_structure"], "the batches in force are listed on the abandoned set");
+            for (var i = 0; i < 5; i++)
+            {
+                await host.DrainOutbox();
+            }
+
+            (await fixture.Database.ScalarAsOwner<string>("SELECT record_status FROM claims.ref_reserve_types WHERE tenant_id = @t AND code = 'IND8'", ("t", tenant))).ShouldBe("ACTIVE", "it stays");
+            foreach (var table in new[] { "channel.cfg_channel_definitions", "iam.cfg_authentication_and_session_policies" })
+            {
+                (await fixture.Database.ScalarAsOwner<long>($"SELECT count(*) FROM {table} WHERE tenant_id = @t", ("t", tenant))).ShouldBe(0L, $"{table}: discarded");
+            }
+
+            (await fixture.Database.ScalarAsOwner<string>("""
+                SELECT string_agg(entity_code || ' ' || status, ', ' ORDER BY entity_code) FROM sdm.change_request
+                WHERE tenant_id = @t AND setup_set_id = @s AND status <> 'ACTIVE'
+                """, ("t", tenant), ("s", setId)))
+                .ShouldBe("cfg_authentication_and_session_policies REJECTED, cfg_channel_definitions APPROVED",
+                    "the pending batch is rejected; the one its module refused keeps APPROVED, which domain-model.json can't leave (OQ-183)");
+            (await (await wizard.GetAsync($"{Setups}/{run}")).Json()).GetProperty("status").GetString().ShouldBe("DRAFT", "the setup is a draft again");
+            var state = await host.Services.GetRequiredService<Insys.StaticData.Contracts.ISetupChangeSetState>().For(tenant, CancellationToken.None);
+            (state.Open, state.AbandonedSinceApplied).ShouldBe((0, 1), "go-live waits for a new set to complete");
+            (await fixture.Database.ScalarAsOwner<long>("""
+                SELECT count(*) FROM audit.audit_event WHERE tenant_id = @t AND operation IN ('RequestSetupAbandon', 'ApproveSetupAbandon') AND outcome = 'SUCCESS'
+                """, ("t", tenant))).ShouldBe(2L, "each step is audited");
+        }
+        finally
+        {
+            await DropRefusal();
+        }
+    }
+
+    [Fact]
+    public async Task AbandoningASet_IsRefusedOnceTheTenantIsLive_ToAskAndToApprove_OQ180()
+    {
+        try
+        {
+            var (tenant, user, _, _, setId) = await StuckSet("9");
+            var asker = await user("ss-asker", ["STATIC_DATA_SETUP_ABANDON", "STATIC_DATA_CHANGE_REQUESTS"]);
+            var second = await user("ss-second", ["STATIC_DATA_SETUP_ABANDON", "STATIC_DATA_CHANGE_REQUESTS"]);
+            var read = await asker.GetAsync($"/api/v1/static-data/setup-sets/{setId}");
+            var asked = await asker.Send(HttpMethod.Post, $"/api/v1/static-data/setup-sets/{setId}/abandon", new { reason = "Sample reason" }, ifMatch: read.ETag());
+            asked.StatusCode.ShouldBe(HttpStatusCode.OK, await asked.Content.ReadAsStringAsync());
+
+            await fixture.Database.ExecuteAsOwner("UPDATE tenant.tenant SET status = 'ACTIVE' WHERE id = @t", ("t", tenant));
+            var approve = await second.Send(HttpMethod.Post, $"/api/v1/static-data/setup-sets/{setId}/abandon/approve", ifMatch: asked.ETag());
+            (approve.StatusCode, await approve.Code()).ShouldBe((HttpStatusCode.Conflict, "SETUP_TENANT_LIVE"));
+            var again = await asker.Send(HttpMethod.Post, $"/api/v1/static-data/setup-sets/{setId}/abandon", new { reason = "Sample reason" }, ifMatch: asked.ETag());
+            (again.StatusCode, await again.Code()).ShouldBe((HttpStatusCode.Conflict, "SETUP_TENANT_LIVE"));
+            (await SetStatus(tenant, setId)).ShouldBe("APPLYING", "nothing changed");
+        }
+        finally
+        {
+            await DropRefusal();
+        }
+    }
+
     [Fact]
     public async Task ASetupWithABlocker_IsRefused_ASSIST_SETUP_NOT_READY_ListingEachBlocker_AndNothingIsLoaded_AIA085()
     {

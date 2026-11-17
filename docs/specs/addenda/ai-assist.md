@@ -242,5 +242,14 @@ From SRS §9.1 and §9.2:
 - **Guards:** the model has no tool that writes (AIA-060); an AI-1 draft can't skip validation, simulation or a second person; a setup can't be approved by whoever ran it (AIA-086); AI-3 can't place a regulated value from outside an approved overlay (AIA-082, AIA-087); a user can't get an explanation of a record they can't read; Health explanations hold no clinical detail.
 - **Evaluation sets are built before their features:** about 100 refusals and calculations for AI-2; one line's real documents for AI-1 (D-7); standard questionnaires and sample tenant documents for AI-3. Targets are SRS §4.3, §5.3 and §5A.4: proposals, none measured.
 
+**Deferred (Ade, 17 November): number words read as their digits.** Proposed after the rerun; not built. §5.1 is unchanged. Revisit only if the domain expert's review favours `claude-haiku-5-5`.
+- **The proposal:**
+  - (a) The facts carry counts INSYS works out itself, such as `lines: 4` for a premium. A refusal already sends how many fields are in error.
+  - (b) "two" to "ten" are read as 2 to 10, and accepted only where they equal one of those count facts, never an amount, a rate or a step number.
+  - "one" stays ordinary English, as now. `twice`, `half`, `double`, `both` and words above ten stay refused.
+  - Optional: a `decimal places` fact from Rating's rounding rule.
+- **Against P3 and AIA-033a:** P3 holds, since every accepted number still matches one in the input, worked out by INSYS. AIA-033a holds, since it adds a rule and loosens none. It would be fixed here first, as AIA-033a requires.
+- **The estimate, from run 43904917124's logs (not measured):** small. It would recover Haiku's "four lines" (about 3 or 4 of its 20 rejected cases) and probably none of Opus's or Sonnet's. Most rejected words described the answer ("two options") or a rounding the model worked out ("two decimal places"), and the facts hold no such number.
+
 ## 8. Still open
 Where Nigerian tenants are hosted (D-13), which the Nigerian compliance partner is also being asked about. Engaging that partner, and collecting the evaluation documents with the insurer's written permission (D-7), are the actions that come first. An overlay's approval is what makes AI-3's pack-only path useful.

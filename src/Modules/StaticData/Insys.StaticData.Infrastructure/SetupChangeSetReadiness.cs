@@ -35,7 +35,7 @@ namespace Insys.StaticData.Infrastructure;
 
 /// <summary>
 /// Onboarding readiness SETUP_CHANGE_SET (END_TO_END_TESTS), a blocker (AIA-086, option C): no SETUP change set waiting for its approval or partly applied,
-/// and no submission whose batches are loaded but whose set isn't recorded yet (LOADING).
+/// no submission whose batches are loaded but whose set isn't recorded yet (LOADING), and no set abandoned with none applied since (OQ-180).
 /// The tenant can't go live while one is open; activation refuses it too, whenever the step was completed.
 /// </summary>
 internal sealed class SetupChangeSetReadiness([FromKeyedServices(StaticDataDbContext.SchemaName)] NpgsqlDataSource dataSource) : IReadinessCheck
@@ -50,6 +50,10 @@ internal sealed class SetupChangeSetReadiness([FromKeyedServices(StaticDataDbCon
         var open = await ReadinessSql.InTenant(dataSource, context.TenantId, (connection, transaction) => ReadinessSql.Strings(connection, transaction,
             """
             SELECT set_number || ' ' || status FROM sdm.setup_change_set WHERE tenant_id = @t AND status IN ('SUBMITTED', 'APPLYING')
+            UNION ALL
+            SELECT set_number || ' ABANDONED: a new set must complete' FROM sdm.setup_change_set a
+            WHERE a.tenant_id = @t AND a.status = 'ABANDONED'
+              AND NOT EXISTS (SELECT 1 FROM sdm.setup_change_set p WHERE p.tenant_id = a.tenant_id AND p.status = 'APPLIED' AND p.applied_at > a.abandoned_at)
             UNION ALL
             SELECT DISTINCT 'SC-' || setup_set_id::text || ' LOADING' FROM sdm.change_request c
             WHERE c.tenant_id = @t AND c.setup_set_id IS NOT NULL AND c.status = 'PENDING_APPROVAL'
@@ -75,14 +79,17 @@ internal sealed class SetupChangeSetStateQuery([FromKeyedServices(StaticDataDbCo
                     WHERE c.tenant_id = @t AND c.setup_set_id IS NOT NULL AND c.status = 'PENDING_APPROVAL'
                       AND NOT EXISTS (SELECT 1 FROM sdm.setup_change_set s WHERE s.tenant_id = c.tenant_id AND s.id = c.setup_set_id)),
                    (SELECT count(*) FROM sdm.setup_change_set WHERE tenant_id = @t AND status = 'APPLIED'),
-                   (SELECT max(applied_at) FROM sdm.setup_change_set WHERE tenant_id = @t)
+                   (SELECT max(applied_at) FROM sdm.setup_change_set WHERE tenant_id = @t),
+                   (SELECT count(*) FROM sdm.setup_change_set a WHERE a.tenant_id = @t AND a.status = 'ABANDONED'
+                      AND NOT EXISTS (SELECT 1 FROM sdm.setup_change_set p WHERE p.tenant_id = a.tenant_id AND p.status = 'APPLIED' AND p.applied_at > a.abandoned_at))
             """, connection, transaction);
         command.Parameters.AddWithValue("t", tenantId);
         Contracts.SetupChangeSetState state;
         await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
         {
             await reader.ReadAsync(cancellationToken);
-            state = new Contracts.SetupChangeSetState((int)reader.GetInt64(0), (int)reader.GetInt64(1), reader.IsDBNull(2) ? null : reader.GetFieldValue<DateTimeOffset>(2));
+            state = new Contracts.SetupChangeSetState((int)reader.GetInt64(0), (int)reader.GetInt64(1), reader.IsDBNull(2) ? null : reader.GetFieldValue<DateTimeOffset>(2),
+                (int)reader.GetInt64(3));
         }
 
         await transaction.CommitAsync(cancellationToken);

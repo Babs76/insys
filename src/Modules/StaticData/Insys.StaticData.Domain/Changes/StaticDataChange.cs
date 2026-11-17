@@ -244,6 +244,33 @@ public sealed class StaticDataChange : AggregateRoot<Guid>
         return result;
     }
 
+    /// <summary>
+    /// OQ-180: a batch of a SETUP change set abandoned before it was in force; its module discards its drafts. A pending batch is rejected (RejectChange). One
+    /// approved but refused by its module keeps its status, as domain-model.json has no way from Approved to Rejected (OQ-183); only its drafts go. One in
+    /// force isn't touched.
+    /// </summary>
+    public Result AbandonSetupBatch(Guid approvedBy, string reason, DateTimeOffset now)
+    {
+        if (SetupSetId is null)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, "Only a SETUP change set's batch is abandoned with its set.");
+        }
+
+        if (Status == ChangeStatus.PendingApproval)
+        {
+            return RejectChange(approvedBy == MakerId ? Guid.Empty : approvedBy, reason, now);
+        }
+
+        if (Status != ChangeStatus.Approved)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, $"The batch is {Status}.");
+        }
+
+        Raise(new StaticDataChangeRejected(Id, After, approvedBy, reason, now));
+        MarkChanged();
+        return Result.Success();
+    }
+
     /// <summary>Command ActivateVersion, from the owning module's StaticDataVersionActivated.</summary>
     public Result ActivateVersion() => Fire(ChangeTrigger.ActivateVersion);
 
@@ -475,4 +502,8 @@ public static class StaticDataGovernanceCodes
     [ErrorCode(409, "error.static_data.governance_change_pending", Means = "A change to how static data is approved is already waiting for a decision.",
         Remedy = "Wait for that decision before asking for another.")]
     public const string ChangePending = "GOVERNANCE_CHANGE_PENDING";
+
+    [ErrorCode(409, "error.static_data.setup_tenant_live", Means = "A setup change set is abandoned only while the organisation is being onboarded, and this one is live.",
+        Remedy = "Correct a live organisation's configuration through ordinary changes, one table at a time.")]
+    public const string SetupTenantLive = "SETUP_TENANT_LIVE";
 }

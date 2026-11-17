@@ -456,6 +456,18 @@ The SETUP change set (AIA-085, AIA-086; D-11, D-12 option C). Contract note: "AI
   - a submission stopped part-way: locked, blocking go-live, withdrawn by its submitter only, what it loaded discarded;
   - the activation guard while open, and the re-run once applied, against a tenant with no set.
 
+### Abandoning a SETUP set (17 November 2026, branch `setup-abandon`; OQ-180, Ade)
+- **`SetupChangeSet`:** `RequestAbandon` (APPLYING only, a reason), then `ApproveAbandon` or `DeclineAbandon` by a different person. V0137 also refuses the same person in the database.
+- **On approval:** the set is `ABANDONED` and lists the batches with `appliedAt`, which stay in force. `SetupChangeSetAbandoned` follows.
+  - Static Data's policy ends each unapplied batch (`AbandonSetupBatch`), so its module discards the drafts. A pending batch is rejected. One approved but refused by its module stays `APPROVED`, because domain-model.json has no Approved → Rejected transition (OQ-183).
+  - Assist returns the run to `DRAFT`.
+  - A batch already on its way is still recorded as applied.
+- **Go-live:** `ISetupChangeSetState.AbandonedSinceApplied`; activation and readiness wait for a set applied after it.
+- **Function:** `STATIC_DATA_SETUP_ABANDON` under `STATIC_DATA_CHANGE_REQUESTS`, privileged (the flagged list), in no role template. Error `SETUP_TENANT_LIVE`.
+- **Tests:** `AssistSetupSubmissionTests`, with a stuck set made by a trigger refusing one batch's activation:
+  - abandoned only with a second person (the asker refused to approve and to decline), a reason required, the function required, what is in force staying, the rest discarded, the run a draft, go-live blocked, audited;
+  - refused once the tenant is live, to ask and to approve.
+
 ### The wizard's layers (16 November 2026, branch `setup-layers`; OQ-181, OQ-182, Ade)
 - **`SetupAssembly.Choose`:** base, lines, then country (after its region), each the platform's newest approved version, else its newest draft. Then come the tenant's own versions of those packs as fill layers: approved, else the newest draft.
 - **`SetupAssembly.Assemble`:**

@@ -135,6 +135,8 @@ internal sealed class StaticDataEventMapper : IDomainEventMapper
             new BuildingBlocks.Contracts.Approvals.ApprovalRequested(Contracts.SetupChangeSets.BusinessRefType, needed.SetId, needed.ApprovalType, needed.MakerId, null, null,
                 $"Tenant setup: {needed.Batches.ToString(System.Globalization.CultureInfo.InvariantCulture)} tables as one change (AIA-086)", needed.Hash),
         Domain.Changes.SetupChangeSetCompleted completed => new Contracts.SetupChangeSetApplied(completed.SetId, completed.SourceRef, completed.CheckerId, completed.OccurredAt),
+        Domain.Changes.SetupChangeSetAbandonedEvent abandoned => new Contracts.SetupChangeSetAbandoned(abandoned.SetId, abandoned.SourceRef, abandoned.Applied,
+            abandoned.Unapplied, abandoned.RequestedBy, abandoned.ApprovedBy),
         Domain.Changes.SetupChangeSetEnded ended => new Contracts.SetupChangeSetNotApproved(ended.SetId, ended.SourceRef, ended.Ending, ended.Reason),
         Domain.Changes.StaticDataChangeRejected rejected =>
             new BuildingBlocks.Contracts.StaticData.StaticDataChangeRejected(rejected.ChangeRequestId, Record(rejected.RecordRef), rejected.CheckerId, rejected.Reason),

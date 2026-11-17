@@ -234,6 +234,7 @@ public sealed class StaticDataGovernancePolicies(IChangeRequestRepository change
     IIntegrationEventHandler<StaticDataImportRejected>,
     IIntegrationEventHandler<SetupChangeSetRequested>,
     IIntegrationEventHandler<SetupChangeSetWithdrawn>,
+    IIntegrationEventHandler<SetupChangeSetAbandoned>,
     IIntegrationEventHandler<StaticDataSetupBatchApplied>
 {
     public static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
@@ -273,9 +274,9 @@ public sealed class StaticDataGovernancePolicies(IChangeRequestRepository change
             changes.Add(batch);
             if (await changes.SetupSet(setId, cancellationToken) is { } set)
             {
-                if (set.Status == SetupSetStatuses.NotApproved)
+                if (set.Status is SetupSetStatuses.NotApproved or SetupSetStatuses.Abandoned)
                 {
-                    batch.RejectChange(Guid.Empty, "The setup change set was not approved.", clock.UtcNow);
+                    batch.RejectChange(Guid.Empty, "The setup change set was not approved, or was abandoned.", clock.UtcNow);
                 }
                 else
                 {
@@ -387,6 +388,19 @@ public sealed class StaticDataGovernancePolicies(IChangeRequestRepository change
         foreach (var change in (await changes.SetupBatches(withdrawn.SetId, cancellationToken)).Where(c => c.Status == ChangeStatus.PendingApproval))
         {
             change.RejectChange(Guid.Empty, "The setup's submission was withdrawn.", clock.UtcNow);
+        }
+    }
+
+    /// <summary>
+    /// OQ-180: a set abandoned. Each batch not in force is rejected, so its module discards its drafts: still pending, or approved but refused by its module.
+    /// Batches in force stay. A redelivery changes nothing.
+    /// </summary>
+    public async Task Handle(SetupChangeSetAbandoned abandoned, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        foreach (var change in (await changes.SetupBatches(abandoned.SetId, cancellationToken))
+                     .Where(c => c.ImportBatchId is { } batch && abandoned.Unapplied.Contains(batch) && c.Status is ChangeStatus.PendingApproval or ChangeStatus.Approved))
+        {
+            change.AbandonSetupBatch(abandoned.ApprovedBy, "The setup change set was abandoned before this batch was in force (OQ-180).", clock.UtcNow);
         }
     }
 

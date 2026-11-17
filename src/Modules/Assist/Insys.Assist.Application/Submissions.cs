@@ -295,8 +295,23 @@ internal sealed class SetupSubmissionHandlers(ISetupRuns runs, IStarterPacks pac
 
 /// <summary>The run follows its SETUP change set: APPLIED once in force, or a draft again if it wasn't approved (its drafts discarded by their modules).</summary>
 public sealed class SetupChangeSetOutcomes(ISetupRuns runs, IAuditTrail audit) :
-    IIntegrationEventHandler<SetupChangeSetApplied>, IIntegrationEventHandler<SetupChangeSetNotApproved>
+    IIntegrationEventHandler<SetupChangeSetApplied>, IIntegrationEventHandler<SetupChangeSetNotApproved>, IIntegrationEventHandler<SetupChangeSetAbandoned>
 {
+    /// <summary>
+    /// OQ-180: the set was abandoned before it finished. The run is a draft again, to be submitted as a new attempt; the values already in force exist in their
+    /// tables now, so the new attempt's check refuses them as codes that already exist, for the reviewer to reject.
+    /// </summary>
+    public async Task Handle(SetupChangeSetAbandoned abandoned, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (await runs.Run(abandoned.SourceRef, cancellationToken) is { } run && run.NotApproved(abandoned.SetId))
+        {
+            audit.Record(new AuditEntry("ASSIST", "TenantSetupAbandoned", nameof(SetupRun), run.Id.ToString(), new Dictionary<string, string?>
+            {
+                ["set"] = abandoned.SetId.ToString(), ["applied"] = abandoned.Applied.Count.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            }));
+        }
+    }
+
     public async Task Handle(SetupChangeSetApplied applied, EventEnvelope envelope, CancellationToken cancellationToken)
     {
         if (await runs.Run(applied.SourceRef, cancellationToken) is { } run && run.Applied(applied.SetId))

@@ -48,6 +48,7 @@ public static class AssistInfrastructure
         services.AddDomainEventMapper<AssistEventMapper>(schema);
         services.AddIntegrationEventHandler<StaticData.Contracts.SetupChangeSetApplied, SetupChangeSetOutcomes, AssistDbContext>(schema, "SetupApplied");
         services.AddIntegrationEventHandler<StaticData.Contracts.SetupChangeSetNotApproved, SetupChangeSetOutcomes, AssistDbContext>(schema, "SetupNotApproved");
+        services.AddIntegrationEventHandler<StaticData.Contracts.SetupChangeSetAbandoned, SetupChangeSetOutcomes, AssistDbContext>(schema, "SetupAbandoned");
         // No model unless the deployment connects one (the Cloud adapter project registers Claude when Assist:Provider is claude).
         services.TryAddSingleton<IAiModelProvider, NoAiModelProvider>();
         services.AddScoped<AssistRunner>();

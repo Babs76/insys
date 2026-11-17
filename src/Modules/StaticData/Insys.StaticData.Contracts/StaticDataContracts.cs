@@ -32,6 +32,9 @@ public static class StaticDataGovernancePermissions
     public const string ChangeRequestRead = "change_request.read";
     public const string SettingRead = "governance_setting.read";
     public const string SettingUpdate = "governance_setting.update";
+
+    /// <summary>OQ-180: ask, approve or decline abandoning an approved SETUP change set (function STATIC_DATA_SETUP_ABANDON, privileged, in no role template).</summary>
+    public const string SetupAbandon = "setup_change_set.abandon";
 }
 
 /// <summary>Static data changes are approved in Workflow (ADR-009): one approval per change request.</summary>
@@ -93,11 +96,15 @@ public static class SetupChangeSets
     /// <summary>Tier 1, the strictest: a set holds Tier 1 tables, and Tier 1 always needs a checker other than the maker (SDM-003).</summary>
     public static string ApprovalType => StaticDataApprovals.ApprovalType(1);
 
-    /// <summary>A set's statuses: SUBMITTED (waiting for its approval), APPLYING (approved, its batches going in force in order), APPLIED, NOT_APPROVED.</summary>
+    /// <summary>
+    /// A set's statuses: SUBMITTED (waiting for its approval), APPLYING (approved, its batches going in force in order), APPLIED, NOT_APPROVED, and ABANDONED
+    /// (approved, then abandoned before it finished: its applied batches stay, OQ-180).
+    /// </summary>
     public const string Submitted = "SUBMITTED";
     public const string Applying = "APPLYING";
     public const string Applied = "APPLIED";
     public const string NotApproved = "NOT_APPROVED";
+    public const string Abandoned = "ABANDONED";
 }
 
 /// <summary>One batch of a set: a table's import, already submitted to the set, in the order it is applied.</summary>
@@ -118,6 +125,14 @@ public sealed record SetupChangeSetRequested(Guid SetId, Guid SourceRef, Guid Ma
 [BuildingBlocks.Contracts.IntegrationEvent("sdm.SetupChangeSetWithdrawn")]
 public sealed record SetupChangeSetWithdrawn(Guid SetId, Guid SourceRef, Guid MakerId) : BuildingBlocks.Contracts.IIntegrationEvent;
 
+/// <summary>
+/// An approved set abandoned before it finished applying (OQ-180): <paramref name="Applied"/> batches stay in force; <paramref name="Unapplied"/> are discarded.
+/// The setup it came from is a draft again, and the tenant can't go live until a new set completes.
+/// </summary>
+[BuildingBlocks.Contracts.IntegrationEvent("sdm.SetupChangeSetAbandoned")]
+public sealed record SetupChangeSetAbandoned(Guid SetId, Guid SourceRef, IReadOnlyList<Guid> Applied, IReadOnlyList<Guid> Unapplied, Guid RequestedBy, Guid ApprovedBy)
+    : BuildingBlocks.Contracts.IIntegrationEvent;
+
 /// <summary>Every batch of the set is in force.</summary>
 [BuildingBlocks.Contracts.IntegrationEvent("sdm.SetupChangeSetApplied")]
 public sealed record SetupChangeSetApplied(Guid SetId, Guid SourceRef, Guid CheckerId, DateTimeOffset AppliedAt) : BuildingBlocks.Contracts.IIntegrationEvent;
@@ -132,7 +147,8 @@ public sealed record SetupChangeSetNotApproved(Guid SetId, Guid SourceRef, strin
 /// one (AIA-086).
 /// </param>
 /// <param name="Applied">Sets applied in full: onboarding steps finished before one must pass their readiness again before go-live (AIA-085).</param>
-public sealed record SetupChangeSetState(int Open, int Applied, DateTimeOffset? LastAppliedAt);
+/// <param name="AbandonedSinceApplied">Sets abandoned with no set applied after them: activation waits for a new set to complete (OQ-180).</param>
+public sealed record SetupChangeSetState(int Open, int Applied, DateTimeOffset? LastAppliedAt, int AbandonedSinceApplied = 0);
 
 /// <summary>Public query interface: a tenant's SETUP change sets, read on Static Data's own connection.</summary>
 public interface ISetupChangeSetState

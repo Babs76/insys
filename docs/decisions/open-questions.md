@@ -1390,7 +1390,14 @@ Raised by the read-scope sweep (`docs/reviews/read-scope-sweep.md`, at `06ecae1`
 - `rules.cfg_authority_matrices` `AM` is regulated and empty, so it is Missing even with every overlay approved.
 - Until the packs hold one row per record with the table's own column names, a setup from them stops at `ASSIST_SETUP_NOT_READY`. The check lists each row and field. The batch's tests use a small sample pack that loads.
 
-**OQ-180: how does a SETUP change set that can't finish applying end? Open, for Ade.**
+**OQ-180: how does a SETUP change set that can't finish applying end? Decided (Ade, 17 November): it may be abandoned.**
+- Under `STATIC_DATA_SETUP_ABANDON`, which is privileged and in no role template.
+- Asked with a reason by one person and approved (or declined) by a different one; every step is audited.
+- Only while the tenant is onboarding.
+- The batches applied stay applied and are listed on the abandoned set; the rest are discarded.
+- Readiness runs again, and activation stays blocked until a new set completes.
+- Built on branch `setup-abandon` (V0137).
+- As first recorded:
 - Once approved, a set's batches go in force one by one. A batch whose stored lines no longer match what was approved is refused (its delivery parks, `APPROVAL_NOT_APPLIED`), so the set stays `APPLYING`, and the activation guard and readiness block go-live.
 - Nothing in INSYS changes a submitted batch's lines, so this needs an outside change (a direct database edit), but then there is no way out.
 - To decide: whether, and by whom, the rest of such a set is abandoned (what is already in force stays, as posted static data is never undone), and which function allows it. It's a permission, so it isn't built.
@@ -1410,4 +1417,9 @@ Raised by the read-scope sweep (`docs/reviews/read-scope-sweep.md`, at `06ecae1`
 - As first recorded:
 - `CASE_ACKNOWLEDGED_EN`, `CASE_UPDATE_EN` and `CASE_DECISION_EN` use `{subject}` in their body, which these types don't offer, so the import refuses them. It's wording, so it wasn't changed.
 - The base's `APPROVER` role loads with no grants. Its list of permission codes is in the row's note. Which functions it gets (ADR-026) is a permissions decision.
+
+**OQ-183: should a static data change request go from Approved to Rejected when its SETUP change set is abandoned? Open, for Ade (a change to `docs/specs/domain-model.json`).**
+- When a set is abandoned (OQ-180), a batch whose approval its module refused (the batch it was stuck on) has its drafts discarded. But its change request stays `APPROVED`, because the domain model's StaticDataChange lifecycle has no transition from Approved to Rejected.
+- Pending batches are rejected as usual.
+- To decide: whether to add "Approved → Rejected: the set was abandoned before it was in force" to the domain model, so the record says what happened.
 

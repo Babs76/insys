@@ -38,7 +38,9 @@ internal static class StaticDataModuleFunctions
     [
         .. new FunctionMap(Audiences.StaffAndPlatform, null)
             .Screen("STATIC_DATA_CHANGE_REQUESTS", "STATIC_DATA", "Maker-checker", "static-data/change-requests", "ListChangeRequests", "GetChangeRequest",
-                "ListImportBatches")
+                "ListImportBatches", "GetSetupChangeSet")
+            // OQ-180 (Ade, 17 November): abandoning an approved SETUP change set, asked by one person and approved or declined by another. In no role template.
+            .Action("STATIC_DATA_SETUP_ABANDON", "STATIC_DATA_CHANGE_REQUESTS", ["RequestSetupAbandon", "ApproveSetupAbandon", "DeclineSetupAbandon"], privileged: true)
             .Screen("STATIC_DATA_GOVERNANCE", "STATIC_DATA", "Three maintenance tiers", "static-data/settings", "GetGovernanceSettings")
             .Action("STATIC_DATA_CHANGE_TIER2_MAKER_CHECKER", "STATIC_DATA_GOVERNANCE", "ChangeTier2MakerChecker", privileged: true)
             .Functions,
