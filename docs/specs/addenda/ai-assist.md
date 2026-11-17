@@ -262,12 +262,22 @@ From SRS §9.1 and §9.2:
 - **Guards:** the model has no tool that writes (AIA-060); an AI-1 draft can't skip validation, simulation or a second person; a setup can't be approved by whoever ran it (AIA-086); AI-3 can't place a regulated value from outside an approved overlay (AIA-082, AIA-087); a user can't get an explanation of a record they can't read; Health explanations hold no clinical detail.
 - **Evaluation sets are built before their features:** about 100 refusals and calculations for AI-2; one line's real documents for AI-1 (D-7); standard questionnaires and sample tenant documents for AI-3. Targets are SRS §4.3, §5.3 and §5A.4: proposals, none measured.
 
-**Premium coverage of the evaluation set (17 November):** the rating engine records these line types:
+**Premium coverage of the evaluation set (Ade, 17 November):** the rating engine records these line types:
 - `EXPOSURE`, `TABLE`, `FACTOR`, `PERCENT` (a percentage loading);
 - the adjustment types (`DISCOUNT`, `LOADING`);
 - `FEE`, `MINIMUM` and `MAXIMUM` (premium bounds by frequency), `ROUNDING` and `TAX`.
 
-The five sample products each have one rating table, a fee and rounding. None has a factor, a percentage loading, an adjustment schedule, bounds or a premium tax. So the set's 36 premiums are all `EXPOSURE`, `TABLE`, `FEE` and `ROUNDING`, and no case of another type can be made from them without inventing configuration, which hasn't been done. Covering the other types needs sample configuration for them first, for Ade.
+**The sample configuration added to `OFT-HOME`,** labelled as sample in the seed and invented, not a rate:
+- a 10% loading (`OFT-HOM-LOAD`);
+- a 15% discount (`OFT-HOM-NCD`) and a ZAR 120 loading (`OFT-HOM-FLOOD`), applied in that order;
+- monthly bounds of ZAR 800 to ZAR 10,000.
+
+No premium tax until compliance says which applies.
+
+**The set's premiums:**
+- `OFT-HOME` is rated without schedules, with each and with both, so its 10 cases became 40.
+- The set now holds 66 premiums: `PERCENT` in 40, `DISCOUNT` 20, `LOADING` 20, `MINIMUM` 4, `MAXIMUM` 5. The other products stay `EXPOSURE`, `TABLE`, `FEE` and `ROUNDING`.
+- `OFT-HOME`'s test case is now ZAR 2250: 2000 by the table, 2200 after the loading, then the fee.
 
 **Deferred (Ade, 17 November): number words read as their digits.** Proposed after the rerun; not built. §5.1 is unchanged. Revisit only if the domain expert's review favours `claude-haiku-5-5`.
 - **The proposal:**

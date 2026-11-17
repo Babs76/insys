@@ -53,6 +53,12 @@ internal static class AssistEvaluationSet
         ("OFT-HEALTH", "HEALTH", "plan_option", ["ESS", "PLUS"], [50_000, 100_000]),
     ];
 
+    /// <summary>
+    /// The adjustment schedules each product's premiums are also rated with (an input, `adjustments`): OFT-HOME's sample discount and loading, alone and
+    /// together (Ade, 17 November). The other products have none, so they are rated once.
+    /// </summary>
+    private static string[][] AdjustmentsFor(string product) => product == "OFT-HOME" ? [[], ["OFT-HOM-NCD"], ["OFT-HOM-FLOOD"], ["OFT-HOM-NCD", "OFT-HOM-FLOOD"]] : [[]];
+
     public static async Task Check(InsysApiFactory host, Guid tenant, string productManager)
     {
         var refusals = host.Services.GetRequiredService<IErrorCatalogue>().All.Where(e => e.Means is { Length: > 0 })
@@ -64,9 +70,14 @@ internal static class AssistEvaluationSet
         {
             foreach (var key in keys)
             {
-                foreach (var sum in sums)
+                foreach (var (sum, adjustments) in sums.SelectMany(sum => AdjustmentsFor(product).Select(a => (sum, a))))
                 {
                     var values = new Dictionary<string, object> { ["currency"] = "ZAR", ["frequency"] = "MONTHLY", ["sum_insured"] = sum, [attribute] = key };
+                    if (adjustments.Length > 0)
+                    {
+                        values["adjustments"] = adjustments;
+                    }
+
                     var answer = await client.PostAsJsonAsync("/api/v1/rating/calculations/simulate", new { productCode = product, productVersion = 1, currency = "ZAR", frequency = "MONTHLY", values });
                     answer.IsSuccessStatusCode.ShouldBeTrue($"{product} {key} {sum}: {await answer.Content.ReadAsStringAsync()}");
                     var view = (await answer.Content.ReadFromJsonAsync<JsonElement>()).Clone();

@@ -921,7 +921,7 @@
       "productCode": "OFT-HOME",
       "productVersion": 1,
       "ratingVersion": 1,
-      "premium": 550.0000,
+      "premium": 800.0000,
       "currency": "ZAR",
       "lines": [
         {
@@ -939,17 +939,30 @@
         },
         {
           "lineNo": 3,
-          "component": "FEE",
-          "factorCode": "POLICY_FEE",
-          "factorValue": "50.0000",
-          "amount": 550.0000
+          "component": "PERCENT",
+          "factorCode": "OFT-HOM-LOAD",
+          "factorValue": "10.0000",
+          "amount": 550.000000
         },
         {
           "lineNo": 4,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 600.000000
+        },
+        {
+          "lineNo": 5,
+          "component": "MINIMUM",
+          "factorValue": "800.00",
+          "amount": 800.00
+        },
+        {
+          "lineNo": 6,
           "component": "ROUNDING",
           "factorCode": "ZAR-2DP",
           "factorValue": "0.0100",
-          "amount": 550.0000
+          "amount": 800.0000
         }
       ]
     },
@@ -959,7 +972,188 @@
       "productCode": "OFT-HOME",
       "productVersion": 1,
       "ratingVersion": 1,
-      "premium": 1050.0000,
+      "premium": 800.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 250000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-HOM-BASE",
+          "factorValue": "BRICK",
+          "amount": 500.000
+        },
+        {
+          "lineNo": 3,
+          "component": "PERCENT",
+          "factorCode": "OFT-HOM-LOAD",
+          "factorValue": "10.0000",
+          "amount": 550.000000
+        },
+        {
+          "lineNo": 4,
+          "component": "DISCOUNT",
+          "factorCode": "OFT-HOM-NCD",
+          "factorValue": "15.0000",
+          "amount": 467.500000
+        },
+        {
+          "lineNo": 5,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 517.500000
+        },
+        {
+          "lineNo": 6,
+          "component": "MINIMUM",
+          "factorValue": "800.00",
+          "amount": 800.00
+        },
+        {
+          "lineNo": 7,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 800.0000
+        }
+      ]
+    },
+    {
+      "id": "C-011",
+      "sourceDomain": "GENERAL",
+      "productCode": "OFT-HOME",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 800.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 250000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-HOM-BASE",
+          "factorValue": "BRICK",
+          "amount": 500.000
+        },
+        {
+          "lineNo": 3,
+          "component": "PERCENT",
+          "factorCode": "OFT-HOM-LOAD",
+          "factorValue": "10.0000",
+          "amount": 550.000000
+        },
+        {
+          "lineNo": 4,
+          "component": "LOADING",
+          "factorCode": "OFT-HOM-FLOOD",
+          "factorValue": "120.0000",
+          "amount": 670.000000
+        },
+        {
+          "lineNo": 5,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 720.000000
+        },
+        {
+          "lineNo": 6,
+          "component": "MINIMUM",
+          "factorValue": "800.00",
+          "amount": 800.00
+        },
+        {
+          "lineNo": 7,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 800.0000
+        }
+      ]
+    },
+    {
+      "id": "C-012",
+      "sourceDomain": "GENERAL",
+      "productCode": "OFT-HOME",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 800.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 250000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-HOM-BASE",
+          "factorValue": "BRICK",
+          "amount": 500.000
+        },
+        {
+          "lineNo": 3,
+          "component": "PERCENT",
+          "factorCode": "OFT-HOM-LOAD",
+          "factorValue": "10.0000",
+          "amount": 550.000000
+        },
+        {
+          "lineNo": 4,
+          "component": "DISCOUNT",
+          "factorCode": "OFT-HOM-NCD",
+          "factorValue": "15.0000",
+          "amount": 467.500000
+        },
+        {
+          "lineNo": 5,
+          "component": "LOADING",
+          "factorCode": "OFT-HOM-FLOOD",
+          "factorValue": "120.0000",
+          "amount": 587.500000
+        },
+        {
+          "lineNo": 6,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 637.500000
+        },
+        {
+          "lineNo": 7,
+          "component": "MINIMUM",
+          "factorValue": "800.00",
+          "amount": 800.00
+        },
+        {
+          "lineNo": 8,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 800.0000
+        }
+      ]
+    },
+    {
+      "id": "C-013",
+      "sourceDomain": "GENERAL",
+      "productCode": "OFT-HOME",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 1150.0000,
       "currency": "ZAR",
       "lines": [
         {
@@ -977,27 +1171,197 @@
         },
         {
           "lineNo": 3,
-          "component": "FEE",
-          "factorCode": "POLICY_FEE",
-          "factorValue": "50.0000",
-          "amount": 1050.0000
+          "component": "PERCENT",
+          "factorCode": "OFT-HOM-LOAD",
+          "factorValue": "10.0000",
+          "amount": 1100.000000
         },
         {
           "lineNo": 4,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 1150.000000
+        },
+        {
+          "lineNo": 5,
           "component": "ROUNDING",
           "factorCode": "ZAR-2DP",
           "factorValue": "0.0100",
-          "amount": 1050.0000
+          "amount": 1150.0000
         }
       ]
     },
     {
-      "id": "C-011",
+      "id": "C-014",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-HOME",
       "productVersion": 1,
       "ratingVersion": 1,
-      "premium": 2050.0000,
+      "premium": 985.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 500000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-HOM-BASE",
+          "factorValue": "BRICK",
+          "amount": 1000.000
+        },
+        {
+          "lineNo": 3,
+          "component": "PERCENT",
+          "factorCode": "OFT-HOM-LOAD",
+          "factorValue": "10.0000",
+          "amount": 1100.000000
+        },
+        {
+          "lineNo": 4,
+          "component": "DISCOUNT",
+          "factorCode": "OFT-HOM-NCD",
+          "factorValue": "15.0000",
+          "amount": 935.000000
+        },
+        {
+          "lineNo": 5,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 985.000000
+        },
+        {
+          "lineNo": 6,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 985.0000
+        }
+      ]
+    },
+    {
+      "id": "C-015",
+      "sourceDomain": "GENERAL",
+      "productCode": "OFT-HOME",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 1270.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 500000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-HOM-BASE",
+          "factorValue": "BRICK",
+          "amount": 1000.000
+        },
+        {
+          "lineNo": 3,
+          "component": "PERCENT",
+          "factorCode": "OFT-HOM-LOAD",
+          "factorValue": "10.0000",
+          "amount": 1100.000000
+        },
+        {
+          "lineNo": 4,
+          "component": "LOADING",
+          "factorCode": "OFT-HOM-FLOOD",
+          "factorValue": "120.0000",
+          "amount": 1220.000000
+        },
+        {
+          "lineNo": 5,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 1270.000000
+        },
+        {
+          "lineNo": 6,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 1270.0000
+        }
+      ]
+    },
+    {
+      "id": "C-016",
+      "sourceDomain": "GENERAL",
+      "productCode": "OFT-HOME",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 1105.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 500000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-HOM-BASE",
+          "factorValue": "BRICK",
+          "amount": 1000.000
+        },
+        {
+          "lineNo": 3,
+          "component": "PERCENT",
+          "factorCode": "OFT-HOM-LOAD",
+          "factorValue": "10.0000",
+          "amount": 1100.000000
+        },
+        {
+          "lineNo": 4,
+          "component": "DISCOUNT",
+          "factorCode": "OFT-HOM-NCD",
+          "factorValue": "15.0000",
+          "amount": 935.000000
+        },
+        {
+          "lineNo": 5,
+          "component": "LOADING",
+          "factorCode": "OFT-HOM-FLOOD",
+          "factorValue": "120.0000",
+          "amount": 1055.000000
+        },
+        {
+          "lineNo": 6,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 1105.000000
+        },
+        {
+          "lineNo": 7,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 1105.0000
+        }
+      ]
+    },
+    {
+      "id": "C-017",
+      "sourceDomain": "GENERAL",
+      "productCode": "OFT-HOME",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 2250.0000,
       "currency": "ZAR",
       "lines": [
         {
@@ -1015,27 +1379,197 @@
         },
         {
           "lineNo": 3,
-          "component": "FEE",
-          "factorCode": "POLICY_FEE",
-          "factorValue": "50.0000",
-          "amount": 2050.0000
+          "component": "PERCENT",
+          "factorCode": "OFT-HOM-LOAD",
+          "factorValue": "10.0000",
+          "amount": 2200.000000
         },
         {
           "lineNo": 4,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 2250.000000
+        },
+        {
+          "lineNo": 5,
           "component": "ROUNDING",
           "factorCode": "ZAR-2DP",
           "factorValue": "0.0100",
-          "amount": 2050.0000
+          "amount": 2250.0000
         }
       ]
     },
     {
-      "id": "C-012",
+      "id": "C-018",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-HOME",
       "productVersion": 1,
       "ratingVersion": 1,
-      "premium": 3050.0000,
+      "premium": 1920.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 1000000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-HOM-BASE",
+          "factorValue": "BRICK",
+          "amount": 2000.000
+        },
+        {
+          "lineNo": 3,
+          "component": "PERCENT",
+          "factorCode": "OFT-HOM-LOAD",
+          "factorValue": "10.0000",
+          "amount": 2200.000000
+        },
+        {
+          "lineNo": 4,
+          "component": "DISCOUNT",
+          "factorCode": "OFT-HOM-NCD",
+          "factorValue": "15.0000",
+          "amount": 1870.000000
+        },
+        {
+          "lineNo": 5,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 1920.000000
+        },
+        {
+          "lineNo": 6,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 1920.0000
+        }
+      ]
+    },
+    {
+      "id": "C-019",
+      "sourceDomain": "GENERAL",
+      "productCode": "OFT-HOME",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 2370.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 1000000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-HOM-BASE",
+          "factorValue": "BRICK",
+          "amount": 2000.000
+        },
+        {
+          "lineNo": 3,
+          "component": "PERCENT",
+          "factorCode": "OFT-HOM-LOAD",
+          "factorValue": "10.0000",
+          "amount": 2200.000000
+        },
+        {
+          "lineNo": 4,
+          "component": "LOADING",
+          "factorCode": "OFT-HOM-FLOOD",
+          "factorValue": "120.0000",
+          "amount": 2320.000000
+        },
+        {
+          "lineNo": 5,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 2370.000000
+        },
+        {
+          "lineNo": 6,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 2370.0000
+        }
+      ]
+    },
+    {
+      "id": "C-020",
+      "sourceDomain": "GENERAL",
+      "productCode": "OFT-HOME",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 2040.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 1000000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-HOM-BASE",
+          "factorValue": "BRICK",
+          "amount": 2000.000
+        },
+        {
+          "lineNo": 3,
+          "component": "PERCENT",
+          "factorCode": "OFT-HOM-LOAD",
+          "factorValue": "10.0000",
+          "amount": 2200.000000
+        },
+        {
+          "lineNo": 4,
+          "component": "DISCOUNT",
+          "factorCode": "OFT-HOM-NCD",
+          "factorValue": "15.0000",
+          "amount": 1870.000000
+        },
+        {
+          "lineNo": 5,
+          "component": "LOADING",
+          "factorCode": "OFT-HOM-FLOOD",
+          "factorValue": "120.0000",
+          "amount": 1990.000000
+        },
+        {
+          "lineNo": 6,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 2040.000000
+        },
+        {
+          "lineNo": 7,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 2040.0000
+        }
+      ]
+    },
+    {
+      "id": "C-021",
+      "sourceDomain": "GENERAL",
+      "productCode": "OFT-HOME",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 3350.0000,
       "currency": "ZAR",
       "lines": [
         {
@@ -1053,27 +1587,197 @@
         },
         {
           "lineNo": 3,
-          "component": "FEE",
-          "factorCode": "POLICY_FEE",
-          "factorValue": "50.0000",
-          "amount": 3050.0000
+          "component": "PERCENT",
+          "factorCode": "OFT-HOM-LOAD",
+          "factorValue": "10.0000",
+          "amount": 3300.000000
         },
         {
           "lineNo": 4,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 3350.000000
+        },
+        {
+          "lineNo": 5,
           "component": "ROUNDING",
           "factorCode": "ZAR-2DP",
           "factorValue": "0.0100",
-          "amount": 3050.0000
+          "amount": 3350.0000
         }
       ]
     },
     {
-      "id": "C-013",
+      "id": "C-022",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-HOME",
       "productVersion": 1,
       "ratingVersion": 1,
-      "premium": 4050.0000,
+      "premium": 2855.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 1500000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-HOM-BASE",
+          "factorValue": "BRICK",
+          "amount": 3000.000
+        },
+        {
+          "lineNo": 3,
+          "component": "PERCENT",
+          "factorCode": "OFT-HOM-LOAD",
+          "factorValue": "10.0000",
+          "amount": 3300.000000
+        },
+        {
+          "lineNo": 4,
+          "component": "DISCOUNT",
+          "factorCode": "OFT-HOM-NCD",
+          "factorValue": "15.0000",
+          "amount": 2805.000000
+        },
+        {
+          "lineNo": 5,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 2855.000000
+        },
+        {
+          "lineNo": 6,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 2855.0000
+        }
+      ]
+    },
+    {
+      "id": "C-023",
+      "sourceDomain": "GENERAL",
+      "productCode": "OFT-HOME",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 3470.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 1500000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-HOM-BASE",
+          "factorValue": "BRICK",
+          "amount": 3000.000
+        },
+        {
+          "lineNo": 3,
+          "component": "PERCENT",
+          "factorCode": "OFT-HOM-LOAD",
+          "factorValue": "10.0000",
+          "amount": 3300.000000
+        },
+        {
+          "lineNo": 4,
+          "component": "LOADING",
+          "factorCode": "OFT-HOM-FLOOD",
+          "factorValue": "120.0000",
+          "amount": 3420.000000
+        },
+        {
+          "lineNo": 5,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 3470.000000
+        },
+        {
+          "lineNo": 6,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 3470.0000
+        }
+      ]
+    },
+    {
+      "id": "C-024",
+      "sourceDomain": "GENERAL",
+      "productCode": "OFT-HOME",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 2975.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 1500000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-HOM-BASE",
+          "factorValue": "BRICK",
+          "amount": 3000.000
+        },
+        {
+          "lineNo": 3,
+          "component": "PERCENT",
+          "factorCode": "OFT-HOM-LOAD",
+          "factorValue": "10.0000",
+          "amount": 3300.000000
+        },
+        {
+          "lineNo": 4,
+          "component": "DISCOUNT",
+          "factorCode": "OFT-HOM-NCD",
+          "factorValue": "15.0000",
+          "amount": 2805.000000
+        },
+        {
+          "lineNo": 5,
+          "component": "LOADING",
+          "factorCode": "OFT-HOM-FLOOD",
+          "factorValue": "120.0000",
+          "amount": 2925.000000
+        },
+        {
+          "lineNo": 6,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 2975.000000
+        },
+        {
+          "lineNo": 7,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 2975.0000
+        }
+      ]
+    },
+    {
+      "id": "C-025",
+      "sourceDomain": "GENERAL",
+      "productCode": "OFT-HOME",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 4450.0000,
       "currency": "ZAR",
       "lines": [
         {
@@ -1091,27 +1795,197 @@
         },
         {
           "lineNo": 3,
-          "component": "FEE",
-          "factorCode": "POLICY_FEE",
-          "factorValue": "50.0000",
-          "amount": 4050.0000
+          "component": "PERCENT",
+          "factorCode": "OFT-HOM-LOAD",
+          "factorValue": "10.0000",
+          "amount": 4400.000000
         },
         {
           "lineNo": 4,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 4450.000000
+        },
+        {
+          "lineNo": 5,
           "component": "ROUNDING",
           "factorCode": "ZAR-2DP",
           "factorValue": "0.0100",
-          "amount": 4050.0000
+          "amount": 4450.0000
         }
       ]
     },
     {
-      "id": "C-014",
+      "id": "C-026",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-HOME",
       "productVersion": 1,
       "ratingVersion": 1,
-      "premium": 1550.0000,
+      "premium": 3790.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 2000000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-HOM-BASE",
+          "factorValue": "BRICK",
+          "amount": 4000.000
+        },
+        {
+          "lineNo": 3,
+          "component": "PERCENT",
+          "factorCode": "OFT-HOM-LOAD",
+          "factorValue": "10.0000",
+          "amount": 4400.000000
+        },
+        {
+          "lineNo": 4,
+          "component": "DISCOUNT",
+          "factorCode": "OFT-HOM-NCD",
+          "factorValue": "15.0000",
+          "amount": 3740.000000
+        },
+        {
+          "lineNo": 5,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 3790.000000
+        },
+        {
+          "lineNo": 6,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 3790.0000
+        }
+      ]
+    },
+    {
+      "id": "C-027",
+      "sourceDomain": "GENERAL",
+      "productCode": "OFT-HOME",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 4570.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 2000000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-HOM-BASE",
+          "factorValue": "BRICK",
+          "amount": 4000.000
+        },
+        {
+          "lineNo": 3,
+          "component": "PERCENT",
+          "factorCode": "OFT-HOM-LOAD",
+          "factorValue": "10.0000",
+          "amount": 4400.000000
+        },
+        {
+          "lineNo": 4,
+          "component": "LOADING",
+          "factorCode": "OFT-HOM-FLOOD",
+          "factorValue": "120.0000",
+          "amount": 4520.000000
+        },
+        {
+          "lineNo": 5,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 4570.000000
+        },
+        {
+          "lineNo": 6,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 4570.0000
+        }
+      ]
+    },
+    {
+      "id": "C-028",
+      "sourceDomain": "GENERAL",
+      "productCode": "OFT-HOME",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 3910.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 2000000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-HOM-BASE",
+          "factorValue": "BRICK",
+          "amount": 4000.000
+        },
+        {
+          "lineNo": 3,
+          "component": "PERCENT",
+          "factorCode": "OFT-HOM-LOAD",
+          "factorValue": "10.0000",
+          "amount": 4400.000000
+        },
+        {
+          "lineNo": 4,
+          "component": "DISCOUNT",
+          "factorCode": "OFT-HOM-NCD",
+          "factorValue": "15.0000",
+          "amount": 3740.000000
+        },
+        {
+          "lineNo": 5,
+          "component": "LOADING",
+          "factorCode": "OFT-HOM-FLOOD",
+          "factorValue": "120.0000",
+          "amount": 3860.000000
+        },
+        {
+          "lineNo": 6,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 3910.000000
+        },
+        {
+          "lineNo": 7,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 3910.0000
+        }
+      ]
+    },
+    {
+      "id": "C-029",
+      "sourceDomain": "GENERAL",
+      "productCode": "OFT-HOME",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 1700.0000,
       "currency": "ZAR",
       "lines": [
         {
@@ -1129,27 +2003,197 @@
         },
         {
           "lineNo": 3,
-          "component": "FEE",
-          "factorCode": "POLICY_FEE",
-          "factorValue": "50.0000",
-          "amount": 1550.0000
+          "component": "PERCENT",
+          "factorCode": "OFT-HOM-LOAD",
+          "factorValue": "10.0000",
+          "amount": 1650.000000
         },
         {
           "lineNo": 4,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 1700.000000
+        },
+        {
+          "lineNo": 5,
           "component": "ROUNDING",
           "factorCode": "ZAR-2DP",
           "factorValue": "0.0100",
-          "amount": 1550.0000
+          "amount": 1700.0000
         }
       ]
     },
     {
-      "id": "C-015",
+      "id": "C-030",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-HOME",
       "productVersion": 1,
       "ratingVersion": 1,
-      "premium": 3050.0000,
+      "premium": 1452.5000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 250000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-HOM-BASE",
+          "factorValue": "THATCH",
+          "amount": 1500.000
+        },
+        {
+          "lineNo": 3,
+          "component": "PERCENT",
+          "factorCode": "OFT-HOM-LOAD",
+          "factorValue": "10.0000",
+          "amount": 1650.000000
+        },
+        {
+          "lineNo": 4,
+          "component": "DISCOUNT",
+          "factorCode": "OFT-HOM-NCD",
+          "factorValue": "15.0000",
+          "amount": 1402.500000
+        },
+        {
+          "lineNo": 5,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 1452.500000
+        },
+        {
+          "lineNo": 6,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 1452.5000
+        }
+      ]
+    },
+    {
+      "id": "C-031",
+      "sourceDomain": "GENERAL",
+      "productCode": "OFT-HOME",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 1820.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 250000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-HOM-BASE",
+          "factorValue": "THATCH",
+          "amount": 1500.000
+        },
+        {
+          "lineNo": 3,
+          "component": "PERCENT",
+          "factorCode": "OFT-HOM-LOAD",
+          "factorValue": "10.0000",
+          "amount": 1650.000000
+        },
+        {
+          "lineNo": 4,
+          "component": "LOADING",
+          "factorCode": "OFT-HOM-FLOOD",
+          "factorValue": "120.0000",
+          "amount": 1770.000000
+        },
+        {
+          "lineNo": 5,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 1820.000000
+        },
+        {
+          "lineNo": 6,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 1820.0000
+        }
+      ]
+    },
+    {
+      "id": "C-032",
+      "sourceDomain": "GENERAL",
+      "productCode": "OFT-HOME",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 1572.5000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 250000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-HOM-BASE",
+          "factorValue": "THATCH",
+          "amount": 1500.000
+        },
+        {
+          "lineNo": 3,
+          "component": "PERCENT",
+          "factorCode": "OFT-HOM-LOAD",
+          "factorValue": "10.0000",
+          "amount": 1650.000000
+        },
+        {
+          "lineNo": 4,
+          "component": "DISCOUNT",
+          "factorCode": "OFT-HOM-NCD",
+          "factorValue": "15.0000",
+          "amount": 1402.500000
+        },
+        {
+          "lineNo": 5,
+          "component": "LOADING",
+          "factorCode": "OFT-HOM-FLOOD",
+          "factorValue": "120.0000",
+          "amount": 1522.500000
+        },
+        {
+          "lineNo": 6,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 1572.500000
+        },
+        {
+          "lineNo": 7,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 1572.5000
+        }
+      ]
+    },
+    {
+      "id": "C-033",
+      "sourceDomain": "GENERAL",
+      "productCode": "OFT-HOME",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 3350.0000,
       "currency": "ZAR",
       "lines": [
         {
@@ -1167,27 +2211,197 @@
         },
         {
           "lineNo": 3,
-          "component": "FEE",
-          "factorCode": "POLICY_FEE",
-          "factorValue": "50.0000",
-          "amount": 3050.0000
+          "component": "PERCENT",
+          "factorCode": "OFT-HOM-LOAD",
+          "factorValue": "10.0000",
+          "amount": 3300.000000
         },
         {
           "lineNo": 4,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 3350.000000
+        },
+        {
+          "lineNo": 5,
           "component": "ROUNDING",
           "factorCode": "ZAR-2DP",
           "factorValue": "0.0100",
-          "amount": 3050.0000
+          "amount": 3350.0000
         }
       ]
     },
     {
-      "id": "C-016",
+      "id": "C-034",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-HOME",
       "productVersion": 1,
       "ratingVersion": 1,
-      "premium": 6050.0000,
+      "premium": 2855.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 500000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-HOM-BASE",
+          "factorValue": "THATCH",
+          "amount": 3000.000
+        },
+        {
+          "lineNo": 3,
+          "component": "PERCENT",
+          "factorCode": "OFT-HOM-LOAD",
+          "factorValue": "10.0000",
+          "amount": 3300.000000
+        },
+        {
+          "lineNo": 4,
+          "component": "DISCOUNT",
+          "factorCode": "OFT-HOM-NCD",
+          "factorValue": "15.0000",
+          "amount": 2805.000000
+        },
+        {
+          "lineNo": 5,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 2855.000000
+        },
+        {
+          "lineNo": 6,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 2855.0000
+        }
+      ]
+    },
+    {
+      "id": "C-035",
+      "sourceDomain": "GENERAL",
+      "productCode": "OFT-HOME",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 3470.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 500000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-HOM-BASE",
+          "factorValue": "THATCH",
+          "amount": 3000.000
+        },
+        {
+          "lineNo": 3,
+          "component": "PERCENT",
+          "factorCode": "OFT-HOM-LOAD",
+          "factorValue": "10.0000",
+          "amount": 3300.000000
+        },
+        {
+          "lineNo": 4,
+          "component": "LOADING",
+          "factorCode": "OFT-HOM-FLOOD",
+          "factorValue": "120.0000",
+          "amount": 3420.000000
+        },
+        {
+          "lineNo": 5,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 3470.000000
+        },
+        {
+          "lineNo": 6,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 3470.0000
+        }
+      ]
+    },
+    {
+      "id": "C-036",
+      "sourceDomain": "GENERAL",
+      "productCode": "OFT-HOME",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 2975.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 500000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-HOM-BASE",
+          "factorValue": "THATCH",
+          "amount": 3000.000
+        },
+        {
+          "lineNo": 3,
+          "component": "PERCENT",
+          "factorCode": "OFT-HOM-LOAD",
+          "factorValue": "10.0000",
+          "amount": 3300.000000
+        },
+        {
+          "lineNo": 4,
+          "component": "DISCOUNT",
+          "factorCode": "OFT-HOM-NCD",
+          "factorValue": "15.0000",
+          "amount": 2805.000000
+        },
+        {
+          "lineNo": 5,
+          "component": "LOADING",
+          "factorCode": "OFT-HOM-FLOOD",
+          "factorValue": "120.0000",
+          "amount": 2925.000000
+        },
+        {
+          "lineNo": 6,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 2975.000000
+        },
+        {
+          "lineNo": 7,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 2975.0000
+        }
+      ]
+    },
+    {
+      "id": "C-037",
+      "sourceDomain": "GENERAL",
+      "productCode": "OFT-HOME",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 6650.0000,
       "currency": "ZAR",
       "lines": [
         {
@@ -1205,27 +2419,197 @@
         },
         {
           "lineNo": 3,
-          "component": "FEE",
-          "factorCode": "POLICY_FEE",
-          "factorValue": "50.0000",
-          "amount": 6050.0000
+          "component": "PERCENT",
+          "factorCode": "OFT-HOM-LOAD",
+          "factorValue": "10.0000",
+          "amount": 6600.000000
         },
         {
           "lineNo": 4,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 6650.000000
+        },
+        {
+          "lineNo": 5,
           "component": "ROUNDING",
           "factorCode": "ZAR-2DP",
           "factorValue": "0.0100",
-          "amount": 6050.0000
+          "amount": 6650.0000
         }
       ]
     },
     {
-      "id": "C-017",
+      "id": "C-038",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-HOME",
       "productVersion": 1,
       "ratingVersion": 1,
-      "premium": 9050.0000,
+      "premium": 5660.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 1000000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-HOM-BASE",
+          "factorValue": "THATCH",
+          "amount": 6000.000
+        },
+        {
+          "lineNo": 3,
+          "component": "PERCENT",
+          "factorCode": "OFT-HOM-LOAD",
+          "factorValue": "10.0000",
+          "amount": 6600.000000
+        },
+        {
+          "lineNo": 4,
+          "component": "DISCOUNT",
+          "factorCode": "OFT-HOM-NCD",
+          "factorValue": "15.0000",
+          "amount": 5610.000000
+        },
+        {
+          "lineNo": 5,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 5660.000000
+        },
+        {
+          "lineNo": 6,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 5660.0000
+        }
+      ]
+    },
+    {
+      "id": "C-039",
+      "sourceDomain": "GENERAL",
+      "productCode": "OFT-HOME",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 6770.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 1000000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-HOM-BASE",
+          "factorValue": "THATCH",
+          "amount": 6000.000
+        },
+        {
+          "lineNo": 3,
+          "component": "PERCENT",
+          "factorCode": "OFT-HOM-LOAD",
+          "factorValue": "10.0000",
+          "amount": 6600.000000
+        },
+        {
+          "lineNo": 4,
+          "component": "LOADING",
+          "factorCode": "OFT-HOM-FLOOD",
+          "factorValue": "120.0000",
+          "amount": 6720.000000
+        },
+        {
+          "lineNo": 5,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 6770.000000
+        },
+        {
+          "lineNo": 6,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 6770.0000
+        }
+      ]
+    },
+    {
+      "id": "C-040",
+      "sourceDomain": "GENERAL",
+      "productCode": "OFT-HOME",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 5780.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 1000000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-HOM-BASE",
+          "factorValue": "THATCH",
+          "amount": 6000.000
+        },
+        {
+          "lineNo": 3,
+          "component": "PERCENT",
+          "factorCode": "OFT-HOM-LOAD",
+          "factorValue": "10.0000",
+          "amount": 6600.000000
+        },
+        {
+          "lineNo": 4,
+          "component": "DISCOUNT",
+          "factorCode": "OFT-HOM-NCD",
+          "factorValue": "15.0000",
+          "amount": 5610.000000
+        },
+        {
+          "lineNo": 5,
+          "component": "LOADING",
+          "factorCode": "OFT-HOM-FLOOD",
+          "factorValue": "120.0000",
+          "amount": 5730.000000
+        },
+        {
+          "lineNo": 6,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 5780.000000
+        },
+        {
+          "lineNo": 7,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 5780.0000
+        }
+      ]
+    },
+    {
+      "id": "C-041",
+      "sourceDomain": "GENERAL",
+      "productCode": "OFT-HOME",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 9950.0000,
       "currency": "ZAR",
       "lines": [
         {
@@ -1243,27 +2627,203 @@
         },
         {
           "lineNo": 3,
-          "component": "FEE",
-          "factorCode": "POLICY_FEE",
-          "factorValue": "50.0000",
-          "amount": 9050.0000
+          "component": "PERCENT",
+          "factorCode": "OFT-HOM-LOAD",
+          "factorValue": "10.0000",
+          "amount": 9900.000000
         },
         {
           "lineNo": 4,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 9950.000000
+        },
+        {
+          "lineNo": 5,
           "component": "ROUNDING",
           "factorCode": "ZAR-2DP",
           "factorValue": "0.0100",
-          "amount": 9050.0000
+          "amount": 9950.0000
         }
       ]
     },
     {
-      "id": "C-018",
+      "id": "C-042",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-HOME",
       "productVersion": 1,
       "ratingVersion": 1,
-      "premium": 12050.0000,
+      "premium": 8465.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 1500000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-HOM-BASE",
+          "factorValue": "THATCH",
+          "amount": 9000.000
+        },
+        {
+          "lineNo": 3,
+          "component": "PERCENT",
+          "factorCode": "OFT-HOM-LOAD",
+          "factorValue": "10.0000",
+          "amount": 9900.000000
+        },
+        {
+          "lineNo": 4,
+          "component": "DISCOUNT",
+          "factorCode": "OFT-HOM-NCD",
+          "factorValue": "15.0000",
+          "amount": 8415.000000
+        },
+        {
+          "lineNo": 5,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 8465.000000
+        },
+        {
+          "lineNo": 6,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 8465.0000
+        }
+      ]
+    },
+    {
+      "id": "C-043",
+      "sourceDomain": "GENERAL",
+      "productCode": "OFT-HOME",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 10000.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 1500000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-HOM-BASE",
+          "factorValue": "THATCH",
+          "amount": 9000.000
+        },
+        {
+          "lineNo": 3,
+          "component": "PERCENT",
+          "factorCode": "OFT-HOM-LOAD",
+          "factorValue": "10.0000",
+          "amount": 9900.000000
+        },
+        {
+          "lineNo": 4,
+          "component": "LOADING",
+          "factorCode": "OFT-HOM-FLOOD",
+          "factorValue": "120.0000",
+          "amount": 10020.000000
+        },
+        {
+          "lineNo": 5,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 10070.000000
+        },
+        {
+          "lineNo": 6,
+          "component": "MAXIMUM",
+          "factorValue": "10000.00",
+          "amount": 10000.00
+        },
+        {
+          "lineNo": 7,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 10000.0000
+        }
+      ]
+    },
+    {
+      "id": "C-044",
+      "sourceDomain": "GENERAL",
+      "productCode": "OFT-HOME",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 8585.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 1500000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-HOM-BASE",
+          "factorValue": "THATCH",
+          "amount": 9000.000
+        },
+        {
+          "lineNo": 3,
+          "component": "PERCENT",
+          "factorCode": "OFT-HOM-LOAD",
+          "factorValue": "10.0000",
+          "amount": 9900.000000
+        },
+        {
+          "lineNo": 4,
+          "component": "DISCOUNT",
+          "factorCode": "OFT-HOM-NCD",
+          "factorValue": "15.0000",
+          "amount": 8415.000000
+        },
+        {
+          "lineNo": 5,
+          "component": "LOADING",
+          "factorCode": "OFT-HOM-FLOOD",
+          "factorValue": "120.0000",
+          "amount": 8535.000000
+        },
+        {
+          "lineNo": 6,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 8585.000000
+        },
+        {
+          "lineNo": 7,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 8585.0000
+        }
+      ]
+    },
+    {
+      "id": "C-045",
+      "sourceDomain": "GENERAL",
+      "productCode": "OFT-HOME",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 10000.0000,
       "currency": "ZAR",
       "lines": [
         {
@@ -1281,22 +2841,216 @@
         },
         {
           "lineNo": 3,
-          "component": "FEE",
-          "factorCode": "POLICY_FEE",
-          "factorValue": "50.0000",
-          "amount": 12050.0000
+          "component": "PERCENT",
+          "factorCode": "OFT-HOM-LOAD",
+          "factorValue": "10.0000",
+          "amount": 13200.000000
         },
         {
           "lineNo": 4,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 13250.000000
+        },
+        {
+          "lineNo": 5,
+          "component": "MAXIMUM",
+          "factorValue": "10000.00",
+          "amount": 10000.00
+        },
+        {
+          "lineNo": 6,
           "component": "ROUNDING",
           "factorCode": "ZAR-2DP",
           "factorValue": "0.0100",
-          "amount": 12050.0000
+          "amount": 10000.0000
         }
       ]
     },
     {
-      "id": "C-019",
+      "id": "C-046",
+      "sourceDomain": "GENERAL",
+      "productCode": "OFT-HOME",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 10000.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 2000000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-HOM-BASE",
+          "factorValue": "THATCH",
+          "amount": 12000.000
+        },
+        {
+          "lineNo": 3,
+          "component": "PERCENT",
+          "factorCode": "OFT-HOM-LOAD",
+          "factorValue": "10.0000",
+          "amount": 13200.000000
+        },
+        {
+          "lineNo": 4,
+          "component": "DISCOUNT",
+          "factorCode": "OFT-HOM-NCD",
+          "factorValue": "15.0000",
+          "amount": 11220.000000
+        },
+        {
+          "lineNo": 5,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 11270.000000
+        },
+        {
+          "lineNo": 6,
+          "component": "MAXIMUM",
+          "factorValue": "10000.00",
+          "amount": 10000.00
+        },
+        {
+          "lineNo": 7,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 10000.0000
+        }
+      ]
+    },
+    {
+      "id": "C-047",
+      "sourceDomain": "GENERAL",
+      "productCode": "OFT-HOME",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 10000.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 2000000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-HOM-BASE",
+          "factorValue": "THATCH",
+          "amount": 12000.000
+        },
+        {
+          "lineNo": 3,
+          "component": "PERCENT",
+          "factorCode": "OFT-HOM-LOAD",
+          "factorValue": "10.0000",
+          "amount": 13200.000000
+        },
+        {
+          "lineNo": 4,
+          "component": "LOADING",
+          "factorCode": "OFT-HOM-FLOOD",
+          "factorValue": "120.0000",
+          "amount": 13320.000000
+        },
+        {
+          "lineNo": 5,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 13370.000000
+        },
+        {
+          "lineNo": 6,
+          "component": "MAXIMUM",
+          "factorValue": "10000.00",
+          "amount": 10000.00
+        },
+        {
+          "lineNo": 7,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 10000.0000
+        }
+      ]
+    },
+    {
+      "id": "C-048",
+      "sourceDomain": "GENERAL",
+      "productCode": "OFT-HOME",
+      "productVersion": 1,
+      "ratingVersion": 1,
+      "premium": 10000.0000,
+      "currency": "ZAR",
+      "lines": [
+        {
+          "lineNo": 1,
+          "component": "EXPOSURE",
+          "factorValue": "sum_insured",
+          "amount": 2000000
+        },
+        {
+          "lineNo": 2,
+          "component": "TABLE",
+          "factorCode": "OFT-HOM-BASE",
+          "factorValue": "THATCH",
+          "amount": 12000.000
+        },
+        {
+          "lineNo": 3,
+          "component": "PERCENT",
+          "factorCode": "OFT-HOM-LOAD",
+          "factorValue": "10.0000",
+          "amount": 13200.000000
+        },
+        {
+          "lineNo": 4,
+          "component": "DISCOUNT",
+          "factorCode": "OFT-HOM-NCD",
+          "factorValue": "15.0000",
+          "amount": 11220.000000
+        },
+        {
+          "lineNo": 5,
+          "component": "LOADING",
+          "factorCode": "OFT-HOM-FLOOD",
+          "factorValue": "120.0000",
+          "amount": 11340.000000
+        },
+        {
+          "lineNo": 6,
+          "component": "FEE",
+          "factorCode": "POLICY_FEE",
+          "factorValue": "50.0000",
+          "amount": 11390.000000
+        },
+        {
+          "lineNo": 7,
+          "component": "MAXIMUM",
+          "factorValue": "10000.00",
+          "amount": 10000.00
+        },
+        {
+          "lineNo": 8,
+          "component": "ROUNDING",
+          "factorCode": "ZAR-2DP",
+          "factorValue": "0.0100",
+          "amount": 10000.0000
+        }
+      ]
+    },
+    {
+      "id": "C-049",
       "sourceDomain": "LIFE",
       "productCode": "OFT-FUNERAL",
       "productVersion": 1,
@@ -1334,7 +3088,7 @@
       ]
     },
     {
-      "id": "C-020",
+      "id": "C-050",
       "sourceDomain": "LIFE",
       "productCode": "OFT-FUNERAL",
       "productVersion": 1,
@@ -1372,7 +3126,7 @@
       ]
     },
     {
-      "id": "C-021",
+      "id": "C-051",
       "sourceDomain": "LIFE",
       "productCode": "OFT-FUNERAL",
       "productVersion": 1,
@@ -1410,7 +3164,7 @@
       ]
     },
     {
-      "id": "C-022",
+      "id": "C-052",
       "sourceDomain": "LIFE",
       "productCode": "OFT-FUNERAL",
       "productVersion": 1,
@@ -1448,7 +3202,7 @@
       ]
     },
     {
-      "id": "C-023",
+      "id": "C-053",
       "sourceDomain": "LIFE",
       "productCode": "OFT-FUNERAL",
       "productVersion": 1,
@@ -1486,7 +3240,7 @@
       ]
     },
     {
-      "id": "C-024",
+      "id": "C-054",
       "sourceDomain": "LIFE",
       "productCode": "OFT-FUNERAL",
       "productVersion": 1,
@@ -1524,7 +3278,7 @@
       ]
     },
     {
-      "id": "C-025",
+      "id": "C-055",
       "sourceDomain": "LIFE",
       "productCode": "OFT-FUNERAL",
       "productVersion": 1,
@@ -1562,7 +3316,7 @@
       ]
     },
     {
-      "id": "C-026",
+      "id": "C-056",
       "sourceDomain": "LIFE",
       "productCode": "OFT-FUNERAL",
       "productVersion": 1,
@@ -1600,7 +3354,7 @@
       ]
     },
     {
-      "id": "C-027",
+      "id": "C-057",
       "sourceDomain": "LIFE",
       "productCode": "OFT-TERM",
       "productVersion": 1,
@@ -1638,7 +3392,7 @@
       ]
     },
     {
-      "id": "C-028",
+      "id": "C-058",
       "sourceDomain": "LIFE",
       "productCode": "OFT-TERM",
       "productVersion": 1,
@@ -1676,7 +3430,7 @@
       ]
     },
     {
-      "id": "C-029",
+      "id": "C-059",
       "sourceDomain": "LIFE",
       "productCode": "OFT-TERM",
       "productVersion": 1,
@@ -1714,7 +3468,7 @@
       ]
     },
     {
-      "id": "C-030",
+      "id": "C-060",
       "sourceDomain": "LIFE",
       "productCode": "OFT-TERM",
       "productVersion": 1,
@@ -1752,7 +3506,7 @@
       ]
     },
     {
-      "id": "C-031",
+      "id": "C-061",
       "sourceDomain": "LIFE",
       "productCode": "OFT-TERM",
       "productVersion": 1,
@@ -1790,7 +3544,7 @@
       ]
     },
     {
-      "id": "C-032",
+      "id": "C-062",
       "sourceDomain": "LIFE",
       "productCode": "OFT-TERM",
       "productVersion": 1,
@@ -1828,7 +3582,7 @@
       ]
     },
     {
-      "id": "C-033",
+      "id": "C-063",
       "sourceDomain": "HEALTH",
       "productCode": "OFT-HEALTH",
       "productVersion": 1,
@@ -1866,7 +3620,7 @@
       ]
     },
     {
-      "id": "C-034",
+      "id": "C-064",
       "sourceDomain": "HEALTH",
       "productCode": "OFT-HEALTH",
       "productVersion": 1,
@@ -1904,7 +3658,7 @@
       ]
     },
     {
-      "id": "C-035",
+      "id": "C-065",
       "sourceDomain": "HEALTH",
       "productCode": "OFT-HEALTH",
       "productVersion": 1,
@@ -1942,7 +3696,7 @@
       ]
     },
     {
-      "id": "C-036",
+      "id": "C-066",
       "sourceDomain": "HEALTH",
       "productCode": "OFT-HEALTH",
       "productVersion": 1,

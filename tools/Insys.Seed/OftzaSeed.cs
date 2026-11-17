@@ -336,7 +336,18 @@ public sealed partial class OftzaSeed(SeedContext context)
 
         await Static("product-factory/static/coverage-and-benefit-library", "BUILDINGS", new { type = "COVERAGE", name = "Buildings (sample)", basis = "INDEMNITY", measure = "SUM_INSURED", domain = "GENERAL" });
         await Static("product-factory/static/coverage-and-benefit-library", "CONTENTS", new { type = "COVERAGE", name = "Contents (sample)", basis = "INDEMNITY", measure = "SUM_INSURED", domain = "GENERAL" });
-        await RatedProduct("OFT-HOME", "General", "GENERAL", "PROPERTY", "Household insurance (sample)", "Household (invented sample)", ["BUILDINGS", "CONTENTS"], "CONSTRUCTION", "construction", [("BRICK", 0.002m), ("THATCH", 0.006m)], "OFT-HOM", 1_000_000, "BRICK", 2050m, "GENERAL_UNDERWRITER");
+        // OFT-HOME also has a percentage loading, a discount and a loading schedule, and monthly premium bounds (Ade, 17 November): sample configuration, invented
+        // and not a rate, so the AI-2 evaluation set covers those lines. No premium tax until compliance says which applies. Its test case is 1,000,000 BRICK:
+        // 2000 by the table, 10% loading 2200, fee 2250.
+        await RatedProduct("OFT-HOME", "General", "GENERAL", "PROPERTY", "Household insurance (sample)", "Household (invented sample)", ["BUILDINGS", "CONTENTS"], "CONSTRUCTION", "construction", [("BRICK", 0.002m), ("THATCH", 0.006m)], "OFT-HOM", 1_000_000, "BRICK", 2250m, "GENERAL_UNDERWRITER",
+            extras: async version =>
+            {
+                const string sample = "Sample: invented for the AI-2 evaluation, not a rate";
+                await Static("rating/static/premium-parameters", "OFT-HOM-P3", new { parameterCode = "OFT-HOM-LOAD", productVersion = version, value = 10m, unit = "PERCENT", description = sample });
+                await Static("rating/static/discount-and-loading-schedules", "OFT-HOM-NCD", new { type = "DISCOUNT", basis = "PERCENT", value = 15m, stackingOrder = 1, description = sample });
+                await Static("rating/static/discount-and-loading-schedules", "OFT-HOM-FLOOD", new { type = "LOADING", basis = "AMOUNT", value = 120m, stackingOrder = 2, description = sample });
+                await Static("rating/static/premium-bounds", "OFT-HOM-MONTHLY", new { productCode = "OFT-HOME", currency = "ZAR", frequency = "MONTHLY", minimum = 800m, maximum = 10_000m, description = sample });
+            });
 
         // Rates by age band next birthday, invented and not actuarial.
         await Static("product-factory/static/coverage-and-benefit-library", "DEATH", new { type = "BENEFIT", name = "Death (sample)", basis = "FIXED_BENEFIT", measure = "SUM_ASSURED", domain = "LIFE" });
@@ -354,7 +365,8 @@ public sealed partial class OftzaSeed(SeedContext context)
 
     /// <summary>A product with one rating factor, one table, a fee of 50, a test case and its schedule template, then published.</summary>
     private async Task RatedProduct(string product, string domain, string line, string family, string familyName, string name, string[] coverages, string factor, string attribute,
-        (string Key, decimal Rate)[] rates, string prefix, int sumInsured, string testKey, decimal expected, string underwriter, string? eligibility = null)
+        (string Key, decimal Rate)[] rates, string prefix, int sumInsured, string testKey, decimal expected, string underwriter, string? eligibility = null,
+        Func<string, Task>? extras = null)
     {
         var version = $"{product} v1";
         await Static("product-factory/static/product-taxonomy", family, new { line, familyCode = family, familyName });
@@ -362,6 +374,11 @@ public sealed partial class OftzaSeed(SeedContext context)
         await Static("rating/static/rating-tables", $"{prefix}-BASE", new { tableCode = $"{prefix}-BASE", dimensions = new[] { factor }, values = rates.Select(r => new { key = new[] { r.Key }, value = r.Rate }).ToArray(), interpolation = "NONE" });
         await Static("rating/static/premium-parameters", $"{prefix}-P1", new { parameterCode = $"{prefix}-BASE", productVersion = version, value = 1m, unit = "FACTOR" });
         await Static("rating/static/premium-parameters", $"{prefix}-P2", new { parameterCode = "POLICY_FEE", productVersion = version, value = 50m, unit = "AMOUNT" });
+        if (extras is not null)
+        {
+            await extras(version);
+        }
+
         var inputs = new Dictionary<string, object> { ["currency"] = "ZAR", ["frequency"] = "MONTHLY", ["sum_insured"] = sumInsured, [attribute] = testKey };
         await Static("rating/static/rating-test-case-library", $"{prefix}-T1", new { caseId = $"{prefix}-T1", productVersion = version, inputs, expectedPremium = expected, tolerance = 0.01m });
         await Static("product-factory/static/product-template-assignments", $"{prefix}-SCH", new { productCode = product, documentType = "POLICY_SCHEDULE", template = "OFT-TPL-1", language = "en" });
