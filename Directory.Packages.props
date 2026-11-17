@@ -69,5 +69,9 @@
     <PackageVersion Include="AWSSDK.S3" Version="4.0.104.2" />
     <!-- Apache-2.0 (Anthropic), the official C# SDK for the Claude API. 13.3.0 of 23 October 2026: the newest release at least two weeks old on 15 November 2026. -->
     <PackageVersion Include="Anthropic" Version="13.3.0" />
+    <!-- AI-1's extraction (AIA-011), checked on nuget.org on 17 November 2026. PdfPig 0.1.16 of 22 August 2026, Apache-2.0, pre-1.0 but maintained
+         (0.1.17 previews through November 2026). DocumentFormat.OpenXml 3.5.1 of 18 March 2026, MIT, Microsoft's own. -->
+    <PackageVersion Include="PdfPig" Version="0.1.16" />
+    <PackageVersion Include="DocumentFormat.OpenXml" Version="3.5.1" />
   </ItemGroup>
 </Project>
