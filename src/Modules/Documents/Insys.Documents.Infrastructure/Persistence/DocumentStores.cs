@@ -49,6 +49,9 @@ internal sealed class DocumentRepository(DocumentsDbContext db) : IDocumentRepos
             .OrderBy(d => d.ScanAttemptedAt.HasValue).ThenBy(d => d.ScanAttemptedAt).ThenBy(d => d.Id).Take(limit)
             .Select(d => new PendingScan(d.Id, d.StorageUri, d.Sha256)).ToListAsync(cancellationToken);
 
+    public Task<string?> StoredBy(Guid id, CancellationToken cancellationToken) =>
+        db.Documents.AsNoTracking().Where(d => d.Id == id).Select(d => EF.Property<string>(d, BuildingBlocks.Infrastructure.Persistence.ModuleDbContext.CreatedBy)).SingleOrDefaultAsync(cancellationToken);
+
     public Task<Document?> Get(Guid id, CancellationToken cancellationToken) =>
         db.Documents.Include(d => d.Deliveries).Include(d => d.Holds).SingleOrDefaultAsync(d => d.Id == id, cancellationToken);
 

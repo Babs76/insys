@@ -93,10 +93,22 @@ public interface IDocumentRepository
 
     /// <summary>Uploads waiting for their malware scan, oldest first (AIA-010).</summary>
     Task<IReadOnlyList<PendingScan>> PendingScans(int limit, CancellationToken cancellationToken);
+
+    /// <summary>Who stored the document (its created_by): the uploader, for AI-1's confirmation (D-16).</summary>
+    Task<string?> StoredBy(Guid id, CancellationToken cancellationToken);
 }
 
 /// <summary>An upload waiting for its malware scan: where its content is and its checksum.</summary>
 public sealed record PendingScan(Guid DocumentId, string StorageUri, string Sha256);
+
+/// <summary>Who uploaded a document, for AI-1's confirmation (D-16, §5.5): only the uploader confirms it.</summary>
+public sealed record GetDocumentUploader(Guid DocumentId) : IQuery<string>;
+
+internal sealed class GetDocumentUploaderHandler(IDocumentRepository documents) : IQueryHandler<GetDocumentUploader, string>
+{
+    public async Task<Result<string>> Handle(GetDocumentUploader query, CancellationToken cancellationToken) =>
+        await documents.StoredBy(query.DocumentId, cancellationToken) is { } by ? by : Error.NotFound(ErrorCodes.NotFound, "The document was not found.");
+}
 
 /// <summary>The uploads waiting for their scan, for the scan job (AIA-010).</summary>
 public sealed record ListPendingScans(int Limit) : IQuery<IReadOnlyList<PendingScan>>;

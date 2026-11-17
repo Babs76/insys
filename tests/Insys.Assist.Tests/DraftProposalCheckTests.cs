@@ -106,6 +106,8 @@ public sealed class DraftProposalCheckTests
             },
         })!;
         items.Single(i => i.Field == "version.name").Flag.ShouldBe(DraftItemFlags.Found);
+        items.Single(i => i.Field == "version.name").InDraft.ShouldBeTrue();
+        items.Single(i => i.Field == "version.effectiveFrom").InDraft.ShouldBeFalse("only Found reaches the Draft (P3)");
         items.Single(i => i.Field == "version.effectiveFrom").Flag.ShouldBe(DraftItemFlags.Interpreted, "the date isn't in the quote");
         items.Single(i => i.Field == "version.coverStartsOn").Flag.ShouldBe(DraftItemFlags.Interpreted, "the model can't say Missing");
         items.Single(i => i.Field == "version.coverages").Flag.ShouldBe(DraftItemFlags.Missing, "required, and no value kept");

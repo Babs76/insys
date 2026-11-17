@@ -70,7 +70,14 @@ public static class DocumentsInfrastructure
         services.AddScoped<DocumentGenerator>();
         // AIA-010, D-14: the malware scanner port (ClamAV, a separate service), and the job that clears uploads out of quarantine.
         services.AddOptions<Scanning.ScannerOptions>().BindConfiguration("Documents:Scanner");
-        services.TryAddSingleton<BuildingBlocks.Application.Storage.IMalwareScanner, Scanning.ClamAvScanner>();
+        // ClamAV by default; the development scanner only where Provider says so, and only in Development and Testing (its guard stops any other host).
+        services.TryAddSingleton<Scanning.ClamAvScanner>();
+        services.TryAddSingleton<BuildingBlocks.Application.Storage.IMalwareScanner>(sp =>
+            string.Equals(sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<Scanning.ScannerOptions>>().Value.Provider, Scanning.DevelopmentMalwareScanner.Provider,
+                StringComparison.OrdinalIgnoreCase)
+                ? new Scanning.DevelopmentMalwareScanner(sp.GetRequiredService<Microsoft.Extensions.Hosting.IHostEnvironment>())
+                : sp.GetRequiredService<Scanning.ClamAvScanner>());
+        services.AddHostedService<Scanning.DevelopmentScannerGuard>();
         services.AddSingleton<Scanning.DocumentScanJob>();
         services.AddScoped<Contracts.IDocumentReader, DocumentReader>(); // D-16: a document read for a job's user
         if (!BuildingBlocks.Infrastructure.InfrastructureRegistration.IsBuildTimeDocumentGeneration)

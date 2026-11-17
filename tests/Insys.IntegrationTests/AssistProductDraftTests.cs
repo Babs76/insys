@@ -173,7 +173,10 @@ public sealed class AssistProductDraftTests(DatabaseFixture fixture) : IClassFix
         // AIA-014: Found only when the value is in its quote; otherwise Interpreted.
         Item(run, "version.name").GetProperty("flag").GetString().ShouldBe("FOUND");
         Item(run, "version.coverages").GetProperty("flag").GetString().ShouldBe("INTERPRETED", "ACCIDENTAL_DEATH isn't written as such");
-        Item(run, "version.coverStartsOn").GetProperty("inDraft").GetBoolean().ShouldBeTrue();
+        // Only Found reaches the Draft (Ade, 17 November, P3): Interpreted stays a cited proposal for the configurator.
+        Item(run, "version.name").GetProperty("inDraft").GetBoolean().ShouldBeTrue();
+        Item(run, "version.coverages").GetProperty("inDraft").GetBoolean().ShouldBeFalse();
+        Item(run, "version.coverStartsOn").GetProperty("inDraft").GetBoolean().ShouldBeFalse();
         // AIA-013, AIA-012: no citation, a quote not on the page, a field not in the list, a code not allowed: dropped, never in the Draft.
         Item(run, "version.reinstatementArrears", "NO_CITATION").GetProperty("inDraft").GetBoolean().ShouldBeFalse();
         Item(run, "version.name", "CITATION_NOT_FOUND");
@@ -191,8 +194,8 @@ public sealed class AssistProductDraftTests(DatabaseFixture fixture) : IClassFix
         var version = await (await w.User.GetAsync($"/api/v1/product-factory/products/{w.Product}/versions/2")).Json();
         version.GetProperty("status").GetString().ShouldBe("Draft");
         version.GetProperty("name").GetString().ShouldBe("Sample Funeral Plan");
-        version.GetProperty("coverages").EnumerateArray().Select(c => c.GetString()).ShouldBe(["FUNERAL", "ACCIDENTAL_DEATH"]);
-        version.GetProperty("coverStartsOn").GetString().ShouldBe("FirstPayment");
+        version.GetProperty("coverages").EnumerateArray().Select(c => c.GetString()).ShouldBe(["FUNERAL"], "an Interpreted value leaves the copied version's");
+        version.GetProperty("coverStartsOn").GetString().ShouldBe("Issue");
         version.GetProperty("reinstatementArrears").GetString().ShouldBe("None", "a dropped value never reaches the Draft");
         await w.Host.DrainOutbox();
         (await fixture.Database.ScalarAsOwner<string>(
@@ -241,6 +244,19 @@ public sealed class AssistProductDraftTests(DatabaseFixture fixture) : IClassFix
         (await (await Start(w, personal)).Code()).ShouldBe("ASSIST_DOCUMENT_NOT_ALLOWED");
 
         (await (await Start(w, Enumerable.Range(0, 11).Select(_ => Guid.CreateVersion7()).ToArray())).Code()).ShouldBe("ASSIST_DOCUMENT_NOT_ALLOWED");
+
+        // D-16 (Ade, 17 November): only the uploader confirms a document. Another user's upload is refused; they upload it again themselves.
+        var colleague = await fixture.Database.UserWithFunctions(w.Tenant, "ad-uploader", Functions);
+        var theirs = await w.Host.ClientFor(w.Tenant, "ad-uploader").Send(HttpMethod.Post, "/api/v1/documents/documents", new
+        {
+            categoryCode = "PRODUCT_DOC", businessRefType = "PARTY", businessRefId = Guid.CreateVersion7(), mimeType = "application/pdf",
+            contentBase64 = Convert.ToBase64String(SampleDocuments.Pdf(Wording)),
+        }, idempotent: true);
+        var notMine = (await theirs.Json()).GetProperty("id").GetGuid();
+        await w.Host.ScanUploads();
+        var refusedUpload = await Start(w, notMine);
+        (refusedUpload.StatusCode, await refusedUpload.Code()).ShouldBe((HttpStatusCode.Forbidden, "ASSIST_NOT_UPLOADER"));
+        _ = colleague;
 
         // The Draft is written as the user, so without Product Factory's permissions they can't start one.
         await fixture.Database.UserWithFunctions(w.Tenant, "ad-reader", "ASSIST_PRODUCT_DRAFT_RUN", "DOCUMENTS");

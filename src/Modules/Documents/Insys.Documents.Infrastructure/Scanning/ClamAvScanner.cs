@@ -36,6 +36,9 @@ namespace Insys.Documents.Infrastructure.Scanning;
 /// <summary>Documents:Scanner. With no host, there is no scanner, and every upload waits in quarantine (AIA-010).</summary>
 public sealed class ScannerOptions
 {
+    /// <summary>"clamav" (the default), or "development" for a stack with no ClamAV, allowed only in Development and Testing (DevelopmentMalwareScanner).</summary>
+    public string Provider { get; set; } = "clamav";
+
     /// <summary>The ClamAV daemon (clamd), run as its own service: for example "clamav" in the deployment, "localhost" with docker compose.</summary>
     public string? Host { get; set; }
 

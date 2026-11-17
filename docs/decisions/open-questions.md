@@ -1424,7 +1424,7 @@ Raised by the read-scope sweep (`docs/reviews/read-scope-sweep.md`, at `06ecae1`
 - To decide: whether to add "Approved → Rejected: the set was abandoned before it was in force" to the domain model, so the record says what happened.
 
 
-**OQ-184: what does AI-1 write to its Draft version? Open, for Ade. Built as (a), an interpretation, on `wave7-4`.**
+**OQ-184: what does AI-1 write to its Draft version? Decided (Ade, 17 November): (a), as built.** The Draft gets only the version's own fields, and only Found values of them; the rest stay cited proposals. AIA-021 is unchanged.
 - **The gap:** AIA-012 lists the values AI-1 proposes: covers or benefits, eligibility ages, waiting periods, sums assured or limits, excesses, premium frequencies, rate tables. AIA-017 says the Draft version is created "through the same Product Factory API a person uses", and AIA-021 that the AI may change no record "other than the run's own Draft".
 - **What the version holds:** a Product Factory version itself holds only its name, its coverages (codes), its effective date, when cover starts, its eligibility rule set and whether arrears are paid before reinstatement (`PUT …/versions/{n}`). Every other value AIA-012 names is static data keyed by the product or its version, in Rating (`rating.cfg_rating_tables`, `cfg_premium_parameters`, `cfg_premium_bounds`, `cfg_rating_test_case_library`), Product Factory (`cfg_product_availability_rules`) and the lines (for example `life.cfg_modal_factors`, `general.cfg_renewal_rules`, `health.cfg_plans_and_options`). Those are written through Static Data's own API, each with its approval.
 - **(a), built:**

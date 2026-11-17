@@ -4,34 +4,37 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 
 
-## AI Assist: AI-1's product drafts (Wave 7 batch 7.4, AI Assist SRS §4)
-- **`POST /assist/product-drafts`**, with `Idempotency-Key`, under function `ASSIST_PRODUCT_DRAFT_RUN` (feature `AI_ASSIST`). The caller also needs Product Factory's create and edit functions and Documents' read.
-  - The body is `{ productCode, documents: [{ documentId, confirmsNoPersonalData }] }`: 1 to 10 uploads, each cleared by the malware scan and at most 20 MB, each confirmed to hold no customer personal data.
-  - It returns **202** with the run, status `QUEUED`. A job then drafts the version as the caller.
-  - Refusals:
-    - `ASSIST_CONFIRMATION_REQUIRED` and `ASSIST_DOCUMENT_NOT_ALLOWED` (422);
-    - `DOCUMENT_QUARANTINED` (409);
-    - `FORBIDDEN`;
-    - the settings' refusals (`ASSIST_RESIDENCY_NOT_SET`, `ASSIST_CAP_REACHED`, …).
-- **`GET /assist/product-drafts/{id}`** returns the run:
-  - `status`: `QUEUED`, `RUNNING`, `DRAFTED`, `REFUSED` or `FAILED`, with `outcomeCode` and `draftVersion`;
-  - each document with its confirmation, `kind`, `unreadablePages`, and any `identifiers` found (kind and page, never the value);
-  - every item with its `kind`, `field`, `value` (JSON text), `flag` (`FOUND`, `INTERPRETED`, `MISSING`), citation, `checkResult`, `checkReason` and `inDraft`.
-  - The front end polls it until the status is no longer `QUEUED` or `RUNNING`.
-- **The Draft** is an ordinary Product Factory version, created by the caller, with only the version's own fields set from cited values. Everything else is a proposal on the run (OQ-184).
-- **New error codes**, with no catalogue wording yet:
-  - `ASSIST_DOCUMENT_NOT_ALLOWED`, `ASSIST_CONFIRMATION_REQUIRED`, `ASSIST_CONFIRMATION_STALE`;
-  - `ASSIST_DOCUMENT_IDENTIFIERS`, `ASSIST_SOURCE_UNREADABLE`;
-  - `ASSIST_USER_CANNOT_ACT`, `ASSIST_RUN_STALLED`, `ASSIST_RESIDENCY_MISMATCH`.
-- Review and decisions on items (AIA-019) come in 7.5.
+## Wave 7 batch 7.4: the malware scan of uploads, and AI-1's product drafts (17 November 2026)
+Every change, marked **breaking** where a client built on the previous contract can see a different answer.
 
-## Documents: uploads are held until a malware scan clears them (Wave 7 batch 7.4, AIA-010)
-- **Every upload starts quarantined.** Its content (`GET /documents/documents/{id}/content`, delivery, and the portal's content read) is refused with **409 `DOCUMENT_QUARANTINED`** until the malware scan clears it, usually within a minute.
-  - A file that fails the scan is never released and its content is deleted. The same 409 applies; the user uploads a clean copy.
-  - Generated documents aren't scanned.
-  - Uploads made before this change are scanned once, so they too are held until then.
-- **New field `scanStatus`** on a document's view: `NOT_REQUIRED` (generated), `PENDING`, `CLEAN` or `INFECTED`. The front end can show a held upload as waiting, and poll the document until it isn't `PENDING`.
-- No other field or route changed.
+**Documents (AIA-010):**
+1. **Breaking: an upload's content is held until the malware scan clears it.**
+   - `GET /documents/documents/{id}/content`, the portal's `GET /portal/documents/{id}/content` and `POST /documents/documents/{id}/deliveries` answer **409 `DOCUMENT_QUARANTINED`** while the upload's `scanStatus` is `PENDING`. They do so for good when it is `INFECTED`: never released, its content deleted, so upload a clean copy.
+   - The scan usually takes under a minute; the front end polls the document.
+   - Generated documents (`NOT_REQUIRED`) are unaffected.
+   - Uploads stored before this deployment wait for one scan too.
+   - For a stack with no ClamAV, see `docs/frontend-integration-guide.md` §6.
+2. **Not breaking:** the new field **`scanStatus`** on a document's view: `NOT_REQUIRED`, `PENDING`, `CLEAN` or `INFECTED`. The metadata reads as before while the content is held.
+3. **Not breaking:** the new error code **`DOCUMENT_QUARANTINED`** (409), with catalogue wording.
+
+**AI Assist, AI-1 (AI Assist SRS §4):**
+4. **Not breaking (new routes):**
+   - **`POST /assist/product-drafts`**, with `Idempotency-Key`, under function `ASSIST_PRODUCT_DRAFT_RUN` (feature `AI_ASSIST`). The caller also needs Product Factory's create and edit functions and Documents' read.
+     - The body is `{ productCode, documents: [{ documentId, confirmsNoPersonalData }] }`: 1 to 10 uploads, each `CLEAN`, at most 20 MB, uploaded by the caller, of a category that isn't PERSONAL or HIGHLY_SENSITIVE, and confirmed to hold no customer personal data.
+     - It returns **202** with the run, status `QUEUED`.
+   - **`GET /assist/product-drafts/{id}`** returns the run:
+     - `status` (`QUEUED`, `RUNNING`, `DRAFTED`, `REFUSED`, `FAILED`), `outcomeCode` and `draftVersion`;
+     - each document with its confirmation, `kind`, `unreadablePages` and any `identifiers` found (kind and page, never the value);
+     - every item with `kind`, `field`, `value` (JSON text), `flag` (`FOUND`, `INTERPRETED`, `MISSING`), citation, `checkResult`, `checkReason` and `inDraft`.
+     - Poll it until the status is no longer `QUEUED` or `RUNNING`.
+5. **Not breaking: a run is visible only to its requester.** Another user, even with the same function, gets **404** for it, as for a run of another tenant. There is no list of runs.
+6. **Not breaking: the Draft.** It is an ordinary Product Factory version, created by the caller. Only the version's own fields that were Found (quoted from the source) are set; everything else, Interpreted and Missing values included, is a cited proposal on the run (OQ-184, Ade, 17 November).
+7. **Not breaking: new error codes**, with no catalogue wording yet:
+   - `ASSIST_NOT_UPLOADER` (403), `ASSIST_DOCUMENT_NOT_ALLOWED` (422), `ASSIST_CONFIRMATION_REQUIRED` (422), `ASSIST_CONFIRMATION_STALE` (409);
+   - `ASSIST_DOCUMENT_IDENTIFIERS` (422), `ASSIST_SOURCE_UNREADABLE` (422), `ASSIST_USER_CANNOT_ACT` (403), `ASSIST_RUN_STALLED` (409), `ASSIST_RESIDENCY_MISMATCH` (422);
+   - and the two added by the security review: **`ASSIST_SOURCE_TOO_LARGE`** (422: a file or the run's text over AI-1's limits) and **`ASSIST_RUN_EXPIRED`** (409: a run still queued after an hour).
+   - The start answers the first four directly. The others are a run's `outcomeCode`.
+8. Review and decisions on items (AIA-019) come in 7.5.
 
 ## AI Assist: templates v3, and IDENTITY_NOT_LINKED is retryable (17 November 2026)
 - **Prompt templates `refusal-v3` and `premium-v3`** (Ade, from a pre-screen of run 43904917124):

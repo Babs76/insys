@@ -103,3 +103,32 @@ Answers to questions the front end raises that the OpenAPI documents cannot answ
 **Step-up with `acr_values` is not configured.** The realm has no levels of assurance (no `acr.loa.map`, no step-up conditions), so asking for `acr_values` changes nothing today. If a screen ever needs a higher level than the client's flow gives, that is a realm change (a level-of-assurance mapping and a conditional flow) plus an INSYS rule naming the operations; raise it as a request.
 
 **A member without a one-time code, where the tenant requires MFA.** Keycloak signs them in with their password (the member flow asks for a code only once one is set up), and every INSYS call then returns **403 `PORTAL_MFA_REQUIRED`**. The console should treat that code as "set up a one-time code": send the member back to Keycloak's authorisation endpoint with `kc_action=CONFIGURE_TOTP` (Keycloak's application-initiated action), where they scan the code and enter it; the token that comes back carries `amr` `otp`, and INSYS accepts it. Signing out and in again is not needed. Brokers and providers never see this code: their flow always asks for the one-time code.
+
+## 6. Uploads and the malware scan, and how a stack without ClamAV clears scans (batch 7.4)
+Every upload is held until the malware scan clears it (AIA-010):
+- `POST /documents/documents` answers 201 with `scanStatus: "PENDING"`.
+- Until the scan job has cleared it, a read of its content answers **409 `DOCUMENT_QUARANTINED`**: `GET /documents/documents/{id}/content`, the portal's content read, and a delivery. Its metadata (`GET /documents/documents/{id}`) reads as usual.
+- Poll the document until `scanStatus` is `CLEAN` (released) or `INFECTED` (never released, and its content deleted: upload a clean copy).
+- Documents INSYS generates are `NOT_REQUIRED` and never wait.
+
+**Where ClamAV runs:**
+- **Deployed stacks** (the chart, the smoke test, the Preview once Ade approves its redeploy): ClamAV is in the chart (`scanner.enabled`), and nothing needs setting.
+- **Locally, with ClamAV:** `docker compose --profile scanner up -d clamav`, then run the API with `Documents__Scanner__Host=localhost`. It needs a minute or two at first to download its signatures.
+
+**A stack with no ClamAV:** development, test, and the front end's live runner, which runs only Postgres and Keycloak and builds the back end from a clean clone. Use the development scanner. Run the API with:
+- `ASPNETCORE_ENVIRONMENT=Development` (or `Testing`);
+- `Documents__Scanner__Provider=development`;
+- `Documents__Scanner__JobInterval=00:00:02`, optional, so an upload clears in about two seconds rather than up to thirty.
+
+What the development scanner does:
+- It flags the EICAR test file as infected, as every scanner does, and passes everything else.
+- Uploads still go through quarantine and the scan job, so screens see `PENDING` then `CLEAN`, and a test can upload the EICAR string to see `INFECTED`.
+- The scan job must be on, which is the default (`Documents:Scanner:JobEnabled`).
+
+**It can't be used in production.** In any environment other than Development or Testing the host refuses to start when `Documents:Scanner:Provider` is `development`, naming the setting; the scanner itself can't be made there either. `DevelopmentScannerTests` proves both, for Staging and Production.
+
+**AI-1 (`POST /assist/product-drafts`):**
+- It also needs each document `CLEAN`, else 409 `DOCUMENT_QUARANTINED`.
+- It needs each document uploaded by the caller, else 403 `ASSIST_NOT_UPLOADER`: upload it again as yourself.
+- Its category mustn't be PERSONAL or HIGHLY_SENSITIVE, else 422 `ASSIST_DOCUMENT_NOT_ALLOWED`.
+

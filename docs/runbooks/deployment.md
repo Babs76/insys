@@ -51,6 +51,13 @@ Both need PostgreSQL 18.
 4. Start the host. Check that `/health/ready` answers Healthy (see [monitoring.md](monitoring.md)).
 5. **Both administrators sign in.** Each change one makes (a static data change, a tenant's first administrators, another administrator's PLATFORM_ADMIN) is approved by the other in the Workflow inbox (SDM-003, SRS-002).
 
+## Malware scan of uploads (AIA-010): before each first deployment of batch 7.4
+V0138 puts every document uploaded before it into quarantine (`PENDING`): each is released only once ClamAV clears it. The scan job takes `Documents:Scanner:BatchSize` (default 20) per tenant every `JobInterval` (default 30 seconds), so a large backlog can take days, and those documents can't be read meanwhile. Keep the defaults unless the count says otherwise (Ade, 17 November):
+1. Before deploying, count the documents that will wait, per tenant, on the owner connection: `SELECT tenant_id, count(*) FROM document.document WHERE template_code IS NULL AND status <> 'DISPOSED' GROUP BY tenant_id ORDER BY 2 DESC;`
+2. The time to clear a tenant is about `count / BatchSize × JobInterval`. If the largest tenant's is longer than the agreed window, raise `Documents__Scanner__BatchSize` (or shorten `Documents__Scanner__JobInterval`) for the first deployment, within what ClamAV's pod can scan, and record the values chosen.
+3. After the deployment, watch the count fall: `SELECT count(*) FROM document.document WHERE scan_status = 'PENDING';`. A file the scanner errors on is tried 5 times and stays held; list those with `scan_attempts >= 5` and decide on each.
+4. Return the settings to the defaults once the backlog is cleared.
+
 ## Identity provider: Keycloak (ADR-017)
 
 ### Locally

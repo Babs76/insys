@@ -256,7 +256,8 @@ public static partial class DraftProposalCheck
         }
 
         var flag = Text(node, "flag") == DraftItemFlags.Found && Quoted(value, quote!) ? DraftItemFlags.Found : DraftItemFlags.Interpreted;
-        return new CheckedItem(DraftItemKinds.Value, path, json, flag, documentId, page, quote, null, field.InDraft);
+        // Only a Found value reaches the Draft (Ade, 17 November, P3: copied from the source, never inferred). Interpreted stays a cited proposal.
+        return new CheckedItem(DraftItemKinds.Value, path, json, flag, documentId, page, quote, null, field.InDraft && flag == DraftItemFlags.Found);
     }
 
     private static CheckedItem RateTable(JsonNode? node, IReadOnlyList<SentDocument> documents)

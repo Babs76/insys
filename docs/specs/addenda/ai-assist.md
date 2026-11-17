@@ -174,10 +174,12 @@ The minimiser stays as a second layer. AI-1 and AI-3 read documents, so D-16 mus
 
 **AI-3's tenant documents (7.8):** the template asks for role titles, not people's names.
 
-**As built in 7.4, with three interpretations for Ade:**
-1. **The type is read from the content once the scan releases it,** since nothing is read before the scan. "Refused before it is scanned or read" is then met for the size and the count, from Documents' metadata at the start of a run. A file of another type is stored and scanned like any upload, but it never reaches extraction or a model.
-2. **What the Draft holds is OQ-184 (a):** the version's own fields. Every other value is a cited proposal on the run.
-3. **"Required by the model" (AIA-014) is the version's name and coverages:** a version always has a name, and validation refuses one with no coverages. No table is required yet, so a table with no proposal isn't listed as Missing.
+**As built in 7.4, with Ade's decisions of 17 November:**
+1. **The uploader confirms, no one else.** A run on a document another user uploaded is refused (`ASSIST_NOT_UPLOADER`); the way round is to upload it again.
+2. **Only Found values are written into the Draft (P3: copied from the source, never inferred).** Interpreted and Missing values stay cited proposals on the run for the configurator, like the rate tables.
+3. **What the Draft holds (OQ-184, decided):** the version's own fields only. Every other value is a cited proposal, and AIA-021 is unchanged.
+4. **The type is read from the content once the scan releases it,** since nothing is read before the scan. The size and the count are refused at the start, from Documents' metadata. A document whose category is PERSONAL or HIGHLY_SENSITIVE is refused, whatever was confirmed.
+5. **"Required by the model" (AIA-014) is the version's name and coverages:** a version always has a name, and validation refuses one with no coverages. No table is required yet.
 
 ### 5.2 AI-3 and the starter packs
 - **Format:** [`docs/specs/starter-packs`](../starter-packs/README.md) has the structure, drafted: base, country and line overlays. It needs a `tailorable` mark per value (AIA-082). In the build, packs become versioned static data (`starter_pack`, `starter_pack_value`).

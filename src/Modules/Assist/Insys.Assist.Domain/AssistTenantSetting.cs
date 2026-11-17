@@ -67,6 +67,10 @@ public static class AssistErrorCodes
     [ErrorCode(409, "error.assist.confirmation_stale")]
     public const string ConfirmationStale = "ASSIST_CONFIRMATION_STALE";
 
+    /// <summary>AI-1 (D-16, §5.5): only the user who uploaded a document confirms it; another user's upload is refused, and is uploaded again to be used.</summary>
+    [ErrorCode(403, "error.assist.not_uploader")]
+    public const string NotUploader = "ASSIST_NOT_UPLOADER";
+
     /// <summary>AI-1 (D-16, §5.5): the identifier check found an obvious identifier, named by kind and page in the run, never by value.</summary>
     [ErrorCode(422, "error.assist.document_identifiers")]
     public const string DocumentIdentifiers = "ASSIST_DOCUMENT_IDENTIFIERS";

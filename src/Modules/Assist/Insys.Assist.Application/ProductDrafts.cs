@@ -162,6 +162,13 @@ public sealed class ProductDraftStarter(IDispatcher dispatcher, IDocumentReader 
                 return Error.Validation(AssistErrorCodes.DocumentNotAllowed, "A document AI-1 reads is at most 20 MB (ai-assist.md §5.5).");
             }
 
+            // D-16 (Ade, 17 November): the confirmation is the uploader's. Another user's upload is refused; they upload it again to use it.
+            if (read.Facts.UploadedBy != execution.ActorId)
+            {
+                return Error.Forbidden(AssistErrorCodes.NotUploader,
+                    "Only the user who uploaded a document can confirm it for AI-1. Upload the document again yourself to use it.");
+            }
+
             // D-16: a document whose own category says it holds personal data contradicts the confirmation, so it is refused whatever was confirmed.
             if (read.Facts.Classification is "PERSONAL" or "HIGHLY_SENSITIVE")
             {

@@ -90,7 +90,9 @@ public sealed record DocumentDisposed(Guid DocumentId) : IIntegrationEvent;
 /// <summary>An uploaded document's facts, as Documents holds them, for a module that reads it for its user (AI-1, D-16).</summary>
 /// <param name="ScanStatus">NOT_REQUIRED, PENDING, CLEAN or INFECTED (AIA-010).</param>
 /// <param name="Classification">PUBLIC, INTERNAL, CONFIDENTIAL, PERSONAL or HIGHLY_SENSITIVE, from the document's category.</param>
-public sealed record DocumentFacts(Guid DocumentId, string? FileName, string MimeType, long SizeBytes, string Sha256, string ScanStatus, string Classification);
+/// <param name="UploadedBy">The user who stored it (D-16: only they confirm it holds no customer personal data).</param>
+public sealed record DocumentFacts(Guid DocumentId, string? FileName, string MimeType, long SizeBytes, string Sha256, string ScanStatus, string Classification,
+    string? UploadedBy = null);
 
 /// <summary>A document's content as the user read it, or the refusal's code and message as the endpoint would give them.</summary>
 public sealed record DocumentRead(DocumentFacts? Facts, byte[]? Content, string? ErrorCode = null, string? Message = null)

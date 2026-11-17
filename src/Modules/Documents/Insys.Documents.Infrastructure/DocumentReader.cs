@@ -45,11 +45,16 @@ internal sealed class DocumentReader(IServiceProvider services, ExecutionScope e
             return new DocumentRead(null, null, refused.Code, refused.Message);
         }
 
-        var view = await services.GetRequiredService<IDispatcher>().Query(new GetDocument(documentId), cancellationToken);
-        return view.IsFailure
-            ? new DocumentRead(null, null, view.Error.Code, view.Error.Message)
-            : new DocumentRead(new DocumentFacts(view.Value.Id, view.Value.FileName, view.Value.MimeType, view.Value.SizeBytes, view.Value.Sha256, view.Value.ScanStatus,
-                view.Value.Classification), null);
+        var dispatcher = services.GetRequiredService<IDispatcher>();
+        var view = await dispatcher.Query(new GetDocument(documentId), cancellationToken);
+        if (view.IsFailure)
+        {
+            return new DocumentRead(null, null, view.Error.Code, view.Error.Message);
+        }
+
+        var uploader = await dispatcher.Query(new GetDocumentUploader(documentId), cancellationToken);
+        return new DocumentRead(new DocumentFacts(view.Value.Id, view.Value.FileName, view.Value.MimeType, view.Value.SizeBytes, view.Value.Sha256, view.Value.ScanStatus,
+                view.Value.Classification, uploader.IsSuccess ? uploader.Value : null), null);
     }
 
     public async Task<DocumentRead> Read(Guid documentId, string purpose, CancellationToken cancellationToken)
