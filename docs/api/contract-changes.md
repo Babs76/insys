@@ -4,6 +4,16 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 
 
+## AI Assist: templates v3, and IDENTITY_NOT_LINKED is retryable (17 November 2026)
+- **Prompt templates `refusal-v3` and `premium-v3`** (Ade, from a pre-screen of run 43904917124):
+  - They don't say what the assistant can or can't do. v2's "Never say that you can change, approve or retry anything" brought the answer "I can't approve, change or resubmit…" in 64 of Sonnet's 107.
+  - They give only the next step the facts give, with no other contacts or advice, and explain no causes the facts don't state.
+  - A premium's exposure line is described as what the rating is based on, not as a starting amount.
+  - Explanations cached under v2 aren't reused; each is made again when next asked. No field changed.
+- **`IDENTITY_NOT_LINKED`** is now retryable (`retryable: true` in the catalogue). The response already carried `Retry-After: 2` and said to try again in a moment; only the flag was wrong.
+  - Of the 75 worded entries, it was the only one whose flag disagreed with its next step.
+  - Six others say "correct …, then try again". They stay not retryable, because the flag means the same request may succeed unchanged.
+
 ## Static data: abandoning a SETUP change set (OQ-180, Ade, 17 November 2026)
 New routes, function, permission and error code; no existing field changes.
 - **`GET /static-data/setup-sets/{id}`** (`STATIC_DATA_CHANGE_REQUESTS`, `change_request.read`): the set, its batches in order with `appliedAt` for those in force, its approval, and any abandonment (`abandonRequestedBy`, `abandonReason`, `abandonRequestedAt`, `abandonedBy`, `abandonedAt`), with an ETag.

@@ -129,7 +129,7 @@ public static class ErrorCodes
     /// BR-018: the token is for a user of the tenant whose identity is not linked yet (its Keycloak user is being created).
     /// Retryable: the response carries Retry-After, and the same call works once the identity is linked.
     /// </summary>
-    [ErrorCode(403, "error.access.identity_not_linked", Means = "Your sign-in identity is still being set up.",
+    [ErrorCode(403, "error.access.identity_not_linked", retryable: true, Means = "Your sign-in identity is still being set up.",
         Remedy = "Wait a moment and try again; it works once the set-up has finished.")]
     public const string IdentityNotLinked = "IDENTITY_NOT_LINKED";
 

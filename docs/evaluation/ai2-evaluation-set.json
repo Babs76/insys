@@ -276,7 +276,7 @@
     {
       "id": "R-035",
       "code": "IDENTITY_NOT_LINKED",
-      "retryable": false,
+      "retryable": true,
       "means": "Your sign-in identity is still being set up.",
       "remedy": "Wait a moment and try again; it works once the set-up has finished.",
       "fieldsInError": 0
