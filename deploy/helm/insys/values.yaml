@@ -128,6 +128,8 @@ identity:
 # reachable from the API. With neither, uploads stay quarantined (DOCUMENT_QUARANTINED): the scan fails closed. ClamAV holds its signatures in
 # memory, so it needs about 1.5 GB or more.
 scanner:
+  # Always clamav: any other value fails the chart. The development scanner exists only for stacks outside it (frontend-integration-guide.md §6).
+  provider: clamav
   enabled: true
   image: clamav/clamav:1.5.4
   host: ""

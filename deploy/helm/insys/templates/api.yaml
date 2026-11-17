@@ -68,6 +68,11 @@ spec:
             - {name: Authentication__Issuer, value: {{ . | quote }}}
             {{- end }}
             - {name: Authentication__Audience, value: {{ .Values.authentication.audience | quote }}}
+            {{- /* AIA-010: a deployment always scans with ClamAV, whatever its environment name; the development scanner is for stacks outside the chart. */}}
+            {{- if ne (.Values.scanner.provider | default "clamav") "clamav" }}
+            {{- fail "scanner.provider must be clamav: the chart never runs the development scanner, whatever the environment is called." }}
+            {{- end }}
+            - {name: Documents__Scanner__Provider, value: "clamav"}
             {{- $scanner := .Values.scanner.host | default (ternary (printf "%s-clamav" .Release.Name) "" .Values.scanner.enabled) }}
             {{- if $scanner }}
             # The malware scanner (AIA-010). Without one, uploads stay quarantined: the scan fails closed.

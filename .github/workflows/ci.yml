@@ -106,6 +106,11 @@ jobs:
           helm lint . --set kms.address=http://bao:8200,objectStore.serviceUrl=http://s3:9000
           helm template t . --set kms.address=http://bao:8200,objectStore.serviceUrl=http://s3:9000 > /dev/null
           helm template t . --set postgres.enabled=true,openbao.enabled=true,seaweedfs.enabled=true,keycloak.enabled=true > /dev/null
+          # AIA-010: the chart pins ClamAV whatever the environment is called, and refuses the development scanner.
+          helm template t . --set kms.address=http://bao:8200,objectStore.serviceUrl=http://s3:9000,environment=Development | grep -q 'name: Documents__Scanner__Provider, value: "clamav"'
+          if helm template t . --set kms.address=http://bao:8200,objectStore.serviceUrl=http://s3:9000,environment=Development,scanner.provider=development > /dev/null 2>&1; then
+            echo "The chart rendered with scanner.provider=development"; exit 1
+          fi
           if helm template t . --set kms.address=http://bao:8200,objectStore.serviceUrl=http://s3:9000 | grep -E 'annotations:|replicas: [^1]'; then
             echo "The chart has a provider annotation or more than one replica (ADR-006, ADR-027)."
             exit 1

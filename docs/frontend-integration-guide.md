@@ -115,6 +115,8 @@ Every upload is held until the malware scan clears it (AIA-010):
 - **Deployed stacks** (the chart, the smoke test, the Preview once Ade approves its redeploy): ClamAV is in the chart (`scanner.enabled`), and nothing needs setting.
 - **Locally, with ClamAV:** `docker compose --profile scanner up -d clamav`, then run the API with `Documents__Scanner__Host=localhost`. It needs a minute or two at first to download its signatures.
 
+**The live runner's environment name: `Development`.** Run the back end it builds with `ASPNETCORE_ENVIRONMENT=Development` and the settings below, so its specs get scans cleared. `Testing` is also allowed, but it is the name the back end's own test hosts use; `Development` is the one for a running stack.
+
 **A stack with no ClamAV:** development, test, and the front end's live runner, which runs only Postgres and Keycloak and builds the back end from a clean clone. Use the development scanner. Run the API with:
 - `ASPNETCORE_ENVIRONMENT=Development` (or `Testing`);
 - `Documents__Scanner__Provider=development`;
@@ -125,7 +127,9 @@ What the development scanner does:
 - Uploads still go through quarantine and the scan job, so screens see `PENDING` then `CLEAN`, and a test can upload the EICAR string to see `INFECTED`.
 - The scan job must be on, which is the default (`Documents:Scanner:JobEnabled`).
 
-**It can't be used in production.** In any environment other than Development or Testing the host refuses to start when `Documents:Scanner:Provider` is `development`, naming the setting; the scanner itself can't be made there either. `DevelopmentScannerTests` proves both, for Staging and Production.
+**It can't be used in production.**
+- The Helm chart pins ClamAV (`Documents__Scanner__Provider=clamav`) whatever the environment is called, and fails to render with any other `scanner.provider`. CI checks both.
+- In any environment other than Development or Testing the host refuses to start when `Documents:Scanner:Provider` is `development`, naming the setting; the scanner itself can't be made there either. `DevelopmentScannerTests` proves both, for Staging and Production.
 
 **AI-1 (`POST /assist/product-drafts`):**
 - It also needs each document `CLEAN`, else 409 `DOCUMENT_QUARANTINED`.
