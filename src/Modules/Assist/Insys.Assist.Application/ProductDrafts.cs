@@ -534,7 +534,7 @@ public sealed class ProductDraftWorker(IServiceScopeFactory scopes, ActingUserSc
 
             // Still this pass's run: not ended meanwhile as stalled or expired by another instance, so it writes once (security review of 7.4).
             var current = await user.Services.GetRequiredService<IDispatcher>().Query(new GetProductDraft(queued.Id), cancellationToken);
-            if (current.IsFailure || current.Value.Status != ProductDraftStatuses.Running || current.Value.StartedAt != claimedAt)
+            if (current.IsFailure || current.Value.Status != ProductDraftStatuses.Running || !SameInstant(current.Value.StartedAt, claimedAt))
             {
                 return false;
             }
@@ -560,6 +560,9 @@ public sealed class ProductDraftWorker(IServiceScopeFactory scopes, ActingUserSc
         var effective = Scalar(DraftFields.EffectiveFrom) is { } date ? DateOnly.ParseExact(date, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) : (DateOnly?)null;
         return (effective, new ProductDraftFields(Scalar(DraftFields.Name)?.Trim(), coverages, Scalar(DraftFields.CoverStartsOn), Scalar(DraftFields.ReinstatementArrears)));
     }
+
+    /// <summary>The same claim: PostgreSQL keeps microseconds, a clock ticks in tenths of them.</summary>
+    private static bool SameInstant(DateTimeOffset? a, DateTimeOffset? b) => a is { } x && b is { } y && Math.Abs((x - y).Ticks) < 10;
 
     /// <summary>The items as recorded when no Draft was written: none of them is in one.</summary>
     private static IReadOnlyList<CheckedItem> NotWritten(IReadOnlyList<CheckedItem> items) => items.Select(i => i with { InDraft = false }).ToList();

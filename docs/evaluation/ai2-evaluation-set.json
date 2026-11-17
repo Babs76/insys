@@ -171,6 +171,14 @@
     },
     {
       "id": "R-022",
+      "code": "DOCUMENT_QUARANTINED",
+      "retryable": false,
+      "means": "The uploaded file is held until a malware scan clears it, or it failed the scan.",
+      "remedy": "Wait for the scan, then open it again; a file that failed the scan has to be uploaded again from a clean copy.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-023",
       "code": "DOMAIN_VALIDATION_FAILED",
       "retryable": false,
       "means": "The record doesn\u0027t pass the checks this step of the process requires.",
@@ -178,7 +186,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-023",
+      "id": "R-024",
       "code": "DUE_DILIGENCE_NOT_CLEARED",
       "retryable": false,
       "means": "The party hasn\u0027t been cleared by customer due diligence for this step, so INSYS won\u0027t go on with it.",
@@ -186,7 +194,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-024",
+      "id": "R-025",
       "code": "DUPLICATE_RECORD",
       "retryable": false,
       "means": "A record with the same identifying values already exists.",
@@ -194,7 +202,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-025",
+      "id": "R-026",
       "code": "EXTERNAL_USER_NOT_ALLOWED",
       "retryable": false,
       "means": "Portal users can use only their own portal\u0027s functions.",
@@ -202,7 +210,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-026",
+      "id": "R-027",
       "code": "FEATURE_NOT_ENTITLED",
       "retryable": false,
       "means": "Your organisation isn\u0027t entitled to the feature this action belongs to.",
@@ -210,7 +218,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-027",
+      "id": "R-028",
       "code": "FORBIDDEN",
       "retryable": false,
       "means": "You aren\u0027t allowed to do this.",
@@ -218,7 +226,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-028",
+      "id": "R-029",
       "code": "FUNCTION_DISABLED",
       "retryable": false,
       "means": "This action is switched off for your organisation, or isn\u0027t available on the platform.",
@@ -226,7 +234,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-029",
+      "id": "R-030",
       "code": "FUNCTION_NOT_GRANTED",
       "retryable": false,
       "means": "None of your roles in force grants this action.",
@@ -234,7 +242,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-030",
+      "id": "R-031",
       "code": "GOVERNANCE_CHANGE_PENDING",
       "retryable": false,
       "means": "A change to how static data is approved is already waiting for a decision.",
@@ -242,7 +250,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-031",
+      "id": "R-032",
       "code": "IDEMPOTENCY_IN_PROGRESS",
       "retryable": true,
       "means": "The same request is still being processed.",
@@ -250,7 +258,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-032",
+      "id": "R-033",
       "code": "IDEMPOTENCY_KEY_REQUIRED",
       "retryable": false,
       "means": "The request was sent without the key that stops it being made twice.",
@@ -258,7 +266,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-033",
+      "id": "R-034",
       "code": "IDEMPOTENCY_KEY_REUSED",
       "retryable": false,
       "means": "The request\u0027s key was already used for a different request.",
@@ -266,7 +274,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-034",
+      "id": "R-035",
       "code": "IDEMPOTENCY_RESPONSE_NOT_KEPT",
       "retryable": false,
       "means": "A repeat of a request whose answer showed a secret once: the secret isn\u0027t kept, so it can\u0027t be shown again.",
@@ -274,7 +282,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-035",
+      "id": "R-036",
       "code": "IDENTITY_NOT_LINKED",
       "retryable": true,
       "means": "Your sign-in identity is still being set up.",
@@ -282,7 +290,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-036",
+      "id": "R-037",
       "code": "INTERNAL_ERROR",
       "retryable": true,
       "means": "Something went wrong inside INSYS, not with what you entered.",
@@ -290,7 +298,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-037",
+      "id": "R-038",
       "code": "INVALID_STATE_TRANSITION",
       "retryable": false,
       "means": "The record isn\u0027t in a state that allows this action: it has already moved on, or hasn\u0027t reached the step yet.",
@@ -298,7 +306,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-038",
+      "id": "R-039",
       "code": "LINK_SUBJECT_NOT_FOUND",
       "retryable": false,
       "means": "The customer, intermediary or provider to link the user to isn\u0027t in force, or the intermediary isn\u0027t active and licensed.",
@@ -306,7 +314,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-039",
+      "id": "R-040",
       "code": "MAKER_CHECKER_SAME_PERSON",
       "retryable": false,
       "means": "You made or requested this, and the same person can\u0027t also approve it.",
@@ -314,7 +322,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-040",
+      "id": "R-041",
       "code": "MFA_REQUIRED",
       "retryable": false,
       "means": "This role is privileged and needs the user to be enrolled for a second factor.",
@@ -322,7 +330,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-041",
+      "id": "R-042",
       "code": "NOTHING_TO_REVIEW",
       "retryable": false,
       "means": "No role assignments fall in the scope of this access review.",
@@ -330,7 +338,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-042",
+      "id": "R-043",
       "code": "NOT_FOUND",
       "retryable": false,
       "means": "The record wasn\u0027t found, or you aren\u0027t allowed to see it.",
@@ -338,7 +346,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-043",
+      "id": "R-044",
       "code": "NOT_READY",
       "retryable": true,
       "means": "The service is starting up.",
@@ -346,7 +354,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-044",
+      "id": "R-045",
       "code": "OPERATOR_TENANT_NOT_BUSINESS",
       "retryable": false,
       "means": "The platform operator\u0027s organisation holds no business records, so this action isn\u0027t available there.",
@@ -354,7 +362,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-045",
+      "id": "R-046",
       "code": "OUT_OF_SCOPE",
       "retryable": false,
       "means": "The record is outside the products or organisation units your role covers.",
@@ -362,7 +370,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-046",
+      "id": "R-047",
       "code": "PORTAL_MFA_REQUIRED",
       "retryable": false,
       "means": "This portal needs a second factor, and your sign-in didn\u0027t include one.",
@@ -370,7 +378,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-047",
+      "id": "R-048",
       "code": "PORTAL_UNDER_REVIEW",
       "retryable": false,
       "means": "The step waits on a review of the customer\u0027s details.",
@@ -378,7 +386,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-048",
+      "id": "R-049",
       "code": "PRECONDITION_FAILED",
       "retryable": false,
       "means": "The record changed after you opened it, so your change wasn\u0027t saved.",
@@ -386,7 +394,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-049",
+      "id": "R-050",
       "code": "PRECONDITION_REQUIRED",
       "retryable": false,
       "means": "The change needs the version of the record it\u0027s made on.",
@@ -394,7 +402,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-050",
+      "id": "R-051",
       "code": "PROCESS_NOT_RUNNING",
       "retryable": false,
       "means": "The process has already ended or hasn\u0027t started, so it can\u0027t move on.",
@@ -402,7 +410,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-051",
+      "id": "R-052",
       "code": "RATE_LIMITED",
       "retryable": true,
       "means": "Too many requests in a short time.",
@@ -410,7 +418,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-052",
+      "id": "R-053",
       "code": "REVIEW_INCOMPLETE",
       "retryable": false,
       "means": "Every item must be confirmed or revoked before the review completes.",
@@ -418,7 +426,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-053",
+      "id": "R-054",
       "code": "ROLE_ALREADY_ASSIGNED",
       "retryable": false,
       "means": "The user already holds this role, or its assignment is waiting for approval.",
@@ -426,7 +434,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-054",
+      "id": "R-055",
       "code": "ROLE_NOT_ASSIGNED",
       "retryable": false,
       "means": "The user doesn\u0027t hold this role.",
@@ -434,7 +442,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-055",
+      "id": "R-056",
       "code": "ROLE_NOT_FOUND",
       "retryable": false,
       "means": "The role has no version in force.",
@@ -442,7 +450,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-056",
+      "id": "R-057",
       "code": "SEGREGATION_OF_DUTIES",
       "retryable": false,
       "means": "The role would give the user two duties your organisation keeps apart, such as preparing and releasing the same payment.",
@@ -450,7 +458,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-057",
+      "id": "R-058",
       "code": "SETUP_TENANT_LIVE",
       "retryable": false,
       "means": "A setup change set is abandoned only while the organisation is being onboarded, and this one is live.",
@@ -458,7 +466,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-058",
+      "id": "R-059",
       "code": "STATIC_DRAFT_EXISTS",
       "retryable": false,
       "means": "This code already has a version in progress.",
@@ -466,7 +474,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-059",
+      "id": "R-060",
       "code": "STATIC_IMPORT_REJECTED",
       "retryable": false,
       "means": "Some lines of the import have errors, so nothing was saved.",
@@ -474,7 +482,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-060",
+      "id": "R-061",
       "code": "STATIC_MAKER_ONLY",
       "retryable": false,
       "means": "Only the person who created the draft can change it, so who made the change stays known.",
@@ -482,7 +490,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-061",
+      "id": "R-062",
       "code": "STATIC_RETROACTIVE_CHANGE",
       "retryable": false,
       "means": "The new version would start before the version now in force starts.",
@@ -490,7 +498,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-062",
+      "id": "R-063",
       "code": "STATIC_SCOPE_NOT_ALLOWED",
       "retryable": false,
       "means": "The change is at a scope this table doesn\u0027t allow: some tables hold only an organisation\u0027s own rows, others only platform-wide rows.",
@@ -498,7 +506,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-063",
+      "id": "R-064",
       "code": "STATIC_USER_REQUIRED",
       "retryable": false,
       "means": "Static data changes are made by identified people, for maker-checker.",
@@ -506,7 +514,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-064",
+      "id": "R-065",
       "code": "SUBJECT_LINK_EXISTS",
       "retryable": false,
       "means": "The user already has a portal link pending or in effect.",
@@ -514,7 +522,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-065",
+      "id": "R-066",
       "code": "SUBJECT_LINK_NOT_FOUND",
       "retryable": false,
       "means": "The user has no portal link pending or in effect.",
@@ -522,7 +530,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-066",
+      "id": "R-067",
       "code": "TASK_CLOSED_BY_ITS_RECORD",
       "retryable": false,
       "means": "This task closes by itself when its record does what the task asks; it can\u0027t be closed by hand.",
@@ -530,7 +538,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-067",
+      "id": "R-068",
       "code": "TENANT_CONTEXT_MISSING",
       "retryable": false,
       "means": "The request didn\u0027t say which organisation it\u0027s for.",
@@ -538,7 +546,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-068",
+      "id": "R-069",
       "code": "TENANT_HAS_USERS",
       "retryable": false,
       "means": "The organisation already has users, so first administrators can\u0027t be set up again.",
@@ -546,7 +554,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-069",
+      "id": "R-070",
       "code": "TENANT_NOT_ACTIVE",
       "retryable": false,
       "means": "Your organisation is still being set up, so business actions aren\u0027t open yet.",
@@ -554,7 +562,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-070",
+      "id": "R-071",
       "code": "TENANT_NOT_ONBOARDING",
       "retryable": false,
       "means": "First administrators are set up only while the organisation is being onboarded.",
@@ -562,7 +570,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-071",
+      "id": "R-072",
       "code": "TRANSITION_GUARD_FAILED",
       "retryable": false,
       "means": "The condition for moving the process to that step doesn\u0027t hold yet.",
@@ -570,7 +578,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-072",
+      "id": "R-073",
       "code": "TRANSITION_NOT_DEFINED",
       "retryable": false,
       "means": "The process doesn\u0027t allow a move from its current step to the one asked for.",
@@ -578,7 +586,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-073",
+      "id": "R-074",
       "code": "UNAUTHENTICATED",
       "retryable": false,
       "means": "You aren\u0027t signed in, or your sign-in has expired.",
@@ -586,7 +594,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-074",
+      "id": "R-075",
       "code": "USERNAME_TAKEN",
       "retryable": false,
       "means": "The username is already in use.",
@@ -594,7 +602,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-075",
+      "id": "R-076",
       "code": "VALIDATION_FAILED",
       "retryable": false,
       "means": "The request is missing a required value, or a value isn\u0027t in the form, range or state the action allows.",
@@ -602,7 +610,7 @@
       "fieldsInError": 2
     },
     {
-      "id": "R-076",
+      "id": "R-077",
       "code": "WORKFLOW_DEFINITION_INVALID",
       "retryable": false,
       "means": "The process definition isn\u0027t valid, so the process can\u0027t be run.",
