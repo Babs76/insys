@@ -1423,3 +1423,14 @@ Raised by the read-scope sweep (`docs/reviews/read-scope-sweep.md`, at `06ecae1`
 - Pending batches are rejected as usual.
 - To decide: whether to add "Approved → Rejected: the set was abandoned before it was in force" to the domain model, so the record says what happened.
 
+
+**OQ-184: what does AI-1 write to its Draft version? Open, for Ade. Built as (a), an interpretation, on `wave7-4`.**
+- **The gap:** AIA-012 lists the values AI-1 proposes: covers or benefits, eligibility ages, waiting periods, sums assured or limits, excesses, premium frequencies, rate tables. AIA-017 says the Draft version is created "through the same Product Factory API a person uses", and AIA-021 that the AI may change no record "other than the run's own Draft".
+- **What the version holds:** a Product Factory version itself holds only its name, its coverages (codes), its effective date, when cover starts, its eligibility rule set and whether arrears are paid before reinstatement (`PUT …/versions/{n}`). Every other value AIA-012 names is static data keyed by the product or its version, in Rating (`rating.cfg_rating_tables`, `cfg_premium_parameters`, `cfg_premium_bounds`, `cfg_rating_test_case_library`), Product Factory (`cfg_product_availability_rules`) and the lines (for example `life.cfg_modal_factors`, `general.cfg_renewal_rules`, `health.cfg_plans_and_options`). Those are written through Static Data's own API, each with its approval.
+- **(a), built:**
+  - AI-1 writes only the version's own fields, through Product Factory's commands as the user.
+  - Every other value is a cited proposal in the run (`draft_item`), with its flag and, for a rate table, the cell-for-cell check. The configurator accepts, edits or rejects it, then enters it through Static Data as now.
+  - The field list (AIA-012) is generated from both: the version's fields, and the product-keyed tables of the line.
+  - It keeps AIA-021 as written.
+- **(b):** as (a), but AI-1 also makes static data drafts for those tables, as the user, so each still needs its own approval. More of the configurator's typing saved. It is a wider write surface, and it changes AIA-021, so it's a change to the specification.
+- **Recommended: (a) for 7.4, with (b) to reconsider after 7.5's evaluation.** (b) adds to (a) and replaces nothing.
