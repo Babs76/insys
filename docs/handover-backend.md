@@ -403,6 +403,32 @@ Also: the cache (AIA-036), feedback by the user shown the explanation (AIA-037),
   - Locally: `docker compose --profile scanner up -d clamav` and `Documents__Scanner__Host=localhost`.
   - **The Preview is frozen,** so it gets ClamAV only at its next deployment, on Ade's decision. It then needs that memory and the egress.
 
+**Second part, AI-1 (AI Assist SRS §4):**
+- **Intake (D-16, §5.5):**
+  - `POST /assist/product-drafts` takes a product and 1 to 10 documents, each with `confirmsNoPersonalData`.
+  - `ProductDraftStarter` checks, before anything is queued, each in its own module's query: the confirmations, Product Factory's permissions (the Draft is written as the user), the settings and cap, the product, and each document. A document must be readable by the user, `CLEAN` (409 `DOCUMENT_QUARANTINED`) and at most 20 MB.
+  - Then `QueueProductDraft` writes the run and one confirmation per document (the person, the document's id, file name and content hash, and the date), each audited (`ConfirmNoPersonalData`).
+  - The type is read from the content once the scan releases it, since nothing is read before the scan: PDF, or an Open XML package that is a DOCX or an XLSX.
+- **The job acting for the user (AIA-017, `ActingUserScopes`): the new pattern the security review covers.** A job scope resolves the recorded user afresh from IAM, with the same resolver and cache as a request. It is null when the subject is no longer that user, the account is locked or disabled, the tenant is closed, or the user is the system requester or an external user. `ActingUser.Refusal` then checks a step as its endpoint would: the function (in ADR-026's order of refusals), the permission, then the permission's record scope (F103). There is no client, so channel rows (F005) don't apply. The job (`ProductDraftWorker`, hosted as `assist-product-draft`, every 15 s, 5 runs a tenant) runs:
+  1. Claim the run as a service. A run already claimed is skipped; one `RUNNING` for over 30 minutes ends `ASSIST_RUN_STALLED` and is never resumed.
+  2. As the user (checked): read each document through Documents' `IDocumentReader`, so the scan, the permission and a sensitive read's purpose and audit are the user's. The content's hash must be the one confirmed (`ASSIST_CONFIRMATION_STALE`), then the type, the extraction (`ASSIST_SOURCE_UNREADABLE`) and the identifier check (`ASSIST_DOCUMENT_IDENTIFIERS`, kind and page only). Any refusal ends the run `REFUSED` before anything is sent.
+  3. With no scope or transaction held: the minimiser on every page and cell, the call (template `product-draft-v1`, the payload JSON between the data tags), the residency check, and INSYS's checks (`DraftProposalCheck`).
+  4. As the user again, resolved and checked again: Product Factory's `IProductDrafts.Create`, which runs `CreateDraftVersion` then `EditConfiguration`, each checked as its endpoint, so the version is the user's (its audit actor is the user).
+  5. Record the end, the items and the metered run as a service.
+- **INSYS's checks on the output:**
+  - The output must be one JSON object (`ASSIST_OUTPUT_REJECTED`), and at most 400 proposals are read.
+  - A field must be in the field list, which is generated: the version's own fields, the product-keyed tables of Product Factory, Rating, Rules and the line (from `StaticDataReferences`), and `rating.cfg_rating_tables`, with their columns from the new generated `StaticDataFields.g.cs`.
+  - A citation must name a document and page sent, and its quote must be in that page's text as sent (whitespace and case aside).
+  - `FOUND` needs the value in the quote, else `INTERPRETED`; `MISSING` is set by INSYS for the required fields (name and coverages).
+  - A rate table must equal a table extracted from its page, cell for cell, figures compared as numbers.
+  - A rule is kept only in plain words.
+  - Only the version's own fields reach the Draft (OQ-184 (a)): table rows, rate tables, rules and simulation cases are cited proposals only.
+- **Tests:**
+  - `AssistProductDraftTests` (9, integration): the Draft written as the user with only checked values; the refusals at the start; identifiers; the type; a stale confirmation; a user who can't act, at the start and at the write; malformed output; injection (AIA-021); tenant isolation.
+  - `DraftProposalCheckTests` and `DraftDocumentTests` (unit).
+  - Mutation-checked: skipping the re-check at the write, and the identifier check, each fail a test.
+- **Packages:** PdfPig 0.1.16 (Apache-2.0) and DocumentFormat.OpenXml 3.5.1 (MIT), checked on nuget.org on 17 November.
+
 ### Wave 7, batch 7.6 (branch `wave7-6`)
 **Decided by Ade, 15 November:** D-18 (packs in Assist's own versioned tables), D-19 (the fallback's separate approval function), D-20 (`regulated` and `tailorable` marks; the interim class rule recorded as an interpretation), and the two functions below. All in `ai-assist.md` §2 and §5.
 

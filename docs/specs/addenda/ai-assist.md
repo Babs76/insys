@@ -174,6 +174,11 @@ The minimiser stays as a second layer. AI-1 and AI-3 read documents, so D-16 mus
 
 **AI-3's tenant documents (7.8):** the template asks for role titles, not people's names.
 
+**As built in 7.4, with three interpretations for Ade:**
+1. **The type is read from the content once the scan releases it,** since nothing is read before the scan. "Refused before it is scanned or read" is then met for the size and the count, from Documents' metadata at the start of a run. A file of another type is stored and scanned like any upload, but it never reaches extraction or a model.
+2. **What the Draft holds is OQ-184 (a):** the version's own fields. Every other value is a cited proposal on the run.
+3. **"Required by the model" (AIA-014) is the version's name and coverages:** a version always has a name, and validation refuses one with no coverages. No table is required yet, so a table with no proposal isn't listed as Missing.
+
 ### 5.2 AI-3 and the starter packs
 - **Format:** [`docs/specs/starter-packs`](../starter-packs/README.md) has the structure, drafted: base, country and line overlays. It needs a `tailorable` mark per value (AIA-082). In the build, packs become versioned static data (`starter_pack`, `starter_pack_value`).
 - **Line overlays** are Life, General and Health, varied by country where the law differs (§5A.1).

@@ -66,8 +66,8 @@ public sealed class MigrationTests(DatabaseFixture fixture) : IClassFixture<Data
             WHERE c.relkind IN ('r', 'p') AND NOT c.relispartition
               AND n.nspname NOT IN ('pg_catalog', 'information_schema', 'public', 'test_mod')
             """);
-        // V0126: workflow.ref_appeal_routes. V0131: assist.explanation and assist.explanation_feedback. V0133: assist.starter_pack and assist.starter_pack_value. V0134: assist.setup_run, setup_answer and setup_item. V0136: sdm.setup_change_set and setup_change_set_batch.
-        tables.ShouldBe(154 + 252 + 23 + 3 + 2 + 1 + 3 + 1 + 1 + 1 + 1 + 1 + 2 + 1 + 2 + 1 + 1 + 12 + 5 + 1 + 1 - 1 + 12 + 1 + 7 + 1 + 1 + 1 + 1 + 1 + 1 + 8 + 1 + 3 + 5 + 1 + 4 + 5 + 6 + 4 + 1 + 1 + 2 + 3 + 1 + 3 + 2 + 2 + 1 + 3 + 2 + 2 + 2 + 3 + 2);
+        // V0126: workflow.ref_appeal_routes. V0131: assist.explanation and assist.explanation_feedback. V0133: assist.starter_pack and assist.starter_pack_value. V0134: assist.setup_run, setup_answer and setup_item. V0136: sdm.setup_change_set and setup_change_set_batch. V0139: assist.product_draft_run, product_draft_document and draft_item.
+        tables.ShouldBe(154 + 252 + 23 + 3 + 2 + 1 + 3 + 1 + 1 + 1 + 1 + 1 + 2 + 1 + 2 + 1 + 1 + 12 + 5 + 1 + 1 - 1 + 12 + 1 + 7 + 1 + 1 + 1 + 1 + 1 + 1 + 8 + 1 + 3 + 5 + 1 + 4 + 5 + 6 + 4 + 1 + 1 + 2 + 3 + 1 + 3 + 2 + 2 + 1 + 3 + 2 + 2 + 2 + 3 + 2 + 3);
     }
 
     [Fact]

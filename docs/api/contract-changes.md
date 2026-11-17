@@ -4,6 +4,27 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 
 
+## AI Assist: AI-1's product drafts (Wave 7 batch 7.4, AI Assist SRS §4)
+- **`POST /assist/product-drafts`**, with `Idempotency-Key`, under function `ASSIST_PRODUCT_DRAFT_RUN` (feature `AI_ASSIST`). The caller also needs Product Factory's create and edit functions and Documents' read.
+  - The body is `{ productCode, documents: [{ documentId, confirmsNoPersonalData }] }`: 1 to 10 uploads, each cleared by the malware scan and at most 20 MB, each confirmed to hold no customer personal data.
+  - It returns **202** with the run, status `QUEUED`. A job then drafts the version as the caller.
+  - Refusals:
+    - `ASSIST_CONFIRMATION_REQUIRED` and `ASSIST_DOCUMENT_NOT_ALLOWED` (422);
+    - `DOCUMENT_QUARANTINED` (409);
+    - `FORBIDDEN`;
+    - the settings' refusals (`ASSIST_RESIDENCY_NOT_SET`, `ASSIST_CAP_REACHED`, …).
+- **`GET /assist/product-drafts/{id}`** returns the run:
+  - `status`: `QUEUED`, `RUNNING`, `DRAFTED`, `REFUSED` or `FAILED`, with `outcomeCode` and `draftVersion`;
+  - each document with its confirmation, `kind`, `unreadablePages`, and any `identifiers` found (kind and page, never the value);
+  - every item with its `kind`, `field`, `value` (JSON text), `flag` (`FOUND`, `INTERPRETED`, `MISSING`), citation, `checkResult`, `checkReason` and `inDraft`.
+  - The front end polls it until the status is no longer `QUEUED` or `RUNNING`.
+- **The Draft** is an ordinary Product Factory version, created by the caller, with only the version's own fields set from cited values. Everything else is a proposal on the run (OQ-184).
+- **New error codes**, with no catalogue wording yet:
+  - `ASSIST_DOCUMENT_NOT_ALLOWED`, `ASSIST_CONFIRMATION_REQUIRED`, `ASSIST_CONFIRMATION_STALE`;
+  - `ASSIST_DOCUMENT_IDENTIFIERS`, `ASSIST_SOURCE_UNREADABLE`;
+  - `ASSIST_USER_CANNOT_ACT`, `ASSIST_RUN_STALLED`, `ASSIST_RESIDENCY_MISMATCH`.
+- Review and decisions on items (AIA-019) come in 7.5.
+
 ## Documents: uploads are held until a malware scan clears them (Wave 7 batch 7.4, AIA-010)
 - **Every upload starts quarantined.** Its content (`GET /documents/documents/{id}/content`, delivery, and the portal's content read) is refused with **409 `DOCUMENT_QUARANTINED`** until the malware scan clears it, usually within a minute.
   - A file that fails the scan is never released and its content is deleted. The same 409 applies; the user uploads a clean copy.
