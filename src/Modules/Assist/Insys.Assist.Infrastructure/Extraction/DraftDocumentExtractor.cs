@@ -46,18 +46,64 @@ public sealed class DraftDocumentExtractor : IDraftDocumentExtractor
     {
         try
         {
-            return kind switch
+            if (kind is DraftDocumentKinds.Docx or DraftDocumentKinds.Xlsx && !WithinExpandedSize(content))
+            {
+                return ExtractedDocument.TooLarge(kind);
+            }
+
+            var extracted = kind switch
             {
                 DraftDocumentKinds.Pdf => Pdf(content),
                 DraftDocumentKinds.Docx => Docx(content),
                 DraftDocumentKinds.Xlsx => Xlsx(content),
                 _ => null,
             };
+            return extracted is { OverLimit: false } && extracted.Characters > ExtractionLimits.MaxDocumentCharacters ? ExtractedDocument.TooLarge(kind) : extracted;
+        }
+        catch (OverLimitException)
+        {
+            return ExtractedDocument.TooLarge(kind);
         }
         catch (Exception e) when (e is not OutOfMemoryException)
         {
             return null;
         }
+    }
+
+    private sealed class OverLimitException : Exception;
+
+    /// <summary>
+    /// A zip bomb is refused before Open XML expands it: the entries' declared sizes, and each entry read through a counting stream that stops at the limit,
+    /// since a declared size can lie.
+    /// </summary>
+    private static bool WithinExpandedSize(byte[] content)
+    {
+        using var zip = new System.IO.Compression.ZipArchive(new MemoryStream(content, writable: false), System.IO.Compression.ZipArchiveMode.Read);
+        long total = 0;
+        var buffer = new byte[81920];
+        foreach (var entry in zip.Entries)
+        {
+            if (entry.Length > ExtractionLimits.MaxExpandedBytes || (total += entry.Length) > ExtractionLimits.MaxExpandedBytes)
+            {
+                return false;
+            }
+        }
+
+        total = 0;
+        foreach (var entry in zip.Entries)
+        {
+            using var stream = entry.Open();
+            int read;
+            while ((read = stream.Read(buffer, 0, buffer.Length)) > 0)
+            {
+                if ((total += read) > ExtractionLimits.MaxExpandedBytes)
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 
     private static ExtractedDocument Pdf(byte[] content)
@@ -68,7 +114,12 @@ public sealed class DraftDocumentExtractor : IDraftDocumentExtractor
         var unreadable = new List<int>();
         foreach (var page in pdf.GetPages())
         {
-            var words = page.GetWords().Where(w => !string.IsNullOrWhiteSpace(w.Text)).ToList();
+            var words = page.GetWords().Where(w => !string.IsNullOrWhiteSpace(w.Text)).Take(ExtractionLimits.MaxPdfWordsPerPage + 1).ToList();
+            if (words.Count > ExtractionLimits.MaxPdfWordsPerPage)
+            {
+                throw new OverLimitException();
+            }
+
             if (words.Count == 0)
             {
                 // Content but no text: a scanned image, or an empty page. Either way nothing is read from it.
@@ -85,21 +136,20 @@ public sealed class DraftDocumentExtractor : IDraftDocumentExtractor
         return new ExtractedDocument(DraftDocumentKinds.Pdf, pages, tables, unreadable);
     }
 
-    /// <summary>Words grouped into lines by their baseline, top to bottom, each line left to right.</summary>
+    /// <summary>Words grouped into lines by their baseline, top to bottom, each line left to right: sorted once, then one pass, so a page costs n log n.</summary>
     private static List<List<Word>> Lines(List<Word> words)
     {
         var lines = new List<List<Word>>();
         foreach (var word in words.OrderByDescending(w => w.BoundingBox.Bottom).ThenBy(w => w.BoundingBox.Left))
         {
             var height = Math.Max(word.BoundingBox.Height, 1);
-            var line = lines.LastOrDefault(l => Math.Abs(l[0].BoundingBox.Bottom - word.BoundingBox.Bottom) < height / 2);
-            if (line is null)
+            if (lines.Count > 0 && Math.Abs(lines[^1][0].BoundingBox.Bottom - word.BoundingBox.Bottom) < height / 2)
             {
-                lines.Add([word]);
+                lines[^1].Add(word);
             }
             else
             {
-                line.Add(word);
+                lines.Add([word]);
             }
         }
 
@@ -238,15 +288,33 @@ public sealed class DraftDocumentExtractor : IDraftDocumentExtractor
 
             // Each row as its cells by column, so an empty cell keeps its place.
             var rows = new List<IReadOnlyList<string>>();
+            var cellCount = 0;
+            long slots = 0;
             foreach (var row in part.Worksheet?.Descendants<Row>() ?? [])
             {
+                if (rows.Count >= ExtractionLimits.MaxRows)
+                {
+                    throw new OverLimitException();
+                }
+
                 var cells = new SortedDictionary<int, string>();
                 foreach (var cell in row.Elements<Cell>())
                 {
+                    if (++cellCount > ExtractionLimits.MaxCells)
+                    {
+                        throw new OverLimitException();
+                    }
+
                     var value = cell.DataType?.Value == CellValues.SharedString && int.TryParse(cell.CellValue?.Text, out var s) && s < strings.Count ? strings[s]
                         : cell.DataType?.Value == CellValues.InlineString ? cell.InlineString?.InnerText ?? ""
                         : cell.CellValue?.Text ?? "";
-                    cells[Column(cell.CellReference?.Value) ?? cells.Count] = value;
+                    var column = Column(cell.CellReference?.Value) ?? cells.Count;
+                    if (column is < 0 or >= ExtractionLimits.MaxColumns)
+                    {
+                        throw new OverLimitException();
+                    }
+
+                    cells[column] = value;
                 }
 
                 if (cells.Count == 0)
@@ -255,10 +323,21 @@ public sealed class DraftDocumentExtractor : IDraftDocumentExtractor
                 }
 
                 var width = cells.Keys.Max() + 1;
+                // Empty cells are filled in as their places, so the slots, not the cells, are what's bounded.
+                if ((slots += width) > ExtractionLimits.MaxCells * 2L)
+                {
+                    throw new OverLimitException();
+                }
+
                 rows.Add(Enumerable.Range(0, width).Select(c => cells.GetValueOrDefault(c, "")).ToList());
             }
 
             var widest = rows.Count == 0 ? 0 : rows.Max(r => r.Count);
+            if ((long)widest * rows.Count > ExtractionLimits.MaxCells * 2L)
+            {
+                throw new OverLimitException();
+            }
+
             var grid = rows.Select(r => (IReadOnlyList<string>)r.Concat(Enumerable.Repeat("", widest - r.Count)).ToList()).ToList();
             pages.Add(new ExtractedPage(number, string.Join("\n", grid.Select(r => string.Join("\t", r))), sheet.Name?.Value));
             if (grid.Count > 0)
@@ -282,6 +361,10 @@ public sealed class DraftDocumentExtractor : IDraftDocumentExtractor
         foreach (var c in reference.TakeWhile(char.IsAsciiLetter))
         {
             column = column * 26 + (char.ToUpperInvariant(c) - 'A' + 1);
+            if (column > ExtractionLimits.MaxColumns)
+            {
+                return ExtractionLimits.MaxColumns;
+            }
         }
 
         return column - 1;

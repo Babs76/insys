@@ -116,4 +116,25 @@ public sealed class DocumentScanTests(DatabaseFixture fixture) : IClassFixture<D
         (await Status(id)).ShouldBe("CLEAN");
         (await Read(id)).StatusCode.ShouldBe(HttpStatusCode.OK);
     }
+
+    [Fact]
+    public async Task AFileTheScannerErrorsOn_WaitsBehindTheOthers_AndIsHeldAfterItsAttempts_NeverReleased_AIA010()
+    {
+        var unscannable = await Upload("sample " + FakeMalwareScanner.ScanError);
+        var clean = await Upload("A clean sample upload behind it.");
+
+        await _factory.ScanUploads();
+        (await Status(clean)).ShouldBe("CLEAN", "one file the scanner errors on doesn't hold up the rest");
+        (await Status(unscannable)).ShouldBe("PENDING");
+
+        for (var pass = 0; pass < Insys.Documents.Application.ScanAttempts.Max + 2; pass++)
+        {
+            await _factory.ScanUploads();
+        }
+
+        (await fixture.Database.ScalarAsOwner<int>("SELECT scan_attempts FROM document.document WHERE id = @d", ("d", unscannable)))
+            .ShouldBe(Insys.Documents.Application.ScanAttempts.Max, "it stops being tried");
+        (await Status(unscannable)).ShouldBe("PENDING");
+        (await (await Read(unscannable)).Code()).ShouldBe("DOCUMENT_QUARANTINED", "and stays held");
+    }
 }

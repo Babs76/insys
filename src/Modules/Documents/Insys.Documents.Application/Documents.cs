@@ -104,9 +104,29 @@ public sealed record ListPendingScans(int Limit) : IQuery<IReadOnlyList<PendingS
 /// <summary>Records the scanner's verdict on an upload. Infected: its content is never released, and the job deletes it.</summary>
 public sealed record RecordScan(Guid DocumentId, bool Clean, string? Finding) : ICommand<bool>;
 
-internal sealed class ScanHandlers(IDocumentRepository documents, IClock clock, IAuditTrail audit)
-    : IQueryHandler<ListPendingScans, IReadOnlyList<PendingScan>>, ICommandHandler<RecordScan, bool>
+/// <summary>The scanner was reached but couldn't scan the upload (an error reply or a timeout): it stays held and is tried again after the others.</summary>
+public sealed record RecordScanFailure(Guid DocumentId) : ICommand<int>;
+
+/// <summary>After this many failed attempts an upload is no longer tried: it stays held, and is listed as waiting (AIA-010).</summary>
+public static class ScanAttempts
 {
+    public const int Max = 5;
+}
+
+internal sealed class ScanHandlers(IDocumentRepository documents, IClock clock, IAuditTrail audit)
+    : IQueryHandler<ListPendingScans, IReadOnlyList<PendingScan>>, ICommandHandler<RecordScan, bool>, ICommandHandler<RecordScanFailure, int>
+{
+    public async Task<Result<int>> Handle(RecordScanFailure command, CancellationToken cancellationToken)
+    {
+        if (await documents.Get(command.DocumentId, cancellationToken) is not { } document)
+        {
+            return Error.NotFound(ErrorCodes.NotFound, "The document was not found.");
+        }
+
+        var failed = document.ScanFailed(clock.UtcNow);
+        return failed.IsFailure ? failed.Error : document.ScanAttempts;
+    }
+
     public async Task<Result<IReadOnlyList<PendingScan>>> Handle(ListPendingScans query, CancellationToken cancellationToken) =>
         Result.Success(await documents.PendingScans(query.Limit, cancellationToken));
 

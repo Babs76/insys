@@ -139,7 +139,12 @@ public sealed class PrincipalResolver(
     private static readonly string[] RoleStatuses = IdentityStaticData.Descriptors.Single(d => d.EntityType == typeof(RolesAndPermissionSets)).Lifecycle.InForce;
     private static readonly string[] GrantStatuses = IdentityStaticData.Descriptors.Single(d => d.EntityType == typeof(RoleFunctionAssignments)).Lifecycle.InForce;
 
-    public async Task<ResolvedPrincipal?> Resolve(Guid tenantId, string subject, CancellationToken cancellationToken)
+    public Task<ResolvedPrincipal?> Resolve(Guid tenantId, string subject, CancellationToken cancellationToken) => Resolve(tenantId, subject, signIn: true, cancellationToken);
+
+    public Task<ResolvedPrincipal?> ResolveForJob(Guid tenantId, string subject, CancellationToken cancellationToken) =>
+        Resolve(tenantId, subject, signIn: false, cancellationToken);
+
+    private async Task<ResolvedPrincipal?> Resolve(Guid tenantId, string subject, bool signIn, CancellationToken cancellationToken)
     {
         if (cache.TryGet(tenantId, subject, out var cached))
         {
@@ -150,7 +155,7 @@ public sealed class PrincipalResolver(
         // role ending today stops at the tenant's midnight, not up to a cache duration after it (BR-040).
         var day = dates.TodayFor(tenantId);
         var access = await tenants.UserAccess(tenantId, cancellationToken);
-        var principal = access == TenantUserAccess.None ? null : await Load(tenantId, subject, access == TenantUserAccess.ConfigurationOnly, day, cancellationToken);
+        var principal = access == TenantUserAccess.None ? null : await Load(tenantId, subject, access == TenantUserAccess.ConfigurationOnly, day, signIn, cancellationToken);
         // BR-018: a refusal is not cached. An unknown subject may be a user whose identity is being linked this moment;
         // its next request must find it.
         if (principal is not null)
@@ -187,7 +192,7 @@ public sealed class PrincipalResolver(
         return awaits;
     }
 
-    private async Task<ResolvedPrincipal?> Load(Guid tenantId, string subject, bool configurationOnly, DateOnly day, CancellationToken cancellationToken)
+    private async Task<ResolvedPrincipal?> Load(Guid tenantId, string subject, bool configurationOnly, DateOnly day, bool signIn, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
@@ -215,25 +220,29 @@ public sealed class PrincipalResolver(
         }
 
         var invited = UpperCaseEnumConverter<UserStatus>.ToCode(UserStatus.Invited);
-        if (status != invited && status != UpperCaseEnumConverter<UserStatus>.ToCode(UserStatus.Active))
+        var active = UpperCaseEnumConverter<UserStatus>.ToCode(UserStatus.Active);
+        if (status != active && (status != invited || !signIn))
         {
             return null;
         }
 
         var now = clock.UtcNow;
-        await using (var signIn = new NpgsqlCommand("""
-            UPDATE iam.user_account
-            SET status = CASE WHEN status = @invited THEN @active ELSE status END, last_login_at = @now,
-                row_version = row_version + 1, updated_at = @now, updated_by = 'sign-in'
-            WHERE tenant_id = @t AND id = @id AND (status = @invited OR last_login_at IS NULL OR last_login_at < @now - interval '15 minutes')
-            """, connection, transaction))
+        if (signIn)
         {
-            signIn.Parameters.AddWithValue("invited", invited);
-            signIn.Parameters.AddWithValue("active", UpperCaseEnumConverter<UserStatus>.ToCode(UserStatus.Active));
-            signIn.Parameters.AddWithValue("now", now);
-            signIn.Parameters.AddWithValue("t", tenantId);
-            signIn.Parameters.AddWithValue("id", userId);
-            await signIn.ExecuteNonQueryAsync(cancellationToken);
+            await using (var signInUpdate = new NpgsqlCommand("""
+                UPDATE iam.user_account
+                SET status = CASE WHEN status = @invited THEN @active ELSE status END, last_login_at = @now,
+                    row_version = row_version + 1, updated_at = @now, updated_by = 'sign-in'
+                WHERE tenant_id = @t AND id = @id AND (status = @invited OR last_login_at IS NULL OR last_login_at < @now - interval '15 minutes')
+                """, connection, transaction))
+            {
+                signInUpdate.Parameters.AddWithValue("invited", invited);
+                signInUpdate.Parameters.AddWithValue("active", active);
+                signInUpdate.Parameters.AddWithValue("now", now);
+                signInUpdate.Parameters.AddWithValue("t", tenantId);
+                signInUpdate.Parameters.AddWithValue("id", userId);
+                await signInUpdate.ExecuteNonQueryAsync(cancellationToken);
+            }
         }
 
         // ADR-026: each assignment's functions in effect, with its reach (F103): the assignment's own product and branch scopes, else its role's.

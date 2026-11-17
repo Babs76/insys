@@ -78,7 +78,29 @@ public static class DraftDocumentKinds
 /// <param name="Pages">Each page's text: a PDF's pages, a DOCX's pages as its page breaks divide it, an XLSX's sheets in order.</param>
 /// <param name="Tables">The tables found, each on its page.</param>
 /// <param name="UnreadablePages">Pages with content but no text layer, such as a scanned image.</param>
-public sealed record ExtractedDocument(string Kind, IReadOnlyList<ExtractedPage> Pages, IReadOnlyList<ExtractedTable> Tables, IReadOnlyList<int> UnreadablePages);
+/// <param name="OverLimit">The file holds more than AI-1 reads (<see cref="ExtractionLimits"/>): nothing of it is used, and the run is refused.</param>
+public sealed record ExtractedDocument(string Kind, IReadOnlyList<ExtractedPage> Pages, IReadOnlyList<ExtractedTable> Tables, IReadOnlyList<int> UnreadablePages,
+    bool OverLimit = false)
+{
+    public static ExtractedDocument TooLarge(string kind) => new(kind, [], [], [], OverLimit: true);
+
+    public long Characters => Pages.Sum(p => (long)p.Text.Length) + Tables.Sum(t => t.Rows.Sum(r => r.Sum(c => (long)c.Length)));
+}
+
+/// <summary>
+/// What AI-1 reads at most, so a small file can't exhaust the host (security review of 7.4): an Open XML package's expanded size, a sheet's size, and the
+/// text of a document and of a run. A file over any of them is refused, never cut short.
+/// </summary>
+public static class ExtractionLimits
+{
+    public const long MaxExpandedBytes = 100L * 1024 * 1024;
+    public const int MaxColumns = 16_384;
+    public const int MaxRows = 1_048_576;
+    public const int MaxCells = 500_000;
+    public const long MaxDocumentCharacters = 2_000_000;
+    public const long MaxRunCharacters = 2_000_000;
+    public const int MaxPdfWordsPerPage = 20_000;
+}
 
 /// <param name="Number">From 1.</param>
 /// <param name="Name">An XLSX sheet's name; null otherwise.</param>

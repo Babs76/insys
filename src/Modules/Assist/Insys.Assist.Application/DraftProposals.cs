@@ -145,6 +145,10 @@ public static partial class DraftProposalCheck
     public const string RuleExpression = "RULE_EXPRESSION";
     public const string Duplicate = "DUPLICATE";
     public const string Malformed = "MALFORMED";
+    public const string CitationTooShort = "CITATION_TOO_SHORT";
+
+    /// <summary>A quote is at least this long (after spacing is collapsed), or three words: a letter or two matches any page (security review of 7.4).</summary>
+    public const int MinQuoteCharacters = 12;
 
     /// <summary>At most this many proposals are read; the rest are ignored, so an output can't flood the run.</summary>
     public const int MaxItems = 400;
@@ -152,7 +156,8 @@ public static partial class DraftProposalCheck
     private const int MaxValueLength = 20_000;
 
     /// <summary>The checked items, Missing ones included, or null when the output isn't one JSON object.</summary>
-    public static IReadOnlyList<CheckedItem>? Check(string output, IReadOnlyList<DraftField> fields, IReadOnlyList<SentDocument> documents)
+    /// <param name="earliest">The earliest effective date the Draft may take: the tenant's business date, so a proposal can't backdate it.</param>
+    public static IReadOnlyList<CheckedItem>? Check(string output, IReadOnlyList<DraftField> fields, IReadOnlyList<SentDocument> documents, DateOnly? earliest = null)
     {
         JsonObject root;
         try
@@ -176,7 +181,7 @@ public static partial class DraftProposalCheck
                 break;
             }
 
-            items.Add(Value(node, byPath, documents, seen));
+            items.Add(Value(node, byPath, documents, seen, earliest));
         }
 
         foreach (var node in Array(root, "rateTables"))
@@ -218,7 +223,7 @@ public static partial class DraftProposalCheck
         return items;
     }
 
-    private static CheckedItem Value(JsonNode? node, Dictionary<string, DraftField> fields, IReadOnlyList<SentDocument> documents, HashSet<string> seen)
+    private static CheckedItem Value(JsonNode? node, Dictionary<string, DraftField> fields, IReadOnlyList<SentDocument> documents, HashSet<string> seen, DateOnly? earliest)
     {
         var path = Text(node, "field") ?? "";
         var value = node?["value"];
@@ -233,7 +238,8 @@ public static partial class DraftProposalCheck
             return Dropped(DraftItemKinds.Value, path, null, documentId, page, quote, Malformed);
         }
 
-        if (!Allowed(field, value))
+        if (!Allowed(field, value) || (field.Path == DraftFields.EffectiveFrom && earliest is { } day
+                                         && DateOnly.ParseExact(value.GetValue<string>(), "yyyy-MM-dd", CultureInfo.InvariantCulture) < day))
         {
             return Dropped(DraftItemKinds.Value, path, value, documentId, page, quote, field.Columns is null ? NotAllowed : UnknownField);
         }
@@ -255,7 +261,8 @@ public static partial class DraftProposalCheck
 
     private static CheckedItem RateTable(JsonNode? node, IReadOnlyList<SentDocument> documents)
     {
-        var (documentId, page, quote, citation) = Citation(node, documents);
+        // The table itself is compared cell for cell with the page's, so its quote only has to be there.
+        var (documentId, page, quote, citation) = Citation(node, documents, minimum: false);
         var rows = (node?["rows"] as JsonArray)?.Select(r => (r as JsonArray)?.Select(c => c is JsonValue v ? Cell(v) : null).ToList()).ToList();
         if (rows is null || rows.Count == 0 || rows.Any(r => r is null || r.Count == 0 || r.Any(c => c is null)))
         {
@@ -321,7 +328,7 @@ public static partial class DraftProposalCheck
     }
 
     /// <summary>The citation's document and page, and the quote when it resolves; else the reason it doesn't (AIA-013).</summary>
-    private static (Guid? DocumentId, int? Page, string? Quote, string? Reason) Citation(JsonNode? node, IReadOnlyList<SentDocument> documents)
+    private static (Guid? DocumentId, int? Page, string? Quote, string? Reason) Citation(JsonNode? node, IReadOnlyList<SentDocument> documents, bool minimum = true)
     {
         var citation = node?["citation"] as JsonObject;
         var number = Integer(citation?["document"]);
@@ -333,9 +340,15 @@ public static partial class DraftProposalCheck
             return (document?.DocumentId, page, quote is null ? null : Clip(quote, 2000), NoCitation);
         }
 
+        var normalised = Normalise(quote);
+        if (minimum && normalised.Length < MinQuoteCharacters && normalised.Split(' ').Length < 3)
+        {
+            return (document.DocumentId, page, Clip(quote, 2000), CitationTooShort);
+        }
+
         var text = string.Join("\n", document.Extracted.Pages.Where(p => p.Number == page).Select(p => p.Text)
             .Concat(document.Extracted.Tables.Where(t => t.Page == page).SelectMany(t => t.Rows.Select(r => string.Join(" ", r)))));
-        return Normalise(text).Contains(Normalise(quote), StringComparison.Ordinal)
+        return Normalise(text).Contains(normalised, StringComparison.Ordinal)
             ? (document.DocumentId, page, Clip(quote, 2000), null)
             : (document.DocumentId, page, Clip(quote, 2000), CitationNotFound);
     }

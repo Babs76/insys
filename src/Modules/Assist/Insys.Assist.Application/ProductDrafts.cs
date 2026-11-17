@@ -162,6 +162,13 @@ public sealed class ProductDraftStarter(IDispatcher dispatcher, IDocumentReader 
                 return Error.Validation(AssistErrorCodes.DocumentNotAllowed, "A document AI-1 reads is at most 20 MB (ai-assist.md §5.5).");
             }
 
+            // D-16: a document whose own category says it holds personal data contradicts the confirmation, so it is refused whatever was confirmed.
+            if (read.Facts.Classification is "PERSONAL" or "HIGHLY_SENSITIVE")
+            {
+                return Error.Validation(AssistErrorCodes.DocumentNotAllowed,
+                    "A document classified as personal or highly sensitive isn't read by AI-1: file product documents under a category that holds no personal data.");
+            }
+
             if (read.Facts.ScanStatus != "CLEAN")
             {
                 return Error.Conflict("DOCUMENT_QUARANTINED", "An upload is held until the malware scan clears it; start the run once it has (AIA-010).");
@@ -202,10 +209,11 @@ internal sealed class QueueProductDraftHandler(IProductDraftRuns runs, IExecutio
     }
 }
 
-internal sealed class GetProductDraftHandler(IProductDraftRuns runs) : IQueryHandler<GetProductDraft, ProductDraftRunView>
+/// <summary>A run is read by the user it acts for, or by the job: its documents' names and quotes are theirs (security review of 7.4). Others don't find it.</summary>
+internal sealed class GetProductDraftHandler(IProductDraftRuns runs, IExecutionContext execution) : IQueryHandler<GetProductDraft, ProductDraftRunView>
 {
     public async Task<Result<ProductDraftRunView>> Handle(GetProductDraft query, CancellationToken cancellationToken) =>
-        await runs.Run(query.RunId, cancellationToken) is { } run
+        await runs.Run(query.RunId, cancellationToken) is { } run && (execution.ActorType == ActorType.Service || run.RequestedBy == execution.ActorId)
             ? ProductDraftRunView.From(run, await runs.Documents(run.Id, cancellationToken), await runs.Items(run.Id, cancellationToken))
             : Error.NotFound(ErrorCodes.NotFound, "The run was not found.");
 }
@@ -313,6 +321,9 @@ public sealed class ProductDraftOptions
 
     /// <summary>A run still RUNNING after this long was interrupted: it ends ASSIST_RUN_STALLED and isn't resumed.</summary>
     public TimeSpan StallAfter { get; set; } = TimeSpan.FromMinutes(30);
+
+    /// <summary>A run still QUEUED after this long ends ASSIST_RUN_EXPIRED: its confirmations aren't relied on days later.</summary>
+    public TimeSpan QueuedFor { get; set; } = TimeSpan.FromHours(1);
 }
 
 /// <summary>
@@ -358,6 +369,12 @@ public sealed class ProductDraftWorker(IServiceScopeFactory scopes, ActingUserSc
                 continue;
             }
 
+            if (clock.UtcNow - run.RequestedAt > options.Value.QueuedFor)
+            {
+                finished += await Finish(tenantId, run, ProductDraftStatuses.Failed, AssistErrorCodes.RunExpired, cancellationToken: cancellationToken) ? 1 : 0;
+                continue;
+            }
+
             finished += await Process(tenantId, run, cancellationToken) ? 1 : 0;
         }
 
@@ -366,6 +383,7 @@ public sealed class ProductDraftWorker(IServiceScopeFactory scopes, ActingUserSc
 
     private async Task<bool> Process(Guid tenantId, ProductDraftRun queued, CancellationToken cancellationToken)
     {
+        DateTimeOffset? claimedAt;
         await using (var scope = Service(tenantId))
         {
             var claimed = await scope.ServiceProvider.GetRequiredService<IDispatcher>().Send(new ClaimProductDraft(queued.Id), cancellationToken);
@@ -373,6 +391,8 @@ public sealed class ProductDraftWorker(IServiceScopeFactory scopes, ActingUserSc
             {
                 return false; // claimed by another instance, or a concurrent pass
             }
+
+            claimedAt = claimed.Value.StartedAt;
         }
 
         var userId = Guid.Parse(queued.RequestedBy);
@@ -427,6 +447,12 @@ public sealed class ProductDraftWorker(IServiceScopeFactory scopes, ActingUserSc
                 }
 
                 var extracted = extractor.Extract(kind, content);
+                if (extracted is { OverLimit: true } || sent.Sum(d => d.Extracted.Characters) + (extracted?.Characters ?? 0) > ExtractionLimits.MaxRunCharacters)
+                {
+                    outcomes.Add(new DraftDocumentOutcome(document.DocumentId, kind, [], AssistErrorCodes.SourceTooLarge, null));
+                    return await Finish(tenantId, queued, ProductDraftStatuses.Refused, AssistErrorCodes.SourceTooLarge, outcomes, cancellationToken: cancellationToken);
+                }
+
                 if (extracted is null || extracted.Pages.All(p => string.IsNullOrWhiteSpace(p.Text)))
                 {
                     outcomes.Add(new DraftDocumentOutcome(document.DocumentId, kind, extracted?.UnreadablePages ?? [], AssistErrorCodes.SourceUnreadable, null));
@@ -447,8 +473,10 @@ public sealed class ProductDraftWorker(IServiceScopeFactory scopes, ActingUserSc
 
         // Step 3, holding nothing: the model call and INSYS's checks (AIA-072, P8).
         AssistAllowance allowance;
+        DateOnly businessDay;
         await using (var scope = Service(tenantId))
         {
+            businessDay = scope.ServiceProvider.GetRequiredService<IBusinessDate>().Today;
             var checkedRun = await scope.ServiceProvider.GetRequiredService<IDispatcher>().Query(new CheckAssistRun(AssistFeatures.ProductDraft), cancellationToken);
             if (checkedRun.IsFailure || checkedRun.Value.CapReached)
             {
@@ -480,7 +508,7 @@ public sealed class ProductDraftWorker(IServiceScopeFactory scopes, ActingUserSc
         }
 
         var residencyOk = response is not null && allowance.Allows(response.InferenceRegion);
-        var items = residencyOk ? DraftProposalCheck.Check(response!.Text, fields, sent) : null;
+        var items = residencyOk ? DraftProposalCheck.Check(response!.Text, fields, sent, businessDay) : null;
         var status = response is null ? AssistRunStatuses.Unavailable : !residencyOk ? AssistRunStatuses.ResidencyMismatch
             : items is null ? AssistRunStatuses.Rejected : AssistRunStatuses.Verified;
         var cost = response is null ? null : assistOptions.Value.CostOf(model, response.InputTokens, response.OutputTokens);
@@ -504,13 +532,20 @@ public sealed class ProductDraftWorker(IServiceScopeFactory scopes, ActingUserSc
                     cancellationToken);
             }
 
+            // Still this pass's run: not ended meanwhile as stalled or expired by another instance, so it writes once (security review of 7.4).
+            var current = await user.Services.GetRequiredService<IDispatcher>().Query(new GetProductDraft(queued.Id), cancellationToken);
+            if (current.IsFailure || current.Value.Status != ProductDraftStatuses.Running || current.Value.StartedAt != claimedAt)
+            {
+                return false;
+            }
+
             var today = user.Services.GetRequiredService<IBusinessDate>().Today;
             written = await user.Services.GetRequiredService<IProductDrafts>().Create(queued.ProductCode, draft.EffectiveFrom ?? today, draft.Fields, cancellationToken);
         }
 
         if (!written.Succeeded)
         {
-            return await Finish(tenantId, queued, ProductDraftStatuses.Failed, written.ErrorCode!, outcomes, written.Version is null ? NotWritten(items) : items, written.Version,
+            return await Finish(tenantId, queued, ProductDraftStatuses.Failed, written.ErrorCode!, outcomes, NotWritten(items), written.Version,
                 assistRun, record, cancellationToken);
         }
 

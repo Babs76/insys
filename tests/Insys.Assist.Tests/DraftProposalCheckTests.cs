@@ -137,4 +137,21 @@ public sealed class DraftProposalCheckTests
         var flood = Enumerable.Range(0, 1000).Select(_ => new { text = "Cover ends at age 75", citation = new { document = 1, page = 1, quote = "Cover ends at age 75" } });
         Check(new { rules = flood })!.Count(i => i.Kind == DraftItemKinds.Rule).ShouldBe(DraftProposalCheck.MaxItems);
     }
+
+    [Fact]
+    public void AQuoteOfAFewLetters_IsNoCitation_AndTheDraftCantBeBackdated_SecurityReview()
+    {
+        var items = DraftProposalCheck.Check(JsonSerializer.Serialize(new
+        {
+            values = new object[]
+            {
+                new { field = "version.name", value = "Sample Funeral Plan", flag = "FOUND", citation = new { document = 1, page = 1, quote = "a" } },
+                new { field = "version.effectiveFrom", value = "2026-01-01", flag = "INTERPRETED", citation = new { document = 1, page = 1, quote = "Sample Funeral Plan" } },
+                new { field = "version.coverStartsOn", value = "Issue", flag = "INTERPRETED", citation = new { document = 1, page = 1, quote = "Sample Funeral Plan" } },
+            },
+        }), DraftFields.For(Target), [Document], earliest: new DateOnly(2026, 11, 17))!;
+        items.Single(i => i.Field == "version.name" && i.Dropped is not null).Dropped.ShouldBe("CITATION_TOO_SHORT");
+        items.Single(i => i.Field == "version.effectiveFrom").Dropped.ShouldBe("NOT_ALLOWED", "before the business date");
+        items.Single(i => i.Field == "version.coverStartsOn").Dropped.ShouldBeNull();
+    }
 }

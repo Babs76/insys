@@ -140,6 +140,35 @@ public sealed class DraftDocumentTests
         string.Join(" ", found).ShouldNotContain("claims@example.com");
     }
 
+    [Fact]
+    public void AFileOverAI1sLimits_IsRefused_NotCutShort_SecurityReview()
+    {
+        // One cell 321 million columns out: padding it would exhaust the host.
+        var wide = Zip(("[Content_Types].xml", "<Types/>"),
+            ("xl/workbook.xml", "<workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><sheets><sheet name=\"Rates\" sheetId=\"1\" r:id=\"rId1\"/></sheets></workbook>"),
+            ("xl/_rels/workbook.xml.rels", "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet1.xml\"/></Relationships>"),
+            ("xl/worksheets/sheet1.xml", "<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><sheetData><row r=\"1\"><c r=\"ZZZZZZ1\"><v>1</v></c></row></sheetData></worksheet>"),
+            ("_rels/.rels", "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"xl/workbook.xml\"/></Relationships>"));
+        var extracted = _extractor.Extract(DraftDocumentKinds.Xlsx, wide);
+        (extracted is null || extracted.OverLimit).ShouldBeTrue("never padded out");
+
+        // A package that expands past the limit, whatever its entries declare.
+        using var stream = new MemoryStream();
+        using (var zip = new System.IO.Compression.ZipArchive(stream, System.IO.Compression.ZipArchiveMode.Create, leaveOpen: true))
+        {
+            zip.CreateEntry("[Content_Types].xml").Open().Dispose();
+            using var part = zip.CreateEntry("word/document.xml", System.IO.Compression.CompressionLevel.SmallestSize).Open();
+            var zeros = new byte[1024 * 1024];
+            for (var i = 0; i <= ExtractionLimits.MaxExpandedBytes / zeros.Length; i++)
+            {
+                part.Write(zeros);
+            }
+        }
+
+        stream.Length.ShouldBeLessThan(DraftDocumentKinds.MaxBytes, "small enough to upload");
+        _extractor.Extract(DraftDocumentKinds.Docx, stream.ToArray()).ShouldNotBeNull().OverLimit.ShouldBeTrue();
+    }
+
     private static byte[] Zip(params (string Name, string Content)[] entries)
     {
         using var stream = new MemoryStream();

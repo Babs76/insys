@@ -83,6 +83,14 @@ public static class AssistErrorCodes
     [ErrorCode(409, "error.assist.run_stalled")]
     public const string RunStalled = "ASSIST_RUN_STALLED";
 
+    /// <summary>AI-1: a document, or the run's documents together, hold more than AI-1 reads (an expanded package, a sheet, or the text over its limit).</summary>
+    [ErrorCode(422, "error.assist.source_too_large")]
+    public const string SourceTooLarge = "ASSIST_SOURCE_TOO_LARGE";
+
+    /// <summary>AI-1: a run waited too long to start, so its confirmations are no longer relied on; a new run is started.</summary>
+    [ErrorCode(409, "error.assist.run_expired")]
+    public const string RunExpired = "ASSIST_RUN_EXPIRED";
+
     /// <summary>AIA-050: the provider said inference ran outside the tenant's region, so nothing it returned is used.</summary>
     [ErrorCode(422, "error.assist.residency_mismatch")]
     public const string ResidencyMismatch = "ASSIST_RESIDENCY_MISMATCH";

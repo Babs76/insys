@@ -44,7 +44,9 @@ namespace Insys.Documents.Infrastructure.Persistence;
 internal sealed class DocumentRepository(DocumentsDbContext db) : IDocumentRepository
 {
     public async Task<IReadOnlyList<PendingScan>> PendingScans(int limit, CancellationToken cancellationToken) =>
-        await db.Documents.AsNoTracking().Where(d => d.ScanStatus == ScanStatuses.Pending && d.Status != DocumentStatus.Disposed).OrderBy(d => d.Id).Take(limit)
+        await db.Documents.AsNoTracking().Where(d => d.ScanStatus == ScanStatuses.Pending && d.Status != DocumentStatus.Disposed && d.ScanAttempts < ScanAttempts.Max)
+            // Never tried first, then the longest since a failed attempt: one file the scanner errors on can't hold up the rest.
+            .OrderBy(d => d.ScanAttemptedAt.HasValue).ThenBy(d => d.ScanAttemptedAt).ThenBy(d => d.Id).Take(limit)
             .Select(d => new PendingScan(d.Id, d.StorageUri, d.Sha256)).ToListAsync(cancellationToken);
 
     public Task<Document?> Get(Guid id, CancellationToken cancellationToken) =>

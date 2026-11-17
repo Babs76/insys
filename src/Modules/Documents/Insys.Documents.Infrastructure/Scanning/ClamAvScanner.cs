@@ -73,15 +73,17 @@ public sealed class ClamAvScanner(IOptions<ScannerOptions> options, ILogger<Clam
         if (content.LongLength > settings.MaxBytes)
         {
             logger.LogWarning("An upload of {Bytes} bytes is over the scanner's limit; it waits in quarantine", content.LongLength);
-            return ScanVerdict.Down;
+            return ScanVerdict.Errored;
         }
 
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(TimeSpan.FromSeconds(settings.TimeoutSeconds));
+        var connected = false;
         try
         {
             using var client = new TcpClient();
             await client.ConnectAsync(settings.Host, settings.Port, timeout.Token);
+            connected = true;
             await using var stream = client.GetStream();
             await stream.WriteAsync("zINSTREAM\0"u8.ToArray(), timeout.Token);
             var size = new byte[4];
@@ -100,12 +102,14 @@ public sealed class ClamAvScanner(IOptions<ScannerOptions> options, ILogger<Clam
         }
         catch (Exception ex) when (ex is SocketException or IOException or OperationCanceledException && !cancellationToken.IsCancellationRequested)
         {
-            logger.LogWarning("The malware scanner is unavailable: {ExceptionType}; uploads wait in quarantine", ex.GetType().Name);
-            return ScanVerdict.Down;
+            // Not reached: the scanner is down, so the pass stops. Reached, then failed or timed out: this file waits, and the others go on.
+            logger.LogWarning("The malware scan failed ({Stage}): {ExceptionType}; the upload waits in quarantine", connected ? "scanning" : "connecting", ex.GetType().Name);
+            return connected ? ScanVerdict.Errored : ScanVerdict.Down;
         }
     }
 
-    /// <summary>clamd's reply to INSTREAM, as a verdict. Only "OK" is clean; only "&lt;name&gt; FOUND" is infected; anything else is Down.</summary>
+    /// <summary>clamd's reply to INSTREAM, as a verdict. Only "OK" is clean; only "&lt;name&gt; FOUND" is infected; anything else is an error for this file,
+    /// never clean.</summary>
     public static ScanVerdict Read(string reply)
     {
         var text = reply.TrimEnd('\0', '\n', '\r').Trim();
@@ -118,7 +122,7 @@ public sealed class ClamAvScanner(IOptions<ScannerOptions> options, ILogger<Clam
 
         return result.EndsWith(" FOUND", StringComparison.Ordinal) && result.Length > " FOUND".Length
             ? ScanVerdict.Found(result[..^" FOUND".Length].Trim())
-            : ScanVerdict.Down;
+            : ScanVerdict.Errored;
     }
 
     private static async Task<string> ReplyAsync(NetworkStream stream, CancellationToken cancellationToken)

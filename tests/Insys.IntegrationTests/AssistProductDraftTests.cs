@@ -81,7 +81,7 @@ public sealed class AssistProductDraftTests(DatabaseFixture fixture) : IClassFix
         }
 
         await fixture.Database.SeedStatic(tenant, "document.ref_document_categories", "ACTIVE", "PRODUCT_DOC", from, ("category_code", "PRODUCT_DOC"),
-            ("label", "Product document"), ("classification", "PERSONAL"), ("domain", "ALL"), ("allowed_roles", Array.Empty<string>()));
+            ("label", "Product document"), ("classification", "CONFIDENTIAL"), ("domain", "ALL"), ("allowed_roles", Array.Empty<string>()));
         var userId = await fixture.Database.UserWithFunctions(tenant, subject, Functions);
         var stub = (StubAiModelProvider)host.Services.GetRequiredService<IAiModelProvider>();
         stub.Unavailable = false;
@@ -150,7 +150,7 @@ public sealed class AssistProductDraftTests(DatabaseFixture fixture) : IClassFix
                 new { field = "version.status", value = "PUBLISHED", flag = "FOUND", citation = Cite(1, "Sample Funeral Plan") },
                 new { field = "version.coverages", value = new[] { "NOT_A_CODE" }, flag = "FOUND", citation = Cite(1, "funeral benefit") },
             },
-            rows = new object[] { new { field = "rating.cfg_premium_bounds", value = new { minimum = "45.00" }, flag = "FOUND", citation = Cite(2, "18-40 45.00") } },
+            rows = new object[] { new { field = "rating.cfg_premium_bounds", value = new { minimum = "45.00" }, flag = "FOUND", citation = Cite(2, "18-40 45.00 41-55 62.50") } },
             rateTables = new object[]
             {
                 new { citation = Cite(2, "Age band"), rows = new[] { new[] { "Age band", "Monthly premium" }, new[] { "18-40", "45.00" }, new[] { "41-55", "62.50" } } },
@@ -227,6 +227,18 @@ public sealed class AssistProductDraftTests(DatabaseFixture fixture) : IClassFix
 
         var held = await Upload(w, SampleDocuments.Pdf(Wording), scan: false);
         (await (await Start(w, held)).Code()).ShouldBe("DOCUMENT_QUARANTINED");
+
+        // D-16: a category that says it holds personal data contradicts the confirmation.
+        await fixture.Database.SeedStatic(w.Tenant, "document.ref_document_categories", "ACTIVE", "MEMBER_DOC", TestClock.Today.AddDays(-30), ("category_code", "MEMBER_DOC"),
+            ("label", "Member document"), ("classification", "PERSONAL"), ("domain", "ALL"), ("allowed_roles", Array.Empty<string>()));
+        var stored = await w.User.Send(HttpMethod.Post, "/api/v1/documents/documents", new
+        {
+            categoryCode = "MEMBER_DOC", businessRefType = "PARTY", businessRefId = Guid.CreateVersion7(), mimeType = "application/pdf",
+            contentBase64 = Convert.ToBase64String(SampleDocuments.Pdf(Wording)),
+        }, idempotent: true);
+        var personal = (await stored.Json()).GetProperty("id").GetGuid();
+        await w.Host.ScanUploads();
+        (await (await Start(w, personal)).Code()).ShouldBe("ASSIST_DOCUMENT_NOT_ALLOWED");
 
         (await (await Start(w, Enumerable.Range(0, 11).Select(_ => Guid.CreateVersion7()).ToArray())).Code()).ShouldBe("ASSIST_DOCUMENT_NOT_ALLOWED");
 
@@ -376,7 +388,7 @@ public sealed class AssistProductDraftTests(DatabaseFixture fixture) : IClassFix
     }
 
     [Fact]
-    public async Task ARun_IsReadOnlyInItsTenant()
+    public async Task ARun_IsReadOnlyByTheUserItActsFor()
     {
         var w = await Ready("ad-own");
         var document = await Upload(w, SampleDocuments.Pdf(Wording));
@@ -384,5 +396,9 @@ public sealed class AssistProductDraftTests(DatabaseFixture fixture) : IClassFix
 
         var other = await Ready("ad-other");
         (await other.User.GetAsync($"{Drafts}/{id}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+
+        // Nor by another user of the same tenant: its documents' names and quotes are the requester's.
+        await fixture.Database.UserWithFunctions(w.Tenant, "ad-colleague", Functions);
+        (await w.Host.ClientFor(w.Tenant, "ad-colleague").GetAsync($"{Drafts}/{id}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 }

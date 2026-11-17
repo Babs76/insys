@@ -319,6 +319,11 @@ public sealed class Document : AggregateRoot<Guid>
     /// <summary>The scanner's name for what it found, for an infected upload; never content.</summary>
     public string? ScanFinding { get; private set; }
 
+    /// <summary>How many times the scanner errored or timed out on this file, and when it last tried: it waits, after the others (AIA-010).</summary>
+    public int ScanAttempts { get; private set; }
+
+    public DateTimeOffset? ScanAttemptedAt { get; private set; }
+
     /// <summary>
     /// The content may be released (read, downloaded, delivered, sent to a model): only once an upload is clean (AIA-010). Uploads wait in quarantine while
     /// the scanner is down; an infected one is never released.
@@ -331,6 +336,23 @@ public sealed class Document : AggregateRoot<Guid>
     };
 
     /// <summary>The scanner's verdict on a pending upload. A redelivery of the same verdict changes nothing.</summary>
+    /// <summary>The scanner was reached but couldn't scan the file: it stays held and is tried again later (AIA-010).</summary>
+    public Result ScanFailed(DateTimeOffset now)
+    {
+        if (ScanStatus != ScanStatuses.Pending)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, $"The document's scan is {ScanStatus}.");
+        }
+
+        ScanAttempts++;
+        ScanAttemptedAt = now;
+        MarkChanged();
+        return Result.Success();
+    }
+
+    /// <summary>The scanner's name for a finding, cut to the column: a long name never stops the verdict being recorded.</summary>
+    private static string Clip(string? finding) => string.IsNullOrWhiteSpace(finding) ? "FOUND" : finding.Length <= 120 ? finding : finding[..120];
+
     public Result RecordScan(bool clean, string? finding, DateTimeOffset now)
     {
         if (ScanStatus != ScanStatuses.Pending)
@@ -340,7 +362,7 @@ public sealed class Document : AggregateRoot<Guid>
                 : Error.Conflict(ErrorCodes.InvalidStateTransition, $"The document's scan is {ScanStatus}.");
         }
 
-        (ScanStatus, ScannedAt, ScanFinding) = (clean ? ScanStatuses.Clean : ScanStatuses.Infected, now, clean ? null : Guard.MaxLength(finding ?? "FOUND", 120));
+        (ScanStatus, ScannedAt, ScanFinding) = (clean ? ScanStatuses.Clean : ScanStatuses.Infected, now, clean ? null : Clip(finding));
         MarkChanged();
         return Result.Success();
     }

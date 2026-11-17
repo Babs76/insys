@@ -51,19 +51,38 @@ public sealed class DocumentScanJob(IServiceScopeFactory scopes, ITenantDirector
         var scanned = 0;
         foreach (var tenantId in await tenants.GetActiveTenantIds(cancellationToken))
         {
-            IReadOnlyList<PendingScan> pending;
-            await using (var scope = Scope(tenantId))
+            // One tenant's failure (storage, a record) never stops the others' scans.
+            try
             {
-                var listed = await scope.ServiceProvider.GetRequiredService<IDispatcher>().Query(new ListPendingScans(options.Value.BatchSize), cancellationToken);
-                if (listed.IsFailure || listed.Value.Count == 0)
-                {
-                    continue;
-                }
+                scanned += await RunTenant(tenantId, cancellationToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogError("The malware scan of tenant {TenantId} failed: {ExceptionType}; its uploads stay in quarantine", tenantId, ex.GetType().Name);
+            }
+        }
 
-                pending = listed.Value;
+        return scanned;
+    }
+
+    private async Task<int> RunTenant(Guid tenantId, CancellationToken cancellationToken)
+    {
+        IReadOnlyList<PendingScan> pending;
+        await using (var scope = Scope(tenantId))
+        {
+            var listed = await scope.ServiceProvider.GetRequiredService<IDispatcher>().Query(new ListPendingScans(options.Value.BatchSize), cancellationToken);
+            if (listed.IsFailure || listed.Value.Count == 0)
+            {
+                return 0;
             }
 
-            foreach (var upload in pending)
+            pending = listed.Value;
+        }
+
+        var scanned = 0;
+        foreach (var upload in pending)
+        {
+            try
             {
                 var content = await storage.Get(tenantId, upload.StorageUri, cancellationToken);
                 if (content is null || Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(content)) != upload.Sha256)
@@ -74,17 +93,40 @@ public sealed class DocumentScanJob(IServiceScopeFactory scopes, ITenantDirector
                 }
 
                 var verdict = await scanner.Scan(content, cancellationToken);
-                if (verdict.Unavailable)
+                if (verdict is { Unavailable: true, FileError: false })
                 {
                     logger.LogWarning("Malware scanner unavailable; {Count} upload(s) of tenant {TenantId} stay in quarantine", pending.Count, tenantId);
                     break;
                 }
 
+                if (verdict.FileError)
+                {
+                    await Failed(tenantId, upload, cancellationToken);
+                    continue;
+                }
+
                 scanned += await Record(tenantId, upload, verdict, cancellationToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // This upload only: it is tried again later, after the others, and stays held.
+                logger.LogError("The malware scan of document {DocumentId} failed: {ExceptionType}", upload.DocumentId, ex.GetType().Name);
+                await Failed(tenantId, upload, cancellationToken);
             }
         }
 
         return scanned;
+    }
+
+    private async Task Failed(Guid tenantId, PendingScan upload, CancellationToken cancellationToken)
+    {
+        await using var scope = Scope(tenantId);
+        var attempts = await scope.ServiceProvider.GetRequiredService<IDispatcher>().Send(new RecordScanFailure(upload.DocumentId), cancellationToken);
+        if (attempts is { IsSuccess: true, Value: >= ScanAttempts.Max })
+        {
+            logger.LogWarning("Document {DocumentId} of tenant {TenantId} couldn't be scanned in {Attempts} attempts; it stays in quarantine", upload.DocumentId, tenantId,
+                attempts.Value);
+        }
     }
 
     private async Task<int> Record(Guid tenantId, PendingScan upload, ScanVerdict verdict, CancellationToken cancellationToken)

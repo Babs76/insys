@@ -48,7 +48,7 @@ public sealed class ActingUserScopes(IServiceScopeFactory scopes)
     public async Task<ActingUser?> Begin(Guid tenantId, string subject, Guid userId, Guid? correlationId, CancellationToken cancellationToken)
     {
         var scope = scopes.CreateAsyncScope();
-        var principal = await scope.ServiceProvider.GetRequiredService<IPrincipalResolver>().Resolve(tenantId, subject, cancellationToken);
+        var principal = await scope.ServiceProvider.GetRequiredService<IPrincipalResolver>().ResolveForJob(tenantId, subject, cancellationToken);
         if (principal is null || principal.UserId != userId || MakerChecker.IsSystem(userId) || principal.External is not null)
         {
             await scope.DisposeAsync();

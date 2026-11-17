@@ -60,6 +60,12 @@ public interface IPrincipalResolver
     Task<ResolvedPrincipal?> Resolve(Guid tenantId, string subject, CancellationToken cancellationToken);
 
     /// <summary>
+    /// As <see cref="Resolve"/>, for a job acting for a user (AIA-017): the same checks, but it isn't a sign-in, so it records none (no last sign-in, and an
+    /// invited user isn't activated: only an active one is acted for).
+    /// </summary>
+    Task<ResolvedPrincipal?> ResolveForJob(Guid tenantId, string subject, CancellationToken cancellationToken) => Resolve(tenantId, subject, cancellationToken);
+
+    /// <summary>
     /// For a token whose subject is unknown: whether it is a user of the tenant still waiting for its identity to be linked
     /// (BR-018), found by the identity provider's username. The caller is then refused with IDENTITY_NOT_LINKED, a retryable
     /// refusal, rather than FORBIDDEN.

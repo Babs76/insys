@@ -27,8 +27,8 @@
 -- =====================================================================
 -- V0139: Wave 7, batch 7.4. AI-1's runs (AI Assist SRS §4, §7.2): a run for a product, the documents it reads with each uploader's confirmation (D-16,
 -- ai-assist.md §5.5), and its proposed values (draft_item), each with its flag (AIA-014) and citation (AIA-013). The run's job acts for the user who
--- asked (AIA-017). The Draft version itself is Product Factory's; a run records only its number. No document's text is stored here: an item holds
--- the quote it cites, product wording only, since a document holding an identifier is refused before anything is sent (§5.5).
+-- asked (AIA-017). The Draft version itself is Product Factory's; a run records only its number. These tables hold no document's text but the quotes
+-- items cite; the minimised payload sent is kept with the model call in assist.run_payload, as for every run (SRS §7.2), under the tenant's retention.
 -- =====================================================================
 
 CREATE TABLE assist.product_draft_run (
