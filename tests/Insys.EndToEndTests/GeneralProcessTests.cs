@@ -1184,6 +1184,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
             stored.StatusCode.ShouldBe(HttpStatusCode.Created, await stored.Content.ReadAsStringAsync());
         }
 
+        await _factory.ScanUploads(); // AIA-010: an upload is released once the malware scan clears it
         var schedule = (await (await member.GetAsync(Documents(policyA))).Json()).EnumerateArray().Single();
         schedule.GetProperty("categoryCode").GetString().ShouldBe("PORTAL_LETTER");
         (await member.GetAsync(Documents(policyB))).StatusCode.ShouldBe(HttpStatusCode.NotFound);

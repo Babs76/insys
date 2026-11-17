@@ -164,9 +164,9 @@ public sealed class OpenApiReviewTests
             foreach (System.Text.RegularExpressions.Match check in System.Text.RegularExpressions.Regex.Matches(text, @"\.HasPermission\(([^()]+)\)"))
             {
                 var argument = check.Groups[1].Value.Trim();
-                if (argument is "requirement.Permission" or "permission" && Path.GetFileName(file) is "Security.cs" or "Approvals.cs")
+                if (argument is "requirement.Permission" or "permission" && Path.GetFileName(file) is "Security.cs" or "Approvals.cs" or "ActingUser.cs")
                 {
-                    continue; // the endpoint's own permission, and the one an approval names (checked below)
+                    continue; // the endpoint's own permission, the one an approval names (checked below), and a job's step's (its endpoint's, AIA-017)
                 }
 
                 var value = Resolve(constants, argument, file);
