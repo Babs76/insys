@@ -256,8 +256,8 @@ jobs:
           done
 
   # The sample tenant's seed (Workstream F), loaded on a fresh database through the API and read back, in jobs of its own:
-  # the resume test stops it after every kind of step and runs it again, about 30 minutes alone. Its classes are in
-  # tools/integration-shards.py's SEED, so the shards leave them out.
+  # the resume test stops it after every kind of step and runs it again. It passed 50 minutes alone as the seed grew (18 November 2026),
+  # so its kinds of step are split in two classes, each in a job. The classes are in tools/integration-shards.py's SEED, so the shards leave them out.
   seed:
     runs-on: ubuntu-latest
     timeout-minutes: 50
@@ -268,8 +268,10 @@ jobs:
           - group: 1
             classes: OftzaSeedResumeTests
           - group: 2
+            classes: OftzaSeedResumeLaterTests
+          - group: 3
             classes: OftzaSeedTests OftzaSeedRestoreTests OftzaSeedWindowTests
-    name: seed (${{ matrix.group }} of 2)
+    name: seed (${{ matrix.group }} of 3)
     steps:
       - uses: actions/checkout@v5
 
@@ -285,7 +287,7 @@ jobs:
 
       - name: The seed's classes are the ones the shards leave out
         run: |
-          grouped=$(echo "OftzaSeedResumeTests OftzaSeedTests OftzaSeedRestoreTests OftzaSeedWindowTests" | tr ' ' '\n' | sort)
+          grouped=$(echo "OftzaSeedResumeTests OftzaSeedResumeLaterTests OftzaSeedTests OftzaSeedRestoreTests OftzaSeedWindowTests" | tr ' ' '\n' | sort)
           excluded=$(python3 -c "import runpy; print('\n'.join(sorted(runpy.run_path('tools/integration-shards.py', run_name='shards')['SEED'])))")
           if [ "$grouped" != "$excluded" ]; then echo "The seed jobs and the shards' SEED differ:"; diff <(echo "$grouped") <(echo "$excluded"); exit 1; fi
 
