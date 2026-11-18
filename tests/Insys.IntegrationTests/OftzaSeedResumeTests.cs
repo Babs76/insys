@@ -32,13 +32,39 @@ using Xunit;
 
 namespace Insys.IntegrationTests;
 
-/// <summary>A seed stopped part-way, after the API has answered but before the seed heard, can be run again to completion, with every record once.</summary>
+/// <summary>
+/// A seed stopped part-way, after the API has answered but before the seed heard, can be run again to completion, with every record once. Each kind of
+/// step is stopped once. The kinds are split in two classes, each in a seed job of its own (18 November 2026): each stop runs the seed again from the
+/// start, so one class grew past its job's 50 minutes as the seed grew.
+/// </summary>
 public sealed class OftzaSeedResumeTests(DatabaseFixture fixture) : IClassFixture<DatabaseFixture>
+{
+    [Fact]
+    public Task ARunInterruptedPartWay_CanBeRunAgainToCompletion_WithEveryRecordOnce_FirstHalfOfTheSteps() =>
+        OftzaSeedResume.Run(fixture, OftzaSeedResume.Kinds[..(OftzaSeedResume.Kinds.Length / 2)]);
+}
+
+/// <summary>The second half of the resume test's kinds of step (OftzaSeedResumeTests).</summary>
+public sealed class OftzaSeedResumeLaterTests(DatabaseFixture fixture) : IClassFixture<DatabaseFixture>
+{
+    [Fact]
+    public Task ARunInterruptedPartWay_CanBeRunAgainToCompletion_WithEveryRecordOnce_SecondHalfOfTheSteps() =>
+        OftzaSeedResume.Run(fixture, OftzaSeedResume.Kinds[(OftzaSeedResume.Kinds.Length / 2)..]);
+}
+
+internal static class OftzaSeedResume
 {
     private sealed class Interrupted() : Exception("Stopped part-way, for the test.");
 
-    [Fact]
-    public async Task ARunInterruptedPartWay_CanBeRunAgainToCompletion_WithEveryRecordOnce()
+    /// <summary>Each kind of step is stopped once, just after the API has done it and before the seed hears.</summary>
+    public static readonly string[] Kinds =
+    [
+        "tenancy/tenants$", "tenant-administrators$", "/static/[^/]+$", "/imports$", "/imports/[^/]+/submit$", "/imports/[^/]+/activate$", "/versions/\\d+/submit$", "/versions/\\d+/approve$", "/versions/\\d+/activate$",
+        "workflow/approvals/[^/]+/approve$", "identity/users$", "/assign-role$", "party/parties$", "/identifiers$", "/contact-points$", "product-factory/products$", "/validate$", "/simulations$",
+        "/periods/[^/]+/open$", "callback-endpoints$", "/smoke-run$", "/smoke-run/approve$", "/complete-onboarding-step$", "/bank-accounts$", "/addresses$", "health/schemes$", "health/memberships$", "life/proposals$", "/life/proposals/[^/]+/submit$", "/underwriting-cases/[^/]+/decision$", "life/policies$", "life/migration/policies$", "general/risk-objects$", "general/quotes$", "general/proposals$", "general/policies$", "general/migration/policies$", "/cancel$", "/suspend$", "/terminate$", "outstanding-premiums$", "general/claims$", "/register$", "/reserves$", "/settlement$", "life/claims$", "health/claims$", "payment-runs$", "payout-batches$", "/refunds$", "provider-statements/import$", "tax-returns$", "distribution/statements$", "workflow/cases$", "/due-diligence/checks$", "/disclosure-acknowledgements$", "/revoke-role$", "/disable$", "/disable$",
+    ];
+
+    public static async Task Run(DatabaseFixture fixture, string[] kindsToStop)
     {
         var db = fixture.Database;
         var host = await fixture.Host();
@@ -50,13 +76,7 @@ public sealed class OftzaSeedResumeTests(DatabaseFixture fixture) : IClassFixtur
         await db.SeedStatic(DatabaseFixture.Operator, "workflow.cfg_delegation_and_approval_authority", "EFFECTIVE", "AUTH-SEED-ADM", new DateOnly(2026, 1, 1), ("role_code", role),
             ("transaction_type", "TENANT_ADMINISTRATOR"), ("limit_value", 1m), ("delegation_allowed", false));
 
-        // Each kind of step is stopped once, just after the API has done it and before the seed hears.
-        var unstopped = new List<Regex>(new[]
-        {
-            "tenancy/tenants$", "tenant-administrators$", "/static/[^/]+$", "/imports$", "/imports/[^/]+/submit$", "/imports/[^/]+/activate$", "/versions/\\d+/submit$", "/versions/\\d+/approve$", "/versions/\\d+/activate$",
-            "workflow/approvals/[^/]+/approve$", "identity/users$", "/assign-role$", "party/parties$", "/identifiers$", "/contact-points$", "product-factory/products$", "/validate$", "/simulations$",
-            "/periods/[^/]+/open$", "callback-endpoints$", "/smoke-run$", "/smoke-run/approve$", "/complete-onboarding-step$", "/bank-accounts$", "/addresses$", "health/schemes$", "health/memberships$", "life/proposals$", "/life/proposals/[^/]+/submit$", "/underwriting-cases/[^/]+/decision$", "life/policies$", "life/migration/policies$", "general/risk-objects$", "general/quotes$", "general/proposals$", "general/policies$", "general/migration/policies$", "/cancel$", "/suspend$", "/terminate$", "outstanding-premiums$", "general/claims$", "/register$", "/reserves$", "/settlement$", "life/claims$", "health/claims$", "payment-runs$", "payout-batches$", "/refunds$", "provider-statements/import$", "tax-returns$", "distribution/statements$", "workflow/cases$", "/due-diligence/checks$", "/disclosure-acknowledgements$", "/revoke-role$", "/disable$", "/disable$",
-        }.Select(p => new Regex(p)));
+        var unstopped = kindsToStop.Select(p => new Regex(p)).ToList();
         var kinds = unstopped.Count;
         void Stop(string call)
         {
