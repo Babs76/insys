@@ -385,10 +385,30 @@ public sealed class ParkingJobService(IServiceProvider services, IOptions<Parkin
 /// ADR-022 decision 4, trigger 1: configuration published in a tenant retries all its parked deliveries at the parking
 /// job's next pass. One still missing its prerequisite parks again, at no cost.
 /// </summary>
-public sealed class RetryParkedOnConfiguration(IntegrationDbContext db, IClock clock) : IIntegrationEventHandler<StaticDataVersionActivated>
+public sealed class RetryParkedOnConfiguration(IntegrationDbContext db, IClock clock, ITenantDirectory tenants,
+    [FromKeyedServices(IntegrationDbContext.SchemaName)] NpgsqlDataSource dataSource) : IIntegrationEventHandler<StaticDataVersionActivated>
 {
     public async Task Handle(StaticDataVersionActivated activated, EventEnvelope envelope, CancellationToken cancellationToken)
     {
+        if (activated.Record.Global)
+        {
+            // A platform-wide row (a feature entitlement, the function catalogue, a global code) is published by the operator, so its event carries the
+            // operator's tenant; it is configuration for every tenant, so each tenant's parked deliveries are retried (LQNEWA, 18 November 2026).
+            foreach (var tenantId in await tenants.GetActiveTenantIds(cancellationToken))
+            {
+                await ParkedRows.InTenant(dataSource, tenantId, async (connection, transaction) =>
+                {
+                    await using var each = ParkedRows.Command("""
+                        UPDATE integration.parked_delivery SET retry_requested_at = @now
+                        WHERE tenant_id = @tenant_id AND status = 'PARKED' AND retry_requested_at IS NULL
+                        """, connection, transaction, ("tenant_id", tenantId), ("now", clock.UtcNow));
+                    return await each.ExecuteNonQueryAsync(cancellationToken);
+                }, cancellationToken);
+            }
+
+            return;
+        }
+
         var transaction = db.Database.CurrentTransaction?.GetDbTransaction()
             ?? throw new InvalidOperationException("A policy runs inside the inbox transaction.");
         await using var command = ParkedRows.Command("""

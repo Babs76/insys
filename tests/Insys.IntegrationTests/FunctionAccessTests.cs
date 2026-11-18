@@ -230,6 +230,49 @@ public sealed class FunctionAccessTests(DatabaseFixture fixture) : IClassFixture
         (await Parked(envelope.EventId, consumer)).ShouldBe($"{PrerequisiteCodes.FeatureNotEntitled} LIFE_EVENT_PROCESSING");
     }
 
+    /// <summary>
+    /// LQNEWA (18 November 2026): a tenant entitled after INSYS cached its settings, and before the entitlement's activation evicts them, must not park the
+    /// events that follow; and what did park before the entitlement is retried once a platform-wide row is published (the event carries the operator's
+    /// tenant), not left for the periodic retry.
+    /// </summary>
+    [Fact]
+    public async Task AnEventJustAfterAnEntitlement_IsProcessedInsideTheCacheWindow_AndOneParkedBeforeIsRetriedOnPublication_ADR026()
+    {
+        const string consumer = "life.ReopenLifeClaimsOnUpheldCase.CaseDecided";
+        var (tenant, code) = await NewTenant();
+        await fixture.Database.ExecuteAsOwner("UPDATE tenant.cfg_feature_entitlements SET record_status = 'RETIRED' WHERE tenant = @c AND feature = 'LIFE'", ("c", code));
+
+        async Task<Guid> Decided()
+        {
+            var caseId = Guid.CreateVersion7();
+            var envelope = Envelope(tenant, new Insys.Workflow.Contracts.CaseDecided(caseId, $"CASE-{caseId.ToString("N")[..6]}", "COMPLAINT", "COMPLAINT", "UPHELD", null, []),
+                "workflow.CaseDecided", "Case", caseId);
+            await _factory.Services.GetRequiredService<IEventBus>().Deliver(envelope, CancellationToken.None);
+            return envelope.EventId;
+        }
+
+        var before = await Decided();
+        (await Parked(before, consumer)).ShouldBe($"{PrerequisiteCodes.FeatureNotEntitled} LIFE_EVENT_PROCESSING", "not entitled yet: this one rightly parks, and fills the cache");
+
+        // Entitled again, with no activation event yet: inside the cache's 30 seconds, as when the entitlement's event is still in another outbox.
+        await fixture.Database.ExecuteAsOwner("UPDATE tenant.cfg_feature_entitlements SET record_status = 'EFFECTIVE' WHERE tenant = @c AND feature = 'LIFE'", ("c", code));
+        var after = await Decided();
+        (await fixture.Database.ScalarAsOwner<string>("SELECT status FROM integration.parked_delivery WHERE event_id = @e AND consumer = @c", ("e", after), ("c", consumer)))
+            .ShouldBeNull("processed at once, never in the ledger: a refusal is checked against the database before it parks, never taken from the cache");
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM life.inbox_message WHERE event_id = @e AND consumer = @c", ("e", after), ("c", consumer))).ShouldBe(1L, "handled");
+
+        // The entitlement's publication, a global row, by the operator: the earlier delivery is retried in this tenant, and done.
+        var activated = new StaticDataVersionActivated(null, new StaticRecordRef("tenant", "cfg_feature_entitlements", "FEATURE_ENTITLEMENTS", "tenancy", "feature-entitlements",
+            Guid.CreateVersion7(), $"{code}:LIFE", 2, true), Today, null);
+        await _factory.Services.GetRequiredService<IEventBus>().Publish(
+            Envelope(DatabaseFixture.Operator, activated, "sdm.StaticDataVersionActivated", "StaticRecord", Guid.CreateVersion7()), CancellationToken.None);
+        (await fixture.Database.ScalarAsOwner<bool>("SELECT retry_requested_at IS NOT NULL FROM integration.parked_delivery WHERE event_id = @e AND consumer = @c",
+            ("e", before), ("c", consumer))).ShouldBeTrue("retried on the global publication, not left for the 15-minute retry");
+        await _factory.Services.GetRequiredService<ParkingJob>().RunForTenant(tenant, CancellationToken.None);
+        (await fixture.Database.ScalarAsOwner<string>("SELECT status FROM integration.parked_delivery WHERE event_id = @e AND consumer = @c", ("e", before), ("c", consumer)))
+            .ShouldBe("RESOLVED", "released and done once the tenant is entitled");
+    }
+
     [Fact]
     public async Task SwitchingOffABillingOrPaymentsDailyJob_IsAPrivilegedFunction_OQ098()
     {

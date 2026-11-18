@@ -5,6 +5,11 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 
 
+## Availability batch: entitlements and parks in a tenant being onboarded (LQNEWA, 18 November 2026)
+- **No API change.** Two behaviour fixes, found from the front end's live run LQNEWA:
+  - A delivery no longer parks as `FUNCTION_DISABLED` or `FEATURE_NOT_ENTITLED` because of the 30-second cache. A refusal is read again from the database before it parks.
+  - Publishing a platform-wide row (a feature entitlement, the function catalogue, a global code) now retries the parked deliveries of every tenant at once. Before, its event carried the operator's tenant, so a business tenant's parks waited for the 15-minute retry.
+
 ## Scope batch 5: full pages, and the portal's claim list (F103, read sweep, 18 November 2026)
 - **Breaking, for callers with a product or branch scope:**
   - `GET /general/renewals`, `GET /health/payment-runs` and `GET /documents/legal-holds` now drop the records outside the caller's scope before the page is cut. A page is full whenever enough records in scope exist, and its `nextCursor` reaches the later ones. Before, a page could come back short, and with no cursor, so in-scope records after it couldn't be reached. Rows and fields are unchanged.

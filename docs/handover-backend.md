@@ -567,6 +567,18 @@ The first of the five fix batches from the scope sweeps (`docs/reviews/read-scop
   - `WorkflowTests`: the coverage of every type; the fail-closed and product-version scoping through a real `ApprovalRequested`; product-only and unresolved approvals; deciding by the approve scope.
   - `WriteScopeTests`: 6 tests, one per write group.
 
+### Availability batch (18 November 2026, branch `availability-batch`, on the seed batch)
+From the front end's run LQNEWA: eight deliveries in tenant GLQNEWA, which is entitled to every feature it needs, parked `FUNCTION_DISABLED` during setup.
+- **Cause, from the code (inferred: the run's timings weren't read).**
+  - `FunctionAvailability` caches a tenant's settings for 30 seconds. A published entitlement evicts the cache only when Identity's consumer handles the entitlement's `StaticDataVersionActivated`.
+  - That event goes through another outbox than the tenant's own events (`sdm.StaticDataChangeApproved`, `workflow.ApprovalGranted`), and the outboxes keep no order between them.
+  - So a delivery of the tenant's could read settings cached before the entitlement, and park. Before the seed batch the code said `FUNCTION_DISABLED` for an entitlement too; the seed batch says `FEATURE_NOT_ENTITLED`.
+- **Lost? No: delayed.** A parked delivery stays in the ledger and is retried every 15 minutes (`Outbox:Parking:RetryInterval`), in every tenant, onboarding ones included. It was not retried at once, because a global row's activation carries the operator's tenant, and `RetryParkedOnConfiguration` retried only that tenant. Later events for the same record waited behind it meanwhile.
+- **Fixed:**
+  - `FunctionAvailability.Unavailable` reads the settings again before it answers a refusal, so a refusal never comes from the cache. An allowed function still uses the cache.
+  - `RetryParkedOnConfiguration` retries every tenant's parked deliveries when the activated row is global (`StaticRecordRef.Global`).
+- **Test:** `FunctionAccessTests.AnEventJustAfterAnEntitlement_IsProcessedInsideTheCacheWindow_AndOneParkedBeforeIsRetriedOnPublication_ADR026`. It enables a feature, delivers an event inside the cache window and sees it handled, then publishes the global row and sees the earlier park resolved. Each fix's mutant fails it.
+
 ### Seed batch (18 November 2026, branch `seed-batch`)
 What the sample tenant's business parked or failed on, fixed in the seed, plus one code change (Ade, 18 November). Contract note: "Seed batch" in `docs/api/contract-changes.md`.
 - **`FEATURE_NOT_ENTITLED`:** `IFunctionAvailability.Unavailable` gives the refusal code (`FunctionHolding.Refusal`; FUNCTION_DISABLED for a function not in the catalogue). The consumer wrapper (`InfrastructureRegistration.AddIntegrationEventHandler`) parks with `PrerequisiteCodes.FeatureNotEntitled` or `FunctionDisabled` by it. `IsEnabled` is kept, as `Unavailable(...) is null`. Test: `FunctionAccessTests.AConsumerOfAFeatureTheTenantIsNotEntitledTo_ParksAsFeatureNotEntitled_ADR026` (fails with the mapping undone).

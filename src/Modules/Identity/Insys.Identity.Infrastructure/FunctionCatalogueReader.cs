@@ -218,13 +218,26 @@ public sealed class FunctionAvailability(FunctionCatalogueReader catalogue, Tena
         }
 
         var now = clock.UtcNow;
+        var fresh = false;
         if (!_tenants.TryGetValue(tenantId, out var cached) || now - cached.At > TimeSpan.FromSeconds(30))
         {
             cached = (now, await settings.For(tenantId, day, cancellationToken));
             _tenants[tenantId] = cached;
+            fresh = true;
         }
 
-        return Application.Users.FunctionHolding.Refusal(functionCode, function.Feature, cached.Settings, tenantId == platform.Value.OperatorTenantId);
+        var operatorTenant = tenantId == platform.Value.OperatorTenantId;
+        var refusal = Application.Users.FunctionHolding.Refusal(functionCode, function.Feature, cached.Settings, operatorTenant);
+        if (refusal is null || fresh)
+        {
+            return refusal;
+        }
+
+        // A refusal parks a delivery, so it is never taken from the cache (LQNEWA, 18 November 2026): an entitlement or a function switched on since the
+        // cached read, and not yet evicted (its activation is another outbox's event), would otherwise park deliveries for up to 30 seconds.
+        cached = (now, await settings.For(tenantId, day, cancellationToken));
+        _tenants[tenantId] = cached;
+        return Application.Users.FunctionHolding.Refusal(functionCode, function.Feature, cached.Settings, operatorTenant);
     }
 
     public async Task<IReadOnlyList<string>> JobsSwitchedOff(Guid tenantId, CancellationToken cancellationToken)
