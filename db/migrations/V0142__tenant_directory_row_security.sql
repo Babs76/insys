@@ -38,10 +38,10 @@ CREATE UNIQUE INDEX uq_tenant_platform_operator ON tenant.tenant (platform_opera
 COMMENT ON COLUMN tenant.tenant.platform_operator IS 'The platform operator''s tenant (one at most), whose sessions see every tenant (V0142). Set only by the owner.';
 
 -- Only the owner may mark or unmark the operator: a module role can't raise its own tenant to see the others.
-CREATE FUNCTION tenant.guard_platform_operator() RETURNS trigger LANGUAGE plpgsql AS $$
+CREATE FUNCTION tenant.guard_platform_operator() RETURNS trigger LANGUAGE plpgsql SET search_path = pg_catalog, tenant AS $$
 BEGIN
   IF (TG_OP = 'INSERT' AND NEW.platform_operator) OR (TG_OP = 'UPDATE' AND NEW.platform_operator IS DISTINCT FROM OLD.platform_operator) THEN
-    IF current_user <> (SELECT pg_get_userbyid(relowner) FROM pg_class WHERE oid = 'tenant.tenant'::regclass) THEN
+    IF current_user <> (SELECT pg_catalog.pg_get_userbyid(c.relowner) FROM pg_catalog.pg_class c WHERE c.oid = 'tenant.tenant'::pg_catalog.regclass) THEN
       RAISE EXCEPTION 'tenant %: only the database owner marks the platform operator (V0142)', NEW.tenant_code USING ERRCODE = 'insufficient_privilege';
     END IF;
   END IF;
@@ -49,9 +49,11 @@ BEGIN
 END $$;
 CREATE TRIGGER guard_platform_operator BEFORE INSERT OR UPDATE ON tenant.tenant FOR EACH ROW EXECUTE FUNCTION tenant.guard_platform_operator();
 
--- Whether this session is the platform operator's: read as the owner, so the policy below doesn't read the table through itself.
-CREATE FUNCTION tenant.session_is_platform_operator() RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog AS $$
-  SELECT coalesce((SELECT t.platform_operator FROM tenant.tenant t WHERE t.id = NULLIF(current_setting('app.tenant_id', true), '')::uuid), false)
+-- Whether this session is the platform operator's: read as the owner, so the policy below doesn't read the table through itself. Security
+-- definer, so its search path is fixed and every name in it is qualified (Ade): an object a caller puts earlier in its path can't change the answer.
+CREATE FUNCTION tenant.session_is_platform_operator() RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, tenant AS $$
+  SELECT COALESCE((SELECT t.platform_operator FROM tenant.tenant t
+                              WHERE t.id = NULLIF(pg_catalog.current_setting('app.tenant_id', true), '')::uuid), false)
 $$;
 -- Like tenant.current_tenant_code(): any role may ask, about its own session only.
 REVOKE ALL ON FUNCTION tenant.session_is_platform_operator() FROM PUBLIC;

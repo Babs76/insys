@@ -77,6 +77,52 @@ public sealed class TenantDirectoryAccessTests(DatabaseFixture fixture) : IClass
         (await Visible(DatabaseFixture.Operator)).Split(',').ShouldBe(["OPERATOR", "TENA", "TENB"], ignoreOrder: true, "the platform operator's session sees every row");
     }
 
+    /// <summary>
+    /// V0142: the security-definer check has a fixed search path and qualified names (Ade), so a look-alike current_setting that a session puts first in
+    /// its path, answering with the operator's id, changes neither the check's answer nor the rows the session sees.
+    /// </summary>
+    [Fact]
+    public async Task ALookAlikeInAnotherSchema_CantMakeATenantsSessionThePlatformOperators_V0142()
+    {
+        await fixture.Database.ExecuteAsOwner($"""
+            CREATE SCHEMA IF NOT EXISTS lookalike;
+            CREATE OR REPLACE FUNCTION lookalike.current_setting(text, boolean) RETURNS text LANGUAGE sql AS $$ SELECT '{DatabaseFixture.Operator}'::text $$;
+            GRANT USAGE ON SCHEMA lookalike TO PUBLIC;
+            GRANT EXECUTE ON FUNCTION lookalike.current_setting(text, boolean) TO PUBLIC;
+            """);
+        await using var connection = new NpgsqlConnection(fixture.Database.ConnectionFor("insys_tenant"));
+        await connection.OpenAsync();
+        await using var transaction = await connection.BeginTransactionAsync();
+        await using (var set = new NpgsqlCommand("SELECT set_config('app.tenant_id', @t, true); SET LOCAL search_path = lookalike, pg_catalog, tenant", connection, transaction))
+        {
+            set.Parameters.AddWithValue("t", DatabaseFixture.TenantA.ToString());
+            await set.ExecuteNonQueryAsync();
+        }
+
+        await using (var probe = new NpgsqlCommand("SELECT current_setting('app.tenant_id', true)", connection, transaction))
+        {
+            ((string)(await probe.ExecuteScalarAsync())!).ShouldBe(DatabaseFixture.Operator.ToString(), "the look-alike is first in the session's own path");
+        }
+
+        await using (var check = new NpgsqlCommand("SELECT tenant.session_is_platform_operator()", connection, transaction))
+        {
+            ((bool)(await check.ExecuteScalarAsync())!).ShouldBeFalse("the check reads pg_catalog's current_setting, whatever the caller's path");
+        }
+
+        await using var read = new NpgsqlCommand("SELECT string_agg(tenant_code, ',') FROM tenant.tenant", connection, transaction);
+        ((string)(await read.ExecuteScalarAsync())!).ShouldBe("TENA");
+    }
+
+    /// <summary>The one route that reads tenants' parked deliveries across tenants (an operator-session directory read) needs a platform permission.</summary>
+    [Fact]
+    public async Task ABusinessTenantsUser_CantReachTheCrossTenantParkedDeliveryCounts_V0142()
+    {
+        var factory = await fixture.Host();
+        await fixture.Database.UserWithPermissions(DatabaseFixture.TenantA, "dl-reader-a", Insys.Integration.Contracts.IntegrationPermissions.DeadLetterRead);
+        (await factory.ClientFor(DatabaseFixture.TenantA, "dl-reader-a").GetAsync("/api/v1/integration/parked-deliveries/by-tenant")).StatusCode
+            .ShouldBe(HttpStatusCode.Forbidden);
+    }
+
     /// <summary>V0142: only the owner marks the platform operator, so a tenant's session can't raise itself to see the others.</summary>
     [Fact]
     public async Task ATenantsSession_CantMarkItselfThePlatformOperator_V0142()
