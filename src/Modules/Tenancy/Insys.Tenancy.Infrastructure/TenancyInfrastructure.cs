@@ -58,7 +58,10 @@ public static class TenancyInfrastructure
         services.AddSingleton<BuildingBlocks.Application.Context.ISampleTenants, SampleTenants>();
         services.AddSingleton<TenantFunctionSettingsQuery>();
         services.AddSingleton<ITenantFunctionSettings>(sp => sp.GetRequiredService<TenantFunctionSettingsQuery>());
-        services.AddSingleton<ITenantFeatureEntitlements>(sp => sp.GetRequiredService<TenantFunctionSettingsQuery>());
+        services.AddSingleton<ITenantCodes>(sp => sp.GetRequiredService<TenantFunctionSettingsQuery>());
+        // An entitlement's activation names its tenant and feature, so consumers needn't read the global row (Ade, 18 November 2026).
+        BuildingBlocks.Infrastructure.StaticData.StaticActivationFacts.ForEntitlements("tenant", "cfg_feature_entitlements",
+            record => record is StaticData.FeatureEntitlements e ? (e.Tenant, e.Feature) : null);
         services.AddScoped<IStaticChangeGuard, MoneyJobSwitchGuard>();
         services.AddSingleton<IStaticRecordValidator, MoneyJobSwitchRule>();
         services.AddMemoryCache();

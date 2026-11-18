@@ -77,12 +77,12 @@ public interface ITenantFunctionSettings
 }
 
 /// <summary>
-/// Public query interface: the tenant and feature of one tenant.cfg_feature_entitlements row (a global row naming its tenant by code), or null when the
-/// row or its tenant is unknown. For releasing only the parks an entitlement can resolve (Ade, 18 November 2026).
+/// Public query interface: the id of the tenant with a code (tenant.tenant, the platform's directory), or null. For acting on an entitlement's activation,
+/// which names its tenant by code (StaticDataVersionActivated.EntitlementTenant).
 /// </summary>
-public interface ITenantFeatureEntitlements
+public interface ITenantCodes
 {
-    Task<(Guid TenantId, string Feature)?> OfRecord(Guid recordId, CancellationToken cancellationToken);
+    Task<Guid?> IdOf(string tenantCode, CancellationToken cancellationToken);
 }
 
 /// <summary>Public query interface: the tenant's base currency on a day (tenant.cfg_locale_defaults), or null when none is in force.</summary>

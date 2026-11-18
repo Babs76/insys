@@ -316,7 +316,7 @@ public sealed class StaticDataService<TDbContext>(
         CancellationToken cancellationToken)
         where TEntity : StaticRecord =>
         Transition<TEntity>(descriptor, code, version, expectedRowVersion, global, "ActivateVersion", [descriptor.Lifecycle.Approved], descriptor.Lifecycle.Active,
-            (db, entity) => db.Publish(new StaticDataVersionActivated(entity.ChangeRequestId, Ref(descriptor, entity), entity.EffectiveFrom, entity.EffectiveTo),
+            (db, entity) => db.Publish(Activated(descriptor, entity),
                 descriptor.EntityName, entity.Id, clock.UtcNow),
             cancellationToken);
 
@@ -683,7 +683,7 @@ public sealed class StaticDataService<TDbContext>(
                 foreach (var line in lines)
                 {
                     line.RecordStatus = descriptor.Lifecycle.Active;
-                    db.Publish(new StaticDataVersionActivated(line.ChangeRequestId, Ref(descriptor, line), line.EffectiveFrom, line.EffectiveTo), descriptor.EntityName,
+                    db.Publish(Activated(descriptor, line), descriptor.EntityName,
                         line.Id, clock.UtcNow);
                 }
 
@@ -747,7 +747,7 @@ public sealed class StaticDataService<TDbContext>(
         foreach (var line in lines)
         {
             line.RecordStatus = descriptor.Lifecycle.Active;
-            context.Publish(new StaticDataVersionActivated(line.ChangeRequestId, Ref(descriptor, line), line.EffectiveFrom, line.EffectiveTo), descriptor.EntityName,
+            context.Publish(Activated(descriptor, line), descriptor.EntityName,
                 line.Id, clock.UtcNow);
         }
 
@@ -780,6 +780,12 @@ public sealed class StaticDataService<TDbContext>(
 
         return Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(text.ToString())));
     }
+
+    /// <summary>A version's activation, with what its table's facts name (a feature entitlement's tenant and feature, StaticActivationFacts).</summary>
+    public static StaticDataVersionActivated Activated(StaticDataDescriptor descriptor, StaticRecord entity) =>
+        StaticActivationFacts.Entitlement(descriptor, entity) is { } named
+            ? new(entity.ChangeRequestId, Ref(descriptor, entity), entity.EffectiveFrom, entity.EffectiveTo, named.Tenant, named.Feature)
+            : new(entity.ChangeRequestId, Ref(descriptor, entity), entity.EffectiveFrom, entity.EffectiveTo);
 
     public static StaticRecordRef Ref(StaticDataDescriptor descriptor, StaticRecord entity) =>
         new(descriptor.Schema, descriptor.Table, descriptor.EntityCode, descriptor.ModuleRoute, descriptor.EntityRoute, entity.Id, entity.Code, entity.Version,

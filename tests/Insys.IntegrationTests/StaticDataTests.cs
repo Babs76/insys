@@ -192,6 +192,42 @@ public sealed class StaticDataTests(DatabaseFixture fixture) : IClassFixture<Dat
         error.SqlState.ShouldBe(PostgresErrorCodes.InsufficientPrivilege);
     }
 
+    /// <summary>
+    /// A feature entitlement's activation names its tenant and feature as fields of its own (Ade, 18 November 2026), so a consumer (the parking ledger)
+    /// acts for that tenant without reading the global row, which only the platform may.
+    /// </summary>
+    [Fact]
+    public async Task AnEntitlementsActivation_NamesItsTenantAndFeature_OnTheEvent()
+    {
+        const string Entitlements = "/api/v1/tenancy/static/feature-entitlements/global";
+        var opMaker = _factory.ClientFor(DatabaseFixture.Operator, "op-maker");
+        var opChecker = _factory.ClientFor(DatabaseFixture.Operator, "op-checker");
+        var tenantCode = await fixture.Database.ScalarAsOwner<string>("SELECT tenant_code FROM tenant.tenant WHERE id = @t", ("t", DatabaseFixture.TenantB));
+        var code = $"{tenantCode}:AI_ASSIST";
+        var created = await opMaker.Send(HttpMethod.Post, Entitlements, new { code, tenant = tenantCode, feature = "AI_ASSIST", enabled = true, changeReason = "test" }, idempotent: true);
+        created.StatusCode.ShouldBe(HttpStatusCode.Created, await created.Content.ReadAsStringAsync());
+        await opMaker.Send(HttpMethod.Post, $"{Entitlements}/{Uri.EscapeDataString(code)}/versions/1/submit", ifMatch: created.ETag());
+        await _factory.DrainOutbox();
+        (await opChecker.Send(HttpMethod.Post, $"{Entitlements}/{Uri.EscapeDataString(code)}/versions/1/approve")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        await _factory.DrainOutbox();
+        var approved = (await (await opMaker.GetAsync($"{Entitlements}/{Uri.EscapeDataString(code)}/versions")).Json())[0];
+        if (approved.GetProperty("recordStatus").GetString() == "APPROVED")
+        {
+            (await opMaker.Send(HttpMethod.Post, $"{Entitlements}/{Uri.EscapeDataString(code)}/versions/1/activate", ifMatch: $"\"{approved.GetProperty("rowVersion").GetInt64()}\""))
+                .StatusCode.ShouldBe(HttpStatusCode.OK);
+        }
+
+        var named = await fixture.Database.ScalarAsOwner<string>("""
+            SELECT payload->>'entitlementTenant' || ' ' || (payload->>'entitlementFeature') FROM tenant.outbox_event
+            WHERE event_type = 'sdm.StaticDataVersionActivated' AND payload->'record'->>'code' = @code
+            """, ("code", code));
+        named.ShouldBe($"{tenantCode} AI_ASSIST");
+        (await fixture.Database.ScalarAsOwner<string>("""
+            SELECT coalesce(payload->>'entitlementTenant', 'none') FROM tenant.outbox_event WHERE event_type = 'sdm.StaticDataVersionActivated'
+              AND payload->'record'->>'table' <> 'cfg_feature_entitlements' LIMIT 1
+            """) ?? "none").ShouldBe("none", "any other row's activation names none");
+    }
+
     [Fact]
     public async Task PlatformAdministrators_MaintainGlobalRows_WithMakerChecker_AndTenantsOverlayThem_SDM008()
     {

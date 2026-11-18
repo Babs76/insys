@@ -51,8 +51,13 @@ public sealed record StaticDataChangeRejected(Guid ChangeRequestId, StaticRecord
 
 /// <summary>Published on every activation with the tenant in the envelope, so consumers can drop cached values (SDM-009).</summary>
 [IntegrationEvent("sdm.StaticDataVersionActivated")]
-public sealed record StaticDataVersionActivated(Guid? ChangeRequestId, StaticRecordRef Record, DateOnly EffectiveFrom, DateOnly? EffectiveTo)
-    : IIntegrationEvent;
+/// <param name="EntitlementTenant">
+/// For a feature entitlement (tenant.cfg_feature_entitlements), the tenant code the row names; null for any other row. With
+/// <paramref name="EntitlementFeature"/>, it lets a consumer act for that tenant and feature without reading the global row (Ade, 18 November 2026).
+/// </param>
+/// <param name="EntitlementFeature">For a feature entitlement, the feature the row entitles; null for any other row.</param>
+public sealed record StaticDataVersionActivated(Guid? ChangeRequestId, StaticRecordRef Record, DateOnly EffectiveFrom, DateOnly? EffectiveTo,
+    string? EntitlementTenant = null, string? EntitlementFeature = null) : IIntegrationEvent;
 
 [IntegrationEvent("sdm.StaticDataCodeDeprecated")]
 public sealed record StaticDataCodeDeprecated(Guid? ChangeRequestId, StaticRecordRef Record) : IIntegrationEvent;

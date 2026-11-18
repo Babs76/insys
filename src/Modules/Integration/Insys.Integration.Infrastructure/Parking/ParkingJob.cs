@@ -386,7 +386,7 @@ public sealed class ParkingJobService(IServiceProvider services, IOptions<Parkin
 /// job's next pass. One still missing its prerequisite parks again, at no cost.
 /// </summary>
 public sealed class RetryParkedOnConfiguration(IntegrationDbContext db, IClock clock, ITenantDirectory tenants,
-    [FromKeyedServices(IntegrationDbContext.SchemaName)] NpgsqlDataSource dataSource, Insys.Tenancy.Contracts.ITenantFeatureEntitlements entitlements,
+    [FromKeyedServices(IntegrationDbContext.SchemaName)] NpgsqlDataSource dataSource, Insys.Tenancy.Contracts.ITenantCodes tenantCodes,
     IFunctionAvailability availability) : IIntegrationEventHandler<StaticDataVersionActivated>
 {
     /// <summary>How many parked rows one statement marks for retry; the parking job then retries at most its batch size a tenant a pass.</summary>
@@ -416,10 +416,12 @@ public sealed class RetryParkedOnConfiguration(IntegrationDbContext db, IClock c
         var table = $"{activated.Record.Schema}.{activated.Record.Table}";
         if (table == "tenant.cfg_feature_entitlements")
         {
-            if (await entitlements.OfRecord(activated.Record.RecordId, cancellationToken) is { } entitled
-                && await availability.JobFunctionsNeeding(entitled.Feature, cancellationToken) is { Count: > 0 } functions)
+            // The event names the entitlement's tenant and feature (never read from the global row, Ade, 18 November 2026).
+            if (activated is { EntitlementTenant: { } tenantCode, EntitlementFeature: { } feature }
+                && await tenantCodes.IdOf(tenantCode, cancellationToken) is { } tenantId
+                && await availability.JobFunctionsNeeding(feature, cancellationToken) is { Count: > 0 } functions)
             {
-                await Mark(entitled.TenantId, FunctionCodes, [.. functions], cancellationToken);
+                await Mark(tenantId, FunctionCodes, [.. functions], cancellationToken);
             }
 
             return;

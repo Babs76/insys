@@ -281,7 +281,7 @@ public sealed class FunctionAccessTests(DatabaseFixture fixture) : IClassFixture
         // The entitlement's publication, a global row, by the operator: only the parks it can resolve are retried, here only this tenant's LIFE one, and done.
         var row = await fixture.Database.ScalarAsOwner<Guid>("SELECT id FROM tenant.cfg_feature_entitlements WHERE tenant = @c AND feature = 'LIFE'", ("c", code));
         var activated = new StaticDataVersionActivated(null, new StaticRecordRef("tenant", "cfg_feature_entitlements", "FEATURE_ENTITLEMENTS", "tenancy", "feature-entitlements",
-            row, $"{code}:LIFE", 1, true), Today, null);
+            row, $"{code}:LIFE", 1, true), Today, null, EntitlementTenant: code, EntitlementFeature: "LIFE");
         await _factory.Services.GetRequiredService<IEventBus>().Publish(
             Envelope(DatabaseFixture.Operator, activated, "sdm.StaticDataVersionActivated", "StaticRecord", Guid.CreateVersion7()), CancellationToken.None);
         async Task<bool> Marked(Guid eventId, string by) => await fixture.Database.ScalarAsOwner<bool>(

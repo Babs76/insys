@@ -76,6 +76,8 @@ A consumer that finds the tenant's configuration missing **parks** its delivery 
 | Refund, claim payment, remittance or commission released | Payments | `PAYOUT_METHOD_NOT_IN_FORCE` <currency>, `PAYOUT_PROVIDER_NOT_IN_FORCE` <method> | A payout method for the currency, and a provider supporting it |
 | `GeneralPolicyEndorsed` | Billing | (fails, then waits in order) | The policy's premium schedule, from its issue: an endorsement waits behind a parked issue |
 
+A platform-wide row (published by the operator) retries only the parks it can resolve: an entitlement, its tenant's `FEATURE_NOT_ENTITLED` and `FUNCTION_DISABLED` parks of the functions needing the feature; a catalogue function, those two codes for it in every tenant; any other global code, the parks whose item is that code. A park whose item names more than the code (`GEN-MOTOR:MONTHLY`) waits for the 15-minute retry, or `POST …/parked-deliveries/retry` with its code.
+
 Anything else a consumer fails on is still a failure: retried with back-off, then dead-lettered, while later events for its record wait behind it. Outbox lag is not part of readiness, so a stuck event does not take the instance out of service.
 
 Two waits outside this list, which do the same for work that isn't an event delivery:
