@@ -70,6 +70,32 @@ public sealed class DevelopmentScannerTests(DatabaseFixture fixture) : IClassFix
         (await scanner.Scan(System.Text.Encoding.ASCII.GetBytes("sample " + FakeMalwareScanner.Eicar), CancellationToken.None)).Clean.ShouldBeFalse();
     }
 
+    /// <summary>The stand-in model (BR-147): like the development scanner, refused outside Development and Testing, and impossible to make there.</summary>
+    [Theory]
+    [InlineData("Staging")]
+    [InlineData("Production")]
+    public async Task Host_WithTheStandInModel_RefusesToStart_OutsideDevelopmentAndTesting_BR147(string environment)
+    {
+        await using var factory = new InsysApiFactory(fixture.Database, new Dictionary<string, string?>
+        {
+            ["Authentication:DevelopmentSigningKey"] = "", ["Testing:DailyJobRunner:Enabled"] = "false", ["Assist:Provider"] = "development",
+        }, environment);
+
+        var refused = Should.Throw<InvalidOperationException>(() => factory.CreateClient());
+        refused.Message.ShouldContain("Assist:Provider");
+        refused.Message.ShouldContain(environment);
+    }
+
+    [Theory]
+    [InlineData("Staging")]
+    [InlineData("Production")]
+    [InlineData("development")]
+    public void TheStandInModel_CantBeMade_OutsideDevelopmentAndTesting_BR147(string environment) =>
+        Should.Throw<InvalidOperationException>(() => new Insys.Assist.Infrastructure.DevelopmentAiModelProvider(new Environment(environment)));
+
+    /// <summary>The stand-in, made in Development, for the end-to-end tests that send its answers through INSYS's real checks.</summary>
+    internal static Insys.Assist.Infrastructure.DevelopmentAiModelProvider StandIn() => new(new Environment("Development"));
+
     private sealed class Environment(string name) : IHostEnvironment
     {
         public string EnvironmentName { get; set; } = name;

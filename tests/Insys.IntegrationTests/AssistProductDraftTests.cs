@@ -219,6 +219,33 @@ public sealed class AssistProductDraftTests(DatabaseFixture fixture) : IClassFix
         sent.Data.ShouldContain("rating.cfg_rating_tables");
     }
 
+    /// <summary>
+    /// BR-147, widened to AI-1: the stand-in model's fixed extraction of the published test document goes through every one of INSYS's checks, as the front end's
+    /// live run sends it: one Found value written into the Draft, one Interpreted and one Missing left as proposals, a cited proposal and the rate table.
+    /// </summary>
+    [Fact]
+    public async Task TheStandInModel_DraftsThePublishedTestDocument_ThroughEveryCheck_BR147()
+    {
+        var w = await Ready("ad-standin");
+        var standIn = DevelopmentScannerTests.StandIn();
+        w.Stub.Reply = request => standIn.Complete(request, CancellationToken.None).GetAwaiter().GetResult().Text;
+        var published = await File.ReadAllBytesAsync(Path.Combine(RepositoryPaths.Root, "docs", "frontend", "ai1-sample-product.pdf"));
+        var document = await Upload(w, published);
+
+        var run = await Run(w, document);
+
+        run.GetProperty("status").GetString().ShouldBe("DRAFTED", run.ToString());
+        Item(run, "version.name").GetProperty("flag").GetString().ShouldBe("FOUND");
+        Item(run, "version.name").GetProperty("inDraft").GetBoolean().ShouldBeTrue();
+        Item(run, "version.coverStartsOn").GetProperty("flag").GetString().ShouldBe("INTERPRETED");
+        Item(run, "version.coverStartsOn").GetProperty("inDraft").GetBoolean().ShouldBeFalse();
+        Items(run).Single(i => i.GetProperty("field").GetString() == "version.coverages").GetProperty("flag").GetString().ShouldBe("MISSING");
+        Item(run, "rating.cfg_premium_bounds").GetProperty("citationQuote").GetString().ShouldBe("The monthly premium is at least R45.00");
+        Item(run, "rating.cfg_rating_tables").GetProperty("checkResult").GetString().ShouldBe("PASSED");
+        var version = await (await w.User.GetAsync($"/api/v1/product-factory/products/{w.Product}/versions/2")).Json();
+        version.GetProperty("name").GetString().ShouldBe("Sample Funeral Plan");
+    }
+
     [Fact]
     public async Task ARun_IsRefusedAtTheStart_WithoutAConfirmation_ForAHeldUpload_OrTooManyDocuments_OrWithoutTheProductPermissions_D16()
     {

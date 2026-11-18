@@ -186,7 +186,7 @@ public sealed class RequesterFollowUp(IProcessRepository processes, Contracts.IB
         var process = ProcessInstance.StartProcess(Guid.CreateVersion7(), BuiltInProcesses.ApprovalFollowUp, approval.BusinessRefType, approval.BusinessRefId,
             _ => new TaskRouting(QueueCode, null, due), now).Value;
         process.AssignTask(process.OpenTask!.Id, approval.MakerId);
-        processes.Add(process);
+        await processes.Add(process, cancellationToken);
         audit.Record(new AuditEntry("WORKFLOW", "StartProcess", nameof(ProcessInstance), process.Id.ToString(),
             new Dictionary<string, string?> { ["process"] = BuiltInProcesses.ApprovalFollowUp.ProcessCode, ["approval"] = approval.Id.ToString(), ["ending"] = ending }));
     }

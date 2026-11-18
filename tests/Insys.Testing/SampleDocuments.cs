@@ -64,6 +64,15 @@ public static class SampleDocuments
         return builder.Build();
     }
 
+    /// <summary>
+    /// The AI-1 test document the front end uploads (docs/frontend/ai1-sample-product.pdf), recognised by the stand-in model by its first line. Invented
+    /// wording and rates; no identifier, so the identifier check passes it.
+    /// </summary>
+    public static byte[] Ai1Sample() => Pdf(
+        ["INSYS AI-1 SAMPLE PRODUCT DOCUMENT (sample data only, not a real product)", "Product name: Sample Funeral Plan",
+            "Cover starts when the first premium is paid", "The monthly premium is at least R45.00", "Cover ends at age 75"],
+        ["Monthly premium by age band", "Age band\tMonthly premium", "18-40\t45.00", "41-55\t62.50", "56-65\t88.00"]);
+
     /// <summary>A DOCX of paragraphs; "[page]" starts a new page and "[table]a|b;c|d" is a table of rows split by ';' and cells by '|'.</summary>
     public static byte[] Docx(params string[] blocks)
     {

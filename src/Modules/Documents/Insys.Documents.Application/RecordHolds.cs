@@ -106,6 +106,33 @@ public sealed class RecordHoldTargets(IEnumerable<ILegalHoldTargets> targets, IT
     public async Task<bool> Visible(string scopeType, Guid scopeId, CancellationToken cancellationToken) =>
         await ScopesOf(scopeType, scopeId, cancellationToken) is { } scopes && scopes.All(s => execution.CurrentScope.Allows(s.ProductCode, s.OrgNodeCode));
 
+    /// <summary>
+    /// Scope batch 4 (OQ-169): a document filed against a record of a type these targets resolve takes the record's one scope. A record not found, or with
+    /// several scopes, fails closed. A record with none (a party), or a type they don't resolve, leaves the document unattached: classification only.
+    /// </summary>
+    public async Task ScopeDocument(Domain.Documents.Document document, CancellationToken cancellationToken)
+    {
+        if (!targets.Any(t => t.Covers(document.BusinessRefType)))
+        {
+            return;
+        }
+
+        var scopes = await ScopesOf(document.BusinessRefType, document.BusinessRefId, cancellationToken);
+        if (scopes is { Count: 0 })
+        {
+            return;
+        }
+
+        if (scopes is [var only])
+        {
+            document.ScopeTo(only.ProductCode, only.OrgNodeCode);
+        }
+        else
+        {
+            document.ScopeTo(null, null);
+        }
+    }
+
     private async Task<IReadOnlyList<(string? ProductCode, string? OrgNodeCode)>?> ScopesOf(string scopeType, Guid scopeId, CancellationToken cancellationToken) =>
         targets.FirstOrDefault(t => t.Covers(scopeType)) is { } source
             ? await source.ScopesOf(tenant.TenantId ?? throw new InvalidOperationException("A legal hold is placed in a tenant."), scopeType, scopeId, cancellationToken)

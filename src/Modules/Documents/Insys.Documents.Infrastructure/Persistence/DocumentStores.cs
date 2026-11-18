@@ -30,6 +30,7 @@ using System.Text.Json;
 using Insys.BuildingBlocks.Application.Messaging;
 using Insys.BuildingBlocks.Contracts;
 using Insys.BuildingBlocks.Domain;
+using Insys.BuildingBlocks.Infrastructure.Persistence;
 using Insys.BuildingBlocks.Infrastructure.StaticData;
 using Insys.Documents.Application;
 using Insys.Documents.Domain.Documents;
@@ -41,7 +42,7 @@ using NodaTime.Text;
 
 namespace Insys.Documents.Infrastructure.Persistence;
 
-internal sealed class DocumentRepository(DocumentsDbContext db) : IDocumentRepository
+internal sealed class DocumentRepository(DocumentsDbContext db, BuildingBlocks.Application.Context.IExecutionContext execution) : IDocumentRepository
 {
     public async Task<IReadOnlyList<PendingScan>> PendingScans(int limit, CancellationToken cancellationToken) =>
         await db.Documents.AsNoTracking().Where(d => d.ScanStatus == ScanStatuses.Pending && d.Status != DocumentStatus.Disposed && d.ScanAttempts < ScanAttempts.Max)
@@ -52,8 +53,11 @@ internal sealed class DocumentRepository(DocumentsDbContext db) : IDocumentRepos
     public Task<string?> StoredBy(Guid id, CancellationToken cancellationToken) =>
         db.Documents.AsNoTracking().Where(d => d.Id == id).Select(d => EF.Property<string>(d, BuildingBlocks.Infrastructure.Persistence.ModuleDbContext.CreatedBy)).SingleOrDefaultAsync(cancellationToken);
 
-    public Task<Document?> Get(Guid id, CancellationToken cancellationToken) =>
-        db.Documents.Include(d => d.Deliveries).Include(d => d.Holds).SingleOrDefaultAsync(d => d.Id == id, cancellationToken);
+    /// <summary>F103 (scope batch 4): a document attached to a scoped record within the caller's scope only; outside it, not found on a read and refused on a change.</summary>
+    public async Task<Document?> Get(Guid id, CancellationToken cancellationToken) =>
+        await db.Documents.Include(d => d.Deliveries).Include(d => d.Holds).SingleOrDefaultAsync(d => d.Id == id, cancellationToken) is { } document
+            ? document.IsScoped ? BuildingBlocks.Application.Context.AccessScopeChecks.InScope(execution, document, document.ProductCode, document.OrgNodeCode) : document
+            : null;
 
     public async Task<Document?> WithHold(Guid holdId, CancellationToken cancellationToken) =>
         await db.Set<LegalHold>().AsNoTracking().Where(h => h.Id == holdId).Select(h => (Guid?)h.ScopeId).SingleOrDefaultAsync(cancellationToken) is { } documentId
@@ -62,7 +66,12 @@ internal sealed class DocumentRepository(DocumentsDbContext db) : IDocumentRepos
 
     public async Task<IReadOnlyList<Document>> ForBusinessRef(string businessRefType, Guid businessRefId, CancellationToken cancellationToken) =>
         await db.Documents.AsNoTracking().Include(d => d.Deliveries).Include(d => d.Holds)
-            .Where(d => d.BusinessRefType == businessRefType && d.BusinessRefId == businessRefId).OrderBy(d => d.Id).ToListAsync(cancellationToken);
+            .Where(d => d.BusinessRefType == businessRefType && d.BusinessRefId == businessRefId)
+            .Where(d => !d.IsScoped || InScopeIds.Contains(d.Id)).OrderBy(d => d.Id).ToListAsync(cancellationToken);
+
+    /// <summary>The scoped documents the caller's scope allows, in the query so the list holds (F103).</summary>
+    private IQueryable<Guid> InScopeIds =>
+        db.Documents.AsNoTracking().Where(d => d.IsScoped).InScope(execution.CurrentScope, d => d.ProductCode, d => d.OrgNodeCode).Select(d => d.Id);
 
     public void Add(Document document) => db.Documents.Add(document);
 

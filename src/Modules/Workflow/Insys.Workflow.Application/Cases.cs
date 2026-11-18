@@ -529,7 +529,7 @@ public sealed class CaseOpening(ICaseRepository cases, ICaseConfiguration config
                 taskType => route(taskType) is var r && r.QueueCode == UnroutedQueue && type.DefaultQueueCode is { } queue ? r with { QueueCode = queue } : r, now);
             if (process.IsSuccess)
             {
-                processes.Add(process.Value);
+                await processes.Add(process.Value, cancellationToken);
                 serviceCase.RunBy(process.Value.Id);
             }
         }

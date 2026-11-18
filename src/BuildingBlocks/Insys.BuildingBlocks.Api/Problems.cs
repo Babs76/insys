@@ -134,14 +134,25 @@ public static class StandardProblems
 /// Localises a ProblemDetails from the message catalogue (docs/specs/addenda/localisation.md §4, OQ-068): the title by
 /// the error code's message_key and the request's fallback chain; the detail only where the catalogue has one in the
 /// same language, else the server's English detail is kept and marked detailLanguage "en". The code never changes.
-/// Content-Language is the title's language; without catalogue text the built-in English stays.
+/// Content-Language is the title's language; without catalogue text the English stays: the error catalogue's meaning for a worded code, else the
+/// built-in title of its kind.
 /// </summary>
 public static class ProblemLocalisation
 {
     public static void Apply(HttpContext http, ProblemDetails problem)
     {
-        if (http.RequestServices.GetService<RequestLanguage>() is not { } request
-            || !problem.Extensions.TryGetValue("code", out var value) || value is not string code)
+        if (!problem.Extensions.TryGetValue("code", out var value) || value is not string code)
+        {
+            return;
+        }
+
+        // A worded code's English title is the catalogue's meaning, not its kind's generic title (Ade, 18 November); a localised title still wins.
+        if (http.RequestServices.GetService<Application.IErrorCatalogue>()?.Find(code)?.Means is { Length: > 0 } means)
+        {
+            problem.Title = means;
+        }
+
+        if (http.RequestServices.GetService<RequestLanguage>() is not { } request)
         {
             return;
         }

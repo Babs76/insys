@@ -136,3 +136,25 @@ What the development scanner does:
 - It needs each document uploaded by the caller, else 403 `ASSIST_NOT_UPLOADER`: upload it again as yourself.
 - Its category mustn't be PERSONAL or HIGHLY_SENSITIVE, else 422 `ASSIST_DOCUMENT_NOT_ALLOWED`.
 
+## 7. The stand-in model, so live runs prove AI-1 and AI-2 (BR-147, widened to AI-1)
+With `Assist:Provider` set to `none`, every AI-1 run and AI-2 explanation answers `UNAVAILABLE`. For the live runner's back end, set:
+- `ASPNETCORE_ENVIRONMENT=Development`, as in §6;
+- `Assist__Provider=development`.
+
+The stand-in model calls nothing and always answers the same way. INSYS sends its answers through every check it applies to a real model's.
+- **AI-2:** a fixed explanation made of the facts INSYS sent, starting "Development stand-in, not a model's answer". Every number in it is in the facts, so the verifier passes it and the explanation is `EXPLAINED`. This holds for refusals and premiums.
+- **AI-1:** upload the published test document **`docs/frontend/ai1-sample-product.pdf`**, from the back end's repository through the mirror. Upload it as the user who will start the run (only the uploader confirms it), under a category that isn't PERSONAL or HIGHLY_SENSITIVE. Once its scan clears, start a run with it. The run ends `DRAFTED`, version 2 of the product, with:
+  - `version.name` **Found**, "Sample Funeral Plan", quoted as "Product name: Sample Funeral Plan", and written into the Draft;
+  - `version.coverStartsOn` **Interpreted** (FirstPayment), a cited proposal not in the Draft;
+  - `version.coverages` **Missing**;
+  - a cited proposal for `rating.cfg_premium_bounds` ("The monthly premium is at least R45.00");
+  - the rate table from page 2, checked cell for cell (`PASSED`);
+  - a rule in plain words and an uncited simulation case.
+  - Any other document gets no proposals, so its required fields are Missing.
+- **It can't be used in production**, guarded exactly like the development scanner (§6):
+  - the API refuses to start with `Assist:Provider=development` outside Development and Testing;
+  - the stand-in can't be made there;
+  - the Helm chart sets `Assist__Provider` to `none` or `claude` only, and refuses to render with any other value;
+  - `DevelopmentScannerTests` and CI's deployment job prove each.
+- Tests: `AssistProductDraftTests.TheStandInModel_DraftsThePublishedTestDocument_ThroughEveryCheck_BR147` and `AssistExplanationTests.TheStandInModel_ExplainsARefusalAndAPremium_AndBothPassTheVerifier_BR147`.
+
