@@ -567,6 +567,9 @@ The first of the five fix batches from the scope sweeps (`docs/reviews/read-scop
   - `WorkflowTests`: the coverage of every type; the fail-closed and product-version scoping through a real `ApprovalRequested`; product-only and unresolved approvals; deciding by the approve scope.
   - `WriteScopeTests`: 6 tests, one per write group.
 
+### Scope batch 2 (18 November 2026, branch `scope-batch-2`)
+The second of the five fix batches (the read sweep's order, Ade): the Health accumulators. `GetAccumulatorsHandler` loads the membership through the scoped `IHealthRepository.Membership` first, so a membership outside the caller's scope isn't found (404). Test: `ReadScopeTests`, which fails without the fix (checked by undoing it).
+
 ### Wave 7: the plan to 7.8, in the D-8 order (15 November 2026)
 **What it's based on:** 7.1 was estimated at 8 to 10 days and took about half a day (its commits run from 09:54 to 12:23 on 2 November, review fixes included); 7.2 (6 to 8 days) was built in one session on 15 November. One engineer here is an AI session, so build time is far below the estimates, and the dates are set by CI (about 45 minutes a run), review and what waits on Ade. Building is planned at about a quarter of the estimate, rounded up, which is cautious against two batches. **Dates are working days and assume each item marked "Ade" arrives by the date shown; a late one moves that batch, not the build of the others.**
 
