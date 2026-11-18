@@ -2,7 +2,7 @@
   "description": "AI-2 evaluation set (ai-assist.md \u00A76): the error catalogue\u0027s worded refusals and the sample tenant\u0027s product premiums. Sample data only; the rates are invented.",
   "refusals": [
     {
-      "id": "R-001",
+      "id": "R-ACCESS_WINDOW_TOO_LONG",
       "code": "ACCESS_WINDOW_TOO_LONG",
       "retryable": false,
       "means": "Privileged access is granted for a limited time, and the period asked for is longer than allowed.",
@@ -10,7 +10,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-002",
+      "id": "R-APPROVAL_AUTHORITY_EXCEEDED",
       "code": "APPROVAL_AUTHORITY_EXCEEDED",
       "retryable": false,
       "means": "The amount is above the limit of your approval authority.",
@@ -18,7 +18,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-003",
+      "id": "R-APPROVAL_AUTHORITY_MISSING",
       "code": "APPROVAL_AUTHORITY_MISSING",
       "retryable": false,
       "means": "None of your roles has approval authority for this type of approval.",
@@ -26,7 +26,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-004",
+      "id": "R-APPROVAL_NOT_REQUESTER",
       "code": "APPROVAL_NOT_REQUESTER",
       "retryable": false,
       "means": "Only the person who asked for this approval can withdraw it.",
@@ -34,7 +34,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-005",
+      "id": "R-ASSIST_CONFIRMATION_REQUIRED",
       "code": "ASSIST_CONFIRMATION_REQUIRED",
       "retryable": false,
       "means": "Each document needs your confirmation that it holds no customer personal data before AI-1 reads it.",
@@ -42,7 +42,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-006",
+      "id": "R-ASSIST_CONFIRMATION_STALE",
       "code": "ASSIST_CONFIRMATION_STALE",
       "retryable": false,
       "means": "A document\u0027s content changed after you confirmed it, so the run didn\u0027t read it.",
@@ -50,7 +50,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-007",
+      "id": "R-ASSIST_DOCUMENT_IDENTIFIERS",
       "code": "ASSIST_DOCUMENT_IDENTIFIERS",
       "retryable": false,
       "means": "A document holds an obvious identifier, such as an email address, an ID number or a bank account number, so AI-1 refused it and sent nothing. The run lists the kind of identifier and the page.",
@@ -58,7 +58,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-008",
+      "id": "R-ASSIST_DOCUMENT_NOT_ALLOWED",
       "code": "ASSIST_DOCUMENT_NOT_ALLOWED",
       "retryable": false,
       "means": "A document isn\u0027t one AI-1 reads: a run takes 1 to 10 different documents, each a PDF, DOCX or XLSX file of at most 20 MB, filed under a category that holds no personal data.",
@@ -66,7 +66,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-009",
+      "id": "R-ASSIST_NOT_UPLOADER",
       "code": "ASSIST_NOT_UPLOADER",
       "retryable": false,
       "means": "Only the user who uploaded a document can confirm it holds no customer personal data, and someone else uploaded this one.",
@@ -74,7 +74,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-010",
+      "id": "R-ASSIST_PACK_CHANGED",
       "code": "ASSIST_PACK_CHANGED",
       "retryable": false,
       "means": "The approval was for different content from the version as it now stands.",
@@ -82,7 +82,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-011",
+      "id": "R-ASSIST_PACK_NOT_APPROVED",
       "code": "ASSIST_PACK_NOT_APPROVED",
       "retryable": false,
       "means": "A regulated value can come only from an overlay version that has been approved for your tenant, and this one hasn\u0027t been.",
@@ -90,7 +90,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-012",
+      "id": "R-ASSIST_PACK_NOT_NEWEST",
       "code": "ASSIST_PACK_NOT_NEWEST",
       "retryable": false,
       "means": "Only a pack\u0027s newest version can be approved, so that a correction isn\u0027t overtaken by the version it corrects.",
@@ -98,7 +98,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-013",
+      "id": "R-ASSIST_REGION_NOT_SUPPORTED",
       "code": "ASSIST_REGION_NOT_SUPPORTED",
       "retryable": false,
       "means": "The region your settings name for AI inference isn\u0027t one the AI provider can run in, so no explanation is asked for.",
@@ -106,7 +106,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-014",
+      "id": "R-ASSIST_RESIDENCY_MISMATCH",
       "code": "ASSIST_RESIDENCY_MISMATCH",
       "retryable": false,
       "means": "The AI provider said it answered from outside your tenant\u0027s inference region, so nothing it returned was used.",
@@ -114,7 +114,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-015",
+      "id": "R-ASSIST_RUN_EXPIRED",
       "code": "ASSIST_RUN_EXPIRED",
       "retryable": false,
       "means": "The run waited more than an hour to start, so its confirmations are no longer relied on.",
@@ -122,7 +122,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-016",
+      "id": "R-ASSIST_RUN_STALLED",
       "code": "ASSIST_RUN_STALLED",
       "retryable": false,
       "means": "The run was interrupted part way and isn\u0027t resumed.",
@@ -130,7 +130,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-017",
+      "id": "R-ASSIST_SETUP_NOT_READY",
       "code": "ASSIST_SETUP_NOT_READY",
       "retryable": false,
       "means": "The setup can\u0027t be submitted yet: a value is missing or undecided, a regulated value isn\u0027t from an overlay approved for your tenant, or a table refuses a value.",
@@ -138,7 +138,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-018",
+      "id": "R-ASSIST_SOURCE_TOO_LARGE",
       "code": "ASSIST_SOURCE_TOO_LARGE",
       "retryable": false,
       "means": "The documents hold more than AI-1 reads in one run: a file that expands too far, a sheet that is too large, or too much text in total.",
@@ -146,7 +146,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-019",
+      "id": "R-ASSIST_SOURCE_UNREADABLE",
       "code": "ASSIST_SOURCE_UNREADABLE",
       "retryable": false,
       "means": "A document couldn\u0027t be read: the file couldn\u0027t be opened, or none of its pages has text, such as a scanned image.",
@@ -154,7 +154,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-020",
+      "id": "R-ASSIST_TENANT_LIVE",
       "code": "ASSIST_TENANT_LIVE",
       "retryable": false,
       "means": "A tenant\u0027s own overlay is loaded only while the tenant is onboarding, and this one is live.",
@@ -162,7 +162,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-021",
+      "id": "R-ASSIST_USER_CANNOT_ACT",
       "code": "ASSIST_USER_CANNOT_ACT",
       "retryable": false,
       "means": "The run stopped without writing anything, because you can no longer do what it does for you: your account or your roles changed after you started it.",
@@ -170,7 +170,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-022",
+      "id": "R-CALLBACK_REPLAYED",
       "code": "CALLBACK_REPLAYED",
       "retryable": false,
       "means": "This callback was already received.",
@@ -178,7 +178,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-023",
+      "id": "R-CALLBACK_SIGNATURE_INVALID",
       "code": "CALLBACK_SIGNATURE_INVALID",
       "retryable": false,
       "means": "A provider\u0027s callback wasn\u0027t accepted, as its signature, key, timestamp or token isn\u0027t valid.",
@@ -186,7 +186,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-024",
+      "id": "R-CHANNEL_APPROVAL_REQUIRED",
       "code": "CHANNEL_APPROVAL_REQUIRED",
       "retryable": false,
       "means": "The channel requires an approval for this transaction, and the transaction has no approval step.",
@@ -194,7 +194,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-025",
+      "id": "R-CHANNEL_NOT_ALLOWED",
       "code": "CHANNEL_NOT_ALLOWED",
       "retryable": false,
       "means": "Your roles may not make this transaction, for this product, on this channel.",
@@ -202,7 +202,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-026",
+      "id": "R-CHANNEL_NOT_ENABLED",
       "code": "CHANNEL_NOT_ENABLED",
       "retryable": false,
       "means": "The application you\u0027re using isn\u0027t on a channel your organisation has enabled for this.",
@@ -210,7 +210,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-027",
+      "id": "R-CLAIM_EVENT_DATE_IN_FUTURE",
       "code": "CLAIM_EVENT_DATE_IN_FUTURE",
       "retryable": false,
       "means": "The claim\u0027s event date is after today\u0027s business date.",
@@ -218,7 +218,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-028",
+      "id": "R-CONCURRENCY_CONFLICT",
       "code": "CONCURRENCY_CONFLICT",
       "retryable": true,
       "means": "Someone else changed the record at the same moment.",
@@ -226,7 +226,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-029",
+      "id": "R-CURRENCY_MISMATCH",
       "code": "CURRENCY_MISMATCH",
       "retryable": false,
       "means": "The amounts are in different currencies, which this action doesn\u0027t allow.",
@@ -234,7 +234,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-030",
+      "id": "R-DATABASE_BUSY",
       "code": "DATABASE_BUSY",
       "retryable": true,
       "means": "The service is too busy to take the request just now.",
@@ -242,7 +242,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-031",
+      "id": "R-DATABASE_RULE_VIOLATED",
       "code": "DATABASE_RULE_VIOLATED",
       "retryable": false,
       "means": "The change breaks a rule the records must always keep.",
@@ -250,7 +250,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-032",
+      "id": "R-DISCLOSURE_REQUIRED",
       "code": "DISCLOSURE_REQUIRED",
       "retryable": false,
       "means": "A mandatory notice hasn\u0027t been acknowledged at this point of the process.",
@@ -258,7 +258,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-033",
+      "id": "R-DOCUMENT_QUARANTINED",
       "code": "DOCUMENT_QUARANTINED",
       "retryable": false,
       "means": "The uploaded file is held until a malware scan clears it, or it failed the scan.",
@@ -266,7 +266,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-034",
+      "id": "R-DOMAIN_VALIDATION_FAILED",
       "code": "DOMAIN_VALIDATION_FAILED",
       "retryable": false,
       "means": "The record doesn\u0027t pass the checks this step of the process requires.",
@@ -274,7 +274,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-035",
+      "id": "R-DUE_DILIGENCE_NOT_CLEARED",
       "code": "DUE_DILIGENCE_NOT_CLEARED",
       "retryable": false,
       "means": "The party hasn\u0027t been cleared by customer due diligence for this step, so INSYS won\u0027t go on with it.",
@@ -282,7 +282,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-036",
+      "id": "R-DUPLICATE_RECORD",
       "code": "DUPLICATE_RECORD",
       "retryable": false,
       "means": "A record with the same identifying values already exists.",
@@ -290,7 +290,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-037",
+      "id": "R-EXTERNAL_USER_NOT_ALLOWED",
       "code": "EXTERNAL_USER_NOT_ALLOWED",
       "retryable": false,
       "means": "Portal users can use only their own portal\u0027s functions.",
@@ -298,7 +298,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-038",
+      "id": "R-FEATURE_NOT_ENTITLED",
       "code": "FEATURE_NOT_ENTITLED",
       "retryable": false,
       "means": "Your organisation isn\u0027t entitled to the feature this action belongs to.",
@@ -306,7 +306,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-039",
+      "id": "R-FORBIDDEN",
       "code": "FORBIDDEN",
       "retryable": false,
       "means": "You aren\u0027t allowed to do this.",
@@ -314,7 +314,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-040",
+      "id": "R-FUNCTION_DISABLED",
       "code": "FUNCTION_DISABLED",
       "retryable": false,
       "means": "This action is switched off for your organisation, or isn\u0027t available on the platform.",
@@ -322,7 +322,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-041",
+      "id": "R-FUNCTION_NOT_GRANTED",
       "code": "FUNCTION_NOT_GRANTED",
       "retryable": false,
       "means": "None of your roles in force grants this action.",
@@ -330,7 +330,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-042",
+      "id": "R-GOVERNANCE_CHANGE_PENDING",
       "code": "GOVERNANCE_CHANGE_PENDING",
       "retryable": false,
       "means": "A change to how static data is approved is already waiting for a decision.",
@@ -338,7 +338,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-043",
+      "id": "R-IDEMPOTENCY_IN_PROGRESS",
       "code": "IDEMPOTENCY_IN_PROGRESS",
       "retryable": true,
       "means": "The same request is still being processed.",
@@ -346,7 +346,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-044",
+      "id": "R-IDEMPOTENCY_KEY_REQUIRED",
       "code": "IDEMPOTENCY_KEY_REQUIRED",
       "retryable": false,
       "means": "The request was sent without the key that stops it being made twice.",
@@ -354,7 +354,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-045",
+      "id": "R-IDEMPOTENCY_KEY_REUSED",
       "code": "IDEMPOTENCY_KEY_REUSED",
       "retryable": false,
       "means": "The request\u0027s key was already used for a different request.",
@@ -362,7 +362,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-046",
+      "id": "R-IDEMPOTENCY_RESPONSE_NOT_KEPT",
       "code": "IDEMPOTENCY_RESPONSE_NOT_KEPT",
       "retryable": false,
       "means": "A repeat of a request whose answer showed a secret once: the secret isn\u0027t kept, so it can\u0027t be shown again.",
@@ -370,7 +370,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-047",
+      "id": "R-IDENTITY_NOT_LINKED",
       "code": "IDENTITY_NOT_LINKED",
       "retryable": true,
       "means": "Your sign-in identity is still being set up.",
@@ -378,7 +378,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-048",
+      "id": "R-INTERNAL_ERROR",
       "code": "INTERNAL_ERROR",
       "retryable": true,
       "means": "Something went wrong inside INSYS, not with what you entered.",
@@ -386,7 +386,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-049",
+      "id": "R-INVALID_STATE_TRANSITION",
       "code": "INVALID_STATE_TRANSITION",
       "retryable": false,
       "means": "The record isn\u0027t in a state that allows this action: it has already moved on, or hasn\u0027t reached the step yet.",
@@ -394,7 +394,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-050",
+      "id": "R-LINK_SUBJECT_NOT_FOUND",
       "code": "LINK_SUBJECT_NOT_FOUND",
       "retryable": false,
       "means": "The customer, intermediary or provider to link the user to isn\u0027t in force, or the intermediary isn\u0027t active and licensed.",
@@ -402,7 +402,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-051",
+      "id": "R-MAKER_CHECKER_SAME_PERSON",
       "code": "MAKER_CHECKER_SAME_PERSON",
       "retryable": false,
       "means": "You made or requested this, and the same person can\u0027t also approve it.",
@@ -410,7 +410,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-052",
+      "id": "R-MFA_REQUIRED",
       "code": "MFA_REQUIRED",
       "retryable": false,
       "means": "This role is privileged and needs the user to be enrolled for a second factor.",
@@ -418,7 +418,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-053",
+      "id": "R-NOTHING_TO_REVIEW",
       "code": "NOTHING_TO_REVIEW",
       "retryable": false,
       "means": "No role assignments fall in the scope of this access review.",
@@ -426,7 +426,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-054",
+      "id": "R-NOT_FOUND",
       "code": "NOT_FOUND",
       "retryable": false,
       "means": "The record wasn\u0027t found, or you aren\u0027t allowed to see it.",
@@ -434,7 +434,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-055",
+      "id": "R-NOT_READY",
       "code": "NOT_READY",
       "retryable": true,
       "means": "The service is starting up.",
@@ -442,7 +442,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-056",
+      "id": "R-OPERATOR_TENANT_NOT_BUSINESS",
       "code": "OPERATOR_TENANT_NOT_BUSINESS",
       "retryable": false,
       "means": "The platform operator\u0027s organisation holds no business records, so this action isn\u0027t available there.",
@@ -450,7 +450,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-057",
+      "id": "R-OUT_OF_SCOPE",
       "code": "OUT_OF_SCOPE",
       "retryable": false,
       "means": "The record is outside the products or organisation units your role covers.",
@@ -458,7 +458,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-058",
+      "id": "R-PORTAL_MFA_REQUIRED",
       "code": "PORTAL_MFA_REQUIRED",
       "retryable": false,
       "means": "This portal needs a second factor, and your sign-in didn\u0027t include one.",
@@ -466,7 +466,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-059",
+      "id": "R-PORTAL_UNDER_REVIEW",
       "code": "PORTAL_UNDER_REVIEW",
       "retryable": false,
       "means": "The step waits on a review of the customer\u0027s details.",
@@ -474,7 +474,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-060",
+      "id": "R-PRECONDITION_FAILED",
       "code": "PRECONDITION_FAILED",
       "retryable": false,
       "means": "The record changed after you opened it, so your change wasn\u0027t saved.",
@@ -482,7 +482,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-061",
+      "id": "R-PRECONDITION_REQUIRED",
       "code": "PRECONDITION_REQUIRED",
       "retryable": false,
       "means": "The change needs the version of the record it\u0027s made on.",
@@ -490,7 +490,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-062",
+      "id": "R-PROCESS_NOT_RUNNING",
       "code": "PROCESS_NOT_RUNNING",
       "retryable": false,
       "means": "The process has already ended or hasn\u0027t started, so it can\u0027t move on.",
@@ -498,7 +498,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-063",
+      "id": "R-RATE_LIMITED",
       "code": "RATE_LIMITED",
       "retryable": true,
       "means": "Too many requests in a short time.",
@@ -506,7 +506,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-064",
+      "id": "R-REVIEW_INCOMPLETE",
       "code": "REVIEW_INCOMPLETE",
       "retryable": false,
       "means": "Every item must be confirmed or revoked before the review completes.",
@@ -514,7 +514,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-065",
+      "id": "R-ROLE_ALREADY_ASSIGNED",
       "code": "ROLE_ALREADY_ASSIGNED",
       "retryable": false,
       "means": "The user already holds this role, or its assignment is waiting for approval.",
@@ -522,7 +522,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-066",
+      "id": "R-ROLE_NOT_ASSIGNED",
       "code": "ROLE_NOT_ASSIGNED",
       "retryable": false,
       "means": "The user doesn\u0027t hold this role.",
@@ -530,7 +530,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-067",
+      "id": "R-ROLE_NOT_FOUND",
       "code": "ROLE_NOT_FOUND",
       "retryable": false,
       "means": "The role has no version in force.",
@@ -538,7 +538,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-068",
+      "id": "R-SEGREGATION_OF_DUTIES",
       "code": "SEGREGATION_OF_DUTIES",
       "retryable": false,
       "means": "The role would give the user two duties your organisation keeps apart, such as preparing and releasing the same payment.",
@@ -546,7 +546,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-069",
+      "id": "R-SETUP_TENANT_LIVE",
       "code": "SETUP_TENANT_LIVE",
       "retryable": false,
       "means": "A setup change set is abandoned only while the organisation is being onboarded, and this one is live.",
@@ -554,7 +554,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-070",
+      "id": "R-STATIC_DRAFT_EXISTS",
       "code": "STATIC_DRAFT_EXISTS",
       "retryable": false,
       "means": "This code already has a version in progress.",
@@ -562,7 +562,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-071",
+      "id": "R-STATIC_IMPORT_REJECTED",
       "code": "STATIC_IMPORT_REJECTED",
       "retryable": false,
       "means": "Some lines of the import have errors, so nothing was saved.",
@@ -570,7 +570,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-072",
+      "id": "R-STATIC_MAKER_ONLY",
       "code": "STATIC_MAKER_ONLY",
       "retryable": false,
       "means": "Only the person who created the draft can change it, so who made the change stays known.",
@@ -578,7 +578,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-073",
+      "id": "R-STATIC_RETROACTIVE_CHANGE",
       "code": "STATIC_RETROACTIVE_CHANGE",
       "retryable": false,
       "means": "The new version would start before the version now in force starts.",
@@ -586,7 +586,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-074",
+      "id": "R-STATIC_SCOPE_NOT_ALLOWED",
       "code": "STATIC_SCOPE_NOT_ALLOWED",
       "retryable": false,
       "means": "The change is at a scope this table doesn\u0027t allow: some tables hold only an organisation\u0027s own rows, others only platform-wide rows.",
@@ -594,7 +594,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-075",
+      "id": "R-STATIC_USER_REQUIRED",
       "code": "STATIC_USER_REQUIRED",
       "retryable": false,
       "means": "Static data changes are made by identified people, for maker-checker.",
@@ -602,7 +602,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-076",
+      "id": "R-SUBJECT_LINK_EXISTS",
       "code": "SUBJECT_LINK_EXISTS",
       "retryable": false,
       "means": "The user already has a portal link pending or in effect.",
@@ -610,7 +610,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-077",
+      "id": "R-SUBJECT_LINK_NOT_FOUND",
       "code": "SUBJECT_LINK_NOT_FOUND",
       "retryable": false,
       "means": "The user has no portal link pending or in effect.",
@@ -618,7 +618,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-078",
+      "id": "R-TASK_CLOSED_BY_ITS_RECORD",
       "code": "TASK_CLOSED_BY_ITS_RECORD",
       "retryable": false,
       "means": "This task closes by itself when its record does what the task asks; it can\u0027t be closed by hand.",
@@ -626,7 +626,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-079",
+      "id": "R-TENANT_CONTEXT_MISSING",
       "code": "TENANT_CONTEXT_MISSING",
       "retryable": false,
       "means": "The request didn\u0027t say which organisation it\u0027s for.",
@@ -634,7 +634,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-080",
+      "id": "R-TENANT_HAS_USERS",
       "code": "TENANT_HAS_USERS",
       "retryable": false,
       "means": "The organisation already has users, so first administrators can\u0027t be set up again.",
@@ -642,7 +642,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-081",
+      "id": "R-TENANT_NOT_ACTIVE",
       "code": "TENANT_NOT_ACTIVE",
       "retryable": false,
       "means": "Your organisation is still being set up, so business actions aren\u0027t open yet.",
@@ -650,7 +650,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-082",
+      "id": "R-TENANT_NOT_ONBOARDING",
       "code": "TENANT_NOT_ONBOARDING",
       "retryable": false,
       "means": "First administrators are set up only while the organisation is being onboarded.",
@@ -658,7 +658,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-083",
+      "id": "R-TRANSITION_GUARD_FAILED",
       "code": "TRANSITION_GUARD_FAILED",
       "retryable": false,
       "means": "The condition for moving the process to that step doesn\u0027t hold yet.",
@@ -666,7 +666,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-084",
+      "id": "R-TRANSITION_NOT_DEFINED",
       "code": "TRANSITION_NOT_DEFINED",
       "retryable": false,
       "means": "The process doesn\u0027t allow a move from its current step to the one asked for.",
@@ -674,7 +674,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-085",
+      "id": "R-UNAUTHENTICATED",
       "code": "UNAUTHENTICATED",
       "retryable": false,
       "means": "You aren\u0027t signed in, or your sign-in has expired.",
@@ -682,7 +682,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-086",
+      "id": "R-USERNAME_TAKEN",
       "code": "USERNAME_TAKEN",
       "retryable": false,
       "means": "The username is already in use.",
@@ -690,7 +690,7 @@
       "fieldsInError": 0
     },
     {
-      "id": "R-087",
+      "id": "R-VALIDATION_FAILED",
       "code": "VALIDATION_FAILED",
       "retryable": false,
       "means": "The request is missing a required value, or a value isn\u0027t in the form, range or state the action allows.",
@@ -698,7 +698,7 @@
       "fieldsInError": 2
     },
     {
-      "id": "R-088",
+      "id": "R-WORKFLOW_DEFINITION_INVALID",
       "code": "WORKFLOW_DEFINITION_INVALID",
       "retryable": false,
       "means": "The process definition isn\u0027t valid, so the process can\u0027t be run.",
@@ -708,7 +708,7 @@
   ],
   "calculations": [
     {
-      "id": "C-001",
+      "id": "C-OFT-MOTOR-G3-25000-NONE",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-MOTOR",
       "productVersion": 1,
@@ -746,7 +746,7 @@
       ]
     },
     {
-      "id": "C-002",
+      "id": "C-OFT-MOTOR-G3-50000-NONE",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-MOTOR",
       "productVersion": 1,
@@ -784,7 +784,7 @@
       ]
     },
     {
-      "id": "C-003",
+      "id": "C-OFT-MOTOR-G3-75000-NONE",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-MOTOR",
       "productVersion": 1,
@@ -822,7 +822,7 @@
       ]
     },
     {
-      "id": "C-004",
+      "id": "C-OFT-MOTOR-G3-100000-NONE",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-MOTOR",
       "productVersion": 1,
@@ -860,7 +860,7 @@
       ]
     },
     {
-      "id": "C-005",
+      "id": "C-OFT-MOTOR-G3-150000-NONE",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-MOTOR",
       "productVersion": 1,
@@ -898,7 +898,7 @@
       ]
     },
     {
-      "id": "C-006",
+      "id": "C-OFT-MOTOR-G3-200000-NONE",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-MOTOR",
       "productVersion": 1,
@@ -936,7 +936,7 @@
       ]
     },
     {
-      "id": "C-007",
+      "id": "C-OFT-MOTOR-G3-250000-NONE",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-MOTOR",
       "productVersion": 1,
@@ -974,7 +974,7 @@
       ]
     },
     {
-      "id": "C-008",
+      "id": "C-OFT-MOTOR-G3-350000-NONE",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-MOTOR",
       "productVersion": 1,
@@ -1012,7 +1012,7 @@
       ]
     },
     {
-      "id": "C-009",
+      "id": "C-OFT-HOME-BRICK-250000-NONE",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-HOME",
       "productVersion": 1,
@@ -1063,7 +1063,7 @@
       ]
     },
     {
-      "id": "C-010",
+      "id": "C-OFT-HOME-BRICK-250000-OFT-HOM-NCD",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-HOME",
       "productVersion": 1,
@@ -1121,7 +1121,7 @@
       ]
     },
     {
-      "id": "C-011",
+      "id": "C-OFT-HOME-BRICK-250000-OFT-HOM-FLOOD",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-HOME",
       "productVersion": 1,
@@ -1179,7 +1179,7 @@
       ]
     },
     {
-      "id": "C-012",
+      "id": "C-OFT-HOME-BRICK-250000-OFT-HOM-NCD\u002BOFT-HOM-FLOOD",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-HOME",
       "productVersion": 1,
@@ -1244,7 +1244,7 @@
       ]
     },
     {
-      "id": "C-013",
+      "id": "C-OFT-HOME-BRICK-500000-NONE",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-HOME",
       "productVersion": 1,
@@ -1289,7 +1289,7 @@
       ]
     },
     {
-      "id": "C-014",
+      "id": "C-OFT-HOME-BRICK-500000-OFT-HOM-NCD",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-HOME",
       "productVersion": 1,
@@ -1341,7 +1341,7 @@
       ]
     },
     {
-      "id": "C-015",
+      "id": "C-OFT-HOME-BRICK-500000-OFT-HOM-FLOOD",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-HOME",
       "productVersion": 1,
@@ -1393,7 +1393,7 @@
       ]
     },
     {
-      "id": "C-016",
+      "id": "C-OFT-HOME-BRICK-500000-OFT-HOM-NCD\u002BOFT-HOM-FLOOD",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-HOME",
       "productVersion": 1,
@@ -1452,7 +1452,7 @@
       ]
     },
     {
-      "id": "C-017",
+      "id": "C-OFT-HOME-BRICK-1000000-NONE",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-HOME",
       "productVersion": 1,
@@ -1497,7 +1497,7 @@
       ]
     },
     {
-      "id": "C-018",
+      "id": "C-OFT-HOME-BRICK-1000000-OFT-HOM-NCD",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-HOME",
       "productVersion": 1,
@@ -1549,7 +1549,7 @@
       ]
     },
     {
-      "id": "C-019",
+      "id": "C-OFT-HOME-BRICK-1000000-OFT-HOM-FLOOD",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-HOME",
       "productVersion": 1,
@@ -1601,7 +1601,7 @@
       ]
     },
     {
-      "id": "C-020",
+      "id": "C-OFT-HOME-BRICK-1000000-OFT-HOM-NCD\u002BOFT-HOM-FLOOD",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-HOME",
       "productVersion": 1,
@@ -1660,7 +1660,7 @@
       ]
     },
     {
-      "id": "C-021",
+      "id": "C-OFT-HOME-BRICK-1500000-NONE",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-HOME",
       "productVersion": 1,
@@ -1705,7 +1705,7 @@
       ]
     },
     {
-      "id": "C-022",
+      "id": "C-OFT-HOME-BRICK-1500000-OFT-HOM-NCD",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-HOME",
       "productVersion": 1,
@@ -1757,7 +1757,7 @@
       ]
     },
     {
-      "id": "C-023",
+      "id": "C-OFT-HOME-BRICK-1500000-OFT-HOM-FLOOD",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-HOME",
       "productVersion": 1,
@@ -1809,7 +1809,7 @@
       ]
     },
     {
-      "id": "C-024",
+      "id": "C-OFT-HOME-BRICK-1500000-OFT-HOM-NCD\u002BOFT-HOM-FLOOD",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-HOME",
       "productVersion": 1,
@@ -1868,7 +1868,7 @@
       ]
     },
     {
-      "id": "C-025",
+      "id": "C-OFT-HOME-BRICK-2000000-NONE",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-HOME",
       "productVersion": 1,
@@ -1913,7 +1913,7 @@
       ]
     },
     {
-      "id": "C-026",
+      "id": "C-OFT-HOME-BRICK-2000000-OFT-HOM-NCD",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-HOME",
       "productVersion": 1,
@@ -1965,7 +1965,7 @@
       ]
     },
     {
-      "id": "C-027",
+      "id": "C-OFT-HOME-BRICK-2000000-OFT-HOM-FLOOD",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-HOME",
       "productVersion": 1,
@@ -2017,7 +2017,7 @@
       ]
     },
     {
-      "id": "C-028",
+      "id": "C-OFT-HOME-BRICK-2000000-OFT-HOM-NCD\u002BOFT-HOM-FLOOD",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-HOME",
       "productVersion": 1,
@@ -2076,7 +2076,7 @@
       ]
     },
     {
-      "id": "C-029",
+      "id": "C-OFT-HOME-THATCH-250000-NONE",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-HOME",
       "productVersion": 1,
@@ -2121,7 +2121,7 @@
       ]
     },
     {
-      "id": "C-030",
+      "id": "C-OFT-HOME-THATCH-250000-OFT-HOM-NCD",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-HOME",
       "productVersion": 1,
@@ -2173,7 +2173,7 @@
       ]
     },
     {
-      "id": "C-031",
+      "id": "C-OFT-HOME-THATCH-250000-OFT-HOM-FLOOD",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-HOME",
       "productVersion": 1,
@@ -2225,7 +2225,7 @@
       ]
     },
     {
-      "id": "C-032",
+      "id": "C-OFT-HOME-THATCH-250000-OFT-HOM-NCD\u002BOFT-HOM-FLOOD",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-HOME",
       "productVersion": 1,
@@ -2284,7 +2284,7 @@
       ]
     },
     {
-      "id": "C-033",
+      "id": "C-OFT-HOME-THATCH-500000-NONE",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-HOME",
       "productVersion": 1,
@@ -2329,7 +2329,7 @@
       ]
     },
     {
-      "id": "C-034",
+      "id": "C-OFT-HOME-THATCH-500000-OFT-HOM-NCD",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-HOME",
       "productVersion": 1,
@@ -2381,7 +2381,7 @@
       ]
     },
     {
-      "id": "C-035",
+      "id": "C-OFT-HOME-THATCH-500000-OFT-HOM-FLOOD",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-HOME",
       "productVersion": 1,
@@ -2433,7 +2433,7 @@
       ]
     },
     {
-      "id": "C-036",
+      "id": "C-OFT-HOME-THATCH-500000-OFT-HOM-NCD\u002BOFT-HOM-FLOOD",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-HOME",
       "productVersion": 1,
@@ -2492,7 +2492,7 @@
       ]
     },
     {
-      "id": "C-037",
+      "id": "C-OFT-HOME-THATCH-1000000-NONE",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-HOME",
       "productVersion": 1,
@@ -2537,7 +2537,7 @@
       ]
     },
     {
-      "id": "C-038",
+      "id": "C-OFT-HOME-THATCH-1000000-OFT-HOM-NCD",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-HOME",
       "productVersion": 1,
@@ -2589,7 +2589,7 @@
       ]
     },
     {
-      "id": "C-039",
+      "id": "C-OFT-HOME-THATCH-1000000-OFT-HOM-FLOOD",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-HOME",
       "productVersion": 1,
@@ -2641,7 +2641,7 @@
       ]
     },
     {
-      "id": "C-040",
+      "id": "C-OFT-HOME-THATCH-1000000-OFT-HOM-NCD\u002BOFT-HOM-FLOOD",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-HOME",
       "productVersion": 1,
@@ -2700,7 +2700,7 @@
       ]
     },
     {
-      "id": "C-041",
+      "id": "C-OFT-HOME-THATCH-1500000-NONE",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-HOME",
       "productVersion": 1,
@@ -2745,7 +2745,7 @@
       ]
     },
     {
-      "id": "C-042",
+      "id": "C-OFT-HOME-THATCH-1500000-OFT-HOM-NCD",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-HOME",
       "productVersion": 1,
@@ -2797,7 +2797,7 @@
       ]
     },
     {
-      "id": "C-043",
+      "id": "C-OFT-HOME-THATCH-1500000-OFT-HOM-FLOOD",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-HOME",
       "productVersion": 1,
@@ -2855,7 +2855,7 @@
       ]
     },
     {
-      "id": "C-044",
+      "id": "C-OFT-HOME-THATCH-1500000-OFT-HOM-NCD\u002BOFT-HOM-FLOOD",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-HOME",
       "productVersion": 1,
@@ -2914,7 +2914,7 @@
       ]
     },
     {
-      "id": "C-045",
+      "id": "C-OFT-HOME-THATCH-2000000-NONE",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-HOME",
       "productVersion": 1,
@@ -2965,7 +2965,7 @@
       ]
     },
     {
-      "id": "C-046",
+      "id": "C-OFT-HOME-THATCH-2000000-OFT-HOM-NCD",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-HOME",
       "productVersion": 1,
@@ -3023,7 +3023,7 @@
       ]
     },
     {
-      "id": "C-047",
+      "id": "C-OFT-HOME-THATCH-2000000-OFT-HOM-FLOOD",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-HOME",
       "productVersion": 1,
@@ -3081,7 +3081,7 @@
       ]
     },
     {
-      "id": "C-048",
+      "id": "C-OFT-HOME-THATCH-2000000-OFT-HOM-NCD\u002BOFT-HOM-FLOOD",
       "sourceDomain": "GENERAL",
       "productCode": "OFT-HOME",
       "productVersion": 1,
@@ -3146,7 +3146,7 @@
       ]
     },
     {
-      "id": "C-049",
+      "id": "C-OFT-FUNERAL-18-40-10000-NONE",
       "sourceDomain": "LIFE",
       "productCode": "OFT-FUNERAL",
       "productVersion": 1,
@@ -3184,7 +3184,7 @@
       ]
     },
     {
-      "id": "C-050",
+      "id": "C-OFT-FUNERAL-18-40-20000-NONE",
       "sourceDomain": "LIFE",
       "productCode": "OFT-FUNERAL",
       "productVersion": 1,
@@ -3222,7 +3222,7 @@
       ]
     },
     {
-      "id": "C-051",
+      "id": "C-OFT-FUNERAL-18-40-30000-NONE",
       "sourceDomain": "LIFE",
       "productCode": "OFT-FUNERAL",
       "productVersion": 1,
@@ -3260,7 +3260,7 @@
       ]
     },
     {
-      "id": "C-052",
+      "id": "C-OFT-FUNERAL-18-40-50000-NONE",
       "sourceDomain": "LIFE",
       "productCode": "OFT-FUNERAL",
       "productVersion": 1,
@@ -3298,7 +3298,7 @@
       ]
     },
     {
-      "id": "C-053",
+      "id": "C-OFT-FUNERAL-41-65-10000-NONE",
       "sourceDomain": "LIFE",
       "productCode": "OFT-FUNERAL",
       "productVersion": 1,
@@ -3336,7 +3336,7 @@
       ]
     },
     {
-      "id": "C-054",
+      "id": "C-OFT-FUNERAL-41-65-20000-NONE",
       "sourceDomain": "LIFE",
       "productCode": "OFT-FUNERAL",
       "productVersion": 1,
@@ -3374,7 +3374,7 @@
       ]
     },
     {
-      "id": "C-055",
+      "id": "C-OFT-FUNERAL-41-65-30000-NONE",
       "sourceDomain": "LIFE",
       "productCode": "OFT-FUNERAL",
       "productVersion": 1,
@@ -3412,7 +3412,7 @@
       ]
     },
     {
-      "id": "C-056",
+      "id": "C-OFT-FUNERAL-41-65-50000-NONE",
       "sourceDomain": "LIFE",
       "productCode": "OFT-FUNERAL",
       "productVersion": 1,
@@ -3450,7 +3450,7 @@
       ]
     },
     {
-      "id": "C-057",
+      "id": "C-OFT-TERM-18-40-250000-NONE",
       "sourceDomain": "LIFE",
       "productCode": "OFT-TERM",
       "productVersion": 1,
@@ -3488,7 +3488,7 @@
       ]
     },
     {
-      "id": "C-058",
+      "id": "C-OFT-TERM-18-40-500000-NONE",
       "sourceDomain": "LIFE",
       "productCode": "OFT-TERM",
       "productVersion": 1,
@@ -3526,7 +3526,7 @@
       ]
     },
     {
-      "id": "C-059",
+      "id": "C-OFT-TERM-18-40-1000000-NONE",
       "sourceDomain": "LIFE",
       "productCode": "OFT-TERM",
       "productVersion": 1,
@@ -3564,7 +3564,7 @@
       ]
     },
     {
-      "id": "C-060",
+      "id": "C-OFT-TERM-41-65-250000-NONE",
       "sourceDomain": "LIFE",
       "productCode": "OFT-TERM",
       "productVersion": 1,
@@ -3602,7 +3602,7 @@
       ]
     },
     {
-      "id": "C-061",
+      "id": "C-OFT-TERM-41-65-500000-NONE",
       "sourceDomain": "LIFE",
       "productCode": "OFT-TERM",
       "productVersion": 1,
@@ -3640,7 +3640,7 @@
       ]
     },
     {
-      "id": "C-062",
+      "id": "C-OFT-TERM-41-65-1000000-NONE",
       "sourceDomain": "LIFE",
       "productCode": "OFT-TERM",
       "productVersion": 1,
@@ -3678,7 +3678,7 @@
       ]
     },
     {
-      "id": "C-063",
+      "id": "C-OFT-HEALTH-ESS-50000-NONE",
       "sourceDomain": "HEALTH",
       "productCode": "OFT-HEALTH",
       "productVersion": 1,
@@ -3716,7 +3716,7 @@
       ]
     },
     {
-      "id": "C-064",
+      "id": "C-OFT-HEALTH-ESS-100000-NONE",
       "sourceDomain": "HEALTH",
       "productCode": "OFT-HEALTH",
       "productVersion": 1,
@@ -3754,7 +3754,7 @@
       ]
     },
     {
-      "id": "C-065",
+      "id": "C-OFT-HEALTH-PLUS-50000-NONE",
       "sourceDomain": "HEALTH",
       "productCode": "OFT-HEALTH",
       "productVersion": 1,
@@ -3792,7 +3792,7 @@
       ]
     },
     {
-      "id": "C-066",
+      "id": "C-OFT-HEALTH-PLUS-100000-NONE",
       "sourceDomain": "HEALTH",
       "productCode": "OFT-HEALTH",
       "productVersion": 1,
