@@ -70,6 +70,35 @@ public sealed class ReadScopeTests(DatabaseFixture fixture) : IClassFixture<Data
         (await read.Json()).GetArrayLength().ShouldBe(1);
     }
 
+    /// <summary>Scope batch 3 (read sweep, Party's policy export): an export holds only the policies its reader's scope allows, filtered in the query.</summary>
+    [Fact]
+    public async Task APolicyExport_HoldsOnlyThePoliciesItsReadersScopeAllows_F103()
+    {
+        var suffix = Random.Shared.Next(100_000, 999_999);
+        var (inside, outside) = ($"RI{suffix}", $"RO{suffix}");
+        await _rows.Insert(T, "general.policy", ("product_code", "RS-GEN"), ("policy_number", inside), ("status", "IN_FORCE"));
+        await _rows.Insert(T, "general.policy", ("product_code", "RS-GEN-OTHER"), ("policy_number", outside), ("status", "IN_FORCE"));
+
+        var scoped = await Scoped("rs-exporter", "RS-GEN", Insys.Party.Contracts.PartyPermissions.BulkJobCreate, Insys.Party.Contracts.PartyPermissions.BulkJobRead);
+        await fixture.Database.UserWithPermissions(T, "rs-export-checker", Insys.Party.Contracts.PartyPermissions.BulkJobApprove,
+            Insys.Party.Contracts.PartyPermissions.BulkJobRead);
+        await fixture.Database.UserWithPermissions(T, "rs-export-all", Insys.Party.Contracts.PartyPermissions.BulkJobRead);
+        var requested = await scoped.Send(HttpMethod.Post, "/api/v1/party/bulk-jobs/policy-exports", new { domain = "GENERAL" }, idempotent: true);
+        requested.StatusCode.ShouldBe(HttpStatusCode.Created, await requested.Content.ReadAsStringAsync());
+        var job = (await requested.Json()).GetProperty("id").GetGuid();
+        var checker = _factory.ClientFor(T, "rs-export-checker");
+        var etag = (await checker.GetAsync($"/api/v1/party/bulk-jobs/{job}")).Headers.ETag?.Tag;
+        var approved = await checker.Send(HttpMethod.Post, $"/api/v1/party/bulk-jobs/{job}/approve", ifMatch: etag);
+        approved.StatusCode.ShouldBe(HttpStatusCode.OK, await approved.Content.ReadAsStringAsync());
+
+        var mine = await (await scoped.GetAsync($"/api/v1/party/bulk-jobs/{job}/content")).Content.ReadAsStringAsync();
+        mine.ShouldContain(inside);
+        mine.ShouldNotContain(outside, Case.Sensitive, "a policy outside the reader's scope isn't exported");
+
+        var all = await (await _factory.ClientFor(T, "rs-export-all").GetAsync($"/api/v1/party/bulk-jobs/{job}/content")).Content.ReadAsStringAsync();
+        all.ShouldContain(outside, Case.Sensitive, "an unrestricted reader gets every policy");
+    }
+
     private async Task<HttpClient> Scoped(string subject, string product, params string[] permissions)
     {
         var user = await fixture.Database.UserWithPermissions(T, subject, permissions);

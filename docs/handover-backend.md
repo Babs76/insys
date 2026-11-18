@@ -567,6 +567,9 @@ The first of the five fix batches from the scope sweeps (`docs/reviews/read-scop
   - `WorkflowTests`: the coverage of every type; the fail-closed and product-version scoping through a real `ApprovalRequested`; product-only and unresolved approvals; deciding by the approve scope.
   - `WriteScopeTests`: 6 tests, one per write group.
 
+### Scope batch 3 (18 November 2026, branch `scope-batch-3`, on batch 2)
+The third fix batch: Party's policy export. `IPolicyExportRows.All` takes the caller's `AccessScope`. `PolicyExportReader.Read` adds the scope's filter to each module's SQL (any grant whose product and node sets allow the row, as `ScopeFilter.InScope`); General, Life and Health pass `product_code` and `org_node_code`. The request counts in the requester's scope, the download lists in the reader's. **Interpretation for Ade:** the rows follow whoever downloads, never more than their scope, rather than freezing the requester's scope on the job. Test: `ReadScopeTests`, failing without the fix (checked by passing an unrestricted scope).
+
 ### Scope batch 2 (18 November 2026, branch `scope-batch-2`)
 The second of the five fix batches (the read sweep's order, Ade): the Health accumulators. `GetAccumulatorsHandler` loads the membership through the scoped `IHealthRepository.Membership` first, so a membership outside the caller's scope isn't found (404). Test: `ReadScopeTests`, which fails without the fix (checked by undoing it).
 

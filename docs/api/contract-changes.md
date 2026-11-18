@@ -5,6 +5,11 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 
 
+
+## Scope batch 3: a policy export holds only the reader's policies (F103, read sweep, Party, 18 November 2026)
+- **Breaking, for callers with a product or branch scope:** `GET /party/bulk-jobs/{id}/content` for a policy export (`POST /party/bulk-jobs/policy-exports`) now lists only the General and Life policies and Health memberships whose product and node the reader's scope allows. Before, it listed every one in the tenant. Each module filters in its own query.
+- **The job's count** (`POST …/policy-exports`) is the requester's, in their scope; the download is the reader's, in theirs. So two readers with different scopes can download different rows from one approved job, and neither gets more than their own scope. An unrestricted reader sees no change.
+
 ## Scope batch 2: a membership's accumulators follow its scope (F103, read-scope sweep row 1, 18 November 2026)
 - **Breaking, for callers with a product or branch scope:** `GET /health/memberships/{id}/accumulators` now answers **404** for a membership outside the caller's scope, as `GET /health/memberships/{id}` already did. Before, it returned the accumulators of any membership in the tenant. An unrestricted caller sees no change.
 
