@@ -319,6 +319,24 @@ public sealed class Document : AggregateRoot<Guid>
     /// <summary>The scanner's name for what it found, for an infected upload; never content.</summary>
     public string? ScanFinding { get; private set; }
 
+    /// <summary>
+    /// F103 (scope batch 4, OQ-169): a document filed against a scoped record follows its scope. False: unattached, or filed against an unscoped record such
+    /// as a party, so only its classification applies. True with neither product nor node: the record wasn't found or has several scopes, so only an
+    /// unrestricted reader sees it (fail closed).
+    /// </summary>
+    public bool IsScoped { get; private set; }
+
+    public string? ProductCode { get; private set; }
+
+    public string? OrgNodeCode { get; private set; }
+
+    public void ScopeTo(string? productCode, string? orgNodeCode)
+    {
+        IsScoped = true;
+        ProductCode = productCode is null ? null : Guard.MaxLength(productCode, 15);
+        OrgNodeCode = orgNodeCode is null ? null : Guard.MaxLength(orgNodeCode, 15);
+    }
+
     /// <summary>How many times the scanner errored or timed out on this file, and when it last tried: it waits, after the others (AIA-010).</summary>
     public int ScanAttempts { get; private set; }
 

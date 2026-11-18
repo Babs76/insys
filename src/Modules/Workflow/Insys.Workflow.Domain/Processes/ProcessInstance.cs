@@ -321,6 +321,28 @@ public sealed class ProcessInstance : AggregateRoot<Guid>
 
     public Guid BusinessRefId { get; private set; }
 
+    /// <summary>
+    /// F103 (scope batch 4, OQ-169): the process and its tasks follow the record they are about. False: a record type declared unscoped (a party, an
+    /// operations queue), read by everyone with the permission. True: the record's product and node, or neither when the record was found in no scope or its
+    /// type has no source, so only an unrestricted reader sees it (fail closed, OQ-176).
+    /// </summary>
+    public bool IsScoped { get; private set; }
+
+    public string? ProductCode { get; private set; }
+
+    public string? OrgNodeCode { get; private set; }
+
+    /// <summary>False for a record scoped by product only (a product version, OQ-173): the reader's node scope doesn't apply.</summary>
+    public bool OrgNodeApplies { get; private set; } = true;
+
+    public void ScopeTo(string? productCode, string? orgNodeCode, bool orgNodeApplies = true)
+    {
+        IsScoped = true;
+        ProductCode = productCode is null ? null : Guard.MaxLength(productCode, 15);
+        OrgNodeCode = orgNodeCode is null ? null : Guard.MaxLength(orgNodeCode, 15);
+        OrgNodeApplies = orgNodeApplies;
+    }
+
     /// <summary>The definition state while running; SUSPENDED:{state}, COMPLETED:{state} or CANCELLED:{state} otherwise (state is varchar(30); OQ-048).</summary>
     public string State { get; private set; } = "";
 

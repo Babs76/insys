@@ -37,10 +37,13 @@ namespace Insys.Workflow.Infrastructure.Persistence;
 /// </summary>
 internal sealed class CaseApprovalScopes([FromKeyedServices(WorkflowDbContext.SchemaName)] NpgsqlDataSource dataSource) : IApprovalScopeSource
 {
-    public bool Covers(string businessRefType) => businessRefType == CaseApprovals.RedressBusinessRefType;
+    // Scope batch 4: a process about a case follows the case, as its redress approval does.
+    public bool Covers(string businessRefType) => businessRefType is CaseApprovals.RedressBusinessRefType or CaseApprovals.CaseBusinessRefType;
 
     public async Task<RecordScope?> ScopeOf(Guid tenantId, string businessRefType, Guid businessRefId, CancellationToken cancellationToken) =>
-        await RecordScopeReader.Read(dataSource, tenantId, """
+        await RecordScopeReader.Read(dataSource, tenantId, businessRefType == CaseApprovals.CaseBusinessRefType
+            ? "SELECT product_code, org_node_code FROM workflow.service_case WHERE id = @id"
+            : """
             SELECT c.product_code, c.org_node_code FROM workflow.case_redress r JOIN workflow.service_case c ON c.tenant_id = r.tenant_id AND c.id = r.case_id WHERE r.id = @id
             """, businessRefId, cancellationToken) is { } scope && (scope.Product is not null || scope.OrgNode is not null)
             ? new RecordScope(scope.Product, scope.OrgNode)

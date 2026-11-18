@@ -124,3 +124,31 @@ internal sealed class ProviderDirectory([FromKeyedServices(HealthDbContext.Schem
         return party;
     }
 }
+
+/// <summary>
+/// Scope batch 4 (F103, OQ-169): a process about a membership, or about a care activity of one (through its care plan and complex case), follows the
+/// membership's scope. Not found: an unrestricted reader's only.
+/// </summary>
+internal sealed class MembershipRecordScopes([FromKeyedServices(HealthDbContext.SchemaName)] NpgsqlDataSource dataSource) : IApprovalScopeSource
+{
+    public const string CareActivityRefType = "HEALTH_CARE_ACTIVITY";
+
+    public bool Covers(string businessRefType) => Sql(businessRefType) is not null;
+
+    public async Task<RecordScope?> ScopeOf(Guid tenantId, string businessRefType, Guid businessRefId, CancellationToken cancellationToken) =>
+        Sql(businessRefType) is { } sql && await RecordScopeReader.Read(dataSource, tenantId, sql, businessRefId, cancellationToken) is { } scope
+            ? new RecordScope(scope.Product, scope.OrgNode)
+            : RecordScope.UnrestrictedOnly;
+
+    private static string? Sql(string businessRefType) => businessRefType switch
+    {
+        HealthMembershipTasks.BusinessRefType => "SELECT product_code, org_node_code FROM health.membership WHERE id = @id",
+        CareActivityRefType => """
+            SELECT m.product_code, m.org_node_code FROM health.care_plan_item i
+            JOIN health.care_plan c ON c.tenant_id = i.tenant_id AND c.id = i.care_plan_id
+            JOIN health.complex_case k ON k.tenant_id = c.tenant_id AND k.id = c.complex_case_id
+            JOIN health.membership m ON m.tenant_id = k.tenant_id AND m.id = k.membership_id WHERE i.id = @id
+            """,
+        _ => null,
+    };
+}

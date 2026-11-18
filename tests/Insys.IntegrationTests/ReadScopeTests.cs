@@ -99,6 +99,69 @@ public sealed class ReadScopeTests(DatabaseFixture fixture) : IClassFixture<Data
         all.ShouldContain(outside, Case.Sensitive, "an unrestricted reader gets every policy");
     }
 
+    /// <summary>
+    /// Scope batch 4 (read sweep, OQ-169): a process started about a membership records the membership's scope, and the process, its tasks and the open task
+    /// list follow it, filtered in the query.
+    /// </summary>
+    [Fact]
+    public async Task AProcessAndItsTasks_FollowTheirRecordsScope_F103()
+    {
+        var number = Random.Shared.Next(1_000_000, 9_999_999);
+        var inside = await _rows.Insert(T, "health.membership", ("status", "SUSPENDED"), ("product_code", "RS-HP"), ("member_number", $"RT{number}"));
+        var outside = await _rows.Insert(T, "health.membership", ("status", "SUSPENDED"), ("product_code", "RS-HP-OTHER"), ("member_number", $"RU{number}"));
+        foreach (var (membership, member) in new[] { (inside, $"RT{number}"), (outside, $"RU{number}") })
+        {
+            await fixture.Database.ExecuteAsOwner("""
+                INSERT INTO health.outbox_event (tenant_id, id, row_version, created_at, created_by, updated_at, updated_by, aggregate_type, aggregate_id,
+                                                 event_type, event_version, payload, occurred_at, correlation_id, publish_attempts)
+                VALUES (@t, gen_random_uuid(), 1, now(), 'test', now(), 'test', 'Membership', @m, 'health.MembershipTerminationDue', 1,
+                        jsonb_build_object('membershipId', @m, 'memberNumber', @n, 'arrearsSince', '2026-09-01'), now(), gen_random_uuid(), 0)
+                """, ("t", T), ("m", membership), ("n", member));
+        }
+
+        await _factory.DrainOutbox();
+        (await fixture.Database.ScalarAsOwner<string>("SELECT product_code FROM workflow.process_instance WHERE tenant_id = @t AND business_ref_id = @m",
+            ("t", T), ("m", inside))).ShouldBe("RS-HP", "the process records its membership's scope when it starts");
+        var hidden = await fixture.Database.ScalarAsOwner<Guid>("SELECT id FROM workflow.process_instance WHERE tenant_id = @t AND business_ref_id = @m", ("t", T), ("m", outside));
+
+        var client = await Scoped("rs-process", "RS-HP", Insys.Workflow.Contracts.WorkflowPermissions.ProcessRead);
+        var listed = await (await client.GetAsync("/api/v1/workflow/processes?businessRefType=HEALTH_MEMBERSHIP&limit=200")).Json();
+        var ids = listed.GetProperty("items").EnumerateArray().Select(p => p.GetProperty("businessRefId").GetGuid()).ToList();
+        ids.ShouldContain(inside);
+        ids.ShouldNotContain(outside);
+        (await client.GetAsync($"/api/v1/workflow/processes/{hidden}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        var tasks = await (await client.GetAsync("/api/v1/workflow/tasks?limit=200")).Content.ReadAsStringAsync();
+        tasks.ShouldNotContain(hidden.ToString(), Case.Insensitive, "a task follows its process");
+    }
+
+    /// <summary>Scope batch 4 (OQ-169): a document filed against a scoped record follows it; an unattached document keeps its classification only.</summary>
+    [Fact]
+    public async Task ADocumentFiledAgainstAScopedRecord_FollowsItsScope_AndAnUnattachedOneDoesNot_OQ169()
+    {
+        var suffix = Random.Shared.Next(100_000, 999_999);
+        var inside = await _rows.Insert(T, "general.policy", ("product_code", "RS-DOC"), ("policy_number", $"RD{suffix}"), ("status", "IN_FORCE"));
+        var outside = await _rows.Insert(T, "general.policy", ("product_code", "RS-DOC-OTHER"), ("policy_number", $"RE{suffix}"), ("status", "IN_FORCE"));
+        await fixture.Database.SeedStatic(T, "document.ref_document_categories", "ACTIVE", "RS_NOTE", TestClock.Today.AddDays(-1), ("category_code", "RS_NOTE"),
+            ("label", "Note"), ("classification", "INTERNAL"), ("domain", "ALL"), ("allowed_roles", Array.Empty<string>()));
+        await fixture.Database.UserWithPermissions(T, "rs-doc-maker", Insys.Documents.Contracts.DocumentPermissions.DocumentCreate);
+        var maker = _factory.ClientFor(T, "rs-doc-maker");
+        async Task<Guid> Store(string refType, Guid refId) => (await (await maker.Send(HttpMethod.Post, "/api/v1/documents/documents", new
+        {
+            categoryCode = "RS_NOTE", businessRefType = refType, businessRefId = refId, mimeType = "text/plain", contentBase64 = Convert.ToBase64String("sample"u8.ToArray()),
+        }, idempotent: true)).Json()).GetProperty("id").GetGuid();
+        var mine = await Store("GENERAL_POLICY", inside);
+        var theirs = await Store("GENERAL_POLICY", outside);
+        // Filed against a party, which has no scope (PTY-003): unattached. A party that doesn't exist would fail closed instead.
+        var unattached = await Store("PARTY", await _rows.Insert(T, "party.party"));
+
+        var reader = await Scoped("rs-doc-reader", "RS-DOC", Insys.Documents.Contracts.DocumentPermissions.DocumentRead);
+        (await reader.GetAsync($"/api/v1/documents/documents/{mine}")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await reader.GetAsync($"/api/v1/documents/documents/{theirs}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await reader.GetAsync($"/api/v1/documents/documents/{unattached}")).StatusCode.ShouldBe(HttpStatusCode.OK, "unattached: classification only");
+        var listed = await (await reader.GetAsync($"/api/v1/documents/documents?businessRefType=GENERAL_POLICY&businessRefId={outside}")).Content.ReadAsStringAsync();
+        listed.ShouldNotContain(theirs.ToString(), Case.Insensitive);
+    }
+
     private async Task<HttpClient> Scoped(string subject, string product, params string[] permissions)
     {
         var user = await fixture.Database.UserWithPermissions(T, subject, permissions);

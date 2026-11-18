@@ -130,7 +130,8 @@ internal sealed class ApprovalQueries(WorkflowDbContext db, IExecutionContext ex
     private static ApprovalView View(Approval a) => ApprovalView.Of(a);
 }
 
-internal sealed class ProcessRepository(WorkflowDbContext db) : IProcessRepository
+internal sealed class ProcessRepository(WorkflowDbContext db, IEnumerable<Contracts.IApprovalScopeSource> sources, BuildingBlocks.Application.Context.ITenantContext tenant)
+    : IProcessRepository
 {
     public Task<ProcessInstance?> Get(Guid id, CancellationToken cancellationToken) =>
         db.Processes.Include(p => p.Tasks).Include(p => p.Timers).SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
@@ -139,14 +140,62 @@ internal sealed class ProcessRepository(WorkflowDbContext db) : IProcessReposito
         await db.Set<ProcessTimer>().Where(t => t.FiredAt == null && t.FireAt <= now).Select(t => t.ProcessInstanceId).Distinct().Take(limit)
             .ToListAsync(cancellationToken);
 
-    public void Add(ProcessInstance process) => db.Processes.Add(process);
+    /// <summary>
+    /// F103 (scope batch 4, OQ-169): the process follows its record. A type declared unscoped stays tenant-wide. Otherwise its record's scope comes from the
+    /// record's module (the same sources approvals use) or, for a process about an approval's record, from that approval. Failing both, it is scoped to
+    /// neither product nor node: an unrestricted reader's only (OQ-176).
+    /// </summary>
+    public async Task Add(ProcessInstance process, CancellationToken cancellationToken)
+    {
+        var type = process.BusinessRefType;
+        if (!BuildingBlocks.Contracts.Approvals.ApprovalKinds.UnscopedTypes.ContainsKey(type))
+        {
+            if (sources.FirstOrDefault(s => s.Covers(type)) is { } source)
+            {
+                var scope = await source.ScopeOf(tenant.RequireTenantId(), type, process.BusinessRefId, cancellationToken);
+                process.ScopeTo(scope?.ProductCode, scope?.OrgNodeCode, scope?.OrgNodeApplies ?? true);
+            }
+            else if (await db.Approvals.AsNoTracking().Where(a => a.BusinessRefType == type && a.BusinessRefId == process.BusinessRefId).OrderByDescending(a => a.Id)
+                         .FirstOrDefaultAsync(cancellationToken) is { } approval)
+            {
+                if (approval.IsScoped)
+                {
+                    process.ScopeTo(approval.ProductCode, approval.OrgNodeCode, approval.OrgNodeApplies);
+                }
+            }
+            else
+            {
+                process.ScopeTo(null, null);
+            }
+        }
+
+        db.Processes.Add(process);
+    }
 }
 
-internal sealed class ProcessQueries(WorkflowDbContext db) : IProcessQueries
+internal sealed class ProcessQueries(WorkflowDbContext db, BuildingBlocks.Application.Context.IExecutionContext execution) : IProcessQueries
 {
+    /// <summary>
+    /// The processes in the caller's scope (F103, scope batch 4), in the query so paging holds: an unscoped one, one whose record is in scope, and one scoped
+    /// by product alone whose product is. A process scoped to neither is an unrestricted caller's only, as an approval is.
+    /// </summary>
+    private IQueryable<ProcessInstance> InScope(IQueryable<ProcessInstance> query)
+    {
+        var scope = execution.CurrentScope;
+        if (scope.IsUnrestricted)
+        {
+            return query;
+        }
+
+        var byRecord = db.Processes.AsNoTracking().Where(p => p.IsScoped && p.OrgNodeApplies).InScope(scope, p => p.ProductCode, p => p.OrgNodeCode).Select(p => p.Id);
+        var byProduct = db.Processes.AsNoTracking().Where(p => p.IsScoped && !p.OrgNodeApplies).InScope(scope.WithoutOrgNodes(), p => p.ProductCode, p => p.OrgNodeCode)
+            .Select(p => p.Id);
+        return query.Where(p => !p.IsScoped || byRecord.Contains(p.Id) || byProduct.Contains(p.Id));
+    }
+
     public async Task<IReadOnlyList<ProcessView>> List(string? businessRefType, Guid? businessRefId, Guid? afterId, int limit, CancellationToken cancellationToken)
     {
-        var query = db.Processes.AsNoTracking().Include(p => p.Tasks).AsQueryable();
+        var query = InScope(db.Processes.AsNoTracking().Include(p => p.Tasks).AsQueryable());
         if (businessRefType is not null)
         {
             query = query.Where(p => p.BusinessRefType == businessRefType);
@@ -168,7 +217,7 @@ internal sealed class ProcessQueries(WorkflowDbContext db) : IProcessQueries
 
     public async Task<ProcessView?> Get(Guid id, CancellationToken cancellationToken)
     {
-        var process = await db.Processes.AsNoTracking().Include(p => p.Tasks).SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
+        var process = await InScope(db.Processes.AsNoTracking().Include(p => p.Tasks)).SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
         if (process is null)
         {
             return null;
@@ -181,7 +230,9 @@ internal sealed class ProcessQueries(WorkflowDbContext db) : IProcessQueries
 
     public async Task<IReadOnlyList<OpenTaskView>> OpenTasks(string? queueCode, Guid? assigneeId, OpenTaskCursor? after, int limit, CancellationToken cancellationToken)
     {
-        var query = db.Set<ProcessTask>().AsNoTracking().Where(t => t.Status == Domain.Processes.TaskStatus.Open);
+        // A task follows its process's record (F103, scope batch 4), filtered in the query.
+        var visible = InScope(db.Processes.AsNoTracking()).Select(p => p.Id);
+        var query = db.Set<ProcessTask>().AsNoTracking().Where(t => t.Status == Domain.Processes.TaskStatus.Open && visible.Contains(t.ProcessInstanceId));
         if (queueCode is not null)
         {
             query = query.Where(t => t.QueueCode == queueCode);

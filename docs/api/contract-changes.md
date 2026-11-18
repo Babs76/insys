@@ -5,6 +5,18 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 
 
+
+## Scope batch 4: processes, tasks and documents follow their record (F103, OQ-169, 18 November 2026)
+**Breaking, for callers with a product or branch scope; an unrestricted caller sees no change.** Each list is filtered in the query, so paging holds.
+- **`GET /workflow/processes`, `GET /workflow/processes/{id}` and `GET /workflow/tasks`:** a process, its tasks and its case notes follow the record the process is about.
+  - Outside the caller's scope, a process isn't listed, and its id answers 404.
+  - A process about a party, a data subject request, a party's retention review, a fraud indicator definition or the parked-delivery queue stays tenant-wide.
+  - A process about a record with no scope found, or about tenant-wide totals and provider-level reviews (aggregation zones, Health programme reviews, provider measures, recovery reviews), is seen only by an unrestricted caller (OQ-172, OQ-176).
+- **`GET /documents/documents?businessRefType&businessRefId`, `GET /documents/documents/{id}` and its content:** a document filed against a policy, claim, membership, Health claim or case follows that record's scope. Outside it, the document isn't listed and its id answers 404.
+  - A document filed against a party, or against no scoped record, keeps its classification only, as before.
+  - A document filed against a scoped record that isn't found fails closed: an unrestricted reader's only.
+- **Existing rows** are backfilled by V0140 from their records. A process with no record found, of a type that has a scope, fails closed.
+
 ## AI Assist: the 7.4 error codes are catalogued (18 November 2026)
 - **Not breaking:** each code now has a meaning and a next step in the catalogue's source (`[ErrorCode(..., Means, Remedy)]` in `src/Modules/Assist/Insys.Assist.Domain/AssistTenantSetting.cs`, read through the back-end mirror). The API's catalogue (`GET /api/v1/integration/static/error-code-catalogue`) serves the code, status, message key and retry flag, as before, not this wording. The codes are `ASSIST_NOT_UPLOADER`, `ASSIST_DOCUMENT_NOT_ALLOWED`, `ASSIST_CONFIRMATION_REQUIRED`, `ASSIST_CONFIRMATION_STALE`, `ASSIST_DOCUMENT_IDENTIFIERS`, `ASSIST_SOURCE_UNREADABLE`, `ASSIST_USER_CANNOT_ACT`, `ASSIST_RUN_STALLED`, `ASSIST_RESIDENCY_MISMATCH`, `ASSIST_SOURCE_TOO_LARGE` and `ASSIST_RUN_EXPIRED`. No code, status, message key or retry flag changed: none is retryable.
 - The AI-2 evaluation set gains them as refusals (88 refusals and 66 premiums). **Its case ids are now stable:** a refusal is `R-<code>` and a premium `C-<product>-<factor value>-<sum>-<adjustments or NONE>`, so adding a code or a premium no longer renumbers the others. They change once, now, before the expert's run. The run waiting for Ade (44062786569) is on `073391f` and doesn't include them.

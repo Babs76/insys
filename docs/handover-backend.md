@@ -567,6 +567,25 @@ The first of the five fix batches from the scope sweeps (`docs/reviews/read-scop
   - `WorkflowTests`: the coverage of every type; the fail-closed and product-version scoping through a real `ApprovalRequested`; product-only and unresolved approvals; deciding by the approve scope.
   - `WriteScopeTests`: 6 tests, one per write group.
 
+### Scope batch 4 (18 November 2026, branch `scope-batch-4`)
+The fourth fix batch: Workflow processes and tasks, and documents attached to a record (OQ-169).
+- **V0140:** `is_scoped`, `product_code`, `org_node_code` (and `org_node_applies` for processes) on `workflow.process_instance` and `document.document`. The backfill reads each record's scope as its module's source does.
+- **A process gets its scope when `IProcessRepository.Add` saves it:**
+  - a type declared unscoped (`ApprovalKinds.Unscoped`: party, data subject request, party retention, fraud indicator, parked delivery) stays tenant-wide;
+  - else its module's `IApprovalScopeSource`. New ones: General quotes and retention cases, Health memberships and care activities (`MembershipRecordScopes`), Workflow service cases;
+  - else the approval about the same record;
+  - else none: an unrestricted reader's only.
+  - `ProcessQueries` filters lists, gets and open tasks in the query, as approvals are.
+- **A document gets its scope when stored or generated (`RecordHoldTargets.ScopeDocument`):**
+  - from the legal-hold targets of its record type: one scope copied;
+  - a record not found, or with several scopes, fails closed;
+  - a party (no scope), or a type no target resolves, leaves it unattached.
+  - `DocumentRepository.Get` refuses or hides it outside the scope, and `ForBusinessRef` filters in the query.
+- **Interpretations for Ade:**
+  - A process about a case with no product or node is an unrestricted reader's only, as its redress approval is.
+  - Processes about aggregation zones, Health programme reviews, provider measures and recovery reviews are too, following OQ-172 and scope batch 1.
+- **Tests:** `ReadScopeTests`: a process started through Health's event takes the membership's scope, and the list, get and tasks follow it; documents follow their record, and an unattached one doesn't. Both fail without their fix (checked by undoing each).
+
 ### Scope batch 3 (18 November 2026, branch `scope-batch-3`, on batch 2)
 The third fix batch: Party's policy export. `IPolicyExportRows.All` takes the caller's `AccessScope`. `PolicyExportReader.Read` adds the scope's filter to each module's SQL (any grant whose product and node sets allow the row, as `ScopeFilter.InScope`); General, Life and Health pass `product_code` and `org_node_code`. The request counts in the requester's scope, the download lists in the reader's. **Interpretation for Ade:** the rows follow whoever downloads, never more than their scope, rather than freezing the requester's scope on the job. Test: `ReadScopeTests`, failing without the fix (checked by passing an unrestricted scope).
 
