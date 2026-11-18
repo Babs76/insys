@@ -433,9 +433,14 @@ internal sealed class GetAccumulatorsHandler(IHealthRepository health) : IQueryH
 {
     public async Task<Result<IReadOnlyList<AccumulatorView>>> Handle(GetAccumulators query, CancellationToken cancellationToken)
     {
-        var currency = await health.MembershipCurrency(query.MembershipId, cancellationToken);
-        return (await health.AccumulatorsOf(query.MembershipId, cancellationToken)).OrderBy(a => a.BenefitCategory).ThenBy(a => a.Scope)
-            .Select(a => AccumulatorView.From(a, currency)).ToList();
+        // F103 (read-scope sweep): the accumulators are the membership's, so they are read only within its scope; outside it the membership isn't found.
+        if (await health.Membership(query.MembershipId, cancellationToken) is not { } membership)
+        {
+            return Error.NotFound(ErrorCodes.NotFound, "The membership was not found.");
+        }
+
+        return (await health.AccumulatorsOf(membership.Id, cancellationToken)).OrderBy(a => a.BenefitCategory).ThenBy(a => a.Scope)
+            .Select(a => AccumulatorView.From(a, membership.Currency)).ToList();
     }
 }
 

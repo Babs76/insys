@@ -4,6 +4,10 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 
 
+
+## Scope batch 2: a membership's accumulators follow its scope (F103, read-scope sweep row 1, 18 November 2026)
+- **Breaking, for callers with a product or branch scope:** `GET /health/memberships/{id}/accumulators` now answers **404** for a membership outside the caller's scope, as `GET /health/memberships/{id}` already did. Before, it returned the accumulators of any membership in the tenant. An unrestricted caller sees no change.
+
 ## Wave 7 batch 7.4: the malware scan of uploads, and AI-1's product drafts (17 November 2026)
 Every change, marked **breaking** where a client built on the previous contract can see a different answer.
 
