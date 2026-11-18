@@ -41,7 +41,6 @@ public sealed class TenantDirectoryCallerTests
     private static readonly IReadOnlyDictionary<string, string> Callers = new Dictionary<string, string>(StringComparer.Ordinal)
     {
         ["OutboxProcessor"] = "the outbox relay, a hosted service",
-        ["DailyJobRunner"] = "the daily jobs' runner, a hosted service",
         ["AnalyticsReleaseTasks"] = "release tasks at startup",
         ["ProductDraftJob"] = "a background job",
         ["BillingJobs"] = "a background job",
