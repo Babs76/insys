@@ -75,6 +75,7 @@
 | Scope batch 5 | The read sweep's paging rows (renewals, Health payment runs, legal holds filled to a full page), the portal's Health claim list scoped as its single read, and refunds on an account with no schedules for unrestricted readers only (F103, OQ-081) | Merged (`906aad7`) |
 | Seed batch | The sample tenant parks and fails on nothing: every platform notice by email, a stub email provider, General certificates and their document categories, `MONTHLY` back-dated; a consumer for an unentitled feature parks as `FEATURE_NOT_ENTITLED`; missing configuration on delivery parks instead of failing (document categories and merge fields, Life grace, commission plans, return mappings, Health plan options), with the runbook for replaying older dead letters | Branch `seed-batch` |
 | Availability batch | LQNEWA: a refusal to run a JOB function is read from the database, never the cache, and a global publication retries the parked deliveries of every tenant | Branch `availability-batch` (on the seed batch) |
+| Release batch | A platform-wide row releases only the parks it can resolve (an entitlement: its tenant's parks of the functions needing its feature), marked 500 at a time | Branch `release-batch` (on the availability batch) |
 
 ## Phase 1 review items
 

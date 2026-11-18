@@ -33,8 +33,32 @@ using Npgsql;
 namespace Insys.Tenancy.Infrastructure.Persistence;
 
 /// <summary>Reads a tenant's function availability and feature entitlements (ADR-026 §2) on the Tenancy module's own connection.</summary>
-internal sealed class TenantFunctionSettingsQuery([FromKeyedServices(TenancyDbContext.SchemaName)] NpgsqlDataSource dataSource) : ITenantFunctionSettings
+internal sealed class TenantFunctionSettingsQuery([FromKeyedServices(TenancyDbContext.SchemaName)] NpgsqlDataSource dataSource,
+    [FromKeyedServices(Insys.BuildingBlocks.Infrastructure.DataSourceKeys.PlatformAdmin)] NpgsqlDataSource platform) : ITenantFunctionSettings, ITenantFeatureEntitlements
 {
+    public async Task<(Guid TenantId, string Feature)?> OfRecord(Guid recordId, CancellationToken cancellationToken)
+    {
+        // The row is global and names its tenant by code, so a tenant's session sees it only for its own tenant (V0057). It is read as the platform's
+        // global rows are maintained (insys_platform_admin may read every global row), then its tenant's id is read by that code.
+        string tenantCode, feature;
+        await using (var connection = await platform.OpenConnectionAsync(cancellationToken))
+        {
+            await using var command = new NpgsqlCommand("SELECT tenant, feature FROM tenant.cfg_feature_entitlements WHERE id = @id AND tenant_id IS NULL", connection);
+            command.Parameters.AddWithValue("id", recordId);
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            if (!await reader.ReadAsync(cancellationToken))
+            {
+                return null;
+            }
+
+            (tenantCode, feature) = (reader.GetString(0), reader.GetString(1));
+        }
+
+        await using var tenants = dataSource.CreateCommand("SELECT id FROM tenant.tenant WHERE tenant_code = @c");
+        tenants.Parameters.AddWithValue("c", tenantCode);
+        return await tenants.ExecuteScalarAsync(cancellationToken) is Guid tenantId ? (tenantId, feature) : null;
+    }
+
     public async Task<TenantFunctionSettings> For(Guid tenantId, DateOnly day, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);

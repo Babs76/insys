@@ -261,13 +261,42 @@ public sealed class FunctionAccessTests(DatabaseFixture fixture) : IClassFixture
             .ShouldBeNull("processed at once, never in the ledger: a refusal is checked against the database before it parks, never taken from the cache");
         (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM life.inbox_message WHERE event_id = @e AND consumer = @c", ("e", after), ("c", consumer))).ShouldBe(1L, "handled");
 
-        // The entitlement's publication, a global row, by the operator: the earlier delivery is retried in this tenant, and done.
+        // Two parks the publication can't resolve: another tenant's, not entitled to LIFE, and this tenant's for other configuration.
+        var (other, otherCode) = await NewTenant();
+        await fixture.Database.ExecuteAsOwner("UPDATE tenant.cfg_feature_entitlements SET record_status = 'RETIRED' WHERE tenant = @c AND feature = 'LIFE'", ("c", otherCode));
+        var otherCase = Guid.CreateVersion7();
+        var otherEnvelope = Envelope(other, new Insys.Workflow.Contracts.CaseDecided(otherCase, "CASE-OTHER", "COMPLAINT", "COMPLAINT", "UPHELD", null, []), "workflow.CaseDecided", "Case",
+            otherCase);
+        await _factory.Services.GetRequiredService<IEventBus>().Deliver(otherEnvelope, CancellationToken.None);
+        (await Parked(otherEnvelope.EventId, consumer)).ShouldBe($"{PrerequisiteCodes.FeatureNotEntitled} LIFE_EVENT_PROCESSING");
+        var unrelated = Guid.CreateVersion7();
+        await fixture.Database.ExecuteAsOwner("""
+            INSERT INTO integration.parked_delivery (tenant_id, id, row_version, created_at, created_by, updated_at, updated_by, consumer, event_id, event_type, event_version,
+                occurred_at, aggregate_type, aggregate_id, correlation_id, payload, status, ledger_owned, prerequisite_code, prerequisite_item, parked_at, attempts, failures,
+                escalation_level)
+            VALUES (@t, gen_random_uuid(), 1, now(), 'seed', now(), 'seed', 'life.LifeEventPolicies.InvoiceSettled', @e, 'billing.InvoiceSettled', 1, now(), 'Invoice',
+                gen_random_uuid(), gen_random_uuid(), '{}'::jsonb, 'PARKED', false, 'GRACE_RULE_NOT_IN_FORCE', 'QUARTERLY', now(), 1, 0, 0)
+            """, ("t", tenant), ("e", unrelated));
+
+        // The entitlement's publication, a global row, by the operator: only the parks it can resolve are retried, here only this tenant's LIFE one, and done.
+        var row = await fixture.Database.ScalarAsOwner<Guid>("SELECT id FROM tenant.cfg_feature_entitlements WHERE tenant = @c AND feature = 'LIFE'", ("c", code));
         var activated = new StaticDataVersionActivated(null, new StaticRecordRef("tenant", "cfg_feature_entitlements", "FEATURE_ENTITLEMENTS", "tenancy", "feature-entitlements",
-            Guid.CreateVersion7(), $"{code}:LIFE", 2, true), Today, null);
+            row, $"{code}:LIFE", 1, true), Today, null);
         await _factory.Services.GetRequiredService<IEventBus>().Publish(
             Envelope(DatabaseFixture.Operator, activated, "sdm.StaticDataVersionActivated", "StaticRecord", Guid.CreateVersion7()), CancellationToken.None);
-        (await fixture.Database.ScalarAsOwner<bool>("SELECT retry_requested_at IS NOT NULL FROM integration.parked_delivery WHERE event_id = @e AND consumer = @c",
-            ("e", before), ("c", consumer))).ShouldBeTrue("retried on the global publication, not left for the 15-minute retry");
+        async Task<bool> Marked(Guid eventId, string by) => await fixture.Database.ScalarAsOwner<bool>(
+            "SELECT retry_requested_at IS NOT NULL FROM integration.parked_delivery WHERE event_id = @e AND consumer = @c", ("e", eventId), ("c", by));
+        (await Marked(before, consumer)).ShouldBeTrue("retried on the global publication, not left for the 15-minute retry");
+        (await Marked(otherEnvelope.EventId, consumer)).ShouldBeFalse("another tenant's entitlement is not this one");
+        (await Marked(unrelated, "life.LifeEventPolicies.InvoiceSettled")).ShouldBeFalse("an entitlement can't resolve a missing grace rule");
+
+        // Any other global code retries, in every tenant, the parks whose item is that code: here a global QUARTERLY row releases the park naming QUARTERLY.
+        var frequency = new StaticDataVersionActivated(null, new StaticRecordRef("billing", "ref_billing_frequencies", "BILLING_FREQUENCIES", "billing", "billing-frequencies",
+            Guid.CreateVersion7(), "QUARTERLY", 1, true), Today, null);
+        await _factory.Services.GetRequiredService<IEventBus>().Publish(
+            Envelope(DatabaseFixture.Operator, frequency, "sdm.StaticDataVersionActivated", "StaticRecord", Guid.CreateVersion7()), CancellationToken.None);
+        (await Marked(unrelated, "life.LifeEventPolicies.InvoiceSettled")).ShouldBeTrue("a global code releases the parks naming it");
+        (await Marked(otherEnvelope.EventId, consumer)).ShouldBeFalse("and only those");
         await _factory.Services.GetRequiredService<ParkingJob>().RunForTenant(tenant, CancellationToken.None);
         (await fixture.Database.ScalarAsOwner<string>("SELECT status FROM integration.parked_delivery WHERE event_id = @e AND consumer = @c", ("e", before), ("c", consumer)))
             .ShouldBe("RESOLVED", "released and done once the tenant is entitled");

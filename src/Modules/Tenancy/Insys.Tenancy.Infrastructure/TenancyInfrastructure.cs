@@ -56,7 +56,9 @@ public static class TenancyInfrastructure
         services.AddSingleton<IOrganisationStructure, OrganisationStructureQuery>();
         services.AddSingleton<ITenantProfiles, TenantProfiles>();
         services.AddSingleton<BuildingBlocks.Application.Context.ISampleTenants, SampleTenants>();
-        services.AddSingleton<ITenantFunctionSettings, TenantFunctionSettingsQuery>();
+        services.AddSingleton<TenantFunctionSettingsQuery>();
+        services.AddSingleton<ITenantFunctionSettings>(sp => sp.GetRequiredService<TenantFunctionSettingsQuery>());
+        services.AddSingleton<ITenantFeatureEntitlements>(sp => sp.GetRequiredService<TenantFunctionSettingsQuery>());
         services.AddScoped<IStaticChangeGuard, MoneyJobSwitchGuard>();
         services.AddSingleton<IStaticRecordValidator, MoneyJobSwitchRule>();
         services.AddMemoryCache();

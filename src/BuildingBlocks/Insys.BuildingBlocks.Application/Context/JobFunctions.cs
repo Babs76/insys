@@ -43,6 +43,9 @@ public interface IFunctionAvailability
     /// </summary>
     Task<string?> Unavailable(Guid tenantId, string functionCode, CancellationToken cancellationToken);
 
+    /// <summary>The JOB functions in the catalogue today that need the feature: those an entitlement to it can release from a park.</summary>
+    Task<IReadOnlyList<string>> JobFunctionsNeeding(string feature, CancellationToken cancellationToken);
+
     /// <summary>The JOB functions the tenant has switched off (OQ-098), for the operations view and /health detail.</summary>
     Task<IReadOnlyList<string>> JobsSwitchedOff(Guid tenantId, CancellationToken cancellationToken);
 }

@@ -5,6 +5,13 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 
 
+## Release batch: a platform-wide row releases only what it can resolve (Ade, 18 November 2026)
+- **No API change.** Publishing a platform-wide row retries only the parked deliveries it can resolve, marked 500 at a time. The parking job still retries at most its batch size per tenant per pass. Before (availability batch), it retried every tenant's parks.
+  - A feature entitlement releases, in its own tenant only, the `FEATURE_NOT_ENTITLED` and `FUNCTION_DISABLED` parks of the JOB functions that need the feature.
+  - A function catalogue row releases those two codes for that function, in every tenant.
+  - Any other global code (for example a global billing frequency) releases, in every tenant, the parks whose item is that code.
+  - Whatever else a row resolves is retried by the 15-minute retry, as before.
+
 ## Availability batch: entitlements and parks in a tenant being onboarded (LQNEWA, 18 November 2026)
 - **No API change.** Two behaviour fixes, found from the front end's live run LQNEWA:
   - A delivery no longer parks as `FUNCTION_DISABLED` or `FEATURE_NOT_ENTITLED` because of the 30-second cache. A refusal is read again from the database before it parks.

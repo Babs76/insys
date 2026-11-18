@@ -386,36 +386,72 @@ public sealed class ParkingJobService(IServiceProvider services, IOptions<Parkin
 /// job's next pass. One still missing its prerequisite parks again, at no cost.
 /// </summary>
 public sealed class RetryParkedOnConfiguration(IntegrationDbContext db, IClock clock, ITenantDirectory tenants,
-    [FromKeyedServices(IntegrationDbContext.SchemaName)] NpgsqlDataSource dataSource) : IIntegrationEventHandler<StaticDataVersionActivated>
+    [FromKeyedServices(IntegrationDbContext.SchemaName)] NpgsqlDataSource dataSource, Insys.Tenancy.Contracts.ITenantFeatureEntitlements entitlements,
+    IFunctionAvailability availability) : IIntegrationEventHandler<StaticDataVersionActivated>
 {
+    /// <summary>How many parked rows one statement marks for retry; the parking job then retries at most its batch size a tenant a pass.</summary>
+    public const int MarkBatch = 500;
+
+    private static readonly string[] FunctionCodes = [PrerequisiteCodes.FeatureNotEntitled, PrerequisiteCodes.FunctionDisabled];
+
     public async Task Handle(StaticDataVersionActivated activated, EventEnvelope envelope, CancellationToken cancellationToken)
     {
-        if (activated.Record.Global)
+        if (!activated.Record.Global)
         {
-            // A platform-wide row (a feature entitlement, the function catalogue, a global code) is published by the operator, so its event carries the
-            // operator's tenant; it is configuration for every tenant, so each tenant's parked deliveries are retried (LQNEWA, 18 November 2026).
-            foreach (var tenantId in await tenants.GetActiveTenantIds(cancellationToken))
+            var transaction = db.Database.CurrentTransaction?.GetDbTransaction()
+                ?? throw new InvalidOperationException("A policy runs inside the inbox transaction.");
+            await using var command = ParkedRows.Command("""
+                UPDATE integration.parked_delivery SET retry_requested_at = @now
+                WHERE tenant_id = @tenant_id AND status = 'PARKED' AND retry_requested_at IS NULL
+                """, (NpgsqlConnection)db.Database.GetDbConnection(), (NpgsqlTransaction)transaction, ("tenant_id", envelope.TenantId), ("now", clock.UtcNow));
+            await command.ExecuteNonQueryAsync(cancellationToken);
+            return;
+        }
+
+        // A platform-wide row is published by the operator, so its event carries the operator's tenant. Only the parks it can resolve are retried (Ade,
+        // 18 November 2026), marked in batches:
+        // - an entitlement: in its own tenant, the FEATURE_NOT_ENTITLED and FUNCTION_DISABLED parks of the JOB functions needing its feature;
+        // - a function catalogue row: those two codes for that function, in every tenant;
+        // - any other global code: the parks whose item is that code, in every tenant. Whatever else it resolves is retried by the periodic retry.
+        var table = $"{activated.Record.Schema}.{activated.Record.Table}";
+        if (table == "tenant.cfg_feature_entitlements")
+        {
+            if (await entitlements.OfRecord(activated.Record.RecordId, cancellationToken) is { } entitled
+                && await availability.JobFunctionsNeeding(entitled.Feature, cancellationToken) is { Count: > 0 } functions)
             {
-                await ParkedRows.InTenant(dataSource, tenantId, async (connection, transaction) =>
-                {
-                    await using var each = ParkedRows.Command("""
-                        UPDATE integration.parked_delivery SET retry_requested_at = @now
-                        WHERE tenant_id = @tenant_id AND status = 'PARKED' AND retry_requested_at IS NULL
-                        """, connection, transaction, ("tenant_id", tenantId), ("now", clock.UtcNow));
-                    return await each.ExecuteNonQueryAsync(cancellationToken);
-                }, cancellationToken);
+                await Mark(entitled.TenantId, FunctionCodes, [.. functions], cancellationToken);
             }
 
             return;
         }
 
-        var transaction = db.Database.CurrentTransaction?.GetDbTransaction()
-            ?? throw new InvalidOperationException("A policy runs inside the inbox transaction.");
-        await using var command = ParkedRows.Command("""
-            UPDATE integration.parked_delivery SET retry_requested_at = @now
-            WHERE tenant_id = @tenant_id AND status = 'PARKED' AND retry_requested_at IS NULL
-            """, (NpgsqlConnection)db.Database.GetDbConnection(), (NpgsqlTransaction)transaction, ("tenant_id", envelope.TenantId), ("now", clock.UtcNow));
-        await command.ExecuteNonQueryAsync(cancellationToken);
+        var (codes, items) = table == "iam.ref_function_catalogue" ? (FunctionCodes, new[] { activated.Record.Code }) : ((string[]?)null, new[] { activated.Record.Code });
+        foreach (var tenantId in await tenants.GetActiveTenantIds(cancellationToken))
+        {
+            await Mark(tenantId, codes, items, cancellationToken);
+        }
+    }
+
+    private async Task Mark(Guid tenantId, string[]? codes, string[] items, CancellationToken cancellationToken)
+    {
+        int marked;
+        do
+        {
+            marked = await ParkedRows.InTenant(dataSource, tenantId, async (connection, transaction) =>
+            {
+                await using var command = ParkedRows.Command("""
+                    UPDATE integration.parked_delivery SET retry_requested_at = @now
+                    WHERE tenant_id = @tenant_id AND id IN (
+                      SELECT id FROM integration.parked_delivery
+                      WHERE tenant_id = @tenant_id AND status = 'PARKED' AND retry_requested_at IS NULL
+                        AND (@codes::text[] IS NULL OR prerequisite_code = ANY(@codes)) AND prerequisite_item = ANY(@items)
+                      LIMIT @batch)
+                    """, connection, transaction, ("tenant_id", tenantId), ("now", clock.UtcNow), ("codes", (object?)codes ?? DBNull.Value), ("items", items),
+                    ("batch", MarkBatch));
+                return await command.ExecuteNonQueryAsync(cancellationToken);
+            }, cancellationToken);
+        }
+        while (marked == MarkBatch);
     }
 }
 

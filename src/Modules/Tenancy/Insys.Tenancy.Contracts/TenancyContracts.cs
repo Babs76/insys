@@ -76,6 +76,15 @@ public interface ITenantFunctionSettings
     Task<TenantFunctionSettings> For(Guid tenantId, DateOnly day, CancellationToken cancellationToken);
 }
 
+/// <summary>
+/// Public query interface: the tenant and feature of one tenant.cfg_feature_entitlements row (a global row naming its tenant by code), or null when the
+/// row or its tenant is unknown. For releasing only the parks an entitlement can resolve (Ade, 18 November 2026).
+/// </summary>
+public interface ITenantFeatureEntitlements
+{
+    Task<(Guid TenantId, string Feature)?> OfRecord(Guid recordId, CancellationToken cancellationToken);
+}
+
 /// <summary>Public query interface: the tenant's base currency on a day (tenant.cfg_locale_defaults), or null when none is in force.</summary>
 public interface ITenantBaseCurrency
 {

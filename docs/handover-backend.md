@@ -567,6 +567,19 @@ The first of the five fix batches from the scope sweeps (`docs/reviews/read-scop
   - `WorkflowTests`: the coverage of every type; the fail-closed and product-version scoping through a real `ApprovalRequested`; product-only and unresolved approvals; deciding by the approve scope.
   - `WriteScopeTests`: 6 tests, one per write group.
 
+### Release batch (18 November 2026, branch `release-batch`, on the availability batch)
+Ade's refinement of the availability batch: a platform-wide row releases only the parks it can resolve, in batches.
+- **`RetryParkedOnConfiguration`:**
+  - For an entitlement, Tenancy's new contract `ITenantFeatureEntitlements.OfRecord` gives the row's tenant and feature. The row is global and names its tenant, so a tenant's session can't see another's (V0057); it is read through the platform-admin data source, which may read every global row.
+  - `IFunctionAvailability.JobFunctionsNeeding` gives the JOB functions that need the feature.
+  - Only those parks are marked, 500 per statement, until none are left.
+  - A function catalogue row marks its function's two codes in every tenant; any other global code marks the parks whose item is that code.
+- **Test:** the availability batch's test, extended.
+  - Tenant A's LIFE entitlement releases A's LIFE park, but neither tenant B's LIFE park nor A's `GRACE_RULE_NOT_IN_FORCE QUARTERLY` park.
+  - A global `QUARTERLY` frequency releases A's grace park and nothing else.
+  - Two mutants fail it: dropping the code and item filter, and marking every tenant.
+- **Not done:** a global row other than an entitlement or a catalogue function resolves a park only when the park's item is the row's code. A park whose item is shaped differently (`<product>:<frequency>`, say) waits for the 15-minute retry.
+
 ### Availability batch (18 November 2026, branch `availability-batch`, on the seed batch)
 From the front end's run LQNEWA: eight deliveries in tenant GLQNEWA, which is entitled to every feature it needs, parked `FUNCTION_DISABLED` during setup.
 - **Cause, from the code (inferred: the run's timings weren't read).**

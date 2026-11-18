@@ -240,6 +240,10 @@ public sealed class FunctionAvailability(FunctionCatalogueReader catalogue, Tena
         return Application.Users.FunctionHolding.Refusal(functionCode, function.Feature, cached.Settings, operatorTenant);
     }
 
+    public async Task<IReadOnlyList<string>> JobFunctionsNeeding(string feature, CancellationToken cancellationToken) =>
+        (await catalogue.Functions(DateOnly.FromDateTime(clock.UtcNow.UtcDateTime), cancellationToken)).Values
+        .Where(f => f.Kind == "JOB" && f.Feature == feature).Select(f => f.Code).Order(StringComparer.Ordinal).ToList();
+
     public async Task<IReadOnlyList<string>> JobsSwitchedOff(Guid tenantId, CancellationToken cancellationToken)
     {
         var day = dates.TodayFor(tenantId);
