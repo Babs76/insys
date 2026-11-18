@@ -68,6 +68,8 @@
 | Abandoning a SETUP set (OQ-180) | An approved set that can't finish applying is abandoned under a new privileged function, asked and approved by different people, onboarding only; what is in force stays and is listed; go-live waits for a new set | Merged (`a463386`, with templates v3) |
 | Premium coverage (Ade, 17 November) | Sample rating configuration on `OFT-HOME` (a percentage loading, a discount and a loading schedule, monthly bounds; no tax), and the evaluation set rates it with each schedule: 66 premiums, every line type but `FACTOR` and `TAX` | Merged (`073391f`); the final rerun, 44062786569, waits for Ade |
 | Wave 7 batch 7.4 | D-16 decided (§5.5). The malware scan (AIA-010): the scanner port and ClamAV adapter, failing closed; uploads quarantined until clean (V0138, 409 `DOCUMENT_QUARANTINED`); the scan job; ClamAV in the chart, the smoke test and compose. AI-1: intake and extraction, the identifier check, the audited confirmation, runs (V0139), the job acting for the user (AIA-017), INSYS's checks on the output, the Draft through Product Factory's commands (OQ-184 (a)) | Approved by Ade with conditions (17 November): the uploader confirms, only Found values reach the Draft, the development scanner, the contract list, ClamAV recorded, the scan runbook, OQ-184 decided. Merging on green CI and smoke |
+| Scope batch 2 | The read sweep's Health accumulators: `GET /health/memberships/{id}/accumulators` reads within the membership's scope (F103) | Branch `scope-batch-2` |
+| Scope batch 3 | The read sweep's policy export: each module's export rows filtered by the reader's scope in its query (F103) | Branch `scope-batch-3` (on batch 2) |
 
 ## Phase 1 review items
 

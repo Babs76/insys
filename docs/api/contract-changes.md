@@ -7,7 +7,14 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 ## AI Assist: the 7.4 error codes are catalogued (18 November 2026)
 - **Not breaking:** each code now has a meaning and a next step in the catalogue's source (`[ErrorCode(..., Means, Remedy)]` in `src/Modules/Assist/Insys.Assist.Domain/AssistTenantSetting.cs`, read through the back-end mirror). The API's catalogue (`GET /api/v1/integration/static/error-code-catalogue`) serves the code, status, message key and retry flag, as before, not this wording. The codes are `ASSIST_NOT_UPLOADER`, `ASSIST_DOCUMENT_NOT_ALLOWED`, `ASSIST_CONFIRMATION_REQUIRED`, `ASSIST_CONFIRMATION_STALE`, `ASSIST_DOCUMENT_IDENTIFIERS`, `ASSIST_SOURCE_UNREADABLE`, `ASSIST_USER_CANNOT_ACT`, `ASSIST_RUN_STALLED`, `ASSIST_RESIDENCY_MISMATCH`, `ASSIST_SOURCE_TOO_LARGE` and `ASSIST_RUN_EXPIRED`. No code, status, message key or retry flag changed: none is retryable.
-- The AI-2 evaluation set gains them as refusals (88 refusals and 66 premiums). The run waiting for Ade (44062786569) is on `073391f` and doesn't include them.
+- The AI-2 evaluation set gains them as refusals (88 refusals and 66 premiums). **Its case ids are now stable:** a refusal is `R-<code>` and a premium `C-<product>-<factor value>-<sum>-<adjustments or NONE>`, so adding a code or a premium no longer renumbers the others. They change once, now, before the expert's run. The run waiting for Ade (44062786569) is on `073391f` and doesn't include them.
+
+## Scope batch 3: a policy export holds only the reader's policies (F103, read sweep, Party, 18 November 2026)
+- **Breaking, for callers with a product or branch scope:** `GET /party/bulk-jobs/{id}/content` for a policy export (`POST /party/bulk-jobs/policy-exports`) now lists only the General and Life policies and Health memberships whose product and node the reader's scope allows. Before, it listed every one in the tenant. Each module filters in its own query.
+- **The job's count** (`POST …/policy-exports`) is the requester's, in their scope; the download is the reader's, in theirs. So two readers with different scopes can download different rows from one approved job, and neither gets more than their own scope. An unrestricted reader sees no change.
+
+## Scope batch 2: a membership's accumulators follow its scope (F103, read-scope sweep row 1, 18 November 2026)
+- **Breaking, for callers with a product or branch scope:** `GET /health/memberships/{id}/accumulators` now answers **404** for a membership outside the caller's scope, as `GET /health/memberships/{id}` already did. Before, it returned the accumulators of any membership in the tenant. An unrestricted caller sees no change.
 
 ## Wave 7 batch 7.4: the malware scan of uploads, and AI-1's product drafts (17 November 2026)
 Every change, marked **breaking** where a client built on the previous contract can see a different answer.

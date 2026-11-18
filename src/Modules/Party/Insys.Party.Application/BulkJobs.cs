@@ -223,7 +223,9 @@ internal sealed class BulkJobHandlers(IEnumerable<BuildingBlocks.Application.Con
         var rows = new List<BuildingBlocks.Application.Context.PolicyExportRow>();
         foreach (var source in policySources.Where(s => domain is null || s.Domain == domain).OrderBy(s => s.Domain, StringComparer.Ordinal))
         {
-            rows.AddRange(await source.All(tenant.RequireTenantId(), cancellationToken));
+            // F103 (scope batch 3): only the policies and memberships the caller's scope allows, filtered in each module's query: the requester's
+            // when it is requested (the count), the reader's when it is downloaded (the rows).
+            rows.AddRange(await source.All(tenant.RequireTenantId(), execution.CurrentScope, cancellationToken));
         }
 
         return rows;

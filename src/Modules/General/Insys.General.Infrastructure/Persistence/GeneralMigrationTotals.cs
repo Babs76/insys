@@ -46,6 +46,6 @@ internal sealed class GeneralPolicyExport([FromKeyedServices(GeneralDbContext.Sc
 {
     public string Domain => "GENERAL";
 
-    public Task<IReadOnlyList<PolicyExportRow>> All(Guid tenantId, CancellationToken cancellationToken) =>
-        PolicyExportReader.Read(dataSource, tenantId, Domain, "SELECT policy_number, product_code, policyholder_party_id, status, period_start, period_end, currency FROM general.policy ORDER BY id", cancellationToken);
+    public Task<IReadOnlyList<PolicyExportRow>> All(Guid tenantId, AccessScope scope, CancellationToken cancellationToken) =>
+        PolicyExportReader.Read(dataSource, tenantId, Domain, "SELECT policy_number, product_code, policyholder_party_id, status, period_start, period_end, currency FROM general.policy", "product_code", "org_node_code", scope, cancellationToken);
 }

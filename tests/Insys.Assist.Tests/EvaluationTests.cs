@@ -179,7 +179,7 @@ public sealed class EvaluationTests
         table.IndexOf("claude-haiku-5-5", StringComparison.Ordinal).ShouldBeLessThan(table.IndexOf("claude-opus-5-5", StringComparison.Ordinal));
     }
 
-    // Run 43862166993, claude-opus-5-5, copied from its results.json (sample data; Ade, 16 November). Each is sent through the exchange a run uses, from the committed set's R-005 and C-001.
+    // Run 43862166993, claude-opus-5-5, copied from its results.json (sample data; Ade, 16 November). Each is sent through the exchange a run uses, from the committed set's R-ASSIST_PACK_CHANGED and C-OFT-MOTOR-G3-25000-NONE (R-005 and C-001 in that run).
     private const string R005Facts = "code: ASSIST_PACK_CHANGED\nworth retrying: no\nwhat it means: The approval was for different content from the version as it now stands.\nwhat to do next: Read the version again, check its review sheet, and approve the content it now has.";
     private const string R005Text = "INSYS refused your approval because the content you approved is no longer the content in this version. The version has changed since you reviewed it, so your approval no longer matches what it contains. INSYS can't accept it as it stands.\n\nTrying the same approval again won't help, because it would still be for the old content.\n\n**What to do next:**\n1. Open the version again and read it as it now stands.\n2. Check its review sheet so you know what has changed.\n3. If you're satisfied, approve the content the version has now.";
     private const string C001Facts = "product: OFT-MOTOR\nproduct version: 1\nrating version: 1\nsource: GENERAL\nline 1: EXPOSURE\nline 1 factor value: sum_insured\nline 1 amount: ZAR 25000.00\nline 2: TABLE\nline 2 factor: OFT-MOT-BASE\nline 2 factor value: G3\nline 2 amount: ZAR 750.00\nline 3: FEE\nline 3 factor: POLICY_FEE\nline 3 factor value: 50\nline 3 amount: ZAR 800.00\nline 4: ROUNDING\nline 4 factor: ZAR-2DP\nline 4 factor value: 0.01\nline 4 amount: ZAR 800.00\npremium: ZAR 800.00";
@@ -195,14 +195,14 @@ public sealed class EvaluationTests
         return await AssistExchange.Send(new Scripted(_ => answer), "claude-opus-5-5", "v", "Explain.", facts, CancellationToken.None);
     }
 
-    /// <summary>AIA-033a, from the first evaluation run: R-005's answer, a numbered list of what to do next, verifies; a figure added to a listed line is still rejected.</summary>
+    /// <summary>AIA-033a, from the first evaluation run: R-ASSIST_PACK_CHANGED's answer, a numbered list of what to do next, verifies; a figure added to a listed line is still rejected.</summary>
     [Fact]
     public async Task R005sAnswer_Verifies_AndAFigureAddedToAListedLine_IsRejected_AIA033a()
     {
-        var asGiven = await Answered("R-005", R005Text);
+        var asGiven = await Answered("R-ASSIST_PACK_CHANGED", R005Text);
         asGiven.Sent.Text.ShouldBe(R005Facts, "the facts the run sent");
         asGiven.Rejected.ShouldBeEmpty();
-        (await Answered("R-005", R005Text.Replace("1. Open", "1. Open within 5 days", StringComparison.Ordinal))).Rejected.ShouldBe(["5"]);
+        (await Answered("R-ASSIST_PACK_CHANGED", R005Text.Replace("1. Open", "1. Open within 5 days", StringComparison.Ordinal))).Rejected.ShouldBe(["5"]);
     }
 
     /// <summary>
@@ -212,11 +212,11 @@ public sealed class EvaluationTests
     [Fact]
     public async Task C001sAnswer_IsRejectedOnlyForItsNumberWord_VerifiesWithoutIt_AndAWrongAmountIsRejected_AIA033a_P3()
     {
-        var asGiven = await Answered("C-001", C001Text);
+        var asGiven = await Answered("C-OFT-MOTOR-G3-25000-NONE", C001Text);
         asGiven.Sent.Text.ShouldBe(C001Facts, "the facts the run sent");
         asGiven.Rejected.ShouldBe(["four"]);
-        (await Answered("C-001", C001Text.Replace(" in four lines", "", StringComparison.Ordinal))).Rejected.ShouldBeEmpty();
-        (await Answered("C-001", C001Text.Replace(" in four lines", "", StringComparison.Ordinal).Replace("ZAR 750.00", "ZAR 760.00", StringComparison.Ordinal))).Rejected
+        (await Answered("C-OFT-MOTOR-G3-25000-NONE", C001Text.Replace(" in four lines", "", StringComparison.Ordinal))).Rejected.ShouldBeEmpty();
+        (await Answered("C-OFT-MOTOR-G3-25000-NONE", C001Text.Replace(" in four lines", "", StringComparison.Ordinal).Replace("ZAR 750.00", "ZAR 760.00", StringComparison.Ordinal))).Rejected
             .ShouldHaveSingleItem().ShouldContain("760.00");
     }
 

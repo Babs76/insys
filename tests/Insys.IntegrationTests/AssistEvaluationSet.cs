@@ -62,7 +62,8 @@ internal static class AssistEvaluationSet
     public static async Task Check(InsysApiFactory host, Guid tenant, string productManager)
     {
         var refusals = host.Services.GetRequiredService<IErrorCatalogue>().All.Where(e => e.Means is { Length: > 0 })
-            .Select((e, i) => new RefusalCase($"R-{i + 1:000}", e.Code, e.Retryable, e.Means!, e.Remedy, e.Code == "VALIDATION_FAILED" ? 2 : 0)).ToList();
+            // A case's id names it, so adding a code or a premium never renumbers the others (Ade, 18 November: stable from the expert's run on).
+            .Select(e => new RefusalCase($"R-{e.Code}", e.Code, e.Retryable, e.Means!, e.Remedy, e.Code == "VALIDATION_FAILED" ? 2 : 0)).ToList();
 
         var client = host.StrictClientFor(tenant, productManager);
         var calculations = new List<CalculationCase>();
@@ -83,7 +84,7 @@ internal static class AssistEvaluationSet
                     var view = (await answer.Content.ReadFromJsonAsync<JsonElement>()).Clone();
                     var lines = view.GetProperty("lines").EnumerateArray().Select(l => new RecordedCalculationLine(l.GetProperty("lineNo").GetInt32(), l.GetProperty("component").GetString()!,
                         Text(l, "factorCode"), Text(l, "factorValue"), l.GetProperty("amount").GetDecimal())).ToList();
-                    calculations.Add(new CalculationCase($"C-{calculations.Count + 1:000}", domain, product, 1, view.GetProperty("ratingVersion").GetInt32(), view.GetProperty("premium").GetDecimal(),
+                    calculations.Add(new CalculationCase($"C-{product}-{key}-{sum}-{(adjustments.Length == 0 ? "NONE" : string.Join("+", adjustments))}", domain, product, 1, view.GetProperty("ratingVersion").GetInt32(), view.GetProperty("premium").GetDecimal(),
                         view.GetProperty("currency").GetString()!, lines));
                 }
             }
