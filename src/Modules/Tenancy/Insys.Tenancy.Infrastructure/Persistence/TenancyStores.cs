@@ -97,37 +97,66 @@ internal sealed class TenancyEventMapper : IDomainEventMapper
     };
 }
 
-/// <summary>The tenant register for per-tenant background work such as the outbox relay. All tenants, including terminated ones, so pending events still drain.</summary>
-internal sealed class TenantDirectory([FromKeyedServices(TenancyDbContext.SchemaName)] NpgsqlDataSource dataSource) : ITenantDirectory
+/// <summary>
+/// Reads of tenant.tenant, which has row-level security (V0142): each runs in a session that says whose it is. A read of one tenant runs as that tenant,
+/// so it sees only its own row; a read across tenants runs as the platform operator, whose session sees every row. Never without a tenant, which
+/// sees no row.
+/// </summary>
+internal static class TenantRows
 {
-    public async Task<IReadOnlyList<Guid>> GetActiveTenantIds(CancellationToken cancellationToken)
+    public static async Task<T> As<T>(NpgsqlDataSource dataSource, Guid sessionTenant, string sql, Func<NpgsqlCommand, Task<T>> read, CancellationToken cancellationToken,
+        params (string Name, object Value)[] parameters)
     {
-        await using var command = dataSource.CreateCommand("SELECT id FROM tenant.tenant ORDER BY id");
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        var ids = new List<Guid>();
-        while (await reader.ReadAsync(cancellationToken))
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await TenantSession.SetTenant(connection, transaction, sessionTenant, cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection, transaction);
+        foreach (var (name, value) in parameters)
         {
-            ids.Add(reader.GetGuid(0));
+            command.Parameters.AddWithValue(name, value);
         }
 
-        return ids;
+        var result = await read(command);
+        await transaction.CommitAsync(cancellationToken);
+        return result;
     }
+
+    public static async Task<IReadOnlyList<T>> List<T>(NpgsqlCommand command, Func<NpgsqlDataReader, T> row, CancellationToken cancellationToken)
+    {
+        var rows = new List<T>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            rows.Add(row(reader));
+        }
+
+        return rows;
+    }
+}
+
+/// <summary>The tenant register for per-tenant background work such as the outbox relay. All tenants, including terminated ones, so pending events still drain.</summary>
+internal sealed class TenantDirectory([FromKeyedServices(TenancyDbContext.SchemaName)] NpgsqlDataSource dataSource,
+    Microsoft.Extensions.Options.IOptions<BuildingBlocks.Application.Context.PlatformOptions> platform) : ITenantDirectory
+{
+    // Across tenants: the platform operator's session (V0142).
+    public Task<IReadOnlyList<Guid>> GetActiveTenantIds(CancellationToken cancellationToken) =>
+        TenantRows.As(dataSource, platform.Value.OperatorTenantId, "SELECT id FROM tenant.tenant ORDER BY id",
+            command => TenantRows.List(command, reader => reader.GetGuid(0), cancellationToken), cancellationToken);
 }
 
 internal sealed class TenantStatusQuery([FromKeyedServices(TenancyDbContext.SchemaName)] NpgsqlDataSource dataSource) : ITenantStatusQuery
 {
-    public async Task<bool> IsActive(Guid tenantId, CancellationToken cancellationToken)
-    {
-        await using var command = dataSource.CreateCommand("SELECT status FROM tenant.tenant WHERE id = @id");
-        command.Parameters.AddWithValue("id", tenantId);
-        return await command.ExecuteScalarAsync(cancellationToken) is string status && status == UpperCaseEnumConverter<TenantStatus>.ToCode(TenantStatus.Active);
-    }
+    // One tenant, read as that tenant (V0142).
+    private Task<string?> Status(Guid tenantId, CancellationToken cancellationToken) =>
+        TenantRows.As(dataSource, tenantId, "SELECT status FROM tenant.tenant WHERE id = @id", async command => await command.ExecuteScalarAsync(cancellationToken) as string,
+            cancellationToken, ("id", tenantId));
+
+    public async Task<bool> IsActive(Guid tenantId, CancellationToken cancellationToken) =>
+        await Status(tenantId, cancellationToken) == UpperCaseEnumConverter<TenantStatus>.ToCode(TenantStatus.Active);
 
     public async Task<TenantUserAccess> UserAccess(Guid tenantId, CancellationToken cancellationToken)
     {
-        await using var command = dataSource.CreateCommand("SELECT status FROM tenant.tenant WHERE id = @id");
-        command.Parameters.AddWithValue("id", tenantId);
-        var status = await command.ExecuteScalarAsync(cancellationToken) as string;
+        var status = await Status(tenantId, cancellationToken);
         return status == UpperCaseEnumConverter<TenantStatus>.ToCode(TenantStatus.Active) ? TenantUserAccess.Full
             : status == UpperCaseEnumConverter<TenantStatus>.ToCode(TenantStatus.Onboarding) ? TenantUserAccess.ConfigurationOnly
             : TenantUserAccess.None;
@@ -273,48 +302,35 @@ internal sealed class LocaleDefaultsValidator : IStaticRecordValidator
 
 internal sealed class SampleTenants([FromKeyedServices(TenancyDbContext.SchemaName)] NpgsqlDataSource dataSource) : BuildingBlocks.Application.Context.ISampleTenants
 {
-    public async Task<bool> IsSample(Guid tenantId, CancellationToken cancellationToken)
-    {
-        await using var command = dataSource.CreateCommand("SELECT sample FROM tenant.tenant WHERE id = @id");
-        command.Parameters.AddWithValue("id", tenantId);
-        return await command.ExecuteScalarAsync(cancellationToken) is not false;
-    }
+    // One tenant, read as that tenant (V0142).
+    public Task<bool> IsSample(Guid tenantId, CancellationToken cancellationToken) =>
+        TenantRows.As(dataSource, tenantId, "SELECT sample FROM tenant.tenant WHERE id = @id", async command => await command.ExecuteScalarAsync(cancellationToken) is not false,
+            cancellationToken, ("id", tenantId));
 }
 
 internal sealed class TenantProfiles([FromKeyedServices(TenancyDbContext.SchemaName)] NpgsqlDataSource dataSource) : ITenantProfiles
 {
-    public async Task<TenantProfile?> Get(Guid tenantId, CancellationToken cancellationToken)
-    {
-        await using var command = dataSource.CreateCommand("SELECT tenant_code, legal_name, status FROM tenant.tenant WHERE id = @id");
-        command.Parameters.AddWithValue("id", tenantId);
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        return await reader.ReadAsync(cancellationToken) ? new TenantProfile(tenantId, reader.GetString(0), reader.GetString(1), UpperCaseEnumConverter<TenantStatus>.FromCode(reader.GetString(2)).ToString()) : null;
-    }
+    // One tenant, read as that tenant (V0142).
+    public async Task<TenantProfile?> Get(Guid tenantId, CancellationToken cancellationToken) =>
+        (await TenantRows.As(dataSource, tenantId, "SELECT tenant_code, legal_name, status FROM tenant.tenant WHERE id = @id",
+            command => TenantRows.List(command, reader => new TenantProfile(tenantId, reader.GetString(0), reader.GetString(1),
+                UpperCaseEnumConverter<TenantStatus>.FromCode(reader.GetString(2)).ToString()), cancellationToken), cancellationToken, ("id", tenantId))).FirstOrDefault();
 }
 
 /// <summary>
 /// /health check tenant-time-zones (ADR-025): Degraded while any tenant has no time zone (neither locale defaults nor one
 /// given at registration) and so runs on the default, Africa/Johannesburg; its data lists those tenants' codes to fix.
 /// </summary>
-internal sealed class TenantTimeZonesHealthCheck(TenantLocaleDefaults zones, [FromKeyedServices(TenancyDbContext.SchemaName)] NpgsqlDataSource dataSource)
-    : Microsoft.Extensions.Diagnostics.HealthChecks.IHealthCheck
+internal sealed class TenantTimeZonesHealthCheck(TenantLocaleDefaults zones, [FromKeyedServices(TenancyDbContext.SchemaName)] NpgsqlDataSource dataSource,
+    Microsoft.Extensions.Options.IOptions<BuildingBlocks.Application.Context.PlatformOptions> platform) : Microsoft.Extensions.Diagnostics.HealthChecks.IHealthCheck
 {
     public async Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult> CheckHealthAsync(
         Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext context, CancellationToken cancellationToken = default)
     {
-        var missing = new List<string>();
-        await using (var command = dataSource.CreateCommand("SELECT id, tenant_code FROM tenant.tenant ORDER BY tenant_code"))
-        await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
-        {
-            var tenants = new List<(Guid Id, string Code)>();
-            while (await reader.ReadAsync(cancellationToken))
-            {
-                tenants.Add((reader.GetGuid(0), reader.GetString(1)));
-            }
-
-            await reader.CloseAsync();
-            missing.AddRange(tenants.Where(t => string.IsNullOrWhiteSpace(zones.TimeZoneOf(t.Id))).Select(t => t.Code));
-        }
+        // Across tenants: the platform operator's session (V0142).
+        var tenants = await TenantRows.As(dataSource, platform.Value.OperatorTenantId, "SELECT id, tenant_code FROM tenant.tenant ORDER BY tenant_code",
+            command => TenantRows.List(command, reader => (Id: reader.GetGuid(0), Code: reader.GetString(1)), cancellationToken), cancellationToken);
+        var missing = tenants.Where(t => string.IsNullOrWhiteSpace(zones.TimeZoneOf(t.Id))).Select(t => t.Code).ToList();
 
         return missing.Count == 0
             ? Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy("Every tenant has a time zone.")

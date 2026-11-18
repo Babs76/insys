@@ -33,14 +33,13 @@ using Npgsql;
 namespace Insys.Tenancy.Infrastructure.Persistence;
 
 /// <summary>Reads a tenant's function availability and feature entitlements (ADR-026 §2) on the Tenancy module's own connection.</summary>
-internal sealed class TenantFunctionSettingsQuery([FromKeyedServices(TenancyDbContext.SchemaName)] NpgsqlDataSource dataSource) : ITenantFunctionSettings, ITenantCodes
+internal sealed class TenantFunctionSettingsQuery([FromKeyedServices(TenancyDbContext.SchemaName)] NpgsqlDataSource dataSource,
+    Microsoft.Extensions.Options.IOptions<BuildingBlocks.Application.Context.PlatformOptions> platform) : ITenantFunctionSettings, ITenantCodes
 {
-    public async Task<Guid?> IdOf(string tenantCode, CancellationToken cancellationToken)
-    {
-        await using var command = dataSource.CreateCommand("SELECT id FROM tenant.tenant WHERE tenant_code = @c");
-        command.Parameters.AddWithValue("c", tenantCode);
-        return await command.ExecuteScalarAsync(cancellationToken) as Guid?;
-    }
+    // By code, across tenants: the platform operator's session (V0142).
+    public Task<Guid?> IdOf(string tenantCode, CancellationToken cancellationToken) =>
+        TenantRows.As(dataSource, platform.Value.OperatorTenantId, "SELECT id FROM tenant.tenant WHERE tenant_code = @c",
+            async command => await command.ExecuteScalarAsync(cancellationToken) as Guid?, cancellationToken, ("c", tenantCode));
 
     public async Task<TenantFunctionSettings> For(Guid tenantId, DateOnly day, CancellationToken cancellationToken)
     {

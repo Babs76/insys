@@ -567,6 +567,22 @@ The first of the five fix batches from the scope sweeps (`docs/reviews/read-scop
   - `WorkflowTests`: the coverage of every type; the fail-closed and product-version scoping through a real `ApprovalRequested`; product-only and unresolved approvals; deciding by the approve scope.
   - `WriteScopeTests`: 6 tests, one per write group.
 
+### Directory batch (18 November 2026, branch `directory-rls`, on the release batch)
+Ade: close the gap on `tenant.tenant` in the database, not only in the API.
+- **V0142:**
+  - Adds `platform_operator`, true for the tenant the bootstrap registers as `OPERATOR` (one at most, unique index).
+  - A trigger lets only the database owner set or clear it, so a module role can't raise its own tenant.
+  - `tenant.session_is_platform_operator()` (security definer, read as the owner, so the policy never reads the table through itself) says whether the session's tenant is the operator.
+  - Row-level security, policy `own_or_platform`: a row is seen and written when it is the session's tenant (`app.tenant_id`) or the session is the operator's.
+  - The owner is not subject to it: migrations, the bootstrap, and `tenant.current_tenant_code()`.
+- **Tenancy's reads now say whose session they run in** (`TenantRows.As`):
+  - Reads of one tenant run as that tenant: status for the request pipeline, sample, profile.
+  - Reads across tenants run as the platform operator (`Platform:OperatorTenantId`): the directory for jobs, the time zone health check, and the code-to-id lookup.
+  - Reads that already set the tenant's session are unchanged: time zone, function settings, readiness. So is the EF context, which runs in the request's tenant: the operator's requests see every tenant, as they register and manage them.
+- **The bootstrap** (`db/bootstrap/operator.sql`) marks the operator, also on a run again. The test fixture marks the tenant it seeds as `OPERATOR`.
+- **Tests:** `TenantDirectoryAccessTests`. As `insys_tenant`, a tenant's session sees only its own row, no tenant set sees none, and the operator's session sees all. A tenant's session can't mark itself the operator. Two mutants fail them: no row-level security, and no operator clause.
+- **Environments:** the migration marks the existing `OPERATOR` tenant, so the Preview needs no step of its own when it is next deployed (with Ade's approval).
+
 ### Release batch (18 November 2026, branch `release-batch`, on the availability batch)
 Ade's refinement of the availability batch: a platform-wide row releases only the parks it can resolve, in batches.
 - **`RetryParkedOnConfiguration`:**

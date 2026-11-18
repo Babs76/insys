@@ -25,6 +25,7 @@
  * ============================================================================
  */
 using System.Net;
+using Npgsql;
 using Insys.Testing;
 using Shouldly;
 using Xunit;
@@ -32,8 +33,8 @@ using Xunit;
 namespace Insys.IntegrationTests;
 
 /// <summary>
-/// tenant.tenant, the platform's directory of tenants, has no row-level security by design (Ade's question, 18 November 2026): only the owner and the
-/// Tenancy module's role may read it, and the API's reads of tenants are the platform's only. These tests hold both.
+/// tenant.tenant, the platform's directory of tenants (Ade, 18 November 2026): only the owner and the Tenancy module's role may read it, the API's reads of
+/// tenants are the platform's only, and row-level security (V0142) lets a tenant's session see only its own row, and the platform operator's every row.
 /// </summary>
 public sealed class TenantDirectoryAccessTests(DatabaseFixture fixture) : IClassFixture<DatabaseFixture>
 {
@@ -48,6 +49,50 @@ public sealed class TenantDirectoryAccessTests(DatabaseFixture fixture) : IClass
         readers.ShouldNotBeNull();
         readers.Split(',').Where(r => !r.EndsWith("_login", StringComparison.Ordinal)).ShouldBe(["insys_tenant"],
             "only the Tenancy module's role (and its login) reads the directory");
+    }
+
+    /// <summary>V0142: the Tenancy module's role sees its own tenant's row in a tenant's session, every row in the operator's, and none with no tenant set.</summary>
+    [Fact]
+    public async Task ATenantsSession_SeesOnlyItsOwnRow_ThePlatformOperatorsSeesEvery_AndNoneSetSeesNone_V0142()
+    {
+        async Task<string> Visible(Guid? session)
+        {
+            await using var connection = new NpgsqlConnection(fixture.Database.ConnectionFor("insys_tenant"));
+            await connection.OpenAsync();
+            await using var transaction = await connection.BeginTransactionAsync();
+            if (session is { } tenant)
+            {
+                await using var set = new NpgsqlCommand("SELECT set_config('app.tenant_id', @t, true)", connection, transaction);
+                set.Parameters.AddWithValue("t", tenant.ToString());
+                await set.ExecuteNonQueryAsync();
+            }
+
+            await using var read = new NpgsqlCommand("SELECT coalesce(string_agg(tenant_code, ',' ORDER BY tenant_code), '') FROM tenant.tenant", connection, transaction);
+            return (string)(await read.ExecuteScalarAsync())!;
+        }
+
+        (await Visible(DatabaseFixture.TenantA)).ShouldBe("TENA", "a tenant's session sees its own row only");
+        (await Visible(DatabaseFixture.TenantB)).ShouldBe("TENB");
+        (await Visible(null)).ShouldBe("", "no tenant set is never the platform");
+        (await Visible(DatabaseFixture.Operator)).Split(',').ShouldBe(["OPERATOR", "TENA", "TENB"], ignoreOrder: true, "the platform operator's session sees every row");
+    }
+
+    /// <summary>V0142: only the owner marks the platform operator, so a tenant's session can't raise itself to see the others.</summary>
+    [Fact]
+    public async Task ATenantsSession_CantMarkItselfThePlatformOperator_V0142()
+    {
+        await using var connection = new NpgsqlConnection(fixture.Database.ConnectionFor("insys_tenant"));
+        await connection.OpenAsync();
+        await using var transaction = await connection.BeginTransactionAsync();
+        await using (var set = new NpgsqlCommand("SELECT set_config('app.tenant_id', @t, true)", connection, transaction))
+        {
+            set.Parameters.AddWithValue("t", DatabaseFixture.TenantA.ToString());
+            await set.ExecuteNonQueryAsync();
+        }
+
+        await using var raise = new NpgsqlCommand("UPDATE tenant.tenant SET platform_operator = true WHERE id = @t", connection, transaction);
+        raise.Parameters.AddWithValue("t", DatabaseFixture.TenantA);
+        (await Should.ThrowAsync<PostgresException>(() => raise.ExecuteNonQueryAsync())).SqlState.ShouldBe(PostgresErrorCodes.InsufficientPrivilege);
     }
 
     [Fact]

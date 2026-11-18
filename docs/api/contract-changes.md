@@ -5,6 +5,9 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 
 
+## Directory batch: row-level security on tenant.tenant (V0142, Ade, 18 November 2026)
+- **No API change.** In the database, a session for a tenant now sees only that tenant's row of `tenant.tenant`, and the platform operator's session sees every row. A session with no tenant set sees none. The operator is marked explicitly (`platform_operator`, set only by the database owner). The API already allowed only the platform to read tenants.
+
 ## Release batch: a platform-wide row releases only what it can resolve (Ade, 18 November 2026)
 - **Event changed, not breaking:** `sdm.StaticDataVersionActivated` gains `entitlementTenant` (the tenant code) and `entitlementFeature`. Both are set only for a feature entitlement (`tenant.cfg_feature_entitlements`) and are null for every other row. A consumer acts for that tenant and feature without reading the global row. Existing consumers ignore them.
 - **No API change.** Publishing a platform-wide row retries only the parked deliveries it can resolve, marked 500 at a time. The parking job still retries at most its batch size per tenant per pass. Before (availability batch), it retried every tenant's parks.
