@@ -74,6 +74,15 @@ public sealed class OftzaSeedTests(DatabaseFixture fixture) : IClassFixture<Data
     public async Task TheSeed_MakesASampleTenant_WithTwoAdministrators_AndARunAgainChangesNothing()
     {
         var (seed, _) = await Run();
+
+        // Ade, 18 November 2026: the sample tenant's configuration is complete, so nothing it raises parks for missing configuration, fails or is dead-lettered.
+        var stuck = await fixture.Database.ScalarAsOwner<string?>("""
+            SELECT string_agg(format('%s %s %s (%s, %s)', status, coalesce(prerequisite_code, ''), coalesce(prerequisite_item, ''), consumer, event_type), ' | '
+                              ORDER BY status, consumer, prerequisite_item)
+            FROM integration.parked_delivery WHERE tenant_id = @t AND status IN ('PARKED', 'FAILING', 'RETRYING', 'DEAD_LETTERED')
+            """, ("t", seed.TenantId));
+        stuck.ShouldBeNull("every delivery for the sample tenant is handled");
+
         (await fixture.Database.ScalarAsOwner<bool>("SELECT sample FROM tenant.tenant WHERE id = @t", ("t", seed.TenantId))).ShouldBeTrue();
         (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM tenant.cfg_locale_defaults WHERE tenant_id = @t", ("t", seed.TenantId))).ShouldBe(1L);
 

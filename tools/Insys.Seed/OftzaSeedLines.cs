@@ -58,6 +58,10 @@ public sealed partial class OftzaSeed
         }
 
         await Static("documents/static/document-categories", "POLICY_SCHEDULE", new { categoryCode = "POLICY_SCHEDULE", label = "Policy schedule", classification = "PERSONAL", domain = "ALL", allowedRoles = Array.Empty<string>() });
+        // A document's category is its template's document type, so General's certificate and renewal invitation each need theirs; without them every General
+        // issue and renewal invitation failed to generate, retried and failed again (FAILING, the renewal invitation's seven attempts).
+        await Static("documents/static/document-categories", "CERTIFICATE", new { categoryCode = "CERTIFICATE", label = "Certificate of insurance", classification = "PERSONAL", domain = "ALL", allowedRoles = Array.Empty<string>() });
+        await Static("documents/static/document-categories", "RENEWAL_NOTICE", new { categoryCode = "RENEWAL_NOTICE", label = "Renewal invitation", classification = "PERSONAL", domain = "ALL", allowedRoles = Array.Empty<string>() });
         foreach (var (route, code, fields) in new (string, string, object)[]
                  {
                      ("life/static/life-benefit-types", "DEATH", new { label = "Death", payoutType = "LUMP_SUM" }), ("life/static/life-benefit-types", "FUNERAL", new { label = "Funeral", payoutType = "LUMP_SUM" }),

@@ -206,12 +206,15 @@ public sealed class FunctionAvailability(FunctionCatalogueReader catalogue, Tena
 {
     private readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, (DateTimeOffset At, Tenancy.Contracts.TenantFunctionSettings Settings)> _tenants = new();
 
-    public async Task<bool> IsEnabled(Guid tenantId, string functionCode, CancellationToken cancellationToken)
+    public async Task<bool> IsEnabled(Guid tenantId, string functionCode, CancellationToken cancellationToken) =>
+        await Unavailable(tenantId, functionCode, cancellationToken) is null;
+
+    public async Task<string?> Unavailable(Guid tenantId, string functionCode, CancellationToken cancellationToken)
     {
         var day = dates.TodayFor(tenantId);
         if (!(await catalogue.Functions(day, cancellationToken)).TryGetValue(functionCode, out var function))
         {
-            return false;
+            return BuildingBlocks.Domain.ErrorCodes.FunctionDisabled;
         }
 
         var now = clock.UtcNow;
@@ -221,7 +224,7 @@ public sealed class FunctionAvailability(FunctionCatalogueReader catalogue, Tena
             _tenants[tenantId] = cached;
         }
 
-        return Application.Users.FunctionHolding.Refusal(functionCode, function.Feature, cached.Settings, tenantId == platform.Value.OperatorTenantId) is null;
+        return Application.Users.FunctionHolding.Refusal(functionCode, function.Feature, cached.Settings, tenantId == platform.Value.OperatorTenantId);
     }
 
     public async Task<IReadOnlyList<string>> JobsSwitchedOff(Guid tenantId, CancellationToken cancellationToken)

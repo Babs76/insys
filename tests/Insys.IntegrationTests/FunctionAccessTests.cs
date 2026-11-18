@@ -211,6 +211,25 @@ public sealed class FunctionAccessTests(DatabaseFixture fixture) : IClassFixture
             "enabled again, the delivery is retried; it parks only on what the new tenant still lacks");
     }
 
+    /// <summary>
+    /// A consumer whose JOB function needs a feature the tenant isn't entitled to parks as FEATURE_NOT_ENTITLED, not FUNCTION_DISABLED (Ade, 18 November
+    /// 2026): the tenant switched nothing off, so the code names the entitlement to add.
+    /// </summary>
+    [Fact]
+    public async Task AConsumerOfAFeatureTheTenantIsNotEntitledTo_ParksAsFeatureNotEntitled_ADR026()
+    {
+        const string consumer = "life.ReopenLifeClaimsOnUpheldCase.CaseDecided";
+        var (tenant, code) = await NewTenant();
+        await fixture.Database.ExecuteAsOwner("UPDATE tenant.cfg_feature_entitlements SET record_status = 'RETIRED' WHERE tenant = @c AND feature = 'LIFE'", ("c", code));
+
+        var caseId = Guid.CreateVersion7();
+        var decided = new Insys.Workflow.Contracts.CaseDecided(caseId, "CASE-FNE", "COMPLAINT", "COMPLAINT", "UPHELD", null, []);
+        var envelope = Envelope(tenant, decided, "workflow.CaseDecided", "Case", caseId);
+        await _factory.Services.GetRequiredService<IEventBus>().Deliver(envelope, CancellationToken.None);
+
+        (await Parked(envelope.EventId, consumer)).ShouldBe($"{PrerequisiteCodes.FeatureNotEntitled} LIFE_EVENT_PROCESSING");
+    }
+
     [Fact]
     public async Task SwitchingOffABillingOrPaymentsDailyJob_IsAPrivilegedFunction_OQ098()
     {

@@ -239,11 +239,12 @@ public static class InfrastructureRegistration
             typeof(TEvent),
             async (sp, integrationEvent, envelope, cancellationToken) =>
             {
-                // ADR-026 §2: the module's consumers run under its JOB function; disabled for the tenant, the delivery parks.
+                // ADR-026 §2: the module's consumers run under its JOB function; disabled for the tenant, or its feature not entitled, the delivery parks
+                // and says which (Ade, 18 November 2026: FEATURE_NOT_ENTITLED, not a misleading FUNCTION_DISABLED).
                 if (Application.Context.JobFunctions.OfConsumers(schema) is { } job && sp.GetService<Application.Context.IFunctionAvailability>() is { } availability
-                    && !await availability.IsEnabled(envelope.TenantId, job, cancellationToken))
+                    && await availability.Unavailable(envelope.TenantId, job, cancellationToken) is { } why)
                 {
-                    throw new PrerequisiteMissingException(PrerequisiteCodes.FunctionDisabled, job);
+                    throw new PrerequisiteMissingException(why == Domain.ErrorCodes.FeatureNotEntitled ? PrerequisiteCodes.FeatureNotEntitled : PrerequisiteCodes.FunctionDisabled, job);
                 }
 
                 await sp.GetRequiredService<InboxEventHandler<TEvent, THandler, TDbContext>>().Handle(consumer, (TEvent)integrationEvent, envelope, cancellationToken);

@@ -330,6 +330,7 @@ public sealed partial class OftzaSeed(SeedContext context)
         await Static("workflow/static/delegation-and-approval-authority", "AUTH-PRODUCT_PUBLICATION", new { roleCode = "TENANT_ADMIN", transactionType = "PRODUCT_PUBLICATION", limitValue = 0m, delegationAllowed = false });
         await Static("rating/static/rounding-and-currency-precision-rules", "ZAR-2DP", new { ruleCode = "ZAR-2DP", currency = "ZAR", step = 0.01m, method = "HALF_UP", stage = "FINAL_PREMIUM" });
         await Static("documents/static/document-templates", "OFT-TPL-1", new { templateCode = "OFT-TPL-1", language = "en", documentType = "POLICY_SCHEDULE", bodyRef = "sample", mergeFields = Array.Empty<string>() });
+        await Static("documents/static/document-templates", "OFT-TPL-CERT", new { templateCode = "OFT-TPL-CERT", language = "en", documentType = "CERTIFICATE", bodyRef = "sample", mergeFields = Array.Empty<string>() });
 
         await Static("product-factory/static/coverage-and-benefit-library", "OWN_DAMAGE", new { type = "COVERAGE", name = "Own damage (sample)", basis = "INDEMNITY", measure = "SUM_INSURED", domain = "GENERAL" });
         await RatedProduct("OFT-MOTOR", "General", "GENERAL", "MOTOR", "Motor insurance (sample)", "Motor comprehensive (invented sample)", ["OWN_DAMAGE"], "VEHICLE_GROUP", "vehicle_group", [("G3", 0.03m)], "OFT-MOT", 100_000, "G3", 3050m, "GENERAL_UNDERWRITER");
@@ -382,6 +383,12 @@ public sealed partial class OftzaSeed(SeedContext context)
         var inputs = new Dictionary<string, object> { ["currency"] = "ZAR", ["frequency"] = "MONTHLY", ["sum_insured"] = sumInsured, [attribute] = testKey };
         await Static("rating/static/rating-test-case-library", $"{prefix}-T1", new { caseId = $"{prefix}-T1", productVersion = version, inputs, expectedPremium = expected, tolerance = 0.01m });
         await Static("product-factory/static/product-template-assignments", $"{prefix}-SCH", new { productCode = product, documentType = "POLICY_SCHEDULE", template = "OFT-TPL-1", language = "en" });
+        if (domain == "General")
+        {
+            // A General policy's issue documents are its schedule and its certificate (GeneralDocuments.IssueDocuments).
+            await Static("product-factory/static/product-template-assignments", $"{prefix}-CERT", new { productCode = product, documentType = "CERTIFICATE", template = "OFT-TPL-CERT", language = "en" });
+        }
+
         await Static("tenancy/static/tenant-product-availability", $"AVAIL-{family}", new { tenant = TenantCode, productFamily = family, enabled = true });
         await Static("rules/static/authority-matrices", $"AM-{product}", new { roleCode = underwriter, productCode = product, maxSumAssured = 1_000_000m, decisionTypes = new[] { "STD" } });
         await Publish(product, domain, family, name, coverages, eligibility);
@@ -802,7 +809,9 @@ public sealed partial class OftzaSeed(SeedContext context)
             await Static("workflow/static/case-timelines", $"COMPLAINT-{step}", new { caseTypeCode = "COMPLAINT", step, duration, basis = "CALENDAR", extensionAllowed = false });
         }
 
-        await Static("billing/static/billing-frequencies", "MONTHLY", new { label = "Monthly", periodsPerYear = 12 });
+        // In force from before the oldest sample policy: the migrated Life policy began a year ago, and analytics and reinsurance read the frequency on its
+        // inception date (BILLING_FREQUENCY_NOT_IN_FORCE MONTHLY parked both while it began on the seed's day).
+        await Static("billing/static/billing-frequencies", "MONTHLY", new { label = "Monthly", periodsPerYear = 12, effectiveFrom = "2020-01-01" });
         await Static("billing/static/collection-methods", "DEBIT_ORDER", new { methodCode = "DEBIT_ORDER", paymentMethod = "DEBIT_ORDER", leadTime = "P2D" });
         await Static("billing/static/document-numbering-schemes", "INV", new { documentType = "INVOICE", prefix = "INV", sequenceLength = 8, resetRule = "NEVER" });
         await Static("billing/static/arrears-ageing-buckets", "B1", new { bucketCode = "B1", daysFrom = 1, daysTo = 30, action = "REMINDER" });
@@ -850,12 +859,31 @@ public sealed partial class OftzaSeed(SeedContext context)
             await Static("communications/static/notification-templates", $"NTT-{type}", new { typeCode = type, channel = "EMAIL", language = "en", subject = "Case {case_number}", body = "Case {case_number} (sample)." });
         }
 
+        // Every other notice the platform sends, by email (Ade, 18 November 2026), each with a sample English template naming one business reference.
+        foreach (var (type, reference) in NoticeTypes)
+        {
+            await Static("communications/static/notification-types", $"NT-{type}", new { typeCode = type, category = "SERVICE", channels = new[] { "EMAIL" }, portalVisible = true });
+            await Static("communications/static/notification-templates", $"NTT-{type}", new { typeCode = type, channel = "EMAIL", language = "en", subject = $"{{{reference}}} (sample)", body = $"A sample {type} notice about {{{reference}}}." });
+        }
+
+        // The stand-in email provider: the platform's stub channel, which records a message and sends nothing (OQ-088). Sample tenants only; a live tenant names its own.
+        await Static("communications/static/channel-providers", "OFT-EMAIL", new { channel = "EMAIL", providerCode = "STUB", senderIdentity = "OFTZA sample (stub, sends nothing)", enabled = true });
+
         await Static("finance/static/gl-export-layouts", "GL", new { layoutCode = "GL", targetSystem = "SAMPLE", format = "CSV", schedule = "MONTHLY" });
         foreach (var point in new[] { "QUOTE", "ISSUE", "RENEWAL", "CLAIM" })
         {
             await Static("integration/static/disclosure-and-notice-texts", $"DISC-{point}", new { noticeType = "POLICY_TERMS", jurisdiction = "ZA", language = "en", text = "Invented sample terms, not legal wording.", textVersion = 1, displayPoint = point });
         }
     }
+
+    /// <summary>The platform's notices other than the case ones, each with a business reference its template may merge (MergeFields).</summary>
+    public static readonly (string Type, string Reference)[] NoticeTypes =
+    [
+        ("PAYMENT_REMINDER", "account_number"), ("PAYMENT_FINAL_NOTICE", "account_number"), ("RENEWAL_INVITATION", "policy_number"), ("RENEWAL_REMINDER", "policy_number"),
+        ("CLAIM_STATUS", "claim_number"), ("HEALTH_CLAIM_DECISION", "claim_number"), ("PREAUTH_DECISION", "auth_number"), ("CLAIM_DECISION_RIGHTS", "claim_number"),
+        ("GRACE_NOTICE", "policy_number"), ("NON_PAYMENT_CANCELLATION", "policy_number"), ("CONTRIBUTION_SUSPENSION", "member_number"), ("SCHEME_RENEWAL_NOTICE", "scheme_number"),
+        ("NON_RENEWAL_NOTICE", "policy_number"), ("BROKER_CHANGE_NOTICE", "policy_number"), ("PROVIDER_RECOVERY_NOTICE", "recovery_number"),
+    ];
 
     /// <summary>A static row by the book: a draft, submitted, approved by the checker, then put in force. A row already there is left as it is.</summary>
     private Task Static(string route, string code, object fields) => Static(_maker, _checker, route, code, fields);

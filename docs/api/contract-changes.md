@@ -6,6 +6,14 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 
 
+## Seed batch: the sample tenant's missing configuration, and FEATURE_NOT_ENTITLED (18 November 2026)
+- **Changed, for anyone reading parked deliveries** (`GET /integration/parked-deliveries`, the operations view, `/health`): a consumer whose JOB function needs a feature the tenant isn't entitled to now parks with prerequisite code **`FEATURE_NOT_ENTITLED`** (item: the JOB function, for example `LIFE_EVENT_PROCESSING`). Before, it parked as `FUNCTION_DISABLED`, which wrongly said the tenant had switched the function off. `FUNCTION_DISABLED` now means only that: switched off by the tenant, or not in force in the catalogue. Retrying is unchanged: entitling the tenant publishes configuration, which retries its parked deliveries. No endpoint, field or schema changed.
+- **The sample tenant (OFTZA) only:** the seed adds what its own business needed. No API change.
+  - Every platform notice as a service notice by email, with a sample English template: payment reminder and final notice, renewal invitation and reminder, claim status, Health claim and pre-authorisation decisions, claim decision rights, grace, non-payment cancellation, contribution suspension, scheme renewal, non-renewal, broker change and `PROVIDER_RECOVERY_NOTICE`.
+  - A channel provider row for email (`OFT-EMAIL`, provider `STUB`): the platform's stub channel, which records the message and sends nothing.
+  - A `CERTIFICATE` template assigned to every General product, and the document categories `CERTIFICATE` and `RENEWAL_NOTICE`.
+  - `MONTHLY` in force from 1 January 2020, before the oldest sample policy.
+
 ## Contract batch (18 November 2026): error wording, refusal titles, portal scan status, the stand-in model
 1. **Not breaking: `docs/api/error-codes.json`, generated.** Every code with `httpStatus`, `messageKey`, `retryable`, and the catalogue's `means` and `remedy` (null where a code has no wording yet). It is generated from the `[ErrorCode]` constants with `R__error_code_catalogue.sql`, and `ErrorCodeCatalogueTests` fails when it is stale. This is the file the front end's `contracts:sync` reads for the wording.
 2. **Not breaking, but visible: a worded code's English title is the catalogue's meaning.** For example, `DOCUMENT_QUARANTINED`'s `title` is now "The uploaded file is held until a malware scan clears it, or it failed the scan.", not "The request conflicts with the current state.".

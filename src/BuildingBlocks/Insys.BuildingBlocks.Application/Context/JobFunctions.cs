@@ -34,7 +34,14 @@ namespace Insys.BuildingBlocks.Application.Context;
 /// </summary>
 public interface IFunctionAvailability
 {
-    Task<bool> IsEnabled(Guid tenantId, string functionCode, CancellationToken cancellationToken);
+    async Task<bool> IsEnabled(Guid tenantId, string functionCode, CancellationToken cancellationToken) =>
+        await Unavailable(tenantId, functionCode, cancellationToken) is null;
+
+    /// <summary>
+    /// Why the tenant can't run the function now, or null when it can: FUNCTION_DISABLED when the tenant switched it off or the
+    /// catalogue has it not in force, FEATURE_NOT_ENTITLED when the tenant isn't entitled to its feature (the error codes).
+    /// </summary>
+    Task<string?> Unavailable(Guid tenantId, string functionCode, CancellationToken cancellationToken);
 
     /// <summary>The JOB functions the tenant has switched off (OQ-098), for the operations view and /health detail.</summary>
     Task<IReadOnlyList<string>> JobsSwitchedOff(Guid tenantId, CancellationToken cancellationToken);

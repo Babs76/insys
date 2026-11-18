@@ -567,6 +567,22 @@ The first of the five fix batches from the scope sweeps (`docs/reviews/read-scop
   - `WorkflowTests`: the coverage of every type; the fail-closed and product-version scoping through a real `ApprovalRequested`; product-only and unresolved approvals; deciding by the approve scope.
   - `WriteScopeTests`: 6 tests, one per write group.
 
+### Seed batch (18 November 2026, branch `seed-batch`)
+What the sample tenant's business parked or failed on, fixed in the seed, plus one code change (Ade, 18 November). Contract note: "Seed batch" in `docs/api/contract-changes.md`.
+- **`FEATURE_NOT_ENTITLED`:** `IFunctionAvailability.Unavailable` gives the refusal code (`FunctionHolding.Refusal`; FUNCTION_DISABLED for a function not in the catalogue). The consumer wrapper (`InfrastructureRegistration.AddIntegrationEventHandler`) parks with `PrerequisiteCodes.FeatureNotEntitled` or `FunctionDisabled` by it. `IsEnabled` is kept, as `Unavailable(...) is null`. Test: `FunctionAccessTests.AConsumerOfAFeatureTheTenantIsNotEntitledTo_ParksAsFeatureNotEntitled_ADR026` (fails with the mapping undone).
+- **The seed (`tools/Insys.Seed`):**
+  - every platform notice type and an English email template (`OftzaSeed.NoticeTypes`);
+  - the email provider row `OFT-EMAIL` on the `STUB` provider;
+  - `OFT-TPL-CERT` assigned to each General product;
+  - the `CERTIFICATE` and `RENEWAL_NOTICE` document categories;
+  - `MONTHLY` from 2020-01-01.
+- **Diagnoses:**
+  - **`BILLING_FREQUENCY_NOT_IN_FORCE MONTHLY`** (analytics and reinsurance, on `LifePolicyIssued`): they read the frequency on the policy's inception date. The migrated Life policy began a year before the seed's day, from which `MONTHLY` was in force.
+  - **The renewal invitation's failing delivery** (and, once the certificate template was there, every General issue): `DocumentGenerator` takes the template's document type as the document's category. OFTZA had only `POLICY_SCHEDULE`, so generation returned `CODE_NOT_IN_FORCE`, and `GeneralDocumentPolicies` threw, so the delivery was retried as a failure instead of parking. **Proposal for Ade, not built:** a missing category should park, as a missing template does (ADR-022).
+- **Test:** `OftzaSeedTests` fails if any delivery for the tenant is parked, failing, retrying or dead-lettered, and names each one.
+- **Scope:** the seed's rows are OFTZA's only. The front end's per-run tenant is configured by its own live setup (`e2e/live/` in `insys-console`), so it needs the same rows there. The `FEATURE_NOT_ENTITLED` code applies to every tenant.
+- **Preview:** nothing changes there until a reset Ade approves. The seed adds rows only to a new tenant: on an existing OFTZA its configuration step is skipped, and a back-dated `MONTHLY` couldn't replace the version in force.
+
 ### Contract batch (18 November 2026, branch `contract-batch`)
 Ade's items of 18 November, before scope batches 4 and 5 and the seed batch.
 - **The front end's error list:** `docs/api/error-codes.json`, generated with the error catalogue (`ErrorCodeSeed.GenerateJson`, checked by `ErrorCodeCatalogueTests`).

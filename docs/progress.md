@@ -71,6 +71,7 @@
 | Scope batch 2 | The read sweep's Health accumulators: `GET /health/memberships/{id}/accumulators` reads within the membership's scope (F103) | Merged (`8436e5d`) |
 | Scope batch 3 | The read sweep's policy export: each module's export rows filtered by the reader's scope in its query (F103) | Merged (`8436e5d`) |
 | Contract batch | The generated error list with wording, catalogue meanings as refusal titles, the portal document's scan status, the stand-in model for live runs (BR-147) | Branch `contract-batch` |
+| Seed batch | The sample tenant parks and fails on nothing: every platform notice by email, a stub email provider, General certificates and their document categories, `MONTHLY` back-dated; a consumer for an unentitled feature parks as `FEATURE_NOT_ENTITLED` | Branch `seed-batch` |
 
 ## Phase 1 review items
 
