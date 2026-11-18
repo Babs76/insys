@@ -46,6 +46,6 @@ internal sealed class LifePolicyExport([FromKeyedServices(LifeDbContext.SchemaNa
 {
     public string Domain => "LIFE";
 
-    public Task<IReadOnlyList<PolicyExportRow>> All(Guid tenantId, CancellationToken cancellationToken) =>
-        PolicyExportReader.Read(dataSource, tenantId, Domain, "SELECT policy_number, product_code, policyholder_party_id, status, inception_date, term_end_date, currency FROM life.policy ORDER BY id", cancellationToken);
+    public Task<IReadOnlyList<PolicyExportRow>> All(Guid tenantId, AccessScope scope, CancellationToken cancellationToken) =>
+        PolicyExportReader.Read(dataSource, tenantId, Domain, "SELECT policy_number, product_code, policyholder_party_id, status, inception_date, term_end_date, currency FROM life.policy", "product_code", "org_node_code", scope, cancellationToken);
 }

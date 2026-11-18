@@ -47,6 +47,6 @@ internal sealed class HealthPolicyExport([FromKeyedServices(HealthDbContext.Sche
 {
     public string Domain => "HEALTH";
 
-    public Task<IReadOnlyList<PolicyExportRow>> All(Guid tenantId, CancellationToken cancellationToken) =>
-        PolicyExportReader.Read(dataSource, tenantId, Domain, "SELECT member_number, product_code, principal_party_id, status, start_date, end_date, currency FROM health.membership ORDER BY id", cancellationToken);
+    public Task<IReadOnlyList<PolicyExportRow>> All(Guid tenantId, AccessScope scope, CancellationToken cancellationToken) =>
+        PolicyExportReader.Read(dataSource, tenantId, Domain, "SELECT member_number, product_code, principal_party_id, status, start_date, end_date, currency FROM health.membership", "product_code", "org_node_code", scope, cancellationToken);
 }

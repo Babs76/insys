@@ -43,5 +43,6 @@ public interface IPolicyExportRows
 {
     string Domain { get; }
 
-    Task<IReadOnlyList<PolicyExportRow>> All(Guid tenantId, CancellationToken cancellationToken);
+    /// <param name="scope">The reader's scope (F103, scope batch 3): only the policies or memberships it allows, filtered in the query.</param>
+    Task<IReadOnlyList<PolicyExportRow>> All(Guid tenantId, AccessScope scope, CancellationToken cancellationToken);
 }
