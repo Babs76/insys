@@ -49,7 +49,7 @@ import xml.etree.ElementTree as ElementTree
 ROOT = pathlib.Path(__file__).resolve().parent.parent / "tests" / "Insys.IntegrationTests"
 TIMINGS = ROOT / "class-timings.json"
 # The endpoint sweeps and the sample tenant's seed (Workstream F) run in jobs of their own: the seed's resume test alone takes about 30 minutes.
-SEED = {"OftzaSeedTests", "OftzaSeedResumeTests", "OftzaSeedRestoreTests", "OftzaSeedWindowTests"}
+SEED = {"OftzaSeedTests", "OftzaSeedResumeTests", "OftzaSeedResumeLaterTests", "OftzaSeedRestoreTests", "OftzaSeedWindowTests"}
 EXCLUDED = {"EndpointSecuritySweepTests"} | SEED
 # A class never measured: start-up plus a share per test, until a run measures it.
 ESTIMATE_BASE = 60
