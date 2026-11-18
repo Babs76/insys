@@ -122,6 +122,24 @@ public sealed class AssistExplanationTests(DatabaseFixture fixture) : IClassFixt
         sent.Data.ShouldNotContain(record.ToString(), Case.Insensitive);
     }
 
+    /// <summary>BR-147: the stand-in model's fixed explanation, made of the facts sent, passes the verifier for a refusal and a premium alike.</summary>
+    [Fact]
+    public async Task TheStandInModel_ExplainsARefusalAndAPremium_AndBothPassTheVerifier_BR147()
+    {
+        var (tenant, _, host, stub) = await Ready();
+        var standIn = DevelopmentScannerTests.StandIn();
+        stub.Reply = request => standIn.Complete(request, CancellationToken.None).GetAwaiter().GetResult().Text;
+        var staff = await User(tenant, host, "ax-standin", "ASSIST_EXPLAIN_REFUSAL", "ASSIST_EXPLAIN_PREMIUM", "RATING_CALCULATIONS");
+
+        var refusal = await (await staff.Send(HttpMethod.Post, Refusals, new { code = "MAKER_CHECKER_SAME_PERSON" }, idempotent: true)).Json();
+        refusal.GetProperty("outcome").GetString().ShouldBe("EXPLAINED", refusal.ToString());
+        refusal.GetProperty("text").GetString()!.ShouldStartWith("Development stand-in");
+
+        var calculation = await Calculation(tenant, 1250m, """{"vehicle_group": "G3"}""");
+        var premium = await (await staff.Send(HttpMethod.Post, Premiums, new { calculationId = calculation }, idempotent: true)).Json();
+        premium.GetProperty("outcome").GetString().ShouldBe("EXPLAINED", premium.ToString());
+    }
+
     [Fact]
     public async Task ACodeOutsideTheCatalogue_IsRefused_AndACodeWithoutWording_IsShownPlain_WithNoCall_AIA031()
     {

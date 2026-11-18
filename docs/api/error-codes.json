@@ -1,0 +1,2237 @@
+{
+  "description": "GENERATED from the [ErrorCode] constants in the source code; do not edit. Regenerate with INSYS_UPDATE_SNAPSHOTS=1 and the ErrorCodeCatalogueTests. means and remedy are the catalogue's wording, null where a code has none yet.",
+  "codes": [
+    {
+      "code": "ABOVE_APPROVED_AMOUNT",
+      "httpStatus": 422,
+      "messageKey": "error.claims.above_approved_amount",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "ACCESS_WINDOW_TOO_LONG",
+      "httpStatus": 422,
+      "messageKey": "error.identity.access_window_too_long",
+      "retryable": false,
+      "means": "Privileged access is granted for a limited time, and the period asked for is longer than allowed.",
+      "remedy": "Ask for a shorter period."
+    },
+    {
+      "code": "ACCOUNT_HAS_OPEN_INVOICES",
+      "httpStatus": 409,
+      "messageKey": "error.billing.open_invoices",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "ACCOUNT_NOT_USABLE",
+      "httpStatus": 422,
+      "messageKey": "error.finance.account_not_usable",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "AGGREGATE_LIMIT_EXCEEDED",
+      "httpStatus": 422,
+      "messageKey": "error.general.aggregate_limit_exceeded",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "ALTERATION_NOT_ALLOWED",
+      "httpStatus": 409,
+      "messageKey": "error.life.alteration_not_allowed",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "APPOINTMENT_LETTER_REQUIRED",
+      "httpStatus": 422,
+      "messageKey": "error.general.appointment_letter_required",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "APPROVAL_AUTHORITY_EXCEEDED",
+      "httpStatus": 403,
+      "messageKey": "error.workflow.authority_exceeded",
+      "retryable": false,
+      "means": "The amount is above the limit of your approval authority.",
+      "remedy": "Ask a colleague whose limit covers the amount to decide it."
+    },
+    {
+      "code": "APPROVAL_AUTHORITY_MISSING",
+      "httpStatus": 403,
+      "messageKey": "error.workflow.authority_missing",
+      "retryable": false,
+      "means": "None of your roles has approval authority for this type of approval.",
+      "remedy": "Ask a colleague who has the authority to decide it, or ask your administrator about yours."
+    },
+    {
+      "code": "APPROVAL_NOT_REQUESTER",
+      "httpStatus": 403,
+      "messageKey": "error.workflow.not_requester",
+      "retryable": false,
+      "means": "Only the person who asked for this approval can withdraw it.",
+      "remedy": "Ask the requester to withdraw it, or let a checker decide it."
+    },
+    {
+      "code": "APPROVAL_SUBJECT_CHANGED",
+      "httpStatus": 409,
+      "messageKey": "error.claims.approval_subject_changed",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "ARREARS_BUCKET_MISSING",
+      "httpStatus": 422,
+      "messageKey": "error.billing.no_ageing_bucket",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "ASSESSMENT_NOT_ACCEPTED",
+      "httpStatus": 409,
+      "messageKey": "error.general.assessment_not_accepted",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "ASSESSOR_NOT_ON_PANEL",
+      "httpStatus": 422,
+      "messageKey": "error.general.assessor_not_on_panel",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "ASSIST_CAP_REACHED",
+      "httpStatus": 422,
+      "messageKey": "error.assist.cap_reached",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "ASSIST_CONFIRMATION_REQUIRED",
+      "httpStatus": 422,
+      "messageKey": "error.assist.confirmation_required",
+      "retryable": false,
+      "means": "Each document needs your confirmation that it holds no customer personal data before AI-1 reads it.",
+      "remedy": "Confirm each document, then start the run again."
+    },
+    {
+      "code": "ASSIST_CONFIRMATION_STALE",
+      "httpStatus": 409,
+      "messageKey": "error.assist.confirmation_stale",
+      "retryable": false,
+      "means": "A document's content changed after you confirmed it, so the run didn't read it.",
+      "remedy": "Check the document again, then start a new run and confirm it again."
+    },
+    {
+      "code": "ASSIST_DOCUMENT_IDENTIFIERS",
+      "httpStatus": 422,
+      "messageKey": "error.assist.document_identifiers",
+      "retryable": false,
+      "means": "A document holds an obvious identifier, such as an email address, an ID number or a bank account number, so AI-1 refused it and sent nothing. The run lists the kind of identifier and the page.",
+      "remedy": "Remove the identifiers from the document, upload the corrected copy, then start a new run."
+    },
+    {
+      "code": "ASSIST_DOCUMENT_NOT_ALLOWED",
+      "httpStatus": 422,
+      "messageKey": "error.assist.document_not_allowed",
+      "retryable": false,
+      "means": "A document isn't one AI-1 reads: a run takes 1 to 10 different documents, each a PDF, DOCX or XLSX file of at most 20 MB, filed under a category that holds no personal data.",
+      "remedy": "Check the documents against those limits, then start the run again with documents that meet them."
+    },
+    {
+      "code": "ASSIST_NOT_ENABLED",
+      "httpStatus": 422,
+      "messageKey": "error.assist.not_enabled",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "ASSIST_NOT_UPLOADER",
+      "httpStatus": 403,
+      "messageKey": "error.assist.not_uploader",
+      "retryable": false,
+      "means": "Only the user who uploaded a document can confirm it holds no customer personal data, and someone else uploaded this one.",
+      "remedy": "Upload the document again yourself, then start the run with your copy."
+    },
+    {
+      "code": "ASSIST_OUTPUT_REJECTED",
+      "httpStatus": 422,
+      "messageKey": "error.assist.output_rejected",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "ASSIST_PACK_CHANGED",
+      "httpStatus": 409,
+      "messageKey": "error.assist.pack_changed",
+      "retryable": false,
+      "means": "The approval was for different content from the version as it now stands.",
+      "remedy": "Read the version again, check its review sheet, and approve the content it now has."
+    },
+    {
+      "code": "ASSIST_PACK_NOT_APPROVED",
+      "httpStatus": 422,
+      "messageKey": "error.assist.pack_not_approved",
+      "retryable": false,
+      "means": "A regulated value can come only from an overlay version that has been approved for your tenant, and this one hasn't been.",
+      "remedy": "Use an approved version, or ask for this one to be reviewed and approved."
+    },
+    {
+      "code": "ASSIST_PACK_NOT_NEWEST",
+      "httpStatus": 409,
+      "messageKey": "error.assist.pack_not_newest",
+      "retryable": false,
+      "means": "Only a pack's newest version can be approved, so that a correction isn't overtaken by the version it corrects.",
+      "remedy": "Approve the newest version, after reading its review sheet."
+    },
+    {
+      "code": "ASSIST_REGION_NOT_SUPPORTED",
+      "httpStatus": 422,
+      "messageKey": "error.assist.region_not_supported",
+      "retryable": false,
+      "means": "The region your settings name for AI inference isn't one the AI provider can run in, so no explanation is asked for.",
+      "remedy": "Ask your administrator to choose one of the regions offered in the AI Assist settings, with the legal basis for it."
+    },
+    {
+      "code": "ASSIST_RESIDENCY_MISMATCH",
+      "httpStatus": 422,
+      "messageKey": "error.assist.residency_mismatch",
+      "retryable": false,
+      "means": "The AI provider said it answered from outside your tenant's inference region, so nothing it returned was used.",
+      "remedy": "Start a new run later. If it happens again, ask your administrator to check the AI Assist settings."
+    },
+    {
+      "code": "ASSIST_RESIDENCY_NOT_SET",
+      "httpStatus": 422,
+      "messageKey": "error.assist.residency_not_set",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "ASSIST_RUN_EXPIRED",
+      "httpStatus": 409,
+      "messageKey": "error.assist.run_expired",
+      "retryable": false,
+      "means": "The run waited more than an hour to start, so its confirmations are no longer relied on.",
+      "remedy": "Start a new run and confirm the documents again."
+    },
+    {
+      "code": "ASSIST_RUN_STALLED",
+      "httpStatus": 409,
+      "messageKey": "error.assist.run_stalled",
+      "retryable": false,
+      "means": "The run was interrupted part way and isn't resumed.",
+      "remedy": "Start a new run. If the run created a Draft version, finish that one first: a product has one version in progress at a time."
+    },
+    {
+      "code": "ASSIST_SETUP_NOT_READY",
+      "httpStatus": 422,
+      "messageKey": "error.assist.setup_not_ready",
+      "retryable": false,
+      "means": "The setup can't be submitted yet: a value is missing or undecided, a regulated value isn't from an overlay approved for your tenant, or a table refuses a value.",
+      "remedy": "Read the setup's completeness check, correct each blocker it lists, and submit again."
+    },
+    {
+      "code": "ASSIST_SOURCE_TOO_LARGE",
+      "httpStatus": 422,
+      "messageKey": "error.assist.source_too_large",
+      "retryable": false,
+      "means": "The documents hold more than AI-1 reads in one run: a file that expands too far, a sheet that is too large, or too much text in total.",
+      "remedy": "Split the material into smaller files, or start runs with fewer documents."
+    },
+    {
+      "code": "ASSIST_SOURCE_UNREADABLE",
+      "httpStatus": 422,
+      "messageKey": "error.assist.source_unreadable",
+      "retryable": false,
+      "means": "A document couldn't be read: the file couldn't be opened, or none of its pages has text, such as a scanned image.",
+      "remedy": "Upload a copy with a text layer, for example the original file rather than a scan, then start a new run."
+    },
+    {
+      "code": "ASSIST_TENANT_LIVE",
+      "httpStatus": 409,
+      "messageKey": "error.assist.tenant_live",
+      "retryable": false,
+      "means": "A tenant's own overlay is loaded only while the tenant is onboarding, and this one is live.",
+      "remedy": "Use an overlay approved for every tenant, or change configuration through the normal change process."
+    },
+    {
+      "code": "ASSIST_UNAVAILABLE",
+      "httpStatus": 503,
+      "messageKey": "error.assist.unavailable",
+      "retryable": true,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "ASSIST_USER_CANNOT_ACT",
+      "httpStatus": 403,
+      "messageKey": "error.assist.user_cannot_act",
+      "retryable": false,
+      "means": "The run stopped without writing anything, because you can no longer do what it does for you: your account or your roles changed after you started it.",
+      "remedy": "Ask your administrator to check your access, then start a new run."
+    },
+    {
+      "code": "ATTESTATION_NOT_ALLOWED",
+      "httpStatus": 422,
+      "messageKey": "error.tenancy.attestation_not_allowed",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "ATTRIBUTE_SCHEMA_INVALID",
+      "httpStatus": 422,
+      "messageKey": "error.general.attribute_schema_invalid",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "AUTHORISATION_ABOVE_BENEFIT",
+      "httpStatus": 422,
+      "messageKey": "error.health.authorisation_above_benefit",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "BANK_ACCOUNT_NOT_PAYABLE",
+      "httpStatus": 422,
+      "messageKey": "error.general.bank_account_not_payable",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "BANK_ACCOUNT_SUBJECT_CHANGED",
+      "httpStatus": 409,
+      "messageKey": "error.party.bank_account_subject_changed",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "BENEFICIARY_SHARES_INVALID",
+      "httpStatus": 422,
+      "messageKey": "error.life.beneficiary_shares_invalid",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "BENEFIT_LIMIT_EXCEEDED",
+      "httpStatus": 409,
+      "messageKey": "error.health.limit_exceeded",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "BILLING_CODE_NOT_IN_FORCE",
+      "httpStatus": 422,
+      "messageKey": "error.billing.code_not_in_force",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "CALLBACK_REPLAYED",
+      "httpStatus": 409,
+      "messageKey": "error.callback.replayed",
+      "retryable": false,
+      "means": "This callback was already received.",
+      "remedy": "Nothing to do: the first one was recorded."
+    },
+    {
+      "code": "CALLBACK_SIGNATURE_INVALID",
+      "httpStatus": 401,
+      "messageKey": "error.callback.signature",
+      "retryable": false,
+      "means": "A provider's callback wasn't accepted, as its signature, key, timestamp or token isn't valid.",
+      "remedy": "Check the provider's endpoint set-up with your integration administrator."
+    },
+    {
+      "code": "CARE_CONSENT_REQUIRED",
+      "httpStatus": 422,
+      "messageKey": "error.health.care_consent_required",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "CASE_CATEGORY_NOT_ALLOWED",
+      "httpStatus": 422,
+      "messageKey": "error.workflow.case_category_not_allowed",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "CASE_CATEGORY_REQUIRED",
+      "httpStatus": 422,
+      "messageKey": "error.workflow.case_category_required",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "CASE_CLOSED",
+      "httpStatus": 409,
+      "messageKey": "error.workflow.case_closed",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "CASE_DECIDER_SAME_PERSON",
+      "httpStatus": 409,
+      "messageKey": "error.workflow.case_decider_same_person",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "CASE_LINK_NOT_ALLOWED",
+      "httpStatus": 422,
+      "messageKey": "error.workflow.case_link_not_allowed",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "CASE_REASONS_REQUIRED",
+      "httpStatus": 422,
+      "messageKey": "error.workflow.case_reasons_required",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "CASE_TIMELINE_NOT_EXTENDABLE",
+      "httpStatus": 422,
+      "messageKey": "error.workflow.case_timeline_not_extendable",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "CASE_TYPE_NOT_IN_FORCE",
+      "httpStatus": 422,
+      "messageKey": "error.workflow.case_type_not_in_force",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "CHANNEL_APPROVAL_REQUIRED",
+      "httpStatus": 403,
+      "messageKey": "error.access.channel_approval_required",
+      "retryable": false,
+      "means": "The channel requires an approval for this transaction, and the transaction has no approval step.",
+      "remedy": "Make the transaction on a channel that doesn't require approval, or ask your administrator to change the channel's setting."
+    },
+    {
+      "code": "CHANNEL_NOT_ALLOWED",
+      "httpStatus": 403,
+      "messageKey": "error.access.channel_not_allowed",
+      "retryable": false,
+      "means": "Your roles may not make this transaction, for this product, on this channel.",
+      "remedy": "Ask your administrator whether the channel's permissions should allow it, or use another channel that does."
+    },
+    {
+      "code": "CHANNEL_NOT_ENABLED",
+      "httpStatus": 403,
+      "messageKey": "error.access.channel_not_enabled",
+      "retryable": false,
+      "means": "The application you're using isn't on a channel your organisation has enabled for this.",
+      "remedy": "Use the application your organisation has enabled for it, or ask your administrator to enable the channel."
+    },
+    {
+      "code": "CLAIMANT_NOT_AUTHORISED",
+      "httpStatus": 422,
+      "messageKey": "error.life.claimant_not_authorised",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "CLAIMS_CODE_NOT_IN_FORCE",
+      "httpStatus": 422,
+      "messageKey": "error.claims.code_not_in_force",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "CLAIM_DECLINE_REASON_INVALID",
+      "httpStatus": 422,
+      "messageKey": "error.health.claim_decline_reason_invalid",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "CLAIM_EVENT_DATE_IN_FUTURE",
+      "httpStatus": 422,
+      "messageKey": "error.claims.event_date_in_future",
+      "retryable": false,
+      "means": "The claim's event date is after today's business date.",
+      "remedy": "Correct the event date."
+    },
+    {
+      "code": "CLAIM_NOT_REGISTERED",
+      "httpStatus": 404,
+      "messageKey": "error.claims.claim_not_registered",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "COMMISSION_NOTHING_TO_ACCRUE",
+      "httpStatus": 409,
+      "messageKey": "error.distribution.nothing_to_accrue",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "COMMISSION_PLAN_NOT_APPLICABLE",
+      "httpStatus": 422,
+      "messageKey": "error.distribution.plan_not_applicable",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "CONCURRENCY_CONFLICT",
+      "httpStatus": 409,
+      "messageKey": "error.concurrency.conflict",
+      "retryable": true,
+      "means": "Someone else changed the record at the same moment.",
+      "remedy": "Try again; if it repeats, open the record again first."
+    },
+    {
+      "code": "CREDIT_EXCEEDS_INVOICE",
+      "httpStatus": 422,
+      "messageKey": "error.billing.credit_exceeds_invoice",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "CREDIT_NOTE_INVALID",
+      "httpStatus": 422,
+      "messageKey": "error.health.credit_note_invalid",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "CURRENCY_MISMATCH",
+      "httpStatus": 422,
+      "messageKey": "error.money.currency_mismatch",
+      "retryable": false,
+      "means": "The amounts are in different currencies, which this action doesn't allow.",
+      "remedy": "Use amounts in the record's currency."
+    },
+    {
+      "code": "DATABASE_BUSY",
+      "httpStatus": 503,
+      "messageKey": "error.service.database_busy",
+      "retryable": true,
+      "means": "The service is too busy to take the request just now.",
+      "remedy": "Try again shortly."
+    },
+    {
+      "code": "DATABASE_RULE_VIOLATED",
+      "httpStatus": 409,
+      "messageKey": "error.data.database_rule_violated",
+      "retryable": false,
+      "means": "The change breaks a rule the records must always keep.",
+      "remedy": "Check the values against the related records; if they look right, report it to support with the reference."
+    },
+    {
+      "code": "DATA_MIGRATION_REQUIRED",
+      "httpStatus": 409,
+      "messageKey": "error.tenancy.data_migration_required",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "DD_IDENTITY_DOCUMENT_EXPIRED",
+      "httpStatus": 422,
+      "messageKey": "error.party.dd_identity_document_expired",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "DECISION_RATIONALE_REQUIRED",
+      "httpStatus": 422,
+      "messageKey": "error.general.rationale_required",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "DEPENDANT_NOT_ELIGIBLE",
+      "httpStatus": 422,
+      "messageKey": "error.health.dependant_not_eligible",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "DISCLOSURE_REQUIRED",
+      "httpStatus": 409,
+      "messageKey": "error.disclosure.not_acknowledged",
+      "retryable": false,
+      "means": "A mandatory notice hasn't been acknowledged at this point of the process.",
+      "remedy": "Record the customer's acknowledgement of the notice, then try again."
+    },
+    {
+      "code": "DOCUMENT_CODE_NOT_IN_FORCE",
+      "httpStatus": 422,
+      "messageKey": "error.document.code_not_in_force",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "DOCUMENT_CONTENT_MISMATCH",
+      "httpStatus": 409,
+      "messageKey": "error.document.content_mismatch",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "DOCUMENT_MERGE_FIELD_MISSING",
+      "httpStatus": 422,
+      "messageKey": "error.document.merge_field_missing",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "DOCUMENT_ON_LEGAL_HOLD",
+      "httpStatus": 409,
+      "messageKey": "error.document.on_legal_hold",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "DOCUMENT_PURPOSE_REQUIRED",
+      "httpStatus": 422,
+      "messageKey": "error.document.purpose_required",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "DOCUMENT_QUARANTINED",
+      "httpStatus": 409,
+      "messageKey": "error.document.quarantined",
+      "retryable": false,
+      "means": "The uploaded file is held until a malware scan clears it, or it failed the scan.",
+      "remedy": "Wait for the scan, then open it again; a file that failed the scan has to be uploaded again from a clean copy."
+    },
+    {
+      "code": "DOCUMENT_RETENTION_NOT_ENDED",
+      "httpStatus": 409,
+      "messageKey": "error.document.retention_not_ended",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "DOCUMENT_ROLE_REQUIRED",
+      "httpStatus": 403,
+      "messageKey": "error.document.role_required",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "DOMAIN_VALIDATION_FAILED",
+      "httpStatus": 422,
+      "messageKey": "error.workflow.domain_validation_failed",
+      "retryable": false,
+      "means": "The record doesn't pass the checks this step of the process requires.",
+      "remedy": "Correct the record as the checks require, then try again."
+    },
+    {
+      "code": "DUE_DILIGENCE_NOT_CLEARED",
+      "httpStatus": 422,
+      "messageKey": "error.due_diligence.not_cleared",
+      "retryable": false,
+      "means": "The party hasn't been cleared by customer due diligence for this step, so INSYS won't go on with it.",
+      "remedy": "Ask a compliance officer to complete the outstanding due diligence items for the party; the step can then be done."
+    },
+    {
+      "code": "DUE_DILIGENCE_NOT_UNDER_REVIEW",
+      "httpStatus": 409,
+      "messageKey": "error.party.due_diligence_not_under_review",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "DUPLICATE_RECORD",
+      "httpStatus": 409,
+      "messageKey": "error.data.duplicate_record",
+      "retryable": false,
+      "means": "A record with the same identifying values already exists.",
+      "remedy": "Look for the existing record and work on it, or change the identifying values."
+    },
+    {
+      "code": "ENDORSEMENT_CHANGE_INVALID",
+      "httpStatus": 422,
+      "messageKey": "error.general.endorsement_change_invalid",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "EVIDENCE_ALREADY_REQUESTED",
+      "httpStatus": 409,
+      "messageKey": "error.claims.evidence_requested",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "EXCHANGE_RATE_MISSING",
+      "httpStatus": 422,
+      "messageKey": "error.finance.exchange_rate_missing",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "EXPRESSION_EVALUATION_FAILED",
+      "httpStatus": 422,
+      "messageKey": "error.expression.evaluation_failed",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "EXPRESSION_INVALID",
+      "httpStatus": 422,
+      "messageKey": "error.expression.invalid",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "EXTERNAL_USER_NOT_ALLOWED",
+      "httpStatus": 403,
+      "messageKey": "error.access.external_user_not_allowed",
+      "retryable": false,
+      "means": "Portal users can use only their own portal's functions.",
+      "remedy": "Use the portal for this, or contact the insurer."
+    },
+    {
+      "code": "FEATURE_NOT_ENTITLED",
+      "httpStatus": 403,
+      "messageKey": "error.access.feature_not_entitled",
+      "retryable": false,
+      "means": "Your organisation isn't entitled to the feature this action belongs to.",
+      "remedy": "Ask your tenant administrator; the entitlement is set by the platform operator."
+    },
+    {
+      "code": "FORBIDDEN",
+      "httpStatus": 403,
+      "messageKey": "error.access.forbidden",
+      "retryable": false,
+      "means": "You aren't allowed to do this.",
+      "remedy": "Ask your administrator whether your role should allow it."
+    },
+    {
+      "code": "FUNCTION_DISABLED",
+      "httpStatus": 403,
+      "messageKey": "error.access.function_disabled",
+      "retryable": false,
+      "means": "This action is switched off for your organisation, or isn't available on the platform.",
+      "remedy": "Ask your tenant administrator whether it should be switched on."
+    },
+    {
+      "code": "FUNCTION_NOT_GRANTED",
+      "httpStatus": 403,
+      "messageKey": "error.access.function_not_granted",
+      "retryable": false,
+      "means": "None of your roles in force grants this action.",
+      "remedy": "Ask your tenant administrator for a role that includes it, or ask a colleague who holds it."
+    },
+    {
+      "code": "GENERAL_CODE_NOT_IN_FORCE",
+      "httpStatus": 422,
+      "messageKey": "error.general.code_not_in_force",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "GENERAL_FREQUENCY_NOT_QUOTED",
+      "httpStatus": 422,
+      "messageKey": "error.general.frequency_not_quoted",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "GENERAL_LOSS_CODE_NOT_FOR_LINE",
+      "httpStatus": 422,
+      "messageKey": "error.general.loss_code_not_for_line",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "GENERAL_RENEWAL_NOT_OFFERED",
+      "httpStatus": 409,
+      "messageKey": "error.general.renewal_not_offered",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "GENERAL_RULE_NOT_SPECIFIED",
+      "httpStatus": 422,
+      "messageKey": "error.general.rule_not_specified",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "GENERAL_UW_AUTHORITY_EXCEEDED",
+      "httpStatus": 403,
+      "messageKey": "error.general.underwriting_authority_exceeded",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "GL_EXPORT_OVERLAPS",
+      "httpStatus": 409,
+      "messageKey": "error.finance.gl_export_overlaps",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "GL_EXPORT_REFUSED",
+      "httpStatus": 409,
+      "messageKey": "error.finance.gl_export_refused",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "GL_FORMAT_NOT_SUPPORTED",
+      "httpStatus": 422,
+      "messageKey": "error.finance.gl_format_not_supported",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "GL_LAYOUT_NOT_IN_FORCE",
+      "httpStatus": 422,
+      "messageKey": "error.finance.gl_layout_not_in_force",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "GOVERNANCE_CHANGE_PENDING",
+      "httpStatus": 409,
+      "messageKey": "error.static_data.governance_change_pending",
+      "retryable": false,
+      "means": "A change to how static data is approved is already waiting for a decision.",
+      "remedy": "Wait for that decision before asking for another."
+    },
+    {
+      "code": "GROUP_MEMBER_NOT_ELIGIBLE",
+      "httpStatus": 422,
+      "messageKey": "error.life.member_not_eligible",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "HEALTH_CODE_NOT_IN_FORCE",
+      "httpStatus": 422,
+      "messageKey": "error.health.code_not_in_force",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "HEALTH_MEMBER_NOT_FOUND",
+      "httpStatus": 422,
+      "messageKey": "error.health.member_not_found",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "HEALTH_PLAN_PRODUCT_INVALID",
+      "httpStatus": 422,
+      "messageKey": "error.health.plan_product_invalid",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "HEALTH_PRODUCT_NOT_AVAILABLE",
+      "httpStatus": 422,
+      "messageKey": "error.health.product_not_available",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "HEALTH_PURPOSE_REQUIRED",
+      "httpStatus": 422,
+      "messageKey": "error.health.purpose_required",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "HEALTH_RATIONALE_REQUIRED",
+      "httpStatus": 422,
+      "messageKey": "error.health.rationale_required",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "HEALTH_REASON_REQUIRED",
+      "httpStatus": 422,
+      "messageKey": "error.health.reason_required",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "IDEMPOTENCY_IN_PROGRESS",
+      "httpStatus": 409,
+      "messageKey": "error.idempotency.in_progress",
+      "retryable": true,
+      "means": "The same request is still being processed.",
+      "remedy": "Wait a moment, then check the record before trying again."
+    },
+    {
+      "code": "IDEMPOTENCY_KEY_REQUIRED",
+      "httpStatus": 422,
+      "messageKey": "error.idempotency.key_required",
+      "retryable": false,
+      "means": "The request was sent without the key that stops it being made twice.",
+      "remedy": "Send it again from the application; this is a technical step it should add."
+    },
+    {
+      "code": "IDEMPOTENCY_KEY_REUSED",
+      "httpStatus": 422,
+      "messageKey": "error.idempotency.key_reused",
+      "retryable": false,
+      "means": "The request's key was already used for a different request.",
+      "remedy": "Start the action again, so a new key is used."
+    },
+    {
+      "code": "IDEMPOTENCY_RESPONSE_NOT_KEPT",
+      "httpStatus": 409,
+      "messageKey": "error.idempotency.response_not_kept",
+      "retryable": false,
+      "means": "A repeat of a request whose answer showed a secret once: the secret isn't kept, so it can't be shown again.",
+      "remedy": "If the secret was lost, issue a new one."
+    },
+    {
+      "code": "IDENTITY_NOT_LINKED",
+      "httpStatus": 403,
+      "messageKey": "error.access.identity_not_linked",
+      "retryable": true,
+      "means": "Your sign-in identity is still being set up.",
+      "remedy": "Wait a moment and try again; it works once the set-up has finished."
+    },
+    {
+      "code": "INTERMEDIARY_NOT_PAYABLE",
+      "httpStatus": 422,
+      "messageKey": "error.distribution.intermediary_not_payable",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "INTERMEDIARY_NOT_PERMITTED",
+      "httpStatus": 422,
+      "messageKey": "error.distribution.intermediary_not_permitted",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "INTERMEDIARY_SUSPENDED",
+      "httpStatus": 422,
+      "messageKey": "error.distribution.intermediary_suspended",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "INTERMEDIARY_TRANSITION",
+      "httpStatus": 409,
+      "messageKey": "error.distribution.intermediary_transition",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "INTERNAL_ERROR",
+      "httpStatus": 500,
+      "messageKey": "error.internal",
+      "retryable": true,
+      "means": "Something went wrong inside INSYS, not with what you entered.",
+      "remedy": "Try again; if it repeats, report it to support with the reference."
+    },
+    {
+      "code": "INVALID_STATE_TRANSITION",
+      "httpStatus": 409,
+      "messageKey": "error.state.invalid_transition",
+      "retryable": false,
+      "means": "The record isn't in a state that allows this action: it has already moved on, or hasn't reached the step yet.",
+      "remedy": "Open the record again to see its current status, and take the action that status allows."
+    },
+    {
+      "code": "INVOICE_IMMUTABLE",
+      "httpStatus": 409,
+      "messageKey": "error.billing.invoice_immutable",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "JOURNAL_ALREADY_REVERSED",
+      "httpStatus": 409,
+      "messageKey": "error.finance.already_reversed",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "JOURNAL_UNBALANCED",
+      "httpStatus": 422,
+      "messageKey": "error.finance.journal_unbalanced",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "LIFE_APPROVAL_SUBJECT_CHANGED",
+      "httpStatus": 409,
+      "messageKey": "error.life.approval_subject_changed",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "LIFE_AUTHORITY_MISSING",
+      "httpStatus": 403,
+      "messageKey": "error.life.authority_missing",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "LIFE_BANK_ACCOUNT_NOT_PAYABLE",
+      "httpStatus": 422,
+      "messageKey": "error.life.bank_account_not_payable",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "LIFE_BENEFIT_NOT_IN_PRODUCT",
+      "httpStatus": 422,
+      "messageKey": "error.life.benefit_not_in_product",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "LIFE_CLAIM_ALREADY_OPEN",
+      "httpStatus": 409,
+      "messageKey": "error.life.claim_already_open",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "LIFE_CODE_NOT_IN_FORCE",
+      "httpStatus": 422,
+      "messageKey": "error.life.code_not_in_force",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "LIFE_EVENT_NOT_COVERED",
+      "httpStatus": 422,
+      "messageKey": "error.life.not_covered",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "LIFE_FREE_COVER_BANDS_INVALID",
+      "httpStatus": 422,
+      "messageKey": "error.life.free_cover_bands_invalid",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "LIFE_PAYEE_INVALID",
+      "httpStatus": 422,
+      "messageKey": "error.life.payee_invalid",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "LIFE_PRODUCT_NOT_AVAILABLE",
+      "httpStatus": 422,
+      "messageKey": "error.life.product_not_available",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "LIFE_RATING_MISMATCH",
+      "httpStatus": 422,
+      "messageKey": "error.life.rating_mismatch",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "LIFE_RATIONALE_REQUIRED",
+      "httpStatus": 422,
+      "messageKey": "error.life.rationale_required",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "LIFE_REINSTATEMENT_REFUSED",
+      "httpStatus": 409,
+      "messageKey": "error.life.reinstatement_not_permitted",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "LIFE_RULE_NOT_EVALUABLE",
+      "httpStatus": 422,
+      "messageKey": "error.life.rule_not_evaluable",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "LIFE_VALUE_NOT_CONFIGURED",
+      "httpStatus": 409,
+      "messageKey": "error.life.calculation_not_configured",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "LINK_SUBJECT_NOT_FOUND",
+      "httpStatus": 422,
+      "messageKey": "error.identity.subject_not_found",
+      "retryable": false,
+      "means": "The customer, intermediary or provider to link the user to isn't in force, or the intermediary isn't active and licensed.",
+      "remedy": "Check the record to link to, and that it's in force."
+    },
+    {
+      "code": "LOADED_TERMS_NOT_RATED",
+      "httpStatus": 409,
+      "messageKey": "error.life.loaded_terms_not_rated",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "LOAN_EXCEEDS_CASH_VALUE",
+      "httpStatus": 422,
+      "messageKey": "error.life.loan_exceeds_cash_value",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "LOAN_NOT_SUPPORTED",
+      "httpStatus": 422,
+      "messageKey": "error.life.loan_not_supported",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "LOSS_NOT_COVERED",
+      "httpStatus": 422,
+      "messageKey": "error.general.not_covered",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "MAKER_CHECKER_SAME_PERSON",
+      "httpStatus": 403,
+      "messageKey": "error.approval.maker_is_checker",
+      "retryable": false,
+      "means": "You made or requested this, and the same person can't also approve it.",
+      "remedy": "Ask another person with approval authority to decide it."
+    },
+    {
+      "code": "MEDICAL_CLAIM_INVALID",
+      "httpStatus": 422,
+      "messageKey": "error.health.claim_invalid",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "MEDICAL_CLAIM_PENDED",
+      "httpStatus": 409,
+      "messageKey": "error.health.claim_pended",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "MEMBER_NOT_COVERED",
+      "httpStatus": 409,
+      "messageKey": "error.health.member_not_covered",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "MFA_REQUIRED",
+      "httpStatus": 409,
+      "messageKey": "error.identity.mfa_required",
+      "retryable": false,
+      "means": "This role is privileged and needs the user to be enrolled for a second factor.",
+      "remedy": "Enrol the user for a second factor, then assign the role."
+    },
+    {
+      "code": "NOMINATION_RULE_BREACHED",
+      "httpStatus": 422,
+      "messageKey": "error.life.nomination_rule_breached",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "NOTHING_TO_REVIEW",
+      "httpStatus": 422,
+      "messageKey": "error.identity.nothing_to_review",
+      "retryable": false,
+      "means": "No role assignments fall in the scope of this access review.",
+      "remedy": "Widen the review's scope, or no review is needed."
+    },
+    {
+      "code": "NOTHING_TO_SETTLE",
+      "httpStatus": 422,
+      "messageKey": "error.general.nothing_to_settle",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "NOT_A_CASE_MANAGER",
+      "httpStatus": 422,
+      "messageKey": "error.health.not_a_case_manager",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "NOT_FOUND",
+      "httpStatus": 404,
+      "messageKey": "error.resource.not_found",
+      "retryable": false,
+      "means": "The record wasn't found, or you aren't allowed to see it.",
+      "remedy": "Check the reference. If you should be able to see it, ask your administrator about your access."
+    },
+    {
+      "code": "NOT_READY",
+      "httpStatus": 503,
+      "messageKey": "error.service.not_ready",
+      "retryable": true,
+      "means": "The service is starting up.",
+      "remedy": "Try again shortly."
+    },
+    {
+      "code": "NOT_THE_CASE_MANAGER",
+      "httpStatus": 403,
+      "messageKey": "error.health.not_the_case_manager",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "ONBOARDING_INCOMPLETE",
+      "httpStatus": 409,
+      "messageKey": "error.tenancy.onboarding_incomplete",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "ONBOARDING_STEP_NOT_READY",
+      "httpStatus": 422,
+      "messageKey": "error.tenancy.onboarding_step_not_ready",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "ONBOARDING_STEP_OUT_OF_ORDER",
+      "httpStatus": 409,
+      "messageKey": "error.tenancy.onboarding_step_order",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "OPERATOR_TENANT_NOT_BUSINESS",
+      "httpStatus": 403,
+      "messageKey": "error.access.operator_tenant_not_business",
+      "retryable": false,
+      "means": "The platform operator's organisation holds no business records, so this action isn't available there.",
+      "remedy": "Use an insurer's tenant for business work."
+    },
+    {
+      "code": "OUTSIDE_POLICY_PERIOD",
+      "httpStatus": 422,
+      "messageKey": "error.general.outside_policy_period",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "OUTSIDE_PRODUCT_LIMITS",
+      "httpStatus": 422,
+      "messageKey": "error.general.outside_product_limits",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "OUT_OF_SCOPE",
+      "httpStatus": 403,
+      "messageKey": "error.access.out_of_scope",
+      "retryable": false,
+      "means": "The record is outside the products or organisation units your role covers.",
+      "remedy": "Ask a colleague whose scope covers it, or ask your administrator to widen your scope."
+    },
+    {
+      "code": "PARKED_DELIVERY_NOT_OPEN",
+      "httpStatus": 409,
+      "messageKey": "error.integration.parked_delivery_not_open",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "PARTY_ANONYMISATION_BLOCKED",
+      "httpStatus": 409,
+      "messageKey": "error.party.anonymisation_blocked",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "PARTY_CODE_NOT_IN_FORCE",
+      "httpStatus": 422,
+      "messageKey": "error.party.code_not_in_force",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "PARTY_IDENTIFIER_INVALID",
+      "httpStatus": 422,
+      "messageKey": "error.party.identifier_invalid",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "PARTY_IDENTIFIER_IN_USE",
+      "httpStatus": 409,
+      "messageKey": "error.party.identifier_in_use",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "PARTY_KIND_CANNOT_CHANGE",
+      "httpStatus": 422,
+      "messageKey": "error.party.kind_cannot_change",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "PARTY_POSSIBLE_DUPLICATE",
+      "httpStatus": 409,
+      "messageKey": "error.party.possible_duplicate",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "PARTY_READ_ONLY",
+      "httpStatus": 409,
+      "messageKey": "error.party.read_only",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "PARTY_ROLE_ALREADY_HELD",
+      "httpStatus": 409,
+      "messageKey": "error.party.role_already_held",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "PAYEE_BANK_ACCOUNT_CHANGED",
+      "httpStatus": 409,
+      "messageKey": "error.claims.bank_account_changed",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "PAYMENT_CODE_NOT_IN_FORCE",
+      "httpStatus": 422,
+      "messageKey": "error.payment.code_not_in_force",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "PAYMENT_NO_PROVIDER",
+      "httpStatus": 422,
+      "messageKey": "error.payment.no_provider",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "PAYMENT_OVER_ALLOCATED",
+      "httpStatus": 422,
+      "messageKey": "error.payment.over_allocated",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "PAYMENT_PROVIDER_NOT_ALLOWED",
+      "httpStatus": 422,
+      "messageKey": "error.payment.provider_not_allowed",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "PAYMENT_RESOLUTION_CHANGED",
+      "httpStatus": 409,
+      "messageKey": "error.payment.resolution_changed",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "PAYMENT_RESOLUTION_PENDING",
+      "httpStatus": 409,
+      "messageKey": "error.payment.resolution_pending",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "PAYMENT_RETRY_PENDING",
+      "httpStatus": 409,
+      "messageKey": "error.claims.retry_pending",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "PAYMENT_RUN_EMPTY",
+      "httpStatus": 409,
+      "messageKey": "error.health.run_empty",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "PAYMENT_RUN_SUBJECT_CHANGED",
+      "httpStatus": 409,
+      "messageKey": "error.health.approval_subject_changed",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "PAYOUT_BATCH_CHANGED",
+      "httpStatus": 409,
+      "messageKey": "error.payment.payout_batch_changed",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "PAYOUT_BATCH_EMPTY",
+      "httpStatus": 409,
+      "messageKey": "error.payment.batch_empty",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "PERIOD_NOT_DEFINED",
+      "httpStatus": 404,
+      "messageKey": "error.finance.period_not_defined",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "PERIOD_NOT_OPEN",
+      "httpStatus": 409,
+      "messageKey": "error.finance.period_not_open",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "PERIOD_REOPEN_PENDING",
+      "httpStatus": 409,
+      "messageKey": "error.finance.reopen_pending",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "PORTAL_MFA_REQUIRED",
+      "httpStatus": 403,
+      "messageKey": "error.access.portal_mfa_required",
+      "retryable": false,
+      "means": "This portal needs a second factor, and your sign-in didn't include one.",
+      "remedy": "Sign in again and complete the one-time code step."
+    },
+    {
+      "code": "PORTAL_UNDER_REVIEW",
+      "httpStatus": 422,
+      "messageKey": "error.portal.under_review",
+      "retryable": false,
+      "means": "The step waits on a review of the customer's details.",
+      "remedy": "Nothing to do now; the step becomes available once the review is finished."
+    },
+    {
+      "code": "POSTING_RULE_AMBIGUOUS",
+      "httpStatus": 422,
+      "messageKey": "error.finance.posting_rule_ambiguous",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "POSTING_RULE_NOT_FOUND",
+      "httpStatus": 422,
+      "messageKey": "error.finance.posting_rule_not_found",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "PRECONDITION_FAILED",
+      "httpStatus": 412,
+      "messageKey": "error.concurrency.precondition_failed",
+      "retryable": false,
+      "means": "The record changed after you opened it, so your change wasn't saved.",
+      "remedy": "Open the record again to see the latest version, then make your change on it."
+    },
+    {
+      "code": "PRECONDITION_REQUIRED",
+      "httpStatus": 428,
+      "messageKey": "error.concurrency.precondition_required",
+      "retryable": false,
+      "means": "The change needs the version of the record it's made on.",
+      "remedy": "Open the record again and make the change from there."
+    },
+    {
+      "code": "PREFERENCE_NOT_ALLOWED",
+      "httpStatus": 422,
+      "messageKey": "error.communication.preference_not_allowed",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "PREMIUM_ARREARS",
+      "httpStatus": 409,
+      "messageKey": "error.claims.premium_arrears",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "PREMIUM_SCHEDULE_EXISTS",
+      "httpStatus": 409,
+      "messageKey": "error.billing.schedule_exists",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "PROCESS_NOT_RUNNING",
+      "httpStatus": 409,
+      "messageKey": "error.workflow.process_not_running",
+      "retryable": false,
+      "means": "The process has already ended or hasn't started, so it can't move on.",
+      "remedy": "Open the record to see where it stands."
+    },
+    {
+      "code": "PRODUCT_CODE_IN_USE",
+      "httpStatus": 409,
+      "messageKey": "error.product.code_in_use",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "PRODUCT_FAMILY_NOT_FOUND",
+      "httpStatus": 422,
+      "messageKey": "error.product.family_not_found",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "PRODUCT_NOT_AVAILABLE",
+      "httpStatus": 422,
+      "messageKey": "error.general.product_not_available",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "PRODUCT_SIMULATION_REQUIRED",
+      "httpStatus": 422,
+      "messageKey": "error.product.simulation_required",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "PRODUCT_VALIDATION_FAILED",
+      "httpStatus": 422,
+      "messageKey": "error.product.validation_failed",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "PRODUCT_VERSION_IMMUTABLE",
+      "httpStatus": 409,
+      "messageKey": "error.product.version_immutable",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "PRODUCT_VERSION_IN_PROGRESS",
+      "httpStatus": 409,
+      "messageKey": "error.product.version_in_progress",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "PRODUCT_VERSION_REFERENCED",
+      "httpStatus": 409,
+      "messageKey": "error.product.version_referenced",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "PROPOSAL_FROZEN",
+      "httpStatus": 409,
+      "messageKey": "error.life.proposal_frozen",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "PROPOSAL_NOT_ELIGIBLE",
+      "httpStatus": 409,
+      "messageKey": "error.life.proposal_not_eligible",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "PROVIDER_NOT_PAYABLE",
+      "httpStatus": 422,
+      "messageKey": "error.health.provider_not_payable",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "QUOTE_EXPIRED",
+      "httpStatus": 409,
+      "messageKey": "error.general.quote_expired",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "QUOTE_NOT_ACCEPTED",
+      "httpStatus": 409,
+      "messageKey": "error.general.quote_not_accepted",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "RATE_LIMITED",
+      "httpStatus": 429,
+      "messageKey": "error.request.rate_limited",
+      "retryable": true,
+      "means": "Too many requests in a short time.",
+      "remedy": "Wait a moment and try again."
+    },
+    {
+      "code": "RATING_CONFIG_INCOMPLETE",
+      "httpStatus": 422,
+      "messageKey": "error.rating.configuration_incomplete",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "RATING_INPUTS_DIFFER",
+      "httpStatus": 422,
+      "messageKey": "error.general.rating_inputs_differ",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "RATING_INPUT_MISSING",
+      "httpStatus": 422,
+      "messageKey": "error.rating.input_missing",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "RATING_MISMATCH",
+      "httpStatus": 422,
+      "messageKey": "error.general.rating_mismatch",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "RATING_NO_TABLE_VALUE",
+      "httpStatus": 422,
+      "messageKey": "error.rating.no_table_value",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "REFUND_ACCOUNT_NOT_PAYABLE",
+      "httpStatus": 422,
+      "messageKey": "error.billing.bank_account_not_payable",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "REFUND_SUBJECT_CHANGED",
+      "httpStatus": 409,
+      "messageKey": "error.billing.approval_subject_changed",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "REINSTATEMENT_NOT_PERMITTED",
+      "httpStatus": 409,
+      "messageKey": "error.general.reinstatement_not_permitted",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "RENEWAL_NEEDS_RATING",
+      "httpStatus": 422,
+      "messageKey": "error.general.renewal_needs_rating",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "REPAYMENT_EXCEEDS_BALANCE",
+      "httpStatus": 422,
+      "messageKey": "error.life.repayment_exceeds_balance",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "REPORT_NOT_ALLOWED",
+      "httpStatus": 403,
+      "messageKey": "error.compliance.report_not_allowed",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "REPORT_NOT_EXPORTED",
+      "httpStatus": 409,
+      "messageKey": "error.compliance.report_not_exported",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "RESERVE_BELOW_ZERO",
+      "httpStatus": 422,
+      "messageKey": "error.claims.reserve_below_zero",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "RETENTION_OFFER_NOT_PERMITTED",
+      "httpStatus": 403,
+      "messageKey": "error.general.retention_offer_not_permitted",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "RETENTION_OFFER_USED_UP",
+      "httpStatus": 409,
+      "messageKey": "error.general.retention_offer_used_up",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "RETURN_EXISTS",
+      "httpStatus": 409,
+      "messageKey": "error.compliance.return_exists",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "RETURN_MAPPING_INVALID",
+      "httpStatus": 422,
+      "messageKey": "error.compliance.mapping_invalid",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "RETURN_SAME_PERSON",
+      "httpStatus": 403,
+      "messageKey": "error.compliance.same_person",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "REVIEW_INCOMPLETE",
+      "httpStatus": 409,
+      "messageKey": "error.identity.review_incomplete",
+      "retryable": false,
+      "means": "Every item must be confirmed or revoked before the review completes.",
+      "remedy": "Decide the remaining items, then complete the review."
+    },
+    {
+      "code": "RISK_ATTRIBUTES_INVALID",
+      "httpStatus": 422,
+      "messageKey": "error.general.attributes_invalid",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "RI_BORDEREAU_EXISTS",
+      "httpStatus": 409,
+      "messageKey": "error.reinsurance.bordereau_exists",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "RI_LAYOUT_FIELD_UNKNOWN",
+      "httpStatus": 422,
+      "messageKey": "error.reinsurance.layout_field_unknown",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "RI_NOTHING_CEDED",
+      "httpStatus": 409,
+      "messageKey": "error.reinsurance.nothing_ceded",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "RI_NOTHING_RECOVERABLE",
+      "httpStatus": 409,
+      "messageKey": "error.reinsurance.nothing_recoverable",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "RI_PERIOD_INVALID",
+      "httpStatus": 422,
+      "messageKey": "error.reinsurance.period_invalid",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "RI_TREATY_NOT_SUPPORTED",
+      "httpStatus": 422,
+      "messageKey": "error.reinsurance.treaty_not_supported",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "ROLE_ALREADY_ASSIGNED",
+      "httpStatus": 409,
+      "messageKey": "error.identity.role_already_assigned",
+      "retryable": false,
+      "means": "The user already holds this role, or its assignment is waiting for approval.",
+      "remedy": "Nothing to do, or wait for the pending approval."
+    },
+    {
+      "code": "ROLE_NOT_ASSIGNED",
+      "httpStatus": 404,
+      "messageKey": "error.identity.role_not_assigned",
+      "retryable": false,
+      "means": "The user doesn't hold this role.",
+      "remedy": "Check the user's roles in force."
+    },
+    {
+      "code": "ROLE_NOT_FOUND",
+      "httpStatus": 422,
+      "messageKey": "error.identity.role_not_found",
+      "retryable": false,
+      "means": "The role has no version in force.",
+      "remedy": "Choose a role in force, or ask your administrator to put it in force first."
+    },
+    {
+      "code": "RULESET_NOT_FOUND",
+      "httpStatus": 404,
+      "messageKey": "error.rules.ruleset_not_found",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "SEGREGATION_OF_DUTIES",
+      "httpStatus": 409,
+      "messageKey": "error.identity.segregation_of_duties",
+      "retryable": false,
+      "means": "The role would give the user two duties your organisation keeps apart, such as preparing and releasing the same payment.",
+      "remedy": "Give the role to someone else, or remove the conflicting role first."
+    },
+    {
+      "code": "SETTLEMENT_SUBJECT_CHANGED",
+      "httpStatus": 409,
+      "messageKey": "error.general.approval_subject_changed",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "SETUP_TENANT_LIVE",
+      "httpStatus": 409,
+      "messageKey": "error.static_data.setup_tenant_live",
+      "retryable": false,
+      "means": "A setup change set is abandoned only while the organisation is being onboarded, and this one is live.",
+      "remedy": "Correct a live organisation's configuration through ordinary changes, one table at a time."
+    },
+    {
+      "code": "STATEMENT_CHANGED",
+      "httpStatus": 409,
+      "messageKey": "error.distribution.statement_changed",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "STATEMENT_EMPTY",
+      "httpStatus": 409,
+      "messageKey": "error.distribution.statement_empty",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "STATEMENT_NOT_DRAFT",
+      "httpStatus": 409,
+      "messageKey": "error.distribution.statement_not_draft",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "STATIC_DRAFT_EXISTS",
+      "httpStatus": 409,
+      "messageKey": "error.static_data.draft_exists",
+      "retryable": false,
+      "means": "This code already has a version in progress.",
+      "remedy": "Finish or discard that version first."
+    },
+    {
+      "code": "STATIC_IMPORT_REJECTED",
+      "httpStatus": 422,
+      "messageKey": "error.static_data.import_rejected",
+      "retryable": false,
+      "means": "Some lines of the import have errors, so nothing was saved.",
+      "remedy": "Correct the lines listed and import again."
+    },
+    {
+      "code": "STATIC_MAKER_ONLY",
+      "httpStatus": 403,
+      "messageKey": "error.static_data.maker_only",
+      "retryable": false,
+      "means": "Only the person who created the draft can change it, so who made the change stays known.",
+      "remedy": "Ask the draft's maker to change it, or start your own draft once it's finished."
+    },
+    {
+      "code": "STATIC_RETROACTIVE_CHANGE",
+      "httpStatus": 422,
+      "messageKey": "error.static_data.retroactive_change",
+      "retryable": false,
+      "means": "The new version would start before the version now in force starts.",
+      "remedy": "Set the start date after the start of the version in force."
+    },
+    {
+      "code": "STATIC_SCOPE_NOT_ALLOWED",
+      "httpStatus": 422,
+      "messageKey": "error.static_data.scope_not_allowed",
+      "retryable": false,
+      "means": "The change is at a scope this table doesn't allow: some tables hold only an organisation's own rows, others only platform-wide rows.",
+      "remedy": "Make the change at the table's own scope; platform-wide rows are changed by the platform's administrators."
+    },
+    {
+      "code": "STATIC_USER_REQUIRED",
+      "httpStatus": 403,
+      "messageKey": "error.static_data.user_required",
+      "retryable": false,
+      "means": "Static data changes are made by identified people, for maker-checker.",
+      "remedy": "Make the change signed in as yourself."
+    },
+    {
+      "code": "SUBJECT_LINK_EXISTS",
+      "httpStatus": 409,
+      "messageKey": "error.identity.subject_link_exists",
+      "retryable": false,
+      "means": "The user already has a portal link pending or in effect.",
+      "remedy": "Use the existing link, or end it before making another."
+    },
+    {
+      "code": "SUBJECT_LINK_NOT_FOUND",
+      "httpStatus": 404,
+      "messageKey": "error.identity.subject_link_not_found",
+      "retryable": false,
+      "means": "The user has no portal link pending or in effect.",
+      "remedy": "Make the link first."
+    },
+    {
+      "code": "TASK_CLOSED_BY_ITS_RECORD",
+      "httpStatus": 409,
+      "messageKey": "error.workflow.task_closed_by_its_record",
+      "retryable": false,
+      "means": "This task closes by itself when its record does what the task asks; it can't be closed by hand.",
+      "remedy": "Complete the work on the record; the task then closes."
+    },
+    {
+      "code": "TENANT_CODE_TAKEN",
+      "httpStatus": 409,
+      "messageKey": "error.tenancy.code_taken",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "TENANT_CONTEXT_MISSING",
+      "httpStatus": 403,
+      "messageKey": "error.access.tenant_context_missing",
+      "retryable": false,
+      "means": "The request didn't say which organisation it's for.",
+      "remedy": "Sign in again; if it persists, report it to support with the reference."
+    },
+    {
+      "code": "TENANT_HAS_USERS",
+      "httpStatus": 409,
+      "messageKey": "error.identity.tenant_has_users",
+      "retryable": false,
+      "means": "The organisation already has users, so first administrators can't be set up again.",
+      "remedy": "Ask for an additional administrator instead."
+    },
+    {
+      "code": "TENANT_NOT_ACTIVE",
+      "httpStatus": 409,
+      "messageKey": "error.access.tenant_not_active",
+      "retryable": false,
+      "means": "Your organisation is still being set up, so business actions aren't open yet.",
+      "remedy": "Only set-up and configuration work is possible until the organisation is activated."
+    },
+    {
+      "code": "TENANT_NOT_ONBOARDING",
+      "httpStatus": 409,
+      "messageKey": "error.identity.tenant_not_onboarding",
+      "retryable": false,
+      "means": "First administrators are set up only while the organisation is being onboarded.",
+      "remedy": "For a live organisation, ask for an additional administrator instead."
+    },
+    {
+      "code": "TRANSITION_GUARD_FAILED",
+      "httpStatus": 422,
+      "messageKey": "error.workflow.guard_failed",
+      "retryable": false,
+      "means": "The condition for moving the process to that step doesn't hold yet.",
+      "remedy": "Complete what the step needs first, then try again."
+    },
+    {
+      "code": "TRANSITION_NOT_DEFINED",
+      "httpStatus": 422,
+      "messageKey": "error.workflow.transition_not_defined",
+      "retryable": false,
+      "means": "The process doesn't allow a move from its current step to the one asked for.",
+      "remedy": "Open the record to see its current step and the moves it allows."
+    },
+    {
+      "code": "UNAUTHENTICATED",
+      "httpStatus": 401,
+      "messageKey": "error.access.unauthenticated",
+      "retryable": false,
+      "means": "You aren't signed in, or your sign-in has expired.",
+      "remedy": "Sign in again."
+    },
+    {
+      "code": "UNDERWRITING_DECISION_PENDING",
+      "httpStatus": 409,
+      "messageKey": "error.life.decision_pending",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "UNDERWRITING_TERMS_REQUIRED",
+      "httpStatus": 422,
+      "messageKey": "error.life.terms_required",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "USERNAME_TAKEN",
+      "httpStatus": 409,
+      "messageKey": "error.identity.username_taken",
+      "retryable": false,
+      "means": "The username is already in use.",
+      "remedy": "Choose another username."
+    },
+    {
+      "code": "UW_EVIDENCE_OUTSTANDING",
+      "httpStatus": 409,
+      "messageKey": "error.life.evidence_outstanding",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "VALIDATION_FAILED",
+      "httpStatus": 422,
+      "messageKey": "error.request.validation_failed",
+      "retryable": false,
+      "means": "The request is missing a required value, or a value isn't in the form, range or state the action allows.",
+      "remedy": "Correct what the refusal points to, on the form or in its message, and send it again."
+    },
+    {
+      "code": "VALUATION_BASIS_REQUIRED",
+      "httpStatus": 422,
+      "messageKey": "error.general.valuation_basis_required",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "VALUATION_CURRENCY_REQUIRED",
+      "httpStatus": 422,
+      "messageKey": "error.general.valuation_currency_required",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
+      "code": "WORKFLOW_DEFINITION_INVALID",
+      "httpStatus": 422,
+      "messageKey": "error.workflow.definition_invalid",
+      "retryable": false,
+      "means": "The process definition isn't valid, so the process can't be run.",
+      "remedy": "Ask the person who maintains process definitions to correct it."
+    }
+  ]
+}

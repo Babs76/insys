@@ -39,6 +39,28 @@ public static class ErrorCodeSeed
 {
     public static string FilePath => Path.Combine(RepositoryPaths.Migrations, "R__error_code_catalogue.sql");
 
+    /// <summary>docs/api/error-codes.json: every code with its status, message key, retry flag and, where the catalogue words it, its meaning and next step,
+    /// for the front end's contracts:sync (Ade, 18 November). Generated with the seed, never edited by hand.</summary>
+    public static string JsonPath => Path.Combine(RepositoryPaths.Root, "docs", "api", "error-codes.json");
+
+    public static string GenerateJson()
+    {
+        var codes = Entries().OrderBy(e => e.Code, StringComparer.Ordinal).Select(e => new
+        {
+            code = e.Code, httpStatus = e.HttpStatus, messageKey = e.MessageKey, retryable = e.Retryable, means = e.Means, remedy = e.Remedy,
+        });
+        var document = new
+        {
+            description = "GENERATED from the [ErrorCode] constants in the source code; do not edit. Regenerate with INSYS_UPDATE_SNAPSHOTS=1 and the "
+                + "ErrorCodeCatalogueTests. means and remedy are the catalogue's wording, null where a code has none yet.",
+            codes,
+        };
+        return System.Text.Json.JsonSerializer.Serialize(document, new System.Text.Json.JsonSerializerOptions
+        {
+            WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+        }) + "\n";
+    }
+
     public static IReadOnlyList<ErrorCodeEntry> Entries()
     {
         var assemblies = Directory.GetFiles(AppContext.BaseDirectory, "Insys.*.dll")

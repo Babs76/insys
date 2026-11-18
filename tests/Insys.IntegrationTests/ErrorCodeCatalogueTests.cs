@@ -48,6 +48,21 @@ public sealed class ErrorCodeCatalogueTests(DatabaseFixture fixture) : IClassFix
             "Error codes in code changed. Run with INSYS_UPDATE_SNAPSHOTS=1 and commit db/migrations/R__error_code_catalogue.sql.");
     }
 
+    /// <summary>docs/api/error-codes.json, the codes with their wording for the front end (Ade, 18 November), is generated from the same constants.</summary>
+    [Fact]
+    public async Task TheFrontEndsErrorList_IsGeneratedFromTheCodeConstants_WithTheirWording()
+    {
+        var expected = ErrorCodeSeed.GenerateJson();
+        if (Environment.GetEnvironmentVariable("INSYS_UPDATE_SNAPSHOTS") == "1")
+        {
+            await File.WriteAllTextAsync(ErrorCodeSeed.JsonPath, expected);
+        }
+
+        File.Exists(ErrorCodeSeed.JsonPath).ShouldBeTrue("Run the tests once with INSYS_UPDATE_SNAPSHOTS=1 to generate docs/api/error-codes.json.");
+        (await File.ReadAllTextAsync(ErrorCodeSeed.JsonPath)).ShouldBe(expected,
+            "Error codes or their wording changed. Run with INSYS_UPDATE_SNAPSHOTS=1 and commit docs/api/error-codes.json.");
+    }
+
     [Fact]
     public async Task DatabaseCatalogue_HasEveryCode_WithTheSameStatusAndRetryFlag()
     {

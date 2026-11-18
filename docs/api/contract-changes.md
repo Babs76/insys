@@ -5,6 +5,17 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 
 
+
+## Contract batch (18 November 2026): error wording, refusal titles, portal scan status, the stand-in model
+1. **Not breaking: `docs/api/error-codes.json`, generated.** Every code with `httpStatus`, `messageKey`, `retryable`, and the catalogue's `means` and `remedy` (null where a code has no wording yet). It is generated from the `[ErrorCode]` constants with `R__error_code_catalogue.sql`, and `ErrorCodeCatalogueTests` fails when it is stale. This is the file the front end's `contracts:sync` reads for the wording.
+2. **Not breaking, but visible: a worded code's English title is the catalogue's meaning.** For example, `DOCUMENT_QUARANTINED`'s `title` is now "The uploaded file is held until a malware scan clears it, or it failed the scan.", not "The request conflicts with the current state.".
+   - A localised title from the message catalogue still wins.
+   - A code with no wording keeps its kind's title.
+   - `code`, `status` and `detail` are unchanged, so a client that matches on `code`, as it should, sees no change.
+   - The generic title had been by design (titles come from the message catalogue, and no code had catalogue text); now the error catalogue's wording fills that gap.
+3. **Not breaking: `scanStatus` on the portal's document view** (`GET /portal/documents…`): `NOT_REQUIRED`, `PENDING`, `CLEAN` or `INFECTED`. So a member or broker sees a held upload as held before its content read answers 409 `DOCUMENT_QUARANTINED`.
+4. **Not breaking: the stand-in model,** `Assist:Provider=development`, in Development and Testing only (BR-147, widened to AI-1). See `docs/frontend-integration-guide.md` §7, and the test document `docs/frontend/ai1-sample-product.pdf`.
+
 ## AI Assist: the 7.4 error codes are catalogued (18 November 2026)
 - **Not breaking:** each code now has a meaning and a next step in the catalogue's source (`[ErrorCode(..., Means, Remedy)]` in `src/Modules/Assist/Insys.Assist.Domain/AssistTenantSetting.cs`, read through the back-end mirror). The API's catalogue (`GET /api/v1/integration/static/error-code-catalogue`) serves the code, status, message key and retry flag, as before, not this wording. The codes are `ASSIST_NOT_UPLOADER`, `ASSIST_DOCUMENT_NOT_ALLOWED`, `ASSIST_CONFIRMATION_REQUIRED`, `ASSIST_CONFIRMATION_STALE`, `ASSIST_DOCUMENT_IDENTIFIERS`, `ASSIST_SOURCE_UNREADABLE`, `ASSIST_USER_CANNOT_ACT`, `ASSIST_RUN_STALLED`, `ASSIST_RESIDENCY_MISMATCH`, `ASSIST_SOURCE_TOO_LARGE` and `ASSIST_RUN_EXPIRED`. No code, status, message key or retry flag changed: none is retryable.
 - The AI-2 evaluation set gains them as refusals (88 refusals and 66 premiums). **Its case ids are now stable:** a refusal is `R-<code>` and a premium `C-<product>-<factor value>-<sum>-<adjustments or NONE>`, so adding a code or a premium no longer renumbers the others. They change once, now, before the expert's run. The run waiting for Ade (44062786569) is on `073391f` and doesn't include them.
