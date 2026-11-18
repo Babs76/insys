@@ -241,7 +241,8 @@ public sealed class FunctionAvailability(FunctionCatalogueReader catalogue, Tena
     }
 
     public async Task<IReadOnlyList<string>> JobFunctionsNeeding(string feature, CancellationToken cancellationToken) =>
-        (await catalogue.Functions(DateOnly.FromDateTime(clock.UtcNow.UtcDateTime), cancellationToken)).Values
+        // The catalogue is the platform's, so it is read on the platform operator's business date.
+        (await catalogue.Functions(dates.TodayFor(platform.Value.OperatorTenantId), cancellationToken)).Values
         .Where(f => f.Kind == "JOB" && f.Feature == feature).Select(f => f.Code).Order(StringComparer.Ordinal).ToList();
 
     public async Task<IReadOnlyList<string>> JobsSwitchedOff(Guid tenantId, CancellationToken cancellationToken)

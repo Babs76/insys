@@ -386,8 +386,7 @@ public sealed class ParkingJobService(IServiceProvider services, IOptions<Parkin
 /// job's next pass. One still missing its prerequisite parks again, at no cost.
 /// </summary>
 public sealed class RetryParkedOnConfiguration(IntegrationDbContext db, IClock clock, ITenantDirectory tenants,
-    [FromKeyedServices(IntegrationDbContext.SchemaName)] NpgsqlDataSource dataSource, Insys.Tenancy.Contracts.ITenantCodes tenantCodes,
-    IFunctionAvailability availability) : IIntegrationEventHandler<StaticDataVersionActivated>
+    [FromKeyedServices(IntegrationDbContext.SchemaName)] NpgsqlDataSource dataSource, IServiceProvider services) : IIntegrationEventHandler<StaticDataVersionActivated>
 {
     /// <summary>How many parked rows one statement marks for retry; the parking job then retries at most its batch size a tenant a pass.</summary>
     public const int MarkBatch = 500;
@@ -417,7 +416,9 @@ public sealed class RetryParkedOnConfiguration(IntegrationDbContext db, IClock c
         if (table == "tenant.cfg_feature_entitlements")
         {
             // The event names the entitlement's tenant and feature (never read from the global row, Ade, 18 November 2026).
+            // Tenancy and Identity give the tenant and the functions; a host without them (a reduced test host) has no entitlement to release.
             if (activated is { EntitlementTenant: { } tenantCode, EntitlementFeature: { } feature }
+                && services.GetService<Insys.Tenancy.Contracts.ITenantCodes>() is { } tenantCodes && services.GetService<IFunctionAvailability>() is { } availability
                 && await tenantCodes.IdOf(tenantCode, cancellationToken) is { } tenantId
                 && await availability.JobFunctionsNeeding(feature, cancellationToken) is { Count: > 0 } functions)
             {

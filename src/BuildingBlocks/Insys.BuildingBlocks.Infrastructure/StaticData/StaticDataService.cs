@@ -784,8 +784,8 @@ public sealed class StaticDataService<TDbContext>(
     /// <summary>A version's activation, with what its table's facts name (a feature entitlement's tenant and feature, StaticActivationFacts).</summary>
     public static StaticDataVersionActivated Activated(StaticDataDescriptor descriptor, StaticRecord entity) =>
         StaticActivationFacts.Entitlement(descriptor, entity) is { } named
-            ? new(entity.ChangeRequestId, Ref(descriptor, entity), entity.EffectiveFrom, entity.EffectiveTo, named.Tenant, named.Feature)
-            : new(entity.ChangeRequestId, Ref(descriptor, entity), entity.EffectiveFrom, entity.EffectiveTo);
+            ? new StaticDataVersionActivated(entity.ChangeRequestId, Ref(descriptor, entity), entity.EffectiveFrom, entity.EffectiveTo, named.Tenant, named.Feature)
+            : new StaticDataVersionActivated(entity.ChangeRequestId, Ref(descriptor, entity), entity.EffectiveFrom, entity.EffectiveTo);
 
     public static StaticRecordRef Ref(StaticDataDescriptor descriptor, StaticRecord entity) =>
         new(descriptor.Schema, descriptor.Table, descriptor.EntityCode, descriptor.ModuleRoute, descriptor.EntityRoute, entity.Id, entity.Code, entity.Version,
