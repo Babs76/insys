@@ -575,13 +575,15 @@ Ade: close the gap on `tenant.tenant` in the database, not only in the API.
   - `tenant.session_is_platform_operator()` (security definer, read as the owner, so the policy never reads the table through itself) says whether the session's tenant is the operator.
   - Both functions run with `search_path = pg_catalog, tenant` and qualify their names (Ade), so a look-alike object earlier in a caller's path changes nothing.
   - Row-level security, policy `own_or_platform`: a row is seen and written when it is the session's tenant (`app.tenant_id`) or the session is the operator's.
+  - Policy `platform_directory`: the login-free role `insys_tenant_directory` sees every row. `db/roles/module_grants.sql` lets `insys_tenant` take it with `SET ROLE` (`WITH INHERIT FALSE, SET TRUE`), so it never has it by default. Another module's role can't take it.
+  - **Why a role, not the operator's session, for directory reads** (found on CI run 44409889666 and smoke 44409894040): a deployment or test database can have no operator row at all (the smoke deployment, the Payments tests). Keyed on that row, the outbox relay, the jobs and the startup checks saw no tenants; smoke failed with "Keycloak has no account for the user the API made".
   - The owner is not subject to it: migrations, the bootstrap, and `tenant.current_tenant_code()`.
 - **Tenancy's reads now say whose session they run in** (`TenantRows.As`):
   - Reads of one tenant run as that tenant: status for the request pipeline, sample, profile.
-  - Reads across tenants run as the platform operator (`Platform:OperatorTenantId`): the directory for jobs, the time zone health check, and the code-to-id lookup.
+  - Reads across tenants run as the directory role, for their transaction only (`TenantRows.Directory`, `SET LOCAL ROLE`): the directory for jobs, the time zone health check, and the code-to-id lookup.
   - Reads that already set the tenant's session are unchanged: time zone, function settings, readiness. So is the EF context, which runs in the request's tenant: the operator's requests see every tenant, as they register and manage them.
 - **The bootstrap** (`db/bootstrap/operator.sql`) marks the operator, also on a run again. The test fixture marks the tenant it seeds as `OPERATOR`.
-- **Who reaches the operator-session reads (Ade):** the reads are `TenantDirectory.GetActiveTenantIds`, `TenantTimeZonesHealthCheck`, and `TenantFunctionSettingsQuery.IdOf`. They are reached only from:
+- **Who reaches the directory reads (Ade):** the reads are `TenantDirectory.GetActiveTenantIds`, `TenantTimeZonesHealthCheck`, and `TenantFunctionSettingsQuery.IdOf`. They are reached only from:
   - background jobs: the outbox relay (`OutboxProcessor`), `ParkingJob`, `NotificationSender`, `DocumentScanJob`, `ProductDraftJob`, `PrivilegedAccessExpiry`, `SearchLogRetentionJob`, `DueDiligenceJobs`, `WebhookJobs`, `CaseTimelineJobs`, `WorkflowJobs`, `ProductJobs`, `PaymentJobs`, `BillingJobs`, `GeneralJobs`, `LifeJobs`, `HealthJobs`;
   - startup tasks: `AnalyticsReleaseTasks`, `SimulatorGuard`;
   - `/health` checks: `PlanProductsHealthCheck`, `JobFunctionsHealthCheck`, `ParkedDeliveriesHealthCheck`, and the time zone check;
@@ -589,7 +591,7 @@ Ade: close the gap on `tenant.tenant` in the database, not only in the API.
   - `RetryParkedOnConfiguration`'s global branch, only for a global row's activation, which only the platform's routes publish.
   - `TenantDirectoryCallerTests` (architecture) pins this list and the three operator-session reads: a new caller fails until it is reviewed. `DailyJobRunner` hands each job its own one-tenant directory, so it is no caller.
 - **Tests:** `TenantDirectoryAccessTests`.
-  - As `insys_tenant`, a tenant's session sees only its own row, no tenant set sees none, and the operator's session sees all.
+  - As `insys_tenant`, a tenant's session sees only its own row, no tenant set sees none, the operator's session sees all, and the directory role sees all with no operator row needed. Another module's role can't take the directory role.
   - A tenant's session can't mark itself the operator.
   - A look-alike `current_setting` first in a tenant's path, answering with the operator's id, changes neither the check nor the rows.
   - A business tenant is refused the by-tenant route.

@@ -47,19 +47,25 @@ public sealed class TenantDirectoryAccessTests(DatabaseFixture fixture) : IClass
               AND rolname NOT IN (SELECT pg_get_userbyid(relowner) FROM pg_class WHERE oid = 'tenant.tenant'::regclass)
             """);
         readers.ShouldNotBeNull();
-        readers.Split(',').Where(r => !r.EndsWith("_login", StringComparison.Ordinal)).ShouldBe(["insys_tenant"],
-            "only the Tenancy module's role (and its login) reads the directory");
+        readers.Split(',').Where(r => !r.EndsWith("_login", StringComparison.Ordinal)).ShouldBe(["insys_tenant", "insys_tenant_directory"],
+            "only the Tenancy module's role (and its login), and the platform's directory role it may take (V0142), read the directory");
     }
 
     /// <summary>V0142: the Tenancy module's role sees its own tenant's row in a tenant's session, every row in the operator's, and none with no tenant set.</summary>
     [Fact]
     public async Task ATenantsSession_SeesOnlyItsOwnRow_ThePlatformOperatorsSeesEvery_AndNoneSetSeesNone_V0142()
     {
-        async Task<string> Visible(Guid? session)
+        async Task<string> Visible(Guid? session, bool directory = false)
         {
             await using var connection = new NpgsqlConnection(fixture.Database.ConnectionFor("insys_tenant"));
             await connection.OpenAsync();
             await using var transaction = await connection.BeginTransactionAsync();
+            if (directory)
+            {
+                await using var role = new NpgsqlCommand("SET LOCAL ROLE insys_tenant_directory", connection, transaction);
+                await role.ExecuteNonQueryAsync();
+            }
+
             if (session is { } tenant)
             {
                 await using var set = new NpgsqlCommand("SELECT set_config('app.tenant_id', @t, true)", connection, transaction);
@@ -75,6 +81,8 @@ public sealed class TenantDirectoryAccessTests(DatabaseFixture fixture) : IClass
         (await Visible(DatabaseFixture.TenantB)).ShouldBe("TENB");
         (await Visible(null)).ShouldBe("", "no tenant set is never the platform");
         (await Visible(DatabaseFixture.Operator)).Split(',').ShouldBe(["OPERATOR", "TENA", "TENB"], ignoreOrder: true, "the platform operator's session sees every row");
+        (await Visible(null, directory: true)).Split(',').ShouldBe(["OPERATOR", "TENA", "TENB"], ignoreOrder: true,
+            "the platform's directory role sees every row, with no operator row needed");
     }
 
     /// <summary>
@@ -121,6 +129,17 @@ public sealed class TenantDirectoryAccessTests(DatabaseFixture fixture) : IClass
         await fixture.Database.UserWithPermissions(DatabaseFixture.TenantA, "dl-reader-a", Insys.Integration.Contracts.IntegrationPermissions.DeadLetterRead);
         (await factory.ClientFor(DatabaseFixture.TenantA, "dl-reader-a").GetAsync("/api/v1/integration/parked-deliveries/by-tenant")).StatusCode
             .ShouldBe(HttpStatusCode.Forbidden);
+    }
+
+    /// <summary>V0142: the directory role is the Tenancy module's alone: another module's role can't take it.</summary>
+    [Fact]
+    public async Task AnotherModulesRole_CantTakeTheDirectoryRole_V0142()
+    {
+        await using var connection = new NpgsqlConnection(fixture.Database.ConnectionFor("insys_party"));
+        await connection.OpenAsync();
+        await using var transaction = await connection.BeginTransactionAsync();
+        await using var role = new NpgsqlCommand("SET LOCAL ROLE insys_tenant_directory", connection, transaction);
+        (await Should.ThrowAsync<PostgresException>(() => role.ExecuteNonQueryAsync())).SqlState.ShouldBe(PostgresErrorCodes.InsufficientPrivilege);
     }
 
     /// <summary>V0142: only the owner marks the platform operator, so a tenant's session can't raise itself to see the others.</summary>
