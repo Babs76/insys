@@ -111,6 +111,11 @@ jobs:
           if helm template t . --set kms.address=http://bao:8200,objectStore.serviceUrl=http://s3:9000,environment=Development,scanner.provider=development > /dev/null 2>&1; then
             echo "The chart rendered with scanner.provider=development"; exit 1
           fi
+          # The same for AI Assist's stand-in model (BR-147): none by default, and refused whatever the environment is called.
+          helm template t . --set kms.address=http://bao:8200,objectStore.serviceUrl=http://s3:9000,environment=Development | grep -q 'name: Assist__Provider, value: "none"'
+          if helm template t . --set kms.address=http://bao:8200,objectStore.serviceUrl=http://s3:9000,environment=Development,assist.provider=development > /dev/null 2>&1; then
+            echo "The chart rendered with assist.provider=development"; exit 1
+          fi
           if helm template t . --set kms.address=http://bao:8200,objectStore.serviceUrl=http://s3:9000 | grep -E 'annotations:|replicas: [^1]'; then
             echo "The chart has a provider annotation or more than one replica (ADR-006, ADR-027)."
             exit 1

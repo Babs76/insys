@@ -124,6 +124,11 @@ seaweedfs:
 identity:
   keycloak:
     baseUrl: ""
+# AI Assist's model (ai-assist.md D-1): none (every run ends UNAVAILABLE, P8) or claude, whose key comes from the deployment's secret store. Any other value
+# fails the chart: the stand-in model exists only for stacks outside it (frontend-integration-guide.md §7).
+assist:
+  provider: none
+
 # The malware scanner for uploaded documents (AIA-010, ai-assist.md §5.5). enabled runs ClamAV in the cluster; otherwise host names a clamd
 # reachable from the API. With neither, uploads stay quarantined (DOCUMENT_QUARANTINED): the scan fails closed. ClamAV holds its signatures in
 # memory, so it needs about 1.5 GB or more.

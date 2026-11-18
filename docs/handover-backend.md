@@ -585,9 +585,18 @@ The fourth fix batch: Workflow processes and tasks, and documents attached to a 
   - A process about a case with no product or node is an unrestricted reader's only, as its redress approval is.
   - Processes about aggregation zones, Health programme reviews, provider measures and recovery reviews are too, following OQ-172 and scope batch 1.
 - **Tests:** `ReadScopeTests`: a process started through Health's event takes the membership's scope, and the list, get and tasks follow it; documents follow their record, and an unattached one doesn't. Both fail without their fix (checked by undoing each).
+### Contract batch (18 November 2026, branch `contract-batch`)
+Ade's items of 18 November, before scope batches 4 and 5 and the seed batch.
+- **The front end's error list:** `docs/api/error-codes.json`, generated with the error catalogue (`ErrorCodeSeed.GenerateJson`, checked by `ErrorCodeCatalogueTests`).
+- **Refusal titles:** `ProblemLocalisation.Apply` sets a worded code's English title to its catalogue meaning before the message catalogue's localised title, which still wins.
+- **Portal documents:** `PortalDocumentView.ScanStatus`.
+- **The stand-in model:**
+  - `DevelopmentAiModelProvider` (Assist.Infrastructure) is chosen by `Assist:Provider=development`. Its constructor and `DevelopmentModelGuard` (a hosted service, registered before the jobs) refuse it outside Development and Testing.
+  - The chart's `assist.provider` takes none or claude only.
+  - The published test document is `docs/frontend/ai1-sample-product.pdf`, made by `SampleDocuments.Ai1Sample`. `PublishedSampleTests` checks the committed copy, and regenerates it with `INSYS_UPDATE_SNAPSHOTS=1`.
 
 ### Scope batch 3 (18 November 2026, branch `scope-batch-3`, on batch 2)
-The third fix batch: Party's policy export. `IPolicyExportRows.All` takes the caller's `AccessScope`. `PolicyExportReader.Read` adds the scope's filter to each module's SQL (any grant whose product and node sets allow the row, as `ScopeFilter.InScope`); General, Life and Health pass `product_code` and `org_node_code`. The request counts in the requester's scope, the download lists in the reader's. **Interpretation for Ade:** the rows follow whoever downloads, never more than their scope, rather than freezing the requester's scope on the job. Test: `ReadScopeTests`, failing without the fix (checked by passing an unrestricted scope).
+The third fix batch: Party's policy export. `IPolicyExportRows.All` takes the caller's `AccessScope`. `PolicyExportReader.Read` adds the scope's filter to each module's SQL (any grant whose product and node sets allow the row, as `ScopeFilter.InScope`); General, Life and Health pass `product_code` and `org_node_code`. The request counts in the requester's scope, the download lists in the reader's. **Decided (Ade, 18 November): as built.** The rows follow whoever downloads, never more than their scope. **Who can download:** anyone holding `PARTY_BULK_JOBS` (`party_bulk_job.read`) once a second person has approved the export. It isn't only the requester; the handler doesn't check who asked. Test: `ReadScopeTests`, failing without the fix (checked by passing an unrestricted scope).
 
 ### Scope batch 2 (18 November 2026, branch `scope-batch-2`)
 The second of the five fix batches (the read sweep's order, Ade): the Health accumulators. `GetAccumulatorsHandler` loads the membership through the scoped `IHealthRepository.Membership` first, so a membership outside the caller's scope isn't found (404). Test: `ReadScopeTests`, which fails without the fix (checked by undoing it).

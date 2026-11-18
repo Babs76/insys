@@ -38,9 +38,12 @@ namespace Insys.Documents.Application;
 // category's allowed roles include one of theirs, whatever its classification. So each tenant chooses which categories
 // its portals see by naming the portal roles on them; none is shown by default. Every portal read is logged (DOC-003).
 
-public sealed record PortalDocumentView(Guid Id, string CategoryCode, string MimeType, long SizeBytes, string BusinessRefType, Guid BusinessRefId)
+public sealed record PortalDocumentView(Guid Id, string CategoryCode, string MimeType, long SizeBytes, string BusinessRefType, Guid BusinessRefId,
+    [property: System.ComponentModel.Description("The malware scan (AIA-010): NOT_REQUIRED for a generated document; PENDING while an upload is in quarantine, "
+        + "its content refused with DOCUMENT_QUARANTINED; CLEAN; or INFECTED, never released.")]
+    string ScanStatus = ScanStatuses.NotRequired)
 {
-    public static PortalDocumentView From(Document d) => new(d.Id, d.CategoryCode, d.MimeType, d.SizeBytes, d.BusinessRefType, d.BusinessRefId);
+    public static PortalDocumentView From(Document d) => new(d.Id, d.CategoryCode, d.MimeType, d.SizeBytes, d.BusinessRefType, d.BusinessRefId, d.ScanStatus);
 }
 
 public sealed record ListPortalDocuments(string BusinessRefType, Guid BusinessRefId) : IQuery<IReadOnlyList<PortalDocumentView>>;

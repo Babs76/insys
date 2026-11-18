@@ -55074,6 +55074,11 @@
           "businessRefId": {
             "type": "string",
             "format": "uuid"
+          },
+          "scanStatus": {
+            "type": "string",
+            "description": "The malware scan (AIA-010): NOT_REQUIRED for a generated document; PENDING while an upload is in quarantine, its content refused with DOCUMENT_QUARANTINED; CLEAN; or INFECTED, never released.",
+            "default": "NOT_REQUIRED"
           }
         }
       },

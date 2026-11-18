@@ -71,6 +71,7 @@
 | Scope batch 2 | The read sweep's Health accumulators: `GET /health/memberships/{id}/accumulators` reads within the membership's scope (F103) | Merged (`8436e5d`) |
 | Scope batch 3 | The read sweep's policy export: each module's export rows filtered by the reader's scope in its query (F103) | Merged (`8436e5d`) |
 | Scope batch 4 | Workflow processes, tasks and case notes, and documents attached to a record, follow the record's scope, stored when they start (V0140, backfilled) and filtered in the query (OQ-169) | Branch `scope-batch-4` |
+| Contract batch | The generated error list with wording, catalogue meanings as refusal titles, the portal document's scan status, the stand-in model for live runs (BR-147) | Branch `contract-batch` |
 
 ## Phase 1 review items
 

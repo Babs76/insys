@@ -73,6 +73,12 @@ spec:
             {{- fail "scanner.provider must be clamav: the chart never runs the development scanner, whatever the environment is called." }}
             {{- end }}
             - {name: Documents__Scanner__Provider, value: "clamav"}
+            {{- /* AI Assist's model: none or claude. The stand-in model is for stacks outside the chart, whatever a deployment's environment is called. */}}
+            {{- $assistProvider := .Values.assist.provider | default "none" }}
+            {{- if not (has $assistProvider (list "none" "claude")) }}
+            {{- fail "assist.provider must be none or claude: the chart never runs the stand-in model, whatever the environment is called." }}
+            {{- end }}
+            - {name: Assist__Provider, value: {{ $assistProvider | quote }}}
             {{- $scanner := .Values.scanner.host | default (ternary (printf "%s-clamav" .Release.Name) "" .Values.scanner.enabled) }}
             {{- if $scanner }}
             # The malware scanner (AIA-010). Without one, uploads stay quarantined: the scan fails closed.

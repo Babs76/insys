@@ -50,7 +50,13 @@ public static class AssistInfrastructure
         services.AddIntegrationEventHandler<StaticData.Contracts.SetupChangeSetNotApproved, SetupChangeSetOutcomes, AssistDbContext>(schema, "SetupNotApproved");
         services.AddIntegrationEventHandler<StaticData.Contracts.SetupChangeSetAbandoned, SetupChangeSetOutcomes, AssistDbContext>(schema, "SetupAbandoned");
         // No model unless the deployment connects one (the Cloud adapter project registers Claude when Assist:Provider is claude).
-        services.TryAddSingleton<IAiModelProvider, NoAiModelProvider>();
+        // The stand-in model only where Assist:Provider says so, and only in Development and Testing (its guard stops any other host).
+        services.TryAddSingleton<IAiModelProvider>(sp =>
+            string.Equals(sp.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>()["Assist:Provider"], DevelopmentAiModelProvider.Provider,
+                StringComparison.OrdinalIgnoreCase)
+                ? new DevelopmentAiModelProvider(sp.GetRequiredService<Microsoft.Extensions.Hosting.IHostEnvironment>())
+                : new NoAiModelProvider());
+        services.AddHostedService<DevelopmentModelGuard>();
         services.AddScoped<AssistRunner>();
         services.AddScoped<Explainer>();
         // AI-1 (7.4): runs, extraction, and the job that acts for the user who asked (AIA-017).
