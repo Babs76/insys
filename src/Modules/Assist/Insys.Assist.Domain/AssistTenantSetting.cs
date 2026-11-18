@@ -56,47 +56,58 @@ public static class AssistErrorCodes
     public const string OutputRejected = "ASSIST_OUTPUT_REJECTED";
 
     /// <summary>AI-1 (ai-assist.md §5.5): a document isn't a PDF, DOCX or XLSX by its content, is over 20 MB, or the run names more than 10.</summary>
-    [ErrorCode(422, "error.assist.document_not_allowed")]
+    [ErrorCode(422, "error.assist.document_not_allowed", Means = "A document isn't one AI-1 reads: a run takes 1 to 10 different documents, each a PDF, DOCX or XLSX file of at most 20 MB, filed under a category that holds no personal data.",
+        Remedy = "Check the documents against those limits, then start the run again with documents that meet them.")]
     public const string DocumentNotAllowed = "ASSIST_DOCUMENT_NOT_ALLOWED";
 
     /// <summary>AI-1 (D-16): the uploader hasn't confirmed that a document holds no customer personal data.</summary>
-    [ErrorCode(422, "error.assist.confirmation_required")]
+    [ErrorCode(422, "error.assist.confirmation_required", Means = "Each document needs your confirmation that it holds no customer personal data before AI-1 reads it.",
+        Remedy = "Confirm each document, then start the run again.")]
     public const string ConfirmationRequired = "ASSIST_CONFIRMATION_REQUIRED";
 
     /// <summary>AI-1 (D-16): a document's content changed after it was confirmed, so it needs a new confirmation in a new run.</summary>
-    [ErrorCode(409, "error.assist.confirmation_stale")]
+    [ErrorCode(409, "error.assist.confirmation_stale", Means = "A document's content changed after you confirmed it, so the run didn't read it.",
+        Remedy = "Check the document again, then start a new run and confirm it again.")]
     public const string ConfirmationStale = "ASSIST_CONFIRMATION_STALE";
 
     /// <summary>AI-1 (D-16, §5.5): only the user who uploaded a document confirms it; another user's upload is refused, and is uploaded again to be used.</summary>
-    [ErrorCode(403, "error.assist.not_uploader")]
+    [ErrorCode(403, "error.assist.not_uploader", Means = "Only the user who uploaded a document can confirm it holds no customer personal data, and someone else uploaded this one.",
+        Remedy = "Upload the document again yourself, then start the run with your copy.")]
     public const string NotUploader = "ASSIST_NOT_UPLOADER";
 
     /// <summary>AI-1 (D-16, §5.5): the identifier check found an obvious identifier, named by kind and page in the run, never by value.</summary>
-    [ErrorCode(422, "error.assist.document_identifiers")]
+    [ErrorCode(422, "error.assist.document_identifiers", Means = "A document holds an obvious identifier, such as an email address, an ID number or a bank account number, so AI-1 refused it and sent nothing. The run lists the kind of identifier and the page.",
+        Remedy = "Remove the identifiers from the document, upload the corrected copy, then start a new run.")]
     public const string DocumentIdentifiers = "ASSIST_DOCUMENT_IDENTIFIERS";
 
     /// <summary>AI-1 (AIA-011): a document couldn't be read at all, or none of its pages has a text layer.</summary>
-    [ErrorCode(422, "error.assist.source_unreadable")]
+    [ErrorCode(422, "error.assist.source_unreadable", Means = "A document couldn't be read: the file couldn't be opened, or none of its pages has text, such as a scanned image.",
+        Remedy = "Upload a copy with a text layer, for example the original file rather than a scan, then start a new run.")]
     public const string SourceUnreadable = "ASSIST_SOURCE_UNREADABLE";
 
     /// <summary>AI-1 (AIA-017): the user the run acts for may no longer act (disabled, or their roles changed), so it stopped without writing.</summary>
-    [ErrorCode(403, "error.assist.user_cannot_act")]
+    [ErrorCode(403, "error.assist.user_cannot_act", Means = "The run stopped without writing anything, because you can no longer do what it does for you: your account or your roles changed after you started it.",
+        Remedy = "Ask your administrator to check your access, then start a new run.")]
     public const string UserCannotAct = "ASSIST_USER_CANNOT_ACT";
 
     /// <summary>AI-1: a run stopped part way, its job interrupted; it isn't resumed, so a new run is started.</summary>
-    [ErrorCode(409, "error.assist.run_stalled")]
+    [ErrorCode(409, "error.assist.run_stalled", Means = "The run was interrupted part way and isn't resumed.",
+        Remedy = "Start a new run. If the run created a Draft version, finish that one first: a product has one version in progress at a time.")]
     public const string RunStalled = "ASSIST_RUN_STALLED";
 
     /// <summary>AI-1: a document, or the run's documents together, hold more than AI-1 reads (an expanded package, a sheet, or the text over its limit).</summary>
-    [ErrorCode(422, "error.assist.source_too_large")]
+    [ErrorCode(422, "error.assist.source_too_large", Means = "The documents hold more than AI-1 reads in one run: a file that expands too far, a sheet that is too large, or too much text in total.",
+        Remedy = "Split the material into smaller files, or start runs with fewer documents.")]
     public const string SourceTooLarge = "ASSIST_SOURCE_TOO_LARGE";
 
     /// <summary>AI-1: a run waited too long to start, so its confirmations are no longer relied on; a new run is started.</summary>
-    [ErrorCode(409, "error.assist.run_expired")]
+    [ErrorCode(409, "error.assist.run_expired", Means = "The run waited more than an hour to start, so its confirmations are no longer relied on.",
+        Remedy = "Start a new run and confirm the documents again.")]
     public const string RunExpired = "ASSIST_RUN_EXPIRED";
 
     /// <summary>AIA-050: the provider said inference ran outside the tenant's region, so nothing it returned is used.</summary>
-    [ErrorCode(422, "error.assist.residency_mismatch")]
+    [ErrorCode(422, "error.assist.residency_mismatch", Means = "The AI provider said it answered from outside your tenant's inference region, so nothing it returned was used.",
+        Remedy = "Start a new run later. If it happens again, ask your administrator to check the AI Assist settings.")]
     public const string ResidencyMismatch = "ASSIST_RESIDENCY_MISMATCH";
 }
 
