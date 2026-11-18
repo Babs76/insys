@@ -54,11 +54,7 @@ public sealed class LifeDocumentPolicies(DocumentGenerator generator, ISellableP
             ["inception_date"] = issued.InceptionDate.ToString("yyyy-MM-dd"), ["term_end_date"] = issued.TermEndDate?.ToString("yyyy-MM-dd"),
             ["premium"] = issued.Premium, ["frequency"] = issued.BillingFrequency, ["sum_assured"] = issued.SumAssured, ["currency"] = issued.Currency,
         }, JsonSerializerOptions.Web);
-        var document = await generator.Generate(new GenerateDocument(template.TemplateCode, template.Language, template.DocumentType, LifeDocuments.PolicyRefType,
-            issued.PolicyId, $"{issued.ProductCode} v{issued.ProductVersion}", null, data), cancellationToken);
-        if (document.IsFailure)
-        {
-            throw new InvalidOperationException($"{PolicySchedule} for Life policy {issued.PolicyNumber} was not generated: {document.Error.Message}");
-        }
+        await generator.GenerateForDelivery(new GenerateDocument(template.TemplateCode, template.Language, template.DocumentType, LifeDocuments.PolicyRefType,
+            issued.PolicyId, $"{issued.ProductCode} v{issued.ProductVersion}", null, data), $"{PolicySchedule} for Life policy {issued.PolicyNumber}", cancellationToken);
     }
 }

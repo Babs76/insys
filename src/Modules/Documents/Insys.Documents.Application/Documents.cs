@@ -363,6 +363,33 @@ public sealed class DocumentGenerator(IDocumentRepository documents, IDocumentCa
                 JsonSerializerOptions.Web), id));
         return document;
     }
+
+    /// <summary>
+    /// For an event consumer (ADR-022): a category or template version not in force is missing configuration, so the delivery parks
+    /// (DOCUMENT_CATEGORY_NOT_IN_FORCE, DOCUMENT_TEMPLATE_NOT_IN_FORCE) and is retried when it is published, rather than failing and being dead-lettered.
+    /// Any other refusal is a failure.
+    /// </summary>
+    public async Task<Document> GenerateForDelivery(GenerateDocument command, string what, CancellationToken cancellationToken)
+    {
+        var today = businessDate.Today;
+        if (await catalogue.Category(command.CategoryCode, today, cancellationToken) is null)
+        {
+            throw new PrerequisiteMissingException(PrerequisiteCodes.DocumentCategoryNotInForce, command.CategoryCode);
+        }
+
+        if (await catalogue.Template(command.TemplateCode, command.Language, today, cancellationToken) is null)
+        {
+            throw new PrerequisiteMissingException(PrerequisiteCodes.DocumentTemplateNotInForce, $"{command.TemplateCode}:{command.Language}");
+        }
+
+        var document = await Generate(command, cancellationToken);
+        if (document.IsFailure && document.Error.Code == DocumentErrorCodes.MergeFieldMissing)
+        {
+            throw new PrerequisiteMissingException(PrerequisiteCodes.DocumentTemplateFieldUnavailable, $"{command.TemplateCode}:{command.Language}");
+        }
+
+        return document.IsSuccess ? document.Value : throw new InvalidOperationException($"{what} was not generated: {document.Error.Message}");
+    }
 }
 
 internal sealed class StoreDocumentHandler(IDocumentRepository documents, IDocumentCatalogue catalogue, IDocumentStorage storage, ITenantContext tenant, IBusinessDate businessDate, IClock clock)

@@ -57,6 +57,13 @@ A consumer that finds the tenant's configuration missing **parks** its delivery 
 | `HealthMemberEnrolled` | Billing | As above (frequency `MONTHLY`) | As above |
 | `GeneralPolicyIssued`, `GeneralPolicyEndorsed`, `LifePolicyIssued` | Documents | `DOCUMENT_TEMPLATE_NOT_IN_FORCE` <product>:<document types> | A template assigned to the product for each document type (`product.cfg_product_template_assignments`), in force in the recipient's language chain |
 | `GeneralRenewalInvited`, `ProviderPaymentRunReleased` | Documents | `DOCUMENT_TEMPLATE_NOT_IN_FORCE` <template code> | The template in force in the recipient's languages |
+| Any event that generates a document (the four rows above) | Documents | `DOCUMENT_CATEGORY_NOT_IN_FORCE` <category> | The document category named by the template's document type (`document.ref_document_categories`), for example `CERTIFICATE` or `RENEWAL_NOTICE` |
+| As above | Documents | `DOCUMENT_TEMPLATE_FIELD_UNAVAILABLE` <template>:<language> | A template version whose merge fields are ones the event gives (`document.cfg_document_templates`) |
+| `ArrearsDetected`, `InvoiceSettled` (Life) | Life | `GRACE_RULE_NOT_IN_FORCE` <premium frequency> | A Life grace period rule for the frequency (`life.cfg_grace_period_rules`) |
+| `InvoiceIssued` | Commission | `COMMISSION_PLAN_NOT_IN_FORCE` <plan code> | The plan named in the intermediary's product permission, in force on the invoice's date (`commission.cfg_commission_plans`) |
+| `AccountingPeriodClosed` (final) | Compliance | `RETURN_MAPPING_INVALID` <return code> | A return definition whose field mapping is an object naming accounts and metrics in force (`reporting.cfg_regulatory_return_definitions`) |
+| `PreauthorisationApproved`, `PreauthorisationReservationsChanged` | Health | `PLAN_OPTION_NOT_IN_FORCE` <plan>/<option> | The membership's plan option in force on the authorisation's start (`health.cfg_plans_and_options`) |
+| Any | The module's consumers | `FUNCTION_DISABLED` <JOB function>, `FEATURE_NOT_ENTITLED` <JOB function> | The JOB function switched on (`tenant.cfg_tenant_function_availability`), or the tenant entitled to its feature (`tenancy.cfg_feature_entitlements`) |
 | `LifePolicyIssued` | Reinsurance, Analytics | `BILLING_FREQUENCY_NOT_IN_FORCE` <frequency> | The billing frequency in force |
 | `GeneralPolicyIssued`, `LifePolicyIssued` | Reinsurance | `TREATY_NOT_APPLICABLE` <error code> | A treaty for the product that can be applied |
 | `InvoiceOverdue` | Billing | `ARREARS_AGEING_BUCKET_NOT_IN_FORCE` <days overdue> | An arrears ageing bucket (`billing.cfg_arrears_ageing_buckets`) covering that many days; once published, the parked opening of the account's arrears case is retried (request 46) |
@@ -65,6 +72,31 @@ A consumer that finds the tenant's configuration missing **parks** its delivery 
 | `GeneralPolicyEndorsed` | Billing | (fails, then waits in order) | The policy's premium schedule, from its issue: an endorsement waits behind a parked issue |
 
 Anything else a consumer fails on is still a failure: retried with back-off, then dead-lettered, while later events for its record wait behind it. Outbox lag is not part of readiness, so a stuck event does not take the instance out of service.
+
+### Replaying deliveries dead-lettered for missing configuration
+
+Before 18 November 2026, the rows above from `DOCUMENT_CATEGORY_NOT_IN_FORCE` down (except the function codes) failed instead of parking. So a tenant can hold dead letters that are really missing configuration. Publishing the configuration doesn't retry a dead letter; only a replay does.
+
+1. **Find them.** As a user with `dead_letter.read`:
+   ```
+   GET /api/v1/integration/parked-deliveries?status=DeadLettered                  [dead_letter.read]
+   GET /api/v1/integration/dead-letters?status=DeadLettered&source=ledger:<consumer>
+   GET /api/v1/integration/dead-letters?status=DeadLettered&source=outbox:<schema>
+   ```
+   - The parked-deliveries list names each failed consumer and event type. Match it to the table above: for example, `document.GeneralDocumentPolicies.GeneralRenewalInvited` or `document.GeneralDocumentPolicies.GeneralPolicyIssued`, failed with no prerequisite code, was most likely a missing document category.
+   - A dead letter whose source is `ledger:<consumer>` is that one consumer's. One with `outbox:<schema>` holds the event for every consumer that failed it.
+   - To be sure of the cause, read the host logs at its `firstFailedAt`, keyed by the event ID (`messageRef`): they give the refusal, for example "CERTIFICATE is not a document category in force".
+2. **Configure what is missing**, by the maker-checker route, and check that it is in force on the event's dates. A frequency or plan is read on the policy's or invoice's own date, which can be in the past (see `BILLING_FREQUENCY_NOT_IN_FORCE` in the seed batch's note in `docs/handover-backend.md`).
+3. **Replay each dead letter**, with the ETag from its GET:
+   ```
+   POST /api/v1/integration/dead-letters/{id}/replay   If-Match: "<etag>"   [dead_letter.update]
+   ```
+   - The event is delivered again to every consumer. Those that had done their work skip it through their inbox, and the failed consumer now does its work.
+   - Its row in the parked-deliveries list becomes `Resolved`.
+   - If the configuration is still incomplete, the delivery now parks with the code that names what is missing, rather than failing again. Configure that, and it is retried by itself.
+4. **Check** that nothing is left with `GET /api/v1/integration/parked-deliveries?status=DeadLettered` and `?status=Parked`.
+
+The procedure is tested by `DeadLetterReplayTests.ADeliveryDeadLetteredForMissingConfiguration_IsDoneByReplayOnceConfigured_ADR022`.
 
 ## Webhooks
 

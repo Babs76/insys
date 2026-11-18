@@ -117,6 +117,29 @@ public sealed class ConsumerParkingTests(DatabaseFixture fixture) : IClassFixtur
         Figure("DEAD_LETTERS_OPEN").GetProperty("count").GetInt64().ShouldBeGreaterThanOrEqualTo(0L);
     }
 
+    /// <summary>
+    /// A template whose document category isn't in force is missing configuration (Ade, 18 November 2026): the delivery parks naming the category and is
+    /// generated once the category is published, where before it failed, was retried and was dead-lettered.
+    /// </summary>
+    [Fact]
+    public async Task Documents_ParksAPolicyWhoseDocumentCategoryIsNotInForce_AndGeneratesItOncePublished_ADR022()
+    {
+        const string consumer = "document.LifeDocumentPolicies.LifePolicyIssued";
+        var from = Today.AddDays(-30);
+        await fixture.Database.SeedStatic(Tenant, "document.cfg_document_templates", "EFFECTIVE", "TPL-NOCAT", from, ("template_code", "TPL-NOCAT"), ("language", "en"),
+            ("document_type", "POLICY_SCHEDULE"), ("body_ref", "doc://templates/nocat/v1"), ("merge_fields", Array.Empty<string>()));
+        await fixture.Database.SeedStatic(Tenant, "product.cfg_product_template_assignments", "EFFECTIVE", "TA-NOCAT", from, ("product_code", "LIFE-NOCAT"),
+            ("document_type", "POLICY_SCHEDULE"), ("template", "TPL-NOCAT"), ("language", "en"));
+        var issued = await Issue("DEBIT_ORDER", "MONTHLY", "LIFE-NOCAT");
+
+        (await Parked(issued, consumer)).ShouldBe($"{PrerequisiteCodes.DocumentCategoryNotInForce} POLICY_SCHEDULE");
+
+        await fixture.Database.SeedStatic(Tenant, "document.ref_document_categories", "ACTIVE", "POLICY_SCHEDULE", from, ("category_code", "POLICY_SCHEDULE"),
+            ("label", "Policy schedule"), ("classification", "PERSONAL"), ("domain", "ALL"), ("allowed_roles", Array.Empty<string>()));
+        await RetryAfterPublishing();
+        (await Status(issued, consumer)).ShouldBe("RESOLVED");
+    }
+
     [Fact]
     public async Task Reinsurance_ParksARecalculationOnEndorsement_WhenTheCessionRuleIsNotInForce_ADR022()
     {
@@ -138,11 +161,11 @@ public sealed class ConsumerParkingTests(DatabaseFixture fixture) : IClassFixtur
         (await Parked((envelope.EventId, Guid.Empty), consumer)).ShouldBe($"{PrerequisiteCodes.CessionRuleNotInForce} GEN-NORULE:QS-TEST");
     }
 
-    private async Task<(Guid EventId, Guid BillingAccountRef)> Issue(string collectionMethod, string frequency)
+    private async Task<(Guid EventId, Guid BillingAccountRef)> Issue(string collectionMethod, string frequency, string product = "LIFE-NOTPL")
     {
         var policy = Guid.CreateVersion7();
         var account = Guid.CreateVersion7();
-        var issued = new LifePolicyIssued(policy, $"LIF-{policy.ToString("N")[..8]}", Guid.CreateVersion7(), "LIFE-NOTPL", 1, Guid.CreateVersion7(), Guid.CreateVersion7(),
+        var issued = new LifePolicyIssued(policy, $"LIF-{policy.ToString("N")[..8]}", Guid.CreateVersion7(), product, 1, Guid.CreateVersion7(), Guid.CreateVersion7(),
             account, frequency, collectionMethod, "ZAR", 100m, Today, null, 500_000m);
         var envelope = Envelope(issued, "life.LifePolicyIssued", "LifePolicy", policy);
         await _factory.Services.GetRequiredService<IEventBus>().Deliver(envelope, CancellationToken.None);

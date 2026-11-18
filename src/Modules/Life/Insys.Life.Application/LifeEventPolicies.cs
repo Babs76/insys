@@ -235,7 +235,8 @@ public sealed class LifeEventPolicies(ILifeRepository life, ILifeCodes codes, IP
 
         if (await codes.GraceRule(policy.PremiumFrequency, asOf, cancellationToken) is not { } grace)
         {
-            throw new InvalidOperationException($"No grace period rule is in force for {policy.PremiumFrequency}; policy {policy.PolicyNumber}'s arrears are not recorded.");
+            // ADR-022: configuration a tenant adds, so the delivery parks and is retried when it is published.
+            throw new PrerequisiteMissingException(PrerequisiteCodes.GraceRuleNotInForce, policy.PremiumFrequency);
         }
 
         var overdue = await arrears.For(tenant.RequireTenantId(), LifeSubjects.SourceDomain, policy.Id, asOf, cancellationToken);

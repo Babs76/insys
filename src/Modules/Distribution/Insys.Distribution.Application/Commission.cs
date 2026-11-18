@@ -342,9 +342,9 @@ public sealed class CommissionPolicies(IDistributionRepository repository, IDist
             return;
         }
 
-        // A plan named but not in force is a configuration error: retried, then dead-lettered for a person.
+        // A plan named but not in force is missing configuration (ADR-022): the delivery parks, and is retried when the plan is published.
         var plan = await codes.Plan(planCode, issued.IssueDate, cancellationToken)
-                   ?? throw new InvalidOperationException($"Commission plan {planCode} is not in force on {issued.IssueDate:yyyy-MM-dd}.");
+                   ?? throw new PrerequisiteMissingException(PrerequisiteCodes.CommissionPlanNotInForce, planCode);
         var first = !await repository.HasEntitlement(issued.SourceDomain, issued.PolicyRef, intermediary, cancellationToken);
         var source = new CommissionSource(issued.SourceDomain, issued.InvoiceId, issued.PolicyRef, policy.ProductCode, issued.NetAmount, issued.Currency, issued.IssueDate,
             issued.DueDate);

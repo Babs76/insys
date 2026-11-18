@@ -59,6 +59,24 @@ public static class PrerequisiteCodes
     /// <summary>Item: product and document type ("GEN-MOTOR:POLICY_SCHEDULE"), or the template code.</summary>
     public const string DocumentTemplateNotInForce = "DOCUMENT_TEMPLATE_NOT_IN_FORCE";
 
+    /// <summary>Item: the document category code, which is the template's document type ("CERTIFICATE"): no category in force (ADR-022, Ade, 18 November 2026).</summary>
+    public const string DocumentCategoryNotInForce = "DOCUMENT_CATEGORY_NOT_IN_FORCE";
+
+    /// <summary>Item: template and language ("TPL-1:en"): the template in force names a merge field the event doesn't give; a corrected version retries it.</summary>
+    public const string DocumentTemplateFieldUnavailable = "DOCUMENT_TEMPLATE_FIELD_UNAVAILABLE";
+
+    /// <summary>Item: the premium frequency (life.cfg_grace_period_rules): no Life grace period rule in force for it, so arrears can't be recorded.</summary>
+    public const string GraceRuleNotInForce = "GRACE_RULE_NOT_IN_FORCE";
+
+    /// <summary>Item: the plan code (commission.cfg_commission_plans): an intermediary's assignment names a plan not in force on the invoice's date.</summary>
+    public const string CommissionPlanNotInForce = "COMMISSION_PLAN_NOT_IN_FORCE";
+
+    /// <summary>Item: the return code (reporting.cfg_regulatory_return_definitions): its field mapping is invalid or names what isn't in force.</summary>
+    public const string ReturnMappingInvalid = "RETURN_MAPPING_INVALID";
+
+    /// <summary>Item: plan and option ("PLAN/OPTION", health.cfg_plans_and_options): not in force on the date a benefit is read for.</summary>
+    public const string PlanOptionNotInForce = "PLAN_OPTION_NOT_IN_FORCE";
+
     /// <summary>Item: product and treaty ("GEN-MOTOR:QS-2026"); no cession rule in force for a cession being recalculated.</summary>
     public const string CessionRuleNotInForce = "CESSION_RULE_NOT_IN_FORCE";
 

@@ -8,6 +8,14 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 ## Seed batch: the sample tenant's missing configuration, and FEATURE_NOT_ENTITLED (18 November 2026)
 - **Changed, for anyone reading parked deliveries** (`GET /integration/parked-deliveries`, the operations view, `/health`): a consumer whose JOB function needs a feature the tenant isn't entitled to now parks with prerequisite code **`FEATURE_NOT_ENTITLED`** (item: the JOB function, for example `LIFE_EVENT_PROCESSING`). Before, it parked as `FUNCTION_DISABLED`, which wrongly said the tenant had switched the function off. `FUNCTION_DISABLED` now means only that: switched off by the tenant, or not in force in the catalogue. Retrying is unchanged: entitling the tenant publishes configuration, which retries its parked deliveries. No endpoint, field or schema changed.
+- **New prerequisite codes, where a delivery used to fail, be retried and be dead-lettered** (Ade, 18 November 2026). Each now parks, and is retried when the configuration is published, as ADR-022 intends. They show in the parked-deliveries list and its filters like any other code. The item says what to configure.
+  - `DOCUMENT_CATEGORY_NOT_IN_FORCE` <category>: a generated document's category, which is its template's document type.
+  - `DOCUMENT_TEMPLATE_FIELD_UNAVAILABLE` <template>:<language>: the template names a merge field the event doesn't give.
+  - `GRACE_RULE_NOT_IN_FORCE` <premium frequency>: Life arrears.
+  - `COMMISSION_PLAN_NOT_IN_FORCE` <plan code>: commission on an invoice.
+  - `RETURN_MAPPING_INVALID` <return code>: a regulatory return on the final close.
+  - `PLAN_OPTION_NOT_IN_FORCE` <plan>/<option>: a Health authorisation's reservation.
+  - `DOCUMENT_TEMPLATE_NOT_IN_FORCE` is now also used when the template version itself isn't in force, with item <template>:<language>.
 - **The sample tenant (OFTZA) only:** the seed adds what its own business needed. No API change.
   - Every platform notice as a service notice by email, with a sample English template: payment reminder and final notice, renewal invitation and reminder, claim status, Health claim and pre-authorisation decisions, claim decision rights, grace, non-payment cancellation, contribution suspension, scheme renewal, non-renewal, broker change and `PROVIDER_RECOVERY_NOTICE`.
   - A channel provider row for email (`OFT-EMAIL`, provider `STUB`): the platform's stub channel, which records the message and sends nothing.

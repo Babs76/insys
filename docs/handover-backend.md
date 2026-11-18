@@ -578,7 +578,23 @@ What the sample tenant's business parked or failed on, fixed in the seed, plus o
   - `MONTHLY` from 2020-01-01.
 - **Diagnoses:**
   - **`BILLING_FREQUENCY_NOT_IN_FORCE MONTHLY`** (analytics and reinsurance, on `LifePolicyIssued`): they read the frequency on the policy's inception date. The migrated Life policy began a year before the seed's day, from which `MONTHLY` was in force.
-  - **The renewal invitation's failing delivery** (and, once the certificate template was there, every General issue): `DocumentGenerator` takes the template's document type as the document's category. OFTZA had only `POLICY_SCHEDULE`, so generation returned `CODE_NOT_IN_FORCE`, and `GeneralDocumentPolicies` threw, so the delivery was retried as a failure instead of parking. **Proposal for Ade, not built:** a missing category should park, as a missing template does (ADR-022).
+  - **The renewal invitation's failing delivery** (and, once the certificate template was there, every General issue): `DocumentGenerator` takes the template's document type as the document's category. OFTZA had only `POLICY_SCHEDULE`, so generation returned `CODE_NOT_IN_FORCE`, and `GeneralDocumentPolicies` threw, so the delivery was retried as a failure instead of parking. Fixed (Ade approved): `DocumentGenerator.GenerateForDelivery`, used by all four document consumers, parks as `DOCUMENT_CATEGORY_NOT_IN_FORCE`, `DOCUMENT_TEMPLATE_NOT_IN_FORCE` or `DOCUMENT_TEMPLATE_FIELD_UNAVAILABLE`. The API's own generation still answers 422.
+- **The sweep for the same pattern** (Ade, 18 November): each consumer that failed on missing configuration, checked path by path.
+  - **Fixed, each parking with a test in `ConfigurationParkingTests`** (each test fails with its fix undone):
+    - Life `LifeEventPolicies.RefreshArrears` (`ArrearsDetected`, `InvoiceSettled`): `GRACE_RULE_NOT_IN_FORCE`.
+    - `CommissionPolicies` (`InvoiceIssued`): `COMMISSION_PLAN_NOT_IN_FORCE`.
+    - Compliance `ReturnPolicies` (`AccountingPeriodClosed`): `RETURN_MAPPING_INVALID`, only for `MAPPING_INVALID`; any other refusal still fails.
+    - `HealthEventPolicies.Reserve` (`PreauthorisationApproved`, `PreauthorisationReservationsChanged`): `PLAN_OPTION_NOT_IN_FORCE`, only for `CODE_NOT_IN_FORCE`, which without lines or a provider can only be the plan option.
+    - Documents: the merge-field case above.
+  - **Looked at and left failing:** General `GeneralPolicies` on `GeneralEndorsementApproved`. Its product branch fails when the policy's own product version is not a published version, which is a data fault rather than configuration a tenant adds, and the same throw covers real refusals (a limit breached).
+  - **Not the retry pattern, but configuration that is missing and never retried. Listed for Ade, not changed:**
+    - (a) Payments `PaymentPolicies` on `InvoiceIssued` ignores the result of starting the collection. A method that a provider supports but that isn't usable inbound in the currency, or has no provider, drops the collection silently (`Payments.cs`, `starter.Start`). The payout path in the same file parks.
+    - (b) General and Health grace on `ArrearsDetected`/`InvoiceSettled` log and skip when no grace rule is in force ("readiness flags the missing rule"). Life now parks for the same thing.
+    - (c) Commission with no plan assigned to an intermediary logs and earns nothing. This is probably right for direct business.
+    - (d) The notification sender marks a notification refused, not retryable, when its provider or template is withdrawn between queueing and sending.
+    - (e) A webhook whose signing key can't be resolved fails and is dead-lettered. It is outside the inbox, so it would need a park state of its own.
+    - Scheduled jobs (`RunLifeDue`, `RunHealthDue`, General `RunDue`) return `CODE_NOT_IN_FORCE` for missing rules the same way, outside delivery.
+  - **Runbook:** "Replaying deliveries dead-lettered for missing configuration" in `docs/runbooks/dead-letters-and-webhooks.md`, with the new codes in its table. Proved by `DeadLetterReplayTests`.
 - **Test:** `OftzaSeedTests` fails if any delivery for the tenant is parked, failing, retrying or dead-lettered, and names each one.
 - **Scope:** the seed's rows are OFTZA's only. The front end's per-run tenant is configured by its own live setup (`e2e/live/` in `insys-console`), so it needs the same rows there. The `FEATURE_NOT_ENTITLED` code applies to every tenant.
 - **Preview:** nothing changes there until a reset Ade approves. The seed adds rows only to a new tenant: on an existing OFTZA its configuration step is skipped, and a back-dated `MONTHLY` couldn't replace the version in force.

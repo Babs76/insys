@@ -527,8 +527,8 @@ internal sealed class ComplianceQueries(IComplianceRepository repository) :
 
 /// <summary>
 /// AccountingPeriodClosed (final) → PrepareReturn for each return definition whose frequency ends with the period
-/// (OQ-064 item 2). A return that cannot be calculated (a mapping to an unknown account or metric) is retried, then
-/// dead-lettered for a person.
+/// (OQ-064 item 2). A return whose mapping is invalid (it names an unknown account or metric) parks as RETURN_MAPPING_INVALID,
+/// and is retried when a corrected definition is published (ADR-022); any other refusal is retried, then dead-lettered.
 /// </summary>
 public sealed class ReturnPolicies(IComplianceRepository repository, IComplianceCodes codes, ReturnValues values, IBusinessDate businessDate, ILogger<ReturnPolicies> logger)
     : IIntegrationEventHandler<AccountingPeriodClosed>
@@ -548,6 +548,12 @@ public sealed class ReturnPolicies(IComplianceRepository repository, ICompliance
             }
 
             var prepared = await Returns.Prepare(repository, codes, values, definition.ReturnCode, closed.PeriodCode, null, businessDate.Today, cancellationToken);
+            if (prepared.IsFailure && prepared.Error.Code == ComplianceErrorCodes.MappingInvalid)
+            {
+                // The definition's mapping is configuration (ADR-022): parked, and retried when a corrected definition is published.
+                throw new PrerequisiteMissingException(PrerequisiteCodes.ReturnMappingInvalid, definition.ReturnCode);
+            }
+
             if (prepared.IsFailure)
             {
                 throw new InvalidOperationException($"Return {definition.ReturnCode} for {closed.PeriodCode} was not prepared: {prepared.Error.Message}");

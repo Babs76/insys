@@ -59,12 +59,8 @@ public sealed class HealthDocumentPolicies(DocumentGenerator generator, Document
                 ["run_code"] = released.RunCode, ["provider_id"] = remittance.ProviderId, ["amount"] = remittance.Amount, ["gross_amount"] = remittance.Gross, ["offset_amount"] = remittance.Offset, ["repaid_amount"] = remittance.Repaid, ["currency"] = released.Currency,
                 ["released_on"] = released.ReleasedOn.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
             }, JsonSerializerOptions.Web);
-            var document = await generator.Generate(new GenerateDocument(template.TemplateCode, template.Language, template.DocumentType, HealthReferences.RemittanceRefType,
-                remittance.RemittanceId, null, null, data), cancellationToken);
-            if (document.IsFailure)
-            {
-                throw new InvalidOperationException($"The remittance advice for {remittance.ProviderId} in run {released.RunCode} was not generated: {document.Error.Message}");
-            }
+            await generator.GenerateForDelivery(new GenerateDocument(template.TemplateCode, template.Language, template.DocumentType, HealthReferences.RemittanceRefType,
+                remittance.RemittanceId, null, null, data), $"The remittance advice for {remittance.ProviderId} in run {released.RunCode}", cancellationToken);
         }
     }
 }

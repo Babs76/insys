@@ -182,6 +182,12 @@ public sealed class HealthEventPolicies(IHealthRepository health, BenefitContext
 
         var categories = changes.Select(c => c.Category).Distinct().ToList();
         var context = await contexts.For(membership, patientPartyId, null, validFrom, Guid.Empty, [], categories, false, null, cancellationToken);
+        if (context.IsFailure && context.Error.Code == Domain.HealthErrorCodes.CodeNotInForce)
+        {
+            // Without lines or a provider, the context's only code not in force is the membership's plan option (BenefitContexts.For): configuration (ADR-022).
+            throw new PrerequisiteMissingException(PrerequisiteCodes.PlanOptionNotInForce, $"{membership.PlanCode}/{membership.OptionCode}");
+        }
+
         if (context.IsFailure)
         {
             throw new InvalidOperationException($"Authorisation {authNumber}'s benefit could not be read: {context.Error.Message}");
