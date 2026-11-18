@@ -599,6 +599,32 @@ What the sample tenant's business parked or failed on, fixed in the seed, plus o
 - **Scope:** the seed's rows are OFTZA's only. The front end's per-run tenant is configured by its own live setup (`e2e/live/` in `insys-console`), so it needs the same rows there. The `FEATURE_NOT_ENTITLED` code applies to every tenant.
 - **Preview:** nothing changes there until a reset Ade approves. The seed adds rows only to a new tenant: on an existing OFTZA its configuration step is skipped, and a back-dated `MONTHLY` couldn't replace the version in force.
 
+### Scope batch 5 (18 November 2026, branch `scope-batch-5`)
+The last fix batch of the read sweep: its PARTIAL rows on paging and the portal claim list (`docs/reviews/read-scope-sweep.md`). Contract note: "Scope batch 5" in `docs/api/contract-changes.md`.
+- **Renewals** (`GeneralStores.Renewals`): the scoped policies are a subquery in the renewals query, in place of one `Policy()` load per row after `Take`.
+- **Payment runs** (`HealthLists.Runs`): the query keeps only runs with no remittances yet or with a claim whose membership is in scope; `RunVisibility` then trims each run's remittances as before.
+- **Legal holds** (`RecordHoldHandlers.Handle(ListRecordHolds)`): a hold's record is in another module, so the handler reads on in batches until the page is full or nothing is left, as the payments list does. No scope is stored on the hold.
+- **Portal claims** (`HealthPortalQueries.ProviderClaims`, `MemberClaims`): the scoped memberships are a subquery, as the single read applies.
+- **Refunds** (`BillingRepository`): an account with no schedules is whole only for an unrestricted caller (`count > 0`).
+- **Tests** (`ReadScopeTests`): `APageIsFull_WhateverIsOutOfScopeBeforeIt_RenewalsAndLegalHolds_F103`, `APageOfPaymentRuns_IsFull_WhateverIsOutOfScopeBeforeIt_F103`, `AMembersPortalClaims_AreListedOnlyWithinTheScopeTheSingleReadApplies_F103`, `ARefundOnAnAccountWithNoSchedules_IsAnUnrestrictedReadersOnly_OQ081`. Each fails with its fix undone (checked for renewals, holds, runs, member claims and refunds). The provider side of the portal list uses the same subquery and has no test of its own.
+### Scope batch 4 (18 November 2026, branch `scope-batch-4`)
+The fourth fix batch: Workflow processes and tasks, and documents attached to a record (OQ-169).
+- **V0140:** `is_scoped`, `product_code`, `org_node_code` (and `org_node_applies` for processes) on `workflow.process_instance` and `document.document`. The backfill reads each record's scope as its module's source does.
+- **A process gets its scope when `IProcessRepository.Add` saves it:**
+  - a type declared unscoped (`ApprovalKinds.Unscoped`: party, data subject request, party retention, fraud indicator, parked delivery) stays tenant-wide;
+  - else its module's `IApprovalScopeSource`. New ones: General quotes and retention cases, Health memberships and care activities (`MembershipRecordScopes`), Workflow service cases;
+  - else the approval about the same record;
+  - else none: an unrestricted reader's only.
+  - `ProcessQueries` filters lists, gets and open tasks in the query, as approvals are.
+- **A document gets its scope when stored or generated (`RecordHoldTargets.ScopeDocument`):**
+  - from the legal-hold targets of its record type: one scope copied;
+  - a record not found, or with several scopes, fails closed;
+  - a party (no scope), or a type no target resolves, leaves it unattached.
+  - `DocumentRepository.Get` refuses or hides it outside the scope, and `ForBusinessRef` filters in the query.
+- **Interpretations for Ade:**
+  - A process about a case with no product or node is an unrestricted reader's only, as its redress approval is.
+  - Processes about aggregation zones, Health programme reviews, provider measures and recovery reviews are too, following OQ-172 and scope batch 1.
+- **Tests:** `ReadScopeTests`: a process started through Health's event takes the membership's scope, and the list, get and tasks follow it; documents follow their record, and an unattached one doesn't. Both fail without their fix (checked by undoing each).
 ### Contract batch (18 November 2026, branch `contract-batch`)
 Ade's items of 18 November, before scope batches 4 and 5 and the seed batch.
 - **The front end's error list:** `docs/api/error-codes.json`, generated with the error catalogue (`ErrorCodeSeed.GenerateJson`, checked by `ErrorCodeCatalogueTests`).

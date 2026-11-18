@@ -5,6 +5,12 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 
 
+## Scope batch 5: full pages, and the portal's claim list (F103, read sweep, 18 November 2026)
+- **Breaking, for callers with a product or branch scope:**
+  - `GET /general/renewals`, `GET /health/payment-runs` and `GET /documents/legal-holds` now drop the records outside the caller's scope before the page is cut. A page is full whenever enough records in scope exist, and its `nextCursor` reaches the later ones. Before, a page could come back short, and with no cursor, so in-scope records after it couldn't be reached. Rows and fields are unchanged.
+  - `GET /portal/health/claims` lists only the claims whose membership is in the caller's scope, as `GET /portal/health/claims/{id}` already decided. Before, the list applied only the relationship.
+  - `GET /billing/refunds/{id}` on a billing account with no premium schedules now answers **404** to a scoped caller, as the refund list and Payments already did (OQ-081). Before, a scoped caller could read it.
+- An unrestricted caller sees no change.
 
 ## Seed batch: the sample tenant's missing configuration, and FEATURE_NOT_ENTITLED (18 November 2026)
 - **Changed, for anyone reading parked deliveries** (`GET /integration/parked-deliveries`, the operations view, `/health`): a consumer whose JOB function needs a feature the tenant isn't entitled to now parks with prerequisite code **`FEATURE_NOT_ENTITLED`** (item: the JOB function, for example `LIFE_EVENT_PROCESSING`). Before, it parked as `FUNCTION_DISABLED`, which wrongly said the tenant had switched the function off. `FUNCTION_DISABLED` now means only that: switched off by the tenant, or not in force in the catalogue. Retrying is unchanged: entitling the tenant publishes configuration, which retries its parked deliveries. No endpoint, field or schema changed.
@@ -22,6 +28,16 @@ What changed in the API contract, newest first, so the front end can sync. The O
   - A `CERTIFICATE` template assigned to every General product, and the document categories `CERTIFICATE` and `RENEWAL_NOTICE`.
   - `MONTHLY` in force from 1 January 2020, before the oldest sample policy.
 
+## Scope batch 4: processes, tasks and documents follow their record (F103, OQ-169, 18 November 2026)
+**Breaking, for callers with a product or branch scope; an unrestricted caller sees no change.** Each list is filtered in the query, so paging holds.
+- **`GET /workflow/processes`, `GET /workflow/processes/{id}` and `GET /workflow/tasks`:** a process, its tasks and its case notes follow the record the process is about.
+  - Outside the caller's scope, a process isn't listed, and its id answers 404.
+  - A process about a party, a data subject request, a party's retention review, a fraud indicator definition or the parked-delivery queue stays tenant-wide.
+  - A process about a record with no scope found, or about tenant-wide totals and provider-level reviews (aggregation zones, Health programme reviews, provider measures, recovery reviews), is seen only by an unrestricted caller (OQ-172, OQ-176).
+- **`GET /documents/documents?businessRefType&businessRefId`, `GET /documents/documents/{id}` and its content:** a document filed against a policy, claim, membership, Health claim or case follows that record's scope. Outside it, the document isn't listed and its id answers 404.
+  - A document filed against a party, or against no scoped record, keeps its classification only, as before.
+  - A document filed against a scoped record that isn't found fails closed: an unrestricted reader's only.
+- **Existing rows** are backfilled by V0140 from their records. A process with no record found, of a type that has a scope, fails closed.
 ## Contract batch (18 November 2026): error wording, refusal titles, portal scan status, the stand-in model
 1. **Not breaking: `docs/api/error-codes.json`, generated.** Every code with `httpStatus`, `messageKey`, `retryable`, and the catalogue's `means` and `remedy` (null where a code has no wording yet). It is generated from the `[ErrorCode]` constants with `R__error_code_catalogue.sql`, and `ErrorCodeCatalogueTests` fails when it is stale. This is the file the front end's `contracts:sync` reads for the wording.
 2. **Not breaking, but visible: a worded code's English title is the catalogue's meaning.** For example, `DOCUMENT_QUARANTINED`'s `title` is now "The uploaded file is held until a malware scan clears it, or it failed the scan.", not "The request conflicts with the current state.".

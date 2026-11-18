@@ -50,6 +50,11 @@ internal sealed class GeneralApprovalScopes([FromKeyedServices(GeneralDbContext.
             SELECT product_code, org_node_code FROM general.claim WHERE id = @id
             """,
         // A non-renewal is about its policy (F103, OQ-176).
+        // Scope batch 4 (F103): processes about a quote (a referral) and about a retention case (its policy).
+        Contracts.GeneralReferrals.BusinessRefType => "SELECT product_code, org_node_code FROM general.quote WHERE id = @id",
+        "GENERAL_RETENTION_CASE" => """
+            SELECT p.product_code, p.org_node_code FROM general.retention_case r JOIN general.policy p ON p.tenant_id = r.tenant_id AND p.id = r.policy_id WHERE r.id = @id
+            """,
         Contracts.GeneralApprovals.NonRenewalBusinessRefType => """
             SELECT p.product_code, p.org_node_code FROM general.renewal r JOIN general.policy p ON p.tenant_id = r.tenant_id AND p.id = r.policy_id WHERE r.id = @id
             """,

@@ -141,6 +141,13 @@ public static class WorkflowInfrastructure
 
         // OQ-104: redress is approved by a second person, from the case's screen.
         ApprovalKinds.Declare(Contracts.CaseApprovals.RedressBusinessRefType, "SERVICE_COMPLAINTS", Contracts.CaseApprovals.RedressApprovalType);
+        // Scope batch 4 (F103, OQ-169): the record types Workflow's processes are about that aren't scoped, with the reason. Every other type is scoped
+        // through its module's source, or fails closed.
+        ApprovalKinds.Unscoped("PARTY", "a party's record: parties are shared across products (PTY-003)");
+        ApprovalKinds.Unscoped("DATA_SUBJECT_REQUEST", "a data subject request is about a party, shared across products (PTY-003)");
+        ApprovalKinds.Unscoped("PARTY_RETENTION", "a party's retention review, shared across products (PTY-003)");
+        ApprovalKinds.Unscoped("FRAUD_INDICATOR", "a fraud indicator definition is the tenant's configuration, not a business record");
+        ApprovalKinds.Unscoped(Integration.Contracts.ParkedDeliveryEscalated.BusinessRefType, "the operations queue for parked deliveries, tenant-wide (ADR-022)");
         BuildingBlocks.Application.DashboardFigureCodes.Declare(CaseFigures.All);
 
         // OQ-110: the case checks join SHARED_OPERATIONAL_SETUP (§10). The notification types are Communications' check.

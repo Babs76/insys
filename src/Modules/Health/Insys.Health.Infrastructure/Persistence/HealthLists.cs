@@ -124,7 +124,10 @@ internal sealed class HealthLists(HealthDbContext db, IExecutionContext executio
                 .ToListAsync(cancellationToken);
         }
 
-        // F103: a run partly in scope counts only its remittances in scope; one with none in scope is left out.
+        // F103: a run partly in scope counts only its remittances in scope; one with none in scope is left out. Scope batch 5: the runs with a claim in
+        // scope (or no remittances yet) are chosen in the query, so a page is full and paging holds.
+        var inScope = db.Memberships.AsNoTracking().InScope(execution.CurrentScope, m => m.ProductCode, m => m.OrgNodeCode).Select(m => m.Id);
+        rows = rows.Where(r => !r.Remittances.Any() || db.Claims.Any(c => c.PaymentRunId == r.Id && inScope.Contains(c.MembershipId)));
         var summaries = new List<PaymentRunSummary>();
         foreach (var run in await rows.Include(r => r.Remittances).OrderBy(r => r.Id).Take(q.Limit).ToListAsync(cancellationToken))
         {
@@ -187,9 +190,13 @@ internal sealed class HealthPortalQueries(HealthDbContext db, IExecutionContext 
         return await memberships.OrderBy(m => m.Id).Take(limit).ToListAsync(cancellationToken);
     }
 
+    /// <summary>The memberships the caller's scope allows (F103), as a subquery.</summary>
+    private IQueryable<Guid> ScopedMemberships => db.Memberships.AsNoTracking().InScope(execution.CurrentScope, m => m.ProductCode, m => m.OrgNodeCode).Select(m => m.Id);
+
     public async Task<IReadOnlyList<Domain.Care.MedicalClaim>> ProviderClaims(string providerId, Guid? afterId, int limit, CancellationToken cancellationToken)
     {
-        var claims = db.Claims.AsNoTracking().Include(c => c.Lines).Where(c => c.ProviderId == providerId);
+        // F103 (scope batch 5): the relationship, and the product and node scope the single read applies, both in the query.
+        var claims = db.Claims.AsNoTracking().Include(c => c.Lines).Where(c => c.ProviderId == providerId && ScopedMemberships.Contains(c.MembershipId));
         if (afterId is { } after)
         {
             claims = claims.Where(c => c.Id.CompareTo(after) > 0);
@@ -201,7 +208,8 @@ internal sealed class HealthPortalQueries(HealthDbContext db, IExecutionContext 
     public async Task<IReadOnlyList<Domain.Care.MedicalClaim>> MemberClaims(Guid partyId, Guid? afterId, int limit, CancellationToken cancellationToken)
     {
         var claims = db.Claims.AsNoTracking().Include(c => c.Lines)
-            .Where(c => c.PatientPartyId == partyId || db.Memberships.Any(m => m.Id == c.MembershipId && m.PrincipalPartyId == partyId));
+            .Where(c => c.PatientPartyId == partyId || db.Memberships.Any(m => m.Id == c.MembershipId && m.PrincipalPartyId == partyId))
+            .Where(c => ScopedMemberships.Contains(c.MembershipId)); // scope batch 5, as the single read
         if (afterId is { } after)
         {
             claims = claims.Where(c => c.Id.CompareTo(after) > 0);

@@ -106,6 +106,33 @@ public sealed class RecordHoldTargets(IEnumerable<ILegalHoldTargets> targets, IT
     public async Task<bool> Visible(string scopeType, Guid scopeId, CancellationToken cancellationToken) =>
         await ScopesOf(scopeType, scopeId, cancellationToken) is { } scopes && scopes.All(s => execution.CurrentScope.Allows(s.ProductCode, s.OrgNodeCode));
 
+    /// <summary>
+    /// Scope batch 4 (OQ-169): a document filed against a record of a type these targets resolve takes the record's one scope. A record not found, or with
+    /// several scopes, fails closed. A record with none (a party), or a type they don't resolve, leaves the document unattached: classification only.
+    /// </summary>
+    public async Task ScopeDocument(Domain.Documents.Document document, CancellationToken cancellationToken)
+    {
+        if (!targets.Any(t => t.Covers(document.BusinessRefType)))
+        {
+            return;
+        }
+
+        var scopes = await ScopesOf(document.BusinessRefType, document.BusinessRefId, cancellationToken);
+        if (scopes is { Count: 0 })
+        {
+            return;
+        }
+
+        if (scopes is [var only])
+        {
+            document.ScopeTo(only.ProductCode, only.OrgNodeCode);
+        }
+        else
+        {
+            document.ScopeTo(null, null);
+        }
+    }
+
     private async Task<IReadOnlyList<(string? ProductCode, string? OrgNodeCode)>?> ScopesOf(string scopeType, Guid scopeId, CancellationToken cancellationToken) =>
         targets.FirstOrDefault(t => t.Covers(scopeType)) is { } source
             ? await source.ScopesOf(tenant.TenantId ?? throw new InvalidOperationException("A legal hold is placed in a tenant."), scopeType, scopeId, cancellationToken)
@@ -199,13 +226,27 @@ internal sealed class RecordHoldHandlers(IRecordHoldRepository holds, IDocumentC
 
     public async Task<Result<IReadOnlyList<RecordHoldView>>> Handle(ListRecordHolds query, CancellationToken cancellationToken)
     {
+        // F103 (scope batch 5): a hold follows its record, which another module holds, so the page is filled by reading on past holds outside the scope
+        // until it is full or none are left (as the payments list does): a page is never cut before it is filtered, and paging holds.
         var views = new List<RecordHoldView>();
-        foreach (var hold in await holds.List(query.ScopeType, query.ScopeId, query.InForce, query.AfterId, query.Limit, cancellationToken))
+        var after = query.AfterId;
+        while (views.Count < query.Limit)
         {
-            if (await targets.Visible(hold.ScopeType, hold.ScopeId, cancellationToken))
+            var batch = await holds.List(query.ScopeType, query.ScopeId, query.InForce, after, query.Limit, cancellationToken);
+            foreach (var hold in batch)
             {
-                views.Add(RecordHoldView.From(hold, await history.Latest(Contracts.DocumentApprovals.RecordHoldBusinessRefType, hold.Id, cancellationToken)));
+                if (views.Count < query.Limit && await targets.Visible(hold.ScopeType, hold.ScopeId, cancellationToken))
+                {
+                    views.Add(RecordHoldView.From(hold, await history.Latest(Contracts.DocumentApprovals.RecordHoldBusinessRefType, hold.Id, cancellationToken)));
+                }
             }
+
+            if (batch.Count < query.Limit)
+            {
+                break;
+            }
+
+            after = batch[^1].Id;
         }
 
         return views;

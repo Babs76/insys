@@ -331,7 +331,7 @@ internal sealed class GenerateDocumentHandler(DocumentGenerator generator) : ICo
 }
 
 /// <summary>Renders the template version in force with the data, stores it, and records the template and product versions (DOC-002).</summary>
-public sealed class DocumentGenerator(IDocumentRepository documents, IDocumentCatalogue catalogue, IDocumentRenderer renderer, IDocumentStorage storage,
+public sealed class DocumentGenerator(RecordHoldTargets scoping, IDocumentRepository documents, IDocumentCatalogue catalogue, IDocumentRenderer renderer, IDocumentStorage storage,
     ITenantContext tenant, IBusinessDate businessDate, IClock clock)
 {
     public async Task<Result<Document>> Generate(GenerateDocument command, CancellationToken cancellationToken)
@@ -357,6 +357,7 @@ public sealed class DocumentGenerator(IDocumentRepository documents, IDocumentCa
         var retention = await catalogue.RetentionUntil(command.CategoryCode, command.Jurisdiction, today, cancellationToken);
         var document = Document.Create(id, command.CategoryCode, category.Value.Classification, stored, new TemplateVersionRef(template.TemplateCode, template.Version),
             command.ProductVersionRef, command.BusinessRefType, command.BusinessRefId, retention, clock.UtcNow);
+        await scoping.ScopeDocument(document, cancellationToken);
         documents.Add(document);
         documents.Add(GenerationRequest.Generated(new TemplateVersionRef(template.TemplateCode, template.Version), command.Language,
             JsonSerializer.Serialize(new { businessRefType = command.BusinessRefType, businessRefId = command.BusinessRefId, fields = data.Keys.Order(StringComparer.Ordinal) },
@@ -392,7 +393,8 @@ public sealed class DocumentGenerator(IDocumentRepository documents, IDocumentCa
     }
 }
 
-internal sealed class StoreDocumentHandler(IDocumentRepository documents, IDocumentCatalogue catalogue, IDocumentStorage storage, ITenantContext tenant, IBusinessDate businessDate, IClock clock)
+internal sealed class StoreDocumentHandler(RecordHoldTargets scoping, IDocumentRepository documents, IDocumentCatalogue catalogue, IDocumentStorage storage, ITenantContext tenant,
+    IBusinessDate businessDate, IClock clock)
     : ICommandHandler<StoreDocument, DocumentView>
 {
     public async Task<Result<DocumentView>> Handle(StoreDocument command, CancellationToken cancellationToken)
@@ -409,6 +411,7 @@ internal sealed class StoreDocumentHandler(IDocumentRepository documents, IDocum
         var document = Document.Create(id, command.CategoryCode, category.Classification, stored, null, command.ProductVersionRef, command.BusinessRefType,
             command.BusinessRefId, await catalogue.RetentionUntil(command.CategoryCode, command.Jurisdiction, today, cancellationToken), clock.UtcNow, command.BaseFileName,
             uploaded: true);
+        await scoping.ScopeDocument(document, cancellationToken);
         documents.Add(document);
         return DocumentView.From(document);
     }
