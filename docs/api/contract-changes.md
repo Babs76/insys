@@ -5,6 +5,13 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 
 
+## Scope batch 5: full pages, and the portal's claim list (F103, read sweep, 18 November 2026)
+- **Breaking, for callers with a product or branch scope:**
+  - `GET /general/renewals`, `GET /health/payment-runs` and `GET /documents/legal-holds` now drop the records outside the caller's scope before the page is cut. A page is full whenever enough records in scope exist, and its `nextCursor` reaches the later ones. Before, a page could come back short, and with no cursor, so in-scope records after it couldn't be reached. Rows and fields are unchanged.
+  - `GET /portal/health/claims` lists only the claims whose membership is in the caller's scope, as `GET /portal/health/claims/{id}` already decided. Before, the list applied only the relationship.
+  - `GET /billing/refunds/{id}` on a billing account with no premium schedules now answers **404** to a scoped caller, as the refund list and Payments already did (OQ-081). Before, a scoped caller could read it.
+- An unrestricted caller sees no change.
+
 ## AI Assist: the 7.4 error codes are catalogued (18 November 2026)
 - **Not breaking:** each code now has a meaning and a next step in the catalogue's source (`[ErrorCode(..., Means, Remedy)]` in `src/Modules/Assist/Insys.Assist.Domain/AssistTenantSetting.cs`, read through the back-end mirror). The API's catalogue (`GET /api/v1/integration/static/error-code-catalogue`) serves the code, status, message key and retry flag, as before, not this wording. The codes are `ASSIST_NOT_UPLOADER`, `ASSIST_DOCUMENT_NOT_ALLOWED`, `ASSIST_CONFIRMATION_REQUIRED`, `ASSIST_CONFIRMATION_STALE`, `ASSIST_DOCUMENT_IDENTIFIERS`, `ASSIST_SOURCE_UNREADABLE`, `ASSIST_USER_CANNOT_ACT`, `ASSIST_RUN_STALLED`, `ASSIST_RESIDENCY_MISMATCH`, `ASSIST_SOURCE_TOO_LARGE` and `ASSIST_RUN_EXPIRED`. No code, status, message key or retry flag changed: none is retryable.
 - The AI-2 evaluation set gains them as refusals (88 refusals and 66 premiums). **Its case ids are now stable:** a refusal is `R-<code>` and a premium `C-<product>-<factor value>-<sum>-<adjustments or NONE>`, so adding a code or a premium no longer renumbers the others. They change once, now, before the expert's run. The run waiting for Ade (44062786569) is on `073391f` and doesn't include them.

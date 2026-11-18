@@ -344,19 +344,12 @@ internal sealed class GeneralRepository(GeneralDbContext db, IExecutionContext e
     public async Task<IReadOnlyList<Domain.Renewals.Renewal>> Renewals(Domain.Renewals.RenewalStatus? status, Guid? policyId, Guid? beforeId, int limit,
         CancellationToken cancellationToken)
     {
-        var listed = new List<Domain.Renewals.Renewal>();
-        foreach (var renewal in await db.Renewals.AsNoTracking().Include(r => r.Checks)
-                     .Where(r => (status == null || r.Status == status) && (policyId == null || r.PolicyId == policyId) && (beforeId == null || r.Id < beforeId))
-                     .OrderByDescending(r => r.Id).Take(limit).ToListAsync(cancellationToken))
-        {
-            // F103: a renewal is listed only where its policy is in the caller's scope.
-            if (await Policy(renewal.PolicyId, cancellationToken) is not null)
-            {
-                listed.Add(renewal);
-            }
-        }
-
-        return listed;
+        // F103 (scope batch 5): a renewal is listed only where its policy is in the caller's scope, filtered in the query so a page is full and paging holds.
+        var scoped = db.Policies.InScope(execution.CurrentScope, p => p.ProductCode, p => p.OrgNodeCode).Select(p => p.Id);
+        return await db.Renewals.AsNoTracking().Include(r => r.Checks)
+            .Where(r => scoped.Contains(r.PolicyId))
+            .Where(r => (status == null || r.Status == status) && (policyId == null || r.PolicyId == policyId) && (beforeId == null || r.Id < beforeId))
+            .OrderByDescending(r => r.Id).Take(limit).ToListAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyList<Guid>> PoliciesToReview(string productCode, DateOnly lastPeriodEnd, int limit, CancellationToken cancellationToken) =>

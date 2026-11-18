@@ -81,8 +81,9 @@ internal sealed class BillingRepository(BillingDbContext db, IExecutionContext e
 
         // A refund is paid from the whole account's credit: only a caller covering every schedule on the account sees it (OQ-081).
         var schedules = db.Set<PremiumSchedule>().AsNoTracking().Where(s => s.BillingAccountId == refund.BillingAccountId);
-        var whole = await schedules.CountAsync(cancellationToken)
-            == await schedules.InScope(execution.CurrentScope, s => s.ProductCode, s => s.OrgNodeCode).CountAsync(cancellationToken);
+        // Scope batch 5: an account with no schedules is covered by no scoped caller, as the list and Payments already decide (OQ-081).
+        var count = await schedules.CountAsync(cancellationToken);
+        var whole = count > 0 && count == await schedules.InScope(execution.CurrentScope, s => s.ProductCode, s => s.OrgNodeCode).CountAsync(cancellationToken);
         return whole ? refund : execution.InScope(refund, null, null);
     }
 

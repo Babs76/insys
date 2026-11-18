@@ -567,6 +567,15 @@ The first of the five fix batches from the scope sweeps (`docs/reviews/read-scop
   - `WorkflowTests`: the coverage of every type; the fail-closed and product-version scoping through a real `ApprovalRequested`; product-only and unresolved approvals; deciding by the approve scope.
   - `WriteScopeTests`: 6 tests, one per write group.
 
+### Scope batch 5 (18 November 2026, branch `scope-batch-5`)
+The last fix batch of the read sweep: its PARTIAL rows on paging and the portal claim list (`docs/reviews/read-scope-sweep.md`). Contract note: "Scope batch 5" in `docs/api/contract-changes.md`.
+- **Renewals** (`GeneralStores.Renewals`): the scoped policies are a subquery in the renewals query, in place of one `Policy()` load per row after `Take`.
+- **Payment runs** (`HealthLists.Runs`): the query keeps only runs with no remittances yet or with a claim whose membership is in scope; `RunVisibility` then trims each run's remittances as before.
+- **Legal holds** (`RecordHoldHandlers.Handle(ListRecordHolds)`): a hold's record is in another module, so the handler reads on in batches until the page is full or nothing is left, as the payments list does. No scope is stored on the hold.
+- **Portal claims** (`HealthPortalQueries.ProviderClaims`, `MemberClaims`): the scoped memberships are a subquery, as the single read applies.
+- **Refunds** (`BillingRepository`): an account with no schedules is whole only for an unrestricted caller (`count > 0`).
+- **Tests** (`ReadScopeTests`): `APageIsFull_WhateverIsOutOfScopeBeforeIt_RenewalsAndLegalHolds_F103`, `APageOfPaymentRuns_IsFull_WhateverIsOutOfScopeBeforeIt_F103`, `AMembersPortalClaims_AreListedOnlyWithinTheScopeTheSingleReadApplies_F103`, `ARefundOnAnAccountWithNoSchedules_IsAnUnrestrictedReadersOnly_OQ081`. Each fails with its fix undone (checked for renewals, holds, runs, member claims and refunds). The provider side of the portal list uses the same subquery and has no test of its own.
+
 ### Scope batch 3 (18 November 2026, branch `scope-batch-3`, on batch 2)
 The third fix batch: Party's policy export. `IPolicyExportRows.All` takes the caller's `AccessScope`. `PolicyExportReader.Read` adds the scope's filter to each module's SQL (any grant whose product and node sets allow the row, as `ScopeFilter.InScope`); General, Life and Health pass `product_code` and `org_node_code`. The request counts in the requester's scope, the download lists in the reader's. **Interpretation for Ade:** the rows follow whoever downloads, never more than their scope, rather than freezing the requester's scope on the job. Test: `ReadScopeTests`, failing without the fix (checked by passing an unrestricted scope).
 

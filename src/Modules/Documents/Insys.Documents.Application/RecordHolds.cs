@@ -199,13 +199,27 @@ internal sealed class RecordHoldHandlers(IRecordHoldRepository holds, IDocumentC
 
     public async Task<Result<IReadOnlyList<RecordHoldView>>> Handle(ListRecordHolds query, CancellationToken cancellationToken)
     {
+        // F103 (scope batch 5): a hold follows its record, which another module holds, so the page is filled by reading on past holds outside the scope
+        // until it is full or none are left (as the payments list does): a page is never cut before it is filtered, and paging holds.
         var views = new List<RecordHoldView>();
-        foreach (var hold in await holds.List(query.ScopeType, query.ScopeId, query.InForce, query.AfterId, query.Limit, cancellationToken))
+        var after = query.AfterId;
+        while (views.Count < query.Limit)
         {
-            if (await targets.Visible(hold.ScopeType, hold.ScopeId, cancellationToken))
+            var batch = await holds.List(query.ScopeType, query.ScopeId, query.InForce, after, query.Limit, cancellationToken);
+            foreach (var hold in batch)
             {
-                views.Add(RecordHoldView.From(hold, await history.Latest(Contracts.DocumentApprovals.RecordHoldBusinessRefType, hold.Id, cancellationToken)));
+                if (views.Count < query.Limit && await targets.Visible(hold.ScopeType, hold.ScopeId, cancellationToken))
+                {
+                    views.Add(RecordHoldView.From(hold, await history.Latest(Contracts.DocumentApprovals.RecordHoldBusinessRefType, hold.Id, cancellationToken)));
+                }
             }
+
+            if (batch.Count < query.Limit)
+            {
+                break;
+            }
+
+            after = batch[^1].Id;
         }
 
         return views;
