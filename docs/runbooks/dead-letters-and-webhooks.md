@@ -63,6 +63,11 @@ A consumer that finds the tenant's configuration missing **parks** its delivery 
 | `InvoiceIssued` | Commission | `COMMISSION_PLAN_NOT_IN_FORCE` <plan code> | The plan named in the intermediary's product permission, in force on the invoice's date (`commission.cfg_commission_plans`) |
 | `AccountingPeriodClosed` (final) | Compliance | `RETURN_MAPPING_INVALID` <return code> | A return definition whose field mapping is an object naming accounts and metrics in force (`reporting.cfg_regulatory_return_definitions`) |
 | `PreauthorisationApproved`, `PreauthorisationReservationsChanged` | Health | `PLAN_OPTION_NOT_IN_FORCE` <plan>/<option> | The membership's plan option in force on the authorisation's start (`health.cfg_plans_and_options`) |
+| `InvoiceIssued` | Payments | `COLLECTION_PAYMENT_METHOD_NOT_IN_FORCE` <method>:<currency> | The collection's payment method in force for collecting in the currency (`payment.ref_payment_methods`). A method no provider supports is the payer's to pay, and is not collected |
+| `ArrearsDetected`, `InvoiceSettled` (General) | General | `GRACE_RULE_NOT_IN_FORCE` <product>:<frequency> | A grace rule for the product and frequency |
+| `ArrearsDetected`, `InvoiceSettled` (Health) | Health | `CONTRIBUTION_GRACE_RULE_NOT_IN_FORCE` <scheme, or DEFAULT> | A contribution grace rule (`health.cfg_contribution_grace_rules`) |
+| `InvoiceIssued`, `GeneralPolicyIntermediaryChanged` | Commission | `COMMISSION_PLAN_NOT_ASSIGNED` <intermediary>:<product> | A plan on the intermediary's product permission. A broker who earns nothing has a plan at rate 0 |
+| `GeneralPolicyIntermediaryChanged` | Commission | `BILLING_FREQUENCY_NOT_IN_FORCE` <frequency>, `COMMISSION_PLAN_NOT_IN_FORCE` <plan> | The policy's frequency and the incoming broker's plan in force |
 | Any | The module's consumers | `FUNCTION_DISABLED` <JOB function>, `FEATURE_NOT_ENTITLED` <JOB function> | The JOB function switched on (`tenant.cfg_tenant_function_availability`), or the tenant entitled to its feature (`tenancy.cfg_feature_entitlements`) |
 | `LifePolicyIssued` | Reinsurance, Analytics | `BILLING_FREQUENCY_NOT_IN_FORCE` <frequency> | The billing frequency in force |
 | `GeneralPolicyIssued`, `LifePolicyIssued` | Reinsurance | `TREATY_NOT_APPLICABLE` <error code> | A treaty for the product that can be applied |
@@ -72,6 +77,10 @@ A consumer that finds the tenant's configuration missing **parks** its delivery 
 | `GeneralPolicyEndorsed` | Billing | (fails, then waits in order) | The policy's premium schedule, from its issue: an endorsement waits behind a parked issue |
 
 Anything else a consumer fails on is still a failure: retried with back-off, then dead-lettered, while later events for its record wait behind it. Outbox lag is not part of readiness, so a stuck event does not take the instance out of service.
+
+Two waits outside this list, which do the same for work that isn't an event delivery:
+- **A notification** whose provider or template was withdrawn after it was queued stays `Queued`, with `waitingFor` and `waitingItem` (`GET /api/v1/communications/notifications?status=Queued`). It is tried when configuration is published in the tenant, or every 15 minutes, and uses no attempt.
+- **A webhook delivery** whose signing key can't be resolved stays `Pending`, with an error starting `SIGNING_KEY_NOT_AVAILABLE`. Fix the key reference (`Integration:Secrets:<ref>`, from OpenBao), then `POST /api/v1/integration/webhooks/{id}/retry`, or wait up to 15 minutes. It spends none of the partner's attempts.
 
 ### Replaying deliveries dead-lettered for missing configuration
 

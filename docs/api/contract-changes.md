@@ -22,11 +22,20 @@ What changed in the API contract, newest first, so the front end can sync. The O
   - `RETURN_MAPPING_INVALID` <return code>: a regulatory return on the final close.
   - `PLAN_OPTION_NOT_IN_FORCE` <plan>/<option>: a Health authorisation's reservation.
   - `DOCUMENT_TEMPLATE_NOT_IN_FORCE` is now also used when the template version itself isn't in force, with item <template>:<language>.
+- **More prerequisite codes, where missing configuration was skipped or dropped, never retried.** Each now parks.
+  - `COLLECTION_PAYMENT_METHOD_NOT_IN_FORCE` <method>:<currency>: Payments, collecting an invoice.
+  - `GRACE_RULE_NOT_IN_FORCE` <product>:<frequency>: General arrears. Life's item stays the frequency.
+  - `CONTRIBUTION_GRACE_RULE_NOT_IN_FORCE` <scheme, or DEFAULT>: Health arrears.
+  - `COMMISSION_PLAN_NOT_ASSIGNED` <intermediary>:<product>: commission, where the permission names no plan. A broker who earns nothing has a plan at rate 0.
+  - `BILLING_FREQUENCY_NOT_IN_FORCE` and `COMMISSION_PLAN_NOT_IN_FORCE` on a broker of record change, which guessed or skipped before.
+- **Added, not breaking:** `waitingFor` (`CHANNEL_PROVIDER_NOT_CONFIGURED` or `NOTIFICATION_TEMPLATE_NOT_IN_FORCE`, or null) and `waitingItem` (type and channel) on a notification in `GET /communications/notifications` and `GET /communications/notifications/{id}`. A notification whose provider or template is withdrawn after it was queued now stays `Queued` and says what it waits for. Before, it was refused and ended `Failed`.
+- **Changed:** a webhook delivery whose signing key can't be resolved stays `Pending`, with an `error` starting `SIGNING_KEY_NOT_AVAILABLE`, and no attempt spent. Before, it failed and was dead-lettered.
 - **The sample tenant (OFTZA) only:** the seed adds what its own business needed. No API change.
   - Every platform notice as a service notice by email, with a sample English template: payment reminder and final notice, renewal invitation and reminder, claim status, Health claim and pre-authorisation decisions, claim decision rights, grace, non-payment cancellation, contribution suspension, scheme renewal, non-renewal, broker change and `PROVIDER_RECOVERY_NOTICE`.
   - A channel provider row for email (`OFT-EMAIL`, provider `STUB`): the platform's stub channel, which records the message and sends nothing.
   - A `CERTIFICATE` template assigned to every General product, and the document categories `CERTIFICATE` and `RENEWAL_NOTICE`.
   - `MONTHLY` in force from 1 January 2020, before the oldest sample policy.
+  - A General grace rule for each General product, monthly, with the `NON_PAYMENT` cancellation, adjustment and claim decline reasons it names. A missing rule now parks.
 
 ## Scope batch 4: processes, tasks and documents follow their record (F103, OQ-169, 18 November 2026)
 **Breaking, for callers with a product or branch scope; an unrestricted caller sees no change.** Each list is filtered in the query, so paging holds.

@@ -575,7 +575,8 @@ What the sample tenant's business parked or failed on, fixed in the seed, plus o
   - the email provider row `OFT-EMAIL` on the `STUB` provider;
   - `OFT-TPL-CERT` assigned to each General product;
   - the `CERTIFICATE` and `RENEWAL_NOTICE` document categories;
-  - `MONTHLY` from 2020-01-01.
+  - `MONTHLY` from 2020-01-01;
+  - a monthly General grace rule for each General product, with its `NON_PAYMENT` reasons.
 - **Diagnoses:**
   - **`BILLING_FREQUENCY_NOT_IN_FORCE MONTHLY`** (analytics and reinsurance, on `LifePolicyIssued`): they read the frequency on the policy's inception date. The migrated Life policy began a year before the seed's day, from which `MONTHLY` was in force.
   - **The renewal invitation's failing delivery** (and, once the certificate template was there, every General issue): `DocumentGenerator` takes the template's document type as the document's category. OFTZA had only `POLICY_SCHEDULE`, so generation returned `CODE_NOT_IN_FORCE`, and `GeneralDocumentPolicies` threw, so the delivery was retried as a failure instead of parking. Fixed (Ade approved): `DocumentGenerator.GenerateForDelivery`, used by all four document consumers, parks as `DOCUMENT_CATEGORY_NOT_IN_FORCE`, `DOCUMENT_TEMPLATE_NOT_IN_FORCE` or `DOCUMENT_TEMPLATE_FIELD_UNAVAILABLE`. The API's own generation still answers 422.
@@ -586,14 +587,18 @@ What the sample tenant's business parked or failed on, fixed in the seed, plus o
     - Compliance `ReturnPolicies` (`AccountingPeriodClosed`): `RETURN_MAPPING_INVALID`, only for `MAPPING_INVALID`; any other refusal still fails.
     - `HealthEventPolicies.Reserve` (`PreauthorisationApproved`, `PreauthorisationReservationsChanged`): `PLAN_OPTION_NOT_IN_FORCE`, only for `CODE_NOT_IN_FORCE`, which without lines or a provider can only be the plan option.
     - Documents: the merge-field case above.
-  - **Looked at and left failing:** General `GeneralPolicies` on `GeneralEndorsementApproved`. Its product branch fails when the policy's own product version is not a published version, which is a data fault rather than configuration a tenant adds, and the same throw covers real refusals (a limit breached).
-  - **Not the retry pattern, but configuration that is missing and never retried. Listed for Ade, not changed:**
-    - (a) Payments `PaymentPolicies` on `InvoiceIssued` ignores the result of starting the collection. A method that a provider supports but that isn't usable inbound in the currency, or has no provider, drops the collection silently (`Payments.cs`, `starter.Start`). The payout path in the same file parks.
-    - (b) General and Health grace on `ArrearsDetected`/`InvoiceSettled` log and skip when no grace rule is in force ("readiness flags the missing rule"). Life now parks for the same thing.
-    - (c) Commission with no plan assigned to an intermediary logs and earns nothing. This is probably right for direct business.
-    - (d) The notification sender marks a notification refused, not retryable, when its provider or template is withdrawn between queueing and sending.
-    - (e) A webhook whose signing key can't be resolved fails and is dead-lettered. It is outside the inbox, so it would need a park state of its own.
-    - Scheduled jobs (`RunLifeDue`, `RunHealthDue`, General `RunDue`) return `CODE_NOT_IN_FORCE` for missing rules the same way, outside delivery.
+  - **Looked at and left failing (A5):** General `GeneralPolicies` on `GeneralEndorsementApproved`. It refuses when `Products.Issued` finds no version. That lookup finds any version that was ever published (Published, Effective, Withdrawn, Retired), whatever the sale window, and INSYS never puts a policy on any other: a quote takes an on-sale version, and migration refuses an unpublished one. So the refusal means data written outside INSYS, not missing configuration. The same throw also covers real refusals (a limit breached). The database's guard would let a published version's status move back; that is OQ-185, for Ade.
+  - **Skipped or dropped, never retried (B, Ade: "nothing missing from configuration may be dropped without trace"). Each now parks or waits, with a test that fails with its fix undone:**
+    - (a) **Payments, `InvoiceIssued`.** It ignored `Start`'s refusal, so a collection whose method wasn't in force for the currency went uncollected, with no trace. Now it parks `COLLECTION_PAYMENT_METHOD_NOT_IN_FORCE` <method>:<currency>, and any other refusal fails. Still skipped, correctly: a method no provider supports is one the payer pays (EFT); the bank statement shows it, and reconciliation matches it.
+    - (b) **General and Health grace, `ArrearsDetected` and `InvoiceSettled`.** They logged and skipped when no grace rule was in force; readiness already requires the rule. Now General parks `GRACE_RULE_NOT_IN_FORCE` <product>:<frequency>, and Health parks `CONTRIBUTION_GRACE_RULE_NOT_IN_FORCE` <scheme, or DEFAULT>.
+    - (c) **Commission, `InvoiceIssued` and `GeneralPolicyIntermediaryChanged`.**
+      - A permission naming no plan earned nothing, with a log. Now it parks `COMMISSION_PLAN_NOT_ASSIGNED` <intermediary>:<product>; a broker who earns nothing has a plan at rate 0.
+      - The broker change also guessed one period a year for a frequency not in force (`?? 1`). Now it parks `BILLING_FREQUENCY_NOT_IN_FORCE`.
+      - A named plan not in force was treated as no plan. Now it parks `COMMISSION_PLAN_NOT_IN_FORCE`.
+    - (d) **The notification sender.** A provider or template withdrawn between queueing and sending refused the notice for good, with no way to send it again. Now the notification waits: still `Queued`, with `waitingFor` and `waitingItem` (V0141), and no attempt used. It is tried again when configuration is published in the tenant (`RetryWaitingNotifications`), or every 15 minutes. A channel the platform doesn't have is still refused.
+    - (e) **Webhooks.** A signing key that couldn't be resolved spent the partner's attempts, then failed and was dead-lettered, and neither can be retried. Now the delivery stays `Pending`, with error `SIGNING_KEY_NOT_AVAILABLE: …`, and is tried every 15 minutes or at once by `POST /integration/webhooks/{id}/retry`. A subscription no longer in force is still failed: the tenant ended it.
+    - Tests: `ConfigurationParkingTests` (a, b, c, e) and `CommunicationsTests.ANotificationWhoseTemplateIsWithdrawnAfterQueueing_WaitsForIt_AndIsSentOncePublished_ADR022` (d).
+    - Scheduled jobs (`RunLifeDue`, `RunHealthDue`, General `RunDue`) return `CODE_NOT_IN_FORCE` for a record whose rule isn't in force. They are outside delivery and unchanged. Inferred, not yet checked: their next daily run takes the record again, so nothing is lost.
   - **Runbook:** "Replaying deliveries dead-lettered for missing configuration" in `docs/runbooks/dead-letters-and-webhooks.md`, with the new codes in its table. Proved by `DeadLetterReplayTests`.
 - **Test:** `OftzaSeedTests` fails if any delivery for the tenant is parked, failing, retrying or dead-lettered, and names each one.
 - **Scope:** the seed's rows are OFTZA's only. The front end's per-run tenant is configured by its own live setup (`e2e/live/` in `insys-console`), so it needs the same rows there. The `FEATURE_NOT_ENTITLED` code applies to every tenant.

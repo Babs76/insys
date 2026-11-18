@@ -317,7 +317,7 @@ internal sealed class DistributionQueries(IDistributionRepository repository, II
 /// success pays it.
 /// </summary>
 public sealed class CommissionPolicies(IDistributionRepository repository, IDistributionCodes codes, IEnumerable<IPolicyDistribution> policies, ITenantContext tenant,
-    IBusinessDate businessDate, IClock clock, ILogger<CommissionPolicies> logger) :
+    IBusinessDate businessDate, IClock clock) :
     IIntegrationEventHandler<InvoiceIssued>,
     IIntegrationEventHandler<InvoiceSettled>,
     IIntegrationEventHandler<GeneralPolicyCancelled>,
@@ -335,12 +335,10 @@ public sealed class CommissionPolicies(IDistributionRepository repository, IDist
             return;
         }
 
-        if (await codes.PlanCodeFor(intermediary, policy.ProductCode, issued.IssueDate, cancellationToken) is not { } planCode)
-        {
-            logger.LogWarning("No commission plan for intermediary {Intermediary} on product {Product}; invoice {InvoiceNumber} earns none",
-                intermediary, policy.ProductCode, issued.InvoiceNumber);
-            return;
-        }
+        // Commission is never skipped for want of configuration (Ade, 18 November 2026): a permission naming no plan parks, and a broker who earns none
+        // has a plan at rate 0.
+        var planCode = await codes.PlanCodeFor(intermediary, policy.ProductCode, issued.IssueDate, cancellationToken)
+                       ?? throw new PrerequisiteMissingException(PrerequisiteCodes.CommissionPlanNotAssigned, $"{intermediary}:{policy.ProductCode}");
 
         // A plan named but not in force is missing configuration (ADR-022): the delivery parks, and is retried when the plan is published.
         var plan = await codes.Plan(planCode, issued.IssueDate, cancellationToken)
@@ -487,17 +485,15 @@ public sealed class BrokerOfRecordCommission(IDistributionRepository repository,
         }
 
         const string domain = GeneralRatingSubjects.SourceDomain;
+        // Missing configuration parks the split (ADR-022), never a guessed period or a skipped plan: the frequency's periods, and the incoming broker's plan.
         var periods = changed.BillingFrequency is { } frequency
-            ? await billing.PeriodsPerYear(tenant.RequireTenantId(), frequency, changed.EffectiveDate, cancellationToken) ?? 1
+            ? await billing.PeriodsPerYear(tenant.RequireTenantId(), frequency, changed.EffectiveDate, cancellationToken)
+              ?? throw new PrerequisiteMissingException(PrerequisiteCodes.BillingFrequencyNotInForce, frequency)
             : 1;
-        var plan = await codes.PlanCodeFor(changed.IntermediaryCode, changed.ProductCode, changed.EffectiveDate, cancellationToken) is { } planCode
-            ? await codes.Plan(planCode, changed.EffectiveDate, cancellationToken)
-            : null;
-        if (plan is null)
-        {
-            logger.LogWarning("No commission plan for intermediary {Intermediary} on product {Product}; it earns nothing on policy {Policy}'s current invoices",
-                changed.IntermediaryCode, changed.ProductCode, changed.PolicyNumber);
-        }
+        var planCode = await codes.PlanCodeFor(changed.IntermediaryCode, changed.ProductCode, changed.EffectiveDate, cancellationToken)
+                       ?? throw new PrerequisiteMissingException(PrerequisiteCodes.CommissionPlanNotAssigned, $"{changed.IntermediaryCode}:{changed.ProductCode}");
+        var plan = await codes.Plan(planCode, changed.EffectiveDate, cancellationToken)
+                   ?? throw new PrerequisiteMissingException(PrerequisiteCodes.CommissionPlanNotInForce, planCode);
 
         var first = !await repository.HasEntitlement(domain, changed.PolicyId, changed.IntermediaryCode, cancellationToken);
         foreach (var entitlement in await repository.EntitlementsForPolicy(domain, changed.PolicyId, cancellationToken))

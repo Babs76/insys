@@ -137,7 +137,9 @@ internal sealed class WebhookHandlers(IWebhookRepository deliveries, IWebhookCod
         }
         else if (secrets.Resolve(subscription.SigningKeyRef) is not { } secret)
         {
-            outcome = (null, "The signing key is not available.");
+            // Missing configuration, not the partner's failure: wait for the key, never spend the partner's attempts or dead-letter for it.
+            var waited = delivery.AwaitConfiguration($"{WebhookWaits.SigningKeyNotAvailable}: the signing key {subscription.SigningKeyRef} is not available.", now + WebhookWaits.Interval);
+            return waited.IsFailure ? waited.Error : WebhookDeliveryView.From(delivery);
         }
         else
         {
@@ -182,6 +184,14 @@ internal sealed class WebhookHandlers(IWebhookRepository deliveries, IWebhookCod
 
     public async Task<Result<IReadOnlyList<Guid>>> Handle(DueDeliveries query, CancellationToken cancellationToken) =>
         Result.Success(await deliveries.Due(query.Now, query.Limit, cancellationToken));
+}
+
+/// <summary>What a webhook delivery waits on while its configuration is missing, and how often it is tried again.</summary>
+public static class WebhookWaits
+{
+    public const string SigningKeyNotAvailable = "SIGNING_KEY_NOT_AVAILABLE";
+
+    public static readonly TimeSpan Interval = TimeSpan.FromMinutes(15);
 }
 
 /// <summary>

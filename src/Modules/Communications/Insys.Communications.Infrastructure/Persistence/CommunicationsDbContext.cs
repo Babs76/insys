@@ -81,6 +81,8 @@ public sealed class CommunicationsDbContext(DbContextOptions<CommunicationsDbCon
             notification.Property(n => n.Subject).HasMaxLength(200);
             notification.Property(n => n.Status).HasConversion(new UpperCaseEnumConverter<NotificationStatus>()).HasMaxLength(25);
             notification.Property(n => n.Channel).HasMaxLength(10);
+            notification.Property(n => n.WaitingFor).HasMaxLength(60);
+            notification.Property(n => n.WaitingItem).HasMaxLength(80);
             notification.HasMany(n => n.DeliveryAttempts).WithOne().HasForeignKey(a => new { a.TenantId, a.NotificationId })
                 .HasPrincipalKey(n => new { n.TenantId, n.Id });
             notification.Navigation(n => n.DeliveryAttempts).HasField("_attempts").UsePropertyAccessMode(PropertyAccessMode.Field);

@@ -1434,3 +1434,12 @@ Raised by the read-scope sweep (`docs/reviews/read-scope-sweep.md`, at `06ecae1`
   - It keeps AIA-021 as written.
 - **(b):** as (a), but AI-1 also makes static data drafts for those tables, as the user, so each still needs its own approval. More of the configurator's typing saved. It is a wider write surface, and it changes AIA-021, so it's a change to the specification.
 - **Recommended: (a) for 7.4, with (b) to reconsider after 7.5's evaluation.** (b) adds to (a) and replaces nothing.
+
+**OQ-185: the database lets an issued product version's status move backwards (recorded 18 November 2026, seed batch, for Ade).** This came up checking whether a General policy can reach an unpublished product version (the sweep's A5).
+- **Through INSYS, it can't:**
+  - A quote takes its version from the versions on sale (`Products.OnSale`: published or effective, in the sale window).
+  - A migrated policy is refused unless its version is published (`PolicyMigration`: "isn't a published product version").
+  - A version moves only forward: Published to Effective, Withdrawn or Retired (`ProductVersion.Lifecycle`).
+  - `Products.Issued` finds all four of those states, whatever the sale window. So `GENERAL_PRODUCT_NOT_AVAILABLE` on an endorsement means data written outside INSYS, which is why it stays a failure (dead-lettered for a person) rather than a park for configuration.
+- **The gap:** `sdm.guard_static_version` keeps an approved row's fields immutable but lets `record_status` change to any value. A direct update could set a published version back to `DRAFT`, and every policy on it would then fail on endorsement and claims.
+- **Proposal, not built:** the guard refuses a status change on a locked row unless it moves forward in the lifecycle (to `EFFECTIVE`, `WITHDRAWN`, `RETIRED` or `DEPRECATED`), with a test. This is a migration (a new version of the function), so it is for Ade to decide.

@@ -65,7 +65,10 @@ public static class PrerequisiteCodes
     /// <summary>Item: template and language ("TPL-1:en"): the template in force names a merge field the event doesn't give; a corrected version retries it.</summary>
     public const string DocumentTemplateFieldUnavailable = "DOCUMENT_TEMPLATE_FIELD_UNAVAILABLE";
 
-    /// <summary>Item: the premium frequency (life.cfg_grace_period_rules): no Life grace period rule in force for it, so arrears can't be recorded.</summary>
+    /// <summary>
+    /// Item: the premium frequency for Life (life.cfg_grace_period_rules), or product and frequency for General ("GEN-MOTOR:MONTHLY"): no grace rule in force,
+    /// so arrears can't be recorded.
+    /// </summary>
     public const string GraceRuleNotInForce = "GRACE_RULE_NOT_IN_FORCE";
 
     /// <summary>Item: the plan code (commission.cfg_commission_plans): an intermediary's assignment names a plan not in force on the invoice's date.</summary>
@@ -76,6 +79,12 @@ public static class PrerequisiteCodes
 
     /// <summary>Item: plan and option ("PLAN/OPTION", health.cfg_plans_and_options): not in force on the date a benefit is read for.</summary>
     public const string PlanOptionNotInForce = "PLAN_OPTION_NOT_IN_FORCE";
+
+    /// <summary>Item: the scheme number, or DEFAULT for an individual membership (health.cfg_contribution_grace_rules): no contribution grace rule in force.</summary>
+    public const string ContributionGraceRuleNotInForce = "CONTRIBUTION_GRACE_RULE_NOT_IN_FORCE";
+
+    /// <summary>Item: intermediary and product ("BRK-1:GEN-MOTOR"): the intermediary's product permission names no commission plan. A broker who earns none has a plan at rate 0.</summary>
+    public const string CommissionPlanNotAssigned = "COMMISSION_PLAN_NOT_ASSIGNED";
 
     /// <summary>Item: product and treaty ("GEN-MOTOR:QS-2026"); no cession rule in force for a cession being recalculated.</summary>
     public const string CessionRuleNotInForce = "CESSION_RULE_NOT_IN_FORCE";

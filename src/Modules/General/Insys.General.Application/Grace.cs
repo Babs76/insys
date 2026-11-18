@@ -40,8 +40,7 @@ namespace Insys.General.Application;
 /// whose product has no grace rule for its frequency is left as it was (its arrears stay with staff); readiness flags the
 /// missing rule.
 /// </summary>
-public sealed class GeneralGrace(IGeneralRepository general, IGeneralCodes codes, IPolicyArrears arrears, ITenantContext tenant, IBusinessDate businessDate, IClock clock,
-    ILogger<GeneralGrace> logger) : IIntegrationEventHandler<ArrearsDetected>, IIntegrationEventHandler<InvoiceSettled>
+public sealed class GeneralGrace(IGeneralRepository general, IGeneralCodes codes, IPolicyArrears arrears, ITenantContext tenant, IBusinessDate businessDate, IClock clock) : IIntegrationEventHandler<ArrearsDetected>, IIntegrationEventHandler<InvoiceSettled>
 {
     public async Task Handle(ArrearsDetected detected, EventEnvelope envelope, CancellationToken cancellationToken)
     {
@@ -64,9 +63,8 @@ public sealed class GeneralGrace(IGeneralRepository general, IGeneralCodes codes
 
         if (await codes.GraceTerms(policy.ProductCode, policy.BillingFrequency ?? "", asOf, cancellationToken) is not { } grace)
         {
-            logger.LogWarning("No grace rule in force for {ProductCode} {Frequency}: policy {PolicyId}'s arrears are left to staff", policy.ProductCode, policy.BillingFrequency,
-                policy.Id);
-            return;
+            // Readiness requires the rule, so it is missing configuration (ADR-022): the delivery parks until it is published, rather than being skipped.
+            throw new PrerequisiteMissingException(PrerequisiteCodes.GraceRuleNotInForce, $"{policy.ProductCode}:{policy.BillingFrequency}");
         }
 
         var overdue = await arrears.For(tenant.RequireTenantId(), GeneralRatingSubjects.SourceDomain, policy.Id, asOf, cancellationToken);

@@ -239,3 +239,19 @@ internal sealed class CommunicationsEventMapper : IDomainEventMapper
         _ => null,
     };
 }
+
+/// <summary>
+/// Configuration was published in the tenant: every queued notification waiting for configuration is tried at once (ADR-022's rule, as parked
+/// deliveries are). Still missing, it waits again.
+/// </summary>
+public sealed class RetryWaitingNotifications(CommunicationsDbContext db, BuildingBlocks.Application.Context.IClock clock)
+    : BuildingBlocks.Application.Messaging.IIntegrationEventHandler<BuildingBlocks.Contracts.StaticData.StaticDataVersionActivated>
+{
+    public async Task Handle(BuildingBlocks.Contracts.StaticData.StaticDataVersionActivated activated, BuildingBlocks.Contracts.EventEnvelope envelope,
+        CancellationToken cancellationToken)
+    {
+        var now = clock.UtcNow;
+        await db.Notifications.Where(n => n.Status == NotificationStatus.Queued && n.WaitingFor != null && n.NextAttemptAt > now)
+            .ExecuteUpdateAsync(set => set.SetProperty(n => n.NextAttemptAt, now), cancellationToken);
+    }
+}

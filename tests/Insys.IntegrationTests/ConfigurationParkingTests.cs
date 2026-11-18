@@ -119,6 +119,86 @@ public sealed class ConfigurationParkingTests(DatabaseFixture fixture) : IClassF
             .ShouldBe($"{PrerequisiteCodes.PlanOptionNotInForce} PLN-GONE/OPT-GONE");
     }
 
+    // Ade, 18 November 2026: what was skipped or dropped for want of configuration now parks, so nothing missing is lost without trace.
+
+    [Fact]
+    public async Task ACollectionWhoseMethodIsNotInForceForTheCurrency_Parks_RatherThanGoingUncollected_ADR022()
+    {
+        await fixture.Database.SeedStatic(Tenant, "payment.mst_payment_provider_and_bank_register", "ACTIVE", "COLLECTOR", From, ("provider_code", "COLLECTOR"),
+            ("type", "PAYMENT_GATEWAY"), ("supported_methods", new[] { "DEBIT_ORDER" }), ("credential_ref", "vault:collector"));
+        var invoice = Guid.CreateVersion7();
+        var issued = new Insys.Billing.Contracts.InvoiceIssued(invoice, "INV-COL", Guid.CreateVersion7(), Guid.CreateVersion7(), "DEBIT_ORDER", "GENERAL", Guid.CreateVersion7(),
+            "GEN v1", TestClock.Today, TestClock.Today.AddDays(30), "ZAR", 100m, 0m, 100m);
+
+        (await Deliver(issued, "billing.InvoiceIssued", "Invoice", invoice, "payment.PaymentPolicies.InvoiceIssued"))
+            .ShouldBe($"{Insys.Payments.Application.PaymentPrerequisites.CollectionMethodNotInForce} DEBIT_ORDER:ZAR");
+    }
+
+    [Fact]
+    public async Task GeneralArrears_WithNoGraceRuleForTheProductAndFrequency_Park_ADR022()
+    {
+        var policy = await _rows.Insert(Tenant, "general.policy", ("product_code", "GEN-NOGR"), ("billing_frequency", "MONTHLY"), ("status", "IN_FORCE"),
+            ("policy_number", $"GNG{Random.Shared.Next(100_000, 999_999)}"));
+        var settled = new Insys.Billing.Contracts.InvoiceSettled(Guid.CreateVersion7(), Guid.CreateVersion7(), "GENERAL", policy);
+
+        (await Deliver(settled, "billing.InvoiceSettled", "Invoice", settled.InvoiceId, "general.GeneralGrace.Grace.InvoiceSettled"))
+            .ShouldBe($"{PrerequisiteCodes.GraceRuleNotInForce} GEN-NOGR:MONTHLY");
+    }
+
+    [Fact]
+    public async Task HealthArrears_WithNoContributionGraceRule_Park_ADR022()
+    {
+        var membership = await _rows.Insert(Tenant, "health.membership", ("status", "ACTIVE"), ("principal_party_id", Guid.CreateVersion7()),
+            ("member_number", $"HG{Random.Shared.Next(1_000_000, 9_999_999)}"));
+        var settled = new Insys.Billing.Contracts.InvoiceSettled(Guid.CreateVersion7(), Guid.CreateVersion7(), "HEALTH", membership);
+
+        (await Deliver(settled, "billing.InvoiceSettled", "Invoice", settled.InvoiceId, "health.HealthGrace.Grace.InvoiceSettled"))
+            .ShouldBe($"{PrerequisiteCodes.ContributionGraceRuleNotInForce} DEFAULT");
+    }
+
+    [Fact]
+    public async Task Commission_ForAnIntermediaryWithNoPlanOnTheProduct_Parks_ADR022()
+    {
+        var policy = await _rows.Insert(Tenant, "life.policy", ("product_code", "LIFE-NP"), ("intermediary_code", "BRK-NP"), ("status", "IN_FORCE"),
+            ("policy_number", $"LNP{Random.Shared.Next(100_000, 999_999)}"));
+        await fixture.Database.SeedStatic(Tenant, "commission.cfg_intermediary_product_permissions", "EFFECTIVE", "PERM-NP", From, ("intermediary", "BRK-NP"),
+            ("product", "LIFE-NP"), ("transactions_allowed", Array.Empty<string>()));
+        var invoice = Guid.CreateVersion7();
+        var issued = new Insys.Billing.Contracts.InvoiceIssued(invoice, "INV-NP", Guid.CreateVersion7(), Guid.CreateVersion7(), "EFT", Insys.Life.Contracts.LifeSubjects.SourceDomain,
+            policy, "LIFE-NP v1", TestClock.Today, TestClock.Today.AddDays(30), "ZAR", 100m, 0m, 100m);
+
+        (await Deliver(issued, "billing.InvoiceIssued", "Invoice", invoice, "commission.CommissionPolicies.InvoiceIssued"))
+            .ShouldBe($"{PrerequisiteCodes.CommissionPlanNotAssigned} BRK-NP:LIFE-NP");
+    }
+
+    [Fact]
+    public async Task ABrokerChange_OnAFrequencyNotInForce_ParksRatherThanGuessingOnePeriod_ADR022()
+    {
+        var policy = Guid.CreateVersion7();
+        var changed = new Insys.General.Contracts.GeneralPolicyIntermediaryChanged(policy, "GP-BC", "GEN-BC", "BRK-OUT", "BRK-IN", TestClock.Today, TestClock.Today.AddDays(200),
+            "FORTNIGHTLY");
+
+        (await Deliver(changed, "general.GeneralPolicyIntermediaryChanged", "GeneralPolicy", policy, "commission.BrokerOfRecordCommission"))
+            .ShouldBe($"{PrerequisiteCodes.BillingFrequencyNotInForce} FORTNIGHTLY");
+    }
+
+    [Fact]
+    public async Task AWebhookWhoseSigningKeyIsMissing_WaitsPending_WithoutSpendingAnAttempt_ADR022()
+    {
+        await fixture.Database.SeedStatic(Tenant, "integration.cfg_webhook_subscriptions", "EFFECTIVE", "WH-NOKEY", From, ("subscription_id", "WH-NOKEY"),
+            ("partner_code", "NOKEY-SYS"), ("event_types", new[] { "test.WebhookWait" }), ("endpoint_url", "https://partner.example/hooks"), ("signing_key_ref", "vault-missing"));
+        var envelope = new EventEnvelope(Guid.CreateVersion7(), Tenant, "test.WebhookWait", 1, DateTimeOffset.UtcNow, "Test", Guid.CreateVersion7(), Guid.CreateVersion7(), null,
+            JsonSerializer.SerializeToElement(new { reference = "R-1" }));
+        await _factory.Services.GetRequiredService<IEventBus>().Deliver(envelope, CancellationToken.None);
+        await _factory.Services.GetRequiredService<Insys.Integration.Infrastructure.Webhooks.WebhookJobs>().Run(CancellationToken.None);
+
+        (await fixture.Database.ScalarAsOwner<string>(
+                "SELECT status || ' ' || attempt || ' ' || split_part(error, ':', 1) FROM integration.webhook_delivery WHERE tenant_id = @t AND event_id = @e", ("t", Tenant), ("e", envelope.EventId)))
+            .ShouldBe($"PENDING 0 {Insys.Integration.Application.Webhooks.WebhookWaits.SigningKeyNotAvailable}");
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM integration.dead_letter_message WHERE tenant_id = @t AND message_id = @e", ("t", Tenant), ("e", envelope.EventId.ToString())))
+            .ShouldBe(0L);
+    }
+
     private async Task<string?> Deliver<T>(T integrationEvent, string type, string aggregateType, Guid aggregateId, string consumer)
     {
         var envelope = new EventEnvelope(Guid.CreateVersion7(), Tenant, type, 1, DateTimeOffset.UtcNow, aggregateType, aggregateId, Guid.CreateVersion7(), null,

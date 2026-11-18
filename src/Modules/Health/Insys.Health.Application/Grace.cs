@@ -39,8 +39,7 @@ namespace Insys.Health.Application;
 /// them, so a payment clears it (and reinstates a membership suspended for them). A membership with no grace rule in
 /// force is left as it was; readiness flags the missing rule.
 /// </summary>
-public sealed class HealthGrace(IHealthRepository health, IHealthCodes codes, IPolicyArrears arrears, ITenantContext tenant, IBusinessDate businessDate, IClock clock,
-    ILogger<HealthGrace> logger) : IIntegrationEventHandler<ArrearsDetected>, IIntegrationEventHandler<InvoiceSettled>
+public sealed class HealthGrace(IHealthRepository health, IHealthCodes codes, IPolicyArrears arrears, ITenantContext tenant, IBusinessDate businessDate, IClock clock) : IIntegrationEventHandler<ArrearsDetected>, IIntegrationEventHandler<InvoiceSettled>
 {
     public async Task Handle(ArrearsDetected detected, EventEnvelope envelope, CancellationToken cancellationToken)
     {
@@ -66,8 +65,8 @@ public sealed class HealthGrace(IHealthRepository health, IHealthCodes codes, IP
         var schemeNumber = membership.SchemeId is { } schemeId && await health.Scheme(schemeId, cancellationToken) is { } scheme ? scheme.SchemeNumber : null;
         if (await codes.ContributionGrace(schemeNumber, asOf, cancellationToken) is not { } grace)
         {
-            logger.LogWarning("No contribution grace rule in force for membership {MembershipId}: its arrears are left to staff", membership.Id);
-            return;
+            // Readiness requires the rule, so it is missing configuration (ADR-022): the delivery parks until it is published, rather than being skipped.
+            throw new PrerequisiteMissingException(PrerequisiteCodes.ContributionGraceRuleNotInForce, schemeNumber ?? "DEFAULT");
         }
 
         // The member's and the employer's contributions both pay for the cover: the oldest unpaid of either starts grace.

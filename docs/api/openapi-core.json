@@ -51855,6 +51855,23 @@
               "string"
             ],
             "format": "int64"
+          },
+          "waitingFor": {
+            "enum": [
+              "CHANNEL_PROVIDER_NOT_CONFIGURED",
+              "NOTIFICATION_TEMPLATE_NOT_IN_FORCE",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "waitingItem": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },

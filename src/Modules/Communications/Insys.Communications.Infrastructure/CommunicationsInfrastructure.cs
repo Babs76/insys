@@ -62,6 +62,8 @@ public static class CommunicationsInfrastructure
         services.AddStubNotificationChannels();
 
         services.AddIntegrationEventHandler<NotificationRequested, QueueRequestedNotification, CommunicationsDbContext>(schema);
+        services.AddIntegrationEventHandler<BuildingBlocks.Contracts.StaticData.StaticDataVersionActivated, Persistence.RetryWaitingNotifications, CommunicationsDbContext>(schema,
+            "WaitingRetry");
         services.AddNotificationTriggers();
         services.AddIntegrationEventHandler<Party.Contracts.ConsentWithdrawn, SuppressMarketingOnWithdrawal, CommunicationsDbContext>(schema);
         services.AddIntegrationEventHandler<Party.Contracts.ConsentGranted, ClearOptOutOnConsent, CommunicationsDbContext>(schema);

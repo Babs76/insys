@@ -976,6 +976,12 @@ public static class PaymentPrerequisites
     /// <summary>No provider in the register supports the payout method (the item).</summary>
     public const string ProviderNotInForce = "PAYOUT_PROVIDER_NOT_IN_FORCE";
 
+    /// <summary>
+    /// A collection's method isn't in force for collecting in the invoice's currency (the item: method and currency, "DEBIT_ORDER:ZAR"). The method has a
+    /// provider, so it is one INSYS collects; without it in force the invoice would go uncollected (ADR-022).
+    /// </summary>
+    public const string CollectionMethodNotInForce = "COLLECTION_PAYMENT_METHOD_NOT_IN_FORCE";
+
     /// <summary>The payee has no verified, current bank account in the currency (the item: payee party and currency).</summary>
     public const string PayeeAccountNotPayable = "PAYEE_ACCOUNT_NOT_PAYABLE";
 }
@@ -1004,8 +1010,15 @@ public sealed class PaymentPolicies(IPaymentRepository payments, PaymentStarter 
             return;
         }
 
-        await starter.Start(new InitiatePayment($"INVOICE:{issued.InvoiceId:N}", Direction.In, PaymentPurposes.Premium, issued.PaymentMethod, issued.TotalAmount,
+        // The method has a provider, so INSYS collects it: a refusal is never dropped. A method not in force for the currency parks (ADR-022); any other fails.
+        var started = await starter.Start(new InitiatePayment($"INVOICE:{issued.InvoiceId:N}", Direction.In, PaymentPurposes.Premium, issued.PaymentMethod, issued.TotalAmount,
             issued.Currency, issued.PayerPartyId, "INVOICE", issued.InvoiceId), cancellationToken);
+        if (started.IsFailure)
+        {
+            throw started.Error.Code == PaymentErrorCodes.CodeNotInForce
+                ? new PrerequisiteMissingException(PaymentPrerequisites.CollectionMethodNotInForce, $"{issued.PaymentMethod}:{issued.Currency}")
+                : new InvalidOperationException($"The collection of invoice {issued.InvoiceNumber} could not start: {started.Error.Code}.");
+        }
     }
 
     public Task Handle(RefundApproved approved, EventEnvelope envelope, CancellationToken cancellationToken) =>

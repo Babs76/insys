@@ -131,6 +131,12 @@ public sealed class Notification : AggregateRoot<Guid>
 
     public DateTimeOffset? NextAttemptAt { get; private set; }
 
+    /// <summary>The configuration a queued notification waits for (ADR-022's rule), or null; cleared by its next attempt.</summary>
+    public string? WaitingFor { get; private set; }
+
+    /// <summary>What is missing, as type and channel ("CLAIM_STATUS:EMAIL"); never a party or address.</summary>
+    public string? WaitingItem { get; private set; }
+
     public DateTimeOffset? SentAt { get; private set; }
 
     public DateTimeOffset? DeliveredAt { get; private set; }
@@ -319,9 +325,23 @@ public sealed class Notification : AggregateRoot<Guid>
         MarkChanged();
     }
 
+    /// <summary>
+    /// The channel's provider or template was withdrawn after the notification was queued: it waits, still queued and naming what it waits for, and is
+    /// tried again at <paramref name="retryAt"/> or when configuration is published (Ade, 18 November 2026). No attempt is used up.
+    /// </summary>
+    public void AwaitConfiguration(string code, string item, DateTimeOffset retryAt)
+    {
+        WaitingFor = code;
+        WaitingItem = item.Length <= 80 ? item : item[..80];
+        NextAttemptAt = retryAt;
+        MarkChanged();
+    }
+
     private void Record(string channel, string? providerCode, string? providerRef, string? maskedAddress, AttemptStatus status, string? failureCode, DateTimeOffset now,
         bool retryable = false)
     {
+        WaitingFor = null;
+        WaitingItem = null;
         Attempts++;
         _attempts.Add(DeliveryAttempt.Create(Id, (short)(_attempts.Count + 1), channel, providerCode, providerRef, maskedAddress, status, failureCode, retryable, now));
         MarkChanged();

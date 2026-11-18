@@ -489,6 +489,39 @@ public sealed class CommunicationsTests(DatabaseFixture fixture) : IClassFixture
 
     private Task Send() => _factory.Services.GetRequiredService<NotificationSender>().RunForTenant(Tenant, CancellationToken.None);
 
+    /// <summary>
+    /// A template withdrawn between queueing and sending: the notification waits, still queued and naming what it waits for, rather than being refused for
+    /// good; once a template is published again it is sent (Ade, 18 November 2026, ADR-022's rule).
+    /// </summary>
+    [Fact]
+    public async Task ANotificationWhoseTemplateIsWithdrawnAfterQueueing_WaitsForIt_AndIsSentOncePublished_ADR022()
+    {
+        await Type(NotificationTypes.GraceNotice, "SERVICE", null, ["EMAIL"], portalVisible: false);
+        await Template(NotificationTypes.GraceNotice, "EMAIL", "en", "Policy {policy_number}", "Policy {policy_number} is in grace.");
+        var party = await Party("Waiting", email: "wait@example.com", mobile: null, language: "en");
+        await Publish(Request(NotificationTypes.GraceNotice, party, new() { ["policy_number"] = "GP-WAIT" }));
+        (await Count(party)).ShouldBe(1L);
+
+        await fixture.Database.ExecuteAsOwner("UPDATE communication.cfg_notification_templates SET record_status = 'RETIRED' WHERE tenant_id = @t AND code = 'GRACE_NOTICE-EMAIL-en'",
+            ("t", Tenant));
+        await Send();
+        var waiting = await Single(party);
+        waiting.GetProperty("status").GetString().ShouldBe("Queued", "it is never refused for configuration that can come back");
+        waiting.GetProperty("waitingFor").GetString().ShouldBe("NOTIFICATION_TEMPLATE_NOT_IN_FORCE");
+        waiting.GetProperty("waitingItem").GetString().ShouldBe("GRACE_NOTICE:EMAIL");
+        waiting.GetProperty("attempts").GetArrayLength().ShouldBe(0, "no attempt is used up");
+
+        await fixture.Database.SeedStatic(Tenant, "communication.cfg_notification_templates", "EFFECTIVE", "GRACE_NOTICE-EMAIL-en", 2, From, null, ("type_code", NotificationTypes.GraceNotice),
+            ("channel", "EMAIL"), ("language", "en"), ("subject", "Policy {policy_number}"), ("body", "Policy {policy_number} is in grace."));
+        var activated = new Insys.BuildingBlocks.Contracts.StaticData.StaticDataVersionActivated(null, new Insys.BuildingBlocks.Contracts.StaticData.StaticRecordRef("communication",
+            "cfg_notification_templates", "NOTIFICATION_TEMPLATES", "communications", "notification-templates", Guid.CreateVersion7(), "GRACE_NOTICE-EMAIL-en", 2, false), TestClock.Today, null);
+        await Publish(Envelope("sdm.StaticDataVersionActivated", Guid.CreateVersion7(), activated));
+        await Send();
+        var sent = await Single(party);
+        sent.GetProperty("status").GetString().ShouldBe("Sent");
+        sent.GetProperty("waitingFor").ValueKind.ShouldBe(JsonValueKind.Null);
+    }
+
     private Task Publish(EventEnvelope envelope) => _factory.Services.GetRequiredService<IEventBus>().Publish(envelope, CancellationToken.None);
 
     /// <summary>A trigger about its own record: deliveries for one record are kept in order (ADR-022), so each test record is new.</summary>

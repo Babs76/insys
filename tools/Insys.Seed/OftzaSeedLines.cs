@@ -133,8 +133,15 @@ public sealed partial class OftzaSeed
         await Static("billing/static/adjustment-and-reversal-reason-codes", "INS_REQUEST", new { label = "Cancelled at the insured's request", requiresApproval = false, accountingImpact = "CREDIT" });
         await Static("general/static/endorsement-types", "CHANGE_SI", new { premiumMethod = "PRO_RATA", documents = new[] { "ENDORSEMENT" }, requiresUnderwriting = false });
         await Static("documents/static/document-templates", "OFT-TPL-RENEWAL", new { templateCode = "OFT-TPL-RENEWAL", language = "en", documentType = "RENEWAL_NOTICE", bodyRef = "sample", mergeFields = Array.Empty<string>() });
+        // A General policy in arrears needs a grace rule for its product and frequency, now that a missing one parks (ADR-022): non-payment cancels after
+        // 30 days, and declines claims for losses after the cancellation.
+        await Static("general/static/cancellation-reasons-and-refund-rules", "NON_PAYMENT", new { reasonCode = "NON_PAYMENT", initiator = "INSURER", refundBasis = "PRO_RATA", fee = 0m });
+        await Static("billing/static/adjustment-and-reversal-reason-codes", "NON_PAYMENT", new { label = "Cancelled for non-payment", requiresApproval = false, accountingImpact = "CREDIT" });
+        await Static("claims-framework/static/claim-decision-reason-codes", "NON_PAYMENT", new { decisionType = "DECLINE", customerWording = "The policy was cancelled for non-payment before the loss (sample wording)." });
         foreach (var product in new[] { "OFT-MOTOR", "OFT-HOME" })
         {
+            await Static("general/static/grace-period-rules", $"GRACE-{product}-MONTHLY", new { productCode = product, frequency = "MONTHLY", graceDays = 30, coverDuringGrace = true,
+                cancellationReason = "NON_PAYMENT", claimDeclineReason = "NON_PAYMENT" });
             await Static("general/static/quote-validity-periods", $"QV-{product}", new { productCode = product, daysValid = 30, reRateOnExpiry = false });
             await Static("general/static/renewal-rules", $"RR-{product}", new { productCode = product, noticeDays = 31, autoRenew = false, reRating = false, invitationTemplate = "OFT-TPL-RENEWAL", acceptance = "ON_ACCEPTANCE" });
         }

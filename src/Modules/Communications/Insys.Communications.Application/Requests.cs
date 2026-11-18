@@ -58,13 +58,14 @@ public sealed record NotificationView(Guid Id, string TypeCode, [property: OneOf
     Guid RecipientPartyId,
     string SourceType, Guid SourceId, string? SourceReference, string? ProductCode, string? OrgNodeCode, IReadOnlyList<string> Channels, string Language,
     NotificationStatus Status, [property: OneOf("EMAIL", "SMS", "PUSH", "WHATSAPP")] string? Channel, string? Subject, string? Body, bool BodyRedacted,
-    DateTimeOffset RequestedAt, DateTimeOffset? SentAt, DateTimeOffset? DeliveredAt, DateTimeOffset? EndedAt, IReadOnlyList<DeliveryAttemptView> Attempts, long RowVersion)
+    DateTimeOffset RequestedAt, DateTimeOffset? SentAt, DateTimeOffset? DeliveredAt, DateTimeOffset? EndedAt, IReadOnlyList<DeliveryAttemptView> Attempts, long RowVersion,
+    [property: OneOf("CHANNEL_PROVIDER_NOT_CONFIGURED", "NOTIFICATION_TEMPLATE_NOT_IN_FORCE")] string? WaitingFor = null, string? WaitingItem = null)
 {
     public static NotificationView From(Notification n, bool redact) => new(n.Id, n.TypeCode, n.Category, n.ConsentPurpose, n.ConsentRecordId, n.RecipientPartyId, n.SourceType, n.SourceId,
         n.SourceReference, n.ProductCode, n.OrgNodeCode, n.Channels, n.Language, n.Status, n.Channel, redact ? null : n.Subject, redact ? null : n.Body,
         redact && n.Body is not null, n.RequestedAt, n.SentAt, n.DeliveredAt, n.EndedAt,
         n.DeliveryAttempts.OrderBy(a => a.AttemptNo).Select(a => new DeliveryAttemptView(a.AttemptNo, a.Channel, a.ProviderCode, a.ProviderRef, a.MaskedAddress,
-            Upper(a.Status), a.FailureCode, a.AttemptedAt, a.StatusAt)).ToList(), n.RowVersion);
+            Upper(a.Status), a.FailureCode, a.AttemptedAt, a.StatusAt)).ToList(), n.RowVersion, n.WaitingFor, n.WaitingItem);
 
     internal static string Upper(AttemptStatus status) => status.ToString().ToUpperInvariant();
 }

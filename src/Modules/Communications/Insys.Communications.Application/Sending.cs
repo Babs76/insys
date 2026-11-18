@@ -38,6 +38,12 @@ using Microsoft.Extensions.Options;
 
 namespace Insys.Communications.Application;
 
+/// <summary>How often a notification waiting for configuration is tried again, besides when configuration is published (ADR-022's rule).</summary>
+public static class NotificationWaits
+{
+    public static readonly TimeSpan Interval = TimeSpan.FromMinutes(15);
+}
+
 /// <summary>The queued notifications due now, by ID, for the sending job to send one at a time.</summary>
 public sealed record FindDueNotifications(int Limit) : IQuery<IReadOnlyList<Guid>>;
 
@@ -89,8 +95,16 @@ internal sealed class SendNotificationHandler(BuildingBlocks.Application.Context
         var day = businessDate.Today;
         var provider = (await codes.Providers(day, cancellationToken)).FirstOrDefault(p => p.Channel == channelCode);
         var channel = await sampleTenants.IsSample(tenantId, cancellationToken) ? channels.StubFor(channelCode) : channels.For(channelCode);
+        if (provider is null && channel is not null)
+        {
+            // The tenant's provider was withdrawn since queueing (which parks without one): wait for it, never refuse the notice for good.
+            notification.AwaitConfiguration(PrerequisiteCodes.ChannelProviderNotConfigured, $"{notification.TypeCode}:{channelCode}", now + NotificationWaits.Interval);
+            return notification.Status;
+        }
+
         if (provider is null || channel is null)
         {
+            // The platform has no channel for the code: nothing a tenant can configure.
             notification.Refused(channelCode, provider?.ProviderCode ?? "NONE", "", "PROVIDER_NOT_CONFIGURED", retryable: false, now);
             return notification.Status;
         }
@@ -104,7 +118,8 @@ internal sealed class SendNotificationHandler(BuildingBlocks.Application.Context
         var masked = Addresses.Mask(channelCode, address);
         if (await Template(notification, channelCode, tenantId, day, cancellationToken) is not { } template)
         {
-            notification.Refused(channelCode, provider.ProviderCode, masked, "TEMPLATE_NOT_IN_FORCE", retryable: false, now);
+            // Withdrawn since queueing (which parks without one): wait for it.
+            notification.AwaitConfiguration(PrerequisiteCodes.NotificationTemplateNotInForce, $"{notification.TypeCode}:{channelCode}", now + NotificationWaits.Interval);
             return notification.Status;
         }
 

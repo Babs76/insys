@@ -138,6 +138,24 @@ public sealed class WebhookDelivery : AggregateRoot<Guid>
         return Result.Success();
     }
 
+    /// <summary>
+    /// The tenant's configuration for the delivery is missing (its signing key can't be resolved): it stays pending, with the reason as its error, and is
+    /// tried again at <paramref name="retryAt"/>, without spending one of its attempts on the partner (ADR-022's rule for deliveries, Ade, 18 November 2026).
+    /// An operator's RetryDelivery tries it at once.
+    /// </summary>
+    public Result AwaitConfiguration(string reason, DateTimeOffset retryAt)
+    {
+        if (Status != WebhookDeliveryStatus.Pending)
+        {
+            return BuildingBlocks.Domain.Error.Conflict(ErrorCodes.InvalidStateTransition, $"The delivery is {Status}.");
+        }
+
+        Error = Guard.MaxLength(reason, 500);
+        NextAttemptAt = retryAt;
+        MarkChanged();
+        return Result.Success();
+    }
+
     /// <summary>Command RetryDelivery by an operator: a pending delivery is attempted now instead of at its back-off time.</summary>
     public Result RetryNow(DateTimeOffset now)
     {
