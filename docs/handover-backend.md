@@ -573,6 +573,7 @@ Ade: close the gap on `tenant.tenant` in the database, not only in the API.
   - Adds `platform_operator`, true for the tenant the bootstrap registers as `OPERATOR` (one at most, unique index).
   - A trigger lets only the database owner set or clear it, so a module role can't raise its own tenant.
   - `tenant.session_is_platform_operator()` (security definer, read as the owner, so the policy never reads the table through itself) says whether the session's tenant is the operator.
+  - Both functions run with `search_path = pg_catalog, tenant` and qualify their names (Ade), so a look-alike object earlier in a caller's path changes nothing.
   - Row-level security, policy `own_or_platform`: a row is seen and written when it is the session's tenant (`app.tenant_id`) or the session is the operator's.
   - The owner is not subject to it: migrations, the bootstrap, and `tenant.current_tenant_code()`.
 - **Tenancy's reads now say whose session they run in** (`TenantRows.As`):
@@ -580,7 +581,19 @@ Ade: close the gap on `tenant.tenant` in the database, not only in the API.
   - Reads across tenants run as the platform operator (`Platform:OperatorTenantId`): the directory for jobs, the time zone health check, and the code-to-id lookup.
   - Reads that already set the tenant's session are unchanged: time zone, function settings, readiness. So is the EF context, which runs in the request's tenant: the operator's requests see every tenant, as they register and manage them.
 - **The bootstrap** (`db/bootstrap/operator.sql`) marks the operator, also on a run again. The test fixture marks the tenant it seeds as `OPERATOR`.
-- **Tests:** `TenantDirectoryAccessTests`. As `insys_tenant`, a tenant's session sees only its own row, no tenant set sees none, and the operator's session sees all. A tenant's session can't mark itself the operator. Two mutants fail them: no row-level security, and no operator clause.
+- **Who reaches the operator-session reads (Ade):** the reads are `TenantDirectory.GetActiveTenantIds`, `TenantTimeZonesHealthCheck`, and `TenantFunctionSettingsQuery.IdOf`. They are reached only from:
+  - background jobs: the outbox relay (`OutboxProcessor`), `ParkingJob`, `NotificationSender`, `DocumentScanJob`, `ProductDraftJob`, `PrivilegedAccessExpiry`, `SearchLogRetentionJob`, `DueDiligenceJobs`, `WebhookJobs`, `CaseTimelineJobs`, `WorkflowJobs`, `ProductJobs`, `PaymentJobs`, `BillingJobs`, `GeneralJobs`, `LifeJobs`, `HealthJobs`;
+  - startup tasks: `AnalyticsReleaseTasks`, `SimulatorGuard`;
+  - `/health` checks: `PlanProductsHealthCheck`, `JobFunctionsHealthCheck`, `ParkedDeliveriesHealthCheck`, and the time zone check;
+  - `ParkedDeliveryStore.ByTenant`, only for `GET /integration/parked-deliveries/by-tenant`, which needs a platform permission;
+  - `RetryParkedOnConfiguration`'s global branch, only for a global row's activation, which only the platform's routes publish.
+  - `TenantDirectoryCallerTests` (architecture) pins this list and the three operator-session reads: a new caller fails until it is reviewed. `DailyJobRunner` hands each job its own one-tenant directory, so it is no caller.
+- **Tests:** `TenantDirectoryAccessTests`.
+  - As `insys_tenant`, a tenant's session sees only its own row, no tenant set sees none, and the operator's session sees all.
+  - A tenant's session can't mark itself the operator.
+  - A look-alike `current_setting` first in a tenant's path, answering with the operator's id, changes neither the check nor the rows.
+  - A business tenant is refused the by-tenant route.
+  - Three mutants fail them: no row-level security, no operator clause, and no fixed path in the check.
 - **Environments:** the migration marks the existing `OPERATOR` tenant, so the Preview needs no step of its own when it is next deployed (with Ade's approval).
 
 ### Release batch (18 November 2026, branch `release-batch`, on the availability batch)
