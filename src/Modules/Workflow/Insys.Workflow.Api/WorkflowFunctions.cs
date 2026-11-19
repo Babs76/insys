@@ -40,7 +40,8 @@ internal static class WorkflowFunctions
     public static readonly IReadOnlyList<FunctionDeclaration> All =
     [
         .. new FunctionMap([Audiences.Staff], null)
-        .Screen("WORKFLOW_APPROVALS", "WORKFLOW", "Approvals & authority limits", "workflow/approvals", "WorkflowListApprovals", "WorkflowGetApproval", "WorkflowMyAuthority")
+        .Screen("WORKFLOW_APPROVALS", "WORKFLOW", "Approvals & authority limits", "workflow/approvals", "WorkflowListApprovals", "WorkflowGetApproval", "WorkflowMyAuthority",
+            "WorkflowCountDecidableApprovals")
         .Action("WORKFLOW_APPROVE", "WORKFLOW_APPROVALS", "WorkflowApprove")
         .Action("WORKFLOW_REJECT", "WORKFLOW_APPROVALS", "WorkflowReject")
         .Screen("WORKFLOW_PROCESSES", "WORKFLOW", "Processes", "workflow/processes", "WorkflowListProcesses", "WorkflowGetProcess")

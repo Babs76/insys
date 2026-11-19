@@ -7104,7 +7104,10 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "approval.read"
+        "x-permission": "approval.read",
+        "x-function": [
+          "WORKFLOW_APPROVALS"
+        ]
       }
     },
     "/api/v1/workflow/approvals": {
