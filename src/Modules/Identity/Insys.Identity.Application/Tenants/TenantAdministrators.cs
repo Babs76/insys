@@ -266,6 +266,13 @@ internal sealed class ProvisionTenantAdministratorsHandler(ITenantAdministrators
             return Error.Conflict(IdentityErrorCodes.TenantHasUsers, $"Tenant {target.TenantCode} already has users; ask for an additional administrator instead.");
         }
 
+        // OQ-190: a function that needs another is asked for with it (Identity's one rule, FunctionRequirements).
+        if (Insys.Identity.Domain.Access.FunctionRequirements.Missing(command.Functions) is { Count: > 0 } missing)
+        {
+            return Error.Validation(IdentityErrorCodes.AssistRunNeedsReview, Insys.Identity.Domain.Access.FunctionRequirements.Message(missing[0].Function, missing[0].Needs),
+                new Dictionary<string, string[]> { ["functions"] = [.. missing.Select(m => Insys.Identity.Domain.Access.FunctionRequirements.Message(m.Function, m.Needs))] });
+        }
+
         // ADR-026: each function must be in force in the catalogue and one staff use (OQ-099).
         if (await catalogue.NotForStaff(command.Functions, businessDate.Today, cancellationToken) is { Count: > 0 } unknown)
         {

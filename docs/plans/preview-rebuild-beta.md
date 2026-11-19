@@ -15,6 +15,17 @@
 | 0.4 | Ade's age key is at hand: the private key on his machine and in his password manager. `PREVIEW_AGE_RECIPIENT` in the `preview` Environment is its public line. | Ade | `age-keygen -y` of the private key prints the same `age1…` line as the variable |
 | 0.5 | A memory measurement, as nothing measures it today: the `check` action's read-only `Memory` item prints `free -m`, `kubectl top nodes`, `kubectl top pods -A` and the release's requests and limits. `check` opens SSH for its runner only and closes it at the end. `kubectl top` needs k3s's bundled metrics-server; if it doesn't answer, that is said. | Back end, run approved by Ade | **Done:** `check` 44518919932, 19 November 2026, 14:31 UTC, on `2fc904a`. The figures are under ClamAV below. One reading at an idle time, not a peak. |
 
+| 0.6 | **Prepare memory requests and limits** (Ade, 19 November 2026: prepare only). The chart sets none for Keycloak, PostgreSQL, OpenBao or SeaweedFS today: their templates (`deploy/helm/insys/templates/keycloak.yaml`, `postgres.yaml`, `openbao.yaml`, `seaweedfs.yaml`) have no `resources` key, unlike `api.resources` and `scanner.resources`. A branch adds `keycloak.resources`, `postgres.resources`, `openbao.resources` and `seaweedfs.resources` to the chart's values and templates, with the figures below set in `deploy/preview/values.yaml`. It merges on green CI and smoke before the reset, so the reset applies them; it changes nothing on the Preview by itself. See **Memory requests and limits** below. | Back end, on Ade's approval of the figures | `helm template` shows each pod's requests and limits; smoke green on the exact head |
+| 0.7 | **Prepare one memory reading during the seed.** `preview.yml` runs one action at a time (`concurrency: preview`), so a `check` started during the reset waits until it ends: there is no read-only way to measure during the seed today. A small change to `deploy/preview/preview.sh`'s `seed` makes the reset itself print `memory_use` (the `check` action's Memory item) once, about 45 minutes into the seed, into the job log. It merges on green smoke before the reset. | Back end, on Ade's approval | The reset's log shows a "Memory during the seed" block |
+
+## 0A. First: a backup, then the pending reboot (before the reset; each run approved by Ade)
+The 19 November `check` found a reboot pending, for a newer kernel and `libc6`. The server never reboots itself (Ade, 14 November). Doing it first means the reset and the beta start on the patched kernel, and a reboot during the beta isn't needed soon after.
+| # | Step | Check after it |
+|---|---|---|
+| 0A.1 | `backup` | Its counts and the dump listed, as every backup. OpenBao is sealed with its key lost, so its encrypted fields are unreadable in the dump too; the backup is of the databases as they are, in case the reset has to be abandoned. |
+| 0A.2 | The reboot. There is no `reboot` action: Ade reboots the server from Hetzner's console, or with `hcloud server reboot` and his own token. Alternatively, a `reboot` action is added to `preview.sh` first (a `deploy/**` change, merged on green smoke). | — |
+| 0A.3 | `check` | "Restarts and reboots" no longer reports a pending reboot; the kernel is the new one; k3s and every pod are running. OpenBao reports sealed, as before: the reset replaces it. |
+
 ## 1. The reset run (one approval, about 2 to 3 hours)
 Start `preview.yml` with `action: reset`, `confirm: reset`, `acme: production`. Ade approves it in the `preview` Environment. The run does these steps in order (`preview.sh`, `reset`):
 
@@ -40,7 +51,7 @@ Start `preview.yml` with `action: reset`, `confirm: reset`, `acme: production`. 
 | 2.4 | The restore rehearsal (row 38), never yet run on the Preview: `restore` of that day's backup, unseal with the new key, `backup` again | The counts match the first backup; a data key decrypts after the restore |
 | 2.5 | ClamAV works | An EICAR test upload is refused as infected, and a clean upload is released. Freshclam's log shows its mirror answered. |
 | 2.6 | Front end | A sign-in on each of the four apps with the new accounts; the console's digest is the one pinned in 0.2 |
-| 2.7 | Record | Run ids, durations and peak memory in `docs/handover-backend.md`, and in rows 38 and 39 |
+| 2.7 | Record | Run ids, durations and memory in `docs/handover-backend.md`, and in rows 38 and 39: 0.7's reading during the seed, compared with 0.5's idle reading and with each pod's limit above. A pod within 80% of its limit during the seed gets a higher limit before the beta |
 
 ## 3. The decisions in the plan
 **The unseal key, and who holds it.**
@@ -66,6 +77,22 @@ Start `preview.yml` with `action: reset`, `confirm: reset`, `acme: production`. 
   - Requests and limits: only the API (512 MiB request, 2 GiB limit) and the console (32 MiB, 128 MiB) set any. Keycloak, PostgreSQL, OpenBao, SeaweedFS and the backup job set none.
 - **What it means (inference, not measured under load):** at idle, everything but ClamAV uses about 3.7 GB of 15.6. With ClamAV at its 3 GB limit, that is about 6.7 GB, leaving about 9 GB. That is more room than the earlier estimate of 8.5 to 10 GB used. The peak under load, a migration run or a backup isn't known. Keycloak and PostgreSQL have no limits, so either could grow without bound.
 - **Seen in the same check:** a reboot is pending, for a newer kernel and libc6. OpenBao reports sealed, as known; that is the check's one failure. Nothing else failed.
+
+**Memory requests and limits (0.6), proposed from the 19 November reading.** Each figure is my sizing, an inference from one idle reading, not a measurement under load. 0.7's reading during the seed and 2.7's record check it.
+
+| Pod | Idle (19 November) | Request | Limit | Why |
+|---|---|---|---|---|
+| Keycloak | 758 MiB | 1 GiB | 1.5 GiB | A JVM. The chart passes no heap option, so the image's own launcher sizes the heap. My understanding, not verified here, is that Keycloak 26's launcher sets the heap as a percentage of the container's memory (`MaxRAMPercentage`, about 70%). With no limit, as today, that percentage is of the whole server; with 1.5 GiB, the heap is about 1 GiB, leaving room for the JVM's own memory. Check at the reset: Keycloak's start log, or `java -XX:+PrintFlagsFinal -version` in the pod, shows `MaxHeapSize`. |
+| PostgreSQL | 306 MiB | 512 MiB | 2 GiB | The chart passes no settings, so PostgreSQL's defaults apply: `shared_buffers` 128 MB, `work_mem` 4 MB per sort or hash, `max_connections` 100. The seed and the migrations are its peaks; a limit too low ends the database mid-write, so the limit is generous. |
+| OpenBao | 96 MiB | 128 MiB | 256 MiB | Small and steady: one Transit key. |
+| SeaweedFS | 209 MiB | 256 MiB | 768 MiB | Grows with uploads during the seed and the beta. |
+| API (set today) | 904 MiB | 512 MiB | 2 GiB | Unchanged. |
+| ClamAV (set today) | not running | 1.5 GiB | 3 GiB | Unchanged; holds its signatures in memory. |
+| Console (set today) | 15 MiB | 32 MiB | 128 MiB | Unchanged. |
+
+- **Sums:** requests 4,000 MiB; limits 9,856 MiB. Add k3s's own pods (Traefik, metrics-server, CoreDNS, the path provisioner: about 341 MiB idle, no limits) and the system outside the pods (about 1 GiB: 3,675 MiB on the node less 2,629 MiB in the pods). With every pod at its limit at once: 9,856 + 341 + 1,046 = about 11,240 MiB of 15,608, leaving about 4,360 MiB. That sum is a worst case: the pods don't all peak together.
+- **Not limited:** the nightly backup job (a `pg_dump`). It runs at night, outside the seed.
+- **Where they are set:** `keycloak.resources`, `postgres.resources`, `openbao.resources` and `seaweedfs.resources` in `deploy/preview/values.yaml`, once 0.6 adds them to the chart. Nothing changes on the Preview until the approved reset applies the chart.
 - **Outbound:** freshclam downloads signatures at start and daily over HTTPS.
   - The Preview's firewall is inbound only, and the cluster has no egress policy, so nothing blocks it today.
   - What row 39 needs is Ade's decision to allow it.

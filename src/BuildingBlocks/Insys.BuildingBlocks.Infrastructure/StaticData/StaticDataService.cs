@@ -97,6 +97,7 @@ public sealed class StaticDataService<TDbContext>(
     IFieldProtector protector,
     IEnumerable<IStaticChangeGuard> guards,
     IEnumerable<IStaticSetGuard> setGuards,
+    IEnumerable<IStaticRemovalGuard> removalGuards,
     IEnumerable<IStaticRecordValidator> validators)
     where TDbContext : ModuleDbContext
 {
@@ -806,6 +807,29 @@ public sealed class StaticDataService<TDbContext>(
             if (!from.Contains(entity.RecordStatus))
             {
                 return InvalidTransition($"{operation} is not allowed when the version is {entity.RecordStatus}.");
+            }
+
+            // A module's rules for a code leaving force (OQ-190): checked against the other codes in force or on their way today.
+            if (to == descriptor.Lifecycle.Deprecated || to == descriptor.Lifecycle.Retired)
+            {
+                var applicable = removalGuards.Where(g => g.Schema == descriptor.Schema && g.Table == descriptor.Table).ToList();
+                if (applicable.Count > 0)
+                {
+                    string[] closed = ["DRAFT", "VALIDATED", "WITHDRAWN", "RETIRED", "DEPRECATED"];
+                    var today = businessDate.Today;
+                    var others = (await db.Set<TEntity>().AsNoTracking()
+                            .Where(r => r.Code != entity.Code && !closed.Contains(r.RecordStatus) && (r.EffectiveTo == null || r.EffectiveTo > today))
+                            .ToListAsync(cancellationToken))
+                        .GroupBy(r => r.Code).Select(g => (StaticRecord)g.OrderByDescending(r => r.Version).First()).ToList();
+                    foreach (var guard in applicable)
+                    {
+                        var allowed = guard.Check(entity, others);
+                        if (allowed.IsFailure)
+                        {
+                            return allowed.Error;
+                        }
+                    }
+                }
             }
 
             var before = entity.RecordStatus;

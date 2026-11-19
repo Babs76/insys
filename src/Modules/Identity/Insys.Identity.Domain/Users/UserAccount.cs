@@ -726,6 +726,14 @@ public static class Invitation
 
 public static class IdentityErrorCodes
 {
+    /// <summary>
+    /// OQ-190 (Ade, 19 November 2026): a role granted ASSIST_PRODUCT_DRAFT_RUN must also hold ASSIST_PRODUCT_DRAFT_REVIEW; a grant without it, or ending
+    /// REVIEW while RUN stays, is refused (Insys.Identity.Domain.Access.FunctionRequirements).
+    /// </summary>
+    [ErrorCode(422, "error.identity.assist_run_needs_review", Means = "A role that can start an AI product draft must also be able to review it.",
+        Remedy = "Grant ASSIST_PRODUCT_DRAFT_REVIEW to the role first, or end ASSIST_PRODUCT_DRAFT_RUN before ending the review function.")]
+    public const string AssistRunNeedsReview = "ASSIST_RUN_NEEDS_REVIEW";
+
     [ErrorCode(422, "error.identity.role_not_found", Means = "The role has no version in force.",
         Remedy = "Choose a role in force, or ask your administrator to put it in force first.")]
     public const string RoleNotFound = "ROLE_NOT_FOUND";

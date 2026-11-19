@@ -40,21 +40,14 @@ namespace Insys.Assist.Infrastructure;
 /// OQ-190 (b), decided by Ade on 19 November 2026: Product Factory's submission asks this check, and a version AI-1 drafted is refused while its review is
 /// incomplete: an Interpreted value (a version field, a rate table, a rule or a simulation case) not yet reviewed, or a version field whose Draft value isn't
 /// what was decided (AI Assist SRS §8.1 step 5, AIA-020). The same rule as the provenance report's <c>reviewComplete</c>. Read on Assist's own connection.
-/// A version AI-1 didn't draft is unaffected.
+/// A version AI-1 didn't draft is unaffected. The hold applies whether or not the tenant has AI Assist today (Ade, 19 November 2026): the review is recorded
+/// under ASSIST_PRODUCT_DRAFT_REVIEW, which needs no feature, so it can always be finished.
 /// </summary>
-internal sealed class ProductDraftSubmissionCheck([FromKeyedServices(AssistDbContext.SchemaName)] NpgsqlDataSource dataSource, ITenantContext tenant,
-    ExecutionScope execution) : IProductSubmissionCheck
+internal sealed class ProductDraftSubmissionCheck([FromKeyedServices(AssistDbContext.SchemaName)] NpgsqlDataSource dataSource, ITenantContext tenant)
+    : IProductSubmissionCheck
 {
     public async Task<ProductSubmissionRefusal?> Check(ProductDraftVersion version, ProductDraftVersion? copiedFrom, CancellationToken cancellationToken)
     {
-        // AI Assist off for the tenant: nobody can review, so the version isn't held. TODO(spec): OQ-190, a version drafted while AI Assist was on and
-        // submitted after it was turned off goes through unreviewed; the approver still reads the provenance report.
-        if (execution.Functions?.Refusal(["ASSIST_PRODUCT_DRAFT_RUN"]) is BuildingBlocks.Domain.ErrorCodes.FeatureNotEntitled
-            or BuildingBlocks.Domain.ErrorCodes.FunctionDisabled)
-        {
-            return null;
-        }
-
         var items = await Items(tenant.RequireTenantId(), version.ProductCode, version.Version, cancellationToken);
         if (items is null)
         {

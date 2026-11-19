@@ -179971,7 +179971,7 @@
           "Identity static data"
         ],
         "summary": "Create a tenant Role function assignments draft",
-        "description": "Creates version 1 of a new code, or the next version of an existing one. The caller is the maker. Rules (422 with field errors otherwise): functionCode is a screen or action function in the function catalogue (identity/static/function-catalogue); a JOB function, or a code the catalogue does not have, is refused (422 on functionCode, BR-019).",
+        "description": "Creates version 1 of a new code, or the next version of an existing one. The caller is the maker. Rules (422 with field errors otherwise): functionCode is a screen or action function in the function catalogue (identity/static/function-catalogue); a JOB function, or a code the catalogue does not have, is refused (422 on functionCode, BR-019). A role granted ASSIST_PRODUCT_DRAFT_RUN must also hold ASSIST_PRODUCT_DRAFT_REVIEW, in force or on its way, for as long as the grant runs; ending or retiring ASSIST_PRODUCT_DRAFT_REVIEW while the role keeps ASSIST_PRODUCT_DRAFT_RUN is refused too (422 ASSIST_RUN_NEEDS_REVIEW, OQ-190).",
         "operationId": "CreateIdentityRoleFunctionAssignmentsDraft",
         "parameters": [
           {
@@ -180183,7 +180183,7 @@
           "Identity static data"
         ],
         "summary": "Edit a tenant Role function assignments draft",
-        "description": "Only the maker edits a draft; approved versions are immutable (SDM-002). Rules (422 with field errors otherwise): functionCode is a screen or action function in the function catalogue (identity/static/function-catalogue); a JOB function, or a code the catalogue does not have, is refused (422 on functionCode, BR-019).",
+        "description": "Only the maker edits a draft; approved versions are immutable (SDM-002). Rules (422 with field errors otherwise): functionCode is a screen or action function in the function catalogue (identity/static/function-catalogue); a JOB function, or a code the catalogue does not have, is refused (422 on functionCode, BR-019). A role granted ASSIST_PRODUCT_DRAFT_RUN must also hold ASSIST_PRODUCT_DRAFT_REVIEW, in force or on its way, for as long as the grant runs; ending or retiring ASSIST_PRODUCT_DRAFT_REVIEW while the role keeps ASSIST_PRODUCT_DRAFT_RUN is refused too (422 ASSIST_RUN_NEEDS_REVIEW, OQ-190).",
         "operationId": "EditIdentityRoleFunctionAssignmentsDraft",
         "parameters": [
           {

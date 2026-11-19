@@ -104,12 +104,12 @@ public sealed class AssistTests(DatabaseFixture fixture) : IClassFixture<Databas
     }
 
     [Fact]
-    public async Task NineFunctions_AreInTheCatalogue_EightInNoRoleTemplate_AndTheOverlayFunctionsArePrivileged()
+    public async Task TenFunctions_AreInTheCatalogue_EightInNoRoleTemplate_AndTheOverlayFunctionsArePrivileged()
     {
         var functions = new[] { "ASSIST_SETTINGS_MANAGE", "ASSIST_EXPLAIN_REFUSAL", "ASSIST_EXPLAIN_PREMIUM", "ASSIST_PRODUCT_DRAFT_RUN", "ASSIST_TENANT_SETUP_RUN", "ASSIST_OVERLAY_APPROVE",
-            "ASSIST_OVERLAY_MANAGE", "ASSIST_OVERLAY_APPROVE_TENANT", "ASSIST_PRODUCT_DRAFT_PROVENANCE" };
-        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM iam.ref_function_catalogue WHERE tenant_id IS NULL AND function_code = ANY(@f)", ("f", functions))).ShouldBe(9L);
-        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM iam.ref_function_catalogue WHERE tenant_id IS NULL AND function_code LIKE 'ASSIST%'")).ShouldBe(9L, "and no others");
+            "ASSIST_OVERLAY_MANAGE", "ASSIST_OVERLAY_APPROVE_TENANT", "ASSIST_PRODUCT_DRAFT_PROVENANCE", "ASSIST_PRODUCT_DRAFT_REVIEW" };
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM iam.ref_function_catalogue WHERE tenant_id IS NULL AND function_code = ANY(@f)", ("f", functions))).ShouldBe(10L);
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM iam.ref_function_catalogue WHERE tenant_id IS NULL AND function_code LIKE 'ASSIST%'")).ShouldBe(10L, "and no others");
         foreach (var (code, audience) in new[] { ("ASSIST_OVERLAY_MANAGE", "PLATFORM"), ("ASSIST_OVERLAY_APPROVE_TENANT", "STAFF") })
         {
             (await fixture.Database.ScalarAsOwner<string>("SELECT privileged::text || ':' || array_to_string(audiences, ',') FROM iam.ref_function_catalogue WHERE tenant_id IS NULL AND function_code = @c",
@@ -117,10 +117,30 @@ public sealed class AssistTests(DatabaseFixture fixture) : IClassFixture<Databas
         }
         await fixture.Host();
         var catalogue = FunctionRegistry.All();
-        // Ade, 19 November 2026: only the provenance report's read is in templates: the product manager's, the compliance officer's and the auditor's.
+        // Ade, 19 November 2026: only the provenance report's read is in templates: the product manager's, the compliance officer's and the auditor's; and the
+        // review of a run (OQ-190), in the product manager's, as the configurator's.
         RoleTemplates.All.SelectMany(t => RoleTemplates.Expand(t, catalogue).Select(f => (t.Code, f.Code)))
             .Where(x => x.Item2.StartsWith("ASSIST", StringComparison.Ordinal)).Select(x => $"{x.Item1}:{x.Item2}").Order(StringComparer.Ordinal).ToList()
-            .ShouldBe(["AUDITOR:ASSIST_PRODUCT_DRAFT_PROVENANCE", "COMPLIANCE_OFFICER:ASSIST_PRODUCT_DRAFT_PROVENANCE", "PRODUCT_MANAGER:ASSIST_PRODUCT_DRAFT_PROVENANCE"]);
+            .ShouldBe(["AUDITOR:ASSIST_PRODUCT_DRAFT_PROVENANCE", "COMPLIANCE_OFFICER:ASSIST_PRODUCT_DRAFT_PROVENANCE", "PRODUCT_MANAGER:ASSIST_PRODUCT_DRAFT_PROVENANCE",
+                "PRODUCT_MANAGER:ASSIST_PRODUCT_DRAFT_REVIEW"]);
+        // Ade, 19 November 2026: the compliance officer gets Product Factory's PRODUCTS screen for viewing only, with the provenance report: no product action.
+        RoleTemplates.Expand(RoleTemplates.All.Single(t => t.Code == "COMPLIANCE_OFFICER"), catalogue)
+            .Where(f => f.SubDomain == "PRODUCT_FACTORY" || f.Code.StartsWith("PRODUCT_", StringComparison.Ordinal) || f.Code.StartsWith("SD_PRODUCT_FACTORY", StringComparison.Ordinal))
+            .Select(f => f.Code).Order(StringComparer.Ordinal).ToList().ShouldBe(["ASSIST_PRODUCT_DRAFT_PROVENANCE", "PRODUCTS"]);
+        // OQ-190 (Ade, 19 November 2026): no template holds a function without the one it needs (ASSIST_PRODUCT_DRAFT_RUN without ASSIST_PRODUCT_DRAFT_REVIEW).
+        foreach (var template in RoleTemplates.All)
+        {
+            Insys.Identity.Domain.Access.FunctionRequirements.Missing(RoleTemplates.Expand(template, catalogue).Select(f => f.Code)).ShouldBeEmpty(template.Code);
+        }
+
+        // Starting a run is the feature's; reading and deciding one are not (OQ-190).
+        (await fixture.Database.ScalarAsOwner<string>("""
+            SELECT parent_function_code || ':' || coalesce(required_feature, '-') FROM iam.ref_function_catalogue
+            WHERE tenant_id IS NULL AND function_code = 'ASSIST_PRODUCT_DRAFT_REVIEW' AND effective_to IS NULL
+            """)).ShouldBe("PRODUCTS:-");
+        (await fixture.Database.ScalarAsOwner<string>("""
+            SELECT coalesce(required_feature, '-') FROM iam.ref_function_catalogue WHERE tenant_id IS NULL AND function_code = 'ASSIST_PRODUCT_DRAFT_RUN' AND effective_to IS NULL
+            """)).ShouldBe("AI_ASSIST");
         (await fixture.Database.ScalarAsOwner<string>("""
             SELECT privileged::text || ':' || array_to_string(audiences, ',') FROM iam.ref_function_catalogue WHERE tenant_id IS NULL AND function_code = 'ASSIST_OVERLAY_APPROVE'
             """)).ShouldBe("true:PLATFORM");

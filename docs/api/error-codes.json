@@ -234,6 +234,14 @@
       "remedy": "Start a new run and confirm the documents again."
     },
     {
+      "code": "ASSIST_RUN_NEEDS_REVIEW",
+      "httpStatus": 422,
+      "messageKey": "error.identity.assist_run_needs_review",
+      "retryable": false,
+      "means": "A role that can start an AI product draft must also be able to review it.",
+      "remedy": "Grant ASSIST_PRODUCT_DRAFT_REVIEW to the role first, or end ASSIST_PRODUCT_DRAFT_RUN before ending the review function."
+    },
+    {
       "code": "ASSIST_RUN_STALLED",
       "httpStatus": 409,
       "messageKey": "error.assist.run_stalled",

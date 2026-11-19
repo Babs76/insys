@@ -299,6 +299,60 @@ public sealed class StaticDataTests(DatabaseFixture fixture) : IClassFixture<Dat
         (await maker.Send(HttpMethod.Post, grants, Grant("BR019-GOOD", "IDENTITY_USERS"), idempotent: true)).StatusCode.ShouldBe(HttpStatusCode.Created);
     }
 
+    /// <summary>
+    /// OQ-190 (Ade, 19 November 2026): a role granted ASSIST_PRODUCT_DRAFT_RUN must also hold ASSIST_PRODUCT_DRAFT_REVIEW. RUN alone is refused at submission;
+    /// with REVIEW in force it is accepted; REVIEW can't be deprecated or retired while RUN stays, and goes once RUN has gone.
+    /// </summary>
+    [Fact]
+    public async Task ARoleGrantedTheDraftRun_MustHoldItsReview_AndTheReviewCantGoWhileTheRunStays_OQ190()
+    {
+        const string grants = "/api/v1/identity/static/role-function-assignments";
+        var maker = _factory.ClientFor(DatabaseFixture.TenantA, "maker-a");
+        var checker = _factory.ClientFor(DatabaseFixture.TenantA, "checker-a");
+        static object Grant(string code, string function) => new { code, roleCode = "OQ190_ROLE", functionCode = function, changeReason = "OQ-190" };
+
+        async Task<HttpResponseMessage> Submit(string code, string function)
+        {
+            var created = await maker.Send(HttpMethod.Post, grants, Grant(code, function), idempotent: true);
+            created.StatusCode.ShouldBe(HttpStatusCode.Created, await created.Content.ReadAsStringAsync());
+            return await maker.Send(HttpMethod.Post, $"{grants}/{code}/versions/1/submit", ifMatch: created.ETag());
+        }
+
+        async Task<long> InForce(string code)
+        {
+            await _factory.DrainOutbox();
+            (await checker.Send(HttpMethod.Post, $"{grants}/{code}/versions/1/approve")).StatusCode.ShouldBe(HttpStatusCode.OK);
+            await _factory.DrainOutbox();
+            var approved = (await (await maker.GetAsync($"{grants}/{code}/versions")).Json())[0];
+            var activated = await maker.Send(HttpMethod.Post, $"{grants}/{code}/versions/1/activate", ifMatch: $"\"{approved.GetProperty("rowVersion").GetInt64()}\"");
+            activated.StatusCode.ShouldBe(HttpStatusCode.OK, await activated.Content.ReadAsStringAsync());
+            return (await activated.Json()).GetProperty("rowVersion").GetInt64();
+        }
+
+        Task<HttpResponseMessage> Leave(string code, string action, long rowVersion) =>
+            maker.Send(HttpMethod.Post, $"{grants}/{code}/versions/1/{action}", ifMatch: $"\"{rowVersion}\"");
+
+        var alone = await Submit("OQ190_ROLE:ASSIST_PRODUCT_DRAFT_RUN", "ASSIST_PRODUCT_DRAFT_RUN");
+        alone.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity, await alone.Content.ReadAsStringAsync());
+        (await alone.Code()).ShouldBe("ASSIST_RUN_NEEDS_REVIEW");
+
+        (await Submit("OQ190_ROLE:ASSIST_PRODUCT_DRAFT_REVIEW", "ASSIST_PRODUCT_DRAFT_REVIEW")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        var review = await InForce("OQ190_ROLE:ASSIST_PRODUCT_DRAFT_REVIEW");
+        var withReview = await Submit("OQ190_ROLE:ASSIST_PRODUCT_DRAFT_RUN2", "ASSIST_PRODUCT_DRAFT_RUN");
+        withReview.StatusCode.ShouldBe(HttpStatusCode.OK, await withReview.Content.ReadAsStringAsync());
+        var run = await InForce("OQ190_ROLE:ASSIST_PRODUCT_DRAFT_RUN2");
+
+        foreach (var action in new[] { "deprecate", "retire" })
+        {
+            var removed = await Leave("OQ190_ROLE:ASSIST_PRODUCT_DRAFT_REVIEW", action, review);
+            removed.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity, $"{action}: {await removed.Content.ReadAsStringAsync()}");
+            (await removed.Code()).ShouldBe("ASSIST_RUN_NEEDS_REVIEW");
+        }
+
+        (await Leave("OQ190_ROLE:ASSIST_PRODUCT_DRAFT_RUN2", "deprecate", run)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await Leave("OQ190_ROLE:ASSIST_PRODUCT_DRAFT_REVIEW", "deprecate", review)).StatusCode.ShouldBe(HttpStatusCode.OK, "the run has gone, so the review may go");
+    }
+
     [Fact]
     public async Task Import_IsAllOrNothing_AndReportsEveryRejectedLine_SDM012()
     {
