@@ -13,7 +13,7 @@
 | 0.2 | Pin the console image the beta should serve: the new digest from the front end's `main`, in `deploy/helm/insys/values.yaml`. Today's digest is from the front end's `68b4659`. A values change runs deployment smoke and merges on green, like any `deploy/**` change. | Back end, with the front end's digest | Smoke green on the exact head; the front end names the digest in its `docs/deployment.md`, so its image cleanup keeps it |
 | 0.3 | Ade decides the open items below: the unseal key's holder, ClamAV's outbound access, AI Assist | Ade | Recorded in this file |
 | 0.4 | Ade's age key is at hand: the private key on his machine and in his password manager. `PREVIEW_AGE_RECIPIENT` in the `preview` Environment is its public line. | Ade | `age-keygen -y` of the private key prints the same `age1…` line as the variable |
-| 0.5 | A memory measurement, as nothing measures it today: the `check` action's read-only `Memory` item prints `free -m`, `kubectl top nodes`, `kubectl top pods -A` and the release's requests and limits. `check` opens SSH for its runner only and closes it at the end. `kubectl top` needs k3s's bundled metrics-server; if it doesn't answer, that is said. | Back end, run approved by Ade | The figures recorded here, against the 16 GB server. One reading at an idle time, not a peak. |
+| 0.5 | A memory measurement, as nothing measures it today: the `check` action's read-only `Memory` item prints `free -m`, `kubectl top nodes`, `kubectl top pods -A` and the release's requests and limits. `check` opens SSH for its runner only and closes it at the end. `kubectl top` needs k3s's bundled metrics-server; if it doesn't answer, that is said. | Back end, run approved by Ade | **Done:** `check` 44518919932, 19 November 2026, 14:31 UTC, on `2fc904a`. The figures are under ClamAV below. One reading at an idle time, not a peak. |
 
 ## 1. The reset run (one approval, about 2 to 3 hours)
 Start `preview.yml` with `action: reset`, `confirm: reset`, `acme: production`. Ade approves it in the `preview` Environment. The run does these steps in order (`preview.sh`, `reset`):
@@ -58,7 +58,14 @@ Start `preview.yml` with `action: reset`, `confirm: reset`, `acme: production`. 
 - **If the age key is lost, only another `reset` recovers.**
 
 **ClamAV: memory and outbound access (row 39).**
-- **Memory:** the pod requests 1.5 GB and is limited to 3 GB, as it holds its signatures in memory. The earlier estimate for everything else was about 7 GB at peak, never measured. So about 8.5 to 10 GB of 16 GB is expected, an estimate that 0.5 replaces with a measurement.
+- **Memory:** the pod requests 1.5 GB and is limited to 3 GB, as it holds its signatures in memory.
+- **Measured (0.5, `check` 44518919932, 19 November 2026, 14:31 UTC, idle, the Preview still at `d488b32`):**
+  - `free -m`: 15,608 MiB total, 3,213 used, 9,948 free, 3,069 buffers and cache, 12,395 available. No swap.
+  - `kubectl top nodes`: 3,675 MiB (23%), CPU 285m (3%).
+  - `kubectl top pods`, the largest: API 904 MiB, Keycloak 758, PostgreSQL 306, SeaweedFS 209, Traefik 148, OpenBao 96. All the pods together: about 2.6 GiB (2,629 MiB).
+  - Requests and limits: only the API (512 MiB request, 2 GiB limit) and the console (32 MiB, 128 MiB) set any. Keycloak, PostgreSQL, OpenBao, SeaweedFS and the backup job set none.
+- **What it means (inference, not measured under load):** at idle, everything but ClamAV uses about 3.7 GB of 15.6. With ClamAV at its 3 GB limit, that is about 6.7 GB, leaving about 9 GB. That is more room than the earlier estimate of 8.5 to 10 GB used. The peak under load, a migration run or a backup isn't known. Keycloak and PostgreSQL have no limits, so either could grow without bound.
+- **Seen in the same check:** a reboot is pending, for a newer kernel and libc6. OpenBao reports sealed, as known; that is the check's one failure. Nothing else failed.
 - **Outbound:** freshclam downloads signatures at start and daily over HTTPS.
   - The Preview's firewall is inbound only, and the cluster has no egress policy, so nothing blocks it today.
   - What row 39 needs is Ade's decision to allow it.
