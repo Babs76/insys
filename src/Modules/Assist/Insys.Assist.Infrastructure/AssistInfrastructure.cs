@@ -62,6 +62,10 @@ public static class AssistInfrastructure
         // AI-1 (7.4): runs, extraction, and the job that acts for the user who asked (AIA-017).
         services.AddScoped<IProductDraftRuns, ProductDraftRuns>();
         services.AddScoped<ProductDraftStarter>();
+        // AI-1's review (7.5): decisions (AIA-019), the provenance report (AIA-020) and the simulation cases' hand-off (AIA-018).
+        services.AddScoped<ProductDraftReviewer>();
+        services.AddScoped<ProductDraftProvenance>();
+        services.AddScoped<ProductDraftSimulationCases>();
         services.AddSingleton<IDraftDocumentExtractor, Extraction.DraftDocumentExtractor>();
         services.TryAddSingleton<BuildingBlocks.Application.Context.ActingUserScopes>();
         services.AddOptions<ProductDraftOptions>().BindConfiguration("Assist:ProductDrafts");

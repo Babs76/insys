@@ -68,6 +68,11 @@ public sealed record ProductDraftTarget(string ProductCode, string Domain, int L
 /// <summary>The version's own fields AI-1 proposes (OQ-184 (a)); a null field keeps the copied version's value.</summary>
 public sealed record ProductDraftFields(string? Name, IReadOnlyList<string>? Coverages, string? CoverStartsOn, string? ReinstatementArrears);
 
+/// <summary>A version's own fields and status as the user may read it (AIA-019, AIA-020).</summary>
+/// <param name="Status">Draft, Validated, Submitted, Approved, Published, Effective, Withdrawn or Retired.</param>
+public sealed record ProductDraftVersion(string ProductCode, int Version, string Status, string Name, IReadOnlyList<string> Coverages, DateOnly EffectiveFrom,
+    string CoverStartsOn, string ReinstatementArrears, long RowVersion);
+
 /// <summary>The outcome of a step: the Draft's version number, or the refusal's code and message as the endpoint would give them.</summary>
 public sealed record ProductDraftOutcome(int? Version, string? ErrorCode = null, string? Message = null)
 {
@@ -86,4 +91,13 @@ public interface IProductDrafts
 
     /// <summary>Creates the next version as a draft copy of the latest, then edits its own fields, each in its own transaction.</summary>
     Task<ProductDraftOutcome> Create(string productCode, DateOnly effectiveFrom, ProductDraftFields fields, CancellationToken cancellationToken);
+
+    /// <summary>One version as the user may read it (a read: <c>GET …/versions/{n}</c>'s check), or null when not found or outside their scope.</summary>
+    Task<ProductDraftVersion?> Version(string productCode, int version, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// AIA-019: the configurator's decision on a value of the Draft's own fields, written through the same command as <c>PUT …/versions/{n}</c> as the user,
+    /// so its validation, audit and state rules apply (a version past Validated refuses it). A null field keeps the version's value.
+    /// </summary>
+    Task<ProductDraftOutcome> Edit(string productCode, int version, ProductDraftFields fields, DateOnly? effectiveFrom, CancellationToken cancellationToken);
 }

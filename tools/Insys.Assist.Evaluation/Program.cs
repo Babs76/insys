@@ -49,6 +49,28 @@ if (Array.IndexOf(args, "--compare") is var at and >= 0)
     return 0;
 }
 
+if (Array.IndexOf(args, "--ai1") is var ai1At and >= 0)
+{
+    // --ai1 <set> --out <folder>: AI-1's evaluation (SRS §4.3). Until D-7's documents arrive every measure is WAITING, and no model is called. The real set
+    // and its documents live outside this public repository (OQ-191); running against them is added once they are here.
+    var ai1 = Insys.Assist.Application.Ai1Evaluation.Read(await File.ReadAllTextAsync(args[ai1At + 1]));
+    var measurable = ai1.Cases.Count(c => !c.Invented);
+    var into = Directory.CreateDirectory(argument("--out", "assist-ai1-evaluation")).FullName;
+    if (measurable > 0)
+    {
+        // TODO(spec): OQ-191, where D-7's documents and expected values are kept, and so how this job reads them.
+        Console.Error.WriteLine($"The set has {measurable} real case(s), but reading D-7's documents isn't built until OQ-191 is decided.");
+        return 2;
+    }
+
+    var ai1Results = Insys.Assist.Application.Ai1Evaluation.AllWaiting(ai1);
+    await File.WriteAllTextAsync(Path.Combine(into, "ai1-measures.json"), JsonSerializer.Serialize(ai1Results, EvaluationSet.Json));
+    await File.WriteAllTextAsync(Path.Combine(into, "ai1-measures.md"), "# AI-1 evaluation (SRS §4.3)\n\n| Measure | Target | Status |\n|---|---|---|\n"
+        + string.Concat(ai1Results.Select(r => $"| {r.Name} | {(r.Minimum is { } min ? $"at least {min:P0}" : $"at most {r.Maximum}")} | {r.Status}: {r.Outcome} |\n")));
+    Console.WriteLine($"AI-1: {ai1Results.Count} measures, all {Insys.Assist.Application.Ai1Evaluation.Waiting} for D-7's documents ({ai1.Line}). No model was called.");
+    return 0;
+}
+
 var set = EvaluationSet.Read(argument("--set", "docs/evaluation/ai2-evaluation-set.json"));
 var settings = Settings.Read(argument("--config", "src/Host/Insys.Api/appsettings.json"));
 var provider = argument("--provider", "echo");

@@ -171,6 +171,42 @@ public sealed class AssistModule : IModule
             .WithSummary("The run: its status, the Draft version's number, each document with its confirmation and what reading it found, and every proposed value with "
                 + "its flag, citation and INSYS's check (AIA-013, AIA-014, AIA-015)")
             .RequirePermission(AssistPermissions.ProductDraftRun);
+        drafts.MapPost("/{id:guid}/items/{itemId:guid}/decision", async (Guid id, Guid itemId, DraftItemDecisionRequest r, ProductDraftReviewer reviewer, HttpContext http,
+                CancellationToken ct) =>
+            {
+                var expected = Concurrency.ExpectedVersion(http.Request);
+                if (expected.IsFailure)
+                {
+                    return Problems.For(expected.Error);
+                }
+
+                return (await reviewer.Decide(id, itemId, new DraftItemDecision(r.Decision ?? "", r.Value, r.Note), expected.Value, ct)).ToHttp(view =>
+                {
+                    Concurrency.SetETag(http, view.RowVersion);
+                    return Results.Ok(view);
+                });
+            })
+            .Produces<DraftItemView>(StatusCodes.Status200OK).ReturnsETag()
+            .WithName("AssistDecideProductDraftItem")
+            .WithSummary("Accept, edit or reject a proposed value of your run (AIA-019). An edit gives your value and why; the AI's proposal is kept beside it. A version's own "
+                + "field is written to the Draft as you, through Product Factory's edit; anything else is recorded for you to enter in its module. Needs If-Match (the item's ETag)")
+            .WithDescription("Refused for a proposal INSYS's checks dropped, for a Missing value except by an edit, and for a version Product Factory no longer lets you edit "
+                + "(past Validated). A rejected version field goes back to the value of the version the Draft was copied from; an effective date is edited, not rejected.")
+            .RequirePermission(AssistPermissions.ProductDraftRun);
+        drafts.MapGet("/{id:guid}/simulation-cases", async (Guid id, ProductDraftSimulationCases cases, CancellationToken ct) => (await cases.For(id, ct)).ToHttp(Results.Ok))
+            .Produces<SimulationCaseExportView>(StatusCodes.Status200OK)
+            .WithName("AssistProductDraftSimulationCases")
+            .WithSummary("Your accepted and edited simulation cases (AIA-018) as lines for Rating's test case library, to import through its own import for a second person's "
+                + "approval, so Product Factory's simulation runs them with your own. Cases without an expected premium, or without the currency and frequency, are listed apart")
+            .RequirePermission(AssistPermissions.ProductDraftRun);
+        drafts.MapGet("/provenance/{productCode}/{productVersion:int}", async (string productCode, int productVersion, ProductDraftProvenance provenance,
+                CancellationToken ct) => (await provenance.For(productCode, productVersion, ct)).ToHttp(Results.Ok))
+            .Produces<ProductDraftProvenanceView>(StatusCodes.Status200OK)
+            .WithName("AssistGetProductDraftProvenance")
+            .WithSummary("The provenance report of a version AI-1 drafted (AIA-020), for its approver: every proposed value with its flag, citation and INSYS's check, whether it "
+                + "was accepted, edited or rejected, by whom and when, and each version field compared with the Draft as it is now. 404 when AI-1 didn't draft it, or it is outside "
+                + "your scope")
+            .RequirePermission(AssistPermissions.ProductDraftProvenanceRead);
     }
 
     private void MapTenantSetups(IEndpointRouteBuilder api)
@@ -349,3 +385,9 @@ public sealed class AssistModule : IModule
 
 /// <summary>AI-1's start: the product and its documents, each with the user's confirmation that it holds no customer personal data (D-16).</summary>
 public sealed record StartProductDraftRequest(string ProductCode, IReadOnlyList<DraftDocumentConfirmation> Documents);
+
+/// <param name="Decision">ACCEPTED, EDITED or REJECTED (AIA-019).</param>
+/// <param name="Value">For an edit only: your value, as the field takes it.</param>
+/// <param name="Note">Why: required for an edit.</param>
+public sealed record DraftItemDecisionRequest([property: System.ComponentModel.DataAnnotations.AllowedValues("ACCEPTED", "EDITED", "REJECTED")] string? Decision,
+    System.Text.Json.JsonElement? Value, string? Note);

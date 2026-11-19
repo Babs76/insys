@@ -51,6 +51,19 @@ public static class DraftItemKinds
     public const string SimulationCase = "SIM_CASE";
 }
 
+/// <summary>The configurator's decision on a proposed value (AIA-019).</summary>
+public static class DraftItemDecisions
+{
+    public const string Accepted = "ACCEPTED";
+
+    /// <summary>Changed by the configurator: their value is recorded against the AI's proposal, which is kept as it was.</summary>
+    public const string Edited = "EDITED";
+
+    public const string Rejected = "REJECTED";
+
+    public static readonly string[] All = [Accepted, Edited, Rejected];
+}
+
 public static class DraftItemFlags
 {
     /// <summary>Quoted directly (AIA-014): the value is in its citation's text.</summary>
@@ -246,6 +259,61 @@ public sealed class DraftItem : AggregateRoot<Guid>
 
     /// <summary>Written to the Draft version (OQ-184 (a): the version's own fields only).</summary>
     public bool InDraft { get; private set; }
+
+    /// <summary>ACCEPTED, EDITED or REJECTED (AIA-019); null while undecided.</summary>
+    public string? Decision { get; private set; }
+
+    public string? DecidedBy { get; private set; }
+
+    public DateTimeOffset? DecidedAt { get; private set; }
+
+    public string? DecisionNote { get; private set; }
+
+    /// <summary>The configurator's value, as JSON, when they edited it; the AI's proposal stays in <see cref="Value"/>.</summary>
+    public string? EditedValue { get; private set; }
+
+    /// <summary>
+    /// AIA-019: the configurator accepts, edits or rejects the value. A dropped proposal failed INSYS's checks and is never decided (AIA-013, AIA-015); a Missing
+    /// value has nothing to accept or reject, so it is only filled, by an edit. An edit gives the value and why. A decision can be changed while the item is
+    /// reviewed; each is audited.
+    /// </summary>
+    public Result Decide(string decision, string? editedValue, string? note, string by, DateTimeOffset at)
+    {
+        if (!DraftItemDecisions.All.Contains(decision))
+        {
+            return Error.Validation(ErrorCodes.ValidationFailed, "decision is ACCEPTED, EDITED or REJECTED.");
+        }
+
+        if (CheckResult != "PASSED")
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, $"This proposal was dropped by INSYS's checks ({CheckReason}), so it isn't decided: enter the value in Product Factory.");
+        }
+
+        if (Flag == DraftItemFlags.Missing && decision != DraftItemDecisions.Edited)
+        {
+            return Error.Validation(ErrorCodes.ValidationFailed, "A Missing value is filled by an edit: there is no proposal to accept or reject.");
+        }
+
+        var trimmed = string.IsNullOrWhiteSpace(note) ? null : note.Trim();
+        if (decision == DraftItemDecisions.Edited && (editedValue is null || trimmed is null))
+        {
+            return Error.Validation(ErrorCodes.ValidationFailed, "An edit gives the value and why (AIA-019).");
+        }
+
+        if (decision != DraftItemDecisions.Edited && editedValue is not null)
+        {
+            return Error.Validation(ErrorCodes.ValidationFailed, "Only an edit gives a value.");
+        }
+
+        if (trimmed is { Length: > 500 })
+        {
+            return Error.Validation(ErrorCodes.ValidationFailed, "note is at most 500 characters.");
+        }
+
+        (Decision, EditedValue, DecisionNote, DecidedBy, DecidedAt) = (decision, editedValue, trimmed, by, at);
+        MarkChanged();
+        return Result.Success();
+    }
 
     public static DraftItem Proposed(Guid runId, string kind, string fieldPath, string? value, string flag, Guid? documentId, int? page, string? quote, string? dropped,
         bool inDraft) => new()

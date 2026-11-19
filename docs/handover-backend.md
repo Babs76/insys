@@ -568,6 +568,26 @@ The first of the five fix batches from the scope sweeps (`docs/reviews/read-scop
   - `WorkflowTests`: the coverage of every type; the fail-closed and product-version scoping through a real `ApprovalRequested`; product-only and unresolved approvals; deciding by the approve scope.
   - `WriteScopeTests`: 6 tests, one per write group.
 
+### Wave 7 batch 7.5 (19 November 2026, branch `wave7-5`)
+Ade, 19 November: D-7's line is Life funeral. Build against sample documents, with the evaluation waiting for D-7's real documents.
+- **Review (AIA-019):** `ProductDraftReviewer` checks a decision, writes a version field to the Draft as the user, then records it (`DecideDraftItem`).
+  - Product Factory's port gains two methods: `IProductDrafts.Version`, a read with `GET …/versions/{n}`'s check, and `Edit`, the same `EditConfiguration` command as `PUT …/versions/{n}`. Both are checked as their endpoints are, in the user's scope. This extends 7.4's AIA-017 port, so no new kind of write: Product Factory's state rules refuse a version past Validated.
+  - Two transactions, one aggregate each: Product Factory's write commits, then Assist's record. A record refused after the write leaves the Draft as decided, which the next decision or the report's comparison shows.
+  - A rejected version field goes back to the copied version (the Draft's number minus one).
+- **Provenance (AIA-020):** `ProductDraftProvenance`, read as the approver: the version through Product Factory's read, then the run (`GetDraftRunForVersion`), with each version field compared with the Draft now. Not attached in Workflow, and submission doesn't wait on it: OQ-190.
+- **Simulation cases (AIA-018):** `ProductDraftSimulationCases` gives lines in Rating's test case library format. Assist writes nothing to Rating: the configurator imports them for approval, so nothing bypasses validate, simulate or approval (§4.3).
+- **Evaluation:** `Ai1Evaluation` holds the set's format, the §4.3 measures and the scoring.
+  - `docs/evaluation/ai1-evaluation-set.json` holds one invented case only, as the repository is public.
+  - `dotnet run --project tools/Insys.Assist.Evaluation -- --ai1 docs/evaluation/ai1-evaluation-set.json --out <folder>` reports every measure WAITING and calls no model.
+  - Reading the real documents waits for OQ-191.
+- **Interpretations, for Ade to confirm:**
+  - Only the run's configurator decides, as only they read the run (7.4).
+  - A rejected version field restores the copied version's value.
+  - "Interpreted values cannot be left unreviewed" counts rules and simulation cases too.
+- **Tests:**
+  - `DraftReviewTests`, unit: 29.
+  - `AssistProductDraftReviewTests`, integration: 3. They cover accept, edit, reject and the Draft; If-Match; dropped and Missing; the configurator only; the audit; the report and a change outside the review; the function; the hand-off and Rating untouched.
+
 ### Usability batch (18 November 2026, branch `usability-batch`)
 The front end's four non-breaking requests. None conflicts with the specs or the domain model. Contract note: "Usability batch".
 - **Role labels:**

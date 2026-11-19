@@ -43516,6 +43516,220 @@
         ]
       }
     },
+    "/api/v1/assist/product-drafts/{id}/items/{itemId}/decision": {
+      "post": {
+        "tags": [
+          "Assist"
+        ],
+        "summary": "Accept, edit or reject a proposed value of your run (AIA-019). An edit gives your value and why; the AI\u0027s proposal is kept beside it. A version\u0027s own field is written to the Draft as you, through Product Factory\u0027s edit; anything else is recorded for you to enter in its module. Needs If-Match (the item\u0027s ETag)",
+        "description": "Refused for a proposal INSYS\u0027s checks dropped, for a Missing value except by an edit, and for a version Product Factory no longer lets you edit (past Validated). A rejected version field goes back to the value of the version the Draft was copied from; an effective date is edited, not rejected.",
+        "operationId": "AssistDecideProductDraftItem",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "itemId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssistDraftItemDecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistDraftItemView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "assist_product_draft.run",
+        "x-function": [
+          "ASSIST_PRODUCT_DRAFT_RUN"
+        ]
+      }
+    },
+    "/api/v1/assist/product-drafts/{id}/simulation-cases": {
+      "get": {
+        "tags": [
+          "Assist"
+        ],
+        "summary": "Your accepted and edited simulation cases (AIA-018) as lines for Rating\u0027s test case library, to import through its own import for a second person\u0027s approval, so Product Factory\u0027s simulation runs them with your own. Cases without an expected premium, or without the currency and frequency, are listed apart",
+        "operationId": "AssistProductDraftSimulationCases",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistSimulationCaseExportView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "assist_product_draft.run",
+        "x-function": [
+          "ASSIST_PRODUCT_DRAFT_RUN"
+        ]
+      }
+    },
+    "/api/v1/assist/product-drafts/provenance/{productCode}/{productVersion}": {
+      "get": {
+        "tags": [
+          "Assist"
+        ],
+        "summary": "The provenance report of a version AI-1 drafted (AIA-020), for its approver: every proposed value with its flag, citation and INSYS\u0027s check, whether it was accepted, edited or rejected, by whom and when, and each version field compared with the Draft as it is now. 404 when AI-1 didn\u0027t draft it, or it is outside your scope",
+        "operationId": "AssistGetProductDraftProvenance",
+        "parameters": [
+          {
+            "name": "productCode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "productVersion",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistProductDraftProvenanceView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "assist_product_draft.read_provenance",
+        "x-function": [
+          "ASSIST_PRODUCT_DRAFT_PROVENANCE"
+        ]
+      }
+    },
     "/api/v1/analytics/written-premium": {
       "get": {
         "tags": [
@@ -48063,6 +48277,44 @@
           }
         }
       },
+      "AssistDraftItemDecisionRequest": {
+        "required": [
+          "decision",
+          "value",
+          "note"
+        ],
+        "type": "object",
+        "properties": {
+          "decision": {
+            "enum": [
+              "ACCEPTED",
+              "EDITED",
+              "REJECTED",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "value": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "note": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "AssistDraftItemView": {
         "required": [
           "id",
@@ -48131,6 +48383,46 @@
           },
           "inDraft": {
             "type": "boolean"
+          },
+          "decision": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "editedValue": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "decisionNote": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "decidedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "decidedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64",
+            "default": 0
           }
         }
       },
@@ -48524,6 +48816,62 @@
           }
         }
       },
+      "AssistProductDraftProvenanceView": {
+        "required": [
+          "productCode",
+          "version",
+          "versionStatus",
+          "runId",
+          "requestedBy",
+          "requestedAt",
+          "documents",
+          "items",
+          "summary"
+        ],
+        "type": "object",
+        "properties": {
+          "productCode": {
+            "type": "string"
+          },
+          "version": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "versionStatus": {
+            "type": "string"
+          },
+          "runId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "requestedBy": {
+            "type": "string"
+          },
+          "requestedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "documents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AssistProductDraftDocumentView"
+            }
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AssistProvenanceItem"
+            }
+          },
+          "summary": {
+            "$ref": "#/components/schemas/AssistProvenanceSummary"
+          }
+        }
+      },
       "AssistProductDraftRunView": {
         "required": [
           "id",
@@ -48606,6 +48954,219 @@
               "string"
             ],
             "format": "int64"
+          }
+        }
+      },
+      "AssistProvenanceItem": {
+        "required": [
+          "id",
+          "kind",
+          "field",
+          "flag",
+          "value",
+          "citationDocumentId",
+          "citationFile",
+          "citationPage",
+          "citationQuote",
+          "checkResult",
+          "checkReason",
+          "outcome",
+          "editedValue",
+          "decisionNote",
+          "decidedBy",
+          "decidedAt",
+          "draftValue",
+          "matchesDraft"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "field": {
+            "type": "string"
+          },
+          "flag": {
+            "type": "string"
+          },
+          "value": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "citationDocumentId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "citationFile": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "citationPage": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "citationQuote": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "checkResult": {
+            "type": "string"
+          },
+          "checkReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "editedValue": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "decisionNote": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "decidedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "decidedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "draftValue": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "matchesDraft": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          }
+        }
+      },
+      "AssistProvenanceSummary": {
+        "required": [
+          "items",
+          "accepted",
+          "edited",
+          "rejected",
+          "undecided",
+          "dropped",
+          "interpretedUndecided",
+          "missingUnfilled",
+          "draftDiffers",
+          "reviewComplete"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "accepted": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "edited": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "rejected": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "undecided": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "dropped": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "interpretedUndecided": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "missingUnfilled": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "draftDiffers": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "reviewComplete": {
+            "type": "boolean"
           }
         }
       },
@@ -49194,6 +49755,144 @@
               "string"
             ],
             "format": "int64"
+          }
+        }
+      },
+      "AssistSimulationCaseExportView": {
+        "required": [
+          "productCode",
+          "version",
+          "table",
+          "lines",
+          "notExported",
+          "undecided",
+          "rejected"
+        ],
+        "type": "object",
+        "properties": {
+          "productCode": {
+            "type": "string"
+          },
+          "version": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "table": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AssistSimulationCaseLine"
+            }
+          },
+          "notExported": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AssistSimulationCaseNotExported"
+            }
+          },
+          "undecided": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "rejected": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "AssistSimulationCaseLine": {
+        "required": [
+          "code",
+          "caseId",
+          "productVersion",
+          "inputs",
+          "expectedPremium",
+          "tolerance",
+          "effectiveFrom",
+          "description",
+          "itemId"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "caseId": {
+            "type": "string"
+          },
+          "productVersion": {
+            "type": "string"
+          },
+          "inputs": {
+            "$ref": "#/components/schemas/JsonElement"
+          },
+          "expectedPremium": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "tolerance": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "effectiveFrom": {
+            "type": "string",
+            "format": "date"
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "itemId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "AssistSimulationCaseNotExported": {
+        "required": [
+          "itemId",
+          "description",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "itemId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reason": {
+            "type": "string"
           }
         }
       },

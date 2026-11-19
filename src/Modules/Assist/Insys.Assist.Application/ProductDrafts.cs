@@ -55,6 +55,12 @@ public interface IProductDraftRuns
 
     Task<IReadOnlyList<DraftItem>> Items(Guid runId, CancellationToken cancellationToken);
 
+    /// <summary>One item of a run, tracked, for a decision (AIA-019).</summary>
+    Task<DraftItem?> Item(Guid runId, Guid itemId, CancellationToken cancellationToken);
+
+    /// <summary>The run that drafted a product's version, if AI-1 drafted it (AIA-020).</summary>
+    Task<ProductDraftRun?> ForVersion(string productCode, int version, CancellationToken cancellationToken);
+
     /// <summary>The tenant's runs still queued or running, oldest first.</summary>
     Task<IReadOnlyList<ProductDraftRun>> Open(int limit, CancellationToken cancellationToken);
 }
@@ -79,11 +85,14 @@ public sealed record ProductDraftDocumentView(Guid DocumentId, string? FileName,
 }
 
 /// <param name="Value">The proposed value as JSON text; a rate table is its rows of cells.</param>
+/// <param name="Decision">AIA-019: ACCEPTED, EDITED or REJECTED; null while undecided. <paramref name="EditedValue"/> is the person's value, beside the AI's.</param>
+/// <param name="RowVersion">The item's version, for If-Match on its decision.</param>
 public sealed record DraftItemView(Guid Id, string Kind, string Field, string? Value, string Flag, Guid? CitationDocumentId, int? CitationPage, string? CitationQuote,
-    string CheckResult, string? CheckReason, bool InDraft)
+    string CheckResult, string? CheckReason, bool InDraft, string? Decision = null, string? EditedValue = null, string? DecisionNote = null, string? DecidedBy = null,
+    DateTimeOffset? DecidedAt = null, long RowVersion = 0)
 {
     public static DraftItemView From(DraftItem i) => new(i.Id, i.Kind, i.FieldPath, i.Value, i.Flag, i.CitationDocumentId, i.CitationPage, i.CitationQuote, i.CheckResult,
-        i.CheckReason, i.InDraft);
+        i.CheckReason, i.InDraft, i.Decision, i.EditedValue, i.DecisionNote, i.DecidedBy, i.DecidedAt, i.RowVersion);
 }
 
 public sealed record ProductDraftRunView(Guid Id, string ProductCode, string Status, string RequestedBy, DateTimeOffset RequestedAt, DateTimeOffset? StartedAt,
