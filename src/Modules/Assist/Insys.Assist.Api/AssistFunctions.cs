@@ -30,10 +30,12 @@ using Insys.BuildingBlocks.Api.Functions;
 namespace Insys.Assist.Api;
 
 /// <summary>
-/// AI Assist's nine functions (SRS §3, addendum §5 and §5.3): off by default, and eight in no role template. Five need the AI_ASSIST feature, except the
+/// AI Assist's ten functions (SRS §3, addendum §5 and §5.3): off by default, and eight in no role template. Five need the AI_ASSIST feature, except the
 /// wizard's, whose pack-only path needs only its function (AIA-090), the three overlay functions, which use no model, and ASSIST_PRODUCT_DRAFT_PROVENANCE
 /// (AIA-020), the approver's read of a drafted version's provenance, which stays readable when AI Assist is later switched off. That one is an action under
-/// Product Factory's PRODUCTS screen, in the product manager's, compliance officer's and auditor's templates (Ade, 19 November 2026).
+/// Product Factory's PRODUCTS screen, in the product manager's, compliance officer's and auditor's templates (Ade, 19 November 2026); and
+/// ASSIST_PRODUCT_DRAFT_REVIEW, the configurator's read of a run and decisions on it, also under PRODUCTS with no feature, in the product manager's template
+/// (OQ-190, Ade, 19 November 2026). Starting a run stays under ASSIST_PRODUCT_DRAFT_RUN and the feature.
 /// <list type="bullet">
 /// <item>ASSIST_OVERLAY_MANAGE (platform, privileged): load a pack version and record the partner's review. It never approves (Ade, 15 November).</item>
 /// <item>ASSIST_OVERLAY_APPROVE (platform, privileged): the named lead's approval of a version for every tenant.</item>
@@ -50,8 +52,11 @@ internal static class AssistFunctions
             ["AssistGetSettings", "AssistGetUsage", "AssistSetSettings"], []),
         Action("ASSIST_EXPLAIN_REFUSAL", Features.AiAssist, AssistPermissions.ExplainRefusal, ["AssistExplainRefusal"]),
         Action("ASSIST_EXPLAIN_PREMIUM", Features.AiAssist, AssistPermissions.ExplainPremium, ["AssistExplainPremium"]),
-        Action("ASSIST_PRODUCT_DRAFT_RUN", Features.AiAssist, AssistPermissions.ProductDraftRun, ["AssistStartProductDraft", "AssistGetProductDraft",
-            "AssistDecideProductDraftItem", "AssistProductDraftSimulationCases"]),
+        Action("ASSIST_PRODUCT_DRAFT_RUN", Features.AiAssist, AssistPermissions.ProductDraftRun, ["AssistStartProductDraft"]),
+        // Ade, 19 November 2026 (OQ-190): reading a run and deciding its values need no feature, so a review can always be finished and submission's hold
+        // never blocks a version for good. Under PRODUCTS, with Product Factory's sub-domain, so it is in the product manager's template, as the configurator's.
+        new FunctionDeclaration("ASSIST_PRODUCT_DRAFT_REVIEW", FunctionKind.Action, "PRODUCT_FACTORY", "Definitions & versions", "PRODUCTS", [Audiences.Staff], null,
+            null, false, ["AssistGetProductDraft", "AssistDecideProductDraftItem", "AssistProductDraftSimulationCases"], [AssistPermissions.ProductDraftReview]),
         // Ade, 19 November 2026: under Product Factory's PRODUCTS screen, where the approver works, so its sub-domain and process area are that screen's; no
         // feature, so a report stays readable with AI Assist off. In the product manager's, compliance officer's and auditor's templates.
         new FunctionDeclaration("ASSIST_PRODUCT_DRAFT_PROVENANCE", FunctionKind.Action, "PRODUCT_FACTORY", "Definitions & versions", "PRODUCTS", [Audiences.Staff], null,

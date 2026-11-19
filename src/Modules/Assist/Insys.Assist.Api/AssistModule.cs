@@ -173,7 +173,7 @@ public sealed class AssistModule : IModule
             .WithName("AssistGetProductDraft")
             .WithSummary("The run: its status, the Draft version's number, each document with its confirmation and what reading it found, and every proposed value with "
                 + "its flag, citation and INSYS's check (AIA-013, AIA-014, AIA-015)")
-            .RequirePermission(AssistPermissions.ProductDraftRun);
+            .RequirePermission(AssistPermissions.ProductDraftReview);
         drafts.MapPost("/{id:guid}/items/{itemId:guid}/decision", async (Guid id, Guid itemId, DraftItemDecisionRequest r, ProductDraftReviewer reviewer, HttpContext http,
                 CancellationToken ct) =>
             {
@@ -195,13 +195,13 @@ public sealed class AssistModule : IModule
                 + "field is written to the Draft as you, through Product Factory's edit; anything else is recorded for you to enter in its module. Needs If-Match (the item's ETag)")
             .WithDescription("Refused for a proposal INSYS's checks dropped, for a Missing value except by an edit, and for a version Product Factory no longer lets you edit "
                 + "(past Validated). A rejected version field goes back to the value of the version the Draft was copied from; an effective date is edited, not rejected.")
-            .RequirePermission(AssistPermissions.ProductDraftRun);
+            .RequirePermission(AssistPermissions.ProductDraftReview);
         drafts.MapGet("/{id:guid}/simulation-cases", async (Guid id, ProductDraftSimulationCases cases, CancellationToken ct) => (await cases.For(id, ct)).ToHttp(Results.Ok))
             .Produces<SimulationCaseExportView>(StatusCodes.Status200OK)
             .WithName("AssistProductDraftSimulationCases")
             .WithSummary("Your accepted and edited simulation cases (AIA-018) as lines for Rating's test case library, to import through its own import for a second person's "
                 + "approval, so Product Factory's simulation runs them with your own. Cases without an expected premium, or without the currency and frequency, are listed apart")
-            .RequirePermission(AssistPermissions.ProductDraftRun);
+            .RequirePermission(AssistPermissions.ProductDraftReview);
         drafts.MapGet("/provenance/{productCode}/{productVersion:int}", async (string productCode, int productVersion, ProductDraftProvenance provenance,
                 CancellationToken ct) => (await provenance.For(productCode, productVersion, ct)).ToHttp(Results.Ok))
             .Produces<ProductDraftProvenanceView>(StatusCodes.Status200OK)

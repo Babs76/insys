@@ -106,7 +106,8 @@ Read against main.
 |---|---|---|---|
 | `ASSIST_SETTINGS_MANAGE` | Staff | No | The tenant's settings and usage |
 | `ASSIST_EXPLAIN_REFUSAL`, `ASSIST_EXPLAIN_PREMIUM` | Staff | No | AI-2's explanations |
-| `ASSIST_PRODUCT_DRAFT_RUN` | Staff | No | AI-1's drafts (7.4) |
+| `ASSIST_PRODUCT_DRAFT_RUN` | Staff | No | Starting AI-1's drafts (7.4), under `AI_ASSIST` |
+| `ASSIST_PRODUCT_DRAFT_REVIEW` | Staff | No | Reading a run and deciding its values, and its simulation cases (AIA-018, AIA-019). An action under Product Factory's `PRODUCTS` screen, with no feature, so a review can always be finished and submission's hold (OQ-190) never blocks a version for good; in the product manager's template (Ade, 19 November 2026) |
 | `ASSIST_TENANT_SETUP_RUN` | Staff | No | The wizard (AI-3), and loading the tenant's own fallback overlay, only while it is onboarding (Ade, 15 November) |
 | `ASSIST_OVERLAY_MANAGE` | Platform | Yes | Loading a pack version for every tenant and recording the partner's review. It never approves (Ade, 15 November) |
 | `ASSIST_OVERLAY_APPROVE` | Platform | Yes | The named lead's approval of a version for every tenant |
@@ -304,4 +305,4 @@ Where Nigerian tenants are hosted (D-13), which the Nigerian compliance partner 
 - **Who decides:** only the configurator who ran the draft decides its values. Anyone else runs a draft of their own.
 - **A rejection** puts back the value of the version the Draft was copied from.
 - **Interpreted rules and simulation cases** must be reviewed too, as much as a version's own fields: they count in the provenance report's `reviewComplete`, and so in the submission check (OQ-190 (b)).
-- **The provenance report's function** (`ASSIST_PRODUCT_DRAFT_PROVENANCE`) is an action under Product Factory's `PRODUCTS` screen (sub-domain `PRODUCT_FACTORY`, process area "Definitions & versions"), with no feature, so a report stays readable with AI Assist off. It is in the product manager's, compliance officer's and auditor's templates; the other eight Assist functions stay in none.
+- **The provenance report's function** (`ASSIST_PRODUCT_DRAFT_PROVENANCE`) is an action under Product Factory's `PRODUCTS` screen (sub-domain `PRODUCT_FACTORY`, process area "Definitions & versions"), with no feature, so a report stays readable with AI Assist off. It is in the product manager's, compliance officer's and auditor's templates. `ASSIST_PRODUCT_DRAFT_REVIEW` (OQ-190, Ade 19 November 2026) sits beside it, also with no feature, in the product manager's template; the other eight Assist functions stay in none. The compliance officer views the `PRODUCTS` screen only: no product maintain or approve action (tested).

@@ -45,7 +45,7 @@ public sealed class AssistProductDraftReviewTests(DatabaseFixture fixture) : ICl
     private const string Drafts = "/api/v1/assist/product-drafts";
 
     private static readonly string[] Functions =
-        ["ASSIST_PRODUCT_DRAFT_RUN", "PRODUCTS", "PRODUCT_CREATE_DRAFT_VERSION", "PRODUCT_EDIT_CONFIGURATION", "DOCUMENTS", "DOCUMENTS_STORE"];
+        ["ASSIST_PRODUCT_DRAFT_RUN", "ASSIST_PRODUCT_DRAFT_REVIEW", "PRODUCTS", "PRODUCT_CREATE_DRAFT_VERSION", "PRODUCT_EDIT_CONFIGURATION", "DOCUMENTS", "DOCUMENTS_STORE"];
 
     private static readonly string[][] Wording =
     [
@@ -241,6 +241,24 @@ public sealed class AssistProductDraftReviewTests(DatabaseFixture fixture) : ICl
         after.GetProperty("items").EnumerateArray().Single(i => i.GetProperty("field").GetString() == "version.name").GetProperty("matchesDraft").GetBoolean().ShouldBeFalse();
 
         // Without the function: refused. A version AI-1 didn't draft: not found.
+        // Ade, 19 November 2026: the compliance officer views Product Factory's PRODUCTS screen and reads the report, and can change nothing there.
+        var compliance = RoleTemplates.Expand(RoleTemplates.All.Single(t => t.Code == "COMPLIANCE_OFFICER"), FunctionRegistry.All()).Select(f => f.Code).ToArray();
+        await fixture.Database.UserWithFunctions(w.Tenant, "ar-compliance", compliance);
+        var officer = w.Host.ClientFor(w.Tenant, "ar-compliance");
+        (await officer.GetAsync($"/api/v1/product-factory/products/{w.Product}/versions/2")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await officer.GetAsync($"{Drafts}/provenance/{w.Product}/2")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        var version = await officer.GetAsync($"/api/v1/product-factory/products/{w.Product}/versions/2");
+        foreach (var write in new[]
+                 {
+                     officer.Send(HttpMethod.Post, $"/api/v1/product-factory/products/{w.Product}/versions", new { effectiveFrom = TestClock.Today.AddDays(30) }, idempotent: true),
+                     officer.Send(HttpMethod.Post, $"/api/v1/product-factory/products/{w.Product}/versions/2/validate", ifMatch: version.ETag()),
+                     officer.Send(HttpMethod.Post, $"/api/v1/product-factory/products/{w.Product}/versions/2/submit", new { reason = "Launch" }, ifMatch: version.ETag()),
+                 })
+        {
+            var response = await write;
+            response.StatusCode.ShouldBe(HttpStatusCode.Forbidden, await response.Content.ReadAsStringAsync());
+        }
+
         await fixture.Database.UserWithFunctions(w.Tenant, "ar-reader", "PRODUCTS");
         (await w.Host.ClientFor(w.Tenant, "ar-reader").GetAsync($"{Drafts}/provenance/{w.Product}/2")).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         (await approver.GetAsync($"{Drafts}/provenance/{w.Product}/1")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
@@ -327,6 +345,65 @@ public sealed class AssistProductDraftReviewTests(DatabaseFixture fixture) : ICl
     }
 
     /// <summary>
+    /// OQ-190, Ade 19 November 2026: the hold applies to every version AI-1 drafted, whether or not the tenant has AI Assist today. A version drafted with
+    /// AI Assist on, then the entitlement ended, is refused at submission until its review is finished without AI Assist, then submits. Starting a new run
+    /// still needs the feature.
+    /// </summary>
+    [Fact]
+    public async Task Submission_HoldsAnAiDraftedVersion_AfterAiAssistIsTurnedOff_UntilItsReviewIsFinishedWithoutAi_ThenSubmits_OQ190()
+    {
+        var w = await Ready("ar-off", "PRODUCT_VALIDATE_VERSION", "PRODUCT_SUBMIT_FOR_APPROVAL");
+        await fixture.Database.SeedStatic(w.Tenant, "product.cfg_product_approval_workflow_settings", "EFFECTIVE", "AR-APPROVAL", TestClock.Today.AddDays(-30),
+            ("tenant", "AR"), ("states_used", new[] { "DRAFT", "SUBMITTED", "APPROVED" }), ("approver_roles", new[] { "PRODUCT_MANAGER" }),
+            ("simulation_required", false));
+        var run = await Drafted(w);
+        var id = run.GetProperty("id").GetGuid();
+        await fixture.Database.ExecuteAsOwner("UPDATE tenant.cfg_feature_entitlements SET record_status = 'RETIRED' WHERE tenant_id IS NULL AND code = @c",
+            ("c", $"AR{w.Product[4..]}:AI_ASSIST"));
+        // Ended outside INSYS, so no event evicts the users' cached functions: evicted here, as the entitlement's own event would.
+        w.Host.Services.GetRequiredService<Insys.Identity.Application.Users.IPermissionCache>().EvictTenant(w.Tenant);
+
+        var started = await w.User.Send(HttpMethod.Post, Drafts, new { productCode = w.Product, documents = Array.Empty<object>() }, idempotent: true);
+        started.StatusCode.ShouldBe(HttpStatusCode.Forbidden, "starting a run still needs the feature");
+        (await started.Code()).ShouldBe("FEATURE_NOT_ENTITLED");
+
+        var url = $"/api/v1/product-factory/products/{w.Product}/versions/2";
+        async Task Validate()
+        {
+            if ((await Draft(w)).GetProperty("status").GetString() == "Draft")
+            {
+                var validated = await w.User.Send(HttpMethod.Post, $"{url}/validate", ifMatch: (await w.User.GetAsync(url)).ETag());
+                validated.StatusCode.ShouldBe(HttpStatusCode.NoContent, await validated.Content.ReadAsStringAsync());
+            }
+        }
+
+        async Task<HttpResponseMessage> Submit() => await w.User.Send(HttpMethod.Post, $"{url}/submit", new { reason = "Launch" }, ifMatch: (await w.User.GetAsync(url)).ETag());
+
+        await Validate();
+        var refused = await Submit();
+        refused.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity, await refused.Content.ReadAsStringAsync());
+        (await refused.Code()).ShouldBe("PRODUCT_AI_REVIEW_INCOMPLETE", "the hold holds with AI Assist off");
+
+        // The review is finished without AI Assist: every Interpreted value that passed INSYS's checks is decided.
+        var items = (await (await w.User.GetAsync($"{Drafts}/{id}")).Json()).GetProperty("items").EnumerateArray()
+            .Where(i => i.GetProperty("flag").GetString() == "INTERPRETED" && i.GetProperty("checkResult").GetString() == "PASSED")
+            .Select(i => i.GetProperty("id").GetGuid()).ToList();
+        items.ShouldNotBeEmpty();
+        foreach (var itemId in items)
+        {
+            var fresh = await (await w.User.GetAsync($"{Drafts}/{id}")).Json();
+            var current = fresh.GetProperty("items").EnumerateArray().First(i => i.GetProperty("id").GetGuid() == itemId);
+            var decided = await Decide(w, run, current, current.GetProperty("kind").GetString() == "SIM_CASE" ? "REJECTED" : "ACCEPTED");
+            decided.StatusCode.ShouldBe(HttpStatusCode.OK, await decided.Content.ReadAsStringAsync());
+        }
+
+        await Validate();
+        var submitted = await Submit();
+        submitted.StatusCode.ShouldBe(HttpStatusCode.NoContent, await submitted.Content.ReadAsStringAsync());
+        (await Draft(w)).GetProperty("status").GetString().ShouldBe("Submitted");
+    }
+
+    /// <summary>
     /// Ade, 19 November 2026: the provenance report's function sits under Product Factory's PRODUCTS screen, with no feature, in the product manager's template.
     /// A product manager reads an existing report once the tenant's AI Assist entitlement has ended; a user without the function is refused.
     /// </summary>
@@ -339,9 +416,9 @@ public sealed class AssistProductDraftReviewTests(DatabaseFixture fixture) : ICl
             ("c", $"AR{w.Product[4..]}:AI_ASSIST"));
         // Ended outside INSYS, so no event evicts the users' cached functions: evicted here, as the entitlement's own event would.
         w.Host.Services.GetRequiredService<Insys.Identity.Application.Users.IPermissionCache>().EvictTenant(w.Tenant);
+        // The run stays readable with AI Assist off: reading and deciding are ASSIST_PRODUCT_DRAFT_REVIEW's, which needs no feature (OQ-190, Ade 19 November).
         var off = await w.User.GetAsync($"{Drafts}/{run.GetProperty("id").GetGuid()}");
-        off.StatusCode.ShouldBe(HttpStatusCode.Forbidden, "AI Assist is off: the run's own function needs the feature");
-        (await off.Code()).ShouldBe("FEATURE_NOT_ENTITLED");
+        off.StatusCode.ShouldBe(HttpStatusCode.OK, await off.Content.ReadAsStringAsync());
 
         var manager = RoleTemplates.Expand(RoleTemplates.All.Single(t => t.Code == "PRODUCT_MANAGER"), FunctionRegistry.All()).Select(f => f.Code).ToArray();
         manager.ShouldContain("ASSIST_PRODUCT_DRAFT_PROVENANCE");
@@ -355,6 +432,24 @@ public sealed class AssistProductDraftReviewTests(DatabaseFixture fixture) : ICl
         var products = menu.GetProperty("domains").EnumerateArray().SelectMany(d => d.GetProperty("subDomains").EnumerateArray())
             .SelectMany(sd => sd.GetProperty("screens").EnumerateArray()).Single(sc => sc.GetProperty("functionCode").GetString() == "PRODUCTS");
         products.GetProperty("actions").EnumerateArray().Select(a => a.GetProperty("functionCode").GetString()).ShouldContain("ASSIST_PRODUCT_DRAFT_PROVENANCE");
+
+        // Ade, 19 November 2026: the compliance officer views Product Factory's PRODUCTS screen and reads the report, and can change nothing there.
+        var compliance = RoleTemplates.Expand(RoleTemplates.All.Single(t => t.Code == "COMPLIANCE_OFFICER"), FunctionRegistry.All()).Select(f => f.Code).ToArray();
+        await fixture.Database.UserWithFunctions(w.Tenant, "ar-compliance", compliance);
+        var officer = w.Host.ClientFor(w.Tenant, "ar-compliance");
+        (await officer.GetAsync($"/api/v1/product-factory/products/{w.Product}/versions/2")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await officer.GetAsync($"{Drafts}/provenance/{w.Product}/2")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        var version = await officer.GetAsync($"/api/v1/product-factory/products/{w.Product}/versions/2");
+        foreach (var write in new[]
+                 {
+                     officer.Send(HttpMethod.Post, $"/api/v1/product-factory/products/{w.Product}/versions", new { effectiveFrom = TestClock.Today.AddDays(30) }, idempotent: true),
+                     officer.Send(HttpMethod.Post, $"/api/v1/product-factory/products/{w.Product}/versions/2/validate", ifMatch: version.ETag()),
+                     officer.Send(HttpMethod.Post, $"/api/v1/product-factory/products/{w.Product}/versions/2/submit", new { reason = "Launch" }, ifMatch: version.ETag()),
+                 })
+        {
+            var response = await write;
+            response.StatusCode.ShouldBe(HttpStatusCode.Forbidden, await response.Content.ReadAsStringAsync());
+        }
 
         await fixture.Database.UserWithFunctions(w.Tenant, "ar-reader", "PRODUCTS");
         var refused = await w.Host.ClientFor(w.Tenant, "ar-reader").GetAsync($"{Drafts}/provenance/{w.Product}/2");

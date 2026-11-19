@@ -43874,9 +43874,9 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "assist_product_draft.run",
+        "x-permission": "assist_product_draft.review",
         "x-function": [
-          "ASSIST_PRODUCT_DRAFT_RUN"
+          "ASSIST_PRODUCT_DRAFT_REVIEW"
         ]
       }
     },
@@ -43965,9 +43965,9 @@
             "$ref": "#/components/responses/Problem422"
           }
         },
-        "x-permission": "assist_product_draft.run",
+        "x-permission": "assist_product_draft.review",
         "x-function": [
-          "ASSIST_PRODUCT_DRAFT_RUN"
+          "ASSIST_PRODUCT_DRAFT_REVIEW"
         ]
       }
     },
@@ -44022,9 +44022,9 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "assist_product_draft.run",
+        "x-permission": "assist_product_draft.review",
         "x-function": [
-          "ASSIST_PRODUCT_DRAFT_RUN"
+          "ASSIST_PRODUCT_DRAFT_REVIEW"
         ]
       }
     },

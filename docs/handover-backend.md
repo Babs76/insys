@@ -568,6 +568,16 @@ The first of the five fix batches from the scope sweeps (`docs/reviews/read-scop
   - `WorkflowTests`: the coverage of every type; the fail-closed and product-version scoping through a real `ApprovalRequested`; product-only and unresolved approvals; deciding by the approve scope.
   - `WriteScopeTests`: 6 tests, one per write group.
 
+### Review-gap batch (19 November 2026, branch `review-gap`; Ade's decisions on the AI-1 follow-up)
+- **OQ-190's gap closed:** the submission hold applies to every version AI-1 drafted, whether or not the tenant has AI Assist today. `ProductDraftSubmissionCheck` no longer skips a tenant without the feature.
+  - Reading a run, deciding its values and exporting its simulation cases moved to a new function, `ASSIST_PRODUCT_DRAFT_REVIEW`: under `PRODUCTS`, no feature, permission `assist_product_draft.review`, in the product manager's template through Product Factory's sub-domain. That is its only grant.
+  - Starting a run stays `ASSIST_PRODUCT_DRAFT_RUN`'s, under `AI_ASSIST`, in no template.
+  - Tested in `AssistProductDraftReviewTests`: a version drafted with AI Assist on, then the entitlement ended, is refused at submission, its review is finished without AI Assist, then it submits; starting a new run is refused `FEATURE_NOT_ENTITLED`. With the old exemption put back, the test fails.
+- **The compliance officer's `PRODUCTS` screen is for viewing only:** tested in `AssistTests` (its expanded template holds only `PRODUCTS` and the provenance report in Product Factory, no `PRODUCT_*` action and no `SD_PRODUCT_FACTORY_*`) and in `AssistProductDraftReviewTests` (it reads the version and the report; creating a draft version, validating and submitting are refused 403).
+- **OQ-191 changed to two private repositories:** the set in `Babs76/insys-ai1-eval` with a read-only key (`AI1_EVAL_DEPLOY_KEY`); the review files in `Babs76/insys-ai1-eval-results` under `reviews/<run id>` with their own write key (`AI1_EVAL_RESULTS_KEY`); both secrets in `assist-eval` only. Runbook: `docs/runbooks/ai1-evaluation-data.md`. The job isn't built; the D-7 hold stays.
+- **The Preview plan (prepare only):** memory requests and limits for Keycloak, PostgreSQL, OpenBao and SeaweedFS (0.6, a chart change to make before the reset); a reading during the seed (0.7, a `preview.sh` change); the pending reboot first, after a backup (0A). Nothing ran on the Preview.
+- **Regenerated:** `R__function_catalogue.sql`, `role-templates.md`, `openapi-core.json`. No migration.
+
 ### Wave 7 batch 7.8 (19 November 2026, branch `wave7-8`)
 AI-3's tailoring and document mapping, built against invented documents; its evaluation waits for the tenant sample documents. Ade, 19 November: OQ-186 to OQ-188 decided as recommended, each value taking effect only after a person accepts it. Contract note: "Wave 7 batch 7.8".
 - **V0147:** `starter_pack_value.tailor_columns` and `tailor_from` (OQ-187 (a)); `assist.setup_ai_run`, `setup_document`, `setup_unmapped`; `setup_item` gains the pass and its citations, with checks: Tailored cites an answer, Mapped a document, page and quote, both from a pass, and a regulated value is never tailored.
@@ -591,7 +601,7 @@ Ade's decisions on 7.5, the same day. Contract note: "AI-1's submission check".
 - **§9.2 amendments** (addendum): Product Factory's AI-1 port writes only through its normal commands (`Create`, `Edit`), and its submission asks an optional check, the second narrow exception.
 - **The check (OQ-190 (b)):** `IProductSubmissionCheck` in Product Factory's Contracts. `SubmitForApprovalHandler` asks every registered one, only for a Validated version, giving the version and the one before it (the copied version).
   - Assist's `ProductDraftSubmissionCheck` reads the latest DRAFTED run for that version on Assist's own connection, and applies `ProductDraftProvenance.Review`, the same rule as the report's `reviewComplete`. Refused: `PRODUCT_AI_REVIEW_INCOMPLETE` (422), with the counts.
-  - Not held: a version AI-1 didn't draft; a tenant whose `ASSIST_PRODUCT_DRAFT_RUN` is refused for the feature or switched off (TODO(spec) in OQ-190).
+  - Not held: a version AI-1 didn't draft. Every version AI-1 drafted is held until its review is complete, whether or not the tenant has AI Assist today (Ade, 19 November 2026; review-gap batch).
 - **The report's function:** `ASSIST_PRODUCT_DRAFT_PROVENANCE` moved under `PRODUCTS` (sub-domain `PRODUCT_FACTORY`, process area "Definitions & versions"), still with no feature. In the product manager's template through its sub-domain; in the compliance officer's and the auditor's through `Extra` (the compliance officer gains the `PRODUCTS` screen with it). The auditor's description says it now holds this one action.
 - **OQ-191 (a):** Ade's steps are `docs/runbooks/ai1-evaluation-data.md`. The job's read of the set and its write of the review file aren't built; nothing from D-7 until Ade confirms the insurer's permission covers Anthropic in the US region.
 - **Tests:**

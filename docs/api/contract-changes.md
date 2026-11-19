@@ -2,6 +2,17 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
+## Review-gap batch: an AI-1 review can always be finished (Ade, 19 November 2026, OQ-190)
+- **New function `ASSIST_PRODUCT_DRAFT_REVIEW`:** an action under Product Factory's `PRODUCTS` screen, staff, not privileged, no feature, in the product manager's template. It holds three operations that were `ASSIST_PRODUCT_DRAFT_RUN`'s:
+  - `GET /assist/product-drafts/{id}`;
+  - `POST /assist/product-drafts/{id}/items/{itemId}/decision`;
+  - `GET /assist/product-drafts/{id}/simulation-cases`.
+  Their `x-function` changes accordingly; paths, bodies and responses are unchanged. Only the run's configurator decides, as before (404 for anyone else).
+- **`ASSIST_PRODUCT_DRAFT_RUN`** now holds only `POST /assist/product-drafts`, still under `AI_ASSIST`. A configurator needs both functions: the run's to start, the review's to read and decide.
+- **Submission's hold** (`PRODUCT_AI_REVIEW_INCOMPLETE`, 422) now applies to every version AI-1 drafted, whether or not the tenant has AI Assist today. Before, a tenant without the feature wasn't held.
+- **The compliance officer** holds `PRODUCTS` for viewing only, with the provenance report: no product maintain or approve action (tested).
+- **For the front end:** show the run's review and the decision actions under `ASSIST_PRODUCT_DRAFT_REVIEW` from the menu, not under `ASSIST_PRODUCT_DRAFT_RUN`; with AI Assist off, the review stays available and starting a run doesn't.
+
 ## Wave 7 batch 7.8: AI-3's tailoring and document mapping (Ade, 19 November 2026: OQ-186 to OQ-188)
 All added, none breaking. Nothing AI-3 proposes takes effect until a person accepts it and a second person approves the SETUP change set.
 - **Documents on a setup** (D-16, as AI-1's): `POST /assist/tenant-setups/{id}/documents` (If-Match, Idempotency-Key) with `{ documents: [{ documentId, confirmsNoPersonalData }] }`; `GET …/documents`; `DELETE …/documents/{documentId}` (If-Match).
