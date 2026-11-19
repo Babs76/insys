@@ -567,6 +567,21 @@ The first of the five fix batches from the scope sweeps (`docs/reviews/read-scop
   - `WorkflowTests`: the coverage of every type; the fail-closed and product-version scoping through a real `ApprovalRequested`; product-only and unresolved approvals; deciding by the approve scope.
   - `WriteScopeTests`: 6 tests, one per write group.
 
+### Usability batch (18 November 2026, branch `usability-batch`)
+The front end's four non-breaking requests. None conflicts with the specs or the domain model. Contract note: "Usability batch".
+- **Role labels:**
+  - `RoleFacts.Labels` comes from the role row's `labels`.
+  - `RoleLabels.For` picks the caller's language (`RequestLanguage.Chain`), else the template's name through `IRoleTemplateNames`. That interface is implemented in the Api by `RoleTemplateNames` over `RoleTemplates.All`, since the application can't see the Api.
+  - Tests: `RoleLabelTests` (unit) and `MeTests.EachRole_HasALabel_…`.
+- **General claims by party:** `ListClaims.PartyId` and `PartyRole`, filtered in the query through `Parties.Any`. Test: `GeneralClaimsListTests` (fails with the filter undone).
+  - **Not added:** an index on `general.claim_party (tenant_id, party_id)`. It needs a migration after V0142, which is still on `directory-rls`. To add when that has merged, if lists by party grow slow.
+- **Coverage codes:** `[CodeList(CodeLists.Coverages, "code")]` on the nine fields. Their nine rows are gone from `docs/api/code-field-allowances.tsv`. Test: `OpenApiContractTests.EveryCoverageCode_NamesTheCoverageLibraryAsItsCodeList`.
+- **Decidable count:**
+  - `CountDecidableApprovalsHandler` checks approvals as the decidable list does, stopping at one past the cap (99). The cap bounds the work: each approval is checked against scope, authority and the named permission.
+  - The endpoint caches the result in `IMemoryCache` for 30 seconds, by tenant and user.
+  - Test: `WorkflowTests.TheDecidableCount_IsTheDecidableListsLength_CappedAt99_BR004`, which fails without the cap.
+- **A test lesson:** `--filter-class '*MeTests'` also matches `OftzaSeedResumeTests` (about 25 minutes). Name a class in full: `Insys.IntegrationTests.MeTests`.
+
 ### Release batch (18 November 2026, branch `release-batch`, on the availability batch)
 Ade's refinement of the availability batch: a platform-wide row releases only the parks it can resolve, in batches.
 - **`RetryParkedOnConfiguration`:**
