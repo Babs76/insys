@@ -26,7 +26,7 @@
  */
 namespace Insys.Assist.Contracts;
 
-/// <summary>The permissions of AI Assist's eight functions (SRS §3, addendum §5 and §5.3).</summary>
+/// <summary>The permissions of AI Assist's nine functions (SRS §3, addendum §5 and §5.3).</summary>
 public static class AssistPermissions
 {
     public const string SettingsManage = "assist_settings.manage";

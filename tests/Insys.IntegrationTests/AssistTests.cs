@@ -104,12 +104,12 @@ public sealed class AssistTests(DatabaseFixture fixture) : IClassFixture<Databas
     }
 
     [Fact]
-    public async Task EightFunctions_AreInTheCatalogue_InNoRoleTemplate_AndTheOverlayFunctionsArePrivileged()
+    public async Task NineFunctions_AreInTheCatalogue_InNoRoleTemplate_AndTheOverlayFunctionsArePrivileged()
     {
         var functions = new[] { "ASSIST_SETTINGS_MANAGE", "ASSIST_EXPLAIN_REFUSAL", "ASSIST_EXPLAIN_PREMIUM", "ASSIST_PRODUCT_DRAFT_RUN", "ASSIST_TENANT_SETUP_RUN", "ASSIST_OVERLAY_APPROVE",
-            "ASSIST_OVERLAY_MANAGE", "ASSIST_OVERLAY_APPROVE_TENANT" };
-        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM iam.ref_function_catalogue WHERE tenant_id IS NULL AND function_code = ANY(@f)", ("f", functions))).ShouldBe(8L);
-        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM iam.ref_function_catalogue WHERE tenant_id IS NULL AND function_code LIKE 'ASSIST%'")).ShouldBe(8L, "and no others");
+            "ASSIST_OVERLAY_MANAGE", "ASSIST_OVERLAY_APPROVE_TENANT", "ASSIST_PRODUCT_DRAFT_PROVENANCE" };
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM iam.ref_function_catalogue WHERE tenant_id IS NULL AND function_code = ANY(@f)", ("f", functions))).ShouldBe(9L);
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM iam.ref_function_catalogue WHERE tenant_id IS NULL AND function_code LIKE 'ASSIST%'")).ShouldBe(9L, "and no others");
         foreach (var (code, audience) in new[] { ("ASSIST_OVERLAY_MANAGE", "PLATFORM"), ("ASSIST_OVERLAY_APPROVE_TENANT", "STAFF") })
         {
             (await fixture.Database.ScalarAsOwner<string>("SELECT privileged::text || ':' || array_to_string(audiences, ',') FROM iam.ref_function_catalogue WHERE tenant_id IS NULL AND function_code = @c",
@@ -121,6 +121,11 @@ public sealed class AssistTests(DatabaseFixture fixture) : IClassFixture<Databas
         (await fixture.Database.ScalarAsOwner<string>("""
             SELECT privileged::text || ':' || array_to_string(audiences, ',') FROM iam.ref_function_catalogue WHERE tenant_id IS NULL AND function_code = 'ASSIST_OVERLAY_APPROVE'
             """)).ShouldBe("true:PLATFORM");
+        // AIA-020 (7.5): the approver's read of a drafted version's provenance, for staff, not privileged, and not tied to the AI_ASSIST feature.
+        (await fixture.Database.ScalarAsOwner<string>("""
+            SELECT privileged::text || ':' || array_to_string(audiences, ',') || ':' || coalesce(required_feature, '-') FROM iam.ref_function_catalogue
+            WHERE tenant_id IS NULL AND function_code = 'ASSIST_PRODUCT_DRAFT_PROVENANCE'
+            """)).ShouldBe("false:STAFF:-");
     }
 
     private async Task<(Guid Tenant, HttpClient Client, InsysApiFactory Host, StubAiModelProvider Stub)> Ready(long? cap = null)
