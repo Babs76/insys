@@ -255,7 +255,7 @@ public sealed class FunctionAccessTests(DatabaseFixture fixture) : IClassFixture
         (await Parked(before, consumer)).ShouldBe($"{PrerequisiteCodes.FeatureNotEntitled} LIFE_EVENT_PROCESSING", "not entitled yet: this one rightly parks, and fills the cache");
 
         // Entitled again, with no activation event yet: inside the cache's 30 seconds, as when the entitlement's event is still in another outbox.
-        await fixture.Database.ExecuteAsOwner("UPDATE tenant.cfg_feature_entitlements SET record_status = 'EFFECTIVE' WHERE tenant = @c AND feature = 'LIFE'", ("c", code));
+        await fixture.Database.CorrectAsOwnerPastTheGuard("UPDATE tenant.cfg_feature_entitlements SET record_status = 'EFFECTIVE' WHERE tenant = @c AND feature = 'LIFE'", ("c", code));
         var after = await Decided();
         (await fixture.Database.ScalarAsOwner<string>("SELECT status FROM integration.parked_delivery WHERE event_id = @e AND consumer = @c", ("e", after), ("c", consumer)))
             .ShouldBeNull("processed at once, never in the ledger: a refusal is checked against the database before it parks, never taken from the cache");

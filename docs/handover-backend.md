@@ -596,7 +596,15 @@ The front end's four non-breaking requests. None conflicts with the specs or the
   - Test: `WorkflowTests.TheDecidableCount_IsTheDecidableListsLength_CappedAt99_BR004`, which fails without the cap.
 - **A test lesson:** `--filter-class '*MeTests'` also matches `OftzaSeedResumeTests` (about 25 minutes). Name a class in full: `Insys.IntegrationTests.MeTests`.
 
-### Seed dates (19 November 2026, branch `seed-business-date`)
+### Status guard (19 November 2026, branch `status-guard`, V0144)
+Ade: OQ-185 option (b), with tests that every move INSYS makes still works and a backward move is refused.
+- **V0144** replaces `sdm.guard_static_version`, the trigger on every static data table, unchanged except for one rule: an approved row's status moves only forward.
+  - Reference: Approved to Active, Active to Deprecated or Retired, Deprecated to Retired.
+  - Configuration: Approved to Published, Published to Effective, Published or Effective to Withdrawn, Published, Effective or Withdrawn to Retired.
+  - An unchanged status stays allowed, so `effective_to` still closes when a new version supersedes a row.
+- **A deliberate correction:** as the owner, with triggers off for that connection. Tests do it through `TestDatabase.CorrectAsOwnerPastTheGuard`, where they put a retired row back in force to restore their state (three in `OnboardingReadinessTests`, one in `FunctionAccessTests`).
+- **Tests:** `StaticStatusGuardTests` tries every move from every locked status on one table of each lifecycle, and the gap OQ-185 found (Effective back to Draft). All three fail without V0144. The classes that drive INSYS's own moves passed with it: 105 of 105 across 13 classes (static data, imports, withdrawal, setup submission, onboarding readiness, function access, tenancy, tenant administrators, approval endings, communications, shared services, the simulator guard).
+
 Ade: treat a repeat of the seed failure as a defect. It was one.
 - **What failed:** all three seed jobs of CI run 44424678908, at `955665b`, at a 422 from `complete-onboarding-step`: `PRODUCT_FACTORY is not ready: PRODUCT_PUBLISHED`.
   - The earlier report put this on `85961bf`. That was wrong: the seed jobs passed there, failed only at `955665b`, and passed again at `ddc0d68`.

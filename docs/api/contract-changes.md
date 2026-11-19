@@ -19,6 +19,9 @@ All added, none breaking. Nothing AI-3 proposes takes effect until a person acce
 - **Packs:** a row may carry `tailor: { columns, from }` (docs/specs/starter-packs/README.md). The review sheet's rows gain `tailorColumns` and `tailorFrom`.
 - **Stand-in model:** with `Assist:Provider=development`, the published test document `docs/frontend/ai3-sample-tenant-documents.pdf` gets fixed mappings, one dropped for a wrong figure, and one title left unmapped.
 
+## Status guard: an approved row's status moves only forward (V0144, OQ-185, 19 November 2026)
+- **No API change.** INSYS's own moves are unchanged. In the database, a direct update that moves an approved static data row's status backwards, such as a published product version back to `DRAFT`, is refused.
+
 ## Usability batch: the front end's four requests (18 November 2026)
 All added, none breaking.
 - **Role labels:** `label` on each role in `GET /identity/me` (`roles[]`) and `GET /identity/roles`. It is the role's own label in the caller's languages (its static row's `labels`), else its role template's name, else null, in which case the client shows `roleCode`.
