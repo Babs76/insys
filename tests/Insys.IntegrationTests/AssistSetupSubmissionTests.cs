@@ -451,8 +451,8 @@ public sealed class AssistSetupSubmissionTests(DatabaseFixture fixture) : IClass
                 SELECT string_agg(entity_code || ' ' || status, ', ' ORDER BY entity_code) FROM sdm.change_request
                 WHERE tenant_id = @t AND setup_set_id = @s AND status <> 'ACTIVE'
                 """, ("t", tenant), ("s", setId)))
-                .ShouldBe("cfg_authentication_and_session_policies REJECTED, cfg_channel_definitions APPROVED",
-                    "the pending batch is rejected; the one its module refused keeps APPROVED, which domain-model.json can't leave (OQ-183)");
+                .ShouldBe("cfg_authentication_and_session_policies REJECTED, cfg_channel_definitions REJECTED",
+                    "the pending batch is rejected, and so is the approved one its module refused (OQ-183)");
             (await (await wizard.GetAsync($"{Setups}/{run}")).Json()).GetProperty("status").GetString().ShouldBe("DRAFT", "the setup is a draft again");
             var state = await host.Services.GetRequiredService<Insys.StaticData.Contracts.ISetupChangeSetState>().For(tenant, CancellationToken.None);
             (state.Open, state.AbandonedSinceApplied).ShouldBe((0, 1), "go-live waits for a new set to complete");

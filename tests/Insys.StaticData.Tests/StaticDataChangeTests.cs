@@ -45,6 +45,8 @@ public sealed class StaticDataChangeTests
         var specified = DomainModelSpec.Transitions("sdm", "StaticDataChange")
             .Where(t => !t.StartsWith("Draft-", StringComparison.Ordinal))
             .Select(t => t.Replace("Effective date reached", "ActivateVersion", StringComparison.Ordinal))
+            // OQ-183 (Ade, 19 November 2026): an approved SETUP batch not in force ends Rejected when its set is abandoned.
+            .Append("Approved-AbandonSetup->Rejected")
             .ToList();
         var implemented = StaticDataChange.Lifecycle.Transitions.Select(t => $"{t.From}-{t.Trigger}->{t.To}").OrderBy(t => t, StringComparer.Ordinal).ToList();
 
@@ -152,5 +154,31 @@ public sealed class StaticDataChangeTests
         settings.DecidePending(approved: false, Guid.CreateVersion7()).IsSuccess.ShouldBeTrue();
         settings.Tier2MakerChecker.ShouldBeTrue();
         settings.PendingTier2MakerChecker.ShouldBeNull();
+    }
+
+    [Fact]
+    public void AnApprovedSetupBatch_NotInForce_IsRejected_WhenItsSetIsAbandoned_OQ183()
+    {
+        var batch = StaticDataChange.SubmitSetupBatch(Guid.CreateVersion7(), "cfg_channel_definitions", Guid.CreateVersion7(), new string('a', 64), "{}", Maker,
+            new DateOnly(2026, 11, 1), "Setup", Guid.CreateVersion7());
+        var checker = Guid.CreateVersion7();
+        batch.ApproveChange(checker, requiresDifferentChecker: true, Now).IsSuccess.ShouldBeTrue();
+
+        batch.AbandonSetupBatch(checker, "Abandoned", Now).IsSuccess.ShouldBeTrue();
+
+        batch.Status.ShouldBe(ChangeStatus.Rejected);
+        batch.DomainEvents.OfType<StaticDataChangeRejected>().ShouldHaveSingleItem();
+    }
+
+    [Fact]
+    public void ASetupBatchInForce_IsNotTouched_WhenItsSetIsAbandoned_OQ183()
+    {
+        var batch = StaticDataChange.SubmitSetupBatch(Guid.CreateVersion7(), "ref_reserve_types", Guid.CreateVersion7(), new string('b', 64), "{}", Maker,
+            new DateOnly(2026, 11, 1), "Setup", Guid.CreateVersion7());
+        batch.ApproveChange(Guid.CreateVersion7(), requiresDifferentChecker: true, Now).IsSuccess.ShouldBeTrue();
+        batch.ActivateVersion().IsSuccess.ShouldBeTrue();
+
+        batch.AbandonSetupBatch(Guid.CreateVersion7(), "Abandoned", Now).Error!.Code.ShouldBe(ErrorCodes.InvalidStateTransition);
+        batch.Status.ShouldBe(ChangeStatus.Active);
     }
 }

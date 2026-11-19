@@ -49,6 +49,9 @@ public enum ChangeTrigger
     ActivateVersion,
     DeprecateCode,
     RetireCode,
+
+    /// <summary>OQ-183 (Ade, 19 November 2026): a SETUP set's batch, approved but not in force, ends Rejected when its set is abandoned.</summary>
+    AbandonSetup,
 }
 
 /// <param name="RecordRef">The JSON reference to the record version, as stored in change_request.after.</param>
@@ -72,6 +75,7 @@ public sealed class StaticDataChange : AggregateRoot<Guid>
         .Allow(ChangeStatus.PendingApproval, ChangeTrigger.ApproveChange, ChangeStatus.Approved)
         .Allow(ChangeStatus.PendingApproval, ChangeTrigger.RejectChange, ChangeStatus.Rejected)
         .Allow(ChangeStatus.Approved, ChangeTrigger.ActivateVersion, ChangeStatus.Active)
+        .Allow(ChangeStatus.Approved, ChangeTrigger.AbandonSetup, ChangeStatus.Rejected)
         .Allow(ChangeStatus.Active, ChangeTrigger.DeprecateCode, ChangeStatus.Deprecated)
         .Allow(ChangeStatus.Deprecated, ChangeTrigger.RetireCode, ChangeStatus.Retired);
 
@@ -246,8 +250,8 @@ public sealed class StaticDataChange : AggregateRoot<Guid>
 
     /// <summary>
     /// OQ-180: a batch of a SETUP change set abandoned before it was in force; its module discards its drafts. A pending batch is rejected (RejectChange). One
-    /// approved but refused by its module keeps its status, as domain-model.json has no way from Approved to Rejected (OQ-183); only its drafts go. One in
-    /// force isn't touched.
+    /// approved but refused by its module goes from Approved to Rejected too (OQ-183, Ade, 19 November 2026), so the record says what happened. One in force
+    /// isn't touched.
     /// </summary>
     public Result AbandonSetupBatch(Guid approvedBy, string reason, DateTimeOffset now)
     {
@@ -266,9 +270,13 @@ public sealed class StaticDataChange : AggregateRoot<Guid>
             return Error.Conflict(ErrorCodes.InvalidStateTransition, $"The batch is {Status}.");
         }
 
-        Raise(new StaticDataChangeRejected(Id, After, approvedBy, reason, now));
-        MarkChanged();
-        return Result.Success();
+        var result = Fire(ChangeTrigger.AbandonSetup);
+        if (result.IsSuccess)
+        {
+            Raise(new StaticDataChangeRejected(Id, After, approvedBy, reason, now));
+        }
+
+        return result;
     }
 
     /// <summary>Command ActivateVersion, from the owning module's StaticDataVersionActivated.</summary>
