@@ -43,7 +43,7 @@ public sealed class AssistProductDraftTests(DatabaseFixture fixture) : IClassFix
     private const string Drafts = "/api/v1/assist/product-drafts";
 
     private static readonly string[] Functions =
-        ["ASSIST_PRODUCT_DRAFT_RUN", "PRODUCTS", "PRODUCT_CREATE_DRAFT_VERSION", "PRODUCT_EDIT_CONFIGURATION", "DOCUMENTS", "DOCUMENTS_STORE"];
+        ["ASSIST_PRODUCT_DRAFT_RUN", "ASSIST_PRODUCT_DRAFT_REVIEW", "PRODUCTS", "PRODUCT_CREATE_DRAFT_VERSION", "PRODUCT_EDIT_CONFIGURATION", "DOCUMENTS", "DOCUMENTS_STORE"];
 
     private static readonly string[][] Wording =
     [
