@@ -93,7 +93,7 @@ public sealed partial class OftzaSeed(SeedContext context)
         }
 
         var clock = System.Diagnostics.Stopwatch.StartNew();
-        void Stage(string name) => context.Progress?.Invoke($"seed: {name} done at {clock.Elapsed.TotalSeconds:0}s");
+        void Stage(string name) => context.Progress?.Invoke($"seed: {name} done at {clock.Elapsed.TotalSeconds:0}s ({Persona.Throttled.Count} calls refused 429 so far, {Persona.Throttled.Waited.TotalSeconds:0}s waited)");
         Stage("tenant and global reference data");
         await FirstAdministrators();
         Stage("first administrators");
@@ -786,14 +786,25 @@ public sealed partial class OftzaSeed(SeedContext context)
     private async Task Until(string what, Func<Task<bool>> attempt)
     {
         var deadline = DateTime.UtcNow + PendingWait;
+        var waited = System.Diagnostics.Stopwatch.StartNew();
         while (!await attempt())
         {
+            if (waited.Elapsed.TotalSeconds >= 5 && waited.Elapsed.TotalSeconds < 6.5)
+            {
+                context.Progress?.Invoke($"seed: still waiting after 5s: {what}");
+            }
+
             if (DateTime.UtcNow >= deadline)
             {
                 throw new SeedPendingTimeoutException($"{what}: nothing to decide after {PendingWait.TotalSeconds:0} s. The maker's step is recorded for its checker by the API's outbox relay and its consumer: is the relay running, or is the event parked?");
             }
 
             await context.Settle();
+        }
+
+        if (waited.Elapsed.TotalSeconds >= 5)
+        {
+            context.Progress?.Invoke($"seed: waited {waited.Elapsed.TotalSeconds:0}s: {what}");
         }
     }
 
