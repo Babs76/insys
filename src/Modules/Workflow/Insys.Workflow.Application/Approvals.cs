@@ -148,6 +148,19 @@ public interface IApprovalExpiry
 }
 
 /// <param name="Decidable">Only approvals the caller can decide now (BR-004): waiting, not their own, in scope, and within their authority.</param>
+/// <summary>
+/// How many approvals the caller can decide now (BR-004), up to <see cref="Cap"/>: each is checked as approving checks it, so the count stops at the cap
+/// and <c>More</c> says there are more (front-end request, 18 November 2026: a badge on every back-office page).
+/// </summary>
+public sealed record CountDecidableApprovals : IQuery<DecidableCount>
+{
+    public const int Cap = 99;
+}
+
+/// <param name="Count">The approvals the caller can decide now, at most 99.</param>
+/// <param name="More">True when there are more than <paramref name="Count"/>.</param>
+public sealed record DecidableCount(int Count, bool More);
+
 public sealed record ListApprovals(string? Status, string? BusinessRefType, Guid? BusinessRefId, Guid? AfterId, int Limit, bool Decidable = false)
     : IQuery<IReadOnlyList<ApprovalView>>;
 
@@ -549,6 +562,44 @@ internal sealed class ListApprovalsHandler(IApprovalQueries queries, ApprovalDec
         }
 
         return page;
+    }
+}
+
+internal sealed class CountDecidableApprovalsHandler(IApprovalQueries queries, ApprovalDecision decision, IExecutionContext execution)
+    : IQueryHandler<CountDecidableApprovals, DecidableCount>
+{
+    public async Task<Result<DecidableCount>> Handle(CountDecidableApprovals query, CancellationToken cancellationToken)
+    {
+        var checker = Checker.Require(execution);
+        if (checker.IsFailure)
+        {
+            return checker.Error;
+        }
+
+        // The decidable list's rule (BR-004), checked one by one, stopping at one past the cap so the work is bounded.
+        var count = 0;
+        Guid? after = null;
+        const int batchSize = 100;
+        while (count <= CountDecidableApprovals.Cap)
+        {
+            var batch = await queries.WaitingFromOthers(checker.Value, null, null, after, batchSize, cancellationToken);
+            foreach (var approval in batch)
+            {
+                if (await decision.CanApprove(approval, checker.Value, cancellationToken) && ++count > CountDecidableApprovals.Cap)
+                {
+                    break;
+                }
+            }
+
+            if (batch.Count < batchSize)
+            {
+                break;
+            }
+
+            after = batch[^1].Id;
+        }
+
+        return new DecidableCount(Math.Min(count, CountDecidableApprovals.Cap), count > CountDecidableApprovals.Cap);
     }
 }
 

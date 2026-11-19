@@ -168,6 +168,9 @@ public sealed class Session : Entity<Guid>, ITenantScoped
 /// </param>
 public sealed record RoleFacts(string RoleCode, bool Exists, IReadOnlySet<string> Permissions, bool RequiresMfa, bool Privileged = false)
 {
+    /// <summary>The role definition's labels by language (its static row's labels), where it has any.</summary>
+    public IReadOnlyDictionary<string, string>? Labels { get; init; }
+
     /// <summary>The role definition's default scopes (null = all), where the definition gives them.</summary>
     public string[]? ScopeProducts { get; init; }
 

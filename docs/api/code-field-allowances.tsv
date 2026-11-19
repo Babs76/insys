@@ -78,21 +78,13 @@ core	FinancePostingExceptionView.businessRefType	to declare
 core	FinancePostingExceptionView.eventType	to declare
 core	FinancePostingExceptionView.transactionType	to declare
 core	FinanceTrialBalanceLine.accountCode	to declare
-core	GeneralClaimSummary.coverageCode	to declare
-core	GeneralClaimView.coverageCode	to declare
-core	GeneralCoverageRequest.coverageCode	to declare
 core	GeneralCoverageRequest.excessScheduleCode	to declare
-core	GeneralCoverageView.coverageCode	to declare
 core	GeneralCoverageView.excessScheduleCode	to declare
 core	GeneralCreateQuote.intermediaryCode	to declare
 core	GeneralCreateQuote.orgNodeCode	to declare
 core	GeneralCreateQuote.productCode	to declare
-core	GeneralNotifyLoss.coverageCode	to declare
 core	GeneralPolicySummary.productCode	to declare
 core	GeneralPolicyView.productCode	to declare
-core	GeneralPortalClaimRequest.coverageCode	to declare
-core	GeneralPortalClaimView.coverageCode	to declare
-core	GeneralPortalCoverageView.coverageCode	to declare
 core	GeneralPortalPolicyView.intermediaryCode	to declare
 core	GeneralPortalPolicyView.productCode	to declare
 core	GeneralPortalQuoteRequest.productCode	to declare
@@ -443,7 +435,6 @@ core	FinanceMigrateOpeningBalances.batchCode	the batch name the file gives; no l
 core	FinanceOpeningBalanceLine.accountCode	an account key, checked against the chart
 core	IntegrationMigrationReconciliationReport.batchCode	the batch name the file gives; no list
 core	GeneralMigrateGeneralClaims.batchCode	the batch name the file gives; no list
-core	GeneralMigratedClaim.coverageCode	a coverage key of the policy
 core	LifeMigrateLifeClaims.batchCode	the batch name the file gives; no list
 core	LifeMigratedLifeClaim.causeCode	a cause key, as a source system has it
 core	LifeMigratedLifeClaim.reserveType	a reserve type key, checked by the Claims Framework

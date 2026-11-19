@@ -142,6 +142,10 @@ internal sealed class RolePolicyReader(IdentityDbContext db, FunctionCatalogueRe
                 {
                     ScopeProducts = role.ScopeProducts,
                     ScopeBranches = role.ScopeBranches,
+                    Labels = role.Labels is { ValueKind: System.Text.Json.JsonValueKind.Object } labels
+                        ? labels.EnumerateObject().Where(l => l.Value.ValueKind == System.Text.Json.JsonValueKind.String)
+                            .ToDictionary(l => l.Name, l => l.Value.GetString()!, StringComparer.Ordinal)
+                        : null,
                     Functions = held.Select(f => f.Code).ToHashSet(StringComparer.Ordinal),
                 };
             })

@@ -352,7 +352,7 @@ internal static class Attributes
     public static string Format(DateOnly day) => day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 }
 
-public sealed record CoverageView(string CoverageCode, decimal SumInsured, string? ExcessScheduleCode, decimal? Premium);
+public sealed record CoverageView([property: CodeList(CodeLists.Coverages, "code")] string CoverageCode, decimal SumInsured, string? ExcessScheduleCode, decimal? Premium);
 
 public sealed record RiskView(Guid RiskObjectId, decimal SumInsured, DateOnly? AttachedFrom, DateOnly? DetachedOn, IReadOnlyList<CoverageView> Coverages);
 
@@ -465,7 +465,7 @@ public sealed record SettlementView(decimal Amount, string Currency, Guid PayeeP
     Guid? ApprovalId, decimal? ClaimedAmount = null,
     Guid? RequestedBy = null, Guid? BankAccountId = null);
 
-public sealed record ClaimView(Guid Id, string? ClaimNumber, Guid PolicyId, Guid? RiskObjectId, string CoverageCode, DateOnly LossDate, DateTimeOffset NotifiedAt,
+public sealed record ClaimView(Guid Id, string? ClaimNumber, Guid PolicyId, Guid? RiskObjectId, [property: CodeList(CodeLists.Coverages, "code")] string CoverageCode, DateOnly LossDate, DateTimeOffset NotifiedAt,
     [property: CodeList(CodeLists.LossCauses, "cause_code")] string CauseCode, [property: CodeList(CodeLists.Perils, "peril_code")] string PerilCode,
     [property: CodeList(CodeLists.CatastropheEvents, "event_code")] string? CatEventCode, ClaimStatus Status,
     [property: CodeList(CodeLists.ClaimDecisionReasons, "code")] string? DecisionCode, string? DecisionRationale, SettlementView? Settlement,

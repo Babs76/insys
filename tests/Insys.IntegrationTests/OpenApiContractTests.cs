@@ -143,6 +143,23 @@ public sealed partial class OpenApiContractTests(DatabaseFixture fixture) : ICla
     }
 
     /// <summary>GAP-031: every module type is named with its module, so same-named types get a schema each; GAP-008: state fields are enums.</summary>
+    /// <summary>Front-end request (18 November 2026): every coverage code names its label table, Product Factory's coverage and benefit library.</summary>
+    [Fact]
+    public async Task EveryCoverageCode_NamesTheCoverageLibraryAsItsCodeList()
+    {
+        using var core = JsonDocument.Parse(await Generated("core"));
+        var found = core.RootElement.GetProperty("components").GetProperty("schemas").EnumerateObject()
+            .Where(schema => schema.Value.TryGetProperty("properties", out var properties) && properties.TryGetProperty("coverageCode", out _))
+            .Select(schema => (schema.Name, Field: schema.Value.GetProperty("properties").GetProperty("coverageCode")))
+            .ToList();
+        found.Count.ShouldBeGreaterThanOrEqualTo(6, "the General claims, policies and portal views");
+        foreach (var (name, field) in found)
+        {
+            (field.TryGetProperty("x-code-list", out var list) ? list.GetString() : null).ShouldBe("product.cfg_coverage_and_benefit_library", name);
+            (field.TryGetProperty("x-code-list-column", out var column) ? column.GetString() : null).ShouldBe("code", name);
+        }
+    }
+
     [Fact]
     public async Task CoreDocument_KeepsSameNamedModuleTypesApart_AndDeclaresStateEnums_GAP008()
     {

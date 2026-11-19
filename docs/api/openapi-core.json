@@ -7069,6 +7069,44 @@
         ]
       }
     },
+    "/api/v1/workflow/approvals/decidable-count": {
+      "get": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "How many approvals the signed-in user can decide now, up to 99",
+        "description": "The approvals that decidable=true on the approvals list gives (BR-004), counted up to 99; more is true when there are more. Cached for 30 seconds for each user, so a new approval or a decision can take up to 30 seconds to show. Changes nothing.",
+        "operationId": "WorkflowCountDecidableApprovals",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowDecidableCount"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "approval.read"
+      }
+    },
     "/api/v1/workflow/approvals": {
       "get": {
         "tags": [
@@ -23336,7 +23374,8 @@
         "tags": [
           "General"
         ],
-        "summary": "List claims, by policy or claim number (GAP-032)",
+        "summary": "List claims, by policy, claim number or a party on the claim (GAP-032)",
+        "description": "partyId gives the claims where the party is recorded on the claim, in any role, or in partyRole only (a general.cfg_claim_party_roles code). A policyholder\u0027s claims are their policies\u0027 claims: list the policies by policyholderPartyId, then the claims by policyId.",
         "operationId": "GeneralListClaims",
         "parameters": [
           {
@@ -23349,6 +23388,21 @@
           },
           {
             "name": "claimNumber",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "partyId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "partyRole",
             "in": "query",
             "schema": {
               "type": "string"
@@ -23384,6 +23438,9 @@
                 }
               }
             }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
           },
           "401": {
             "$ref": "#/components/responses/Problem401"
@@ -56548,7 +56605,9 @@
             "format": "uuid"
           },
           "coverageCode": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "product.cfg_coverage_and_benefit_library",
+            "x-code-list-column": "code"
           },
           "lossDate": {
             "type": "string",
@@ -56608,7 +56667,9 @@
             "format": "uuid"
           },
           "coverageCode": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "product.cfg_coverage_and_benefit_library",
+            "x-code-list-column": "code"
           },
           "lossDate": {
             "type": "string",
@@ -56740,7 +56801,9 @@
         "type": "object",
         "properties": {
           "coverageCode": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "product.cfg_coverage_and_benefit_library",
+            "x-code-list-column": "code"
           },
           "sumInsured": {
             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
@@ -56768,7 +56831,9 @@
         "type": "object",
         "properties": {
           "coverageCode": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "product.cfg_coverage_and_benefit_library",
+            "x-code-list-column": "code"
           },
           "sumInsured": {
             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
@@ -57386,7 +57451,9 @@
             "format": "uuid"
           },
           "coverageCode": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "product.cfg_coverage_and_benefit_library",
+            "x-code-list-column": "code"
           },
           "lossDate": {
             "type": "string",
@@ -57689,7 +57756,9 @@
             "format": "uuid"
           },
           "coverageCode": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "product.cfg_coverage_and_benefit_library",
+            "x-code-list-column": "code"
           },
           "lossDate": {
             "type": "string",
@@ -58140,7 +58209,9 @@
             "format": "uuid"
           },
           "coverageCode": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "product.cfg_coverage_and_benefit_library",
+            "x-code-list-column": "code"
           },
           "lossDate": {
             "type": "string",
@@ -58193,7 +58264,9 @@
             "format": "uuid"
           },
           "coverageCode": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "product.cfg_coverage_and_benefit_library",
+            "x-code-list-column": "code"
           },
           "lossDate": {
             "type": "string",
@@ -58232,7 +58305,9 @@
         "type": "object",
         "properties": {
           "coverageCode": {
-            "type": "string"
+            "type": "string",
+            "x-code-list": "product.cfg_coverage_and_benefit_library",
+            "x-code-list-column": "code"
           },
           "sumInsured": {
             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
@@ -66831,6 +66906,12 @@
             "items": {
               "type": "string"
             }
+          },
+          "label": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -67718,6 +67799,12 @@
             "items": {
               "type": "string"
             }
+          },
+          "label": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -78173,6 +78260,26 @@
               "string"
             ],
             "format": "double"
+          }
+        }
+      },
+      "WorkflowDecidableCount": {
+        "required": [
+          "count",
+          "more"
+        ],
+        "type": "object",
+        "properties": {
+          "count": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "more": {
+            "type": "boolean"
           }
         }
       },

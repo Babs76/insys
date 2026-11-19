@@ -58,8 +58,9 @@ public sealed record MeLanguage(string? Preferred, string Request, string Tenant
 /// One of the caller's role assignments: its status, dates and scopes, whether the role is privileged, requires MFA and
 /// needs a second person's approval to assign (OQ-038; every privileged role does), and the permissions it gives while active.
 /// </summary>
+/// <param name="Label">The role's name to show: its definition's label in the caller's languages, else its role template's name, else null (show the code).</param>
 public sealed record MeRole(string RoleCode, AssignmentStatus Status, DateOnly ValidFrom, DateOnly? ValidTo, string[]? ScopeProducts, string[]? ScopeBranches,
-    bool InEffect, bool Privileged, bool RequiresMfa, bool RequiresApproval, IReadOnlyList<string> Permissions);
+    bool InEffect, bool Privileged, bool RequiresMfa, bool RequiresApproval, IReadOnlyList<string> Permissions, string? Label = null);
 
 /// <summary>A scope a permission is held in: the products and branches of the assignment that gives it (null = all).</summary>
 public sealed record PermissionScope(string RoleCode, string[]? Products, string[]? Branches);
@@ -91,7 +92,7 @@ public sealed class ChangeMyPreferredLanguageValidator : AbstractValidator<Chang
         RuleFor(c => c.Language).Matches("^[a-z]{2}$").WithMessage("language must be a two-letter lower-case ISO 639-1 code.").When(c => c.Language is not null);
 }
 
-internal sealed class GetMeHandler(IUserRepository users, IRolePolicyReader roles, ITenantProfiles tenants, ILanguageSettings languages, RequestLanguage request,
+internal sealed class GetMeHandler(IUserRepository users, IRolePolicyReader roles, IEnumerable<IRoleTemplateNames> templates, ITenantProfiles tenants, ILanguageSettings languages, RequestLanguage request,
     IExecutionContext execution, ITenantContext tenant, IOptions<PlatformOptions> platform, IBusinessDate businessDate, ITenantFormatting formatting)
     : IQueryHandler<GetMe, MeView>
 {
@@ -110,7 +111,7 @@ internal sealed class GetMeHandler(IUserRepository users, IRolePolicyReader role
             var role = facts[a.RoleCode];
             var inEffect = a.Status == AssignmentStatus.Active && a.ValidFrom <= today && (a.ValidTo is null || a.ValidTo > today) && role.Exists;
             return new MeRole(a.RoleCode, a.Status, a.ValidFrom, a.ValidTo, a.ScopeProducts, a.ScopeBranches, inEffect, role.Privileged, role.RequiresMfa, role.Privileged,
-                [.. role.Permissions.Order(StringComparer.Ordinal)]);
+                [.. role.Permissions.Order(StringComparer.Ordinal)], RoleLabels.For(role, request.Chain, templates.FirstOrDefault()));
         }).ToList();
         var permissions = assignments.Where(a => a.InEffect)
             .SelectMany(a => a.Permissions.Select(p => (Permission: p, Scope: new PermissionScope(a.RoleCode, a.ScopeProducts, a.ScopeBranches))))

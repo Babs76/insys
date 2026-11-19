@@ -33,6 +33,9 @@ namespace Insys.General.Application;
 public static class CodeLists
 {
     public const string BillingFrequencies = "billing.ref_billing_frequencies";
+
+    /// <summary>A coverage's code is its row's code in Product Factory's coverage and benefit library; its label is the row's name (front-end request, 18 November 2026).</summary>
+    public const string Coverages = "product.cfg_coverage_and_benefit_library";
     public const string CollectionMethods = "billing.ref_collection_methods";
     public const string EndorsementTypes = "general.cfg_endorsement_types";
     public const string RiskObjectTypes = "general.cfg_risk_object_types_and_attribute_schemas";

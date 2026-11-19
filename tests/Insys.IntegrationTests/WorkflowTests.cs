@@ -571,6 +571,56 @@ public sealed class WorkflowTests(DatabaseFixture fixture) : IClassFixture<Datab
         (await Decidable("wf-maker", 10)).ShouldBeEmpty();
     }
 
+    /// <summary>
+    /// Front-end request (18 November 2026): how many approvals the caller can decide, as decidable=true lists them (BR-004), cheap enough for every page:
+    /// capped at 99 with more, and cached for a user.
+    /// </summary>
+    [Fact]
+    public async Task TheDecidableCount_IsTheDecidableListsLength_CappedAt99_BR004()
+    {
+        const string refType = "BR004_COUNT";
+        await SeedApproval(500m, refType);
+        await SeedApproval(5_000m, refType);
+
+        async Task<(int Count, bool More)> Count(string user)
+        {
+            var response = await _factory.ClientFor(DatabaseFixture.TenantA, user).GetAsync($"{Approvals}/decidable-count");
+            response.StatusCode.ShouldBe(System.Net.HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+            var body = await response.Json();
+            DocumentedSchema.ResponseProblems(body, "core", "WorkflowCountDecidableApprovals").ShouldBeEmpty();
+            return (body.GetProperty("count").GetInt32(), body.GetProperty("more").GetBoolean());
+        }
+
+        async Task<int> Listed(string user)
+        {
+            var client = _factory.ClientFor(DatabaseFixture.TenantA, user);
+            var total = 0;
+            string? cursor = null;
+            do
+            {
+                var page = await (await client.GetAsync($"{Approvals}?decidable=true&limit=200{(cursor is null ? "" : $"&cursor={cursor}")}")).Json();
+                total += page.GetProperty("items").GetArrayLength();
+                cursor = page.GetProperty("nextCursor").GetString();
+            }
+            while (cursor is not null);
+            return total;
+        }
+
+        var listed = await Listed("wf-senior");
+        listed.ShouldBeLessThan(99, "this tenant's waiting approvals, before the cap is tried");
+        (await Count("wf-senior")).ShouldBe((listed, false), "the same approvals the decidable list gives");
+        (await Count("wf-none")).ShouldBe((0, false));
+        (await Count("wf-maker")).ShouldBe((0, false), "never their own");
+
+        // Past the cap: the count stops at 99 and says there are more.
+        for (var i = 0; i < 100; i++)
+        {
+            await SeedApproval(500m, refType);
+        }
+
+        (await Count("wf-junior")).ShouldBe((99, true));
+    }
+
     private async Task<Guid> SeedApproval(decimal? amount, string businessRefType = "CLAIM", Guid? maker = null)
     {
         var id = Guid.CreateVersion7();

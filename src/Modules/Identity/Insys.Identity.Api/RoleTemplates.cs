@@ -305,3 +305,11 @@ public sealed record RoleTemplateFunction(
     string Code, [property: OneOf("SCREEN", "ACTION")] string Kind, string SubDomain, string? Parent, IReadOnlyList<string> Audiences, bool Privileged,
     [property: OneOf("LIFE", "GENERAL", "HEALTH", "REINSURANCE", "BROKER_PORTAL", "PROVIDER_PORTAL", "CUSTOMER_PORTAL")] string? Feature, bool? Available,
     [property: OneOf("FUNCTION_DISABLED", "FEATURE_NOT_ENTITLED")] string? UnavailableReason);
+
+/// <summary>The role templates' names by code, for a role with no label of its own (front-end request, 18 November 2026).</summary>
+internal sealed class RoleTemplateNames : Application.Users.IRoleTemplateNames
+{
+    private static readonly IReadOnlyDictionary<string, string> Names = RoleTemplates.All.ToDictionary(t => t.Code, t => t.Name, StringComparer.Ordinal);
+
+    public string? NameOf(string roleCode) => Names.GetValueOrDefault(roleCode);
+}

@@ -39,7 +39,7 @@ namespace Insys.General.Application;
 // is not found and an action refused. The views leave out internal fields (§4): no reserves, rationale, fraud,
 // underwriting referrals, other parties or billing internals.
 
-public sealed record PortalCoverageView(string CoverageCode, decimal SumInsured, decimal? Premium);
+public sealed record PortalCoverageView([property: CodeList(CodeLists.Coverages, "code")] string CoverageCode, decimal SumInsured, decimal? Premium);
 
 public sealed record PortalRiskView(Guid RiskObjectId, decimal SumInsured, IReadOnlyList<PortalCoverageView> Coverages);
 
@@ -92,7 +92,7 @@ public sealed record PortalLossCauseView([property: CodeList(CodeLists.LossCause
 public sealed record PortalLossCodesView(IReadOnlyList<PortalPerilView> Perils, IReadOnlyList<PortalLossCauseView> Causes);
 
 /// <param name="SettlementAmount">What is to be paid, once a settlement is approved; nothing before.</param>
-public sealed record PortalClaimView(Guid Id, string? ClaimNumber, Guid PolicyId, string CoverageCode, DateOnly LossDate, DateTimeOffset NotifiedAt, ClaimStatus Status,
+public sealed record PortalClaimView(Guid Id, string? ClaimNumber, Guid PolicyId, [property: CodeList(CodeLists.Coverages, "code")] string CoverageCode, DateOnly LossDate, DateTimeOffset NotifiedAt, ClaimStatus Status,
     decimal? SettlementAmount, string? Currency)
 {
     public static PortalClaimView From(GeneralClaim c) => new(c.Id, c.ClaimNumber, c.PolicyId, c.CoverageCode, c.LossDate, c.NotifiedAt, c.Status,

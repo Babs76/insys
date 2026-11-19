@@ -25,6 +25,7 @@
  * ============================================================================
  */
 using System.Text.Json;
+using Microsoft.Extensions.Caching.Memory;
 using Insys.BuildingBlocks.Api;
 using Insys.BuildingBlocks.Api.StaticData;
 using Insys.BuildingBlocks.Application.Context;
@@ -127,6 +128,30 @@ public sealed class WorkflowModule : IModule
         CaseEndpoints.Map(api, Name);
 
         var approvals = workflow.MapGroup("/approvals");
+        approvals.MapGet("/decidable-count", async (IDispatcher dispatcher, IExecutionContext execution, ITenantContext tenant, IMemoryCache cache,
+                CancellationToken ct) =>
+            {
+                // Cached for 30 seconds a user, so a badge on every page costs one count every 30 seconds at most; a decision shows within that.
+                var key = $"decidable-count:{tenant.RequireTenantId()}:{execution.ActorId}";
+                if (cache.TryGetValue(key, out DecidableCount? cached) && cached is not null)
+                {
+                    return Results.Ok(cached);
+                }
+
+                var result = await dispatcher.Query(new CountDecidableApprovals(), ct);
+                if (result.IsSuccess)
+                {
+                    cache.Set(key, result.Value, TimeSpan.FromSeconds(30));
+                }
+
+                return result.ToHttp(Results.Ok);
+            })
+            .Produces<DecidableCount>(StatusCodes.Status200OK)
+            .WithName("WorkflowCountDecidableApprovals")
+            .WithSummary("How many approvals the signed-in user can decide now, up to 99")
+            .WithDescription("The approvals that decidable=true on the approvals list gives (BR-004), counted up to 99; more is true when there are more. "
+                + "Cached for 30 seconds for each user, so a new approval or a decision can take up to 30 seconds to show. Changes nothing.")
+            .RequirePermission(WorkflowPermissions.ApprovalRead);
         approvals.MapGet("/", async (string? status, string? businessRefType, Guid? businessRefId, bool? decidable, string? cursor, int? limit, IDispatcher dispatcher,
                 CancellationToken ct) =>
             {

@@ -304,10 +304,15 @@ public sealed class GeneralModule : IModule
         general.MapPost("/claims", async (NotifyLoss r, IDispatcher d, CancellationToken ct) => (await d.Send(r, ct)).ToHttp(v => Results.Created($"/api/v1/general/claims/{v.Id}", v)))
             .Produces<ClaimView>(StatusCodes.Status201Created)
             .WithName("GeneralNotifyLoss").WithSummary("Notify a loss (first notification)").RequirePermission(GeneralPermissions.ClaimCreate).RequireIdempotencyKey();
-        general.MapGet("/claims", async (Guid? policyId, string? claimNumber, string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
-                await Page(cursor, limit, (after, size) => d.Query(new ListClaims(policyId, claimNumber, after, size), ct), c => c.Id))
-            .Produces<CursorPage<ClaimSummary>>(StatusCodes.Status200OK)
-            .WithName("GeneralListClaims").WithSummary("List claims, by policy or claim number (GAP-032)").RequirePermission(GeneralPermissions.ClaimRead);
+        general.MapGet("/claims", async (Guid? policyId, string? claimNumber, Guid? partyId, string? partyRole, string? cursor, int? limit, IDispatcher d, CancellationToken ct) =>
+                partyRole is not null && partyId is null
+                    ? Problems.For(BuildingBlocks.Domain.ErrorCodes.ValidationFailed, "partyRole needs partyId.", StatusCodes.Status422UnprocessableEntity)
+                    : await Page(cursor, limit, (after, size) => d.Query(new ListClaims(policyId, claimNumber, after, size, partyId, partyRole), ct), c => c.Id))
+            .Produces<CursorPage<ClaimSummary>>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("GeneralListClaims").WithSummary("List claims, by policy, claim number or a party on the claim (GAP-032)")
+            .WithDescription("partyId gives the claims where the party is recorded on the claim, in any role, or in partyRole only (a general.cfg_claim_party_roles code). "
+                + "A policyholder's claims are their policies' claims: list the policies by policyholderPartyId, then the claims by policyId.")
+            .RequirePermission(GeneralPermissions.ClaimRead);
         general.MapGet("/claims/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetClaim(id), ct)).ToHttp(Results.Ok))
             .Produces<ClaimView>(StatusCodes.Status200OK)
             .WithName("GeneralGetClaim").WithSummary("Get a claim").RequirePermission(GeneralPermissions.ClaimRead);
@@ -679,7 +684,7 @@ public sealed record PortalRiskObjectRequest(Guid ClientPartyId, [property: Buil
 public sealed record PortalQuoteRequest(string ProductCode, Guid ProposerPartyId, string Currency, DateOnly PeriodStart, DateOnly PeriodEnd, IReadOnlyList<RiskRequest> Risks,
     [property: BuildingBlocks.Domain.CodeList(CodeLists.BillingFrequencies, "code")] string? Frequency = null);
 
-public sealed record PortalClaimRequest(Guid PolicyId, Guid? RiskObjectId, string CoverageCode, DateOnly LossDate,
+public sealed record PortalClaimRequest(Guid PolicyId, Guid? RiskObjectId, [property: BuildingBlocks.Domain.CodeList(CodeLists.Coverages, "code")] string CoverageCode, DateOnly LossDate,
     [property: BuildingBlocks.Domain.CodeList(CodeLists.LossCauses, "cause_code")] string CauseCode, [property: BuildingBlocks.Domain.CodeList(CodeLists.Perils, "peril_code")] string PerilCode,
     string? Description);
 

@@ -25,9 +25,11 @@
  * ============================================================================
  */
 using System.Net;
+using System.Text.Json;
 using Insys.Identity.Contracts;
 using Insys.Integration.Contracts;
 using Insys.Testing;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Insys.IntegrationTests;
 
@@ -85,6 +87,36 @@ public sealed class MeTests(DatabaseFixture fixture) : IClassFixture<DatabaseFix
         permissions[IntegrationPermissions.DeadLetterRead].GetProperty("scopes").GetArrayLength().ShouldBe(2, "held unscoped and through the scoped role");
         var webhookScope = permissions[IntegrationPermissions.WebhookRead].GetProperty("scopes").EnumerateArray().Single();
         (webhookScope.GetProperty("roleCode").GetString(), webhookScope.GetProperty("products")[0].GetString()).ShouldBe((scopedRole, "GEN-MOTOR"));
+    }
+
+    /// <summary>
+    /// Front-end request (18 November 2026): each role has a label to show instead of its code, in /identity/me and the roles list: the role's own label
+    /// in the caller's languages, else its role template's name, else null. The template fallback's rule is RoleLabelTests'; here, that the host has the names.
+    /// </summary>
+    [Fact]
+    public async Task EachRole_HasALabel_ItsOwnInTheCallersLanguage_ElseItsTemplatesName()
+    {
+        var userId = await fixture.Database.UserWithPermissions(DatabaseFixture.TenantA, "me-labels", IntegrationPermissions.DeadLetterRead);
+        var labelled = "R_LBL_" + Guid.NewGuid().ToString("N")[..12].ToUpperInvariant();
+        await fixture.Database.ExecuteAsOwner("""
+            INSERT INTO iam.cfg_roles_and_permission_sets (tenant_id, code, version, effective_from, record_status, created_by, change_reason, role_code, labels)
+            VALUES (@t, @role, 1, DATE '2026-01-01', 'EFFECTIVE', 'seed', 'test seed', @role, '{"en":"Claims clerk","zu":"Umabhalane wezimangalo"}'::jsonb)
+            """, ("t", DatabaseFixture.TenantA), ("role", labelled));
+        await fixture.Database.AssignRole(DatabaseFixture.TenantA, userId, labelled);
+
+        string? LabelOf(JsonElement roles, string code) => roles.EnumerateArray().Single(r => r.GetProperty("roleCode").GetString() == code) is var r
+            && r.TryGetProperty("label", out var label) && label.ValueKind == JsonValueKind.String ? label.GetString() : null;
+        var me = await (await _factory.ClientFor(DatabaseFixture.TenantA, "me-labels").GetAsync("/api/v1/identity/me")).Json();
+        DocumentedSchema.ResponseProblems(me, "core", "GetMe").ShouldBeEmpty();
+        LabelOf(me.GetProperty("roles"), labelled).ShouldBe("Claims clerk", "the role's own label, in English for an English caller");
+
+        await fixture.Database.UserWithPermissions(DatabaseFixture.TenantA, "role-reader", IdentityPermissions.UserRead);
+        var roles = await (await _factory.ClientFor(DatabaseFixture.TenantA, "role-reader").GetAsync("/api/v1/identity/roles")).Json();
+        LabelOf(roles, labelled).ShouldBe("Claims clerk");
+
+        var template = Insys.Identity.Api.RoleTemplates.All.First();
+        _factory.Services.GetRequiredService<Insys.Identity.Application.Users.IRoleTemplateNames>().NameOf(template.Code).ShouldBe(template.Name,
+            "the host knows the role templates' names, for a role with no label of its own");
     }
 
     [Fact]

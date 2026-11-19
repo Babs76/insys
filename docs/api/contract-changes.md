@@ -5,6 +5,18 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 
 
+## Usability batch: the front end's four requests (18 November 2026)
+All added, none breaking.
+- **Role labels:** `label` on each role in `GET /identity/me` (`roles[]`) and `GET /identity/roles`. It is the role's own label in the caller's languages (its static row's `labels`), else its role template's name, else null, in which case the client shows `roleCode`.
+- **A party filter on `GET /general/claims`:**
+  - `partyId` gives the claims where that party is recorded on the claim, in any role (`general.claim_party`).
+  - With `partyRole` (a `general.cfg_claim_party_roles` code), only that role. `partyRole` without `partyId` is 422 `VALIDATION_FAILED`.
+  - A policyholder's claims are their policies' claims: list the policies by `policyholderPartyId`, then the claims by `policyId`. A General claim records its parties by role, not a single claimant, so the filter is by party (Life's is `claimantPartyId`, Health's `patientPartyId`).
+- **Coverage codes' label table:** every `coverageCode` in the core document now has `x-code-list: product.cfg_coverage_and_benefit_library` and `x-code-list-column: code`. The label is the row's `name` (`GET /product-factory/static/coverage-and-benefit-library`). The fields are on `GeneralClaimSummary`, `GeneralClaimView`, `GeneralCoverageRequest`, `GeneralCoverageView`, `GeneralMigratedClaim`, `GeneralNotifyLoss`, `GeneralPortalClaimRequest`, `GeneralPortalClaimView` and `GeneralPortalCoverageView`.
+- **`GET /workflow/approvals/decidable-count`** (`workflow_approval.read`) returns `{ count, more }`.
+  - These are the approvals `?decidable=true` gives (BR-004), counted up to 99; `more` is true beyond that.
+  - It is cached for 30 seconds for each user, so a badge can call it on every page; a new approval or a decision can take up to 30 seconds to show.
+
 ## Release batch: a platform-wide row releases only what it can resolve (Ade, 18 November 2026)
 - **Event changed, not breaking:** `sdm.StaticDataVersionActivated` gains `entitlementTenant` (the tenant code) and `entitlementFeature`. Both are set only for a feature entitlement (`tenant.cfg_feature_entitlements`) and are null for every other row. A consumer acts for that tenant and feature without reading the global row. Existing consumers ignore them.
 - **No API change.** Publishing a platform-wide row retries only the parked deliveries it can resolve, marked 500 at a time. The parking job still retries at most its batch size per tenant per pass. Before (availability batch), it retried every tenant's parks.

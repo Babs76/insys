@@ -112,8 +112,23 @@ public sealed record RoleAssignmentView(Guid Id, string RoleCode, AssignmentStat
 /// A role the tenant can assign (GAP-021), with what assigning it involves: a privileged role needs MFA under the
 /// policies that name it and a second administrator's approval (OQ-038), so the assignment starts as PendingApproval.
 /// </summary>
+/// <param name="Label">The role's name to show: its definition's label in the caller's languages, else its role template's name, else null (show the code).</param>
 public sealed record RoleView(string RoleCode, bool Privileged, bool RequiresMfa, bool RequiresApproval, string[] Permissions, string[]? ScopeProducts,
-    string[]? ScopeBranches);
+    string[]? ScopeBranches, string? Label = null);
+
+/// <summary>The signed-off role templates' names by code (the Api's RoleTemplates), for a role with no label of its own.</summary>
+public interface IRoleTemplateNames
+{
+    string? NameOf(string roleCode);
+}
+
+/// <summary>A role's name to show (front-end request, 18 November 2026): its own label in the caller's languages, else its template's name.</summary>
+public static class RoleLabels
+{
+    public static string? For(RoleFacts role, IReadOnlyList<string> chain, IRoleTemplateNames? templates) =>
+        (role.Labels is { } labels ? BuildingBlocks.Application.Localisation.LanguageChain.Pick(chain, language => labels.GetValueOrDefault(language))?.Text : null)
+        ?? templates?.NameOf(role.RoleCode);
+}
 
 public sealed record ListRoles : IQuery<IReadOnlyList<RoleView>>;
 
@@ -404,12 +419,13 @@ internal sealed class ListScopedAssignmentsHandler(IUserQueries queries) : IQuer
         Result.Success(await queries.ScopedAssignments(cancellationToken));
 }
 
-internal sealed class ListRolesHandler(IRolePolicyReader roles, IBusinessDate businessDate) : IQueryHandler<ListRoles, IReadOnlyList<RoleView>>
+internal sealed class ListRolesHandler(IRolePolicyReader roles, IBusinessDate businessDate, BuildingBlocks.Application.Localisation.RequestLanguage request,
+    IEnumerable<IRoleTemplateNames> templates) : IQueryHandler<ListRoles, IReadOnlyList<RoleView>>
 {
     public async Task<Result<IReadOnlyList<RoleView>>> Handle(ListRoles query, CancellationToken cancellationToken) =>
         Result.Success<IReadOnlyList<RoleView>>((await roles.AllRoles(businessDate.Today, cancellationToken))
             .Select(r => new RoleView(r.RoleCode, r.Privileged, r.RequiresMfa, r.Privileged, [.. r.Permissions.Order(StringComparer.Ordinal)], r.ScopeProducts,
-                r.ScopeBranches))
+                r.ScopeBranches, RoleLabels.For(r, request.Chain, templates.FirstOrDefault())))
             .ToList());
 }
 

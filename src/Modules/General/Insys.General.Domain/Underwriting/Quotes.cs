@@ -78,7 +78,7 @@ public sealed record GeneralQuoteReferralDecided(Guid QuoteId, string QuoteNumbe
 public sealed record GeneralQuoteDeclined(Guid QuoteId, string QuoteNumber, int QuoteVersion, string DecisionCode, string Reason, DateTimeOffset OccurredAt) : IDomainEvent;
 
 /// <summary>A coverage asked for on a risk: its sum insured and excess schedule.</summary>
-public sealed record CoverageRequest(string CoverageCode, decimal SumInsured, string? ExcessScheduleCode);
+public sealed record CoverageRequest([property: Insys.BuildingBlocks.Domain.CodeList("product.cfg_coverage_and_benefit_library", "code")] string CoverageCode, decimal SumInsured, string? ExcessScheduleCode);
 
 /// <summary>A risk object to insure, with its sum insured and coverages.</summary>
 public sealed record RiskRequest(Guid RiskObjectId, decimal SumInsured, IReadOnlyList<CoverageRequest> Coverages);

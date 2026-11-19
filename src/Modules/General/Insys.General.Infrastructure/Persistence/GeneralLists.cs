@@ -97,6 +97,13 @@ internal sealed class GeneralLists(GeneralDbContext db, IExecutionContext execut
             claims = claims.Where(c => c.ClaimNumber == number);
         }
 
+        // Front-end request (18 November 2026): a party's claims, as the policies list has its policyholder's; in the query, so paging holds.
+        if (query.PartyId is { } party)
+        {
+            var role = query.PartyRole;
+            claims = claims.Where(c => c.Parties.Any(p => p.PartyId == party && (role == null || p.Role == role)));
+        }
+
         if (query.AfterId is { } after)
         {
             claims = claims.Where(c => c.Id.CompareTo(after) > 0);

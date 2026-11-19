@@ -41,7 +41,7 @@ public sealed record PolicySummary(Guid Id, string PolicyNumber, string ProductC
     DateOnly PeriodEnd, decimal AnnualPremium, string Currency);
 
 /// <summary>A claim in the claim list (GAP-032). ClaimNumber is null until the claim is registered.</summary>
-public sealed record ClaimSummary(Guid Id, string? ClaimNumber, Guid PolicyId, string CoverageCode, DateOnly LossDate, DateTimeOffset NotifiedAt, ClaimStatus Status);
+public sealed record ClaimSummary(Guid Id, string? ClaimNumber, Guid PolicyId, [property: CodeList(CodeLists.Coverages, "code")] string CoverageCode, DateOnly LossDate, DateTimeOffset NotifiedAt, ClaimStatus Status);
 
 /// <summary>Query ListQuotes: by proposer or quote number (every version of it), by ID with cursor paging.</summary>
 public sealed record ListQuotes(Guid? ProposerPartyId, string? QuoteNumber, Guid? AfterId, int Limit) : IQuery<IReadOnlyList<QuoteSummary>>;
@@ -50,7 +50,10 @@ public sealed record ListQuotes(Guid? ProposerPartyId, string? QuoteNumber, Guid
 public sealed record ListPolicies(Guid? PolicyholderPartyId, string? PolicyNumber, Guid? AfterId, int Limit) : IQuery<IReadOnlyList<PolicySummary>>;
 
 /// <summary>Query ListClaims: by policy or claim number, by ID with cursor paging.</summary>
-public sealed record ListClaims(Guid? PolicyId, string? ClaimNumber, Guid? AfterId, int Limit) : IQuery<IReadOnlyList<ClaimSummary>>;
+/// <param name="PartyId">Claims where the party is recorded on the claim, in any role (general.claim_party), or in <paramref name="PartyRole"/> only.</param>
+/// <param name="PartyRole">With <paramref name="PartyId"/>, the role it holds on the claim (general.cfg_claim_party_roles).</param>
+public sealed record ListClaims(Guid? PolicyId, string? ClaimNumber, Guid? AfterId, int Limit, Guid? PartyId = null, string? PartyRole = null)
+    : IQuery<IReadOnlyList<ClaimSummary>>;
 
 /// <summary>
 /// Query ListRiskObjects (BR-034): by type, risk zone, the policy that insures them or their owner (BR-092), by ID with

@@ -41,7 +41,7 @@ using Insys.ProductFactory.Contracts;
 namespace Insys.General.Application;
 
 /// <summary>Command NotifyLoss: the first notification of a loss on a policy's coverage.</summary>
-public sealed record NotifyLoss(Guid PolicyId, Guid? RiskObjectId, string CoverageCode, DateOnly LossDate, [property: CodeList(CodeLists.LossCauses, "cause_code")] string CauseCode,
+public sealed record NotifyLoss(Guid PolicyId, Guid? RiskObjectId, [property: CodeList(CodeLists.Coverages, "code")] string CoverageCode, DateOnly LossDate, [property: CodeList(CodeLists.LossCauses, "cause_code")] string CauseCode,
     [property: CodeList(CodeLists.Perils, "peril_code")] string PerilCode, [property: CodeList(CodeLists.CatastropheEvents, "event_code")] string? CatEventCode,
     string? Description) : ICommand<ClaimView>;
 
