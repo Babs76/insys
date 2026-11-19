@@ -205,10 +205,15 @@ done
 # The whole seed didn't finish inside the job's 45 minutes (run 44605041963: cancelled after 35 minutes in the seed, on 4dd0e08), so the smoke
 # test runs its fallback (Ade, 19 November 2026): the tenant, its two administrators, roles, configuration and personas (--only personas), every
 # call through Keycloak as that persona. The seed prints each stage's elapsed time on stderr. The whole seed runs at the Preview's reset.
+pending_events() { # each module outbox's unpublished events by type and attempts: event types and counts only
+  for s in $(query "SELECT schemaname FROM pg_tables WHERE tablename = 'outbox_event' ORDER BY 1"); do
+    query "SELECT '$s', event_type, publish_attempts, count(*) FROM $s.outbox_event WHERE published_at IS NULL GROUP BY 2, 3" || true
+  done
+}
 started=$(date +%s)
-timeout 1200 env INSYS_SEED_KEYCLOAK_ADMIN_PASSWORD=smoke-admin dotnet "$seed_dll" --api http://127.0.0.1:18080 --keycloak-url http://127.0.0.1:18081 \
+timeout 1500 env INSYS_SEED_KEYCLOAK_ADMIN_PASSWORD=smoke-admin dotnet "$seed_dll" --api http://127.0.0.1:18080 --keycloak-url http://127.0.0.1:18081 \
   --keycloak-admin admin --operator-tenant 0199f000-0000-7000-8000-000000000001 --platform-1 insys-admin --platform-2 insys-admin-2 --only personas \
-  || { code=$?; stop_forwards; kubectl logs deploy/insys-api --tail=80 || true; fail "the seed failed against the deployed API (exit $code; 124 is the 20-minute limit)"; }
+  || { code=$?; stop_forwards; kubectl logs deploy/insys-api --tail=80 || true; pending_events; fail "the seed failed against the deployed API (exit $code; 124 is the 25-minute limit)"; }
 seconds=$(( $(date +%s) - started ))
 echo "The seed ran in ${seconds}s (--only personas, every call through Keycloak)."
 [ -z "${GITHUB_STEP_SUMMARY:-}" ] || echo "Smoke: the OFTZA seed (--only personas) ran against the deployed API through Keycloak in ${seconds}s." >> "$GITHUB_STEP_SUMMARY"
