@@ -141,4 +141,9 @@ BEGIN
       EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON %I.%I TO insys_platform_admin', t.nspname, t.relname);
     END IF;
   END LOOP;
+  -- V0142: the platform's tenant directory. The Tenancy module's role may SET ROLE to it for a directory read, and doesn't inherit it, so a tenant's
+  -- session sees only its own row of tenant.tenant.
+  GRANT USAGE ON SCHEMA tenant TO insys_tenant_directory;
+  GRANT SELECT ON tenant.tenant TO insys_tenant_directory;
+  GRANT insys_tenant_directory TO insys_tenant WITH INHERIT FALSE, SET TRUE;
 END $$;

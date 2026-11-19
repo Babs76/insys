@@ -17,6 +17,10 @@ All added, none breaking.
   - These are the approvals `?decidable=true` gives (BR-004), counted up to 99; `more` is true beyond that.
   - It is cached for 30 seconds for each user, so a badge can call it on every page; a new approval or a decision can take up to 30 seconds to show.
 
+## Directory batch: row-level security on tenant.tenant (V0142, Ade, 18 November 2026)
+- **No API change.** In the database, a session for a tenant now sees only that tenant's row of `tenant.tenant`. The platform's directory reads see every row through an explicit role (`insys_tenant_directory`), and so do the platform operator's own requests (`platform_operator`, set only by the database owner). A session with no tenant set sees none. The API already allowed only the platform to read tenants.
+- **Deployments:** the role scripts (`db/roles/module_grants.sql`) must run after this migration, as the migrate job does with `migrations.createRoles`. A deployment whose roles are made otherwise grants `insys_tenant_directory` to `insys_tenant` with `INHERIT FALSE, SET TRUE`.
+
 ## Release batch: a platform-wide row releases only what it can resolve (Ade, 18 November 2026)
 - **Event changed, not breaking:** `sdm.StaticDataVersionActivated` gains `entitlementTenant` (the tenant code) and `entitlementFeature`. Both are set only for a feature entitlement (`tenant.cfg_feature_entitlements`) and are null for every other row. A consumer acts for that tenant and feature without reading the global row. Existing consumers ignore them.
 - **No API change.** Publishing a platform-wide row retries only the parked deliveries it can resolve, marked 500 at a time. The parking job still retries at most its batch size per tenant per pass. Before (availability batch), it retried every tenant's parks.

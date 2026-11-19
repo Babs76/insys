@@ -1,0 +1,78 @@
+/*
+ * ============================================================================
+ * OPENFACTOR TECHNOLOGY GROUP
+ * CONFIDENTIAL AND PROPRIETARY SOFTWARE
+ * ============================================================================
+ * Copyright (c) 2026 OpenFactor Technology Group.
+ * All rights reserved.
+ * PRODUCT       : INSYS
+ * COMPONENT     : Migrations
+ * CONFIDENTIALITY AND INTELLECTUAL PROPERTY NOTICE
+ * This source code and its associated documentation contain confidential and
+ * proprietary information belonging to OpenFactor Technology Group or its
+ * applicable intellectual property rights holder.
+ * This material is provided solely for authorised development, maintenance,
+ * operation or evaluation purposes, as applicable. No person may reproduce,
+ * modify, distribute, disclose, publish or otherwise use this material except
+ * as expressly permitted by an applicable written agreement or licence.
+ * No ownership rights or licence to any intellectual property are granted
+ * by the inclusion of this notice, except as expressly provided in an
+ * applicable written agreement or licence.
+ * Third-party software, open-source components and customer-owned materials
+ * remain subject to their respective ownership rights and applicable licences
+ * or agreements.
+ * UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
+ * ============================================================================
+ */
+-- =====================================================================
+-- V0142: tenant.tenant gets row-level security (Ade, 18 November 2026). Before, it had none: the Tenancy module's role could read every
+-- tenant's row in any session, and only the API kept a business tenant from another's code and name.
+--  * A session with app.tenant_id set sees only its own tenant's row.
+--  * The platform's directory reads (the tenant list for jobs, the health checks, a tenant's id by code) see every row through an explicit role,
+--    insys_tenant_directory: login-free, which the Tenancy module's role may SET ROLE to for one transaction but doesn't inherit
+--    (db/roles/module_grants.sql). Never through "no tenant set": a session without one sees no row.
+--  * The platform operator's own requests (registering and managing tenants) see every row through an explicit mark: platform_operator, set
+--    only by the owner (the bootstrap, and below for the tenant the bootstrap registered as OPERATOR).
+--  * The owner (migrations, the bootstrap, tenant.current_tenant_code()) is not subject to it.
+-- =====================================================================
+ALTER TABLE tenant.tenant ADD COLUMN platform_operator boolean NOT NULL DEFAULT false;
+UPDATE tenant.tenant SET platform_operator = true WHERE tenant_code = 'OPERATOR';
+CREATE UNIQUE INDEX uq_tenant_platform_operator ON tenant.tenant (platform_operator) WHERE platform_operator;
+COMMENT ON COLUMN tenant.tenant.platform_operator IS 'The platform operator''s tenant (one at most), whose sessions see every tenant (V0142). Set only by the owner.';
+
+-- Only the owner may mark or unmark the operator: a module role can't raise its own tenant to see the others.
+CREATE FUNCTION tenant.guard_platform_operator() RETURNS trigger LANGUAGE plpgsql SET search_path = pg_catalog, tenant AS $$
+BEGIN
+  IF (TG_OP = 'INSERT' AND NEW.platform_operator) OR (TG_OP = 'UPDATE' AND NEW.platform_operator IS DISTINCT FROM OLD.platform_operator) THEN
+    IF current_user <> (SELECT pg_catalog.pg_get_userbyid(c.relowner) FROM pg_catalog.pg_class c WHERE c.oid = 'tenant.tenant'::pg_catalog.regclass) THEN
+      RAISE EXCEPTION 'tenant %: only the database owner marks the platform operator (V0142)', NEW.tenant_code USING ERRCODE = 'insufficient_privilege';
+    END IF;
+  END IF;
+  RETURN NEW;
+END $$;
+CREATE TRIGGER guard_platform_operator BEFORE INSERT OR UPDATE ON tenant.tenant FOR EACH ROW EXECUTE FUNCTION tenant.guard_platform_operator();
+
+-- Whether this session is the platform operator's: read as the owner, so the policy below doesn't read the table through itself. Security
+-- definer, so its search path is fixed and every name in it is qualified (Ade): an object a caller puts earlier in its path can't change the answer.
+CREATE FUNCTION tenant.session_is_platform_operator() RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, tenant AS $$
+  SELECT COALESCE((SELECT t.platform_operator FROM tenant.tenant t
+                              WHERE t.id = NULLIF(pg_catalog.current_setting('app.tenant_id', true), '')::uuid), false)
+$$;
+-- Like tenant.current_tenant_code(): any role may ask, about its own session only.
+REVOKE ALL ON FUNCTION tenant.session_is_platform_operator() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION tenant.session_is_platform_operator() TO PUBLIC;
+
+ALTER TABLE tenant.tenant ENABLE ROW LEVEL SECURITY;
+-- For every role but the owner; only the Tenancy module's role (insys_tenant) has a grant on the table (db/roles/module_grants.sql).
+CREATE POLICY own_or_platform ON tenant.tenant
+  USING (id = NULLIF(current_setting('app.tenant_id', true), '')::uuid OR tenant.session_is_platform_operator())
+  WITH CHECK (id = NULLIF(current_setting('app.tenant_id', true), '')::uuid OR tenant.session_is_platform_operator());
+
+-- The platform's directory: a login-free role, created here because the policy names it (as V0002 creates insys_platform_admin).
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'insys_tenant_directory') THEN
+    CREATE ROLE insys_tenant_directory NOLOGIN NOINHERIT;
+  END IF;
+END $$;
+CREATE POLICY platform_directory ON tenant.tenant FOR SELECT TO insys_tenant_directory USING (true);

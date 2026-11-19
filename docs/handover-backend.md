@@ -253,6 +253,7 @@ Everything found between INSYS and a first live customer, at `91cb494` plus the 
 | 37 | Document storage's keys in production (cloud session, 5 November). The chart's in-cluster SeaweedFS took its S3 keys from the chart's values, which are empty wherever the Secret is made outside the chart, while the API signs with the Secret's keys: on the Preview the first document upload failed (`rotate-passwords` run 42080719155, 500). Fixed in the chart (SeaweedFS reads the Secret's `objectStoreAccessKey` and `objectStoreSecretKey`), with the smoke test now making the Secret outside the chart and `preview.sh`'s `storage_check` storing, reading back and deleting an object with the API's keys. Needed: production's object store is given real keys from its secret store, the same ones the API's Secret holds, never values or empty ones; a check like `storage_check` after each deployment; and the runbook says how the keys are rotated on both sides together | under 0.5 (Est), plus the runbook | Production's object store (row 2) | **Yes** |
 | 38 | The Preview's reset and restore rehearsal (Ade, 15 November). OpenBao is sealed with its key lost (6 to 14 November), so encrypted fields on the Preview are unreadable. The `reset` is postponed until development is finished and full demo testing starts; then assess, without running anything first, a clean `reset` against replacing only OpenBao and keeping the databases, and run the restore rehearsal (`docs/preview/restore.md`). The rehearsal is the first real recovery evidence for row 3 | 0.5–1 (Est), plus the run and Ade's checks | The end of development; Ade | No for production; **Yes** before the team's full demo testing |
 | 39 | ClamAV's signature mirror (batch 7.4, AIA-010). The chart's ClamAV (`scanner.enabled`) downloads its signatures at start and daily, so its pod needs outbound HTTPS to ClamAV's mirror; without it, clamd has no signatures and every upload stays in quarantine. **A network change for Ade to approve per environment.** The Preview gets ClamAV only on a redeploy Ade approves. **The Preview's environment:** `deploy/preview/values.yaml` sets `environment: Preview`, which isn't Development or Testing, so the development scanner can't run there. The chart also pins ClamAV (`Documents__Scanner__Provider=clamav`) whatever the environment is called. At the next redeploy, confirm on the server that the API's `ASPNETCORE_ENVIRONMENT` is `Preview`: this session can't reach it | 0.5 (Est), per environment | Ade's approval per environment, and the cluster's egress rules | **Yes**: without it, no upload is released |
+| 40 | Database role order and the directory grant (Ade, 19 November 2026, V0142). The role scripts must run after V0142, which creates `insys_tenant_directory`. Any way of creating roles other than `db/roles/module_grants.sql` must grant `insys_tenant_directory` to `insys_tenant` `WITH INHERIT FALSE, SET TRUE`, and to no other role. How, and the check, are in `docs/runbooks/deployment.md` (Database roles) | 0 for the code; part of the production set-up (row 2) | Whoever sets up production's roles | **Yes**: without it Tenancy's directory reads fail; with `INHERIT TRUE` a tenant's session sees every tenant |
 | **Markets** | | | | |
 | 24 | Nigeria blockers: retention defaults, default time zone, age of majority. **Descoped by Ade, 2 November: deferred until a first Nigerian customer is chosen; not started.** Appeal routes are static data and stay, as they serve every market (V0126); the Nigerian route itself waits on row 25 | 2–3 (Est, from the 3–4 in the survey) | A first Nigerian customer being chosen | **If** the first customer is Nigerian |
 | 25 | Nigeria: "no premium, no cover" domain review; starter pack review sheet and partner sign-off | Unknown until reviewed | Nigerian compliance partner; compliance lead | **If** the first customer is Nigerian |
@@ -574,13 +575,44 @@ The front end's four non-breaking requests. None conflicts with the specs or the
   - `RoleLabels.For` picks the caller's language (`RequestLanguage.Chain`), else the template's name through `IRoleTemplateNames`. That interface is implemented in the Api by `RoleTemplateNames` over `RoleTemplates.All`, since the application can't see the Api.
   - Tests: `RoleLabelTests` (unit) and `MeTests.EachRole_HasALabel_…`.
 - **General claims by party:** `ListClaims.PartyId` and `PartyRole`, filtered in the query through `Parties.Any`. Test: `GeneralClaimsListTests` (fails with the filter undone).
-  - **Not added:** an index on `general.claim_party (tenant_id, party_id)`. It needs a migration after V0142, which is still on `directory-rls`. To add when that has merged, if lists by party grow slow.
+  - **Index (Ade):** V0143 adds `ix_claim_party_by_party` on `general.claim_party (tenant_id, party_id)`, so the filter doesn't scan a tenant's claim parties. Added after `directory-rls` merged, as V0142 is its migration.
 - **Coverage codes:** `[CodeList(CodeLists.Coverages, "code")]` on the nine fields. Their nine rows are gone from `docs/api/code-field-allowances.tsv`. Test: `OpenApiContractTests.EveryCoverageCode_NamesTheCoverageLibraryAsItsCodeList`.
 - **Decidable count:**
   - `CountDecidableApprovalsHandler` checks approvals as the decidable list does, stopping at one past the cap (99). The cap bounds the work: each approval is checked against scope, authority and the named permission.
   - The endpoint caches the result in `IMemoryCache` for 30 seconds, by tenant and user.
   - Test: `WorkflowTests.TheDecidableCount_IsTheDecidableListsLength_CappedAt99_BR004`, which fails without the cap.
 - **A test lesson:** `--filter-class '*MeTests'` also matches `OftzaSeedResumeTests` (about 25 minutes). Name a class in full: `Insys.IntegrationTests.MeTests`.
+
+### Directory batch (18 November 2026, branch `directory-rls`, on the release batch)
+Ade: close the gap on `tenant.tenant` in the database, not only in the API.
+- **V0142:**
+  - Adds `platform_operator`, true for the tenant the bootstrap registers as `OPERATOR` (one at most, unique index).
+  - A trigger lets only the database owner set or clear it, so a module role can't raise its own tenant.
+  - `tenant.session_is_platform_operator()` (security definer, read as the owner, so the policy never reads the table through itself) says whether the session's tenant is the operator.
+  - Both functions run with `search_path = pg_catalog, tenant` and qualify their names (Ade), so a look-alike object earlier in a caller's path changes nothing.
+  - Row-level security, policy `own_or_platform`: a row is seen and written when it is the session's tenant (`app.tenant_id`) or the session is the operator's.
+  - Policy `platform_directory`: the login-free role `insys_tenant_directory` sees every row. `db/roles/module_grants.sql` lets `insys_tenant` take it with `SET ROLE` (`WITH INHERIT FALSE, SET TRUE`), so it never has it by default. Another module's role can't take it.
+  - **Why a role, not the operator's session, for directory reads** (found on CI run 44409889666 and smoke 44409894040): a deployment or test database can have no operator row at all (the smoke deployment, the Payments tests). Keyed on that row, the outbox relay, the jobs and the startup checks saw no tenants; smoke failed with "Keycloak has no account for the user the API made".
+  - The owner is not subject to it: migrations, the bootstrap, and `tenant.current_tenant_code()`.
+- **Tenancy's reads now say whose session they run in** (`TenantRows.As`):
+  - Reads of one tenant run as that tenant: status for the request pipeline, sample, profile.
+  - Reads across tenants run as the directory role, for their transaction only (`TenantRows.Directory`, `SET LOCAL ROLE`): the directory for jobs, the time zone health check, the code-to-id lookup, and whether a code is taken (`TenantRepository.CodeExists`, `ddc0d68`: `RegisterTenant` runs as the new tenant, whose session sees only its own row).
+  - Reads that already set the tenant's session are unchanged: time zone, function settings, readiness. So is the EF context, which runs in the request's tenant: the operator's requests see every tenant, as they register and manage them.
+- **The bootstrap** (`db/bootstrap/operator.sql`) marks the operator, also on a run again. The test fixture marks the tenant it seeds as `OPERATOR`.
+- **Who reaches the directory reads (Ade):** the reads are `TenantDirectory.GetActiveTenantIds`, `TenantTimeZonesHealthCheck`, and `TenantFunctionSettingsQuery.IdOf`. They are reached only from:
+  - background jobs: the outbox relay (`OutboxProcessor`), `ParkingJob`, `NotificationSender`, `DocumentScanJob`, `ProductDraftJob`, `PrivilegedAccessExpiry`, `SearchLogRetentionJob`, `DueDiligenceJobs`, `WebhookJobs`, `CaseTimelineJobs`, `WorkflowJobs`, `ProductJobs`, `PaymentJobs`, `BillingJobs`, `GeneralJobs`, `LifeJobs`, `HealthJobs`;
+  - startup tasks: `AnalyticsReleaseTasks`, `SimulatorGuard`;
+  - `/health` checks: `PlanProductsHealthCheck`, `JobFunctionsHealthCheck`, `ParkedDeliveriesHealthCheck`, and the time zone check;
+  - `ParkedDeliveryStore.ByTenant`, only for `GET /integration/parked-deliveries/by-tenant`, which needs a platform permission;
+  - `RetryParkedOnConfiguration`'s global branch, only for a global row's activation, which only the platform's routes publish.
+  - `TenantDirectoryCallerTests` (architecture) pins this list and the three operator-session reads: a new caller fails until it is reviewed. `DailyJobRunner` hands each job its own one-tenant directory, so it is no caller.
+- **Tests:** `TenantDirectoryAccessTests`.
+  - As `insys_tenant`, a tenant's session sees only its own row, no tenant set sees none, the operator's session sees all, and the directory role sees all with no operator row needed. Another module's role can't take the directory role.
+  - A tenant's session can't mark itself the operator.
+  - A look-alike `current_setting` first in a tenant's path, answering with the operator's id, changes neither the check nor the rows.
+  - A business tenant is refused the by-tenant route.
+  - Three mutants fail them: no row-level security, no operator clause, and no fixed path in the check.
+- **Environments:** the migration marks the existing `OPERATOR` tenant, so the Preview needs no step of its own when it is next deployed (with Ade's approval).
 
 ### Release batch (18 November 2026, branch `release-batch`, on the availability batch)
 Ade's refinement of the availability batch: a platform-wide row releases only the parks it can resolve, in batches.

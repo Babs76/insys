@@ -39,9 +39,9 @@
 BEGIN;
 SELECT set_config('app.tenant_id', '{{OPERATOR_TENANT_ID}}', true);
 
-INSERT INTO tenant.tenant (id, tenant_code, legal_name, isolation_profile, status, created_at)
-VALUES ('{{OPERATOR_TENANT_ID}}', 'OPERATOR', 'Platform operator', 'C', 'ACTIVE', now())
-ON CONFLICT (id) DO NOTHING;
+INSERT INTO tenant.tenant (id, tenant_code, legal_name, isolation_profile, status, created_at, platform_operator)
+VALUES ('{{OPERATOR_TENANT_ID}}', 'OPERATOR', 'Platform operator', 'C', 'ACTIVE', now(), true)
+ON CONFLICT (id) DO UPDATE SET platform_operator = true;
 
 -- The role holds the functions that need only these permissions (ADR-026), in force with it.
 INSERT INTO iam.cfg_roles_and_permission_sets (tenant_id, code, version, effective_from, record_status, created_by,

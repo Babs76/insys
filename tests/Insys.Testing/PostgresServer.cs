@@ -234,9 +234,9 @@ public sealed record TestDatabase(string Name, string OwnerConnectionString, str
     public async Task SeedTenant(Guid tenantId, string code, bool dueDiligenceGates = false)
     {
         await ExecuteAsOwner("""
-            INSERT INTO tenant.tenant (id, tenant_code, legal_name, isolation_profile, status, created_at)
-            VALUES (@id, @code, @name, 'A', 'ACTIVE', now())
-            """, ("id", tenantId), ("code", code), ("name", $"Test tenant {code}"));
+            INSERT INTO tenant.tenant (id, tenant_code, legal_name, isolation_profile, status, created_at, platform_operator)
+            VALUES (@id, @code, @name, 'A', 'ACTIVE', now(), @operator)
+            """, ("id", tenantId), ("code", code), ("name", $"Test tenant {code}"), ("operator", code == "OPERATOR"));
         await EntitleToAllFeatures(code);
         if (!dueDiligenceGates)
         {
