@@ -118,8 +118,17 @@ public sealed record TenantAdministratorProvisioned(Guid TargetTenantId, Guid Us
 public sealed record AdministratorGranted(Guid UserId, string RoleCode) : IIntegrationEvent;
 
 /// <summary>
+/// The tenant's roles in force that grant portal functions (OQ-165, BR-140), for onboarding readiness CHANNELS: each with the functions it grants of one
+/// portal audience (CUSTOMER, BROKER or PROVIDER), from the function catalogue's audiences. A role whose functions span audiences appears once per audience.
+/// </summary>
+public interface IPortalRoles
+{
+    Task<IReadOnlyList<(string RoleCode, string Audience, IReadOnlyList<string> Functions)>> InForce(Guid tenantId, DateOnly day, CancellationToken cancellationToken);
+}
+
+/// <summary>
 /// The tenant's staff roles in force with their permissions (onboarding readiness CHANNELS): every role except those whose
-/// every holder is an external (portal) user, who act through partner channels instead.
+/// every holder is an external (portal) user, who act through partner channels instead, and those whose every function is a portal function (OQ-165).
 /// </summary>
 public interface IStaffRoles
 {
