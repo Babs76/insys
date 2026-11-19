@@ -25,7 +25,7 @@
  * ============================================================================
  */
 -- =====================================================================
--- V0145: Wave 7, batch 7.8. AI-3's tailoring and document mapping (AI Assist SRS §5A, AIA-082 to AIA-084, AIA-087, AIA-090), as Ade decided on
+-- V0147: Wave 7, batch 7.8. AI-3's tailoring and document mapping (AI Assist SRS §5A, AIA-082 to AIA-084, AIA-087, AIA-090), as Ade decided on
 -- 19 November 2026 (OQ-186 to OQ-188), each value taking effect only once a person accepts it and a second person approves the SETUP change set.
 --  * starter_pack_value: what tailoring may change and from which answers (OQ-187 (a)).
 --  * setup_document: the documents a setup run reads, each with its uploader's confirmation (D-16, ai-assist.md §5.5), as AI-1's.
