@@ -66,6 +66,15 @@ public sealed partial class OftzaSeed(SeedContext context)
 
     public Guid TenantId { get; private set; }
 
+    private DateOnly? _today;
+
+    /// <summary>
+    /// The tenant's business date (ADR-025), read once a run from /identity/me after the administrators exist: every date the seed sends
+    /// (effective, loss and due dates, periods) is the one the tenant's rules judge by. Never the machine's UTC date, which is a day behind
+    /// Johannesburg from 22:00 to 24:00 UTC, and differs from a test host's fixed date once a run passes midnight UTC.
+    /// </summary>
+    private DateOnly Today => _today ?? throw new InvalidOperationException("The tenant's business date is read after the first administrators exist.");
+
     public async Task Run()
     {
         TenantId = await Tenant();
@@ -85,6 +94,8 @@ public sealed partial class OftzaSeed(SeedContext context)
 
         await FirstAdministrators();
         _maker = context.Tenant(TenantId, FirstAdministrator);
+        _today = DateOnly.Parse((await _maker.Send(HttpMethod.Get, "/api/v1/identity/me")).GetProperty("tenant").GetProperty("businessDate").GetString()!,
+            System.Globalization.CultureInfo.InvariantCulture);
         _checker = context.Tenant(TenantId, SecondAdministrator);
         await Roles();
         await Loaders();
@@ -137,7 +148,7 @@ public sealed partial class OftzaSeed(SeedContext context)
         await Static("payments/static/tenant-bank-accounts", "OFT-BANK", new { accountRef = "OFT-BANK", bank = "SAMPLE BANK", accountNumber = "000000000", currency = "ZAR", purpose = "COLLECTIONS", glAccount = "1200" });
         await Static("integration/static/disclosure-and-notice-texts", "DISC-PROPOSAL", new { noticeType = "POLICY_TERMS", jurisdiction = "ZA", language = "en", text = "Invented sample terms, not legal wording.", textVersion = 1, displayPoint = "PROPOSAL" });
         var finance = context.Tenant(TenantId, "oftza-finance-manager");
-        var first = new DateOnly(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1);
+        var first = new DateOnly(Today.Year, Today.Month, 1);
         foreach (var start in Enumerable.Range(-11, 13).Select(first.AddMonths))
         {
             await Static("finance/static/accounting-calendar-and-periods", $"CAL-{start:yyyy-MM}", new { periodCode = $"{start:yyyy-MM}", startDate = start, endDate = start.AddMonths(1).AddDays(-1) });
@@ -222,7 +233,7 @@ public sealed partial class OftzaSeed(SeedContext context)
                 {
                     if (!run.TryGetProperty("attestation", out var recorded) || recorded.ValueKind != JsonValueKind.Object)
                     {
-                        await context.PlatformMaker.Send(HttpMethod.Post, $"{url}/smoke-run", new { runReference = "OFTZA-SEED", runDate = DateTime.UtcNow.ToString("yyyy-MM-dd"), outcome = "PASSED", ranBy = "Seed" }, Etag(tenant), idempotent: false);
+                        await context.PlatformMaker.Send(HttpMethod.Post, $"{url}/smoke-run", new { runReference = "OFTZA-SEED", runDate = Today.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture), outcome = "PASSED", ranBy = "Seed" }, Etag(tenant), idempotent: false);
                         tenant = await context.PlatformMaker.Send(HttpMethod.Get, url);
                     }
 
@@ -399,7 +410,7 @@ public sealed partial class OftzaSeed(SeedContext context)
     {
         var manager = context.Tenant(TenantId, "oftza-product-manager");
         var v1 = $"/api/v1/product-factory/products/{product}/versions/1";
-        var today = DateTime.UtcNow.ToString("yyyy-MM-dd");
+        var today = Today.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
         if (!await manager.Exists(v1))
         {
             await manager.Send(HttpMethod.Post, "/api/v1/product-factory/products", new { productCode = product, domain, familyCode = family, name, coverages, effectiveFrom = today }, key: $"{TenantCode}:product:{product}");

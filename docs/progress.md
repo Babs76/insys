@@ -78,6 +78,7 @@
 | Availability batch | LQNEWA: a refusal to run a JOB function is read from the database, never the cache, and a global publication retries the parked deliveries of every tenant | Branch `availability-batch` (on the seed batch) |
 | Release batch | A platform-wide row releases only the parks it can resolve (an entitlement: its tenant's parks of the functions needing its feature), marked 500 at a time | Branch `release-batch` (on the availability batch) |
 | Directory batch | Row-level security on `tenant.tenant` (V0142): a tenant's session sees only its own row, the platform operator's session every row, marked explicitly | Branch `directory-rls` (on the release batch) |
+| Seed dates | The seed's dates are the tenant's business date, not the machine's UTC date: the three seed jobs at `955665b` failed across midnight UTC | Branch `seed-business-date` |
 
 ## Phase 1 review items
 

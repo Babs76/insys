@@ -583,6 +583,22 @@ The front end's four non-breaking requests. None conflicts with the specs or the
   - Test: `WorkflowTests.TheDecidableCount_IsTheDecidableListsLength_CappedAt99_BR004`, which fails without the cap.
 - **A test lesson:** `--filter-class '*MeTests'` also matches `OftzaSeedResumeTests` (about 25 minutes). Name a class in full: `Insys.IntegrationTests.MeTests`.
 
+### Seed dates (19 November 2026, branch `seed-business-date`)
+Ade: treat a repeat of the seed failure as a defect. It was one.
+- **What failed:** all three seed jobs of CI run 44424678908, at `955665b`, at a 422 from `complete-onboarding-step`: `PRODUCT_FACTORY is not ready: PRODUCT_PUBLISHED`.
+  - The earlier report put this on `85961bf`. That was wrong: the seed jobs passed there, failed only at `955665b`, and passed again at `ddc0d68`.
+- **Not `TENANT_CODE_TAKEN`:** the seed never relies on it. It finds OFTZA in `GET /tenancy/tenants`, which runs in the operator's session and sees every tenant, and registers it only when it's absent, with the idempotency key `OFTZA:tenant`. The integration job's `TENANT_CODE_TAKEN` failure in the same run was the separate defect fixed at `ddc0d68`.
+- **Cause, unrelated to the commit:** each job started before 00:00 UTC on 18 November and published its products after it.
+  - The test hosts judge "today" as the UTC date the run started (`TestClock`, `BusinessDate:TestDate`): 18 November.
+  - The seed stamped `effectiveFrom` from `DateTime.UtcNow` at the time of the call: 19 November.
+  - So no product version was in force on the readiness day.
+  - The same split exists outside tests: from 22:00 to 24:00 UTC the machine's UTC date is a day behind Johannesburg's business date, so the seed's loss, start and due dates could disagree with the dates the tenant's rules use.
+- **Fix:** the seed reads the tenant's business date once per run from `/identity/me`, after the first administrators exist, and uses it for every date it sends: effective, loss, event, start and due dates, periods, idempotency keys with a date, and the smoke run's date. Instants (a wait's deadline, a complaint's received time, a webhook signature's timestamp) still use the clock.
+- **Tests:**
+  - `TimeSourceTests.TheSeed_TakesItsDatesFromTheTenantsBusinessDate_NotTheMachinesClock_ADR025` finds no date from the clock in `tools/Insys.Seed`. It lists 12 lines on `main`'s seed.
+  - Its rule has cases for what it finds and what it allows.
+  - Behaviour: `OftzaSeedTests.TheSeed_MakesASampleTenant_…` run locally with `INSYS_TEST_RUN_AT=2026-11-18T12:00:00Z` on 19 November (the test hosts a day behind the clock, as after midnight UTC). On `main` (`ddc0d68`) it fails with CI's 422 `PRODUCT_PUBLISHED`; with the fix it passes (1 of 1).
+
 ### Directory batch (18 November 2026, branch `directory-rls`, on the release batch)
 Ade: close the gap on `tenant.tenant` in the database, not only in the API.
 - **V0142:**

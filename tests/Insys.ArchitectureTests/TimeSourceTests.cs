@@ -92,6 +92,42 @@ public sealed partial class TimeSourceTests
     [GeneratedRegex(@"^db/migrations/V\d{4}__[^/]+\.sql$")]
     private static partial Regex AppliedMigration();
 
+    /// <summary>
+    /// The seed's dates are the tenant's business date (ADR-025), read from /identity/me: never a date taken from the machine's clock.
+    /// Found on CI run 44424678908: each seed job started before midnight UTC and published after it, so the product's effective date was
+    /// a day after the test host's business date and readiness found no product in force. Instants (deadlines, timestamps) may use the clock.
+    /// </summary>
+    [Fact]
+    public void TheSeed_TakesItsDatesFromTheTenantsBusinessDate_NotTheMachinesClock_ADR025()
+    {
+        var found = Directory.EnumerateFiles(Path.Combine(RepositoryPaths.Root, "tools", "Insys.Seed"), "*.cs", SearchOption.AllDirectories)
+            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+                        && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            .SelectMany(f => File.ReadLines(f).Select((line, i) => (File: Path.GetRelativePath(RepositoryPaths.Root, f), Line: i + 1, Text: line)))
+            .Where(l => !l.Text.TrimStart().StartsWith("//", StringComparison.Ordinal) && DateFromTheClock().IsMatch(l.Text))
+            .Select(l => $"{l.File}:{l.Line}: {l.Text.Trim()}")
+            .ToList();
+        found.ShouldBeEmpty("use Today, the tenant's business date");
+    }
+
+    [Theory]
+    [InlineData("var today = DateOnly.FromDateTime(DateTime.UtcNow);")]
+    [InlineData("runDate = DateTime.UtcNow.ToString(\"yyyy-MM-dd\")")]
+    [InlineData("new DateOnly(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1)")]
+    [InlineData("effectiveFrom = DateTime.Today")]
+    [InlineData("var d = DateTimeOffset.UtcNow.Date;")]
+    public void TheSeedRule_FindsADateFromTheClock(string line) => DateFromTheClock().IsMatch(line).ShouldBeTrue();
+
+    [Theory]
+    [InlineData("var deadline = DateTime.UtcNow + PendingWait;")]
+    [InlineData("receivedAt = DateTimeOffset.UtcNow,")]
+    [InlineData("DateTimeOffset.UtcNow.ToUnixTimeSeconds()")]
+    public void TheSeedRule_AllowsInstants(string line) => DateFromTheClock().IsMatch(line).ShouldBeFalse();
+
+    /// <summary>A calendar date from the machine's clock: DateOnly.FromDateTime of it, its Date, Year, Month or Day, a formatted date, or Today/Now.</summary>
+    [GeneratedRegex(@"DateOnly\.FromDateTime\(\s*DateTime(Offset)?\.(Utc)?Now|DateTime(Offset)?\.(Utc)?Now\.(Date|Year|Month|Day|ToString)\b|DateTime\.Today\b|DateTime\.Now\b")]
+    private static partial Regex DateFromTheClock();
+
     [Theory]
     [InlineData("WHERE retires_at > now()")]
     [InlineData("AND due_at <= CURRENT_TIMESTAMP")]
