@@ -576,7 +576,13 @@ The first of the five fix batches from the scope sweeps (`docs/reviews/read-scop
 - **The compliance officer's `PRODUCTS` screen is for viewing only:** tested in `AssistTests` (its expanded template holds only `PRODUCTS` and the provenance report in Product Factory, no `PRODUCT_*` action and no `SD_PRODUCT_FACTORY_*`) and in `AssistProductDraftReviewTests` (it reads the version and the report; creating a draft version, validating and submitting are refused 403).
 - **OQ-191 changed to two private repositories:** the set in `Babs76/insys-ai1-eval` with a read-only key (`AI1_EVAL_DEPLOY_KEY`); the review files in `Babs76/insys-ai1-eval-results` under `reviews/<run id>` with their own write key (`AI1_EVAL_RESULTS_KEY`); both secrets in `assist-eval` only. Runbook: `docs/runbooks/ai1-evaluation-data.md`. The job isn't built; the D-7 hold stays.
 - **The Preview plan (prepare only):** memory requests and limits for Keycloak, PostgreSQL, OpenBao and SeaweedFS (0.6, a chart change to make before the reset); a reading during the seed (0.7, a `preview.sh` change); the pending reboot first, after a backup (0A). Nothing ran on the Preview.
-- **Regenerated:** `R__function_catalogue.sql`, `role-templates.md`, `openapi-core.json`. No migration.
+- **The run needs the review (Ade's follow-up decision):** Identity's `FunctionRequirements` (`Insys.Identity.Domain.Access`) is the one rule: a role holding `ASSIST_PRODUCT_DRAFT_RUN` must hold `ASSIST_PRODUCT_DRAFT_REVIEW`. Applied by:
+  - `FunctionRequirementGuard`, a set guard on `iam.cfg_role_function_assignments` at submission, alone or in an import;
+  - the same class as a removal guard, a new building block (`IStaticRemovalGuard`) that `StaticDataService` runs before deprecating or retiring a code;
+  - `ProvisionTenantAdministrators`.
+  - Refused 422 `ASSIST_RUN_NEEDS_REVIEW`.
+  - Tests: `StaticDataTests` (the run alone refused, with the review accepted, the review's deprecate and retire refused while the run stays, then allowed once it has gone), `TenantAdministratorTests`, `AssistTests` (no template holds the run without the review) and `FunctionRequirementsTests`. Unregistering either guard fails the `StaticDataTests` case.
+- **Regenerated:** `R__function_catalogue.sql`, `R__error_code_catalogue.sql`, `error-codes.json`, `role-templates.md`, `openapi-core.json`, `ai2-evaluation-set.json` (the new code is worded). No migration.
 
 ### Wave 7 batch 7.8 (19 November 2026, branch `wave7-8`)
 AI-3's tailoring and document mapping, built against invented documents; its evaluation waits for the tenant sample documents. Ade, 19 November: OQ-186 to OQ-188 decided as recommended, each value taking effect only after a person accepts it. Contract note: "Wave 7 batch 7.8".

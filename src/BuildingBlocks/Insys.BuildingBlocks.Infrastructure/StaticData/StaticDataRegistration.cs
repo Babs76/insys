@@ -91,6 +91,19 @@ public interface IStaticSetGuard
     Result Check(StaticRecord proposed, IReadOnlyList<StaticRecord> others);
 }
 
+/// <summary>
+/// A module's rule for taking a code out of force (deprecating, withdrawing or retiring it), checked before the transition: the code leaving against the
+/// other codes in force or on their way today. A grant another grant needs can't go while that one stays, say (OQ-190).
+/// </summary>
+public interface IStaticRemovalGuard
+{
+    string Schema { get; }
+
+    string Table { get; }
+
+    Result Check(StaticRecord leaving, IReadOnlyList<StaticRecord> others);
+}
+
 /// <summary>Every static data table in the platform, for platform-wide checks.</summary>
 public sealed record ModuleStaticDataTables(string ModuleRoute, IReadOnlyList<StaticDataDescriptor> Descriptors);
 

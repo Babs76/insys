@@ -435,6 +435,22 @@ public sealed class TenantAdministratorTests(DatabaseFixture fixture) : IClassFi
             .ShouldBe("Not a staff function in force: BROKER_PORTAL_BILLING_INVOICES, NOT_A_FUNCTION.");
     }
 
+    /// <summary>OQ-190 (Ade, 19 November 2026): the first administrators' functions follow Identity's one rule: ASSIST_PRODUCT_DRAFT_RUN only with its review.</summary>
+    [Fact]
+    public async Task ARequestNamingTheDraftRunWithoutItsReview_IsRefused_OQ190()
+    {
+        var one = _factory.ClientFor(Operator, "platform-one");
+        var (tenantId, _) = await RegisterTenantAtAccessStep(one, "RUNREV");
+        var body = new { tenantId, administrators = new[] { Person("run-rev"), Person("run-rev-2") }, functions = new[] { "IDENTITY_USERS", "ASSIST_PRODUCT_DRAFT_RUN" } };
+
+        var refused = await one.Send(HttpMethod.Post, "/api/v1/identity/tenant-administrators", body, idempotent: true);
+
+        refused.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+        var problem = await refused.Json();
+        problem.GetProperty("code").GetString().ShouldBe("ASSIST_RUN_NEEDS_REVIEW");
+        problem.GetProperty("errors").GetProperty("functions")[0].GetString()!.ShouldContain("ASSIST_PRODUCT_DRAFT_REVIEW");
+    }
+
     /// <summary>
     /// BR-088: the request names only functions the new tenant can hold. A tenant entitled to GENERAL only, with one
     /// function switched off, is refused a Life function (FEATURE_NOT_ENTITLED) and the switched-off one

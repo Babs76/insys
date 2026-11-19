@@ -54,6 +54,10 @@ public static class IdentityInfrastructure
         services.AddStaticData<IdentityDbContext>(IdentityDbContext.SchemaName, IdentityStaticData.Descriptors);
         services.AddSingleton<IStaticRecordValidator, StaticData.RoleDefinitionValidator>();
         services.AddSingleton<IStaticRecordValidator, StaticData.DutyConflictRuleValidator>();
+        // OQ-190 (Ade, 19 November 2026): a role holding ASSIST_PRODUCT_DRAFT_RUN must hold ASSIST_PRODUCT_DRAFT_REVIEW too.
+        services.AddSingleton<StaticData.FunctionRequirementGuard>();
+        services.AddSingleton<IStaticSetGuard>(sp => sp.GetRequiredService<StaticData.FunctionRequirementGuard>());
+        services.AddSingleton<IStaticRemovalGuard>(sp => sp.GetRequiredService<StaticData.FunctionRequirementGuard>());
         services.AddModuleHandlers<IdentityDbContext>(typeof(ProvisionUser).Assembly);
         services.AddDomainEventMapper<IdentityEventMapper>(IdentityDbContext.SchemaName);
         services.AddScoped<IUserRepository, UserRepository>();

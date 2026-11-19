@@ -42,7 +42,9 @@ internal sealed class RoleFunctionGrantValidator : IStaticRecordValidator
     public string Table => "cfg_role_function_assignments";
 
     public string Rules => "functionCode is a screen or action function in the function catalogue (identity/static/function-catalogue); a JOB function, or a code "
-        + "the catalogue does not have, is refused (422 on functionCode, BR-019).";
+        + "the catalogue does not have, is refused (422 on functionCode, BR-019). A role granted ASSIST_PRODUCT_DRAFT_RUN must also hold ASSIST_PRODUCT_DRAFT_REVIEW, in "
+        + "force or on its way, for as long as the grant runs; ending or retiring ASSIST_PRODUCT_DRAFT_REVIEW while the role keeps ASSIST_PRODUCT_DRAFT_RUN is refused too "
+        + "(422 ASSIST_RUN_NEEDS_REVIEW, OQ-190).";
 
     public IReadOnlyDictionary<string, string[]> Validate(StaticRecord record)
     {

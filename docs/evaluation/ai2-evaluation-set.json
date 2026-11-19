@@ -122,6 +122,14 @@
       "fieldsInError": 0
     },
     {
+      "id": "R-ASSIST_RUN_NEEDS_REVIEW",
+      "code": "ASSIST_RUN_NEEDS_REVIEW",
+      "retryable": false,
+      "means": "A role that can start an AI product draft must also be able to review it.",
+      "remedy": "Grant ASSIST_PRODUCT_DRAFT_REVIEW to the role first, or end ASSIST_PRODUCT_DRAFT_RUN before ending the review function.",
+      "fieldsInError": 0
+    },
+    {
       "id": "R-ASSIST_RUN_STALLED",
       "code": "ASSIST_RUN_STALLED",
       "retryable": false,

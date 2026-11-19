@@ -127,6 +127,12 @@ public sealed class AssistTests(DatabaseFixture fixture) : IClassFixture<Databas
         RoleTemplates.Expand(RoleTemplates.All.Single(t => t.Code == "COMPLIANCE_OFFICER"), catalogue)
             .Where(f => f.SubDomain == "PRODUCT_FACTORY" || f.Code.StartsWith("PRODUCT_", StringComparison.Ordinal) || f.Code.StartsWith("SD_PRODUCT_FACTORY", StringComparison.Ordinal))
             .Select(f => f.Code).Order(StringComparer.Ordinal).ToList().ShouldBe(["ASSIST_PRODUCT_DRAFT_PROVENANCE", "PRODUCTS"]);
+        // OQ-190 (Ade, 19 November 2026): no template holds a function without the one it needs (ASSIST_PRODUCT_DRAFT_RUN without ASSIST_PRODUCT_DRAFT_REVIEW).
+        foreach (var template in RoleTemplates.All)
+        {
+            Insys.Identity.Domain.Access.FunctionRequirements.Missing(RoleTemplates.Expand(template, catalogue).Select(f => f.Code)).ShouldBeEmpty(template.Code);
+        }
+
         // Starting a run is the feature's; reading and deciding one are not (OQ-190).
         (await fixture.Database.ScalarAsOwner<string>("""
             SELECT parent_function_code || ':' || coalesce(required_feature, '-') FROM iam.ref_function_catalogue

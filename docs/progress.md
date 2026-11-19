@@ -83,7 +83,7 @@
 | Seed dates | The seed's dates are the tenant's business date, not the machine's UTC date: the three seed jobs at `955665b` failed across midnight UTC | Branch `seed-business-date` |
 | Status guard | V0144: an approved static data row's status moves only forward (OQ-185 (b)) | Branch `status-guard` |
 | Wave 7 batch 7.8 | AI-3 tailoring and document mapping (OQ-186 to OQ-188): documents on a setup, AI passes by a job acting for the user, deterministic checks, the unmapped list; evaluation set WAITING for the tenant sample documents; a new pass keeps decided values; CI fails a migration numbered at or below main's | Merged (`2c72e47`) |
-| Review-gap batch | Ade's decisions on the AI-1 follow-up: the submission hold for every AI-1 draft, its review under `ASSIST_PRODUCT_DRAFT_REVIEW` with no feature; the compliance officer's `PRODUCTS` view-only, tested; OQ-191 as two private repositories; the Preview plan's memory sizing, reboot first and a reading during the seed (prepared only) | Branch `review-gap` |
+| Review-gap batch | Ade's decisions on the AI-1 follow-up: the submission hold for every AI-1 draft, its review under `ASSIST_PRODUCT_DRAFT_REVIEW` with no feature; a role holding the draft run must hold the review (`ASSIST_RUN_NEEDS_REVIEW`, Identity's one rule); the compliance officer's `PRODUCTS` view-only, tested; OQ-191 as two private repositories; the Preview plan's memory sizing, reboot first and a reading during the seed (prepared only) | Branch `review-gap` |
 
 ## Phase 1 review items
 

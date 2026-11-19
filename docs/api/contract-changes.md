@@ -11,6 +11,9 @@ What changed in the API contract, newest first, so the front end can sync. The O
 - **`ASSIST_PRODUCT_DRAFT_RUN`** now holds only `POST /assist/product-drafts`, still under `AI_ASSIST`. A configurator needs both functions: the run's to start, the review's to read and decide.
 - **Submission's hold** (`PRODUCT_AI_REVIEW_INCOMPLETE`, 422) now applies to every version AI-1 drafted, whether or not the tenant has AI Assist today. Before, a tenant without the feature wasn't held.
 - **The compliance officer** holds `PRODUCTS` for viewing only, with the provenance report: no product maintain or approve action (tested).
+- **New refusal `ASSIST_RUN_NEEDS_REVIEW` (422):** a role granted `ASSIST_PRODUCT_DRAFT_RUN` must also hold `ASSIST_PRODUCT_DRAFT_REVIEW`.
+  - Refused: submitting the run's grant (`POST /identity/static/role-function-assignments/{code}/versions/{n}/submit`, or an import line) without the review in force or on its way; ending the review (a version with `effectiveTo`, or `deprecate`/`retire`) while the run stays; and `POST /identity/tenant-administrators` naming the run without the review.
+  - Grant the review first, then the run; end the run first, then the review.
 - **For the front end:** show the run's review and the decision actions under `ASSIST_PRODUCT_DRAFT_REVIEW` from the menu, not under `ASSIST_PRODUCT_DRAFT_RUN`; with AI Assist off, the review stays available and starting a run doesn't.
 
 ## Wave 7 batch 7.8: AI-3's tailoring and document mapping (Ade, 19 November 2026: OQ-186 to OQ-188)
