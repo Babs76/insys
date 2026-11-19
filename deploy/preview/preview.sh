@@ -736,11 +736,22 @@ check() {
     open_ssh "${RUNNER_IP:?}"
     item "OpenBao" check_openbao
     item "Restarts and reboots" pending_restarts
+    item "Memory" memory_use
     changed="Nothing was created. SSH was opened for this runner only, and is closed at the end with any other SSH rule (open-ssh's too)."
   fi
   alert_note
   [ "$failed" = 0 ] || fail "At least one check failed: see FAIL above. $changed"
   echo "Every check passed. $changed"
+}
+# Memory on the server, read only (the rebuild plan's step 0.5, Ade, 19 November 2026): the server's own figures, then the cluster's per node and pod.
+# kubectl top needs k3s's bundled metrics-server; if it doesn't answer, that is said, and the item still passes, as it only reports.
+memory_use() {
+  # shellcheck disable=SC2016 # it runs on the server, which expands it
+  on_server 'printf "\n"; free -m
+    printf "== nodes\n"; k3s kubectl top nodes 2>&1 || printf "kubectl top nodes did not answer (metrics-server)\n"
+    printf "== pods, by memory\n"; k3s kubectl top pods -A --sort-by=memory 2>&1 || printf "kubectl top pods did not answer (metrics-server)\n"
+    printf "== requests and limits of the insys release\n"
+    k3s kubectl get pods -n default -o custom-columns="POD:.metadata.name,REQ:.spec.containers[*].resources.requests.memory,LIM:.spec.containers[*].resources.limits.memory" 2>&1'
 }
 check_openbao() {
   local state
