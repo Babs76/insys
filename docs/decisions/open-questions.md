@@ -1436,7 +1436,7 @@ Raised by the read-scope sweep (`docs/reviews/read-scope-sweep.md`, at `06ecae1`
 - **(b):** as (a), but AI-1 also makes static data drafts for those tables, as the user, so each still needs its own approval. More of the configurator's typing saved. It is a wider write surface, and it changes AIA-021, so it's a change to the specification.
 - **Recommended: (a) for 7.4, with (b) to reconsider after 7.5's evaluation.** (b) adds to (a) and replaces nothing.
 
-**OQ-185: the database lets an issued product version's status move backwards (recorded 18 November 2026, seed batch, for Ade).** This came up checking whether a General policy can reach an unpublished product version (the sweep's A5).
+**OQ-185: the database lets an issued product version's status move backwards (recorded 18 November 2026, seed batch). Decided (Ade, 19 November 2026): (b).** The forward-only guard, as a new migration, on every configuration table, with tests that every move INSYS makes still works and a backward move is refused. This came up checking whether a General policy can reach an unpublished product version (the sweep's A5).
 - **Through INSYS, it can't:**
   - A quote takes its version from the versions on sale (`Products.OnSale`: published or effective, in the sale window).
   - A migrated policy is refused unless its version is published (`PolicyMigration`: "isn't a published product version").
@@ -1444,6 +1444,33 @@ Raised by the read-scope sweep (`docs/reviews/read-scope-sweep.md`, at `06ecae1`
   - `Products.Issued` finds all four of those states, whatever the sale window. So `GENERAL_PRODUCT_NOT_AVAILABLE` on an endorsement means data written outside INSYS, which is why it stays a failure (dead-lettered for a person) rather than a park for configuration.
 - **The gap:** `sdm.guard_static_version` keeps an approved row's fields immutable but lets `record_status` change to any value. A direct update could set a published version back to `DRAFT`, and every policy on it would then fail on endorsement and claims.
 - **Proposal, not built:** the guard refuses a status change on a locked row unless it moves forward in the lifecycle (to `EFFECTIVE`, `WITHDRAWN`, `RETIRED` or `DEPRECATED`), with a test. This is a migration (a new version of the function), so it is for Ade to decide.
+- **Options (19 November 2026, for Ade):**
+  - (a) Leave it. Only module roles and the owner can write these tables, and INSYS never moves a status backwards. The gap is a direct update by a person or a defect.
+  - (b) A new version of `sdm.guard_static_version` that allows, on a locked row, only the forward moves of the two lifecycles, with a test per move, both ways. Reference: Approved to Active, Active to Deprecated or Retired, Deprecated to Retired. Configuration: Approved to Published, Published to Effective, Published or Effective to Withdrawn, Published, Effective or Withdrawn to Retired. An unchanged status stays allowed.
+  - (c) As (b), and also audit every status change made outside INSYS.
+- **Checked for (b):** INSYS makes only those moves on a locked row: activation, deprecation and retirement in `StaticDataService`, Product Factory through `ProductVersion.Lifecycle`. Both rejection paths, including an abandoned SETUP set (OQ-180), return only pending rows to draft, and a pending row isn't locked. So (b) refuses nothing INSYS does today.
+- **Recommendation: (b).** One function covers every static table. A deliberate correction is still possible: as the owner, with the trigger disabled for the change, which is visible.
+
+**OQ-186: may AI-3 map a tenant's documents onto rows the interim reading calls regulated? (7.8, recorded 19 November 2026.) Decided (Ade, 19 November 2026): (a), the recommendation, with a person's approval before anything takes effect.** A mapped value is a cited proposal on the run until the reviewer accepts it, and the SETUP change set's second-person approval (AIA-086) still applies before it is in force. AIA-083 maps the tenant's chart of accounts, approval matrix and role list. AIA-082 says a regulated value with no approved overlay is never filled by the AI. Under D-20's interim reading, a row with no explicit mark is regulated when its class is FINANCE or COMPLIANCE. Every chart of accounts row (`finance.mst_chart_of_accounts`) and every approval authority row (`workflow.cfg_delegation_and_approval_authority`) in the base pack is class FINANCE with no explicit mark, so the AI could map none of AIA-083's first two examples.
+- **Options:**
+  - (a) Mapped values are the tenant's own facts, cited to its document, not regulated values. "Regulated" means what the law sets: tax, disclosure texts, retention, AML settings (§5A.1). The three AIA-083 tables are mappable whatever their class; every other regulated row stays overlay-only.
+  - (b) Mapping only onto rows a pack marks explicitly as mappable, a third mark beside D-20's two. No pack row has it yet, so nothing is mapped until a reviewer adds it.
+  - (c) Keep the interim reading: no mapping onto FINANCE or COMPLIANCE rows, so only the role list is mapped.
+- **Recommendation: (a).** It matches §5A.1's definition, and keeps AIA-087: every number copied from a cited cell, and a limit only with its currency.
+
+**OQ-187: what may tailoring change, and from what? (7.8, recorded 19 November 2026.) Decided (Ade, 19 November 2026): (a), the recommendation, with a person's approval before anything takes effect.** A tailored value is a proposal until the reviewer accepts it. AIA-082 says the AI "chooses and tailors only values a pack marks as tailorable", and AIA-084 that a Tailored value is "cited to the answer". Neither says which fields of a tailorable row may change, or which answer may change them. No pack row has an explicit `tailorable` mark yet (D-20), so nothing is tailored today.
+- **Options:**
+  - (a) The mark names what may change: `tailorable` carries the row's columns and the questionnaire answers that may set them, for example `{ "columns": ["zone"], "from": ["timeZone"] }`. The AI chooses only among the values those answers hold, and the verifier checks that each tailored value equals one of them (AIA-087).
+  - (b) A plain true or false mark: the AI may change any non-key column of the row, citing any answer. The verifier can then check only that a value appears in some answer.
+- **Recommendation: (a).** Each tailored value can be checked deterministically against its answer. (b) leaves the AI to decide which column an answer means.
+
+**OQ-188: what does a mapped role list or chart of accounts produce? (7.8, recorded 19 November 2026.) Decided (Ade, 19 November 2026): the recommendations, with a person's approval before anything takes effect.**
+- **Roles:** a role in `iam.cfg_roles_and_permission_sets` carries permissions. A document's role titles say nothing reliable about permissions.
+  - Recommendation: a role title maps onto one of INSYS's role templates, chosen by the AI and cited to the title. The role takes the template's permissions only; the AI never chooses a permission. A title with no fitting template is listed as unmapped.
+- **Accounts:** the base pack's chart is one placeholder account, `ACC-1100`, and every posting rule posts to it.
+  - Recommendation: mapped accounts are added beside the pack's rows, which stay until the reviewer rejects them. Pointing posting rules at the tenant's accounts isn't in AIA-083's list, so it stays the configurator's work, listed as unmapped.
+- **Unmapped (AIA-083):** each source line the AI didn't map, by document, page and text, and each mapped value the verifier dropped, with why.
+
 
 **OQ-190: how the provenance report reaches the approver, and whether submission waits on the review (7.5, recorded 19 November 2026, for Ade).** AIA-020 says the report is "attached to the version and shown to the approver at submission", and §8.1 step 5 that "Interpreted values cannot be left unreviewed". SRS §9.2 says existing modules gain read hooks only, with no behaviour change. Product Factory's submission and Workflow's approval know nothing of Assist, so either requirement needs one of them to change.
 - **Built in 7.5:** the report by version, `GET /assist/product-drafts/provenance/{productCode}/{productVersion}`, for the approver's screen, under its own function `ASSIST_PRODUCT_DRAFT_PROVENANCE`. Its summary says whether the review is complete: no Interpreted value undecided, and no version field differing from its decision.

@@ -212,6 +212,13 @@ public sealed record TestDatabase(string Name, string OwnerConnectionString, str
         await command.ExecuteNonQueryAsync();
     }
 
+    /// <summary>
+    /// A deliberate correction the static data guard refuses, such as a test putting a retired row back in force: as the owner, with triggers off for
+    /// this one connection (OQ-185, V0144). The guard lets an approved row's status move only forward; this is the visible way round it.
+    /// </summary>
+    public Task CorrectAsOwnerPastTheGuard(string sql, params (string Name, object Value)[] parameters) =>
+        ExecuteAsOwner($"SET session_replication_role = replica; {sql}; SET session_replication_role = origin", parameters);
+
     public async Task<T?> ScalarAsOwner<T>(string sql, params (string Name, object Value)[] parameters)
     {
         await using var connection = new NpgsqlConnection(OwnerConnectionString);

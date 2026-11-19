@@ -23,6 +23,9 @@ All added, none breaking.
   - It isn't attached to the approval in Workflow, and submission doesn't wait on it (OQ-190).
 - **Database:** V0146 adds the decision columns to `assist.draft_item`.
 
+## Status guard: an approved row's status moves only forward (V0144, OQ-185, 19 November 2026)
+- **No API change.** INSYS's own moves are unchanged. In the database, a direct update that moves an approved static data row's status backwards, such as a published product version back to `DRAFT`, is refused.
+
 ## Usability batch: the front end's four requests (18 November 2026)
 All added, none breaking.
 - **Role labels:** `label` on each role in `GET /identity/me` (`roles[]`) and `GET /identity/roles`. It is the role's own label in the caller's languages (its static row's `labels`), else its role template's name, else null, in which case the client shows `roleCode`.
