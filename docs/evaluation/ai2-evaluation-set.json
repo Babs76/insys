@@ -130,11 +130,27 @@
       "fieldsInError": 0
     },
     {
+      "id": "R-ASSIST_SETUP_CHANGED",
+      "code": "ASSIST_SETUP_CHANGED",
+      "retryable": false,
+      "means": "The setup changed while the AI pass ran: its answers changed or it was submitted, so nothing the pass found was recorded in it.",
+      "remedy": "Read the setup again and ask for a new pass if it is still a draft.",
+      "fieldsInError": 0
+    },
+    {
       "id": "R-ASSIST_SETUP_NOT_READY",
       "code": "ASSIST_SETUP_NOT_READY",
       "retryable": false,
       "means": "The setup can\u0027t be submitted yet: a value is missing or undecided, a regulated value isn\u0027t from an overlay approved for your tenant, or a table refuses a value.",
       "remedy": "Read the setup\u0027s completeness check, correct each blocker it lists, and submit again.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-ASSIST_SETUP_PASS_OPEN",
+      "code": "ASSIST_SETUP_PASS_OPEN",
+      "retryable": false,
+      "means": "An AI pass is already queued or running on this setup, and a setup takes one pass at a time.",
+      "remedy": "Wait for the pass to finish, then read the setup again and ask for another if you need one.",
       "fieldsInError": 0
     },
     {
