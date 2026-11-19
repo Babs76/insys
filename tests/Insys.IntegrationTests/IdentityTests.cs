@@ -132,6 +132,26 @@ public sealed class IdentityTests(DatabaseFixture fixture) : IClassFixture<Datab
     }
 
     [Fact]
+    public async Task InvitedUser_IsDisabled_AndTheRevokedInvitation_CannotSignIn_Row31()
+    {
+        var admin = _factory.ClientFor(DatabaseFixture.TenantA, Admin);
+        var created = await admin.Send(HttpMethod.Post, "/api/v1/identity/users",
+            new { username = "revoked.invite", displayName = "Revoked Invite", idpCode = "TEST", externalSubject = "revoked-invite-sub", mfaEnrolled = false }, idempotent: true);
+        var id = (await created.Json()).GetProperty("id").GetGuid();
+        var user = await admin.GetAsync($"/api/v1/identity/users/{id}");
+        (await user.Json()).GetProperty("status").GetString().ShouldBe("Invited");
+
+        (await admin.Send(HttpMethod.Post, $"/api/v1/identity/users/{id}/disable", ifMatch: user.ETag())).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+
+        (await _factory.ClientFor(DatabaseFixture.TenantA, "revoked-invite-sub").GetAsync("/api/v1/identity/me")).StatusCode
+            .ShouldBeOneOf(HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden);
+        await _factory.DrainOutbox();
+        (await fixture.Database.ScalarAsOwner<string>("SELECT status FROM iam.user_account WHERE id = @id", ("id", id))).ShouldBe("DISABLED");
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM audit.audit_event WHERE operation = 'DisableUser' AND target_id = @id", ("id", id.ToString())))
+            .ShouldBe(1);
+    }
+
+    [Fact]
     public async Task AssignRole_ThatCombinesBlockedFunctions_IsRefused_SRS002()
     {
         // ADR-026 §4: the rule pairs functions, checked across the user's roles in effect.

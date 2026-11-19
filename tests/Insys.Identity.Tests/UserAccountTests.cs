@@ -47,7 +47,8 @@ public sealed class UserAccountTests
         var implemented = UserAccount.Lifecycle.Transitions.Select(t => $"{t.From}-{t.Trigger}->{t.To}").OrderBy(t => t, StringComparer.Ordinal).ToList();
         var specified = DomainModelSpec.Transitions("iam", "UserAccount").Select(t => t.Replace("First sign-in", "FirstSignIn", StringComparison.Ordinal))
             // Added by the signed-off keycloak-user-provisioning addendum (§4): a user of INSYS's own realm waits for its Keycloak user.
-            .Concat(["PendingIdentity-LinkIdentity->Invited", "PendingIdentity-DisableUser->Disabled"]).OrderBy(t => t, StringComparer.Ordinal).ToList();
+            // Go-live register row 31 (Ade, 2 November 2026): revoking an invitation not yet accepted.
+            .Concat(["PendingIdentity-LinkIdentity->Invited", "PendingIdentity-DisableUser->Disabled", "Invited-DisableUser->Disabled"]).OrderBy(t => t, StringComparer.Ordinal).ToList();
 
         implemented.ShouldBe(specified);
     }
@@ -153,15 +154,24 @@ public sealed class UserAccountTests
         user.RoleAssignments.ShouldAllBe(a => a.Status == AssignmentStatus.Revoked);
     }
 
-    [Theory]
-    [InlineData(UserStatus.Invited, "Lock")]
-    [InlineData(UserStatus.Invited, "Disable")]
-    public void InvitedUser_CannotBeLockedOrDisabled_IsInvalidStateTransition(UserStatus _, string action)
+    [Fact]
+    public void InvitedUser_CannotBeLocked_IsInvalidStateTransition()
+    {
+        User().LockUser(Now).Error!.Code.ShouldBe(ErrorCodes.InvalidStateTransition);
+    }
+
+    [Fact]
+    public void InvitedUser_IsDisabled_SoTheInvitationIsRevoked_AndCannotBeUsed_Row31()
     {
         var user = User();
-        var result = action == "Lock" ? user.LockUser(Now) : user.DisableUser(Now);
 
-        result.Error!.Code.ShouldBe(ErrorCodes.InvalidStateTransition);
+        user.DisableUser(Now).IsSuccess.ShouldBeTrue();
+
+        user.Status.ShouldBe(UserStatus.Disabled);
+        user.DomainEvents.OfType<UserDisabled>().ShouldHaveSingleItem();
+        // A revoked invitation can't be accepted: first sign-in no longer activates the user.
+        user.RecordSignIn(Now.AddMinutes(1));
+        user.Status.ShouldBe(UserStatus.Disabled);
     }
 
     [Fact]
