@@ -38,6 +38,12 @@
       "target": "Under 30 minutes",
       "status": "WAITING",
       "waitingFor": "A timed run with a tenant's administrator on real documents."
+    },
+    {
+      "measure": "ACCOUNTS_UNMAPPED_BY_PRIVACY_MASK",
+      "target": "Reported, no target (OQ-189 (a), Ade 19 November 2026: revisited with the tenant samples)",
+      "status": "WAITING",
+      "waitingFor": "The tenant sample documents for AI-3's evaluation (handover: 7.8, D-16), with an expert's expected mappings. None has arrived; the only case is invented."
     }
   ],
   "roleTemplates": [

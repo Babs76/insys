@@ -578,7 +578,12 @@ AI-3's tailoring and document mapping, built against invented documents; its eva
 - **Results:** a tailored value replaces the pack row's (one item a row), a mapped one is a new row beside the pack's; all undecided, so the completeness check blocks submission until each is decided. A new pass replaces the last one's results. New answers keep a tailored value only while its answer holds it (`StillTailored`), and keep mapped rows.
 - **Evaluation (7.8c):** `docs/evaluation/ai3-evaluation-set.json`, every §5A.4 measure WAITING for the tenant sample documents; `SetupEvaluationRunner`, run by `tools/Insys.Assist.Evaluation --set docs/evaluation/ai3-evaluation-set.json`. Its one case is invented and counts toward no target.
 - **Stand-in:** `docs/frontend/ai3-sample-tenant-documents.pdf` and its fixed answer (one figure wrong, one title unmapped).
-- **Found while building, recorded for Ade:** OQ-189 (the minimiser masks codes like `GL-4100`, so they can't be mapped as written) and OQ-192 (how a mapped role gets its template's functions).
+- **Ade's changes before merging (19 November):**
+  - A new pass replaces only undecided values; accepted and rejected values stay, with their audit (`ANewPass_ReplacesOnlyUndecidedValues…`). AI-3 has no edited decision: editing is AI-1's.
+  - `tools/migration-numbers.py`, CI job `migration-numbers`: fails when a branch adds a migration at or below main's highest version, or two files share a version. It passes on main and with no migration added.
+  - OQ-189 and OQ-192 decided (a). The evaluation reports `ACCOUNTS_UNMAPPED_BY_PRIVACY_MASK`: expected accounts missed because a value of theirs is in the extracted text but not in the minimised text.
+  - The four choices accepted. `SetupMappingTargetTests` pins the three tables' columns to the static data catalogue (lengths, types, requiredness, allowed codes) and the generated import fields.
+- **Found while building, recorded for Ade:** OQ-189 (decided (a): the minimiser masks codes like `GL-4100`, so they can't be mapped as written) and OQ-192 (decided (a): how a mapped role gets its template's functions).
 - **Tests:** `SetupAiCheckTests`, `SetupEvaluationTests`, `PackFileTests` and `PublishedSampleTests` (unit); `AssistSetupAiTests` (integration, 8): a full pass, the completeness block, D-16's refusals, the identifier refusal, the entitlement, one pass at a time and changed answers, re-answering, row-level security. Mutation checks, each caught: the answer-value rule, CODE_IN_PACK, the citation, the quote rule for words and for amounts, the tailor requirement, the tailor in the hash, the identifier refusal, the entitlement, keeping mapped rows on new answers.
 
 ### Wave 7 batch 7.5 (19 November 2026, branch `wave7-5`)

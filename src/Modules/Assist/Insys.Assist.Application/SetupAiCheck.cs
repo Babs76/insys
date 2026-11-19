@@ -51,7 +51,8 @@ public enum MappedColumnKind
     Flag,
 }
 
-public sealed record MappedColumn(string Name, MappedColumnKind Kind, bool Required, IReadOnlyList<string>? Allowed = null);
+/// <param name="MaxLength">The column's length, as the static data catalogue declares it: a longer value is refused (MALFORMED).</param>
+public sealed record MappedColumn(string Name, MappedColumnKind Kind, bool Required, IReadOnlyList<string>? Allowed = null, int? MaxLength = null);
 
 /// <summary>A table AI-3 maps a tenant's documents onto (AIA-083, OQ-186 (a)): its columns and how the row's code is made from them.</summary>
 public sealed record SetupMappingTarget(string Table, string Class, string Document, IReadOnlyList<MappedColumn> Columns, Func<JsonObject, string?> Code);
@@ -74,18 +75,19 @@ public static class SetupMappingTargets
     [
         new(ChartOfAccounts, "FINANCE", "chart of accounts",
             [
-                new("account_code", MappedColumnKind.Copied, true), new("name", MappedColumnKind.Copied, true), new("type", MappedColumnKind.InsysCode, true, AccountTypes),
-                new("gl_account", MappedColumnKind.Copied, true), new("status", MappedColumnKind.InsysCode, true, ["ACTIVE"]),
+                new("account_code", MappedColumnKind.Copied, true, MaxLength: 20), new("name", MappedColumnKind.Copied, true, MaxLength: 100),
+                new("type", MappedColumnKind.InsysCode, true, AccountTypes), new("gl_account", MappedColumnKind.Copied, true, MaxLength: 30),
+                new("status", MappedColumnKind.InsysCode, true, ["ACTIVE"]),
             ],
             row => Text(row, "account_code") is { Length: > 0 } code ? $"ACC-{code}" : null),
         new(ApprovalAuthority, "FINANCE", "approval matrix",
             [
-                new("role_code", MappedColumnKind.InsysCode, true), new("transaction_type", MappedColumnKind.InsysCode, true),
+                new("role_code", MappedColumnKind.InsysCode, true, MaxLength: 80), new("transaction_type", MappedColumnKind.InsysCode, true, MaxLength: 30),
                 new("limit_value", MappedColumnKind.Amount, true), new("currency", MappedColumnKind.Currency, true), new("delegation_allowed", MappedColumnKind.Flag, true),
             ],
             row => Text(row, "transaction_type") is { Length: > 0 } type && Text(row, "role_code") is { Length: > 0 } role ? $"AUTH-{type}-{role}" : null),
         new(Roles, "OPERATIONAL", "role list",
-            [new("role_code", MappedColumnKind.InsysCode, true, roleTemplates), new("title", MappedColumnKind.Copied, true)],
+            [new("role_code", MappedColumnKind.InsysCode, true, roleTemplates, MaxLength: 30), new("title", MappedColumnKind.Copied, true, MaxLength: 100)],
             row => Text(row, "role_code")),
     ];
 
@@ -322,6 +324,11 @@ public static partial class SetupAiCheck
                 }
 
                 continue;
+            }
+
+            if (column.MaxLength is { } max && cell is JsonValue sized && sized.TryGetValue<string>(out var given) && given.Trim().Length > max)
+            {
+                return Malformed;
             }
 
             var reason = column.Kind switch

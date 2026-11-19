@@ -91,6 +91,20 @@ jobs:
   # The integration split for this run, made once so every shard runs the same split: from the class times the latest
   # successful run on main measured (its integration-timings artifact), else the committed timings file. A class never
   # measured is estimated from its tests (tools/integration-shards.py).
+  # A migration numbered at or below main's highest would be refused by every database already migrated from main (batch 7.8's V0145, after V0146).
+  migration-numbers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Added migrations are numbered above main's
+        run: |
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          python3 tools/migration-numbers.py --base origin/main
+
   deployment:
     runs-on: ubuntu-latest
     timeout-minutes: 20

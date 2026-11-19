@@ -14,9 +14,11 @@ All added, none breaking. Nothing AI-3 proposes takes effect until a person acce
 - **Each value** (`GET /assist/tenant-setups/{id}`) gains `aiPassId`, `citationDocumentId`, `citationPage`, `citationQuote` (a `MAPPED` value's source) and `citedAnswer`, `citedAnswerValue` (a `TAILORED` value's).
   - `TAILORED`: a pack row's value, one named column set to a named answer's value. `MAPPED`: a new row beside the pack's, on `finance.mst_chart_of_accounts` (`ACC-<account code>`), `workflow.cfg_delegation_and_approval_authority` (`AUTH-<transaction type>-<role>`) or `iam.cfg_roles_and_permission_sets` (a role template's code, the title as its English label, never permissions).
   - Both are undecided: the completeness check lists them `UNDECIDED` until accepted or rejected.
+  - A new pass replaces only undecided values (Ade, 19 November 2026). An accepted or rejected value keeps its decision, its `aiPassId` and its audit.
   - New answers keep a tailored value only while its answer still holds it; mapped rows stay.
 - **`unmapped`:** each line the model couldn't map (`NOT_MAPPED`) and each proposal INSYS dropped, with why: `NOT_TAILORABLE`, `COLUMN_NOT_TAILORABLE`, `ANSWER_NOT_NAMED`, `NOT_IN_ANSWER`, `UNKNOWN_TABLE`, `UNKNOWN_COLUMN`, `MISSING_COLUMN`, `NOT_ALLOWED`, `NOT_IN_QUOTE`, `CURRENCY_MISSING`, `CODE_IN_PACK`, `DUPLICATE`, `MALFORMED`, `NO_CITATION`, `CITATION_NOT_FOUND`, `CITATION_TOO_SHORT`.
 - **Packs:** a row may carry `tailor: { columns, from }` (docs/specs/starter-packs/README.md). The review sheet's rows gain `tailorColumns` and `tailorFrom`.
+- **Mapped text is limited to its column's length** (`account_code` 20, `gl_account` 30, `name` 100, a role's title 100): a longer value is dropped `MALFORMED`.
 - **Stand-in model:** with `Assist:Provider=development`, the published test document `docs/frontend/ai3-sample-tenant-documents.pdf` gets fixed mappings, one dropped for a wrong figure, and one title left unmapped.
 
 ## Wave 7 batch 7.5: AI-1's review, provenance and simulation cases (19 November 2026)

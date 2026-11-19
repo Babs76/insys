@@ -271,6 +271,60 @@ public sealed class AssistSetupAiTests(DatabaseFixture fixture) : IClassFixture<
     }
 
     [Fact]
+    public async Task ANewPass_ReplacesOnlyUndecidedValues_AndAcceptedOrRejectedValuesStayWithTheirAudit_Ade19November()
+    {
+        var w = await Ready("sa-again");
+        var (setup, etag) = await Start(w);
+        (await Attach(w, setup, etag, await Upload(w, TenantDocument()))).StatusCode.ShouldBe(HttpStatusCode.OK);
+        var template = Insys.Identity.Api.RoleTemplates.All.First(t => t.Code.Contains("CLAIM", StringComparison.Ordinal)).Code;
+        w.Stub.Reply = _ => Mixed(template);
+        var (first, firstPass) = await Pass(w, setup);
+
+        async Task Decide(JsonElement value, string decision) =>
+            (await w.Wizard.Send(HttpMethod.Post, $"{Setups}/{setup}/items/{value.GetProperty("id").GetGuid()}/decision", new { decision },
+                ifMatch: $"\"{value.GetProperty("rowVersion").GetInt64()}\"")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        await Decide(Value(first, Calendars, "CAL"), "ACCEPTED");
+        await Decide(Value(first, Accounts, "ACC-4100"), "ACCEPTED");
+        await Decide(Value(first, Roles, template), "REJECTED");
+
+        // The second pass proposes again for every row, with a different time zone answer value it can't use, and a new account.
+        w.Stub.Reply = _ => Reply(new
+        {
+            tailored = new object[] { new { table = Calendars, code = "CAL", column = "time_zone", answer = "timeZone", value = "Africa/Johannesburg" } },
+            mapped = new object[]
+            {
+                new { table = Accounts, value = new { account_code = "4100", name = "Premium income", type = "INCOME", gl_account = "GL 4100", status = "ACTIVE" }, citation = Cite(1, "4100 Premium income INCOME GL 4100") },
+                new { table = Authorities, value = new { role_code = "CLAIMS_MANAGER", transaction_type = "CLAIM_PAYMENT", limit_value = "250000", currency = "ZAR", delegation_allowed = false },
+                    citation = Cite(2, "Claims managers approve claim payments up to ZAR 250,000.") },
+                new { table = Roles, value = new { role_code = template, title = "Claims Officer" }, citation = Cite(3, "Role list Claims Officer") },
+            },
+        });
+        var (second, secondPass) = await Pass(w, setup);
+        var pass1 = firstPass.GetProperty("id").GetGuid();
+        var pass2 = secondPass.GetProperty("id").GetGuid();
+        secondPass.GetProperty("status").GetString().ShouldBe("DRAFTED", secondPass.ToString());
+
+        // Decided values stay as decided, from the pass that made them.
+        foreach (var (table, code, decision) in new[] { (Calendars, "CAL", "ACCEPTED"), (Accounts, "ACC-4100", "ACCEPTED"), (Roles, template, "REJECTED") })
+        {
+            var kept = Value(second, table, code);
+            (kept.GetProperty("decision").GetString(), kept.GetProperty("aiPassId").GetGuid(), kept.GetProperty("inDraft").GetBoolean()).ShouldBe((decision, pass1, true), $"{table}:{code}");
+        }
+
+        // The undecided value is replaced by the new pass's.
+        var replaced = Value(second, Authorities, "AUTH-CLAIM_PAYMENT-CLAIMS_MANAGER");
+        (replaced.GetProperty("aiPassId").GetGuid(), replaced.GetProperty("decision").ValueKind).ShouldBe((pass2, JsonValueKind.Null));
+
+        await w.Host.DrainOutbox();
+        var decided = new[] { Value(second, Calendars, "CAL"), Value(second, Accounts, "ACC-4100"), Value(second, Roles, template) }
+            .Select(v => v.GetProperty("id").GetGuid().ToString()).ToArray();
+        (await fixture.Database.ScalarAsOwner<long>("""
+            SELECT count(DISTINCT target_id) FROM audit.audit_event
+            WHERE tenant_id = @t AND operation = 'DecideSetupItem' AND outcome = 'SUCCESS' AND target_id = ANY(@ids)
+            """, ("t", w.Tenant), ("ids", decided))).ShouldBe(3L, "each decision's audit stays");
+    }
+
+    [Fact]
     public async Task AttachingADocument_NeedsItsUploadersConfirmation_AndAScannedUpload_D16()
     {
         var w = await Ready("sa-attach");

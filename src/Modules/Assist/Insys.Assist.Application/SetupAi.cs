@@ -490,7 +490,9 @@ internal sealed class SetupAiJobHandlers(ISetupRuns runs, SetupDrafting drafting
         var tailoredCount = 0;
         var mappedCount = 0;
 
-        foreach (var item in items.Where(i => i.InDraft))
+        // Ade, 19 November 2026: a new pass replaces only undecided values. A value a person accepted or rejected stays as decided, with its audit, whatever
+        // the new pass proposes for its row; the new proposal for it isn't recorded.
+        foreach (var item in items.Where(i => i.InDraft && i.Decision is null))
         {
             if (tailored.TryGetValue((item.TableName, item.RowCode), out var t))
             {
@@ -512,6 +514,12 @@ internal sealed class SetupAiJobHandlers(ISetupRuns runs, SetupDrafting drafting
         {
             if (byRow.TryGetValue((m.Table, m.Code), out var existing))
             {
+                if (existing.Decision is not null)
+                {
+                    continue;
+                }
+
+
                 // Only a mapped row is mapped again; any other row of the draft holds its code (OQ-188), which the check already dropped.
                 mappedCount += existing.Remap(run.AnswersVersion, pass.Id, m.Values, m.DocumentId, m.Page, m.Quote).IsSuccess ? 1 : 0;
             }

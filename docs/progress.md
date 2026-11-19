@@ -81,7 +81,7 @@
 | Directory batch | Row-level security on `tenant.tenant` (V0142): a tenant's session sees only its own row, the platform operator's session every row, marked explicitly | Branch `directory-rls` (on the release batch) |
 | Seed dates | The seed's dates are the tenant's business date, not the machine's UTC date: the three seed jobs at `955665b` failed across midnight UTC | Branch `seed-business-date` |
 | Status guard | V0144: an approved static data row's status moves only forward (OQ-185 (b)) | Branch `status-guard` |
-| Wave 7 batch 7.8 | AI-3 tailoring and document mapping (OQ-186 to OQ-188): documents on a setup, AI passes by a job acting for the user, deterministic checks, the unmapped list; evaluation set WAITING for the tenant sample documents | Branch `wave7-8` |
+| Wave 7 batch 7.8 | AI-3 tailoring and document mapping (OQ-186 to OQ-188): documents on a setup, AI passes by a job acting for the user, deterministic checks, the unmapped list; evaluation set WAITING for the tenant sample documents; a new pass keeps decided values; CI fails a migration numbered at or below main's | Branch `wave7-8` |
 
 ## Phase 1 review items
 

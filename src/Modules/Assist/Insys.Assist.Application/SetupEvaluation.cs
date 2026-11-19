@@ -56,8 +56,10 @@ public sealed record SetupEvaluationSet(string Feature, string Status, string? W
 }
 
 /// <summary>One case's outcome: what was mapped, how much of it the expert expected, and whether every kept citation resolved.</summary>
+/// <param name="AccountsMaskedUnmapped">OQ-189 (decided (a), Ade 19 November 2026): expected accounts left unmapped because the minimiser masked a value of
+/// theirs, measured on its own so the decision can be revisited with the tenant samples.</param>
 public sealed record SetupCaseResult(string Id, string Status, bool CountsTowardTargets, int Expected, int MappedCorrect, int MappedWrong, int CitationsValid, int Mapped,
-    int RegulatedNotFromOverlay, IReadOnlyList<string> Missed, IReadOnlyList<string> Unexpected);
+    int RegulatedNotFromOverlay, IReadOnlyList<string> Missed, IReadOnlyList<string> Unexpected, int AccountsMaskedUnmapped = 0);
 
 /// <summary>
 /// §5A.4's measures on AI-3's output, as INSYS's own check leaves it (<see cref="SetupAiCheck"/>): a kept mapped value has a citation that resolved, so
@@ -97,6 +99,20 @@ public static class SetupEvaluationScore
         var missed = @case.Expected.Where(e => !result.Mapped.Any(m => m.Table == e.Table && m.Code == e.Code)).Select(e => $"{e.Table}:{e.Code}").ToList();
         var regulated = result.Tailored.Count(t => @case.Tailorable.All(r => r.Table != t.Table || r.Code != t.Code));
         return new SetupCaseResult(@case.Id, status, @case.CountsTowardTargets, @case.Expected.Count, correct, wrong, result.Mapped.Count, result.Mapped.Count, regulated, missed, unexpected);
+    }
+
+    /// <summary>
+    /// OQ-189's figure: the expected chart-of-accounts rows the case missed, one of whose text values is in the document as extracted but not as minimised, so
+    /// the privacy filter, not the model, kept it from being mapped.
+    /// </summary>
+    public static int AccountsMasked(SetupEvaluationCase @case, SetupCaseResult result, string extracted, string minimised)
+    {
+        static string N(string text) => System.Text.RegularExpressions.Regex.Replace(text, @"\s+", " ").Trim().ToLowerInvariant();
+        var (raw, sent) = (N(extracted), N(minimised));
+        return @case.Expected.Where(e => e.Table == SetupMappingTargets.ChartOfAccounts && result.Missed.Contains($"{e.Table}:{e.Code}"))
+            .Count(e => e.Values.ValueKind == JsonValueKind.Object && e.Values.EnumerateObject()
+                .Any(p => p.Value.ValueKind == JsonValueKind.String && N(p.Value.GetString()!) is { Length: > 0 } v && raw.Contains(v, StringComparison.Ordinal)
+                          && !sent.Contains(v, StringComparison.Ordinal)));
     }
 
     /// <summary>Whether a mapped line holds every value the expert expects (numbers compared as numbers).</summary>
@@ -149,12 +165,16 @@ public sealed class SetupEvaluationRunner(IAiModelProvider provider, AssistOptio
 
             var ok = response is not null && AssistRegions.Allows(region, response.InferenceRegion);
             var result = ok ? SetupAiCheck.Check(response!.Text, @case.Tailorable, targets, [sent], new HashSet<(string, string)>()) : null;
-            results.Add(SetupEvaluationScore.Score(@case, result, response is null ? AssistRunStatuses.Unavailable
-                : !ok ? AssistRunStatuses.ResidencyMismatch : result is null ? AssistRunStatuses.Rejected : AssistRunStatuses.Verified));
+            var scored = SetupEvaluationScore.Score(@case, result, response is null ? AssistRunStatuses.Unavailable
+                : !ok ? AssistRunStatuses.ResidencyMismatch : result is null ? AssistRunStatuses.Rejected : AssistRunStatuses.Verified);
+            results.Add(scored with { AccountsMaskedUnmapped = SetupEvaluationScore.AccountsMasked(@case, scored, Text(extracted), Text(sent.Extracted)) });
         }
 
         return results;
     }
+
+    private static string Text(ExtractedDocument document) =>
+        string.Join("\n", document.Pages.Select(p => p.Text).Concat(document.Tables.SelectMany(t => t.Rows.Select(r => string.Join(" ", r)))));
 
     /// <summary>The §5A.4 measures from the cases that count; a measure with none stays WAITING, whatever the invented samples gave.</summary>
     public static IReadOnlyList<SetupEvaluationMeasure> Measures(SetupEvaluationSet set, IReadOnlyList<SetupCaseResult> results)
@@ -173,6 +193,7 @@ public sealed class SetupEvaluationRunner(IAiModelProvider provider, AssistOptio
             {
                 "MAPPED_VALUES_CORRECT" => m with { Status = Rate(counted.Sum(r => r.MappedCorrect)), WaitingFor = null },
                 "MAPPED_VALUES_WITH_VALID_CITATION" => m with { Status = Rate(counted.Sum(r => r.CitationsValid)), WaitingFor = null },
+                "ACCOUNTS_UNMAPPED_BY_PRIVACY_MASK" => m with { Status = counted.Sum(r => r.AccountsMaskedUnmapped).ToString(System.Globalization.CultureInfo.InvariantCulture), WaitingFor = null },
                 "REGULATED_VALUES_NOT_FROM_APPROVED_OVERLAY" => m with { Status = counted.Sum(r => r.RegulatedNotFromOverlay).ToString(System.Globalization.CultureInfo.InvariantCulture), WaitingFor = null },
                 _ => m,
             }),
