@@ -158,3 +158,6 @@ The stand-in model calls nothing and always answers the same way. INSYS sends it
   - `DevelopmentScannerTests` and CI's deployment job prove each.
 - Tests: `AssistProductDraftTests.TheStandInModel_DraftsThePublishedTestDocument_ThroughEveryCheck_BR147` and `AssistExplanationTests.TheStandInModel_ExplainsARefusalAndAPremium_AndBothPassTheVerifier_BR147`.
 
+
+
+**AI-3 (batch 7.8):** upload `docs/frontend/ai3-sample-tenant-documents.pdf` (an invented chart of accounts, approval matrix and role list), attach it to a draft setup with `POST /assist/tenant-setups/{id}/documents`, then `POST …/ai-passes` and run the job. The stand-in tailors each tailorable row from its first answer, maps two accounts, one approval limit and one role title, gives one limit a wrong figure (dropped, `NOT_IN_QUOTE`) and leaves one title unmapped (`NOT_MAPPED`).

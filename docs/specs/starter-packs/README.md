@@ -22,6 +22,16 @@ Every row has a `class`: `OPERATIONAL`, `FINANCE` or `COMPLIANCE`. Review sheets
 
 Every row is to carry two marks (D-20, Ade 15 November): `regulated` (true when only an approved overlay may supply it, AIA-082) and `tailorable` (true when AI may tailor it, 7.8). **No row in these drafts has them yet.** Until it does, INSYS reads a missing `tailorable` as false and a missing `regulated` from the class (FINANCE or COMPLIANCE is regulated), and records that the mark is the interim reading; the overlay review sheet shows each row's marks and their source for the reviewer and the approver to confirm. AI never tailors a row whose mark is the interim reading.
 
+**What tailoring may change (OQ-187 (a), Ade, 19 November 2026; batch 7.8):** a row marked `"tailorable": true` also names what may change, and from which questionnaire answers, in `tailor`:
+```json
+{ "table": "workflow.ref_business_calendars", "code": "CAL", "class": "OPERATIONAL", "regulated": false, "tailorable": true,
+  "tailor": { "columns": ["time_zone"], "from": ["timeZone"] }, "values": { "calendar_code": "CAL", "time_zone": null } }
+```
+- `columns` are the row's own value names; `from` are answers by their API names: `country`, `lines`, `currencies`, `timeZone`, `products`, `channels`, `paymentMethods`, `teamRoles`, `languages`.
+- AI may tailor the row only with both marks explicit, `regulated` false, and `tailor` given. It sets one named column to exactly one of a named answer's values, and INSYS's check refuses anything else (AIA-087).
+- `tailor` is part of the version's content hash; a row without it hashes as before, so approvals already given still bind.
+- A tailored value is a proposal: undecided until a person accepts it, and then in force only through the SETUP change set's second-person approval.
+
 Target markets in order, with the overlays each needs:
 | Market | Overlays | Regulator | Currency | Language | State |
 |---|---|---|---|---|---|
