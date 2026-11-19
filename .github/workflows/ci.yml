@@ -364,7 +364,8 @@ jobs:
   # on the same head inside the same run.
   end-to-end-dates:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # 30 minutes, from 45: the longest shard took 14 (run 44602526513), and a stalled shard is cut off sooner.
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
