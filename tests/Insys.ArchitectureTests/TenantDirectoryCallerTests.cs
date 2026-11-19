@@ -88,7 +88,7 @@ public sealed class TenantDirectoryCallerTests
         Callers.Keys.Except(found).ShouldBeEmpty("a listed caller no longer reaches the directory: take it off the list");
     }
 
-    /// <summary>The Tenancy reads that run as the platform's directory role (V0142) are these three, and no other.</summary>
+    /// <summary>The Tenancy reads that run as the platform's directory role (V0142) are these four, and no other.</summary>
     [Fact]
     public void OnlyTheDirectoryReads_RunAsThePlatformsDirectoryRole_V0142()
     {
@@ -99,8 +99,9 @@ public sealed class TenantDirectoryCallerTests
             .Where(l => !l.Text.TrimStart().StartsWith("//", StringComparison.Ordinal))
             .Where(l => l.Text.Contains("TenantRows.Directory(", StringComparison.Ordinal) || l.Text.Contains("insys_tenant_directory", StringComparison.Ordinal))
             .ToList();
-        calls.Count.ShouldBe(4, string.Join("; ", calls.Select(c => $"{Path.GetFileName(c.File)}:{c.Line}")));
-        calls.Count(c => c.File == file).ShouldBe(3, "the helper's SET LOCAL ROLE, the directory for jobs and the time zone health check");
+        calls.Count.ShouldBe(5, string.Join("; ", calls.Select(c => $"{Path.GetFileName(c.File)}:{c.Line}")));
+        calls.Count(c => c.File == file).ShouldBe(4,
+            "the helper's SET LOCAL ROLE, the directory for jobs, the time zone health check, and whether a tenant code is taken (the platform's RegisterTenant)");
         calls.Count(c => c.File == settings).ShouldBe(1, "the code-to-id lookup for the retry consumer's global branch");
     }
 

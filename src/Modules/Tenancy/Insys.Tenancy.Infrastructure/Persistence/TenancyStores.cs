@@ -43,13 +43,15 @@ using Npgsql;
 
 namespace Insys.Tenancy.Infrastructure.Persistence;
 
-internal sealed class TenantRepository(TenancyDbContext db) : ITenantRepository
+internal sealed class TenantRepository(TenancyDbContext db, [FromKeyedServices(TenancyDbContext.SchemaName)] NpgsqlDataSource dataSource) : ITenantRepository
 {
     public Task<Tenant?> Get(Guid tenantId, CancellationToken cancellationToken) =>
         db.Tenants.Include("_onboardingCases").Include(t => t.StatusChanges).SingleOrDefaultAsync(t => t.Id == tenantId, cancellationToken);
 
+    // Across tenants (the platform's RegisterTenant runs as the new tenant, which sees only its own row): the platform's directory (V0142).
     public Task<bool> CodeExists(string tenantCode, CancellationToken cancellationToken) =>
-        db.Tenants.AnyAsync(t => t.TenantCode == tenantCode, cancellationToken);
+        TenantRows.Directory(dataSource, "SELECT EXISTS (SELECT 1 FROM tenant.tenant WHERE tenant_code = @c)",
+            async command => (bool)(await command.ExecuteScalarAsync(cancellationToken))!, cancellationToken, ("c", tenantCode));
 
     public void Add(Tenant tenant) => db.Tenants.Add(tenant);
 }
