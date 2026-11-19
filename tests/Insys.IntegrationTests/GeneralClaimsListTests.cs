@@ -25,6 +25,7 @@
  * ============================================================================
  */
 using System.Net;
+using Npgsql;
 using Insys.Testing;
 using Shouldly;
 using Xunit;
@@ -69,5 +70,33 @@ public sealed class GeneralClaimsListTests(DatabaseFixture fixture) : IClassFixt
         var orphan = await client.GetAsync("/api/v1/general/claims?partyRole=CLAIMANT");
         orphan.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
         (await orphan.Code()).ShouldBe("VALIDATION_FAILED");
+    }
+
+    [Fact]
+    public async Task TheFilterByParty_IsServedByAnIndexOnTheClaimsParties_V0143()
+    {
+        // With sequential scans off, the planner takes the cheapest index; only (tenant_id, party_id) avoids reading every claim party of the tenant.
+        await using var connection = new NpgsqlConnection(fixture.Database.OwnerConnectionString);
+        await connection.OpenAsync();
+        await using var transaction = await connection.BeginTransactionAsync();
+        await using (var off = new NpgsqlCommand("SET LOCAL enable_seqscan = off", connection, transaction))
+        {
+            await off.ExecuteNonQueryAsync();
+        }
+
+        await using var explain = new NpgsqlCommand(
+            "EXPLAIN SELECT claim_id FROM general.claim_party WHERE tenant_id = @t AND party_id = @p", connection, transaction);
+        explain.Parameters.AddWithValue("t", T);
+        explain.Parameters.AddWithValue("p", Guid.NewGuid());
+        var plan = new List<string>();
+        await using (var reader = await explain.ExecuteReaderAsync())
+        {
+            while (await reader.ReadAsync())
+            {
+                plan.Add(reader.GetString(0));
+            }
+        }
+
+        string.Join("\n", plan).ShouldContain("ix_claim_party_by_party");
     }
 }

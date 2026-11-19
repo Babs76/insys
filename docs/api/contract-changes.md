@@ -16,6 +16,7 @@ All added, none breaking.
 - **`GET /workflow/approvals/decidable-count`** (`workflow_approval.read`) returns `{ count, more }`.
   - These are the approvals `?decidable=true` gives (BR-004), counted up to 99; `more` is true beyond that.
   - It is cached for 30 seconds for each user, so a badge can call it on every page; a new approval or a decision can take up to 30 seconds to show.
+- **Database:** V0143 adds an index on `general.claim_party (tenant_id, party_id)` for the party filter. No API change.
 
 ## Directory batch: row-level security on tenant.tenant (V0142, Ade, 18 November 2026)
 - **No API change.** In the database, a session for a tenant now sees only that tenant's row of `tenant.tenant`. The platform's directory reads see every row through an explicit role (`insys_tenant_directory`), and so do the platform operator's own requests (`platform_operator`, set only by the database owner). A session with no tenant set sees none. The API already allowed only the platform to read tenants.

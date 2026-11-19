@@ -14,6 +14,15 @@ Both need PostgreSQL 18.
 - No module role is a superuser or has BYPASSRLS (DBA-002), so row-level security always applies.
 - `db/roles/create_login_roles.sql` is for local development, tests and CI only.
 - **In production, create the login roles and their credentials outside this repository**, with the names in `module_roles.csv`. Then run the runner with `--roles db/roles` to apply `module_grants.sql`, and do not set `INSYS_ROLE_PASSWORD`.
+- **The role scripts run after the migrations, V0142 included** (Ade, 19 November 2026). V0142 creates the login-free role `insys_tenant_directory`, and `module_grants.sql` grants it to `insys_tenant`. The runner keeps that order (migrations, then `--roles`, then the bootstrap). Run by hand, the grants fail on a database not yet at V0142, as the role doesn't exist.
+- **Any other way of creating roles** (a DBA's scripts, a managed database's console, infrastructure code) must give `insys_tenant` the directory role exactly as `module_grants.sql` does:
+  ```sql
+  GRANT insys_tenant_directory TO insys_tenant WITH INHERIT FALSE, SET TRUE;
+  ```
+  - `SET TRUE` lets Tenancy take the role for one transaction (`SET LOCAL ROLE`) for its directory reads: the tenant list for jobs, the time zone health check, a tenant's id by code, and whether a code is taken.
+  - `INHERIT FALSE` keeps the role from a tenant's own session, which must see only its own row of `tenant.tenant`.
+  - Without the grant, those reads fail and so do the jobs and registration that use them. With `INHERIT TRUE`, or the role granted to another module's role, row-level security on `tenant.tenant` is bypassed for that role.
+  - Check it with: `SELECT member::regrole, inherit_option, set_option FROM pg_auth_members WHERE roleid = 'insys_tenant_directory'::regrole;` (one row: `insys_tenant`, `f`, `t`).
 
 ## First installation
 
