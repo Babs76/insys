@@ -55,4 +55,41 @@ public sealed class PublishedSampleTests
         extracted.Tables.ShouldContain(t => t.Page == 2 && t.Rows.Count == 4);
         IdentifierCheck.Find(extracted).ShouldBeEmpty("the test document holds no identifier");
     }
+
+    private static string Ai3Path => Path.Combine(RepositoryPaths.Root, "docs", "frontend", "ai3-sample-tenant-documents.pdf");
+
+    /// <summary>
+    /// Batch 7.8: the AI-3 test document (docs/frontend/ai3-sample-tenant-documents.pdf) extracts and minimises as the stand-in model expects, holds no identifier,
+    /// and the stand-in's fixed answer passes INSYS's checks except where it is meant not to: a wrong figure dropped, one title it couldn't map (BR-147, AIA-083).
+    /// </summary>
+    [Fact]
+    public async Task TheAi3TestDocument_IsPublished_AndTheStandInsAnswerPassesTheChecks_ExceptItsWrongFigure_BR147_AIA083_AIA087()
+    {
+        if (Environment.GetEnvironmentVariable("INSYS_UPDATE_SNAPSHOTS") == "1")
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(Ai3Path)!);
+            await File.WriteAllBytesAsync(Ai3Path, SampleDocuments.Ai3Sample());
+        }
+
+        File.Exists(Ai3Path).ShouldBeTrue("Run with INSYS_UPDATE_SNAPSHOTS=1 to publish docs/frontend/ai3-sample-tenant-documents.pdf.");
+        var content = await File.ReadAllBytesAsync(Ai3Path);
+        var extracted = new DraftDocumentExtractor().Extract(DraftDocumentKinds.Pdf, content).ShouldNotBeNull();
+        extracted.Pages[0].Text.ShouldContain(Insys.Assist.Infrastructure.DevelopmentAiModelProvider.SetupSampleMarker);
+        IdentifierCheck.Find(extracted).ShouldBeEmpty("the test document holds no identifier");
+        var minimised = extracted with { Pages = extracted.Pages.Select(p => p with { Text = Minimiser.Minimise(p.Text).Text }).ToList() };
+        var sent = new SentDocument(1, Guid.CreateVersion7(), "ai3-sample-tenant-documents.pdf", minimised);
+        var targets = SetupMappingTargets.For(["CLAIMS_HANDLER", "UNDERWRITER"]);
+        var row = new TailorableRow("workflow.ref_business_calendars", "CAL", """{"calendar_code":"CAL","time_zone":null}""", ["time_zone"],
+            new Dictionary<string, IReadOnlyList<string>> { ["timeZone"] = ["Africa/Johannesburg"] });
+
+        var environment = new Microsoft.Extensions.Hosting.Internal.HostingEnvironment { EnvironmentName = "Testing" };
+        var answer = await new Insys.Assist.Infrastructure.DevelopmentAiModelProvider(environment).Complete(
+            new Insys.BuildingBlocks.Application.Ai.AiModelRequest("development", "tenant-setup-v1", "instructions", PromptData.Delimit(SetupAiPayload.Render([row], targets, [sent])), null),
+            CancellationToken.None);
+        var result = SetupAiCheck.Check(answer.Text, [row], targets, [sent], new HashSet<(string, string)>()).ShouldNotBeNull();
+
+        result.Tailored.ShouldHaveSingleItem().AnswerValue.ShouldBe("Africa/Johannesburg");
+        result.Mapped.Select(m => m.Code).ShouldBe(["ACC-4100", "ACC-2100", "AUTH-CLAIM_PAYMENT-CLAIMS_MANAGER", "CLAIMS_HANDLER"]);
+        result.Unmapped.Select(u => u.Reason).ShouldBe([SetupAiCheck.NotInQuote, Insys.Assist.Domain.UnmappedReasons.NotMapped]);
+    }
 }

@@ -34,6 +34,9 @@ public static class AssistFeatures
     public const string ExplainPremium = "EXPLAIN_PREMIUM";
     public const string ProductDraft = "PRODUCT_DRAFT";
     public const string TenantSetup = "TENANT_SETUP";
+
+    /// <summary>The tenant's feature entitlement AI Assist's model calls need (AIA-080), as tenant.cfg_feature_entitlements names it.</summary>
+    public const string Entitlement = "AI_ASSIST";
 }
 
 public static class AssistRunStatuses

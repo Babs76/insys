@@ -263,13 +263,25 @@ public sealed class StarterPackValue : AggregateRoot<Guid>
 
     public string? BasisToCheck { get; private set; }
 
-    /// <summary>Whether AI may tailor the row (7.8): only on an explicit mark, never the interim reading (D-20).</summary>
-    public bool MayBeTailored => Tailorable && TailorableSource == MarkSources.Explicit && RegulatedSource == MarkSources.Explicit && !Regulated;
+    /// <summary>The row's columns tailoring may change (OQ-187 (a)); null when the row names none.</summary>
+    public string[]? TailorColumns { get; private set; }
+
+    /// <summary>The questionnaire answers that may set them (OQ-187 (a)); null when the row names none.</summary>
+    public string[]? TailorFrom { get; private set; }
+
+    /// <summary>
+    /// Whether AI may tailor the row (7.8): only on an explicit mark, never the interim reading (D-20), never a regulated row (AIA-082), and only where the row
+    /// names the columns and the answers that may set them (OQ-187 (a)).
+    /// </summary>
+    public bool MayBeTailored => Tailorable && TailorableSource == MarkSources.Explicit && RegulatedSource == MarkSources.Explicit && !Regulated
+        && TailorColumns is { Length: > 0 } && TailorFrom is { Length: > 0 };
 
     public static StarterPackValue For(Guid packId, string scope, int lineNo, string tableName, string rowCode, string @class, bool regulated, string regulatedSource,
-        bool tailorable, string tailorableSource, string values, string? rowStatus, string? note, string? basisToCheck) => new()
+        bool tailorable, string tailorableSource, string values, string? rowStatus, string? note, string? basisToCheck, IReadOnlyList<string>? tailorColumns = null,
+        IReadOnlyList<string>? tailorFrom = null) => new()
         {
             Id = Guid.CreateVersion7(), PackId = packId, Scope = scope, LineNo = lineNo, TableName = tableName, RowCode = rowCode, Class = @class, Regulated = regulated,
             RegulatedSource = regulatedSource, Tailorable = tailorable, TailorableSource = tailorableSource, Values = values, RowStatus = rowStatus, Note = note, BasisToCheck = basisToCheck,
+            TailorColumns = tailorColumns is { Count: > 0 } ? [.. tailorColumns] : null, TailorFrom = tailorFrom is { Count: > 0 } ? [.. tailorFrom] : null,
         };
 }

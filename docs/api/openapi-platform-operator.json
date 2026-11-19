@@ -48967,6 +48967,24 @@
               "null",
               "string"
             ]
+          },
+          "tailorColumns": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "tailorFrom": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
           }
         }
       },

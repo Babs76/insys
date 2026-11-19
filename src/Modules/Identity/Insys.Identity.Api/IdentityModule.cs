@@ -92,6 +92,7 @@ public sealed class IdentityModule : IModule
     {
         services.AddIdentityInfrastructure();
         services.AddSingleton<Application.Users.IRoleTemplateNames, RoleTemplateNames>();
+        services.AddSingleton<Contracts.IRoleTemplateCatalogue, RoleTemplateNames>();
         services.AddSingleton<BuildingBlocks.Infrastructure.StaticData.IStaticRecordValidator, RoleFunctionGrantValidator>();
     }
 

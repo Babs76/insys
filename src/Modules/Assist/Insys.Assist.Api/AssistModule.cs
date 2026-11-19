@@ -51,6 +51,9 @@ public sealed record PackApprovalRequest(string ContentHash);
 /// <param name="Decision">ACCEPTED or REJECTED. A Missing value can't be accepted.</param>
 public sealed record SetupDecisionRequest(string Decision, string? Note);
 
+/// <summary>D-16: the documents a setup reads, each with its uploader's confirmation that it holds no customer personal data.</summary>
+public sealed record AttachSetupDocumentsRequest(IReadOnlyList<SetupDocumentConfirmation> Documents);
+
 /// <param name="Code">The refusal's error code.</param>
 /// <param name="Fields">The names of the fields in error, as the refusal's field errors named them. Only how many there are is sent to a model: the names are the client's (D-15).</param>
 /// <param name="RecordType">The record the refusal was about, by type and ID, for the "Based on" link and the audit; never trusted for its data (AIA-039).</param>
@@ -258,6 +261,65 @@ public sealed class AssistModule : IModule
             .Produces<SetupSubmissionView>(StatusCodes.Status200OK).ReturnsETag()
             .WithName("AssistWithdrawTenantSetupSubmission")
             .WithSummary("Withdraw a submission that stopped part-way (SUBMITTING): the batches loaded so far are discarded and the setup is a draft again. Submitter only. Needs If-Match")
+            .RequirePermission(AssistPermissions.TenantSetupRun);
+
+        // 7.8: AI-3's documents and AI passes (AIA-083, AIA-084, AIA-087, AIA-090; Ade, 19 November 2026: OQ-186 to OQ-188).
+        setups.MapPost("/{id:guid}/documents", async (Guid id, AttachSetupDocumentsRequest r, SetupDocumentStarter starter, HttpContext http, CancellationToken ct) =>
+            {
+                var expected = Concurrency.ExpectedVersion(http.Request);
+                return expected.IsFailure ? Problems.For(expected.Error) : (await starter.Attach(id, r.Documents ?? [], expected.Value, ct)).ToHttp(view =>
+                {
+                    Concurrency.SetETag(http, view.RowVersion);
+                    return Results.Ok(view);
+                });
+            })
+            .Produces<SetupDocumentsView>(StatusCodes.Status200OK).ReturnsETag()
+            .WithName("AssistAttachSetupDocuments")
+            .WithSummary("Attach the tenant's documents to a draft setup for AI-3 to map (AIA-083): its chart of accounts, approval matrix or role list. PDF, DOCX or XLSX, at "
+                + "most 20 MB each and 10 a setup, each your own upload, cleared by the malware scan and confirmed to hold no customer personal data (D-16). Needs If-Match")
+            .WithDescription("A document already attached is confirmed again, for its content now. The template asks for role titles, not people's names (ai-assist.md §5.5).")
+            .RequirePermission(AssistPermissions.TenantSetupRun).RequireIdempotencyKey();
+        setups.MapGet("/{id:guid}/documents", async (Guid id, IDispatcher d, HttpContext http, CancellationToken ct) => (await d.Query(new GetSetupDocuments(id), ct)).ToHttp(view =>
+            {
+                Concurrency.SetETag(http, view.RowVersion);
+                return Results.Ok(view);
+            }))
+            .Produces<SetupDocumentsView>(StatusCodes.Status200OK).ReturnsETag()
+            .WithName("AssistListSetupDocuments")
+            .WithSummary("The setup's documents, each with its confirmation and what the last AI pass found reading it")
+            .RequirePermission(AssistPermissions.TenantSetupRun);
+        setups.MapDelete("/{id:guid}/documents/{documentId:guid}", async (Guid id, Guid documentId, IDispatcher d, HttpContext http, CancellationToken ct) =>
+            {
+                var expected = Concurrency.ExpectedVersion(http.Request);
+                return expected.IsFailure ? Problems.For(expected.Error) : (await d.Send(new RemoveSetupDocument(id, documentId, expected.Value), ct)).ToHttp(view =>
+                {
+                    Concurrency.SetETag(http, view.RowVersion);
+                    return Results.Ok(view);
+                });
+            })
+            .Produces<SetupDocumentsView>(StatusCodes.Status200OK).ReturnsETag()
+            .WithName("AssistRemoveSetupDocument")
+            .WithSummary("Take a document off a draft setup: the next AI pass doesn't read it; its confirmation stays on record. Needs If-Match")
+            .RequirePermission(AssistPermissions.TenantSetupRun);
+        setups.MapPost("/{id:guid}/ai-passes", async (Guid id, SetupAiStarter starter, HttpContext http, CancellationToken ct) =>
+            {
+                var expected = Concurrency.ExpectedVersion(http.Request);
+                var subject = http.User.FindFirstValue(InsysClaims.Subject) ?? http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+                return expected.IsFailure ? Problems.For(expected.Error) : (await starter.Queue(id, expected.Value, subject, ct)).ToHttp(view =>
+                    Results.Accepted($"/api/v1/assist/tenant-setups/{id}/ai-passes", view));
+            })
+            .Produces<SetupAiPassView>(StatusCodes.Status202Accepted)
+            .WithName("AssistQueueSetupAiPass")
+            .WithSummary("Ask AI-3 to tailor the values the packs mark tailorable and map the setup's documents (AIA-082, AIA-083). Returns 202 and the pass; a job does it as you "
+                + "(AIA-017). Needs If-Match and the tenant's AI_ASSIST entitlement")
+            .WithDescription("Each tailored or mapped value is added undecided, flagged TAILORED (cited to its answer) or MAPPED (cited to its document, page and quote), and "
+                + "takes effect only once you accept it and a second person approves the SETUP change set. One pass at a time (ASSIST_SETUP_PASS_OPEN). A pass whose setup "
+                + "changed meanwhile records nothing (ASSIST_SETUP_CHANGED). With AI Assist off, the pack-only draft is unaffected (AIA-090).")
+            .RequirePermission(AssistPermissions.TenantSetupRun).RequireIdempotencyKey();
+        setups.MapGet("/{id:guid}/ai-passes", async (Guid id, IDispatcher d, CancellationToken ct) => (await d.Query(new GetSetupAiPasses(id), ct)).ToHttp(Results.Ok))
+            .Produces<SetupAiPassesView>(StatusCodes.Status200OK)
+            .WithName("AssistListSetupAiPasses")
+            .WithSummary("The setup's AI passes, newest first: status, how many values each tailored and mapped, and what it couldn't map or INSYS's checks dropped, with why (AIA-083)")
             .RequirePermission(AssistPermissions.TenantSetupRun);
     }
 

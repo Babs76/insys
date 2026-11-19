@@ -445,6 +445,8 @@ core	HealthMigrateHealthAccumulators.batchCode	the batch name the file gives; no
 core	WorkflowPortalCaseTypeOption.linkTypes	to declare: the kinds of record a case type links to (workflow.cfg_case_types.link_types), set per tenant
 core	ReinsuranceCessionView.periodCode	a month as yyyy-MM, not a code from a list
 core	AssistProductDraftDocumentView.refusalCode	an error code from the catalogue (GET /errors), not a code list
+core	AssistSetupAiPassView.outcomeCode	an error code from the catalogue (GET /errors), not a code list
+core	AssistSetupDocumentView.refusalCode	an error code from the catalogue (GET /errors), not a code list
 core	AssistProductDraftRunView.outcomeCode	an error code from the catalogue (GET /errors), not a code list
 core	AssistProductDraftRunView.productCode	to declare
 core	AssistStartProductDraftRequest.productCode	to declare

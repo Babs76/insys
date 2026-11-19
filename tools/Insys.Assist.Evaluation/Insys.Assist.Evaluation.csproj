@@ -31,6 +31,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\Modules\Assist\Insys.Assist.Application\Insys.Assist.Application.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Assist\Insys.Assist.Infrastructure\Insys.Assist.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\BuildingBlocks\Insys.BuildingBlocks.Cloud\Insys.BuildingBlocks.Cloud.csproj" />
   </ItemGroup>
 </Project>

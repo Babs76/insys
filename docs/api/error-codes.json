@@ -242,12 +242,28 @@
       "remedy": "Start a new run. If the run created a Draft version, finish that one first: a product has one version in progress at a time."
     },
     {
+      "code": "ASSIST_SETUP_CHANGED",
+      "httpStatus": 409,
+      "messageKey": "error.assist.setup_changed",
+      "retryable": false,
+      "means": "The setup changed while the AI pass ran: its answers changed or it was submitted, so nothing the pass found was recorded in it.",
+      "remedy": "Read the setup again and ask for a new pass if it is still a draft."
+    },
+    {
       "code": "ASSIST_SETUP_NOT_READY",
       "httpStatus": 422,
       "messageKey": "error.assist.setup_not_ready",
       "retryable": false,
       "means": "The setup can't be submitted yet: a value is missing or undecided, a regulated value isn't from an overlay approved for your tenant, or a table refuses a value.",
       "remedy": "Read the setup's completeness check, correct each blocker it lists, and submit again."
+    },
+    {
+      "code": "ASSIST_SETUP_PASS_OPEN",
+      "httpStatus": 409,
+      "messageKey": "error.assist.setup_pass_open",
+      "retryable": false,
+      "means": "An AI pass is already queued or running on this setup, and a setup takes one pass at a time.",
+      "remedy": "Wait for the pass to finish, then read the setup again and ask for another if you need one."
     },
     {
       "code": "ASSIST_SOURCE_TOO_LARGE",

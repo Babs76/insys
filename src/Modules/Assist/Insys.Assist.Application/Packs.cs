@@ -39,7 +39,7 @@ namespace Insys.Assist.Application;
 
 /// <summary>One row of a pack, read from a pack file (docs/specs/starter-packs), with its marks and their sources (D-20).</summary>
 public sealed record PackRow(int LineNo, string Table, string Code, string Class, bool Regulated, string RegulatedSource, bool Tailorable, string TailorableSource,
-    string Values, string? RowStatus, string? Note, string? BasisToCheck);
+    string Values, string? RowStatus, string? Note, string? BasisToCheck, IReadOnlyList<string>? TailorColumns = null, IReadOnlyList<string>? TailorFrom = null);
 
 /// <summary>A pack file, read: its header and rows. The file's own status is ignored: a version's status is INSYS's (§5.3).</summary>
 public sealed record PackFile(string PackCode, string Kind, string? BuildsOn, string? Country, string? Line, IReadOnlyList<PackRow> Rows)
@@ -75,10 +75,21 @@ public sealed record PackFile(string PackCode, string Kind, string? BuildsOn, st
 
             var regulated = Mark(row, "regulated").Value;
             var tailorable = Mark(row, "tailorable").Value;
+            var tailor = Tailor(row, values);
+            if (tailor.IsFailure)
+            {
+                return Error.Validation(ErrorCodes.ValidationFailed, $"Row {line}: {tailor.Error.Message}");
+            }
+
+            if (tailor.Value is not null && tailorable != true)
+            {
+                return Error.Validation(ErrorCodes.ValidationFailed, $"Row {line}: tailor is given only on a row marked tailorable true.");
+            }
+
             read.Add(new PackRow(line, table, rowCode, @class,
                 regulated ?? @class is "FINANCE" or "COMPLIANCE", regulated is null ? MarkSources.Interim : MarkSources.Explicit,
                 tailorable ?? false, tailorable is null ? MarkSources.Default : MarkSources.Explicit,
-                PackHash.Canonical(values.GetRawText()), Text(row, "status"), Text(row, "note"), Text(row, "basis_to_check")));
+                PackHash.Canonical(values.GetRawText()), Text(row, "status"), Text(row, "note"), Text(row, "basis_to_check"), tailor.Value?.Columns, tailor.Value?.From));
         }
 
         return new PackFile(code, kind, Text(file, "builds_on"), kind is PackKinds.Country && code.Length == 2 ? code.ToUpperInvariant() : null,
@@ -87,7 +98,43 @@ public sealed record PackFile(string PackCode, string Kind, string? BuildsOn, st
 
     /// <summary>The version's content hash (§5.3), as <see cref="PackHash"/> computes it.</summary>
     public string Hash(int version, string scope) => PackHash.Of(PackCode, Kind, version, scope, BuildsOn, Country, Line,
-        Rows.Select(r => new PackHash.Row(r.LineNo, r.Table, r.Code, r.Class, r.Regulated, r.RegulatedSource, r.Tailorable, r.TailorableSource, r.Values, r.RowStatus, r.Note, r.BasisToCheck)));
+        Rows.Select(r => new PackHash.Row(r.LineNo, r.Table, r.Code, r.Class, r.Regulated, r.RegulatedSource, r.Tailorable, r.TailorableSource, r.Values, r.RowStatus, r.Note, r.BasisToCheck,
+            r.TailorColumns, r.TailorFrom)));
+
+    /// <summary>
+    /// What tailoring may change, and from what (OQ-187 (a), Ade, 19 November 2026): `tailor` names the row's columns and the questionnaire answers that may
+    /// set them, as `{ "columns": [...], "from": [...] }`. Each column is one of the row's values; each answer is a questionnaire field. Absent, nothing is tailored.
+    /// </summary>
+    private static Result<(IReadOnlyList<string> Columns, IReadOnlyList<string> From)?> Tailor(JsonElement row, JsonElement values)
+    {
+        if (!row.TryGetProperty("tailor", out var tailor) || tailor.ValueKind == JsonValueKind.Null)
+        {
+            return ((IReadOnlyList<string>, IReadOnlyList<string>)?)null;
+        }
+
+        static IReadOnlyList<string>? Names(JsonElement e, string name) =>
+            e.TryGetProperty(name, out var list) && list.ValueKind == JsonValueKind.Array && list.GetArrayLength() > 0
+            && list.EnumerateArray().All(v => v.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(v.GetString()))
+                ? [.. list.EnumerateArray().Select(v => v.GetString()!).Distinct(StringComparer.Ordinal)]
+                : null;
+
+        if (tailor.ValueKind != JsonValueKind.Object || Names(tailor, "columns") is not { } columns || Names(tailor, "from") is not { } from)
+        {
+            return Error.Validation(ErrorCodes.ValidationFailed, "tailor names its columns and the answers they come from: { \"columns\": [...], \"from\": [...] }.");
+        }
+
+        if (columns.FirstOrDefault(c => !values.TryGetProperty(c, out _)) is { } unknownColumn)
+        {
+            return Error.Validation(ErrorCodes.ValidationFailed, $"tailor names {unknownColumn}, which isn't one of the row's values.");
+        }
+
+        if (from.FirstOrDefault(f => !SetupAnswerFields.All.Contains(f, StringComparer.Ordinal)) is { } unknownAnswer)
+        {
+            return Error.Validation(ErrorCodes.ValidationFailed, $"tailor names {unknownAnswer}, which isn't a questionnaire answer ({string.Join(", ", SetupAnswerFields.All)}).");
+        }
+
+        return ((IReadOnlyList<string>, IReadOnlyList<string>)?)(columns, from);
+    }
 
     private static string? Text(JsonElement e, string name) => e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
 
@@ -103,7 +150,7 @@ public sealed record PackFile(string PackCode, string Kind, string? BuildsOn, st
 public static class PackHash
 {
     public sealed record Row(int LineNo, string Table, string Code, string Class, bool Regulated, string RegulatedSource, bool Tailorable, string TailorableSource, string Values,
-        string? RowStatus, string? Note, string? BasisToCheck);
+        string? RowStatus, string? Note, string? BasisToCheck, IReadOnlyList<string>? TailorColumns = null, IReadOnlyList<string>? TailorFrom = null);
 
     public static string Of(string packCode, string kind, int version, string scope, string? buildsOn, string? country, string? line, IEnumerable<Row> rows)
     {
@@ -112,7 +159,14 @@ public static class PackHash
         foreach (var r in rows.OrderBy(r => r.LineNo))
         {
             text.Append(CultureInfo.InvariantCulture,
-                $"{r.LineNo}|{F(r.Table)}|{F(r.Code)}|{r.Class}|{r.Regulated}|{r.RegulatedSource}|{r.Tailorable}|{r.TailorableSource}|{F(Canonical(r.Values))}|{F(r.RowStatus)}|{F(r.Note)}|{F(r.BasisToCheck)}\n");
+                $"{r.LineNo}|{F(r.Table)}|{F(r.Code)}|{r.Class}|{r.Regulated}|{r.RegulatedSource}|{r.Tailorable}|{r.TailorableSource}|{F(Canonical(r.Values))}|{F(r.RowStatus)}|{F(r.Note)}|{F(r.BasisToCheck)}");
+            // OQ-187: what tailoring may change is part of what is reviewed. Appended only when given, so a row without it hashes as before.
+            if (r.TailorColumns is { Count: > 0 } || r.TailorFrom is { Count: > 0 })
+            {
+                text.Append(CultureInfo.InvariantCulture, $"|tailor:{F(string.Join(",", r.TailorColumns ?? []))}:{F(string.Join(",", r.TailorFrom ?? []))}");
+            }
+
+            text.Append('\n');
         }
 
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(text.ToString()))).ToLowerInvariant();
@@ -131,7 +185,8 @@ public static class PackHash
     };
 
     public static string Of(StarterPack pack, IReadOnlyList<StarterPackValue> rows) => Of(pack.PackCode, pack.Kind, pack.Version, pack.Scope, pack.BuildsOn, pack.Country, pack.Line,
-        rows.Select(r => new Row(r.LineNo, r.TableName, r.RowCode, r.Class, r.Regulated, r.RegulatedSource, r.Tailorable, r.TailorableSource, r.Values, r.RowStatus, r.Note, r.BasisToCheck)));
+        rows.Select(r => new Row(r.LineNo, r.TableName, r.RowCode, r.Class, r.Regulated, r.RegulatedSource, r.Tailorable, r.TailorableSource, r.Values, r.RowStatus, r.Note, r.BasisToCheck,
+            r.TailorColumns, r.TailorFrom)));
 }
 
 /// <summary>A version as listed.</summary>
@@ -148,7 +203,7 @@ public sealed record StarterPackView(Guid Id, string PackCode, string Kind, int 
 /// whether AI may tailor it in 7.8 (an explicit mark only).
 /// </summary>
 public sealed record PackSheetRow(int LineNo, string Table, string Code, string Class, bool Regulated, string RegulatedSource, bool Tailorable, string TailorableSource,
-    bool MayBeTailored, JsonElement Values, string? RowStatus, string? Note, string? BasisToCheck);
+    bool MayBeTailored, JsonElement Values, string? RowStatus, string? Note, string? BasisToCheck, IReadOnlyList<string>? TailorColumns = null, IReadOnlyList<string>? TailorFrom = null);
 
 public sealed record StarterPackSheet(StarterPackView Pack, IReadOnlyList<PackSheetRow> Rows, int InterimMarks);
 
@@ -224,7 +279,7 @@ internal sealed class StarterPackHandlers(IStarterPacks packs, IExecutionContext
 
         var pack = loaded.Value;
         packs.Add(pack, [.. file.Value.Rows.Select(r => StarterPackValue.For(pack.Id, pack.Scope, r.LineNo, r.Table, r.Code, r.Class, r.Regulated, r.RegulatedSource, r.Tailorable,
-            r.TailorableSource, r.Values, r.RowStatus, r.Note, r.BasisToCheck))]);
+            r.TailorableSource, r.Values, r.RowStatus, r.Note, r.BasisToCheck, r.TailorColumns, r.TailorFrom))]);
         audit.Record(new AuditEntry("ASSIST", "LoadStarterPack", nameof(StarterPack), pack.Id.ToString(), new Dictionary<string, string?>
         {
             ["pack"] = pack.PackCode, ["version"] = version.ToString(CultureInfo.InvariantCulture), ["scope"] = pack.Scope, ["hash"] = hash,
@@ -303,7 +358,8 @@ internal sealed class StarterPackHandlers(IStarterPacks packs, IExecutionContext
         }
 
         var rows = (await packs.Rows(pack.Id, cancellationToken)).OrderBy(r => r.LineNo).Select(r => new PackSheetRow(r.LineNo, r.TableName, r.RowCode, r.Class, r.Regulated,
-            r.RegulatedSource, r.Tailorable, r.TailorableSource, r.MayBeTailored, JsonDocument.Parse(r.Values).RootElement.Clone(), r.RowStatus, r.Note, r.BasisToCheck)).ToList();
+            r.RegulatedSource, r.Tailorable, r.TailorableSource, r.MayBeTailored, JsonDocument.Parse(r.Values).RootElement.Clone(), r.RowStatus, r.Note, r.BasisToCheck,
+            r.TailorColumns, r.TailorFrom)).ToList();
         return new StarterPackSheet(StarterPackView.From(pack), rows, rows.Count(r => r.RegulatedSource == MarkSources.Interim));
     }
 

@@ -274,6 +274,21 @@ public sealed class SetupItem : AggregateRoot<Guid>
     /// <summary>Whether the current answers still bring the row. Once they don't, it is kept, rejected and never decided again (AIA-081).</summary>
     public bool InDraft { get; private set; } = true;
 
+    /// <summary>The AI pass that tailored or mapped the value (7.8); null for Pack and Missing.</summary>
+    public Guid? AiRunId { get; private set; }
+
+    /// <summary>A Mapped value's citation (AIA-083, AIA-084): the document, page and the exact words it comes from.</summary>
+    public Guid? CitationDocumentId { get; private set; }
+
+    public int? CitationPage { get; private set; }
+
+    public string? CitationQuote { get; private set; }
+
+    /// <summary>A Tailored value's citation (AIA-084, OQ-187 (a)): the questionnaire answer, and the answer's value the AI chose.</summary>
+    public string? CitedAnswer { get; private set; }
+
+    public string? CitedAnswerValue { get; private set; }
+
     public static SetupItem Draft(Guid runId, int answersVersion, string table, string code, string @class, bool regulated, string flag, string? values, Guid? sourcePackId,
         int? sourceLineNo, string? missingReason) => new()
         {
@@ -286,12 +301,58 @@ public sealed class SetupItem : AggregateRoot<Guid>
     public bool Same(string flag, string? values, Guid? sourcePackId, int? sourceLineNo, Func<string?, string?, bool> sameValues) =>
         Flag == flag && sameValues(Values, values) && SourcePackId == sourcePackId && SourceLineNo == sourceLineNo;
 
-    /// <summary>A re-draft of the row: its decision goes, as the value it decided on did.</summary>
+    /// <summary>A re-draft of the row: its decision goes, as the value it decided on did, and so does an AI pass's citation (it cited the value replaced).</summary>
     public void Redraft(int answersVersion, string @class, bool regulated, string flag, string? values, Guid? sourcePackId, int? sourceLineNo, string? missingReason)
     {
         (AnswersVersion, Class, Regulated, Flag, Values, SourcePackId, SourceLineNo, MissingReason) = (answersVersion, @class, regulated, flag, values, sourcePackId, sourceLineNo, missingReason);
         (Decision, DecidedBy, DecidedAt, DecisionNote, InDraft) = (null, null, null, null, true);
+        (AiRunId, CitationDocumentId, CitationPage, CitationQuote, CitedAnswer, CitedAnswerValue) = (null, null, null, null, null, null);
         MarkChanged();
+    }
+
+    /// <summary>
+    /// AIA-082, AIA-084, OQ-187 (a): a pack row the AI tailored from an answer. The row keeps its table, code and pack source; its values change only in the columns
+    /// the pack names, which the verifier has checked. Its decision goes: a person accepts the tailored value or not, before anything takes effect (Ade, 19 November).
+    /// </summary>
+    public Result Tailor(Guid aiRunId, string values, string answer, string answerValue)
+    {
+        if (!InDraft || Regulated || Flag is not (ItemFlags.Pack or ItemFlags.Tailored))
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, "Only a pack value in the draft that isn't regulated is tailored (AIA-082).");
+        }
+
+        (Flag, Values, AiRunId, CitedAnswer, CitedAnswerValue) = (ItemFlags.Tailored, values, aiRunId, Guard.MaxLength(answer, 30), Guard.MaxLength(answerValue, 200));
+        (CitationDocumentId, CitationPage, CitationQuote) = (null, null, null);
+        (Decision, DecidedBy, DecidedAt, DecisionNote) = (null, null, null, null);
+        MarkChanged();
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// AIA-083, AIA-084, OQ-186 (a), OQ-188: a new row beside the pack's, mapped from the tenant's own document and cited to it. It is the tenant's own fact, not a
+    /// regulated value from an overlay, so it isn't marked regulated; it is undecided until a person accepts it.
+    /// </summary>
+    public static SetupItem Mapped(Guid runId, int answersVersion, Guid aiRunId, string table, string code, string @class, string values, Guid documentId, int page,
+        string quote) => new()
+        {
+            Id = Guid.CreateVersion7(), RunId = runId, AnswersVersion = answersVersion, TableName = table, RowCode = code, Class = @class, Regulated = false,
+            Flag = ItemFlags.Mapped, Values = values, AiRunId = aiRunId, CitationDocumentId = documentId, CitationPage = page,
+            CitationQuote = quote.Length > 2000 ? quote[..2000] : quote,
+        };
+
+    /// <summary>A later pass maps the same row again: the new value and citation, and its decision goes.</summary>
+    public Result Remap(int answersVersion, Guid aiRunId, string values, Guid documentId, int page, string quote)
+    {
+        if (Flag != ItemFlags.Mapped)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, "Only a mapped value is mapped again.");
+        }
+
+        (AnswersVersion, Values, AiRunId, CitationDocumentId, CitationPage, CitationQuote, InDraft) =
+            (answersVersion, values, aiRunId, documentId, page, quote.Length > 2000 ? quote[..2000] : quote, true);
+        (Decision, DecidedBy, DecidedAt, DecisionNote) = (null, null, null, null);
+        MarkChanged();
+        return Result.Success();
     }
 
     /// <summary>The current answers no longer bring the row: it is rejected and leaves the draft, its value kept for the record.</summary>

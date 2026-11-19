@@ -43372,6 +43372,370 @@
         ]
       }
     },
+    "/api/v1/assist/tenant-setups/{id}/documents": {
+      "post": {
+        "tags": [
+          "Assist"
+        ],
+        "summary": "Attach the tenant\u0027s documents to a draft setup for AI-3 to map (AIA-083): its chart of accounts, approval matrix or role list. PDF, DOCX or XLSX, at most 20 MB each and 10 a setup, each your own upload, cleared by the malware scan and confirmed to hold no customer personal data (D-16). Needs If-Match",
+        "description": "A document already attached is confirmed again, for its content now. The template asks for role titles, not people\u0027s names (ai-assist.md \u00A75.5).",
+        "operationId": "AssistAttachSetupDocuments",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssistAttachSetupDocumentsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistSetupDocumentsView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "assist_tenant_setup.run",
+        "x-function": [
+          "ASSIST_TENANT_SETUP_RUN"
+        ]
+      },
+      "get": {
+        "tags": [
+          "Assist"
+        ],
+        "summary": "The setup\u0027s documents, each with its confirmation and what the last AI pass found reading it",
+        "operationId": "AssistListSetupDocuments",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistSetupDocumentsView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "assist_tenant_setup.run",
+        "x-function": [
+          "ASSIST_TENANT_SETUP_RUN"
+        ]
+      }
+    },
+    "/api/v1/assist/tenant-setups/{id}/documents/{documentId}": {
+      "delete": {
+        "tags": [
+          "Assist"
+        ],
+        "summary": "Take a document off a draft setup: the next AI pass doesn\u0027t read it; its confirmation stays on record. Needs If-Match",
+        "operationId": "AssistRemoveSetupDocument",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "documentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistSetupDocumentsView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "assist_tenant_setup.run",
+        "x-function": [
+          "ASSIST_TENANT_SETUP_RUN"
+        ]
+      }
+    },
+    "/api/v1/assist/tenant-setups/{id}/ai-passes": {
+      "post": {
+        "tags": [
+          "Assist"
+        ],
+        "summary": "Ask AI-3 to tailor the values the packs mark tailorable and map the setup\u0027s documents (AIA-082, AIA-083). Returns 202 and the pass; a job does it as you (AIA-017). Needs If-Match and the tenant\u0027s AI_ASSIST entitlement",
+        "description": "Each tailored or mapped value is added undecided, flagged TAILORED (cited to its answer) or MAPPED (cited to its document, page and quote), and takes effect only once you accept it and a second person approves the SETUP change set. One pass at a time (ASSIST_SETUP_PASS_OPEN). A pass whose setup changed meanwhile records nothing (ASSIST_SETUP_CHANGED). With AI Assist off, the pack-only draft is unaffected (AIA-090).",
+        "operationId": "AssistQueueSetupAiPass",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistSetupAiPassView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "assist_tenant_setup.run",
+        "x-function": [
+          "ASSIST_TENANT_SETUP_RUN"
+        ]
+      },
+      "get": {
+        "tags": [
+          "Assist"
+        ],
+        "summary": "The setup\u0027s AI passes, newest first: status, how many values each tailored and mapped, and what it couldn\u0027t map or INSYS\u0027s checks dropped, with why (AIA-083)",
+        "operationId": "AssistListSetupAiPasses",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistSetupAiPassesView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "assist_tenant_setup.run",
+        "x-function": [
+          "ASSIST_TENANT_SETUP_RUN"
+        ]
+      }
+    },
     "/api/v1/assist/product-drafts": {
       "post": {
         "tags": [
@@ -45994,10 +46358,13 @@
                 "RuleDecision",
                 "SearchLogHold",
                 "ServiceCase",
+                "SetupAiRun",
                 "SetupAnswer",
                 "SetupChangeSet",
+                "SetupDocument",
                 "SetupItem",
                 "SetupRun",
+                "SetupUnmapped",
                 "SimulationRun",
                 "StarterPack",
                 "StarterPackValue",
@@ -46484,10 +46851,13 @@
                 "RuleDecision",
                 "SearchLogHold",
                 "ServiceCase",
+                "SetupAiRun",
                 "SetupAnswer",
                 "SetupChangeSet",
+                "SetupDocument",
                 "SetupItem",
                 "SetupRun",
+                "SetupUnmapped",
                 "SimulationRun",
                 "StarterPack",
                 "StarterPackValue",
@@ -48047,6 +48417,20 @@
           }
         }
       },
+      "AssistAttachSetupDocumentsRequest": {
+        "required": [
+          "documents"
+        ],
+        "type": "object",
+        "properties": {
+          "documents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AssistSetupDocumentConfirmation"
+            }
+          }
+        }
+      },
       "AssistDraftDocumentConfirmation": {
         "required": [
           "documentId",
@@ -48447,6 +48831,24 @@
               "null",
               "string"
             ]
+          },
+          "tailorColumns": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "tailorFrom": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -48706,6 +49108,123 @@
           }
         }
       },
+      "AssistSetupAiPassView": {
+        "required": [
+          "id",
+          "setupId",
+          "answersVersion",
+          "status",
+          "requestedBy",
+          "requestedAt",
+          "startedAt",
+          "finishedAt",
+          "outcomeCode",
+          "tailored",
+          "mapped",
+          "unmapped",
+          "rowVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "setupId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "answersVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "status": {
+            "type": "string"
+          },
+          "requestedBy": {
+            "type": "string"
+          },
+          "requestedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "startedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "finishedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "outcomeCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "tailored": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "mapped": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "unmapped": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AssistSetupUnmappedView"
+            }
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "AssistSetupAiPassesView": {
+        "required": [
+          "setupId",
+          "passes"
+        ],
+        "type": "object",
+        "properties": {
+          "setupId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "passes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AssistSetupAiPassView"
+            }
+          }
+        }
+      },
       "AssistSetupAnswers": {
         "required": [
           "country",
@@ -48897,6 +49416,124 @@
           }
         }
       },
+      "AssistSetupDocumentConfirmation": {
+        "required": [
+          "documentId",
+          "confirmsNoPersonalData"
+        ],
+        "type": "object",
+        "properties": {
+          "documentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "confirmsNoPersonalData": {
+            "type": "boolean"
+          }
+        }
+      },
+      "AssistSetupDocumentView": {
+        "required": [
+          "documentId",
+          "fileName",
+          "sha256",
+          "sizeBytes",
+          "confirmedBy",
+          "confirmedAt",
+          "kind",
+          "unreadablePages",
+          "identifiers",
+          "refusalCode"
+        ],
+        "type": "object",
+        "properties": {
+          "documentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "fileName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "sizeBytes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "confirmedBy": {
+            "type": "string"
+          },
+          "confirmedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "kind": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "unreadablePages": {
+            "type": "array",
+            "items": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          "identifiers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AssistIdentifierFound"
+            }
+          },
+          "refusalCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "AssistSetupDocumentsView": {
+        "required": [
+          "id",
+          "documents",
+          "rowVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "documents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AssistSetupDocumentView"
+            }
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          }
+        }
+      },
       "AssistSetupFinding": {
         "required": [
           "code",
@@ -49041,6 +49678,47 @@
               "string"
             ],
             "format": "int64"
+          },
+          "aiPassId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "citationDocumentId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "citationPage": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "citationQuote": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "citedAnswer": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "citedAnswerValue": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -49194,6 +49872,54 @@
               "string"
             ],
             "format": "int64"
+          }
+        }
+      },
+      "AssistSetupUnmappedView": {
+        "required": [
+          "id",
+          "documentId",
+          "page",
+          "quote",
+          "table",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "documentId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "page": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "quote": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "table": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reason": {
+            "type": "string"
           }
         }
       },

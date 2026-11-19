@@ -49,7 +49,7 @@ if (Array.IndexOf(args, "--compare") is var at and >= 0)
     return 0;
 }
 
-var set = EvaluationSet.Read(argument("--set", "docs/evaluation/ai2-evaluation-set.json"));
+var setPath = argument("--set", "docs/evaluation/ai2-evaluation-set.json");
 var settings = Settings.Read(argument("--config", "src/Host/Insys.Api/appsettings.json"));
 var provider = argument("--provider", "echo");
 IAiModelProvider model = provider switch
@@ -58,6 +58,22 @@ IAiModelProvider model = provider switch
     "echo" => new EchoModelProvider(),
     _ => throw new ArgumentException($"--provider is claude or echo, not {provider}."),
 };
+
+// AI-3 (batch 7.8c): docs/evaluation/ai3-evaluation-set.json, its documents read and checked as a pass reads them, scored on SRS §5A.4. WAITING until
+// the tenant sample documents arrive: its invented case proves the runner and counts toward no target.
+if (File.ReadAllText(setPath).Contains("\"TENANT_SETUP\"", StringComparison.Ordinal))
+{
+    var setup = SetupEvaluationSet.Read(setPath);
+    var into = Directory.CreateDirectory(argument("--out", "assist-evaluation-ai3")).FullName;
+    var scored = await new SetupEvaluationRunner(model, settings.Assist, new Insys.Assist.Infrastructure.Extraction.DraftDocumentExtractor(), setup.RoleTemplates)
+        .Run(setup, argument("--root", "."), CancellationToken.None);
+    await File.WriteAllTextAsync(Path.Combine(into, "results.json"), JsonSerializer.Serialize(scored, SetupEvaluationSet.Json));
+    await File.WriteAllTextAsync(Path.Combine(into, "measures.json"), JsonSerializer.Serialize(SetupEvaluationRunner.Measures(setup, scored), SetupEvaluationSet.Json));
+    Console.WriteLine($"AI-3: {scored.Count} cases ({scored.Count(r => r.CountsTowardTargets)} counting toward the targets). Set status: {setup.Status}. Reports in {into}.");
+    return 0;
+}
+
+var set = EvaluationSet.Read(setPath);
 if (provider == "echo" && Environment.GetEnvironmentVariable("Assist__ModelVersion") is null)
 {
     // A dry run of the runner: named echo unless a model is named, so a dry run can stand in for that model's run, its prices and the comparison.

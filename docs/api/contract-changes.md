@@ -2,8 +2,22 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
-
-
+## Wave 7 batch 7.8: AI-3's tailoring and document mapping (Ade, 19 November 2026: OQ-186 to OQ-188)
+All added, none breaking. Nothing AI-3 proposes takes effect until a person accepts it and a second person approves the SETUP change set.
+- **Documents on a setup** (D-16, as AI-1's): `POST /assist/tenant-setups/{id}/documents` (If-Match, Idempotency-Key) with `{ documents: [{ documentId, confirmsNoPersonalData }] }`; `GET …/documents`; `DELETE …/documents/{documentId}` (If-Match).
+  - Each is your own upload, cleared by the scan, at most 20 MB and 10 a setup, filed under a category that holds no personal data. Refusals: `ASSIST_CONFIRMATION_REQUIRED`, `ASSIST_NOT_UPLOADER`, `ASSIST_DOCUMENT_NOT_ALLOWED`, `DOCUMENT_QUARANTINED`.
+  - The view's ETag is the setup's: attaching or removing moves it.
+- **AI passes:** `POST /assist/tenant-setups/{id}/ai-passes` (If-Match, Idempotency-Key) answers **202** with the pass; a job does it as you. `GET …/ai-passes` lists them, newest first, each with `status` (`QUEUED`, `RUNNING`, `DRAFTED`, `REFUSED`, `FAILED`), `outcomeCode`, `tailored`, `mapped` and `unmapped`.
+  - Needs the tenant's `AI_ASSIST` entitlement (`FEATURE_NOT_ENTITLED` otherwise), AI Assist's settings and cap. The pack-only draft needs neither (AIA-090).
+  - New codes: `ASSIST_SETUP_PASS_OPEN` (409, one pass at a time) and `ASSIST_SETUP_CHANGED` (409, the answers changed or the setup was submitted while it ran, so it recorded nothing).
+  - A refused pass names the document's refusal (`ASSIST_DOCUMENT_IDENTIFIERS` with each identifier's kind and page, never its value, on `GET …/documents`).
+- **Each value** (`GET /assist/tenant-setups/{id}`) gains `aiPassId`, `citationDocumentId`, `citationPage`, `citationQuote` (a `MAPPED` value's source) and `citedAnswer`, `citedAnswerValue` (a `TAILORED` value's).
+  - `TAILORED`: a pack row's value, one named column set to a named answer's value. `MAPPED`: a new row beside the pack's, on `finance.mst_chart_of_accounts` (`ACC-<account code>`), `workflow.cfg_delegation_and_approval_authority` (`AUTH-<transaction type>-<role>`) or `iam.cfg_roles_and_permission_sets` (a role template's code, the title as its English label, never permissions).
+  - Both are undecided: the completeness check lists them `UNDECIDED` until accepted or rejected.
+  - New answers keep a tailored value only while its answer still holds it; mapped rows stay.
+- **`unmapped`:** each line the model couldn't map (`NOT_MAPPED`) and each proposal INSYS dropped, with why: `NOT_TAILORABLE`, `COLUMN_NOT_TAILORABLE`, `ANSWER_NOT_NAMED`, `NOT_IN_ANSWER`, `UNKNOWN_TABLE`, `UNKNOWN_COLUMN`, `MISSING_COLUMN`, `NOT_ALLOWED`, `NOT_IN_QUOTE`, `CURRENCY_MISSING`, `CODE_IN_PACK`, `DUPLICATE`, `MALFORMED`, `NO_CITATION`, `CITATION_NOT_FOUND`, `CITATION_TOO_SHORT`.
+- **Packs:** a row may carry `tailor: { columns, from }` (docs/specs/starter-packs/README.md). The review sheet's rows gain `tailorColumns` and `tailorFrom`.
+- **Stand-in model:** with `Assist:Provider=development`, the published test document `docs/frontend/ai3-sample-tenant-documents.pdf` gets fixed mappings, one dropped for a wrong figure, and one title left unmapped.
 
 ## Usability batch: the front end's four requests (18 November 2026)
 All added, none breaking.

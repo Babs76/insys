@@ -128,6 +128,9 @@ public sealed class InsysApiFactory(TestDatabase database, IReadOnlyDictionary<s
     /// <summary>Runs AI-1's job once (AIA-017): each queued run, acting for the user who asked.</summary>
     public Task<int> RunProductDrafts() => Services.GetRequiredService<Insys.Assist.Infrastructure.ProductDraftJob>().Run(CancellationToken.None);
 
+    /// <summary>AI-3's job (7.8): every tenant's queued passes, as the users who asked.</summary>
+    public Task<int> RunSetupAiPasses() => Services.GetRequiredService<Insys.Assist.Infrastructure.SetupAiJob>().Run(CancellationToken.None);
+
     /// <summary>Relays outbox events until none are left, so chains of events (a consumer publishing in turn) complete (the relay is off in tests).</summary>
     public async Task<int> DrainOutbox()
     {

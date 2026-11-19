@@ -43,6 +43,7 @@ public sealed class TenantDirectoryCallerTests
         ["OutboxProcessor"] = "the outbox relay, a hosted service",
         ["AnalyticsReleaseTasks"] = "release tasks at startup",
         ["ProductDraftJob"] = "a background job",
+        ["SetupAiJob"] = "a background job (AI-3's passes, 7.8)",
         ["BillingJobs"] = "a background job",
         ["NotificationSender"] = "a background job",
         ["DocumentScanJob"] = "a background job",

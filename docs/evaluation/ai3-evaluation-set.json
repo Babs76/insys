@@ -1,0 +1,133 @@
+{
+  "feature": "TENANT_SETUP",
+  "status": "WAITING",
+  "waitingFor": "The tenant sample documents for AI-3's evaluation (handover: 7.8, D-16), with an expert's expected mappings. None has arrived; the only case is invented.",
+  "measures": [
+    {
+      "measure": "REGULATED_VALUES_NOT_FROM_APPROVED_OVERLAY",
+      "target": "0",
+      "status": "WAITING",
+      "waitingFor": "The tenant sample documents for AI-3's evaluation (handover: 7.8, D-16), with an expert's expected mappings. None has arrived; the only case is invented."
+    },
+    {
+      "measure": "MAPPED_VALUES_WITH_VALID_CITATION",
+      "target": "100%",
+      "status": "WAITING",
+      "waitingFor": "The tenant sample documents for AI-3's evaluation (handover: 7.8, D-16), with an expert's expected mappings. None has arrived; the only case is invented."
+    },
+    {
+      "measure": "MAPPED_VALUES_CORRECT",
+      "target": "95% or more",
+      "status": "WAITING",
+      "waitingFor": "The tenant sample documents for AI-3's evaluation (handover: 7.8, D-16), with an expert's expected mappings. None has arrived; the only case is invented."
+    },
+    {
+      "measure": "READINESS_BLOCKERS_LEFT_FOR_A_STANDARD_QUESTIONNAIRE",
+      "target": "0, other than facts only the tenant can give",
+      "status": "WAITING",
+      "waitingFor": "The standard questionnaires and reviewed packs with explicit marks (D-20): no pack row has them yet."
+    },
+    {
+      "measure": "DRAFTS_APPLIED_WITHOUT_A_SECOND_PERSONS_APPROVAL",
+      "target": "0 (by design; tested)",
+      "status": "WAITING",
+      "waitingFor": "Measured on the evaluation's runs too; by design every value needs a person's acceptance and the SETUP change set a second person's approval (AssistSetupAiTests, AssistSetupSubmissionTests)."
+    },
+    {
+      "measure": "QUESTIONNAIRE_TO_COMPLETE_DRAFT_READY_FOR_APPROVAL",
+      "target": "Under 30 minutes",
+      "status": "WAITING",
+      "waitingFor": "A timed run with a tenant's administrator on real documents."
+    }
+  ],
+  "roleTemplates": [
+    "CLAIMS_HANDLER",
+    "CLAIMS_MANAGER",
+    "COMPLIANCE_OFFICER",
+    "FINANCE_MANAGER",
+    "FINANCE_OFFICER",
+    "GENERAL_UNDERWRITER",
+    "LIFE_UNDERWRITER"
+  ],
+  "cases": [
+    {
+      "id": "AI3-SAMPLE-1",
+      "document": "docs/frontend/ai3-sample-tenant-documents.pdf",
+      "tailorable": [
+        {
+          "table": "workflow.ref_business_calendars",
+          "code": "CAL",
+          "values": "{\"calendar_code\":\"CAL\",\"time_zone\":null}",
+          "columns": [
+            "time_zone"
+          ],
+          "answers": {
+            "timeZone": [
+              "Africa/Johannesburg"
+            ]
+          }
+        }
+      ],
+      "expected": [
+        {
+          "table": "finance.mst_chart_of_accounts",
+          "code": "ACC-4100",
+          "values": {
+            "account_code": "4100",
+            "name": "Premium income",
+            "type": "INCOME",
+            "gl_account": "GL 4100"
+          }
+        },
+        {
+          "table": "finance.mst_chart_of_accounts",
+          "code": "ACC-2100",
+          "values": {
+            "account_code": "2100",
+            "name": "Claims payable",
+            "type": "LIABILITY",
+            "gl_account": "GL 2100"
+          }
+        },
+        {
+          "table": "workflow.cfg_delegation_and_approval_authority",
+          "code": "AUTH-CLAIM_PAYMENT-CLAIMS_MANAGER",
+          "values": {
+            "limit_value": 250000,
+            "currency": "ZAR"
+          }
+        },
+        {
+          "table": "workflow.cfg_delegation_and_approval_authority",
+          "code": "AUTH-PREMIUM_REFUND-FINANCE_MANAGER",
+          "values": {
+            "limit_value": 50000,
+            "currency": "ZAR"
+          }
+        },
+        {
+          "table": "iam.cfg_roles_and_permission_sets",
+          "code": "CLAIMS_HANDLER",
+          "values": {
+            "labels": {
+              "en": "Claims Officer"
+            }
+          }
+        },
+        {
+          "table": "iam.cfg_roles_and_permission_sets",
+          "code": "COMPLIANCE_OFFICER",
+          "values": {
+            "labels": {
+              "en": "Compliance Officer"
+            }
+          }
+        }
+      ],
+      "expectedUnmapped": [
+        "Underwriter"
+      ],
+      "countsTowardTargets": false
+    }
+  ]
+}

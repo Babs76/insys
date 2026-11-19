@@ -307,9 +307,13 @@ public sealed record RoleTemplateFunction(
     [property: OneOf("FUNCTION_DISABLED", "FEATURE_NOT_ENTITLED")] string? UnavailableReason);
 
 /// <summary>The role templates' names by code, for a role with no label of its own (front-end request, 18 November 2026).</summary>
-internal sealed class RoleTemplateNames : Application.Users.IRoleTemplateNames
+internal sealed class RoleTemplateNames : Application.Users.IRoleTemplateNames, Contracts.IRoleTemplateCatalogue
 {
     private static readonly IReadOnlyDictionary<string, string> Names = RoleTemplates.All.ToDictionary(t => t.Code, t => t.Name, StringComparer.Ordinal);
 
+    private static readonly IReadOnlyList<Contracts.RoleTemplateEntry> Entries = [.. RoleTemplates.All.Select(t => new Contracts.RoleTemplateEntry(t.Code, t.Name))];
+
     public string? NameOf(string roleCode) => Names.GetValueOrDefault(roleCode);
+
+    public IReadOnlyList<Contracts.RoleTemplateEntry> Templates => Entries;
 }

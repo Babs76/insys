@@ -183,7 +183,8 @@ public sealed class AssistPackTests(DatabaseFixture fixture) : IClassFixture<Dat
             pack = "MARKS_TEST", kind = "LINE",
             rows = new object[]
             {
-                new { table = "general.cfg_sample", code = "A", @class = "OPERATIONAL", regulated = false, tailorable = true, values = new { b = 2, a = 1 } },
+                new { table = "general.cfg_sample", code = "A", @class = "OPERATIONAL", regulated = false, tailorable = true,
+                    tailor = new { columns = new[] { "a" }, from = new[] { "timeZone" } }, values = new { b = 2, a = 1 } },
                 new { table = "general.cfg_sample", code = "B", @class = "FINANCE", values = new { rate = 0.15 } },
                 new { table = "general.cfg_sample", code = "C", @class = "COMPLIANCE", regulated = true, tailorable = true, values = new { text = "Sample" } },
             },

@@ -52,6 +52,56 @@ public sealed class PackFileTests
     }
 
     [Fact]
+    public void ATailorMark_NamesTheColumnsAndAnswers_IsPartOfTheHash_AndARowWithoutOneHashesAsBefore_OQ187()
+    {
+        const string plain = """{"pack":"P","kind":"BASE","rows":[{"table":"t","code":"A","class":"OPERATIONAL","regulated":false,"tailorable":true,"values":{"zone":null}}]}""";
+        const string tailor = """{"pack":"P","kind":"BASE","rows":[{"table":"t","code":"A","class":"OPERATIONAL","regulated":false,"tailorable":true,"tailor":{"columns":["zone"],"from":["timeZone"]},"values":{"zone":null}}]}""";
+        var without = Read(plain);
+        var with = Read(tailor);
+        with.Rows[0].TailorColumns.ShouldBe(["zone"]);
+        with.Rows[0].TailorFrom.ShouldBe(["timeZone"]);
+        without.Rows[0].TailorColumns.ShouldBeNull();
+        with.Hash(1, PackScopes.AllTenants).ShouldNotBe(without.Hash(1, PackScopes.AllTenants), "what tailoring may change is reviewed, so it is hashed");
+
+        // A row without a tailor mark hashes exactly as before 7.8: the line the hash reads is unchanged, so approvals already given still bind.
+        var row = without.Rows[0];
+        without.Hash(1, PackScopes.AllTenants).ShouldBe(PackHash.Of("P", "BASE", 1, PackScopes.AllTenants, null, null, null,
+            [new PackHash.Row(row.LineNo, row.Table, row.Code, row.Class, row.Regulated, row.RegulatedSource, row.Tailorable, row.TailorableSource, row.Values, null, null, null)]));
+        without.Hash(1, PackScopes.AllTenants).ShouldBe(Pre78Hash(row));
+    }
+
+    /// <summary>The hash as 7.6 computed it (before the tailor mark existed), written out here, so a change to the line format is caught.</summary>
+    private static string Pre78Hash(PackRow r)
+    {
+        static string F(string? v) => v is null ? "\u0000" : v.Replace("|", "\\|", StringComparison.Ordinal).Replace("\n", "\\n", StringComparison.Ordinal);
+        var text = $"P|BASE|1|{PackScopes.AllTenants}|{F(null)}|{F(null)}|{F(null)}\n"
+                   + $"{r.LineNo}|{F(r.Table)}|{F(r.Code)}|{r.Class}|{r.Regulated}|{r.RegulatedSource}|{r.Tailorable}|{r.TailorableSource}|{F(PackHash.Canonical(r.Values))}|{F(null)}|{F(null)}|{F(null)}\n";
+        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(text))).ToLowerInvariant();
+    }
+
+    [Theory]
+    [InlineData("""{"pack":"P","kind":"BASE","rows":[{"table":"t","code":"A","class":"OPERATIONAL","tailor":{"columns":["zone"],"from":["timeZone"]},"values":{"zone":null}}]}""")]
+    [InlineData("""{"pack":"P","kind":"BASE","rows":[{"table":"t","code":"A","class":"OPERATIONAL","tailorable":true,"tailor":{"columns":["other"],"from":["timeZone"]},"values":{"zone":null}}]}""")]
+    [InlineData("""{"pack":"P","kind":"BASE","rows":[{"table":"t","code":"A","class":"OPERATIONAL","tailorable":true,"tailor":{"columns":["zone"],"from":["favouriteColour"]},"values":{"zone":null}}]}""")]
+    [InlineData("""{"pack":"P","kind":"BASE","rows":[{"table":"t","code":"A","class":"OPERATIONAL","tailorable":true,"tailor":{"columns":[],"from":["timeZone"]},"values":{"zone":null}}]}""")]
+    [InlineData("""{"pack":"P","kind":"BASE","rows":[{"table":"t","code":"A","class":"OPERATIONAL","tailorable":true,"tailor":true,"values":{"zone":null}}]}""")]
+    public void ATailorMark_OnARowNotMarkedTailorable_OrNamingAColumnOrAnswerThatIsntThere_IsRefused_OQ187(string json) =>
+        PackFile.Read(JsonDocument.Parse(json).RootElement).IsFailure.ShouldBeTrue();
+
+    [Fact]
+    public void ARowMayBeTailored_OnlyWithBothMarksExplicit_NotRegulated_AndItsColumnsAndAnswersNamed_D20_OQ187()
+    {
+        var pack = Guid.CreateVersion7();
+        StarterPackValue Value(bool regulated, string regulatedSource, bool tailorable, string tailorableSource, string[]? columns) =>
+            StarterPackValue.For(pack, PackScopes.AllTenants, 1, "t", "A", "OPERATIONAL", regulated, regulatedSource, tailorable, tailorableSource, "{}", null, null, null,
+                columns, columns is null ? null : ["timeZone"]);
+        Value(false, MarkSources.Explicit, true, MarkSources.Explicit, ["zone"]).MayBeTailored.ShouldBeTrue();
+        Value(false, MarkSources.Explicit, true, MarkSources.Explicit, null).MayBeTailored.ShouldBeFalse("nothing named to tailor (OQ-187 (a))");
+        Value(true, MarkSources.Explicit, true, MarkSources.Explicit, ["zone"]).MayBeTailored.ShouldBeFalse("a regulated value is never tailored (AIA-082)");
+        Value(false, MarkSources.Interim, true, MarkSources.Explicit, ["zone"]).MayBeTailored.ShouldBeFalse("the interim reading never makes a row tailorable (D-20)");
+    }
+
+    [Fact]
     public void ACountryOrLinePack_TakesItsCountryOrLineFromItsCode()
     {
         (Read("""{"pack":"NG","kind":"COUNTRY","rows":[{"table":"t","code":"A","class":"OPERATIONAL","values":{}}]}""").Country).ShouldBe("NG");

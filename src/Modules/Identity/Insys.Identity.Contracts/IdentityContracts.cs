@@ -129,3 +129,15 @@ public interface IStaffRoles
     /// <summary>The staff roles in force with the functions they grant (ADR-026).</summary>
     Task<IReadOnlyList<(string RoleCode, IReadOnlyList<string> Functions)>> InForce(Guid tenantId, DateOnly day, CancellationToken cancellationToken);
 }
+
+/// <summary>One of INSYS's role templates (BR-088, GET /identity/role-templates): its code and name.</summary>
+public sealed record RoleTemplateEntry(string Code, string Name);
+
+/// <summary>
+/// Public query interface: INSYS's role templates, by code and name. AI-3 maps a tenant's role titles onto them, never onto permissions (OQ-188, Ade,
+/// 19 November 2026), and its verifier drops a template code that isn't one of these.
+/// </summary>
+public interface IRoleTemplateCatalogue
+{
+    IReadOnlyList<RoleTemplateEntry> Templates { get; }
+}

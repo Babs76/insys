@@ -67,9 +67,17 @@ public static class AssistInfrastructure
         services.AddOptions<ProductDraftOptions>().BindConfiguration("Assist:ProductDrafts");
         services.AddSingleton<ProductDraftWorker>();
         services.AddSingleton<ProductDraftJob>();
+        // AI-3's tailoring and mapping (7.8): the run's documents, the passes and their job, acting for the user who asked.
+        services.AddScoped<SetupDrafting>();
+        services.AddScoped<SetupDocumentStarter>();
+        services.AddScoped<SetupAiStarter>();
+        services.AddOptions<SetupAiOptions>().BindConfiguration("Assist:TenantSetups");
+        services.AddSingleton<SetupAiWorker>();
+        services.AddSingleton<SetupAiJob>();
         if (!BuildingBlocks.Infrastructure.InfrastructureRegistration.IsBuildTimeDocumentGeneration)
         {
             services.AddHostedService<ProductDraftService>();
+            services.AddHostedService<SetupAiService>();
         }
         // The prompt templates are configuration (AIA-074): the host doesn't start without one for each AI-2 feature.
         services.AddOptions<AssistOptions>().BindConfiguration("Assist")

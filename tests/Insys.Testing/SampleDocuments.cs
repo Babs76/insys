@@ -73,6 +73,17 @@ public static class SampleDocuments
             "Cover starts when the first premium is paid", "The monthly premium is at least R45.00", "Cover ends at age 75"],
         ["Monthly premium by age band", "Age band\tMonthly premium", "18-40\t45.00", "41-55\t62.50", "56-65\t88.00"]);
 
+    /// <summary>
+    /// The AI-3 test document the front end uploads to a setup (docs/frontend/ai3-sample-tenant-documents.pdf), recognised by the stand-in model by its first
+    /// line: an invented chart of accounts, approval matrix and role list (role titles, not people's names, ai-assist.md §5.5). No identifier: account codes
+    /// are four digits and nothing is labelled an account number.
+    /// </summary>
+    public static byte[] Ai3Sample() => Pdf(
+        ["INSYS AI-3 SAMPLE TENANT DOCUMENT (sample data only, not a real insurer)", "Chart of accounts", "Account code\tAccount name\tType\tGL code",
+            "4100\tPremium income\tINCOME\tGL 4100", "2100\tClaims payable\tLIABILITY\tGL 2100"],
+        ["Approval matrix", "Claims managers approve claim payments up to ZAR 250,000.", "Finance managers approve premium refunds up to ZAR 50,000."],
+        ["Role list", "Claims Officer", "Underwriter", "Compliance Officer"]);
+
     /// <summary>A DOCX of paragraphs; "[page]" starts a new page and "[table]a|b;c|d" is a table of rows split by ';' and cells by '|'.</summary>
     public static byte[] Docx(params string[] blocks)
     {

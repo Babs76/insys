@@ -64,6 +64,12 @@ public sealed class AssistDbContext(DbContextOptions<AssistDbContext> options, M
 
     public DbSet<DraftItem> DraftItems => Set<DraftItem>();
 
+    public DbSet<SetupAiRun> SetupAiRuns => Set<SetupAiRun>();
+
+    public DbSet<SetupDocument> SetupDocuments => Set<SetupDocument>();
+
+    public DbSet<SetupUnmapped> SetupUnmapped => Set<SetupUnmapped>();
+
     protected override void ConfigureModel(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<AssistTenantSetting>(setting =>
@@ -210,6 +216,38 @@ public sealed class AssistDbContext(DbContextOptions<AssistDbContext> options, M
             item.Property(i => i.Value).HasColumnType("jsonb");
             item.HasOne<ProductDraftRun>().WithMany().HasForeignKey(i => new { i.TenantId, i.RunId }).HasPrincipalKey(r => new { r.TenantId, r.Id });
         });
+
+        // AI-3's passes (7.8): a pass over a setup run, the documents the run reads with their confirmations (D-16), and what a pass couldn't map (AIA-083).
+        modelBuilder.Entity<SetupAiRun>(pass =>
+        {
+            pass.ToTable("setup_ai_run");
+            pass.HasKey(p => new { p.TenantId, p.Id });
+            pass.HasAuditColumns();
+            pass.Ignore(p => p.DomainEvents);
+            pass.Ignore(p => p.HasChanges);
+            pass.Ignore(p => p.Open);
+            pass.HasOne<SetupRun>().WithMany().HasForeignKey(p => new { p.TenantId, p.SetupRunId }).HasPrincipalKey(r => new { r.TenantId, r.Id });
+        });
+        modelBuilder.Entity<SetupDocument>(document =>
+        {
+            document.ToTable("setup_document");
+            document.HasKey(d => new { d.TenantId, d.Id });
+            document.HasAuditColumns();
+            document.Ignore(d => d.DomainEvents);
+            document.Ignore(d => d.HasChanges);
+            document.Property(d => d.Sha256).HasColumnType("char(64)");
+            document.Property(d => d.Identifiers).HasColumnType("jsonb");
+            document.HasOne<SetupRun>().WithMany().HasForeignKey(d => new { d.TenantId, d.SetupRunId }).HasPrincipalKey(r => new { r.TenantId, r.Id });
+        });
+        modelBuilder.Entity<SetupUnmapped>(line =>
+        {
+            line.ToTable("setup_unmapped");
+            line.HasKey(l => new { l.TenantId, l.Id });
+            line.HasAuditColumns();
+            line.Ignore(l => l.DomainEvents);
+            line.Ignore(l => l.HasChanges);
+            line.HasOne<SetupAiRun>().WithMany().HasForeignKey(l => new { l.TenantId, l.AiRunId }).HasPrincipalKey(r => new { r.TenantId, r.Id });
+        });
     }
 }
 
@@ -252,6 +290,27 @@ internal sealed class SetupRuns(AssistDbContext db) : Application.ISetupRuns
 
     public Task<SetupItem?> Item(Guid runId, Guid itemId, CancellationToken cancellationToken) =>
         db.SetupItems.SingleOrDefaultAsync(i => i.RunId == runId && i.Id == itemId, cancellationToken);
+
+    public void Add(SetupDocument document) => db.SetupDocuments.Add(document);
+
+    public void Add(SetupAiRun pass) => db.SetupAiRuns.Add(pass);
+
+    public void Add(SetupUnmapped line) => db.SetupUnmapped.Add(line);
+
+    public async Task<IReadOnlyList<SetupDocument>> Documents(Guid runId, CancellationToken cancellationToken) =>
+        await db.SetupDocuments.Where(d => d.SetupRunId == runId).OrderBy(d => d.Id).ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<SetupAiRun>> AiRuns(Guid runId, CancellationToken cancellationToken) =>
+        await db.SetupAiRuns.Where(p => p.SetupRunId == runId).OrderByDescending(p => p.Id).ToListAsync(cancellationToken);
+
+    public Task<SetupAiRun?> AiRun(Guid passId, CancellationToken cancellationToken) => db.SetupAiRuns.SingleOrDefaultAsync(p => p.Id == passId, cancellationToken);
+
+    public async Task<IReadOnlyList<SetupAiRun>> OpenAiRuns(int limit, CancellationToken cancellationToken) =>
+        await db.SetupAiRuns.AsNoTracking().Where(p => p.Status == SetupAiStatuses.Queued || p.Status == SetupAiStatuses.Running)
+            .OrderBy(p => p.RequestedAt).Take(limit).ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<SetupUnmapped>> Unmapped(Guid runId, CancellationToken cancellationToken) =>
+        await db.SetupUnmapped.AsNoTracking().Where(u => u.SetupRunId == runId).OrderBy(u => u.Id).ToListAsync(cancellationToken);
 }
 
 /// <summary>

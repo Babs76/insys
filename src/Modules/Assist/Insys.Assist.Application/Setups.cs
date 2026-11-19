@@ -50,6 +50,27 @@ public sealed record SetupAnswers(string Country, IReadOnlyList<string> Lines, I
             : Result.Success();
 }
 
+/// <summary>The questionnaire's answers by the names the API gives them: what a pack row's `tailor` may name as its source (OQ-187 (a)).</summary>
+public static class SetupAnswerFields
+{
+    public static readonly string[] All = ["country", "lines", "currencies", "timeZone", "products", "channels", "paymentMethods", "teamRoles", "languages"];
+
+    /// <summary>The values an answer holds, as text; an answer not given holds none.</summary>
+    public static IReadOnlyList<string> Values(SetupAnswers answers, string field) => field switch
+    {
+        "country" => [answers.Country],
+        "lines" => answers.Lines,
+        "currencies" => answers.Currencies ?? [],
+        "timeZone" => answers.TimeZone is { } zone ? [zone] : [],
+        "products" => answers.Products ?? [],
+        "channels" => answers.Channels ?? [],
+        "paymentMethods" => answers.PaymentMethods ?? [],
+        "teamRoles" => answers.TeamRoles ?? [],
+        "languages" => answers.Languages ?? [],
+        _ => [],
+    };
+}
+
 /// <summary>One drafted value, before it is stored.</summary>
 public sealed record DraftValue(string Table, string Code, string Class, bool Regulated, string Flag, string? Values, Guid? SourcePackId, int? SourceLineNo, string? MissingReason);
 
@@ -279,12 +300,16 @@ public static class SetupAssembly
 }
 
 /// <param name="InDraft">False once the answers no longer bring the row: kept, rejected, never decided again.</param>
+/// <param name="AiPassId">The AI pass that tailored or mapped the value (7.8); null for Pack and Missing.</param>
+/// <param name="CitationDocumentId">A Mapped value's citation (AIA-083, AIA-084): its document, page and the exact words it comes from.</param>
+/// <param name="CitedAnswer">A Tailored value's citation (AIA-084, OQ-187 (a)): the questionnaire answer, and the answer's value used.</param>
 public sealed record SetupItemView(Guid Id, string Table, string Code, string Class, bool Regulated, string Flag, JsonElement? Values, Guid? SourcePackId, int? SourceLineNo,
-    string? MissingReason, string? Decision, string? DecidedBy, string? DecisionNote, int AnswersVersion, bool InDraft, long RowVersion)
+    string? MissingReason, string? Decision, string? DecidedBy, string? DecisionNote, int AnswersVersion, bool InDraft, long RowVersion, Guid? AiPassId = null,
+    Guid? CitationDocumentId = null, int? CitationPage = null, string? CitationQuote = null, string? CitedAnswer = null, string? CitedAnswerValue = null)
 {
     public static SetupItemView From(SetupItem i) => new(i.Id, i.TableName, i.RowCode, i.Class, i.Regulated, i.Flag,
         i.Values is null ? null : JsonDocument.Parse(i.Values).RootElement.Clone(), i.SourcePackId, i.SourceLineNo, i.MissingReason, i.Decision, i.DecidedBy, i.DecisionNote,
-        i.AnswersVersion, i.InDraft, i.RowVersion);
+        i.AnswersVersion, i.InDraft, i.RowVersion, i.AiRunId, i.CitationDocumentId, i.CitationPage, i.CitationQuote, i.CitedAnswer, i.CitedAnswerValue);
 }
 
 /// <summary>A run, its answers, its packs and all its items; the counts are of the items in the draft: how many, how many Missing, how many because an overlay isn't approved.</summary>
@@ -306,6 +331,25 @@ public interface ISetupRuns
     Task<IReadOnlyList<SetupItem>> Items(Guid runId, CancellationToken cancellationToken);
 
     Task<SetupItem?> Item(Guid runId, Guid itemId, CancellationToken cancellationToken);
+
+    void Add(SetupDocument document);
+
+    void Add(SetupAiRun pass);
+
+    void Add(SetupUnmapped line);
+
+    /// <summary>The run's documents, removed ones included (their confirmations stay on record).</summary>
+    Task<IReadOnlyList<SetupDocument>> Documents(Guid runId, CancellationToken cancellationToken);
+
+    /// <summary>The run's AI passes, newest first.</summary>
+    Task<IReadOnlyList<SetupAiRun>> AiRuns(Guid runId, CancellationToken cancellationToken);
+
+    Task<SetupAiRun?> AiRun(Guid passId, CancellationToken cancellationToken);
+
+    /// <summary>The tenant's passes still queued or running, oldest first.</summary>
+    Task<IReadOnlyList<SetupAiRun>> OpenAiRuns(int limit, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<SetupUnmapped>> Unmapped(Guid runId, CancellationToken cancellationToken);
 }
 
 public sealed record StartTenantSetup(SetupAnswers Answers) : ICommand<SetupRunView>;
@@ -375,6 +419,12 @@ internal sealed class TenantSetupHandlers(ISetupRuns runs, IStarterPacks packs, 
         {
             if (existing.Remove((d.Table, d.Code), out var item))
             {
+                // 7.8: a tailored value stays while the pack row is unchanged and its answer still holds the value it cited (AIA-081, OQ-187 (a)).
+                if (item.Flag == ItemFlags.Tailored && item.InDraft && StillTailored(item, d, command.Answers))
+                {
+                    continue;
+                }
+
                 if (!item.InDraft || !item.Same(d.Flag, d.Values, d.SourcePackId, d.SourceLineNo, SetupAssembly.SameValues) || item.Regulated != d.Regulated)
                 {
                     item.Redraft(run.AnswersVersion, d.Class, d.Regulated, d.Flag, d.Values, d.SourcePackId, d.SourceLineNo, d.MissingReason);
@@ -388,7 +438,8 @@ internal sealed class TenantSetupHandlers(ISetupRuns runs, IStarterPacks packs, 
             }
         }
 
-        foreach (var gone in existing.Values.Where(i => i.InDraft))
+        // A mapped row is the tenant's document's, not the packs': new answers don't take it out (AIA-081 re-drafts what the answers affect).
+        foreach (var gone in existing.Values.Where(i => i.InDraft && i.Flag != ItemFlags.Mapped))
         {
             gone.LeaveDraft(execution.ActorId, clock.UtcNow);
         }
@@ -445,6 +496,30 @@ internal sealed class TenantSetupHandlers(ISetupRuns runs, IStarterPacks packs, 
     }
 
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
+
+    /// <summary>
+    /// Whether a tailored value still stands on the new answers: same pack row, its values differing from the pack's in one column only, set to the value it cited,
+    /// which the cited answer still holds.
+    /// </summary>
+    internal static bool StillTailored(SetupItem item, DraftValue pack, SetupAnswers answers)
+    {
+        if (pack.Flag != ItemFlags.Pack || pack.Regulated || item.SourcePackId != pack.SourcePackId || item.SourceLineNo != pack.SourceLineNo
+            || item.CitedAnswer is not { } answer || item.CitedAnswerValue is not { } value || item.Values is null || pack.Values is null
+            || !SetupAnswerFields.Values(answers, answer).Contains(value, StringComparer.Ordinal))
+        {
+            return false;
+        }
+
+        var tailored = System.Text.Json.Nodes.JsonNode.Parse(item.Values) as System.Text.Json.Nodes.JsonObject;
+        var original = System.Text.Json.Nodes.JsonNode.Parse(pack.Values) as System.Text.Json.Nodes.JsonObject;
+        if (tailored is null || original is null || tailored.Count != original.Count)
+        {
+            return false;
+        }
+
+        var changed = tailored.Where(p => !System.Text.Json.Nodes.JsonNode.DeepEquals(p.Value, original[p.Key])).ToList();
+        return changed.Count == 1 && changed[0].Value is System.Text.Json.Nodes.JsonValue v && v.TryGetValue<string>(out var s) && s == value;
+    }
 
     private static string Serialised(SetupAnswers answers) => JsonSerializer.Serialize(answers, Json);
 

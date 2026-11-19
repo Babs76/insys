@@ -34,6 +34,16 @@ public static class AssistErrorCodes
     [ErrorCode(503, "error.assist.unavailable", true)]
     public const string Unavailable = "ASSIST_UNAVAILABLE";
 
+    /// <summary>AI-3 (7.8): one pass at a time on a setup.</summary>
+    [ErrorCode(409, "error.assist.setup_pass_open", Means = "An AI pass is already queued or running on this setup, and a setup takes one pass at a time.",
+        Remedy = "Wait for the pass to finish, then read the setup again and ask for another if you need one.")]
+    public const string SetupPassOpen = "ASSIST_SETUP_PASS_OPEN";
+
+    /// <summary>AI-3 (7.8): the setup was submitted, or its answers changed, while the pass waited or ran, so nothing it found was recorded.</summary>
+    [ErrorCode(409, "error.assist.setup_changed", Means = "The setup changed while the AI pass ran: its answers changed or it was submitted, so nothing the pass found was recorded in it.",
+        Remedy = "Read the setup again and ask for a new pass if it is still a draft.")]
+    public const string SetupChanged = "ASSIST_SETUP_CHANGED";
+
     /// <summary>The tenant's monthly cap is reached (AIA-073).</summary>
     [ErrorCode(422, "error.assist.cap_reached")]
     public const string CapReached = "ASSIST_CAP_REACHED";

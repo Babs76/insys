@@ -104,6 +104,7 @@ public static class TestTokens
         ["Communications:JobEnabled"] = "false",
         ["Documents:Scanner:JobEnabled"] = "false",
         ["Assist:ProductDrafts:JobEnabled"] = "false",
+        ["Assist:TenantSetups:JobEnabled"] = "false",
         ["Party:DueDiligenceJobs:JobEnabled"] = "false",
         ["Analytics:ReleaseTasksEnabled"] = "false",
         ["FieldProtection:ActiveKeyId"] = "test1",
