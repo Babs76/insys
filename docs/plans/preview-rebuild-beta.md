@@ -1,6 +1,6 @@
 # Preview rebuild for the beta: plan, not carried out
 
-**Status: prepared 19 November 2026 for Ade's approval. Nothing here has run.** Ade approves once the front end's repin is proven. Until then the Preview stays frozen: no `upgrade`, `reset`, reboot or rescue mode (`docs/handover-backend.md`, "Rules for the Preview").
+**Status: prepared 19 November 2026.** Ade, 19 November: step 0.5 (the read-only memory measurement) is approved now. The age key matches `PREVIEW_AGE_RECIPIENT` (Ade checked, 17 November), so 0.4 is done. The reset waits for Ade's approval after the front end's repin is proven. AI Assist stays off at the rebuild; section 6 lists what turning it on for the beta needs. Until then the Preview stays frozen: no `upgrade`, `reset`, reboot or rescue mode (`docs/handover-backend.md`, "Rules for the Preview").
 
 **What it does:** brings the Preview from `d488b32` (its last chart run, `upgrade` 42190162209, 6 November) to `main`, with a new OpenBao, through the `reset` action. Between them are 112 commits, migrations V0131 to V0143, and the chart's new ClamAV.
 
@@ -13,7 +13,7 @@
 | 0.2 | Pin the console image the beta should serve: the new digest from the front end's `main`, in `deploy/helm/insys/values.yaml`. Today's digest is from the front end's `68b4659`. A values change runs deployment smoke and merges on green, like any `deploy/**` change. | Back end, with the front end's digest | Smoke green on the exact head; the front end names the digest in its `docs/deployment.md`, so its image cleanup keeps it |
 | 0.3 | Ade decides the open items below: the unseal key's holder, ClamAV's outbound access, AI Assist | Ade | Recorded in this file |
 | 0.4 | Ade's age key is at hand: the private key on his machine and in his password manager. `PREVIEW_AGE_RECIPIENT` in the `preview` Environment is its public line. | Ade | `age-keygen -y` of the private key prints the same `age1…` line as the variable |
-| 0.5 | A memory measurement, as nothing measures it today: run `open-ssh`, then on the server `free -m` and `kubectl top pods -A`, with no change. This needs metrics-server, which k3s bundles. If it isn't running, `free -m` alone. | Back end, run approved by Ade | Peak use recorded here, against the 16 GB server |
+| 0.5 | A memory measurement, as nothing measures it today: the `check` action's read-only `Memory` item prints `free -m`, `kubectl top nodes`, `kubectl top pods -A` and the release's requests and limits. `check` opens SSH for its runner only and closes it at the end. `kubectl top` needs k3s's bundled metrics-server; if it doesn't answer, that is said. | Back end, run approved by Ade | The figures recorded here, against the 16 GB server. One reading at an idle time, not a peak. |
 
 ## 1. The reset run (one approval, about 2 to 3 hours)
 Start `preview.yml` with `action: reset`, `confirm: reset`, `acme: production`. Ade approves it in the `preview` Environment. The run does these steps in order (`preview.sh`, `reset`):
@@ -91,3 +91,20 @@ The console answers again after 1.5, but has no users or data until the seed end
   - every earlier password.
 - **Kept:** the server, its reserved address and DNS, k3s, Traefik's certificates, `/var/backups/insys` and Hetzner's backups.
 - **Never restore a backup older than the reset.**
+
+## 6. Optional follow-up: AI Assist on the beta
+Not part of the rebuild. Each item is its own change, merged on green, and turned on only with Ade's decision.
+
+| # | Needed | Why | Who |
+|---|---|---|---|
+| 6.1 | A provider contract with zero retention and no training, and the compliance view for South Africa's sample data (D-1, POPIA s72) | D-1: Claude runs globally or in the US, and each jurisdiction waits for these | Ade |
+| 6.2 | The region: `Assist:Claude:InferenceGeo` set to `us`, as the evaluation ran, or left unset, so no region is sent and a reported region that isn't US or GLOBAL is refused (`ASSIST_RESIDENCY_MISMATCH`) | Ade, 15 November: "Region: not assumed" | Ade |
+| 6.3 | A Claude API key for the Preview only, not the evaluation's (`ASSIST_CLAUDE_API_KEY` in `assist-eval`) | Keys stay per environment, and each can be revoked on its own | Ade makes it |
+| 6.4 | The chart passes the key: `assistClaudeApiKey`, an optional key of `insys-secrets`, read as `Assist__Claude__ApiKey`. `assist.provider: claude` refuses to start without it. Today the chart passes only `Assist__Provider`. | A chart change, with deployment smoke | Back end |
+| 6.5 | The key reaches the server without passing through GitHub's logs. Ade's steps: on `open-ssh`, `read -rs` the key on the server and patch it into `insys-secrets` (as the unseal procedure does), then `upgrade` with `assist.provider: claude` | It is a secret; this repository is public | Ade, with the back end's steps |
+| 6.6 | The model and its settings: `claude-sonnet-5-5`, Ade's provisional choice, with `Effort` medium and the 15-second timeout | The evaluation's results per model | Ade |
+| 6.7 | OFTZA's `AI_ASSIST` entitlement, `ASSIST_SETTINGS_MANAGE` to switch it on, and each feature's function: `ASSIST_EXPLAIN_REFUSAL` and `ASSIST_EXPLAIN_PREMIUM` (AI-2), `ASSIST_PRODUCT_DRAFT_RUN` (AI-1), `ASSIST_TENANT_SETUP_RUN` (AI-3), all off by default and in no role template | Each feature is off for a tenant until entitled and enabled | Platform administrator, with a second person |
+| 6.8 | Each feature only once its evaluation targets are met (SRS: "each feature reaches users only after its acceptance targets are met on an evaluation set"). AI-2's set exists. AI-1's waits for D-7's documents. AI-3's waits for the tenant samples. | The SRS's rule for switching on | Ade, on the evaluation's results |
+| 6.9 | Checks: an explanation of one of OFTZA's sample refusals answers from the catalogue's wording, and the API starts with `assist.provider: claude` and its key. The verifier's refusal of a forged number is already proven by the stub's tests, not on the Preview. | Proof before the team uses it | Back end |
+
+**Order:** 6.1, 6.2 and 6.6 are decisions. Then 6.3 and 6.4, then 6.5 and 6.7, then 6.9. 6.8 governs which features are turned on.
