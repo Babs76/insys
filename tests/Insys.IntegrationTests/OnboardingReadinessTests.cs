@@ -203,7 +203,7 @@ public sealed class OnboardingReadinessTests(DatabaseFixture fixture) : IClassFi
         check.GetProperty("ready").GetBoolean().ShouldBeFalse();
         check.GetProperty("missing").EnumerateArray().Select(m => m.GetString()).ShouldBe(["COMPLAINT:COMPLAINT"]);
 
-        await fixture.Database.ExecuteAsOwner(
+        await fixture.Database.CorrectAsOwnerPastTheGuard(
             "UPDATE workflow.cfg_workflow_definitions SET record_status = 'EFFECTIVE' WHERE tenant_id = @t AND process_code = 'COMPLAINT'", ("t", tenantId));
         Check(await Readiness(url), "SHARED_OPERATIONAL_SETUP", "CASE_TYPE_PROCESS_NOT_IN_FORCE").GetProperty("ready").GetBoolean().ShouldBeTrue();
     }
@@ -225,7 +225,7 @@ public sealed class OnboardingReadinessTests(DatabaseFixture fixture) : IClassFi
         check.GetProperty("ready").GetBoolean().ShouldBeFalse();
         check.GetProperty("missing").EnumerateArray().Select(m => m.GetString()).ShouldBe(["P-READY"]);
 
-        await fixture.Database.ExecuteAsOwner(
+        await fixture.Database.CorrectAsOwnerPastTheGuard(
             "UPDATE rules.cfg_authority_matrices SET record_status = 'EFFECTIVE' WHERE tenant_id = @t AND code = 'AM-READY'", ("t", tenantId));
         Check(await Readiness(url), "PRODUCT_FACTORY", "GENERAL_REFERRAL_AUTHORITY").GetProperty("ready").GetBoolean().ShouldBeTrue();
     }
@@ -391,7 +391,7 @@ public sealed class OnboardingReadinessTests(DatabaseFixture fixture) : IClassFi
         check.GetProperty("missing").EnumerateArray().Select(m => m.GetString()).ShouldBe([enhanced]);
 
         // Authority again, but the role no longer holds due_diligence.approve_enhanced: still undecidable.
-        await fixture.Database.ExecuteAsOwner("UPDATE workflow.cfg_delegation_and_approval_authority SET record_status = 'EFFECTIVE' WHERE tenant_id = @t AND code = @c",
+        await fixture.Database.CorrectAsOwnerPastTheGuard("UPDATE workflow.cfg_delegation_and_approval_authority SET record_status = 'EFFECTIVE' WHERE tenant_id = @t AND code = @c",
             ("t", tenantId), ("c", $"AUTH-{enhanced}"));
         await fixture.Database.ExecuteAsOwner("""
             UPDATE iam.cfg_role_function_assignments SET record_status = 'RETIRED'

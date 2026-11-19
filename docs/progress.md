@@ -79,6 +79,7 @@
 | Release batch | A platform-wide row releases only the parks it can resolve (an entitlement: its tenant's parks of the functions needing its feature), marked 500 at a time | Branch `release-batch` (on the availability batch) |
 | Directory batch | Row-level security on `tenant.tenant` (V0142): a tenant's session sees only its own row, the platform operator's session every row, marked explicitly | Branch `directory-rls` (on the release batch) |
 | Seed dates | The seed's dates are the tenant's business date, not the machine's UTC date: the three seed jobs at `955665b` failed across midnight UTC | Branch `seed-business-date` |
+| Status guard | V0144: an approved static data row's status moves only forward (OQ-185 (b)) | Branch `status-guard` |
 
 ## Phase 1 review items
 
