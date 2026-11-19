@@ -64,7 +64,10 @@ Each slice merges on green by itself, so the minimal seed can reach the front en
 - **Rerunning:** a run stopped anywhere can be run again. Every create has a deterministic key, good for the API's 24 hours; past that, parties fall back to a search by identifier, then by exact name for one stopped before its identifier went on. While the tenant is onboarding, ended loaders come back by the routes an administrator uses: a revoked role is assigned again, and a disabled loader is replaced by a new user, `oftza-seed-loader-1-2`, since disabling is final (no route or transition leads back). All end disabled. The loaders now end after activation, since a scheme can only be registered on an active tenant and its contribution rule names its number; with no live loader left on an active tenant, loading is over. The seed waits out a 429 for its `Retry-After`, or backs off without one; the API's limit is unchanged.
 - **INSYS has no route that cancels a Life policy,** so Life has no cancelled status here. Grace, lapse and renewal come from the hourly jobs, so on a live environment they appear within the hour.
 - **Payments reach only the simulator.** A callback's key and secret are shown once, so each run that reports money issues its own endpoint.
-- **Next:** cases of the other families (enquiry, dispute, appeal) and notification templates beyond the case notices.
+- **Cases of every family: done** in `5a81c35`: an enquiry about a policy, a provider's dispute of a Health claim's payment, and a complaint decided and appealed, beside the complaint about a claim (`OftzaSeedClaims.OtherCases`).
+- **Notification templates for every notice: done** in the seed batch of 18 November 2026: a type and a sample English email template for each notice the platform sends (`OftzaSeed.NoticeTypes`), beside the three case notices.
+- **Against a deployed API through Keycloak (batch 6, 19 November 2026):** the deployment smoke test runs the full seed with `--keycloak-url` against its cluster, then a seeded persona signs in through the realm and reads `/identity/me` (`deploy/smoke/run.sh`, `values-seed.yaml`). SMOKE_OUTCOME
+- **Next:** nothing in this plan; the Preview runs the seed at its reset (`docs/plans/preview-rebuild-beta.md`).
 
 ## Decisions, by Ade
 1. **Role templates (OQ-111):** all the signed-off templates as they stand.

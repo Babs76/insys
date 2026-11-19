@@ -92,29 +92,46 @@ public sealed partial class OftzaSeed(SeedContext context)
             await Static(context.PlatformMaker, context.PlatformChecker, "tenancy/static/feature-entitlements/global", $"{TenantCode}:{feature}", new { tenant = TenantCode, feature, enabled = true });
         }
 
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        void Stage(string name) => context.Progress?.Invoke($"seed: {name} done at {clock.Elapsed.TotalSeconds:0}s");
+        Stage("tenant and global reference data");
         await FirstAdministrators();
+        Stage("first administrators");
         _maker = context.Tenant(TenantId, FirstAdministrator);
         _today = DateOnly.Parse((await _maker.Send(HttpMethod.Get, "/api/v1/identity/me")).GetProperty("tenant").GetProperty("businessDate").GetString()!,
             System.Globalization.CultureInfo.InvariantCulture);
         _checker = context.Tenant(TenantId, SecondAdministrator);
         await Roles();
+        Stage("roles");
         await Loaders();
         await Locale();
         await Configuration();
+        Stage("loaders, locale and configuration");
         await Personas();
+        Stage("personas");
+        if (context.Only == "personas")
+        {
+            return;
+        }
+
         await Products();
+        Stage("products");
         await Parties();
         await LineConfiguration();
         await FromReadiness();
         await Channels();
         await Missing();
+        Stage("parties, line configuration and readiness");
         await Activate();
         await AfterActivation();
         await EndLoaders();
+        Stage("activation");
         await Business();
+        Stage("business");
         if (context.Accounts)
         {
             await Accounts();
+            Stage("accounts");
         }
     }
 

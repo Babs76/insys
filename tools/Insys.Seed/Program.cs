@@ -104,8 +104,23 @@ async Task Settle()
     }
 }
 
+// --only personas: the tenant, its administrators, roles, configuration and personas, and nothing after (the deployment smoke test's fallback).
+var only = options.GetValueOrDefault("only");
+if (only is not null and not "personas")
+{
+    Console.Error.WriteLine("--only takes personas, or is left out for the whole seed.");
+    return 2;
+}
+
+if (only is not null && options.ContainsKey("accounts"))
+{
+    Console.Error.WriteLine("--accounts needs the whole seed: its portal accounts link to sample parties.");
+    return 2;
+}
+
 var operatorTenant = Guid.Parse(options["operator-tenant"]);
-var seed = new OftzaSeed(new SeedContext(As(operatorTenant, options["platform-1"]), As(operatorTenant, options["platform-2"]), As, Settle, OwnRealm: keycloak is not null, Accounts: options.ContainsKey("accounts")));
+var seed = new OftzaSeed(new SeedContext(As(operatorTenant, options["platform-1"]), As(operatorTenant, options["platform-2"]), As, Settle, OwnRealm: keycloak is not null, Accounts: options.ContainsKey("accounts"),
+    Only: only, Progress: line => Console.Error.WriteLine(line)));
 if (keycloak is not null)
 {
     await keycloak.Start();
@@ -150,5 +165,5 @@ if (keycloak is not null && options.ContainsKey("accounts"))
     return 0;
 }
 
-Console.WriteLine($"{OftzaSeed.TenantCode}: {seed.TenantId}. Active, with its sample records.");
+Console.WriteLine(only is null ? $"{OftzaSeed.TenantCode}: {seed.TenantId}. Active, with its sample records." : $"{OftzaSeed.TenantCode}: {seed.TenantId}, with its personas only (--only {only}).");
 return 0;

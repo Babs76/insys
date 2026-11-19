@@ -95,6 +95,17 @@ public sealed class OftzaSeedTests(DatabaseFixture fixture) : IClassFixture<Data
         async Task<long> Count(string sql) => await fixture.Database.ScalarAsOwner<long>(sql, ("t", seed.TenantId));
         (await Count("SELECT count(*) FROM life.policy WHERE tenant_id = @t")).ShouldBe(12L);
         (await Count("SELECT count(*) FROM life.policy WHERE tenant_id = @t AND status = 'LAPSED'")).ShouldBe(2L);
+        // OQ-164 (beta check, 19 November 2026): Life reads a rated premium as one instalment at the policy's frequency. Every sample Life policy is
+        // monthly, and its premium is a monthly instalment by the sample rates (sum assured × the age band's rate + the 50 policy fee; every holder is
+        // 41 to 65 next birthday): funeral 30,000 × 0.005 + 50 = 200; term 1,000,000 × 0.0012 + 50 = 1,250; term 500,000 × 0.0012 + 50 = 650.
+        // The two migrated policies keep their source system's 150. A missed instalment in arrears is the policy's own instalment.
+        var lifePremiums = await fixture.Database.ScalarAsOwner<string>(
+            "SELECT string_agg(line, '; ' ORDER BY line) FROM (SELECT p.product_code || ' ' || b.sum_assured::numeric(18,0) || ' ' || p.premium_frequency || ' ' || b.premium || ' x' || count(*) AS line "
+            + "FROM life.policy p JOIN life.policy_benefit b ON b.tenant_id = p.tenant_id AND b.policy_id = p.id WHERE p.tenant_id = @t "
+            + "GROUP BY p.product_code, b.sum_assured, p.premium_frequency, b.premium) lines", ("t", seed.TenantId));
+        lifePremiums.ShouldBe("OFT-FUNERAL 30000 MONTHLY 200.00 x3; OFT-TERM 1000000 MONTHLY 1250.00 x3; OFT-TERM 500000 MONTHLY 150.00 x2; OFT-TERM 500000 MONTHLY 650.00 x4");
+        (await Count("SELECT count(*) FROM billing.invoice i JOIN life.policy p ON p.tenant_id = i.tenant_id AND p.id = i.policy_ref WHERE i.tenant_id = @t AND i.source_domain = 'LIFE' AND i.total_amount = 100")).ShouldBe(0L,
+            "a sample overdue Life premium is the policy's own instalment, not a fixed 100");
         (await Count("SELECT count(*) FROM general.policy WHERE tenant_id = @t")).ShouldBe(12L);
         (await Count("SELECT count(*) FROM general.policy WHERE tenant_id = @t AND status = 'CANCELLED'")).ShouldBe(2L);
         (await Count("SELECT count(*) FROM general.renewal WHERE tenant_id = @t")).ShouldBe(2L, "two policies near their end await renewal");
