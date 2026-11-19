@@ -162,4 +162,41 @@ public sealed class DraftReviewTests
         measured["VALID_CITATIONS"].Value.ShouldBe(0.75m);
         measured["BYPASSES"].Outcome.ShouldBe("MET");
     }
+
+    /// <summary>
+    /// Ade, 19 November 2026: an Interpreted rule or simulation case must be reviewed as much as a version field, so the review isn't complete until each is
+    /// decided; a Found value or a dropped proposal doesn't hold it. Product Factory's submission check uses the same rule (OQ-190 (b)).
+    /// </summary>
+    [Theory]
+    [InlineData(DraftItemKinds.Rule, "rules[0]")]
+    [InlineData(DraftItemKinds.SimulationCase, "simulationCases[0]")]
+    [InlineData(DraftItemKinds.RateTable, "rateTables[0]")]
+    public void AnInterpretedRuleOrSimulationCase_HoldsTheReview_UntilDecided_OQ190(string kind, string field)
+    {
+        var draft = new ProductDraftVersion("P", 2, "Validated", "Funeral", ["FUNERAL"], Today, "Issue", "None", 1);
+        DraftItemView View(string flag, string check = "PASSED", string? decision = null) =>
+            new(Guid.NewGuid(), kind, field, "{\"text\":\"Cover ends at age 75\"}", flag, null, null, null, check, check == "PASSED" ? null : "NO_CITATION", false, decision);
+
+        ProductDraftProvenance.Review([View(DraftItemFlags.Interpreted)], draft, null, new Dictionary<Guid, string?>()).Summary.ReviewComplete.ShouldBeFalse();
+        ProductDraftProvenance.Review([View(DraftItemFlags.Interpreted, decision: DraftItemDecisions.Accepted)], draft, null, new Dictionary<Guid, string?>())
+            .Summary.ReviewComplete.ShouldBeTrue();
+        ProductDraftProvenance.Review([View(DraftItemFlags.Interpreted, decision: DraftItemDecisions.Rejected)], draft, null, new Dictionary<Guid, string?>())
+            .Summary.ReviewComplete.ShouldBeTrue();
+        ProductDraftProvenance.Review([View(DraftItemFlags.Found)], draft, null, new Dictionary<Guid, string?>()).Summary.ReviewComplete.ShouldBeTrue();
+        ProductDraftProvenance.Review([View(DraftItemFlags.Interpreted, check: "DROPPED")], draft, null, new Dictionary<Guid, string?>())
+            .Summary.ReviewComplete.ShouldBeTrue("a dropped proposal is never decided and never in the Draft");
+    }
+
+    /// <summary>Ade, 19 November 2026: a rejected version field holds the copied version's value; anything else in the Draft holds the review incomplete.</summary>
+    [Fact]
+    public void ARejectedVersionField_MustHoldTheCopiedVersionsValue_ForTheReviewToBeComplete_OQ190()
+    {
+        var source = new ProductDraftVersion("P", 1, "Published", "Funeral", ["FUNERAL"], Today, "Issue", "None", 1);
+        var rejected = new DraftItemView(Guid.NewGuid(), DraftItemKinds.Value, "version.coverStartsOn", "\"FirstPayment\"", DraftItemFlags.Interpreted, null, null, null,
+            "PASSED", null, false, DraftItemDecisions.Rejected);
+        var restored = source with { Version = 2, Status = "Validated" };
+        ProductDraftProvenance.Review([rejected], restored, source, new Dictionary<Guid, string?>()).Summary.ReviewComplete.ShouldBeTrue();
+        ProductDraftProvenance.Review([rejected], restored with { CoverStartsOn = "FirstPayment" }, source, new Dictionary<Guid, string?>())
+            .Summary.ShouldSatisfyAllConditions(s => s.ReviewComplete.ShouldBeFalse(), s => s.DraftDiffers.ShouldBe(1));
+    }
 }

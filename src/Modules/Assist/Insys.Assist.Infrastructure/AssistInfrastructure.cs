@@ -66,6 +66,8 @@ public static class AssistInfrastructure
         services.AddScoped<ProductDraftReviewer>();
         services.AddScoped<ProductDraftProvenance>();
         services.AddScoped<ProductDraftSimulationCases>();
+        // OQ-190 (b): Product Factory's submission asks whether an AI-1 draft's review is complete (the second narrow exception to SRS §9.2).
+        services.AddScoped<ProductFactory.Contracts.IProductSubmissionCheck, ProductDraftSubmissionCheck>();
         services.AddSingleton<IDraftDocumentExtractor, Extraction.DraftDocumentExtractor>();
         services.TryAddSingleton<BuildingBlocks.Application.Context.ActingUserScopes>();
         services.AddOptions<ProductDraftOptions>().BindConfiguration("Assist:ProductDrafts");

@@ -21,6 +21,10 @@ All added, none breaking. Nothing AI-3 proposes takes effect until a person acce
 - **Mapped text is limited to its column's length** (`account_code` 20, `gl_account` 30, `name` 100, a role's title 100): a longer value is dropped `MALFORMED`.
 - **Stand-in model:** with `Assist:Provider=development`, the published test document `docs/frontend/ai3-sample-tenant-documents.pdf` gets fixed mappings, one dropped for a wrong figure, and one title left unmapped.
 
+## AI-1's submission check, and the provenance report's function (19 November 2026)
+- **`POST /product-factory/products/{productCode}/versions/{n}/submit`** gains a refusal: 422 `PRODUCT_AI_REVIEW_INCOMPLETE` for a version AI-1 drafted while an Interpreted value isn't reviewed, or a version field differs from its decision (OQ-190 (b)). The detail gives the counts. Any other version is unaffected. New in `docs/api/error-codes.json`.
+- **`ASSIST_PRODUCT_DRAFT_PROVENANCE`** in the menu is now an action under the `PRODUCTS` screen (Product Factory), not under AI Assist's settings, and needs no feature. It is in the product manager's, compliance officer's and auditor's role templates. The endpoint is unchanged.
+
 ## Wave 7 batch 7.5: AI-1's review, provenance and simulation cases (19 November 2026)
 All added, none breaking.
 - **`POST /assist/product-drafts/{id}/items/{itemId}/decision`** (`ASSIST_PRODUCT_DRAFT_RUN`, If-Match the item's ETag), body `{ decision, value, note }` (AIA-019).

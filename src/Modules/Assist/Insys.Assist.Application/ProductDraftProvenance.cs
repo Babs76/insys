@@ -76,8 +76,8 @@ internal sealed class GetDraftRunForVersionHandler(IProductDraftRuns runs) : IQu
 
 /// <summary>
 /// AIA-020's report for the approver, read as them: the version through Product Factory's read (their scope; a version outside it is not found), then Assist's
-/// record of the run. TODO(spec): OQ-190, the report is readable by version for the approver's screen; it is not yet attached to the approval in Workflow, and
-/// Product Factory's submission doesn't wait on it, as existing modules gain read hooks only (SRS §9.2).
+/// record of the run. OQ-190 (b), Ade 19 November 2026: Product Factory's submission refuses the version while this review is incomplete
+/// (<c>ProductDraftSubmissionCheck</c>). The report isn't attached to the approval in Workflow (option (c), not chosen); the approver's screen reads it by version.
 /// </summary>
 public sealed class ProductDraftProvenance(IDispatcher dispatcher, IProductDrafts products)
 {
@@ -96,7 +96,20 @@ public sealed class ProductDraftProvenance(IDispatcher dispatcher, IProductDraft
 
         var copiedFrom = version > 1 ? await products.Version(productCode, version - 1, cancellationToken) : null;
         var files = run.Value.Documents.ToDictionary(d => d.DocumentId, d => d.FileName);
-        var items = run.Value.Items.Select(i => Item(i, draft, copiedFrom, files)).ToList();
+        var (items, summary) = Review(run.Value.Items, draft, copiedFrom, files);
+        return new ProductDraftProvenanceView(productCode, version, draft.Status, run.Value.Id, run.Value.RequestedBy, run.Value.RequestedAt, run.Value.Documents, items,
+            summary);
+    }
+
+    /// <summary>
+    /// The review's state: each item's outcome, and whether the review is complete. Ade, 19 November 2026: every Interpreted value must be reviewed, a rule or a
+    /// simulation case as much as a version field (§8.1 step 5); a rejected field holds the copied version's value. Product Factory's submission check uses it
+    /// too (OQ-190 (b)).
+    /// </summary>
+    public static (IReadOnlyList<ProvenanceItem> Items, ProvenanceSummary Summary) Review(IReadOnlyList<DraftItemView> runItems, ProductDraftVersion draft,
+        ProductDraftVersion? copiedFrom, IReadOnlyDictionary<Guid, string?> files)
+    {
+        var items = runItems.Select(i => Item(i, draft, copiedFrom, files)).ToList();
         var summary = new ProvenanceSummary(items.Count,
             items.Count(i => i.Outcome == DraftItemDecisions.Accepted), items.Count(i => i.Outcome == DraftItemDecisions.Edited),
             items.Count(i => i.Outcome == DraftItemDecisions.Rejected), items.Count(i => i.Outcome == ProvenanceOutcomes.Undecided),
@@ -104,9 +117,7 @@ public sealed class ProductDraftProvenance(IDispatcher dispatcher, IProductDraft
             items.Count(i => i.Outcome == ProvenanceOutcomes.Undecided && i.Flag == DraftItemFlags.Interpreted),
             items.Count(i => i.Outcome == ProvenanceOutcomes.Undecided && i.Flag == DraftItemFlags.Missing),
             items.Count(i => i.MatchesDraft == false), false);
-        summary = summary with { ReviewComplete = summary.InterpretedUndecided == 0 && summary.DraftDiffers == 0 };
-        return new ProductDraftProvenanceView(productCode, version, draft.Status, run.Value.Id, run.Value.RequestedBy, run.Value.RequestedAt, run.Value.Documents, items,
-            summary);
+        return (items, summary with { ReviewComplete = summary.InterpretedUndecided == 0 && summary.DraftDiffers == 0 });
     }
 
     private static ProvenanceItem Item(DraftItemView i, ProductDraftVersion draft, ProductDraftVersion? copiedFrom, IReadOnlyDictionary<Guid, string?> files)

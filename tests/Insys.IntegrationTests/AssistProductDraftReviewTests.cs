@@ -26,7 +26,9 @@
  */
 using System.Net;
 using System.Text.Json;
+using Insys.BuildingBlocks.Api.Functions;
 using Insys.BuildingBlocks.Application.Ai;
+using Insys.Identity.Api;
 using Insys.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
@@ -54,7 +56,7 @@ public sealed class AssistProductDraftReviewTests(DatabaseFixture fixture) : ICl
 
     private sealed record World(Guid Tenant, InsysApiFactory Host, StubAiModelProvider Stub, HttpClient User, Guid UserId, string Product);
 
-    private async Task<World> Ready(string subject)
+    private async Task<World> Ready(string subject, params string[] more)
     {
         var suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
         var tenant = Guid.CreateVersion7();
@@ -83,7 +85,7 @@ public sealed class AssistProductDraftReviewTests(DatabaseFixture fixture) : ICl
 
         await fixture.Database.SeedStatic(tenant, "document.ref_document_categories", "ACTIVE", "PRODUCT_DOC", from, ("category_code", "PRODUCT_DOC"),
             ("label", "Product document"), ("classification", "CONFIDENTIAL"), ("domain", "ALL"), ("allowed_roles", Array.Empty<string>()));
-        var userId = await fixture.Database.UserWithFunctions(tenant, subject, Functions);
+        var userId = await fixture.Database.UserWithFunctions(tenant, subject, [.. Functions, .. more]);
         var stub = (StubAiModelProvider)host.Services.GetRequiredService<IAiModelProvider>();
         stub.Unavailable = false;
         stub.Region = "us";
@@ -267,5 +269,96 @@ public sealed class AssistProductDraftReviewTests(DatabaseFixture fixture) : ICl
 
         // §4.3, 0 bypasses: Assist writes nothing to Rating; the configurator imports the lines for a second person's approval.
         (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM rating.cfg_rating_test_case_library WHERE tenant_id = @t", ("t", w.Tenant))).ShouldBe(0);
+    }
+
+    /// <summary>
+    /// OQ-190 (b), Ade 19 November 2026: Product Factory's submission refuses a version AI-1 drafted while an Interpreted value (here a version field, a rule and
+    /// two simulation cases) isn't reviewed (§8.1 step 5); once the configurator has reviewed them, it submits. A version AI-1 didn't draft is unaffected.
+    /// </summary>
+    [Fact]
+    public async Task Submission_RefusesAnAiDraftedVersion_UntilEveryInterpretedValueIsReviewed_ThenSubmits_OQ190()
+    {
+        var w = await Ready("ar-submit", "PRODUCT_VALIDATE_VERSION", "PRODUCT_SUBMIT_FOR_APPROVAL");
+        await fixture.Database.SeedStatic(w.Tenant, "product.cfg_product_approval_workflow_settings", "EFFECTIVE", "AR-APPROVAL", TestClock.Today.AddDays(-30),
+            ("tenant", "AR"), ("states_used", new[] { "DRAFT", "SUBMITTED", "APPROVED" }), ("approver_roles", new[] { "PRODUCT_MANAGER" }),
+            ("simulation_required", false));
+        var run = await Drafted(w);
+        var url = $"/api/v1/product-factory/products/{w.Product}/versions/2";
+        async Task Validate()
+        {
+            // An edit made by the review puts a validated version back to Draft; it is validated again before it is submitted.
+            if ((await Draft(w)).GetProperty("status").GetString() == "Draft")
+            {
+                var validated = await w.User.Send(HttpMethod.Post, $"{url}/validate", ifMatch: (await w.User.GetAsync(url)).ETag());
+                validated.StatusCode.ShouldBe(HttpStatusCode.NoContent, await validated.Content.ReadAsStringAsync());
+            }
+        }
+
+        async Task<HttpResponseMessage> Submit() => await w.User.Send(HttpMethod.Post, $"{url}/submit", new { reason = "Launch" }, ifMatch: (await w.User.GetAsync(url)).ETag());
+
+        await Validate();
+        var refused = await Submit();
+        refused.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity, await refused.Content.ReadAsStringAsync());
+        (await refused.Code()).ShouldBe("PRODUCT_AI_REVIEW_INCOMPLETE");
+        (await Draft(w)).GetProperty("status").GetString().ShouldBe("Validated", "the refused submission changes nothing");
+
+        // The configurator reviews each Interpreted value: the version fields, the rule and both simulation cases. Reviewing only some still refuses.
+        // The coverages come back Interpreted from INSYS's check in this sample, so they are reviewed too.
+        (await Decide(w, run, Item(run, "version.coverStartsOn"), "ACCEPTED")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await Decide(w, run, Item(run, "version.coverages"), "ACCEPTED")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        var rule = run.GetProperty("items").EnumerateArray().First(i => i.GetProperty("kind").GetString() == "RULE");
+        (await Decide(w, run, rule, "ACCEPTED")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        await Validate();
+        var partly = await Submit();
+        (await partly.Code()).ShouldBe("PRODUCT_AI_REVIEW_INCOMPLETE", "the simulation cases are Interpreted too, and must be reviewed (Ade, 19 November 2026)");
+
+        foreach (var simulation in run.GetProperty("items").EnumerateArray().Where(i => i.GetProperty("kind").GetString() == "SIM_CASE"
+                     && i.GetProperty("checkResult").GetString() == "PASSED" && i.GetProperty("flag").GetString() == "INTERPRETED"))
+        {
+            var fresh = await (await w.User.GetAsync($"{Drafts}/{run.GetProperty("id").GetGuid()}")).Json();
+            var current = fresh.GetProperty("items").EnumerateArray().First(i => i.GetProperty("id").GetGuid() == simulation.GetProperty("id").GetGuid());
+            (await Decide(w, run, current, "REJECTED")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        }
+
+        await Validate();
+        var submitted = await Submit();
+        submitted.StatusCode.ShouldBe(HttpStatusCode.NoContent, await submitted.Content.ReadAsStringAsync());
+        (await Draft(w)).GetProperty("status").GetString().ShouldBe("Submitted");
+    }
+
+    /// <summary>
+    /// Ade, 19 November 2026: the provenance report's function sits under Product Factory's PRODUCTS screen, with no feature, in the product manager's template.
+    /// A product manager reads an existing report once the tenant's AI Assist entitlement has ended; a user without the function is refused.
+    /// </summary>
+    [Fact]
+    public async Task AProductManager_ReadsTheProvenanceReport_UnderProducts_WithAiAssistOff_AndAUserWithoutTheFunction_IsRefused_AIA020()
+    {
+        var w = await Ready("ar-drafter");
+        var run = await Drafted(w);
+        await fixture.Database.ExecuteAsOwner("UPDATE tenant.cfg_feature_entitlements SET record_status = 'RETIRED' WHERE tenant_id IS NULL AND code = @c",
+            ("c", $"AR{w.Product[4..]}:AI_ASSIST"));
+        // Ended outside INSYS, so no event evicts the users' cached functions: evicted here, as the entitlement's own event would.
+        w.Host.Services.GetRequiredService<Insys.Identity.Application.Users.IPermissionCache>().EvictTenant(w.Tenant);
+        var off = await w.User.GetAsync($"{Drafts}/{run.GetProperty("id").GetGuid()}");
+        off.StatusCode.ShouldBe(HttpStatusCode.Forbidden, "AI Assist is off: the run's own function needs the feature");
+        (await off.Code()).ShouldBe("FEATURE_NOT_ENTITLED");
+
+        var manager = RoleTemplates.Expand(RoleTemplates.All.Single(t => t.Code == "PRODUCT_MANAGER"), FunctionRegistry.All()).Select(f => f.Code).ToArray();
+        manager.ShouldContain("ASSIST_PRODUCT_DRAFT_PROVENANCE");
+        await fixture.Database.UserWithFunctions(w.Tenant, "ar-manager", manager);
+        var client = w.Host.ClientFor(w.Tenant, "ar-manager");
+        var read = await client.GetAsync($"{Drafts}/provenance/{w.Product}/2");
+        read.StatusCode.ShouldBe(HttpStatusCode.OK, await read.Content.ReadAsStringAsync());
+        (await read.Json()).GetProperty("runId").GetGuid().ShouldBe(run.GetProperty("id").GetGuid());
+
+        var menu = await (await client.GetAsync("/api/v1/identity/me/menu")).Json();
+        var products = menu.GetProperty("domains").EnumerateArray().SelectMany(d => d.GetProperty("subDomains").EnumerateArray())
+            .SelectMany(sd => sd.GetProperty("screens").EnumerateArray()).Single(sc => sc.GetProperty("functionCode").GetString() == "PRODUCTS");
+        products.GetProperty("actions").EnumerateArray().Select(a => a.GetProperty("functionCode").GetString()).ShouldContain("ASSIST_PRODUCT_DRAFT_PROVENANCE");
+
+        await fixture.Database.UserWithFunctions(w.Tenant, "ar-reader", "PRODUCTS");
+        var refused = await w.Host.ClientFor(w.Tenant, "ar-reader").GetAsync($"{Drafts}/provenance/{w.Product}/2");
+        refused.StatusCode.ShouldBe(HttpStatusCode.Forbidden, await refused.Content.ReadAsStringAsync());
+        (await refused.Code()).ShouldBe("FUNCTION_NOT_GRANTED");
     }
 }

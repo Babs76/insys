@@ -104,7 +104,7 @@ public sealed class AssistTests(DatabaseFixture fixture) : IClassFixture<Databas
     }
 
     [Fact]
-    public async Task NineFunctions_AreInTheCatalogue_InNoRoleTemplate_AndTheOverlayFunctionsArePrivileged()
+    public async Task NineFunctions_AreInTheCatalogue_EightInNoRoleTemplate_AndTheOverlayFunctionsArePrivileged()
     {
         var functions = new[] { "ASSIST_SETTINGS_MANAGE", "ASSIST_EXPLAIN_REFUSAL", "ASSIST_EXPLAIN_PREMIUM", "ASSIST_PRODUCT_DRAFT_RUN", "ASSIST_TENANT_SETUP_RUN", "ASSIST_OVERLAY_APPROVE",
             "ASSIST_OVERLAY_MANAGE", "ASSIST_OVERLAY_APPROVE_TENANT", "ASSIST_PRODUCT_DRAFT_PROVENANCE" };
@@ -117,7 +117,10 @@ public sealed class AssistTests(DatabaseFixture fixture) : IClassFixture<Databas
         }
         await fixture.Host();
         var catalogue = FunctionRegistry.All();
-        RoleTemplates.All.SelectMany(t => RoleTemplates.Expand(t, catalogue)).Select(f => f.Code).Where(c => c.StartsWith("ASSIST", StringComparison.Ordinal)).ShouldBeEmpty();
+        // Ade, 19 November 2026: only the provenance report's read is in templates: the product manager's, the compliance officer's and the auditor's.
+        RoleTemplates.All.SelectMany(t => RoleTemplates.Expand(t, catalogue).Select(f => (t.Code, f.Code)))
+            .Where(x => x.Item2.StartsWith("ASSIST", StringComparison.Ordinal)).Select(x => $"{x.Item1}:{x.Item2}").Order(StringComparer.Ordinal).ToList()
+            .ShouldBe(["AUDITOR:ASSIST_PRODUCT_DRAFT_PROVENANCE", "COMPLIANCE_OFFICER:ASSIST_PRODUCT_DRAFT_PROVENANCE", "PRODUCT_MANAGER:ASSIST_PRODUCT_DRAFT_PROVENANCE"]);
         (await fixture.Database.ScalarAsOwner<string>("""
             SELECT privileged::text || ':' || array_to_string(audiences, ',') FROM iam.ref_function_catalogue WHERE tenant_id IS NULL AND function_code = 'ASSIST_OVERLAY_APPROVE'
             """)).ShouldBe("true:PLATFORM");
@@ -126,6 +129,11 @@ public sealed class AssistTests(DatabaseFixture fixture) : IClassFixture<Databas
             SELECT privileged::text || ':' || array_to_string(audiences, ',') || ':' || coalesce(required_feature, '-') FROM iam.ref_function_catalogue
             WHERE tenant_id IS NULL AND function_code = 'ASSIST_PRODUCT_DRAFT_PROVENANCE'
             """)).ShouldBe("false:STAFF:-");
+        // Under Product Factory's PRODUCTS screen, with that screen's sub-domain and process area (Ade, 19 November 2026).
+        (await fixture.Database.ScalarAsOwner<string>("""
+            SELECT parent_function_code || ':' || sub_domain_code || ':' || process_area FROM iam.ref_function_catalogue
+            WHERE tenant_id IS NULL AND function_code = 'ASSIST_PRODUCT_DRAFT_PROVENANCE' AND effective_to IS NULL
+            """)).ShouldBe("PRODUCTS:PRODUCT_FACTORY:Definitions & versions");
     }
 
     private async Task<(Guid Tenant, HttpClient Client, InsysApiFactory Host, StubAiModelProvider Stub)> Ready(long? cap = null)

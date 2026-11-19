@@ -586,6 +586,20 @@ AI-3's tailoring and document mapping, built against invented documents; its eva
 - **Found while building, recorded for Ade:** OQ-189 (decided (a): the minimiser masks codes like `GL-4100`, so they can't be mapped as written) and OQ-192 (decided (a): how a mapped role gets its template's functions).
 - **Tests:** `SetupAiCheckTests`, `SetupEvaluationTests`, `PackFileTests` and `PublishedSampleTests` (unit); `AssistSetupAiTests` (integration, 8): a full pass, the completeness block, D-16's refusals, the identifier refusal, the entitlement, one pass at a time and changed answers, re-answering, row-level security. Mutation checks, each caught: the answer-value rule, CODE_IN_PACK, the citation, the quote rule for words and for amounts, the tailor requirement, the tailor in the hash, the identifier refusal, the entitlement, keeping mapped rows on new answers.
 
+### AI-1 follow-up: the submission check and the report's function (19 November 2026, branch `ai1-submission-check`)
+Ade's decisions on 7.5, the same day. Contract note: "AI-1's submission check".
+- **§9.2 amendments** (addendum): Product Factory's AI-1 port writes only through its normal commands (`Create`, `Edit`), and its submission asks an optional check, the second narrow exception.
+- **The check (OQ-190 (b)):** `IProductSubmissionCheck` in Product Factory's Contracts. `SubmitForApprovalHandler` asks every registered one, only for a Validated version, giving the version and the one before it (the copied version).
+  - Assist's `ProductDraftSubmissionCheck` reads the latest DRAFTED run for that version on Assist's own connection, and applies `ProductDraftProvenance.Review`, the same rule as the report's `reviewComplete`. Refused: `PRODUCT_AI_REVIEW_INCOMPLETE` (422), with the counts.
+  - Not held: a version AI-1 didn't draft; a tenant whose `ASSIST_PRODUCT_DRAFT_RUN` is refused for the feature or switched off (TODO(spec) in OQ-190).
+- **The report's function:** `ASSIST_PRODUCT_DRAFT_PROVENANCE` moved under `PRODUCTS` (sub-domain `PRODUCT_FACTORY`, process area "Definitions & versions"), still with no feature. In the product manager's template through its sub-domain; in the compliance officer's and the auditor's through `Extra` (the compliance officer gains the `PRODUCTS` screen with it). The auditor's description says it now holds this one action.
+- **OQ-191 (a):** Ade's steps are `docs/runbooks/ai1-evaluation-data.md`. The job's read of the set and its write of the review file aren't built; nothing from D-7 until Ade confirms the insurer's permission covers Anthropic in the US region.
+- **Tests:**
+  - `DraftReviewTests`, unit: 4 more (an Interpreted rule, simulation case or rate table holds the review; a rejected field must hold the copied value).
+  - `AssistProductDraftReviewTests`: submission refused until every Interpreted value is reviewed, then submitted; a product manager reads a report with AI Assist ended, the menu shows it under `PRODUCTS`, and a user without the function gets 403 `FUNCTION_NOT_GRANTED`.
+  - `AssistTests`: the function's place in the catalogue and the three templates.
+  - Regenerated: `R__function_catalogue.sql`, `R__error_code_catalogue.sql`, `docs/api/error-codes.json`, `role-templates.md`.
+
 ### Wave 7 batch 7.5 (19 November 2026, branch `wave7-5`)
 Ade, 19 November: D-7's line is Life funeral. Build against sample documents, with the evaluation waiting for D-7's real documents.
 - **Review (AIA-019):** `ProductDraftReviewer` checks a decision, writes a version field to the Draft as the user, then records it (`DecideDraftItem`).
@@ -598,8 +612,8 @@ Ade, 19 November: D-7's line is Life funeral. Build against sample documents, wi
   - `docs/evaluation/ai1-evaluation-set.json` holds one invented case only, as the repository is public.
   - `dotnet run --project tools/Insys.Assist.Evaluation -- --ai1 docs/evaluation/ai1-evaluation-set.json --out <folder>` reports every measure WAITING and calls no model.
   - Reading the real documents waits for OQ-191.
-- **Interpretations, for Ade to confirm:**
-  - Only the run's configurator decides, as only they read the run (7.4).
+- **Interpretations, decided by Ade on 19 November (recorded in the addendum's "AI-1's review: decided interpretations"):**
+  - Only the run's configurator decides, as only they read the run (7.4); anyone else runs a draft of their own.
   - A rejected version field restores the copied version's value.
   - "Interpreted values cannot be left unreviewed" counts rules and simulation cases too.
 - **Tests:**

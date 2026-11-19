@@ -116,6 +116,8 @@ Whoever loaded a version or recorded its review can't approve it, whatever funct
 
 **Touching existing modules, read hooks only (§9.2), except:**
 - **Product Factory:** the provenance report on a version.
+  - **Amendment (Ade, 19 November 2026), AI-1's writes:** Product Factory's AI-1 port has `Create` (7.4, AIA-017) and `Edit` (7.5, AIA-019). Both write as the user who ran the draft, through Product Factory's normal commands (create a draft version; edit its configuration), so its validation, audit, If-Match and state rules apply as to any user's edit. Why: the configurator's review decisions on a version's own fields must reach the Draft, and going through the normal command keeps every Product Factory rule. Assist never writes Product Factory's tables.
+  - **Second narrow exception (OQ-190 (b), Ade, 19 November 2026):** Product Factory's submission for approval asks an optional check declared in its Contracts (`IProductSubmissionCheck`), which Assist implements. A version AI-1 drafted is refused with `PRODUCT_AI_REVIEW_INCOMPLETE` while its review is incomplete (the provenance report's `reviewComplete`). A version AI-1 didn't draft, or a tenant without the AI Assist feature, is unaffected; with no implementation registered, submission is unchanged.
 - **Rating:** a public query for a recorded calculation, through Contracts.
 - **Static data:** the `SETUP` change set (§4).
 - **Tenancy:** the activation guard and the readiness check for a partly applied set (§4).
@@ -297,3 +299,9 @@ No premium tax until compliance says which applies.
 
 ## 8. Still open
 Where Nigerian tenants are hosted (D-13), which the Nigerian compliance partner is also being asked about. Engaging that partner, and collecting the evaluation documents with the insurer's written permission (D-7), are the actions that come first. An overlay's approval is what makes AI-3's pack-only path useful.
+
+### AI-1's review: decided interpretations (Ade, 19 November 2026)
+- **Who decides:** only the configurator who ran the draft decides its values. Anyone else runs a draft of their own.
+- **A rejection** puts back the value of the version the Draft was copied from.
+- **Interpreted rules and simulation cases** must be reviewed too, as much as a version's own fields: they count in the provenance report's `reviewComplete`, and so in the submission check (OQ-190 (b)).
+- **The provenance report's function** (`ASSIST_PRODUCT_DRAFT_PROVENANCE`) is an action under Product Factory's `PRODUCTS` screen (sub-domain `PRODUCT_FACTORY`, process area "Definitions & versions"), with no feature, so a report stays readable with AI Assist off. It is in the product manager's, compliance officer's and auditor's templates; the other eight Assist functions stay in none.

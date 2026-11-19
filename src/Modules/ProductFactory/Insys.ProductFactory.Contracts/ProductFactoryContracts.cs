@@ -101,3 +101,17 @@ public interface IProductDrafts
     /// </summary>
     Task<ProductDraftOutcome> Edit(string productCode, int version, ProductDraftFields fields, DateOnly? effectiveFrom, CancellationToken cancellationToken);
 }
+
+/// <summary>Why a check refuses a version's submission: the message, as the submitter reads it (the code is Product Factory's).</summary>
+public sealed record ProductSubmissionRefusal(string Message);
+
+/// <summary>
+/// OQ-190 (b), decided by Ade on 19 November 2026: an optional check Product Factory's submission for approval asks, the second narrow exception to the AI
+/// Assist SRS §9.2. Assist implements it, and refuses a version AI-1 drafted while its review is incomplete (§8.1 step 5, AIA-020). With no implementation
+/// registered, submission is unchanged.
+/// </summary>
+public interface IProductSubmissionCheck
+{
+    /// <summary>Null when the version may be submitted. <paramref name="copiedFrom"/> is the version it was copied from (the one before), if any.</summary>
+    Task<ProductSubmissionRefusal?> Check(ProductDraftVersion version, ProductDraftVersion? copiedFrom, CancellationToken cancellationToken);
+}

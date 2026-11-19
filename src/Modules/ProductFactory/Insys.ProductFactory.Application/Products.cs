@@ -340,7 +340,7 @@ internal sealed class RunSimulationHandler(IProductVersionRepository versions, I
 }
 
 internal sealed class SubmitForApprovalHandler(IProductVersionRepository versions, ISimulationRuns runs, IProductCatalogue catalogue, IExecutionContext execution,
-    IBusinessDate businessDate, IClock clock, IAuditTrail audit) : ICommandHandler<SubmitForApproval, long>
+    IBusinessDate businessDate, IClock clock, IAuditTrail audit, IEnumerable<IProductSubmissionCheck> checks) : ICommandHandler<SubmitForApproval, long>
 {
     public async Task<Result<long>> Handle(SubmitForApproval command, CancellationToken cancellationToken)
     {
@@ -351,6 +351,12 @@ internal sealed class SubmitForApprovalHandler(IProductVersionRepository version
             return user.IsFailure ? user.Error : version.Error!;
         }
 
+        // OQ-190 (b): the checks other modules register (Assist: a version AI-1 drafted waits for its review). Only a version that could be submitted is asked.
+        if (version.Value.Status == ProductVersionStatus.Validated && await Refusal(version.Value, cancellationToken) is { } refused)
+        {
+            return Error.Validation(ProductErrorCodes.AiReviewIncomplete, refused.Message);
+        }
+
         var passed = !await catalogue.SimulationRequired(businessDate.Today, cancellationToken)
             || (await runs.For(command.ProductCode, command.Version, cancellationToken)).FirstOrDefault()?.Status == SimulationStatus.Passed;
         audit.Record(new AuditEntry("PRODUCT", "SubmitForApproval", nameof(ProductVersion), version.Value.Id.ToString(),
@@ -358,6 +364,29 @@ internal sealed class SubmitForApprovalHandler(IProductVersionRepository version
         var result = version.Value.SubmitForApproval(user.Value, passed, command.Reason ?? "", clock.UtcNow);
         return result.IsFailure ? result.Error : version.Value.RowVersion;
     }
+
+    private async Task<ProductSubmissionRefusal?> Refusal(ProductVersion version, CancellationToken cancellationToken)
+    {
+        var registered = checks.ToList();
+        if (registered.Count == 0)
+        {
+            return null;
+        }
+
+        var copiedFrom = version.Version > 1 ? await versions.Get(version.ProductCode, version.Version - 1, cancellationToken) : null;
+        foreach (var check in registered)
+        {
+            if (await check.Check(Port(version), copiedFrom is null ? null : Port(copiedFrom), cancellationToken) is { } refused)
+            {
+                return refused;
+            }
+        }
+
+        return null;
+    }
+
+    private static ProductDraftVersion Port(ProductVersion v) => new(v.ProductCode, v.Version, v.Status.ToString(), v.Name, v.Coverages, v.EffectiveFrom,
+        v.CoverStartsOn.ToString(), v.ReinstatementArrears.ToString(), v.RowVersion);
 }
 
 internal sealed class WithdrawVersionHandler(IProductVersionRepository versions, IBusinessDate businessDate, IClock clock, IAuditTrail audit, ITenantContext tenant,
