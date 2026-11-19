@@ -5,6 +5,10 @@ What changed in the API contract, newest first, so the front end can sync. The O
 
 
 
+## AI-1's submission check, and the provenance report's function (19 November 2026)
+- **`POST /product-factory/products/{productCode}/versions/{n}/submit`** gains a refusal: 422 `PRODUCT_AI_REVIEW_INCOMPLETE` for a version AI-1 drafted while an Interpreted value isn't reviewed, or a version field differs from its decision (OQ-190 (b)). The detail gives the counts. Any other version is unaffected. New in `docs/api/error-codes.json`.
+- **`ASSIST_PRODUCT_DRAFT_PROVENANCE`** in the menu is now an action under the `PRODUCTS` screen (Product Factory), not under AI Assist's settings, and needs no feature. It is in the product manager's, compliance officer's and auditor's role templates. The endpoint is unchanged.
+
 ## Wave 7 batch 7.5: AI-1's review, provenance and simulation cases (19 November 2026)
 All added, none breaking.
 - **`POST /assist/product-drafts/{id}/items/{itemId}/decision`** (`ASSIST_PRODUCT_DRAFT_RUN`, If-Match the item's ETag), body `{ decision, value, note }` (AIA-019).

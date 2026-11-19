@@ -511,4 +511,8 @@ public static class ProductErrorCodes
 
     [ErrorCode(422, "error.product.simulation_required")]
     public const string SimulationRequired = "PRODUCT_SIMULATION_REQUIRED";
+
+    /// <summary>OQ-190 (b): a version AI-1 drafted is submitted only once its review is complete (AI Assist SRS §8.1 step 5, AIA-020).</summary>
+    [ErrorCode(422, "error.product.ai_review_incomplete")]
+    public const string AiReviewIncomplete = "PRODUCT_AI_REVIEW_INCOMPLETE";
 }

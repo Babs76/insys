@@ -127,6 +127,12 @@ public static class RoleTemplates
     public static readonly IReadOnlySet<string> AuditRoles =
         new HashSet<string>(["AUDITOR", "HEALTH_AUDITOR", "COMPLIANCE_OFFICER", "DATA_PROTECTION_OFFICER"], StringComparer.Ordinal);
 
+    /// <summary>
+    /// The provenance report of a version AI-1 drafted (AIA-020): a read, in the product manager's template through Product Factory's sub-domain, and given to
+    /// the compliance officer and the auditor (Ade, 19 November 2026). It brings the PRODUCTS screen it sits under.
+    /// </summary>
+    private const string AiDraftProvenance = "ASSIST_PRODUCT_DRAFT_PROVENANCE";
+
     private static readonly string[] CallbackScreens = ["PAYMENT_CALLBACK_ENDPOINTS", "COMMUNICATION_CALLBACK_ENDPOINTS"];
 
     /// <summary>
@@ -188,7 +194,8 @@ public static class RoleTemplates
             Approves: ["STATIC_DATA_T1", "STATIC_DATA_T2"]),
         new("COMPLIANCE_OFFICER", "Compliance officer", "STAFF",
             "Regulatory returns, risk limits, consent, the audit trail and the party search log; complaints, and the impartial review of appeals (PPR 18.6); customer due diligence: screening hits, risk class overrides, FIC reports and unblocking",
-            ["REGULATORY_REPORTING", "RISK_LIMITS", "CONSENT_PREFERENCES", "AUDIT", "CONFIG_COMPLIANCE", "CUSTOMER_SERVICE"], Extra: ["PARTY_SEARCH_LOG", .. DueDiligenceAll, .. Approving],
+            ["REGULATORY_REPORTING", "RISK_LIMITS", "CONSENT_PREFERENCES", "AUDIT", "CONFIG_COMPLIANCE", "CUSTOMER_SERVICE"],
+            Extra: ["PARTY_SEARCH_LOG", .. DueDiligenceAll, .. Approving, AiDraftProvenance],
             PrivilegedGrants: ["CASE_DECIDE_APPEAL", "PARTY_UNBLOCK_DUE_DILIGENCE"], Approves: ["STATIC_DATA_T1", "STATIC_DATA_T2", "LEGAL_HOLD_RELEASE", "DUE_DILIGENCE_RISK_OVERRIDE", "DUE_DILIGENCE_UNBLOCK"]),
         new("DATA_PROTECTION_OFFICER", "Data protection officer", "STAFF",
             "Anonymises and merges parties, disposes of documents, and places and releases legal holds on documents and the party search log",
@@ -204,8 +211,8 @@ public static class RoleTemplates
             ["INTEGRATION_OPERATIONS", "CONFIG_INTEGRATION"], Extra: CallbackScreens,
             PrivilegedGrants: ["PAYMENTS_ISSUE_CALLBACK_ENDPOINT", "PAYMENTS_REVOKE_CALLBACK_ENDPOINT", "COMMUNICATIONS_ISSUE_CALLBACK_ENDPOINT",
                 "COMMUNICATIONS_REVOKE_CALLBACK_ENDPOINT", "DISCARD_PARKED_DELIVERY", "DISCARD_MESSAGE"], Approves: ["STATIC_DATA_T1", "STATIC_DATA_T2"]),
-        new("AUDITOR", "Auditor (read only)", "STAFF", "Every staff screen except medical information and the party search log; no actions", ["*"],
-            Excluded: SensitiveReadScreens, ScreensOnly: true),
+        new("AUDITOR", "Auditor (read only)", "STAFF", "Every staff screen except medical information and the party search log; no actions, except reading an AI-1 draft's provenance report", ["*"],
+            Excluded: SensitiveReadScreens, ScreensOnly: true, Extra: [AiDraftProvenance]),
         new("HEALTH_AUDITOR", "Health auditor (read only)", "STAFF", "Medical information and the party search log, read only (HLT-008)",
             ["HEALTH_MEDICAL_CLAIMS", "HEALTH_ACCESS_TO_CARE", "HEALTH_FRAUD_UTILISATION", "AUDIT"], Extra: ["PARTY_SEARCH_LOG"], ScreensOnly: true),
         new("BROKER", "Broker (portal)", "BROKER", "The broker portal", ["BROKER_PORTAL"]),

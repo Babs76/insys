@@ -1634,6 +1634,14 @@
       "remedy": "Open the record to see where it stands."
     },
     {
+      "code": "PRODUCT_AI_REVIEW_INCOMPLETE",
+      "httpStatus": 422,
+      "messageKey": "error.product.ai_review_incomplete",
+      "retryable": false,
+      "means": null,
+      "remedy": null
+    },
+    {
       "code": "PRODUCT_CODE_IN_USE",
       "httpStatus": 409,
       "messageKey": "error.product.code_in_use",

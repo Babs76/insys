@@ -13,6 +13,7 @@ Operating procedures for the INSYS Core back end. Each one describes what the co
 | [security-incidents.md](security-incidents.md) | Suspected compromise, cutting off access, key rotation |
 | [backup-and-recovery.md](backup-and-recovery.md) | Backups, restore and recovery (a proposal; the targets are open) |
 | [openbao.md](openbao.md) | Running OpenBao, the key service for protected fields: high availability, unsealing, backup and restore, tokens (ADR-027) |
+| [ai1-evaluation-data.md](ai1-evaluation-data.md) | Ade's steps for AI-1's private evaluation set (D-7) and its review file: the private repository and the evaluation job's deploy key (OQ-191) |
 
 Conventions used in every runbook:
 
