@@ -2,6 +2,12 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
+## Batch 1: revoking an invitation, portal readiness, abandoned SETUP batches (19 November 2026)
+All additive; no path, body or response shape changes.
+- **`POST /identity/users/{id}/disable`** now accepts an `Invited` user (register row 31): it revokes the invitation. Before, it answered 409 `INVALID_STATE_TRANSITION`. The user's status becomes `Disabled`; its token is refused from the next request.
+- **Readiness `CHANNELS`** (`GET /tenancy/tenants/{id}/readiness`, free-text `missing`) gains, for each portal feature the tenant is entitled to: `a BROKER channel (audience BROKER), as the tenant has BROKER_PORTAL`, and `ROLE: FUNCTION (AUDIENCE channel)` lines (OQ-165). A role whose every function is a portal function is no longer listed as a staff role.
+- **Static data change requests:** a SETUP set's batch that was approved but not in force now reads `REJECTED` once its set is abandoned (OQ-183); before, it stayed `APPROVED`.
+
 ## Review-gap batch: an AI-1 review can always be finished (Ade, 19 November 2026, OQ-190)
 - **New function `ASSIST_PRODUCT_DRAFT_REVIEW`:** an action under Product Factory's `PRODUCTS` screen, staff, not privileged, no feature, in the product manager's template. It holds three operations that were `ASSIST_PRODUCT_DRAFT_RUN`'s:
   - `GET /assist/product-drafts/{id}`;
