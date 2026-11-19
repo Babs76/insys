@@ -357,17 +357,21 @@ jobs:
   # The process flows that turn on dates (billing, Life, Health, General) on fixed clocks (Wave 3 batch 1), so a result
   # never depends on the day CI runs: the 28th, 30th and 31st of a month, 29 February in a leap year, and 23:30 UTC on a
   # month end (the next business day in Johannesburg). The names are WindowClock.Dates; the job name says the date.
-  # Each date runs as two jobs from 29 October 2026, by class (General alone, then Life, Health and Enterprise), so each
-  # runs well under 20 minutes (OQ-129: one ran into the 30-minute limit).
+  # Each date runs as four shards by test method (OQ-129, Ade, 19 November 2026): as two jobs by class they took 20 to 42
+  # minutes against the 45-minute limit, and their stall summaries showed a starved runner, not a stuck test. Each shard
+  # takes a balanced share of every dated class's methods (tools/end-to-end-shards.py, weighed by method-timings.json),
+  # and every dated method runs in exactly one shard (checked below). A stalled shard isn't rerun to get past it, except
+  # on the same head inside the same run.
   end-to-end-dates:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # 30 minutes, from 45: the longest shard took 14 (run 44602526513), and a stalled shard is cut off sooner.
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         clock: [28th, 30th, 31st, leap-29-feb, 2330-utc-month-end]
-        group: [general, life-health-enterprise]
-    name: end-to-end on ${{ matrix.clock }} (${{ matrix.group }})
+        shard: [1, 2, 3, 4]
+    name: end-to-end on ${{ matrix.clock }} (${{ matrix.shard }} of 4)
     steps:
       - uses: actions/checkout@v5
 
@@ -381,24 +385,35 @@ jobs:
       - name: Build
         run: dotnet build Insys.slnx --no-restore --configuration Release -warnaserror
 
-      - name: Process flows on ${{ matrix.clock }}
+      - name: Every end-to-end class is dated or not, and every dated method runs in exactly one shard
+        run: tests/Insys.EndToEndTests/bin/Release/net10.0/Insys.EndToEndTests -list methods | python3 tools/end-to-end-shards.py --check 4
+
+      - name: Process flows on ${{ matrix.clock }} (shard ${{ matrix.shard }} of 4)
         env:
           INSYS_TEST_CLOCK: ${{ matrix.clock }}
-          INSYS_STALL_LOG: ${{ runner.temp }}/stall-${{ matrix.clock }}-${{ matrix.group }}.log
+          INSYS_STALL_LOG: ${{ runner.temp }}/stall-${{ matrix.clock }}-${{ matrix.shard }}.log
         run: >-
-          dotnet test --project tests/Insys.EndToEndTests --no-build --configuration Release --
-          ${{ matrix.group == 'general' && '--filter-class "*.GeneralProcessTests"' || '--filter-class "*.LifeProcessTests" --filter-class "*.HealthProcessTests" --filter-class "*.EnterpriseProcessTests"' }}
+          eval dotnet test --project tests/Insys.EndToEndTests --no-build --configuration Release --results-directory "$RUNNER_TEMP/results"
+          -- --report-xunit-xml --report-xunit-xml-filename dates-${{ matrix.clock }}-${{ matrix.shard }}.xml
+          $(tests/Insys.EndToEndTests/bin/Release/net10.0/Insys.EndToEndTests -list methods | python3 tools/end-to-end-shards.py ${{ matrix.shard }} 4)
+
+      # Each method's seconds in this job's own log, for the next rebalance (tools/end-to-end-shards.py --measure reads job logs).
+      - name: Method times
+        if: always()
+        run: |
+          report="$RUNNER_TEMP/results/dates-${{ matrix.clock }}-${{ matrix.shard }}.xml"
+          if [ -f "$report" ]; then python3 tools/end-to-end-shards.py --times "$report"; else echo "No report: the run was cut off."; fi
 
       # The stall log's summary in this job's own log (OQ-129, Ade, 19 November 2026), readable through the API when the job is cut off:
       # each stalled test, how long it had run, its last report, and the log's last lines.
       - name: Stall summary
         if: always()
-        run: python3 tools/stall-summary.py "${{ runner.temp }}/stall-${{ matrix.clock }}-${{ matrix.group }}.log" 40
+        run: python3 tools/stall-summary.py "${{ runner.temp }}/stall-${{ matrix.clock }}-${{ matrix.shard }}.log" 40
 
       # Stall logging (OQ-129, the 30th-clock slowness): what each test that ran past 90 seconds waited on, kept even when the job is cancelled.
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: stall-${{ matrix.clock }}-${{ matrix.group }}
-          path: ${{ runner.temp }}/stall-${{ matrix.clock }}-${{ matrix.group }}.log
+          name: stall-${{ matrix.clock }}-${{ matrix.shard }}
+          path: ${{ runner.temp }}/stall-${{ matrix.clock }}-${{ matrix.shard }}.log
           if-no-files-found: ignore

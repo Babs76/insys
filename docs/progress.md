@@ -83,6 +83,7 @@
 | Seed dates | The seed's dates are the tenant's business date, not the machine's UTC date: the three seed jobs at `955665b` failed across midnight UTC | Branch `seed-business-date` |
 | Status guard | V0144: an approved static data row's status moves only forward (OQ-185 (b)) | Branch `status-guard` |
 | Wave 7 batch 7.8 | AI-3 tailoring and document mapping (OQ-186 to OQ-188): documents on a setup, AI passes by a job acting for the user, deterministic checks, the unmapped list; evaluation set WAITING for the tenant sample documents; a new pass keeps decided values; CI fails a migration numbered at or below main's | Branch `wave7-8` |
+| CI: dated end-to-end shards | OQ-129: each clock in four shards by test method, balanced from measured times; 7 to 14 minutes a shard (run 44602526513); limit 30 minutes | Branch `e2e-shards` |
 | Batch 6 (Workstream F) | The OFTZA seed run against a deployed API through Keycloak in the deployment smoke test, then a seeded persona signs in and reads; OQ-164's beta check of the sample Life premiums (all monthly instalments; the arrears now one missed instalment); OQ-163 kept at (a); the Workstream F plan's stale "Next" corrected (cases of every family and every notice's template were already done) | Branch `seed-smoke` |
 
 ## Phase 1 review items
