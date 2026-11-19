@@ -448,5 +448,7 @@ core	AssistProductDraftDocumentView.refusalCode	an error code from the catalogue
 core	AssistSetupAiPassView.outcomeCode	an error code from the catalogue (GET /errors), not a code list
 core	AssistSetupDocumentView.refusalCode	an error code from the catalogue (GET /errors), not a code list
 core	AssistProductDraftRunView.outcomeCode	an error code from the catalogue (GET /errors), not a code list
+core	AssistProductDraftProvenanceView.productCode	to declare
 core	AssistProductDraftRunView.productCode	to declare
+core	AssistSimulationCaseExportView.productCode	to declare
 core	AssistStartProductDraftRequest.productCode	to declare

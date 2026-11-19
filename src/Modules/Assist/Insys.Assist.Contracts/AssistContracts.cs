@@ -26,13 +26,16 @@
  */
 namespace Insys.Assist.Contracts;
 
-/// <summary>The permissions of AI Assist's eight functions (SRS §3, addendum §5 and §5.3).</summary>
+/// <summary>The permissions of AI Assist's nine functions (SRS §3, addendum §5 and §5.3).</summary>
 public static class AssistPermissions
 {
     public const string SettingsManage = "assist_settings.manage";
     public const string ExplainRefusal = "assist_explain.refusal";
     public const string ExplainPremium = "assist_explain.premium";
     public const string ProductDraftRun = "assist_product_draft.run";
+
+    /// <summary>AIA-020: read the provenance report of a version AI-1 drafted, as its approver does.</summary>
+    public const string ProductDraftProvenanceRead = "assist_product_draft.read_provenance";
     public const string TenantSetupRun = "assist_tenant_setup.run";
     public const string OverlayApprove = "assist_overlay.approve";
 

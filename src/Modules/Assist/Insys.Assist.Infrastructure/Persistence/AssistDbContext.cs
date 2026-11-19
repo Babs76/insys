@@ -214,6 +214,7 @@ public sealed class AssistDbContext(DbContextOptions<AssistDbContext> options, M
             item.Ignore(i => i.DomainEvents);
             item.Ignore(i => i.HasChanges);
             item.Property(i => i.Value).HasColumnType("jsonb");
+            item.Property(i => i.EditedValue).HasColumnType("jsonb");
             item.HasOne<ProductDraftRun>().WithMany().HasForeignKey(i => new { i.TenantId, i.RunId }).HasPrincipalKey(r => new { r.TenantId, r.Id });
         });
 
@@ -266,6 +267,13 @@ internal sealed class ProductDraftRuns(AssistDbContext db) : Application.IProduc
 
     public async Task<IReadOnlyList<DraftItem>> Items(Guid runId, CancellationToken cancellationToken) =>
         await db.DraftItems.AsNoTracking().Where(i => i.RunId == runId).OrderBy(i => i.Id).ToListAsync(cancellationToken);
+
+    public Task<DraftItem?> Item(Guid runId, Guid itemId, CancellationToken cancellationToken) =>
+        db.DraftItems.SingleOrDefaultAsync(i => i.RunId == runId && i.Id == itemId, cancellationToken);
+
+    public Task<ProductDraftRun?> ForVersion(string productCode, int version, CancellationToken cancellationToken) =>
+        db.ProductDraftRuns.AsNoTracking().Where(r => r.ProductCode == productCode && r.DraftVersion == version && r.Status == ProductDraftStatuses.Drafted)
+            .OrderByDescending(r => r.Id).FirstOrDefaultAsync(cancellationToken);
 
     public async Task<IReadOnlyList<ProductDraftRun>> Open(int limit, CancellationToken cancellationToken) =>
         await db.ProductDraftRuns.AsNoTracking().Where(r => r.Status == ProductDraftStatuses.Queued || r.Status == ProductDraftStatuses.Running)

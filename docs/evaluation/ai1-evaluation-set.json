@@ -1,0 +1,21 @@
+{
+  "description": "AI-1 evaluation set (AI Assist SRS §4.3, ai-assist.md §6). D-7's line is Life funeral (Ade, 19 November 2026). Its real documents, with the insurer's written permission, haven't arrived, so every measure is WAITING. This file holds only the format and one invented case, never scored: the real documents and their expected values are never committed to this public repository (OQ-191).",
+  "line": "LIFE_FUNERAL",
+  "status": "WAITING",
+  "cases": [
+    {
+      "id": "INVENTED-FUNERAL-FORMAT",
+      "productCode": "SAMPLE-FUNERAL",
+      "invented": true,
+      "injected": false,
+      "documents": ["docs/frontend/ai1-sample-product.pdf"],
+      "fields": [
+        { "field": "version.name", "value": "Sample Funeral Plan", "flag": "FOUND", "required": true },
+        { "field": "version.coverages", "value": null, "flag": "MISSING", "required": true }
+      ],
+      "rateTables": [
+        { "page": 2, "rows": [["Age band", "Monthly premium"], ["18-35", "50.00"]] }
+      ]
+    }
+  ]
+}

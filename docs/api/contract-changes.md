@@ -19,6 +19,24 @@ All added, none breaking. Nothing AI-3 proposes takes effect until a person acce
 - **Packs:** a row may carry `tailor: { columns, from }` (docs/specs/starter-packs/README.md). The review sheet's rows gain `tailorColumns` and `tailorFrom`.
 - **Stand-in model:** with `Assist:Provider=development`, the published test document `docs/frontend/ai3-sample-tenant-documents.pdf` gets fixed mappings, one dropped for a wrong figure, and one title left unmapped.
 
+## Wave 7 batch 7.5: AI-1's review, provenance and simulation cases (19 November 2026)
+All added, none breaking.
+- **`POST /assist/product-drafts/{id}/items/{itemId}/decision`** (`ASSIST_PRODUCT_DRAFT_RUN`, If-Match the item's ETag), body `{ decision, value, note }` (AIA-019).
+  - `decision` is `ACCEPTED`, `EDITED` (with `value` and `note`) or `REJECTED`. The AI's proposal (`value` on the item) is never changed; an edit is recorded as `editedValue`.
+  - A version's own field (`version.name`, `version.coverages`, `version.effectiveFrom`, `version.coverStartsOn`, `version.reinstatementArrears`) is written to the Draft as the user, through Product Factory's edit. A rejected one goes back to the version the Draft was copied from. An effective date is edited, not rejected.
+  - Everything else (table rows, rate tables, rules, simulation cases) is recorded only.
+  - Refused: a dropped proposal (409 `INVALID_STATE_TRANSITION`); a Missing value except by an edit (422); a value the field doesn't allow (422); a stale If-Match (412); a version Product Factory no longer lets you edit, with its own refusal.
+  - Only the run's configurator decides; anyone else gets 404, as for the run.
+- **Items** in `GET /assist/product-drafts/{id}` gain `decision`, `editedValue`, `decisionNote`, `decidedBy`, `decidedAt` and `rowVersion`.
+- **`GET /assist/product-drafts/{id}/simulation-cases`** (`ASSIST_PRODUCT_DRAFT_RUN`): the accepted and edited simulation cases as lines for Rating's test case library (`rating.cfg_rating_test_case_library`), to import through its own import for a second person's approval (AIA-018). A case without a stated expected premium, or without `currency` and `frequency` in its inputs, is listed under `notExported` with its reason.
+- **`GET /assist/product-drafts/provenance/{productCode}/{productVersion}`** (new function `ASSIST_PRODUCT_DRAFT_PROVENANCE`, permission `assist_product_draft.read_provenance`, off by default, in no role template, and not tied to the AI_ASSIST feature): the provenance report for the approver (AIA-020).
+  - It lists every proposed value with its flag, citation (file, page, quote), INSYS's check, and outcome (`ACCEPTED`, `EDITED`, `REJECTED`, `UNDECIDED`, `DROPPED`), by whom and when.
+  - Each version field gives `draftValue` and `matchesDraft`.
+  - A `summary` gives the counts and `reviewComplete`.
+  - It answers 404 for a version AI-1 didn't draft or one outside the caller's scope.
+  - It isn't attached to the approval in Workflow, and submission doesn't wait on it (OQ-190).
+- **Database:** V0146 adds the decision columns to `assist.draft_item`.
+
 ## Status guard: an approved row's status moves only forward (V0144, OQ-185, 19 November 2026)
 - **No API change.** INSYS's own moves are unchanged. In the database, a direct update that moves an approved static data row's status backwards, such as a published product version back to `DRAFT`, is refused.
 

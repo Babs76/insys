@@ -97,5 +97,38 @@ internal sealed class ProductDrafts(IServiceProvider services, ExecutionScope ex
         return edited.IsFailure ? new ProductDraftOutcome(draft.Version, edited.Error.Code, edited.Error.Message) : new ProductDraftOutcome(draft.Version);
     }
 
+    public async Task<ProductDraftVersion?> Version(string productCode, int version, CancellationToken cancellationToken)
+    {
+        if (ActingUser.Check(execution, ProductPermissions.ProductRead, [ReadFunction], isRead: true) is not null)
+        {
+            return null;
+        }
+
+        var read = await services.GetRequiredService<IDispatcher>().Query(new GetProductVersion(productCode, version), cancellationToken);
+        return read.IsFailure ? null : new ProductDraftVersion(read.Value.ProductCode, read.Value.Version, read.Value.Status.ToString(), read.Value.Name,
+            read.Value.Coverages, read.Value.EffectiveFrom, read.Value.CoverStartsOn, read.Value.ReinstatementArrears, read.Value.RowVersion);
+    }
+
+    public async Task<ProductDraftOutcome> Edit(string productCode, int version, ProductDraftFields fields, DateOnly? effectiveFrom, CancellationToken cancellationToken)
+    {
+        if (ActingUser.Check(execution, ProductPermissions.ProductUpdate, [EditFunction]) is { } refused)
+        {
+            return new ProductDraftOutcome(version, refused.Code, refused.Message);
+        }
+
+        var dispatcher = services.GetRequiredService<IDispatcher>();
+        var current = await dispatcher.Query(new GetProductVersion(productCode, version), cancellationToken);
+        if (current.IsFailure)
+        {
+            return new ProductDraftOutcome(version, current.Error.Code, current.Error.Message);
+        }
+
+        var v = current.Value;
+        var edited = await dispatcher.Send(new EditConfiguration(productCode, version, fields.Name ?? v.Name, fields.Coverages ?? v.Coverages, effectiveFrom ?? v.EffectiveFrom,
+            v.RowVersion, Parse<CoverStart>(fields.CoverStartsOn ?? v.CoverStartsOn), ReinstatementArrears: Parse<ReinstatementArrears>(fields.ReinstatementArrears ?? v.ReinstatementArrears)),
+            cancellationToken);
+        return edited.IsFailure ? new ProductDraftOutcome(version, edited.Error.Code, edited.Error.Message) : new ProductDraftOutcome(version);
+    }
+
     private static T? Parse<T>(string? value) where T : struct, Enum => value is null ? null : Enum.Parse<T>(value, ignoreCase: true);
 }
