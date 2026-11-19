@@ -40,7 +40,6 @@ public sealed partial class OftzaSeed
     private Persona FinanceOfficer => context.Tenant(TenantId, "oftza-finance-officer");
     private Persona FinanceManager => context.Tenant(TenantId, "oftza-finance-manager");
 
-    private static DateOnly Today => DateOnly.FromDateTime(DateTime.UtcNow);
 
     private async Task ClaimConfiguration()
     {

@@ -86,7 +86,7 @@ public sealed partial class OftzaSeed
     /// <summary>One quota share treaty on the General products, 30 % retained, with a sample reinsurer: policies issued after it are ceded.</summary>
     private async Task Reinsurance()
     {
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = Today;
         await Static("reinsurance/static/reinsurer-register", "OFT-RE-1", new { reinsurerCode = "OFT-RE-1", legalName = "Sample Reinsurance (invented)", country = "ZA", status = "APPROVED" });
         await Static("reinsurance/static/treaty-definitions", "OFT-QS-1", new { treatyCode = "OFT-QS-1", type = "QUOTA_SHARE", retention = "30", capacity = 5_000_000m, periodFrom = today.AddYears(-1), periodTo = today.AddYears(1), participants = new[] { new { reinsurer = "OFT-RE-1", share = 100 } } });
         await Static("reinsurance/static/cession-rules", "OFT-CR-1", new { ruleCode = "OFT-CR-1", treaty = "OFT-QS-1", products = new[] { "OFT-MOTOR", "OFT-HOME" }, allocationBasis = "SUM_INSURED" });
@@ -259,7 +259,7 @@ public sealed partial class OftzaSeed
 
         // The contribution rule names the scheme's number, which the scheme gets on registration.
         var administrator = context.Tenant(TenantId, "oftza-health-membership-administrato");
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = Today;
         var schemes = (await administrator.Send(HttpMethod.Get, $"/api/v1/health/schemes?sponsorCode={SponsorCode}")).GetProperty("items");
         var number = schemes.GetArrayLength() > 0
             ? schemes[0].GetProperty("schemeNumber").GetString()!
@@ -327,7 +327,7 @@ public sealed partial class OftzaSeed
             return;
         }
 
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = Today;
         var reference = $"OFT-LM-{holder}";
         var born = DateOnly.Parse(SampleParties.People[holder].BirthDate, System.Globalization.CultureInfo.InvariantCulture);
         await underwriter.Send(HttpMethod.Post, "/api/v1/life/migration/policies", new
@@ -354,8 +354,7 @@ public sealed partial class OftzaSeed
 
         // Due dates from the tenant's business date, as Billing reckons days overdue from it (BR-146), not the UTC clock's.
         var finance = context.Tenant(TenantId, "oftza-finance-officer");
-        var today = DateOnly.Parse((await finance.Send(HttpMethod.Get, "/api/v1/identity/me")).GetProperty("tenant").GetProperty("businessDate").GetString()!,
-            System.Globalization.CultureInfo.InvariantCulture);
+        var today = Today;
         var result = await finance.Send(HttpMethod.Post, "/api/v1/billing/migration/outstanding-premiums", new
         {
             batchCode = $"{reference}-I", currency = "ZAR", controlCount = daysAgo.Length, controlAmount = amount * daysAgo.Length,
@@ -410,7 +409,7 @@ public sealed partial class OftzaSeed
         var underwriter = Clerk;
         var party = await Person(holder);
         var existing = (await underwriter.Send(HttpMethod.Get, $"/api/v1/general/policies?policyholderPartyId={party}")).GetProperty("items");
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = Today;
         Guid policy;
         if (existing.GetArrayLength() > 0)
         {
@@ -480,7 +479,7 @@ public sealed partial class OftzaSeed
             return;
         }
 
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = Today;
         var reference = $"OFT-GM-{holder}";
         await Clerk.Send(HttpMethod.Post, "/api/v1/general/migration/policies", new
         {
@@ -512,7 +511,7 @@ public sealed partial class OftzaSeed
             var administrator = context.Tenant(TenantId, "oftza-health-membership-administrato");
             if ((await administrator.Send(HttpMethod.Get, url)).GetProperty("status").GetString() == "Active")
             {
-                await administrator.Send(HttpMethod.Post, $"{url}/{action}", new { effectiveDate = DateOnly.FromDateTime(DateTime.UtcNow), reason = "Sample" }, key: $"{TenantCode}:{action}:{id}");
+                await administrator.Send(HttpMethod.Post, $"{url}/{action}", new { effectiveDate = Today, reason = "Sample" }, key: $"{TenantCode}:{action}:{id}");
                 await context.Settle();
             }
         }
@@ -606,7 +605,7 @@ public sealed partial class OftzaSeed
         }
 
         var spouse = await Person((holder + 10) % SampleParties.People.Count);
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = Today;
         var born = DateOnly.Parse(SampleParties.People[holder].BirthDate, System.Globalization.CultureInfo.InvariantCulture);
         var ageNext = today.AddDays(-backdatedDays).Year - born.Year + 1;
         var existing = (await underwriter.Send(HttpMethod.Get, $"/api/v1/life/proposals?applicantPartyId={applicant}")).GetProperty("items");
@@ -670,7 +669,7 @@ public sealed partial class OftzaSeed
         await Acknowledge(administrator, party, "ISSUE", null, null);
         var created = await administrator.Send(HttpMethod.Post, "/api/v1/health/memberships", new
         {
-            principalPartyId = party, schemeId = scheme, memberCategory = "ALL_STAFF", planCode = Scheme, optionCode = principal % 2 == 0 ? "ESS" : "PLUS", startDate = DateOnly.FromDateTime(DateTime.UtcNow), currency = "ZAR", collectionMethod = "DEBIT_ORDER", facts = new { employment_type = "PERMANENT" },
+            principalPartyId = party, schemeId = scheme, memberCategory = "ALL_STAFF", planCode = Scheme, optionCode = principal % 2 == 0 ? "ESS" : "PLUS", startDate = Today, currency = "ZAR", collectionMethod = "DEBIT_ORDER", facts = new { employment_type = "PERMANENT" },
         }, key: $"{TenantCode}:membership:{principal}");
         await context.Settle();
         return created.GetProperty("id").GetGuid();
