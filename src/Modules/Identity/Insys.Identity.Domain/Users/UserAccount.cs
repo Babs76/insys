@@ -293,6 +293,8 @@ public sealed class UserAccount : AggregateRoot<Guid>
         .Allow(UserStatus.PendingIdentity, UserTrigger.LinkIdentity, UserStatus.Invited)
         .Allow(UserStatus.PendingIdentity, UserTrigger.DisableUser, UserStatus.Disabled)
         .Allow(UserStatus.Invited, UserTrigger.FirstSignIn, UserStatus.Active)
+        // Go-live register row 31 (Ade, 2 November 2026): an administrator revokes an invitation not yet accepted by disabling the user.
+        .Allow(UserStatus.Invited, UserTrigger.DisableUser, UserStatus.Disabled)
         .Allow(UserStatus.Active, UserTrigger.LockUser, UserStatus.Locked)
         .Allow(UserStatus.Locked, UserTrigger.UnlockUser, UserStatus.Active)
         .Allow(UserStatus.Active, UserTrigger.DisableUser, UserStatus.Disabled)

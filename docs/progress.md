@@ -86,6 +86,7 @@
 | Review-gap batch | Ade's decisions on the AI-1 follow-up: the submission hold for every AI-1 draft, its review under `ASSIST_PRODUCT_DRAFT_REVIEW` with no feature; a role holding the draft run must hold the review (`ASSIST_RUN_NEEDS_REVIEW`, Identity's one rule); the compliance officer's `PRODUCTS` view-only, tested; OQ-191 as two private repositories; the Preview plan's memory sizing, reboot first and a reading during the seed (prepared only) | Branch `review-gap` |
 | CI: dated end-to-end shards | OQ-129: each clock in four shards by test method, balanced from measured times; 7 to 14 minutes a shard (run 44602526513); limit 30 minutes | Branch `e2e-shards` |
 | Batch 6 (Workstream F) | The OFTZA seed run against a deployed API through Keycloak in the deployment smoke test, then a seeded persona signs in and reads; OQ-164's beta check of the sample Life premiums (all monthly instalments; the arrears now one missed instalment); OQ-163 kept at (a); the Workstream F plan's stale "Next" corrected (cases of every family and every notice's template were already done) | Branch `seed-smoke` |
+| Batch 1 | Row 31 (an invited user disabled revokes the invitation), OQ-165 (portal channels in readiness), OQ-183 (abandoned SETUP batches end Rejected); rows 32 to 34 and BR-100 wait on Ade (OQ-193 to OQ-196) | Branch `batch-1` |
 
 ## Phase 1 review items
 

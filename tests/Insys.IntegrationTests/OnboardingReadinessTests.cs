@@ -431,6 +431,37 @@ public sealed class OnboardingReadinessTests(DatabaseFixture fixture) : IClassFi
     }
 
     [Fact]
+    public async Task APortalTheTenantHas_NeedsAChannelOfItsAudience_AndEachPortalRolesRows_OQ165()
+    {
+        var (tenantId, url) = await Register("PORTL");
+        await fixture.Database.SeedReadyTenant(tenantId, From);
+        const string step = "ORGANISATION_AND_ACCESS";
+        async Task<string?[]> Missing() => Check(await Readiness(url), step, "CHANNELS").GetProperty("missing").EnumerateArray().Select(m => m.GetString()).ToArray();
+        (await Missing()).ShouldBeEmpty("a staff-only tenant, no portal features: unchanged");
+
+        // A broker role nobody holds yet, granting a channel-scoped portal function, in a tenant with the broker portal.
+        await fixture.Database.SeedStaticFilled(tenantId, "iam.cfg_roles_and_permission_sets", "EFFECTIVE", "PORTAL_BROKER", From, ("role_code", "PORTAL_BROKER"),
+            ("permissions", DBNull.Value));
+        await fixture.Database.ExecuteAsOwner("""
+            INSERT INTO iam.cfg_role_function_assignments (tenant_id, code, version, effective_from, record_status, created_by, change_reason, role_code, function_code)
+            VALUES (@t, 'PORTAL_BROKER:BROKER_PORTAL_GENERAL_CREATE_QUOTE', 1, @from, 'EFFECTIVE', 'seed', 'test seed', 'PORTAL_BROKER', 'BROKER_PORTAL_GENERAL_CREATE_QUOTE')
+            """, ("t", tenantId), ("from", From));
+        (await Missing()).ShouldBeEmpty("not entitled to the broker portal, so its roles aren't checked, nor counted as staff");
+
+        await fixture.Database.ExecuteAsOwner("""
+            INSERT INTO tenant.cfg_feature_entitlements (tenant_id, code, version, effective_from, record_status, created_by, change_reason, tenant, feature, enabled)
+            VALUES (NULL, 'PORTL:BROKER_PORTAL', 1, DATE '2000-01-01', 'EFFECTIVE', 'seed', 'test seed', 'PORTL', 'BROKER_PORTAL', true)
+            """);
+        (await Missing()).ShouldBe(["a BROKER channel (audience BROKER), as the tenant has BROKER_PORTAL"]);
+
+        // A channel of the audience clears it. No portal function is channel-scoped today (only two payment commands are), so a portal role needs no row yet;
+        // the per-role rows are checked as for staff roles once one is.
+        await fixture.Database.SeedStaticFilled(tenantId, "channel.cfg_channel_definitions", "EFFECTIVE", "CH-BRK", From, ("channel_code", "BRK"), ("audience", "BROKER"),
+            ("name", "Broker portal"), ("client_ids", new[] { "insys-broker" }));
+        (await Missing()).ShouldBeEmpty();
+    }
+
+    [Fact]
     public async Task ACaseTypesAppealRoute_IsReportedUntilItIsInForce_ATenantsOwnOrGlobal()
     {
         var (tenantId, url) = await Register("ROUTES");

@@ -129,7 +129,9 @@ public static class IdentityInfrastructure
                 "Two active tenant administrators: identity linked and signed in at least once (OQ-067, BR-013)",
                 admins >= 2 ? [] : [$"TENANT_ADMIN: {admins} of 2 active"])];
         });
-        services.AddSingleton<Contracts.IStaffRoles, Persistence.StaffRoles>();
+        services.AddSingleton<Persistence.StaffRoles>();
+        services.AddSingleton<Contracts.IStaffRoles>(sp => sp.GetRequiredService<Persistence.StaffRoles>());
+        services.AddSingleton<Contracts.IPortalRoles>(sp => sp.GetRequiredService<Persistence.StaffRoles>());
         // INSYS creates the Keycloak users of its own realm (keycloak-user-provisioning).
         services.AddOptions<Keycloak.KeycloakOptions>().BindConfiguration("Identity:Keycloak");
         services.AddHttpClient("keycloak-admin");

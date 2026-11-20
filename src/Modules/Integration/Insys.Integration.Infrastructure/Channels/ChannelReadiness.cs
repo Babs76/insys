@@ -30,6 +30,7 @@ using Insys.BuildingBlocks.Infrastructure.Readiness;
 using Insys.BuildingBlocks.Infrastructure.StaticData;
 using Insys.Identity.Contracts;
 using Insys.Integration.Infrastructure.Persistence;
+using Insys.Tenancy.Contracts;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 
@@ -39,18 +40,28 @@ namespace Insys.Integration.Infrastructure.Channels;
 /// Onboarding readiness CHANNELS (addendum §5): a back-office channel (audience STAFF) whose client_ids list insys-web,
 /// and for every staff role an allowed row on it for each channel-scoped function the role holds (ADR-026 §5). A row
 /// with an empty product covers every product. Missing rows are named "ROLE: transaction".
+/// OQ-165 (BR-140, Ade, 19 November 2026): for each portal the tenant is entitled to, a channel in force with that portal's audience, and for each role
+/// granting that audience's functions an allowed row on it for each channel-scoped one, named "ROLE: transaction (AUDIENCE channel)".
 /// </summary>
 internal sealed class ChannelReadiness([FromKeyedServices(IntegrationDbContext.SchemaName)] NpgsqlDataSource dataSource, IStaffRoles roles,
-    IChannelScopedTransactions transactions) : IReadinessCheck
+    IChannelScopedTransactions transactions, IPortalRoles portalRoles, ITenantFunctionSettings settings) : IReadinessCheck
 {
     public const string BackOfficeClient = "insys-web";
+
+    /// <summary>Each portal feature (tenant.cfg_feature_entitlements) and the channel audience its users act through.</summary>
+    public static readonly IReadOnlyList<(string Feature, string Audience)> Portals =
+        [("CUSTOMER_PORTAL", "CUSTOMER"), ("BROKER_PORTAL", "BROKER"), ("PROVIDER_PORTAL", "PROVIDER")];
 
     public IReadOnlyCollection<string> Steps { get; } = ["ORGANISATION_AND_ACCESS"];
 
     public async Task<IReadOnlyList<ReadinessResult>> Check(ReadinessContext context, CancellationToken cancellationToken)
     {
         var staff = await roles.InForce(context.TenantId, context.Day, cancellationToken);
-        var (backOffice, rows) = await ReadinessSql.InTenant(dataSource, context.TenantId, async (connection, transaction) =>
+        var entitled = (await settings.For(context.TenantId, context.Day, cancellationToken)).EntitledFeatures;
+        var portals = Portals.Where(p => entitled.Contains(p.Feature)).ToList();
+        IReadOnlyList<(string RoleCode, string Audience, IReadOnlyList<string> Functions)> granting =
+            portals.Count == 0 ? [] : await portalRoles.InForce(context.TenantId, context.Day, cancellationToken);
+        var (backOffice, rows, portalChannels, portalRows) = await ReadinessSql.InTenant(dataSource, context.TenantId, async (connection, transaction) =>
         {
             var channels = await ReadinessSql.Strings(connection, transaction, $"""
                 SELECT channel_code FROM channel.cfg_channel_definitions
@@ -63,7 +74,25 @@ internal sealed class ChannelReadiness([FromKeyedServices(IntegrationDbContext.S
                     WHERE tenant_id = @t AND {ReadinessSql.InForce} AND channel_code = ANY(@channels) AND allowed AND function_code IS NOT NULL
                     """, cancellationToken, ("t", context.TenantId), ("inForce", StaticLifecycle.Configuration.InForce), ("day", context.Day),
                     ("channels", channels.ToArray()));
-            return (channels, allowed.ToHashSet(StringComparer.Ordinal));
+            var byAudience = new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal);
+            var allowedByAudience = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+            foreach (var (_, audience) in portals)
+            {
+                var ofAudience = await ReadinessSql.Strings(connection, transaction, $"""
+                    SELECT channel_code FROM channel.cfg_channel_definitions
+                    WHERE tenant_id = @t AND {ReadinessSql.InForce} AND audience = @audience ORDER BY channel_code
+                    """, cancellationToken, ("t", context.TenantId), ("inForce", StaticLifecycle.Configuration.InForce), ("day", context.Day), ("audience", audience));
+                byAudience[audience] = ofAudience;
+                allowedByAudience[audience] = ofAudience.Count == 0
+                    ? []
+                    : (await ReadinessSql.Strings(connection, transaction, $"""
+                        SELECT role_code || ' ' || function_code FROM channel.cfg_channel_transaction_permissions
+                        WHERE tenant_id = @t AND {ReadinessSql.InForce} AND channel_code = ANY(@channels) AND allowed AND function_code IS NOT NULL
+                        """, cancellationToken, ("t", context.TenantId), ("inForce", StaticLifecycle.Configuration.InForce), ("day", context.Day),
+                        ("channels", ofAudience.ToArray()))).ToHashSet(StringComparer.Ordinal);
+            }
+
+            return (channels, allowed.ToHashSet(StringComparer.Ordinal), byAudience, allowedByAudience);
         }, cancellationToken);
 
         var missing = new List<string>();
@@ -76,6 +105,21 @@ internal sealed class ChannelReadiness([FromKeyedServices(IntegrationDbContext.S
         {
             missing.AddRange(functions.Where(transactions.All.Contains).Where(p => !rows.Contains($"{role} {p}")).Order(StringComparer.Ordinal)
                 .Select(p => $"{role}: {p}"));
+        }
+
+        foreach (var (feature, audience) in portals)
+        {
+            if (portalChannels[audience].Count == 0)
+            {
+                missing.Add($"a {audience} channel (audience {audience}), as the tenant has {feature}");
+                continue;
+            }
+
+            foreach (var (role, _, functions) in granting.Where(r => r.Audience == audience))
+            {
+                missing.AddRange(functions.Where(transactions.All.Contains).Where(p => !portalRows[audience].Contains($"{role} {p}")).Order(StringComparer.Ordinal)
+                    .Select(p => $"{role}: {p} ({audience} channel)"));
+            }
         }
 
         return [ReadinessResult.Of("ORGANISATION_AND_ACCESS", "CHANNELS",

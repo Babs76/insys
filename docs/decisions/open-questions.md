@@ -1350,7 +1350,7 @@ Recommended: 1 to 3, after the actuary answers OQ-052 and this question; 4 only 
 - **Left as it is:** the two migrated policies keep their source premium of 150, as a migrated policy keeps what the source system charged (B-013). It is lower than the product's own rate for the same cover.
 - **Recommendation, unchanged:** (b), a basis per product version (proposal items 1 to 3), after the actuary answers OQ-052, with modal factors (item 4) only if the actuary asks. **(b) waits for the actuary.**
 
-**OQ-165: readiness should name portal roles that no portal channel covers (BR-140). Proposed, not built.**
+**OQ-165: readiness should name portal roles that no portal channel covers (BR-140). Decided (Ade, 19 November 2026): yes; built in batch 1.** As built: for each portal feature the tenant is entitled to (`CUSTOMER_PORTAL`, `BROKER_PORTAL`, `PROVIDER_PORTAL`), `CHANNELS` needs a channel in force with that audience, and an allowed row for each channel-scoped function of each role granting that audience's functions (`IPortalRoles`). `IStaffRoles` leaves out roles whose every function is a portal function. No portal function is channel-scoped today (only two payment commands are), so in practice the check is the portal's channel; the per-role rows apply once one is. Test: `OnboardingReadinessTests.APortalTheTenantHas_NeedsAChannelOfItsAudience_AndEachPortalRolesRows_OQ165`.
 - **Today:** readiness `CHANNELS` (`Insys.Integration.Infrastructure/Channels/ChannelReadiness.cs`) checks only staff roles on the back-office channel, through `IStaffRoles.InForce`. A role held only by external users isn't a staff role there, and a portal role nobody holds yet is counted as staff. So a tenant can be activated with portals enabled and no portal channel, and every portal call is refused `CHANNEL_NOT_ENABLED` (what BR-140 saw on the sample tenant).
 - **Proposed Identity contract** (in `Insys.Identity.Contracts`), from the function catalogue's audiences:
   ```csharp
@@ -1444,7 +1444,7 @@ Raised by the read-scope sweep (`docs/reviews/read-scope-sweep.md`, at `06ecae1`
 - `CASE_ACKNOWLEDGED_EN`, `CASE_UPDATE_EN` and `CASE_DECISION_EN` use `{subject}` in their body, which these types don't offer, so the import refuses them. It's wording, so it wasn't changed.
 - The base's `APPROVER` role loads with no grants. Its list of permission codes is in the row's note. Which functions it gets (ADR-026) is a permissions decision.
 
-**OQ-183: should a static data change request go from Approved to Rejected when its SETUP change set is abandoned? Open, for Ade (a change to `docs/specs/domain-model.json`).**
+**OQ-183: should a static data change request go from Approved to Rejected when its SETUP change set is abandoned? Decided (Ade, 19 November 2026): yes; built in batch 1.** As built: a new transition `Approved -AbandonSetup-> Rejected`, only for a SETUP set's batch approved but not in force; a batch in force is untouched. It is recorded as an addition to domain-model.json's StaticDataChange lifecycle in the lifecycle test, as the other signed-off additions are. V0144's forward-only guard applies to locked static data rows, not to `sdm.change_request`, so it isn't affected. Tests: `StaticDataChangeTests` (two), and `AssistSetupSubmissionTests`' abandon test now expects both batches `REJECTED`.
 - When a set is abandoned (OQ-180), a batch whose approval its module refused (the batch it was stuck on) has its drafts discarded. But its change request stays `APPROVED`, because the domain model's StaticDataChange lifecycle has no transition from Approved to Rejected.
 - Pending batches are rejected as usual.
 - To decide: whether to add "Approved → Rejected: the set was abandoned before it was in force" to the domain model, so the record says what happened.
@@ -1546,3 +1546,33 @@ Raised by the read-scope sweep (`docs/reviews/read-scope-sweep.md`, at `06ecae1`
   - a pass tailors at most one column of a row, so its citation names one answer;
   - a new pass replaces the last one's results, as above;
   - the checker's columns for the three tables, now pinned to `docs/specs/static-data-catalogue.json` and the generated import fields by `SetupMappingTargetTests`. The tables are static data, so they are in the catalogue rather than `docs/specs/database-tables.json`.
+
+### OQ-193 to OQ-196 From batch 1 (19 November 2026): items that need Ade's decision before they are built
+**OQ-193: cancelling a Life policy (register row 32). For Ade and the business (PPR).** The row asks for cancellation in the cooling-off period with the premium refunded, and termination at the policyholder's request for a policy without cash value, each with its reason code, the schedule stopped, notices and audit, and a refund through Billing. It also says the business must confirm the cooling-off period and refund rules. Nothing in INSYS holds them: the only trace is the `COOLING_OFF` notice text sample in `channel.cfg_disclosure_and_notice_texts`; no static data table has a cooling-off period, and neither the SRS nor the domain model has a Life cancelled state.
+- **To decide before building:**
+  1. The cooling-off period: a number of days per product version (a new field, so a migration), or one per tenant, or per country.
+  2. From when it runs: issue date, delivery of the policy document, or the start of cover.
+  3. The refund inside it: every premium paid, or less any claim paid or cost of cover.
+  4. Termination at the policyholder's request outside it: refund of nothing, of the unexpired part of the paid period, or per product.
+  5. The new states: one `Cancelled` (cooling-off) and one `Terminated` (request), or one state with the reason code.
+  6. Whether either needs a second person (maker-checker), as money leaves.
+  7. Commission and reinsurance: clawback of commission paid, and the cession ended, as General's cancellation does (REI-003)?
+- **Proposed once decided (Est 3 to 4 days):** commands `CancelInCoolingOff` and `TerminateAtRequest` on the Life policy, with reason codes from `life.ref_termination_reason_codes`; Billing's schedule stopped and a refund request through its existing path; the notice and audit; commission and reinsurance by event, as for General.
+
+**OQ-194: the facts a Life rule decision reads (register row 33). For Ade.** The row asks that, for an eligibility or underwriting decision on a proposal or case, Rules read the facts from the subject, not from the request. Today `POST /rules/decisions` takes `inputs`, and the console, the seed and the tests send them (for example `age_next`, `sum_assured`). A rule set's conditions name their variables freely, so there is no agreed list of facts Life can supply.
+- **To decide:** the fact vocabulary Life supplies for `LIFE_PROPOSAL` and `LIFE_UNDERWRITING_CASE`, and its names. Candidates from what Life holds: `age_next` (age next birthday on the business date), `sum_assured`, `product_code`, `frequency`, `term_years`, `smoker` and the disclosed medical answers. Medical answers are special category data: they would stay in Rules' decision record, which holds inputs today, and never in an event or log.
+- **Proposed once decided (Est 2 to 3 days):** Life's Contracts gain `ILifeRuleFacts.For(subjectType, subjectId)`; for these two subject types `POST /rules/decisions` refuses caller `inputs` (or ignores them; to decide) and evaluates the facts Life gives; readiness names a rule set in force that reads a variable outside the vocabulary. A breaking change for the console and the seed, announced in contract changes.
+
+**OQ-195: the fourth segregation rule (register row 34). For Ade.** The row says INSYS checks segregation per role, not across a user's roles. That's no longer so: since ADR-026 a user's assignment is refused when the new role's functions and those the user already holds through any role meet a `BLOCK` rule (`UserAccount.AssignRole`, `SEGREGATION_OF_DUTIES`). But the rules are pairs of functions in the tenant's own `iam.cfg_segregation_of_duties_conflict_rules`, and tenant roles aren't linked to the templates they were made from, so "no user holds `LINE_CONFIGURATION_MANAGER` together with `GENERAL_UNDERWRITER`…" has to be written as function pairs.
+- **To decide:** which functions stand for each side. The proposal: each line's configuration maintain and approve functions (`SD_*_MAINTAIN` and `SD_*_APPROVE` of `CONFIG_LIFE`, `CONFIG_GENERAL` and `CONFIG_HEALTH`) against each template's deciding functions (underwriting decisions, claim assessment and decisions). That is several dozen pairs.
+- **And where they live:** (a) in `RoleTemplates.SodRules`, so templates and the addendum carry them, and in the starter packs' segregation rows, so a tenant starts with them; or (b) only in the starter packs.
+- **Size once decided (Est about 1 day):** the pairs, the template test (no template breaks them) and an assignment test.
+
+**OQ-196: a case screen's function on the case reads (BR-100 / GAP-101, front-end request 182). For Ade: it changes ADR-026's sign-off decision 3.** The registry already lets one endpoint require any one of several functions (`RequiredFunctionMetadata(params string[] Codes)`), but only for functions of different audiences: "only portal functions share an operation, one per audience (sign-off decision 3)" (`FunctionRegistry.Declare`). The case reads (`GET /workflow/cases`, `/{id}`, its messages and documents) are declared only under `SERVICE_COMPLAINTS`, so a role holding only `SERVICE_DISPUTES` or `SERVICE_ENQUIRIES` doesn't get them.
+- **Sized:** about half a day to a day.
+  - The registry allows staff functions to share an endpoint when they are screens of one family (the case screens), under a list in code.
+  - The case reads are declared under each case screen.
+  - The catalogue, `x-function` and the OpenAPI list every function.
+- **Risk:** `x-function` becomes a list on those operations, which the front end's coverage tools read as one value. The permission check is the existing any-of. No migration.
+- **To decide:** amend sign-off decision 3 for the case screens (recommended), or give each family its own read endpoints (more endpoints, no ADR change).
+
