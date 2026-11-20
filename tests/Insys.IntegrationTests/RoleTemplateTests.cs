@@ -106,6 +106,16 @@ public sealed class RoleTemplateTests(DatabaseFixture fixture) : IClassFixture<D
         Holders("TERMINATE_TENANT").ShouldBe(["PLATFORM_ADMIN"]);
     }
 
+    /// <summary>The data protection officer finds the party to anonymise or merge (Ade, 20 November 2026): the party search, and the screen it sits under.</summary>
+    [Fact]
+    public async Task DataProtectionOfficer_SearchesParties_ToFindThoseItAnonymisesOrMerges_OQ111()
+    {
+        var catalogue = await Catalogue();
+        var officer = RoleTemplates.Expand(RoleTemplates.All.Single(t => t.Code == "DATA_PROTECTION_OFFICER"), catalogue).Select(f => f.Code).ToList();
+        officer.ShouldContain("PARTY_SEARCH_PARTIES");
+        officer.ShouldContain(catalogue.Single(f => f.Function.Code == "PARTY_SEARCH_PARTIES").Function.Parent!);
+    }
+
     /// <summary>Only the audit roles hold a function that needs audit read; the party search log is for audit roles only (decided 25 October 2026).</summary>
     [Fact]
     public async Task OnlyAuditRoles_HoldAFunctionThatReadsAuditEvents_OQ111()
