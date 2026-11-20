@@ -771,6 +771,11 @@ public static class IdentityErrorCodes
         Remedy = "Give the role to someone else, or remove the conflicting role first.")]
     public const string SegregationOfDuties = "SEGREGATION_OF_DUTIES";
 
+    /// <summary>SRS-002 (Ade, 20 November 2026): a role's grants may not hold both functions of a BLOCK rule in force; checked when a grant is submitted.</summary>
+    [ErrorCode(422, "error.identity.role_segregation_of_duties", Means = "The role would hold two duties your organisation keeps apart, such as preparing and releasing the same payment.",
+        Remedy = "Grant the function to a different role, or end the role's conflicting function first.")]
+    public const string RoleSegregationOfDuties = "ROLE_SEGREGATION_OF_DUTIES";
+
     [ErrorCode(409, "error.identity.username_taken", Means = "The username is already in use.",
         Remedy = "Choose another username.")]
     public const string UsernameTaken = "USERNAME_TAKEN";
@@ -783,8 +788,8 @@ public static class IdentityErrorCodes
         Remedy = "Widen the review's scope, or no review is needed.")]
     public const string NothingToReview = "NOTHING_TO_REVIEW";
 
-    [ErrorCode(409, "error.identity.review_incomplete", Means = "Every item must be confirmed or revoked before the review completes.",
-        Remedy = "Decide the remaining items, then complete the review.")]
+    [ErrorCode(409, "error.identity.review_incomplete", Means = "The review can't be completed while some of its items are neither confirmed nor revoked.",
+        Remedy = "Confirm or revoke each remaining item, then complete the review.")]
     public const string ReviewIncomplete = "REVIEW_INCOMPLETE";
 
     [ErrorCode(409, "error.identity.tenant_not_onboarding", Means = "First administrators are set up only while the organisation is being onboarded.",

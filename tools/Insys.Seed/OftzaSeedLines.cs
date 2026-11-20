@@ -598,7 +598,8 @@ public sealed partial class OftzaSeed
             // On a rerun, the outstanding premium again (its key replays it if it was taken): a run stopped before it left none (BR-146).
             if (backdatedDays > 0)
             {
-                await Unpaid("LIFE", $"OFT-LA-{holder}", held[0].GetProperty("id").GetGuid(), 100m, [backdatedDays]);
+                var id = held[0].GetProperty("id").GetGuid();
+                await Unpaid("LIFE", $"OFT-LA-{holder}", id, await Instalment(underwriter, id), [backdatedDays]);
             }
 
             return;
@@ -647,9 +648,17 @@ public sealed partial class OftzaSeed
         await context.Settle();
         if (backdatedDays > 0)
         {
-            await Unpaid("LIFE", $"OFT-LA-{holder}", policy.GetProperty("id").GetGuid(), 100m, [backdatedDays]);
+            var id = policy.GetProperty("id").GetGuid();
+            await Unpaid("LIFE", $"OFT-LA-{holder}", id, await Instalment(underwriter, id), [backdatedDays]);
         }
     }
+
+    /// <summary>
+    /// The policy's own instalment (its schedule's premium, at its frequency), so a sample overdue premium is one missed instalment, not a fixed
+    /// figure unrelated to the policy (OQ-164's check for the beta, 19 November 2026: it was 100 against an instalment of 650).
+    /// </summary>
+    private static async Task<decimal> Instalment(Persona underwriter, Guid policy) =>
+        (await underwriter.Send(HttpMethod.Get, $"/api/v1/life/policies/{policy}")).GetProperty("schedule").GetProperty("premium").GetDecimal();
 
     /// <summary>The customer's acknowledgement of the notice shown them, recorded by the underwriter or membership administrator who took the business (role templates, A).</summary>
     private Task<JsonElement> Acknowledge(Persona staff, Guid party, string point, string? referenceType, Guid? reference) => staff.Send(HttpMethod.Post, "/api/v1/integration/disclosure-acknowledgements",

@@ -101,7 +101,9 @@ public sealed class PrivilegedAccessGrant : AggregateRoot<Guid>
 
         if (validTo - validFrom > maxWindow)
         {
-            return Error.Validation(IdentityErrorCodes.AccessWindowTooLong, $"Privileged access is time-limited to at most {maxWindow} (TEN-007).");
+            // The maximum is INSYS's setting (Identity:PrivilegedAccess:MaxWindow), not TEN-007's: TEN-007 sets none (Ade, 20 November 2026).
+            return Error.Validation(IdentityErrorCodes.AccessWindowTooLong,
+                $"Privileged access can be asked for at most {Duration(maxWindow)} at a time (the Identity:PrivilegedAccess:MaxWindow setting).");
         }
 
         return new PrivilegedAccessGrant
@@ -180,4 +182,10 @@ public sealed class PrivilegedAccessGrant : AggregateRoot<Guid>
         MarkChanged();
         return Result.Success();
     }
+
+    /// <summary>A window in words: "8 hours", "1 hour" or "90 minutes".</summary>
+    private static string Duration(TimeSpan window) =>
+        window.TotalMinutes % 60 == 0
+            ? (window.TotalHours == 1 ? "1 hour" : $"{window.TotalHours:0} hours")
+            : (window.TotalMinutes == 1 ? "1 minute" : $"{window.TotalMinutes:0} minutes");
 }

@@ -35,7 +35,10 @@ namespace Insys.IntegrationTests;
 /// <summary>Workstream F: the sample tenant, through the governed API alone.</summary>
 public sealed class OftzaSeedTests(DatabaseFixture fixture) : IClassFixture<DatabaseFixture>
 {
-    private async Task<(OftzaSeed Seed, Persona Admin)> Run()
+    private Task<(OftzaSeed Seed, Persona Admin)> Run() => Start(fixture, only: null, accounts: true);
+
+    /// <summary>The seed against this fixture's host, as Program.cs runs it; <paramref name="only"/> as its --only flag.</summary>
+    internal static async Task<(OftzaSeed Seed, Persona Admin)> Start(DatabaseFixture fixture, string? only, bool accounts)
     {
         var db = fixture.Database;
         var host = await fixture.Host();
@@ -57,7 +60,7 @@ public sealed class OftzaSeedTests(DatabaseFixture fixture) : IClassFixture<Data
                 await host.Services.GetRequiredService<Insys.Life.Infrastructure.LifeJobs>().Run(CancellationToken.None);
                 await host.Services.GetRequiredService<Insys.General.Infrastructure.GeneralJobs>().Run(CancellationToken.None);
                 await host.DrainOutbox();
-            }, Accounts: true));
+            }, Accounts: accounts, Only: only));
         try
         {
             await seed.Run();
@@ -95,6 +98,17 @@ public sealed class OftzaSeedTests(DatabaseFixture fixture) : IClassFixture<Data
         async Task<long> Count(string sql) => await fixture.Database.ScalarAsOwner<long>(sql, ("t", seed.TenantId));
         (await Count("SELECT count(*) FROM life.policy WHERE tenant_id = @t")).ShouldBe(12L);
         (await Count("SELECT count(*) FROM life.policy WHERE tenant_id = @t AND status = 'LAPSED'")).ShouldBe(2L);
+        // OQ-164 (beta check, 19 November 2026): Life reads a rated premium as one instalment at the policy's frequency. Every sample Life policy is
+        // monthly, and its premium is a monthly instalment by the sample rates (sum assured × the age band's rate + the 50 policy fee; every holder is
+        // 41 to 65 next birthday): funeral 30,000 × 0.005 + 50 = 200; term 1,000,000 × 0.0012 + 50 = 1,250; term 500,000 × 0.0012 + 50 = 650.
+        // The two migrated policies keep their source system's 150. A missed instalment in arrears is the policy's own instalment.
+        var lifePremiums = await fixture.Database.ScalarAsOwner<string>(
+            "SELECT string_agg(line, '; ' ORDER BY line) FROM (SELECT p.product_code || ' ' || b.sum_assured::numeric(18,0) || ' ' || p.premium_frequency || ' ' || b.premium || ' x' || count(*) AS line "
+            + "FROM life.policy p JOIN life.policy_benefit b ON b.tenant_id = p.tenant_id AND b.policy_id = p.id WHERE p.tenant_id = @t "
+            + "GROUP BY p.product_code, b.sum_assured, p.premium_frequency, b.premium) lines", ("t", seed.TenantId));
+        lifePremiums.ShouldBe("OFT-FUNERAL 30000 MONTHLY 200.00 x3; OFT-TERM 1000000 MONTHLY 1250.00 x3; OFT-TERM 500000 MONTHLY 150.00 x2; OFT-TERM 500000 MONTHLY 650.00 x4");
+        (await Count("SELECT count(*) FROM billing.invoice i JOIN life.policy p ON p.tenant_id = i.tenant_id AND p.id = i.policy_ref WHERE i.tenant_id = @t AND i.source_domain = 'LIFE' AND i.total_amount = 100")).ShouldBe(0L,
+            "a sample overdue Life premium is the policy's own instalment, not a fixed 100");
         (await Count("SELECT count(*) FROM general.policy WHERE tenant_id = @t")).ShouldBe(12L);
         (await Count("SELECT count(*) FROM general.policy WHERE tenant_id = @t AND status = 'CANCELLED'")).ShouldBe(2L);
         (await Count("SELECT count(*) FROM general.renewal WHERE tenant_id = @t")).ShouldBe(2L, "two policies near their end await renewal");
@@ -135,6 +149,24 @@ public sealed class OftzaSeedTests(DatabaseFixture fixture) : IClassFixture<Data
         // BR-142 and BR-143: a bordereaux layout for the quota share, and consent purposes.
         (await Count("SELECT count(*) FROM reinsurance.cfg_bordereaux_layouts WHERE tenant_id = @t AND record_status IN ('PUBLISHED', 'EFFECTIVE', 'ACTIVE') AND treaty = 'OFT-QS-1'")).ShouldBe(1L);
         (await Count("SELECT count(*) FROM party.cfg_consent_purposes WHERE tenant_id = @t AND record_status IN ('PUBLISHED', 'EFFECTIVE', 'ACTIVE') AND jurisdiction = 'ZA'")).ShouldBe(2L);
+
+        // Legal hold (Ade, 25 October 2026): only the compliance officer approves a release, never the tenant administrator; and the sample reasons are in force.
+        (await fixture.Database.ScalarAsOwner<string>("SELECT string_agg(DISTINCT role_code, ',') FROM workflow.cfg_delegation_and_approval_authority WHERE tenant_id = @t AND transaction_type = 'LEGAL_HOLD_RELEASE' AND record_status NOT IN ('WITHDRAWN', 'RETIRED')",
+            ("t", seed.TenantId))).ShouldBe("COMPLIANCE_OFFICER");
+        (await fixture.Database.ScalarAsOwner<string>("SELECT string_agg(code, ',' ORDER BY code) FROM document.ref_legal_hold_reason_codes WHERE tenant_id = @t AND record_status = 'ACTIVE' AND authority_role = 'COMPLIANCE_OFFICER'",
+            ("t", seed.TenantId))).ShouldBe(string.Join(',', OftzaSeed.LegalHoldReasons.Select(r => r.Code).Order(StringComparer.Ordinal)));
+
+        // SRS-002 (Ade, 20 November 2026): the addendum's three BLOCK rules are in force, so INSYS refuses a role or a user holding both sides; no seeded
+        // role holds both functions of one.
+        (await fixture.Database.ScalarAsOwner<string>("SELECT string_agg(code || '=' || function_a || '/' || function_b, ',' ORDER BY code) FROM iam.cfg_segregation_of_duties_conflict_rules WHERE tenant_id = @t AND record_status IN ('PUBLISHED', 'EFFECTIVE') AND conflict = 'BLOCK'",
+            ("t", seed.TenantId))).ShouldBe(string.Join(',', OftzaSeed.SegregationOfDuties.OrderBy(r => r.Code, StringComparer.Ordinal).Select(r => $"{r.Code}={r.FunctionA}/{r.FunctionB}")));
+        (await Count("""
+            SELECT count(*) FROM iam.cfg_segregation_of_duties_conflict_rules r
+            WHERE r.tenant_id = @t AND r.conflict = 'BLOCK' AND r.record_status IN ('PUBLISHED', 'EFFECTIVE')
+              AND EXISTS (SELECT 1 FROM iam.cfg_role_function_assignments a JOIN iam.cfg_role_function_assignments b ON b.tenant_id = a.tenant_id AND b.role_code = a.role_code
+                          WHERE a.tenant_id = r.tenant_id AND a.function_code = r.function_a AND b.function_code = r.function_b
+                            AND a.record_status NOT IN ('WITHDRAWN', 'RETIRED') AND b.record_status NOT IN ('WITHDRAWN', 'RETIRED'))
+            """)).ShouldBe(0L);
 
         // BR-146: the four Life accounts left in arrears show at once, in both buckets (B1, 1 to 30 days; B2, 31 and over), whatever the business date.
         (await Count("SELECT count(DISTINCT bucket_code) FROM billing.arrears_case WHERE tenant_id = @t AND bucket_code IN ('B1', 'B2')")).ShouldBe(2L);

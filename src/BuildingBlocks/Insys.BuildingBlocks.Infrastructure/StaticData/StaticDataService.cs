@@ -98,7 +98,8 @@ public sealed class StaticDataService<TDbContext>(
     IEnumerable<IStaticChangeGuard> guards,
     IEnumerable<IStaticSetGuard> setGuards,
     IEnumerable<IStaticRemovalGuard> removalGuards,
-    IEnumerable<IStaticRecordValidator> validators)
+    IEnumerable<IStaticRecordValidator> validators,
+    IEnumerable<IStaticSubmissionGuard> submissionGuards)
     where TDbContext : ModuleDbContext
 {
     /// <summary>PostgreSQL's bytewise collation, under which codes sort as <see cref="StringComparer.Ordinal"/> sorts them.</summary>
@@ -291,7 +292,8 @@ public sealed class StaticDataService<TDbContext>(
 
         // A module's rules across the table: the other codes in force (or on their way) from this version's start.
         var applicable = setGuards.Where(g => g.Schema == descriptor.Schema && g.Table == descriptor.Table).ToList();
-        if (applicable.Count > 0)
+        var reading = submissionGuards.Where(g => g.Schema == descriptor.Schema && g.Table == descriptor.Table).ToList();
+        if (applicable.Count > 0 || reading.Count > 0)
         {
             string[] closed = ["DRAFT", "VALIDATED", "WITHDRAWN", "RETIRED"];
             var others = (await db.Set<TEntity>().AsNoTracking()
@@ -305,6 +307,22 @@ public sealed class StaticDataService<TDbContext>(
                 if (allowed.IsFailure)
                 {
                     return allowed.Error;
+                }
+            }
+
+            if (reading.Count > 0)
+            {
+                // The import's other lines are drafts, so the set above leaves them out: two lines of one import can break a rule together.
+                var importLines = entity.ImportBatchId is { } batchId
+                    ? (await db.Set<TEntity>().AsNoTracking().Where(r => r.ImportBatchId == batchId && r.Id != entity.Id).ToListAsync(cancellationToken)).Cast<StaticRecord>().ToList()
+                    : [];
+                foreach (var guard in reading)
+                {
+                    var allowed = await guard.Check(db, entity, others, importLines, cancellationToken);
+                    if (allowed.IsFailure)
+                    {
+                        return allowed.Error;
+                    }
                 }
             }
         }

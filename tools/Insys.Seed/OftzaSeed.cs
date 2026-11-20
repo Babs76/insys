@@ -53,6 +53,15 @@ public sealed partial class OftzaSeed(SeedContext context)
     /// <summary>Each role's functions, as Roles() assigned them: a portal channel's rows follow its role's (BR-140).</summary>
     private readonly Dictionary<string, List<string>> _roleFunctions = new(StringComparer.Ordinal);
 
+    /// <summary>Sample legal hold reasons (§18.1), each the compliance officer's; invented, not a regulator's list. Codes are at most 15 characters.</summary>
+    public static readonly (string Code, string Label)[] LegalHoldReasons =
+    [
+        ("LITIGATION", "Pending or expected litigation (sample)"),
+        ("REG_INQUIRY", "Regulatory inquiry (sample)"),
+        ("INVESTIGATION", "Internal or fraud investigation (sample)"),
+        ("DISPUTE", "Complaint or ombud dispute (sample)"),
+    ];
+
     /// <summary>The portals' channels (BR-140, F005): each portal role's functions allowed on the channel of its Keycloak client.</summary>
     private static readonly (string Channel, string Audience, string Name, string ClientId, string Role)[] PortalChannels =
     [
@@ -92,29 +101,55 @@ public sealed partial class OftzaSeed(SeedContext context)
             await Static(context.PlatformMaker, context.PlatformChecker, "tenancy/static/feature-entitlements/global", $"{TenantCode}:{feature}", new { tenant = TenantCode, feature, enabled = true });
         }
 
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        void Stage(string name) => context.Progress?.Invoke($"seed: {name} done at {clock.Elapsed.TotalSeconds:0}s ({Persona.Throttled.Count} calls refused 429 so far, {Persona.Throttled.Waited.TotalSeconds:0}s waited)");
+        Stage("tenant and global reference data");
         await FirstAdministrators();
+        Stage("first administrators");
         _maker = context.Tenant(TenantId, FirstAdministrator);
         _today = DateOnly.Parse((await _maker.Send(HttpMethod.Get, "/api/v1/identity/me")).GetProperty("tenant").GetProperty("businessDate").GetString()!,
             System.Globalization.CultureInfo.InvariantCulture);
         _checker = context.Tenant(TenantId, SecondAdministrator);
+        if (context.Only == "administrators")
+        {
+            // The deployment smoke test (batch 6 (a), Ade 20 November 2026): both administrators signed in and read as themselves, then stop.
+            await _checker.Send(HttpMethod.Get, "/api/v1/identity/me");
+            Stage("administrators signed in");
+            return;
+        }
+
+        await SegregationRules();
         await Roles();
+        Stage("roles");
         await Loaders();
         await Locale();
         await Configuration();
+        Stage("loaders, locale and configuration");
         await Personas();
+        Stage("personas");
+        if (context.Only == "personas")
+        {
+            return;
+        }
+
         await Products();
+        Stage("products");
         await Parties();
         await LineConfiguration();
         await FromReadiness();
         await Channels();
         await Missing();
+        Stage("parties, line configuration and readiness");
         await Activate();
         await AfterActivation();
         await EndLoaders();
+        Stage("activation");
         await Business();
+        Stage("business");
         if (context.Accounts)
         {
             await Accounts();
+            Stage("accounts");
         }
     }
 
@@ -682,6 +717,25 @@ public sealed partial class OftzaSeed(SeedContext context)
         tenant = TenantCode, baseCurrency = "ZAR", languages = new[] { "en", "af", "zu", "xh" }, defaultLanguage = "en", timeZone = "Africa/Johannesburg", country = "ZA",
     });
 
+    /// <summary>
+    /// The role-templates addendum's three segregation-of-duties rules (SRS-002), in force before any role or user, so that INSYS refuses a role or a user
+    /// holding both sides (Ade, 20 November 2026). Sample data for the business to confirm; the same pairs as RoleTemplates.SodRules.
+    /// </summary>
+    public static readonly IReadOnlyList<(string Code, string FunctionA, string FunctionB)> SegregationOfDuties =
+    [
+        ("SOD_CLAIM_PAYMENT", "CLAIMS_DRAFT_INSTRUCTION", "CLAIMS_RELEASE_INSTRUCTION"),
+        ("SOD_PAYOUT_BATCH", "PAYMENTS_BUILD_BATCH", "PAYMENTS_RELEASE_BATCH"),
+        ("SOD_PAYEE_ACCOUNT", "PARTY_ADD_BANK_ACCOUNT", "PARTY_BANK_ACCOUNT_VERIFY"),
+    ];
+
+    private async Task SegregationRules()
+    {
+        foreach (var (code, functionA, functionB) in SegregationOfDuties)
+        {
+            await Static("identity/static/segregation-of-duties-conflict-rules", code, new { functionA, functionB, conflict = "BLOCK" });
+        }
+    }
+
     /// <summary>Every signed-off role template for tenant users (OQ-111), with the functions available to this tenant. The template's privileged functions are only those it names.</summary>
     private async Task Roles()
     {
@@ -769,14 +823,25 @@ public sealed partial class OftzaSeed(SeedContext context)
     private async Task Until(string what, Func<Task<bool>> attempt)
     {
         var deadline = DateTime.UtcNow + PendingWait;
+        var waited = System.Diagnostics.Stopwatch.StartNew();
         while (!await attempt())
         {
+            if (waited.Elapsed.TotalSeconds >= 5 && waited.Elapsed.TotalSeconds < 6.5)
+            {
+                context.Progress?.Invoke($"seed: still waiting after 5s: {what}");
+            }
+
             if (DateTime.UtcNow >= deadline)
             {
                 throw new SeedPendingTimeoutException($"{what}: nothing to decide after {PendingWait.TotalSeconds:0} s. The maker's step is recorded for its checker by the API's outbox relay and its consumer: is the relay running, or is the event parked?");
             }
 
             await context.Settle();
+        }
+
+        if (waited.Elapsed.TotalSeconds >= 5)
+        {
+            context.Progress?.Invoke($"seed: waited {waited.Elapsed.TotalSeconds:0}s: {what}");
         }
     }
 
@@ -810,6 +875,15 @@ public sealed partial class OftzaSeed(SeedContext context)
         {
             await Static("party/static/consent-purposes", purpose, new { purposeCode = purpose, label, legalBasis = "CONSENT", jurisdiction = "ZA", defaultValue = false, retentionPeriod = "P5Y" });
         }
+        // Legal hold (Ade, 25 October 2026): the compliance officer approves a hold's release, so readiness's fallback below never gives LEGAL_HOLD_RELEASE to
+        // the tenant administrator. Sample reasons (all invented, and marked so); a code is at most 15 characters (document.ref_legal_hold_reason_codes.code).
+        await Static("workflow/static/delegation-and-approval-authority", "AUTH-LEGAL_HOLD_RELEASE-COMPLIANCE_OFFICER",
+            new { roleCode = "COMPLIANCE_OFFICER", transactionType = "LEGAL_HOLD_RELEASE", limitValue = 0m, delegationAllowed = false });
+        foreach (var (reason, label) in LegalHoldReasons)
+        {
+            await Static("documents/static/legal-hold-reason-codes", reason, new { label, authorityRole = "COMPLIANCE_OFFICER" });
+        }
+
         await Static("finance/static/chart-of-accounts-subledger", "ACC-1100", new { accountCode = "1100", name = "Premium receivable (sample)", type = "ASSET", glAccount = "1100", status = "ACTIVE" });
         await Static("workflow/static/business-calendars", "CAL-ZA", new { calendarCode = "CAL-ZA", workingDays = new[] { "MON", "TUE", "WED", "THU", "FRI" }, hours = "08:00-17:00", holidayCalendar = "ZA", timeZone = "Africa/Johannesburg" });
         await Static("workflow/static/task-types-and-work-queues", "OFTZA-TASKS", new { queueCode = "OFTZA-TASKS", taskTypes = new[] { "REVIEW" }, assignmentRule = "MANUAL_PULL" });

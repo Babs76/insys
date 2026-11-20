@@ -1926,8 +1926,8 @@
       "httpStatus": 409,
       "messageKey": "error.identity.review_incomplete",
       "retryable": false,
-      "means": "Every item must be confirmed or revoked before the review completes.",
-      "remedy": "Decide the remaining items, then complete the review."
+      "means": "The review can't be completed while some of its items are neither confirmed nor revoked.",
+      "remedy": "Confirm or revoke each remaining item, then complete the review."
     },
     {
       "code": "RISK_ATTRIBUTES_INVALID",
@@ -2008,6 +2008,14 @@
       "retryable": false,
       "means": "The role has no version in force.",
       "remedy": "Choose a role in force, or ask your administrator to put it in force first."
+    },
+    {
+      "code": "ROLE_SEGREGATION_OF_DUTIES",
+      "httpStatus": 422,
+      "messageKey": "error.identity.role_segregation_of_duties",
+      "retryable": false,
+      "means": "The role would hold two duties your organisation keeps apart, such as preparing and releasing the same payment.",
+      "remedy": "Grant the function to a different role, or end the role's conflicting function first."
     },
     {
       "code": "RULESET_NOT_FOUND",

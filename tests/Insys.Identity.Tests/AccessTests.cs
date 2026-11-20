@@ -26,6 +26,7 @@
  */
 using Insys.BuildingBlocks.Domain;
 using Insys.Identity.Domain.Access;
+using Insys.Identity.Domain.Users;
 using Insys.Testing;
 
 namespace Insys.Identity.Tests;
@@ -69,8 +70,13 @@ public sealed class PrivilegedAccessGrantTests
     {
         PrivilegedAccessGrant.RequestAccess(Guid.CreateVersion7(), Guid.CreateVersion7(), " ", Now.AddMinutes(1), Now.AddHours(1), Requester, TimeSpan.FromHours(8), Now)
             .Error!.Code.ShouldBe(ErrorCodes.ValidationFailed);
-        PrivilegedAccessGrant.RequestAccess(Guid.CreateVersion7(), Guid.CreateVersion7(), "x", Now.AddMinutes(1), Now.AddHours(9), Requester, TimeSpan.FromHours(8), Now)
-            .Error!.Code.ShouldBe("ACCESS_WINDOW_TOO_LONG");
+        var tooLong = PrivilegedAccessGrant.RequestAccess(Guid.CreateVersion7(), Guid.CreateVersion7(), "x", Now.AddMinutes(1), Now.AddHours(9), Requester,
+            TimeSpan.FromHours(8), Now).Error!;
+        tooLong.Code.ShouldBe("ACCESS_WINDOW_TOO_LONG");
+        // The maximum is INSYS's setting, in words; TEN-007 sets none (Ade, 20 November 2026).
+        tooLong.Message.ShouldBe("Privileged access can be asked for at most 8 hours at a time (the Identity:PrivilegedAccess:MaxWindow setting).");
+        PrivilegedAccessGrant.RequestAccess(Guid.CreateVersion7(), Guid.CreateVersion7(), "x", Now.AddMinutes(1), Now.AddMinutes(120), Requester,
+            TimeSpan.FromMinutes(90), Now).Error!.Message.ShouldContain("at most 90 minutes");
     }
 
     [Fact]
@@ -115,7 +121,13 @@ public sealed class AccessReviewTests
         var review = Review();
         review.ConfirmAccess(review.Items[0].Id, Reviewer, Now);
 
-        review.CompleteReview(Reviewer, Now).Error!.Code.ShouldBe("REVIEW_INCOMPLETE");
+        var refused = review.CompleteReview(Reviewer, Now).Error!;
+        refused.Code.ShouldBe("REVIEW_INCOMPLETE");
+        // The detail says how much is left; the title is the catalogue's own sentence, so the refusal never repeats itself.
+        refused.Message.ShouldBe("1 of 2 items is still undecided.");
+        var means = typeof(IdentityErrorCodes).GetField(nameof(IdentityErrorCodes.ReviewIncomplete))!
+            .GetCustomAttributes(typeof(Insys.BuildingBlocks.Domain.ErrorCodeAttribute), false).Cast<Insys.BuildingBlocks.Domain.ErrorCodeAttribute>().Single().Means;
+        refused.Message.ShouldNotBe(means);
     }
 
     [Fact]

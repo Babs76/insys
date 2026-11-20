@@ -159,9 +159,12 @@ public sealed class AccessReview : AggregateRoot<Guid>
             return Error.Forbidden(ErrorCodes.Forbidden, "Only the assigned reviewer completes the review.");
         }
 
-        if (_items.Any(i => i.Decision == ItemDecision.Pending))
+        // The title says what's wrong (the catalogue's wording); the detail says how much is left, so the two never repeat each other.
+        var pending = _items.Count(i => i.Decision == ItemDecision.Pending);
+        if (pending > 0)
         {
-            return Error.Conflict(IdentityErrorCodes.ReviewIncomplete, "Every item is confirmed or revoked before the review completes.");
+            return Error.Conflict(IdentityErrorCodes.ReviewIncomplete,
+                pending == 1 ? $"1 of {_items.Count} items is still undecided." : $"{pending} of {_items.Count} items are still undecided.");
         }
 
         var next = Lifecycle.Fire(Status, ReviewTrigger.CompleteReview);

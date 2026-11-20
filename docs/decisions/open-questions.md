@@ -1317,6 +1317,7 @@ Checked in code at `e20d29a`. Ade, 14 November: BR-144 accepted as specified, wi
 - **So** a Life claim paid in parts (several payees, or a payment held then released) recovers nothing until its last payment, and then recovers on the whole. Nothing in the SRS (REI-001, REI-003), the domain model or ADR-015 says whether each payment should recover its own share.
 - **Options:** (a) keep it: one recovery when the claim is fully paid; (b) a recovery per payment, on what that payment paid. (b) needs Reinsurance to consume each payment (a new event or `ClaimPaymentCompleted` with the claim's cession), and the bordereau to show several recoveries per claim.
 - **Recommended:** (a) until a treaty asks for (b): it matches the specifications, and recoveries are billed periodically anyway. For Ade, with finance.
+- **Ade, 19 November 2026: keep (a) for now.** The question is forwarded to finance and reinsurance; it stays open for their answer.
 
 **OQ-164: the basis of a rated premium: annual, or per instalment? (BR-145) Open, for Ade and the actuary.**
 - **Today:** the rating engine has no basis of its own. It reads the frequency only to choose the premium bounds (`RatingEngine`, `RatingStep.Bounds`; ADR-007 step 6), so `MONTHLY` and `ANNUAL` give the same figure. The two lines read that figure differently:
@@ -1332,6 +1333,22 @@ Checked in code at `e20d29a`. Ade, 14 November: BR-144 accepted as specified, wi
 4. **Later, if the actuary wants modal factors:** a per-frequency factor applied by Rating under `ANNUAL`, replacing General's billing-side instalment loading, with its own test cases.
 
 Recommended: 1 to 3, after the actuary answers OQ-052 and this question; 4 only if they ask. The OpenAPI change is additive (two read-only fields, one optional input).
+
+**The beta check (Ade, 19 November 2026; batch 6, branch `seed-smoke`).** Ade asked that the OFTZA seed's Life premiums make sense as monthly instalments, and that none is an annual figure read as monthly.
+- **The sample rates** (`tools/Insys.Seed/OftzaSeed.cs`): premium = sum assured × the age band's rate × 1, plus a policy fee of 50. Funeral 0.002 (18 to 40) and 0.005 (41 to 65); term 0.0004 and 0.0012. Every sample Life policy is rated and billed `MONTHLY`, and every holder is 41 to 65 next birthday (born 1960 + n).
+- **The sample Life policies, pinned by `OftzaSeedTests`:**
+
+| Product | Frequency | Instalment | Sum assured | Policies | A year | Of the sum assured a year |
+|---|---|---|---|---|---|---|
+| `OFT-FUNERAL` | Monthly | 200 | 30,000 | 3 | 2,400 | 8% |
+| `OFT-TERM` | Monthly | 1,250 | 1,000,000 | 3 | 15,000 | 1.5% |
+| `OFT-TERM` | Monthly | 650 | 500,000 | 4 (backdated, in arrears) | 7,800 | 1.56% |
+| `OFT-TERM`, migrated | Monthly | 150 (the source system's) | 500,000 | 2 | 1,800 | 0.36% |
+
+- **Judgement, not actuarial:** as monthly instalments these are plausible for invented sample rates for people aged 53 to 64 next birthday, and read as annual they would be implausibly low (a funeral cover of 30,000 for 200 a year, a term cover of 1,000,000 for 1,250 a year). So no sample Life premium is an annual figure read as monthly.
+- **One fix:** the sample arrears were a fixed overdue premium of 100 against instalments of 650. Each is now the policy's own instalment, read from its schedule (`OftzaSeedLines.Instalment`), and the seed test checks none is 100.
+- **Left as it is:** the two migrated policies keep their source premium of 150, as a migrated policy keeps what the source system charged (B-013). It is lower than the product's own rate for the same cover.
+- **Recommendation, unchanged:** (b), a basis per product version (proposal items 1 to 3), after the actuary answers OQ-052, with modal factors (item 4) only if the actuary asks. **(b) waits for the actuary.**
 
 **OQ-165: readiness should name portal roles that no portal channel covers (BR-140). Decided (Ade, 19 November 2026): yes; built in batch 1.** As built: for each portal feature the tenant is entitled to (`CUSTOMER_PORTAL`, `BROKER_PORTAL`, `PROVIDER_PORTAL`), `CHANNELS` needs a channel in force with that audience, and an allowed row for each channel-scoped function of each role granting that audience's functions (`IPortalRoles`). `IStaffRoles` leaves out roles whose every function is a portal function. No portal function is channel-scoped today (only two payment commands are), so in practice the check is the portal's channel; the per-role rows apply once one is. Test: `OnboardingReadinessTests.APortalTheTenantHas_NeedsAChannelOfItsAudience_AndEachPortalRolesRows_OQ165`.
 - **Today:** readiness `CHANNELS` (`Insys.Integration.Infrastructure/Channels/ChannelReadiness.cs`) checks only staff roles on the back-office channel, through `IStaffRoles.InForce`. A role held only by external users isn't a staff role there, and a portal role nobody holds yet is counted as staff. So a tenant can be activated with portals enabled and no portal channel, and every portal call is refused `CHANNEL_NOT_ENABLED` (what BR-140 saw on the sample tenant).
@@ -1562,3 +1579,19 @@ Raised by the read-scope sweep (`docs/reviews/read-scope-sweep.md`, at `06ecae1`
   - **For confirmation (TODO(spec)):** which cases the claim, Health and provider screens read is taken from their names: `CLAIM_DISPUTES` and `CLAIM_APPEALS` a dispute or appeal with a `CLAIM` link; `HEALTH_CLAIM_APPEALS` an appeal that is Health-linked (a `MEMBERSHIP`, `PROVIDER`, `REMITTANCE` or `PAYMENT_RUN` link, or raised by a provider, as the Health read rule); `PROVIDER_DISPUTES` a dispute with a `PROVIDER`, `REMITTANCE` or `PAYMENT_RUN` link, or raised by a provider. `addenda/cases.md` §9 names the screens but not these rules.
   - The case's documents, from the Documents module, and the case actions are unchanged; BR-100 named the reads.
 
+**OQ-197: segregation of duties, the baseline and what is still open (SRS-002; the front end's capture, 20 November 2026). Decided by Ade, 20 November 2026; the first part built.** Built on branch `sod-seed`, approved for merge: the OFTZA seed puts the role-templates addendum's three BLOCK rules in force (`SOD_CLAIM_PAYMENT`, `SOD_PAYOUT_BATCH`, `SOD_PAYEE_ACCOUNT`) before any role or user, and a role's function grant is refused at submission, alone or as a line of an import, when the role would then hold both functions of a BLOCK rule in force (422 `ROLE_SEGREGATION_OF_DUTIES`, `RoleSegregationGuard`).
+- **What the checks are driven by today:** only the tenant's rows in `iam.cfg_segregation_of_duties_conflict_rules`. With none in force (every tenant until now, OFTZA included), nothing is refused. The assignment check (`UserAccount.AssignRole`, 409 `SEGREGATION_OF_DUTIES`) already used them; before this branch, a role's grants weren't checked at all, even with a rule in force.
+- **What the SRS says:** SRS-002 is titled "Segregation of duties", but its text asks only for "configurable maker-checker controls for sensitive operations" (product publication, underwriting overrides, claim approval, payment release, financial adjustments, privileged user administration). No SRS text names conflicting function pairs or asks for a baseline every tenant gets. The three pairs come from the role-templates addendum (`RoleTemplates.SodRules`); the baseline is Ade's decision below.
+- **Known gap in the grant check, stated plainly:** `RoleSegregationGuard` compares only the role's own grants. It does **not** catch a grant adding one side to role X when a user holding X already holds the other side through role Y. The assignment check doesn't catch it either, as the user's roles were assigned before the grant. Until the action-time check below is built, such a user can hold both sides.
+- **Ade's decisions (20 November 2026), not yet built:**
+  1. **A platform baseline:** the three rules are a baseline every tenant has, which no tenant can retire or weaken; a tenant may add its own. Before enforcing them on an existing tenant, INSYS reports which users already hold both sides.
+  2. **Blocked on the release or verify side only:** a user holding both sides is refused only the release or verify function's actions (`CLAIMS_RELEASE_INSTRUCTION`, `PAYMENTS_RELEASE_BATCH`, `PARTY_BANK_ACCOUNT_VERIFY`), not the draft, build or add side. Such users are listed, so that they come up in an access review.
+  3. **The action-time check is the priority item, ahead of beta.** It closes the gap above.
+- **Still open, proposals:**
+  - The same check again at approval and activation: set guards run at submission only, so two grants submitted separately before either is approved, or a rule put in force after a grant, aren't caught.
+  - Assignments waiting for approval counted as held, and a privileged assignment checked again when it is decided.
+  - Release of a claim payment instruction or a payout batch refused when the person releasing drafted or built it (`MAKER_CHECKER_SAME_PERSON`); approval already refuses them.
+
+**OQ-198: copying a role template into a tenant's own role (BR-088; the front end's capture, 20 November 2026). Decided by Ade, 20 November 2026: build it after beta.** The role-templates addendum says a tenant copies a template into its own role, but there is no API for it: only `GET /identity/role-templates` and `GET /identity/role-templates/{code}` (which, with `?tenantId=`, shows the functions the tenant can't hold).
+- **Proposed:** `POST /identity/role-templates/{code}/copy` with `roleCode`, labels, `changeReason` and functions to leave out, and an `Idempotency-Key`. It creates the tenant's role (`iam.cfg_roles_and_permission_sets`) and its function grants (`iam.cfg_role_function_assignments`) under one approval. It refuses functions the tenant can't hold (`FunctionHolding`), and a copy that breaks a segregation-of-duties rule in force (OQ-197).
+- **Today's workaround:** create the role (`POST /identity/static/roles-and-permission-sets`, one approval), then import its grants (`POST /identity/static/role-function-assignments/imports`, one more approval): two approvals.

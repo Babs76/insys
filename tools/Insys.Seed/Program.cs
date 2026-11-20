@@ -81,19 +81,25 @@ string Token(Guid tenant, string subject)
 // event is pending. A fixed 3 s was too short for a slow relay (rotate-passwords run 41937659695: a checker's 404, and a rehearsal's 403 on
 // a grant not yet applied). At most 30 s, so an event stuck elsewhere doesn't hold every step; a checker's own wait is longer (PendingWaitSeconds).
 var health = new HttpClient { BaseAddress = new Uri(options["api"]), Timeout = TimeSpan.FromSeconds(10) };
+var settles = 0;
 async Task Settle()
 {
     var deadline = DateTime.UtcNow.AddSeconds(30);
+    string last = "no answer";
+    settles++;
     while (DateTime.UtcNow < deadline)
     {
         try
         {
             using var response = await health.GetAsync("/health");   // 503 while a check is unhealthy, with the same body
             using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-            if (body.RootElement.GetProperty("checks").GetProperty("outbox-lag").GetProperty("data").GetProperty("pending").GetInt32() == 0)
+            var lag = body.RootElement.GetProperty("checks").GetProperty("outbox-lag").GetProperty("data");
+            if (lag.GetProperty("pending").GetInt32() == 0)
             {
                 return;
             }
+
+            last = $"{lag.GetProperty("pending").GetInt32()} pending, the oldest in {lag.GetProperty("slowestOutbox").GetString()} ({lag.GetProperty("lagSeconds").GetDouble():0}s)";
         }
         catch (Exception e) when (e is HttpRequestException or TaskCanceledException or JsonException or KeyNotFoundException or InvalidOperationException)
         {
@@ -102,10 +108,29 @@ async Task Settle()
 
         await Task.Delay(TimeSpan.FromSeconds(1));
     }
+
+    // Counts and an outbox's name only: why a step waited its whole 30 s (batch 6: the seed against a deployed API was slow).
+    Console.Error.WriteLine($"seed: settle {settles} waited 30s: {last}");
+}
+
+// --only administrators: the tenant and its two first administrators, each signed in and reading /identity/me, and nothing after (the deployment
+// smoke test, batch 6 (a)). --only personas: the tenant, its administrators, roles, configuration and personas, and nothing after.
+var only = options.GetValueOrDefault("only");
+if (only is not null and not ("administrators" or "personas"))
+{
+    Console.Error.WriteLine("--only takes administrators or personas, or is left out for the whole seed.");
+    return 2;
+}
+
+if (only is not null && options.ContainsKey("accounts"))
+{
+    Console.Error.WriteLine("--accounts needs the whole seed: its portal accounts link to sample parties.");
+    return 2;
 }
 
 var operatorTenant = Guid.Parse(options["operator-tenant"]);
-var seed = new OftzaSeed(new SeedContext(As(operatorTenant, options["platform-1"]), As(operatorTenant, options["platform-2"]), As, Settle, OwnRealm: keycloak is not null, Accounts: options.ContainsKey("accounts")));
+var seed = new OftzaSeed(new SeedContext(As(operatorTenant, options["platform-1"]), As(operatorTenant, options["platform-2"]), As, Settle, OwnRealm: keycloak is not null, Accounts: options.ContainsKey("accounts"),
+    Only: only, Progress: line => Console.Error.WriteLine(line)));
 if (keycloak is not null)
 {
     await keycloak.Start();
@@ -150,5 +175,5 @@ if (keycloak is not null && options.ContainsKey("accounts"))
     return 0;
 }
 
-Console.WriteLine($"{OftzaSeed.TenantCode}: {seed.TenantId}. Active, with its sample records.");
+Console.WriteLine(only is null ? $"{OftzaSeed.TenantCode}: {seed.TenantId}. Active, with its sample records." : $"{OftzaSeed.TenantCode}: {seed.TenantId}, with its {only} only (--only {only}).");
 return 0;
