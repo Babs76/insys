@@ -101,30 +101,55 @@ public sealed partial class OftzaSeed(SeedContext context)
             await Static(context.PlatformMaker, context.PlatformChecker, "tenancy/static/feature-entitlements/global", $"{TenantCode}:{feature}", new { tenant = TenantCode, feature, enabled = true });
         }
 
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        void Stage(string name) => context.Progress?.Invoke($"seed: {name} done at {clock.Elapsed.TotalSeconds:0}s ({Persona.Throttled.Count} calls refused 429 so far, {Persona.Throttled.Waited.TotalSeconds:0}s waited)");
+        Stage("tenant and global reference data");
         await FirstAdministrators();
+        Stage("first administrators");
         _maker = context.Tenant(TenantId, FirstAdministrator);
         _today = DateOnly.Parse((await _maker.Send(HttpMethod.Get, "/api/v1/identity/me")).GetProperty("tenant").GetProperty("businessDate").GetString()!,
             System.Globalization.CultureInfo.InvariantCulture);
         _checker = context.Tenant(TenantId, SecondAdministrator);
+        if (context.Only == "administrators")
+        {
+            // The deployment smoke test (batch 6 (a), Ade 20 November 2026): both administrators signed in and read as themselves, then stop.
+            await _checker.Send(HttpMethod.Get, "/api/v1/identity/me");
+            Stage("administrators signed in");
+            return;
+        }
+
         await SegregationRules();
         await Roles();
+        Stage("roles");
         await Loaders();
         await Locale();
         await Configuration();
+        Stage("loaders, locale and configuration");
         await Personas();
+        Stage("personas");
+        if (context.Only == "personas")
+        {
+            return;
+        }
+
         await Products();
+        Stage("products");
         await Parties();
         await LineConfiguration();
         await FromReadiness();
         await Channels();
         await Missing();
+        Stage("parties, line configuration and readiness");
         await Activate();
         await AfterActivation();
         await EndLoaders();
+        Stage("activation");
         await Business();
+        Stage("business");
         if (context.Accounts)
         {
             await Accounts();
+            Stage("accounts");
         }
     }
 
@@ -798,14 +823,25 @@ public sealed partial class OftzaSeed(SeedContext context)
     private async Task Until(string what, Func<Task<bool>> attempt)
     {
         var deadline = DateTime.UtcNow + PendingWait;
+        var waited = System.Diagnostics.Stopwatch.StartNew();
         while (!await attempt())
         {
+            if (waited.Elapsed.TotalSeconds >= 5 && waited.Elapsed.TotalSeconds < 6.5)
+            {
+                context.Progress?.Invoke($"seed: still waiting after 5s: {what}");
+            }
+
             if (DateTime.UtcNow >= deadline)
             {
                 throw new SeedPendingTimeoutException($"{what}: nothing to decide after {PendingWait.TotalSeconds:0} s. The maker's step is recorded for its checker by the API's outbox relay and its consumer: is the relay running, or is the event parked?");
             }
 
             await context.Settle();
+        }
+
+        if (waited.Elapsed.TotalSeconds >= 5)
+        {
+            context.Progress?.Invoke($"seed: waited {waited.Elapsed.TotalSeconds:0}s: {what}");
         }
     }
 

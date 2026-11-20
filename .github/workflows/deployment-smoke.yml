@@ -90,5 +90,17 @@ jobs:
           docker tag "$image" insys-console:smoke
           kind load docker-image insys-console:smoke --name insys-smoke
 
+      # The seed runs from the runner against the deployed API (run.sh's last phase, batch 6), so the SDK goes back after the disk was freed.
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Build the seed
+        run: |
+          dotnet build tools/Insys.Seed -c Release -v q
+          df -h / | tail -n 1
+
       - name: Deploy and smoke test
+        env:
+          SEED_DLL: tools/Insys.Seed/bin/Release/net10.0/Insys.Seed.dll
         run: deploy/smoke/run.sh

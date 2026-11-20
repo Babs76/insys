@@ -161,6 +161,12 @@ public sealed class Persona(HttpClient http, Action<string>? afterCall = null)
     }
 
     /// <summary>The seed keeps to the API's rate limit as any client should: told to slow down, it waits and asks again.</summary>
+    private static long _throttled;
+    private static long _throttledMilliseconds;
+
+    /// <summary>Every persona's 429s so far, and the time spent waiting them out (the seed's progress lines report it).</summary>
+    public static (long Count, TimeSpan Waited) Throttled => (Interlocked.Read(ref _throttled), TimeSpan.FromMilliseconds(Interlocked.Read(ref _throttledMilliseconds)));
+
     private async Task<HttpResponseMessage> Paced(Func<HttpRequestMessage> request)
     {
         var backOff = TimeSpan.FromSeconds(5);
@@ -177,14 +183,20 @@ public sealed class Persona(HttpClient http, Action<string>? afterCall = null)
             var wait = response.Headers.RetryAfter?.Delta ?? backOff;
             backOff = TimeSpan.FromSeconds(Math.Min(backOff.TotalSeconds * 2, 60));
             response.Dispose();
+            Interlocked.Increment(ref _throttled);
+            Interlocked.Add(ref _throttledMilliseconds, (long)wait.TotalMilliseconds);
             await Task.Delay(wait);
         }
     }
 }
 
 /// <summary>What the seed runs with: who it acts as, and how to wait for events to be delivered, and, where it can be asked, how to run the daily jobs now (elsewhere their timers do). OwnRealm: users are made in INSYS's own Keycloak realm, which signs them in (KeycloakSignIn). Accounts: the INSYS Preview's generic accounts too.</summary>
+/// <param name="Only">Null for the whole seed; <c>administrators</c> stops once the tenant's two first administrators have each signed in and read
+/// <c>/identity/me</c> (the deployment smoke test, batch 6 (a)); <c>personas</c> stops once the tenant, its administrators, roles, configuration and personas exist,
+/// before products and business (the deployment smoke test's fallback when the whole seed is too slow for its job, batch 6).</param>
+/// <param name="Progress">Where each stage's name and elapsed time go (the deployment smoke test and the Preview write them to stderr); none by default.</param>
 public sealed record SeedContext(Persona PlatformMaker, Persona PlatformChecker, Func<Guid, string, Persona> Tenant, Func<Task> Settle, Func<Task>? Jobs = null, bool OwnRealm = false, bool Accounts = false,
-    int PendingWaitSeconds = 120);
+    int PendingWaitSeconds = 120, string? Only = null, Action<string>? Progress = null);
 
 /// <summary>A checker's step found nothing to decide within the wait: what the maker recorded never reached it.</summary>
 public sealed class SeedPendingTimeoutException(string message) : Exception(message);

@@ -1317,6 +1317,7 @@ Checked in code at `e20d29a`. Ade, 14 November: BR-144 accepted as specified, wi
 - **So** a Life claim paid in parts (several payees, or a payment held then released) recovers nothing until its last payment, and then recovers on the whole. Nothing in the SRS (REI-001, REI-003), the domain model or ADR-015 says whether each payment should recover its own share.
 - **Options:** (a) keep it: one recovery when the claim is fully paid; (b) a recovery per payment, on what that payment paid. (b) needs Reinsurance to consume each payment (a new event or `ClaimPaymentCompleted` with the claim's cession), and the bordereau to show several recoveries per claim.
 - **Recommended:** (a) until a treaty asks for (b): it matches the specifications, and recoveries are billed periodically anyway. For Ade, with finance.
+- **Ade, 19 November 2026: keep (a) for now.** The question is forwarded to finance and reinsurance; it stays open for their answer.
 
 **OQ-164: the basis of a rated premium: annual, or per instalment? (BR-145) Open, for Ade and the actuary.**
 - **Today:** the rating engine has no basis of its own. It reads the frequency only to choose the premium bounds (`RatingEngine`, `RatingStep.Bounds`; ADR-007 step 6), so `MONTHLY` and `ANNUAL` give the same figure. The two lines read that figure differently:
@@ -1332,6 +1333,22 @@ Checked in code at `e20d29a`. Ade, 14 November: BR-144 accepted as specified, wi
 4. **Later, if the actuary wants modal factors:** a per-frequency factor applied by Rating under `ANNUAL`, replacing General's billing-side instalment loading, with its own test cases.
 
 Recommended: 1 to 3, after the actuary answers OQ-052 and this question; 4 only if they ask. The OpenAPI change is additive (two read-only fields, one optional input).
+
+**The beta check (Ade, 19 November 2026; batch 6, branch `seed-smoke`).** Ade asked that the OFTZA seed's Life premiums make sense as monthly instalments, and that none is an annual figure read as monthly.
+- **The sample rates** (`tools/Insys.Seed/OftzaSeed.cs`): premium = sum assured × the age band's rate × 1, plus a policy fee of 50. Funeral 0.002 (18 to 40) and 0.005 (41 to 65); term 0.0004 and 0.0012. Every sample Life policy is rated and billed `MONTHLY`, and every holder is 41 to 65 next birthday (born 1960 + n).
+- **The sample Life policies, pinned by `OftzaSeedTests`:**
+
+| Product | Frequency | Instalment | Sum assured | Policies | A year | Of the sum assured a year |
+|---|---|---|---|---|---|---|
+| `OFT-FUNERAL` | Monthly | 200 | 30,000 | 3 | 2,400 | 8% |
+| `OFT-TERM` | Monthly | 1,250 | 1,000,000 | 3 | 15,000 | 1.5% |
+| `OFT-TERM` | Monthly | 650 | 500,000 | 4 (backdated, in arrears) | 7,800 | 1.56% |
+| `OFT-TERM`, migrated | Monthly | 150 (the source system's) | 500,000 | 2 | 1,800 | 0.36% |
+
+- **Judgement, not actuarial:** as monthly instalments these are plausible for invented sample rates for people aged 53 to 64 next birthday, and read as annual they would be implausibly low (a funeral cover of 30,000 for 200 a year, a term cover of 1,000,000 for 1,250 a year). So no sample Life premium is an annual figure read as monthly.
+- **One fix:** the sample arrears were a fixed overdue premium of 100 against instalments of 650. Each is now the policy's own instalment, read from its schedule (`OftzaSeedLines.Instalment`), and the seed test checks none is 100.
+- **Left as it is:** the two migrated policies keep their source premium of 150, as a migrated policy keeps what the source system charged (B-013). It is lower than the product's own rate for the same cover.
+- **Recommendation, unchanged:** (b), a basis per product version (proposal items 1 to 3), after the actuary answers OQ-052, with modal factors (item 4) only if the actuary asks. **(b) waits for the actuary.**
 
 **OQ-165: readiness should name portal roles that no portal channel covers (BR-140). Decided (Ade, 19 November 2026): yes; built in batch 1.** As built: for each portal feature the tenant is entitled to (`CUSTOMER_PORTAL`, `BROKER_PORTAL`, `PROVIDER_PORTAL`), `CHANNELS` needs a channel in force with that audience, and an allowed row for each channel-scoped function of each role granting that audience's functions (`IPortalRoles`). `IStaffRoles` leaves out roles whose every function is a portal function. No portal function is channel-scoped today (only two payment commands are), so in practice the check is the portal's channel; the per-role rows apply once one is. Test: `OnboardingReadinessTests.APortalTheTenantHas_NeedsAChannelOfItsAudience_AndEachPortalRolesRows_OQ165`.
 - **Today:** readiness `CHANNELS` (`Insys.Integration.Infrastructure/Channels/ChannelReadiness.cs`) checks only staff roles on the back-office channel, through `IStaffRoles.InForce`. A role held only by external users isn't a staff role there, and a portal role nobody holds yet is counted as staff. So a tenant can be activated with portals enabled and no portal channel, and every portal call is refused `CHANNEL_NOT_ENABLED` (what BR-140 saw on the sample tenant).
