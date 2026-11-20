@@ -2,6 +2,9 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
+## Access review refusal wording (20 November 2026, front end's security capture)
+- `REVIEW_INCOMPLETE` (409, `POST /identity/access-reviews/{id}/complete`): the title (the catalogue's meaning) and the detail no longer repeat each other. The meaning is now "The review can't be completed while some of its items are neither confirmed nor revoked." and the remedy "Confirm or revoke each remaining item, then complete the review."; the detail says how much is left, "1 of 2 items is still undecided." The code, status and message key are unchanged. `docs/api/error-codes.json` regenerated.
+
 ## Batch 1: revoking an invitation, portal readiness, abandoned SETUP batches (19 November 2026)
 All additive; no path, body or response shape changes.
 - **`POST /identity/users/{id}/disable`** now accepts an `Invited` user (register row 31): it revokes the invitation. Before, it answered 409 `INVALID_STATE_TRANSITION`. The user's status becomes `Disabled`; its token is refused from the next request.
