@@ -100,7 +100,7 @@ public static class FunctionChecks
                 {
                     var path = $"{httpContext.Request.Method} {httpContext.Request.Path}";
                     await sink.Record(new AuditRecord(tenantId, execution.ActorId, "USER",
-                        new AuditEntry("ACCESS", SegregationBlock.AuditOperation, "Function", block.Function,
+                        new AuditEntry("ACCESS", SegregationBlock.AuditOperation, AuditTargetTypes.Function, block.Function,
                             new Dictionary<string, string?> { ["function"] = block.Function, ["heldWith"] = block.HeldWith, ["rule"] = block.Rule, ["path"] = path }),
                         AuditOutcome.Denied, DateTimeOffset.UtcNow, execution.CorrelationId), httpContext.RequestAborted);
                 }
