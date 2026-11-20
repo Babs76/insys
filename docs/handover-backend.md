@@ -618,6 +618,12 @@ Ade's decisions on 7.5, the same day. Contract note: "AI-1's submission check".
   - `AssistTests`: the function's place in the catalogue and the three templates.
   - Regenerated: `R__function_catalogue.sql`, `R__error_code_catalogue.sql`, `docs/api/error-codes.json`, `role-templates.md`.
 
+### Segregation of duties (20 November 2026, branch `sod-seed`; waiting for Ade's approval, OQ-197)
+- **The checks are driven only by the tenant's rows** in `iam.cfg_segregation_of_duties_conflict_rules`; with none in force, nothing is refused.
+- **Seed:** OFTZA puts the addendum's three BLOCK rules in force before any role or user (`OftzaSeed.SegregationOfDuties`); `OftzaSeedTests` pins them and that no seeded role holds both sides.
+- **Grant check:** `RoleSegregationGuard`, a new `IStaticSubmissionGuard` (building block: a submission guard that reads another of its module's tables in the submission's own context, and sees the import's other lines). It refuses a role's grant at submission when the role would hold both functions of a BLOCK rule in force: 422 `ROLE_SEGREGATION_OF_DUTIES`. Approval and activation aren't re-checked yet (OQ-197).
+- **Test:** `TenantAdministratorTests.ARoleOrAUser_HoldingBothSidesOfABlockRuleInForce_IsRefused_SRS002`, in its own tenant: both accepted with no rule in force; with the three rules, the grant (alone and as an import's two lines) and the second role's assignment refused.
+
 ### Batch 1 (19 November 2026, branch `batch-1`)
 - **Built:**
   - **Row 31:** `Invited -DisableUser-> Disabled`. `POST /identity/users/{id}/disable` on an invited user revokes the invitation: audited (`DisableUser`), the Keycloak user disabled through `UserDisabled`, and the next request with its token refused. Tests: `UserAccountTests.InvitedUser_IsDisabled_SoTheInvitationIsRevoked_AndCannotBeUsed_Row31`, `IdentityTests.InvitedUser_IsDisabled_AndTheRevokedInvitation_CannotSignIn_Row31`.

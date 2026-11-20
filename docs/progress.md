@@ -87,6 +87,7 @@
 | CI: dated end-to-end shards | OQ-129: each clock in four shards by test method, balanced from measured times; 7 to 14 minutes a shard (run 44602526513); limit 30 minutes | Branch `e2e-shards` |
 | Batch 1 | Row 31 (an invited user disabled revokes the invitation), OQ-165 (portal channels in readiness), OQ-183 (abandoned SETUP batches end Rejected); rows 32 to 34 and BR-100 wait on Ade (OQ-193 to OQ-196) | Branch `batch-1` |
 | Security-management fixes (points 2 to 4) | The seed gives LEGAL_HOLD_RELEASE authority only to COMPLIANCE_OFFICER (Ade, 25 October 2026), never the tenant administrator; four sample legal hold reasons (LITIGATION, REG_INQUIRY, INVESTIGATION, DISPUTE: a code is at most 15 characters, so REGULATORY_INQUIRY can't be one); the data protection officer's template gains PARTY_SEARCH_PARTIES (Ade, 20 November 2026). Segregation of duties (point 1) waits on Ade's decision | Branch `security-fixes` |
+| Segregation of duties (SRS-002, OQ-197) | The OFTZA seed's three BLOCK rules; a role grant refused at submission when the role would hold both functions of a rule in force (422 ROLE_SEGREGATION_OF_DUTIES); tests | Built on `sod-seed`, waiting for Ade's approval |
 
 ## Phase 1 review items
 
