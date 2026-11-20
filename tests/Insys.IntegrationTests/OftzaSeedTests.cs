@@ -35,7 +35,10 @@ namespace Insys.IntegrationTests;
 /// <summary>Workstream F: the sample tenant, through the governed API alone.</summary>
 public sealed class OftzaSeedTests(DatabaseFixture fixture) : IClassFixture<DatabaseFixture>
 {
-    private async Task<(OftzaSeed Seed, Persona Admin)> Run()
+    private Task<(OftzaSeed Seed, Persona Admin)> Run() => Start(fixture, only: null, accounts: true);
+
+    /// <summary>The seed against this fixture's host, as Program.cs runs it; <paramref name="only"/> as its --only flag.</summary>
+    internal static async Task<(OftzaSeed Seed, Persona Admin)> Start(DatabaseFixture fixture, string? only, bool accounts)
     {
         var db = fixture.Database;
         var host = await fixture.Host();
@@ -57,7 +60,7 @@ public sealed class OftzaSeedTests(DatabaseFixture fixture) : IClassFixture<Data
                 await host.Services.GetRequiredService<Insys.Life.Infrastructure.LifeJobs>().Run(CancellationToken.None);
                 await host.Services.GetRequiredService<Insys.General.Infrastructure.GeneralJobs>().Run(CancellationToken.None);
                 await host.DrainOutbox();
-            }, Accounts: true));
+            }, Accounts: accounts, Only: only));
         try
         {
             await seed.Run();

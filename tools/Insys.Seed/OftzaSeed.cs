@@ -101,6 +101,14 @@ public sealed partial class OftzaSeed(SeedContext context)
         _today = DateOnly.Parse((await _maker.Send(HttpMethod.Get, "/api/v1/identity/me")).GetProperty("tenant").GetProperty("businessDate").GetString()!,
             System.Globalization.CultureInfo.InvariantCulture);
         _checker = context.Tenant(TenantId, SecondAdministrator);
+        if (context.Only == "administrators")
+        {
+            // The deployment smoke test (batch 6 (a), Ade 20 November 2026): both administrators signed in and read as themselves, then stop.
+            await _checker.Send(HttpMethod.Get, "/api/v1/identity/me");
+            Stage("administrators signed in");
+            return;
+        }
+
         await Roles();
         Stage("roles");
         await Loaders();

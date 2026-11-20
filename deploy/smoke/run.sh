@@ -183,14 +183,17 @@ done
 [ "$(status "/documents/documents/$infected/content?purpose=SMOKE")" = 409 ] || fail "the infected upload was released"
 kubectl exec insys-seaweedfs-0 -- sh -c "wget -qO- --header 'Accept: application/json' http://\$(hostname -i):8888/buckets/insys-documents/" | jq -e '.Entries | length > 0' > /dev/null || fail "the bucket holds nothing"
 
-echo "== The OFTZA seed through Keycloak, as the Preview runs it (batch 6, Ade 19 November 2026)"
+echo "== The OFTZA seed through Keycloak, as the Preview runs it (batch 6, Ade 19 and 20 November 2026)"
 # The release is upgraded to the Preview's settings (values-seed.yaml: the Preview environment, declared non-production, the operator tenant
 # and its two administrators bootstrapped), and the seed runs with --keycloak-url as preview.sh's seed() does: the realm's insys-seed client
 # enabled for the run only, every persona signing in through Keycloak. The workflow builds the seed (SEED_DLL); it runs inside the cluster, in a
-# pod of the API's own image (which holds the .NET runtime). From the runner through port-forwards, its roles stage alone took 669 s (run
-# 44618453581), as every call crossed kubectl's tunnel. SEED_ONLY=personas is the fallback (Ade): the tenant, its administrators, roles,
-# configuration and personas. The seed prints each stage's elapsed time, and why a step waited its whole settle, on stderr.
+# pod of the API's own image (which holds the .NET runtime). The whole seed is too slow for this job, so the smoke test runs
+# SEED_ONLY=administrators (Ade, 20 November 2026, option (a)): the tenant and its two first administrators, each signing in through Keycloak
+# and reading /identity/me. The whole seed runs in its own manual workflow (full-seed.yml, option (c)), with SEED_ONLY empty and a long
+# SEED_TIMEOUT. The seed prints each stage's elapsed time, and why a step waited its whole settle, on stderr; its stage lines go to the summary.
 seed_dll=${SEED_DLL:?the workflow builds tools/Insys.Seed and gives its dll}
+seed_only=${SEED_ONLY-administrators}
+seed_timeout=${SEED_TIMEOUT:-1500}
 helm upgrade insys "$here/../helm/insys" -f "$here/values.yaml" -f "$here/values-seed.yaml"
 kubectl wait --for=condition=complete job/insys-migrate-2 --timeout=600s
 kubectl rollout status deploy/insys-api --timeout=600s
@@ -199,18 +202,25 @@ pending_events() { # each module outbox's unpublished events by type and attempt
     query "SELECT '$s', event_type, publish_attempts, count(*) FROM $s.outbox_event WHERE published_at IS NULL GROUP BY 2, 3" || true
   done
 }
-kubectl run seed --image=insys-api:smoke --image-pull-policy=Never --restart=Never --command -- sleep 3600
+progress=$(mktemp)
+stages_summary() { # the seed's own stage lines only (stage names, seconds, 429 counts): no request or response content
+  grep -E '^seed: ' "$progress" | cut -c1-200 || true
+  [ -z "${GITHUB_STEP_SUMMARY:-}" ] || { printf '\nThe seed'"'"'s stages:\n```\n'; grep -E '^seed: ' "$progress" | cut -c1-200 || true; printf '```\n'; } >> "$GITHUB_STEP_SUMMARY"
+}
+kubectl run seed --image=insys-api:smoke --image-pull-policy=Never --restart=Never --command -- sleep $(( seed_timeout + 600 ))
 kubectl wait --for=condition=ready pod/seed --timeout=120s
 kubectl cp "$(dirname "$seed_dll")" seed:/tmp/seed > /dev/null
-mode=${SEED_ONLY:+--only $SEED_ONLY}
+mode=${seed_only:+--only $seed_only}
 started=$(date +%s)
-timeout 1500 kubectl exec seed -- env INSYS_SEED_KEYCLOAK_ADMIN_PASSWORD=smoke-admin dotnet /tmp/seed/Insys.Seed.dll --api http://insys-api:8080 \
+timeout "$seed_timeout" kubectl exec seed -- env INSYS_SEED_KEYCLOAK_ADMIN_PASSWORD=smoke-admin dotnet /tmp/seed/Insys.Seed.dll --api http://insys-api:8080 \
   --keycloak-url http://insys-keycloak:8080 --keycloak-admin admin --operator-tenant 0199f000-0000-7000-8000-000000000001 \
-  --platform-1 insys-admin --platform-2 insys-admin-2 $mode \
-  || { code=$?; kubectl logs deploy/insys-api --tail=80 || true; pending_events; fail "the seed failed against the deployed API (exit $code; 124 is the 25-minute limit)"; }
+  --platform-1 insys-admin --platform-2 insys-admin-2 $mode 2>"$progress" \
+  || { code=$?; cat "$progress" >&2; stages_summary; kubectl logs deploy/insys-api --tail=80 || true; pending_events; fail "the seed failed against the deployed API (exit $code; 124 is the ${seed_timeout}s limit)"; }
 seconds=$(( $(date +%s) - started ))
+cat "$progress" >&2
 echo "The seed ran in ${seconds}s (${mode:-the whole seed}, every call through Keycloak)."
 [ -z "${GITHUB_STEP_SUMMARY:-}" ] || echo "Smoke: the OFTZA seed (${mode:-the whole seed}) ran against the deployed API through Keycloak in ${seconds}s." >> "$GITHUB_STEP_SUMMARY"
+stages_summary
 kubectl delete pod seed --wait=false > /dev/null
 
 # The seed disabled its client again.
@@ -218,17 +228,21 @@ admin=$(in_cluster "curl -sf -d grant_type=password -d client_id=admin-cli -d us
 [ "$(in_cluster "curl -sf -H 'Authorization: Bearer $admin' '$kc/admin/realms/insys/clients?clientId=insys-seed' | jq -r '.[0].enabled'")" = false ] \
   || fail "the seed left its Keycloak client insys-seed enabled"
 
-# One seeded persona, the auditor (oftza.oftza-auditor, whose Keycloak account Identity made), signs in through the realm (insys-web, which this
-# cluster lets take a password) with a throwaway password set here, and reads as itself.
-persona_id=$(in_cluster "curl -sf -H 'Authorization: Bearer $admin' '$kc/admin/realms/insys/users?username=oftza.oftza-auditor&exact=true' | jq -r '.[0].id'")
-[ -n "$persona_id" ] && [ "$persona_id" != null ] || fail "Keycloak has no account for the seeded auditor"
+# One seeded user signs in through the realm (insys-web, which this cluster lets take a password) with a throwaway password set here, and reads
+# as itself: with --only administrators, the first administrator (oftza.oftza-admin-1); after the whole seed, the auditor persona
+# (oftza.oftza-auditor). Identity made both Keycloak accounts.
+signer=oftza.oftza-auditor
+[ "$seed_only" != administrators ] || signer=oftza.oftza-admin-1
+persona_id=$(in_cluster "curl -sf -H 'Authorization: Bearer $admin' '$kc/admin/realms/insys/users?username=$signer&exact=true' | jq -r '.[0].id'")
+[ -n "$persona_id" ] && [ "$persona_id" != null ] || fail "Keycloak has no account for $signer"
 in_cluster "curl -sf -X PUT -H 'Authorization: Bearer $admin' -H 'Content-Type: application/json' -d '{\"type\":\"password\",\"value\":\"smoke-persona\",\"temporary\":false}' $kc/admin/realms/insys/users/$persona_id/reset-password"
 in_cluster "curl -sf -X PUT -H 'Authorization: Bearer $admin' -H 'Content-Type: application/json' -d '{\"requiredActions\":[],\"emailVerified\":true}' $kc/admin/realms/insys/users/$persona_id"
-persona=$(in_cluster "curl -sf -d grant_type=password -d client_id=insys-web -d username=oftza.oftza-auditor -d password=smoke-persona -d 'scope=openid insys-api' $kc/realms/insys/protocol/openid-connect/token | jq -r .access_token")
-[ -n "$persona" ] && [ "$persona" != null ] || fail "the seeded auditor got no token from Keycloak"
-me=$(in_cluster "curl -sS --fail-with-body -H 'Authorization: Bearer $persona' $api/identity/me") || fail "the seeded auditor couldn't read /identity/me: $me"
-[ "$(jq -r .tenant.tenantCode <<<"$me")" = OFTZA ] || fail "the seeded auditor isn't in OFTZA: $(jq -c .tenant <<<"$me")"
-echo "The seeded auditor signed in through Keycloak and read /identity/me in OFTZA ($(jq -r .tenant.status <<<"$me"))."
+persona=$(in_cluster "curl -sf -d grant_type=password -d client_id=insys-web -d username=$signer -d password=smoke-persona -d 'scope=openid insys-api' $kc/realms/insys/protocol/openid-connect/token | jq -r .access_token")
+[ -n "$persona" ] && [ "$persona" != null ] || fail "$signer got no token from Keycloak"
+me=$(in_cluster "curl -sS --fail-with-body -H 'Authorization: Bearer $persona' $api/identity/me") || fail "$signer couldn't read /identity/me: $me"
+[ "$(jq -r .tenant.tenantCode <<<"$me")" = OFTZA ] || fail "$signer isn't in OFTZA: $(jq -c .tenant <<<"$me")"
+echo "$signer signed in through Keycloak and read /identity/me in OFTZA ($(jq -r .tenant.status <<<"$me"))."
+[ -z "${GITHUB_STEP_SUMMARY:-}" ] || echo "Smoke: $signer signed in through Keycloak and read /identity/me in OFTZA." >> "$GITHUB_STEP_SUMMARY"
 
 trap - ERR
 echo "SMOKE PASSED"

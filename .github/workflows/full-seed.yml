@@ -1,0 +1,104 @@
+# ============================================================================
+# OPENFACTOR TECHNOLOGY GROUP
+# CONFIDENTIAL AND PROPRIETARY SOFTWARE
+# ============================================================================
+# Copyright (c) 2026 OpenFactor Technology Group.
+# All rights reserved.
+# PRODUCT       : INSYS
+# COMPONENT     : CI
+# CONFIDENTIALITY AND INTELLECTUAL PROPERTY NOTICE
+# This source code and its associated documentation contain confidential and
+# proprietary information belonging to OpenFactor Technology Group or its
+# applicable intellectual property rights holder.
+# This material is provided solely for authorised development, maintenance,
+# operation or evaluation purposes, as applicable. No person may reproduce,
+# modify, distribute, disclose, publish or otherwise use this material except
+# as expressly permitted by an applicable written agreement or licence.
+# No ownership rights or licence to any intellectual property are granted
+# by the inclusion of this notice, except as expressly provided in an
+# applicable written agreement or licence.
+# Third-party software, open-source components and customer-owned materials
+# remain subject to their respective ownership rights and applicable licences
+# or agreements.
+# UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
+# ============================================================================
+name: full-seed
+
+# Option (c) of batch 6 (Ade, 20 November 2026): deploys exactly as deployment-smoke does, then runs the WHOLE OFTZA seed against the
+# deployed API through Keycloak, and records its time and each stage's in the job summary (sample data only; no secrets). Manual only: it
+# takes hours, so it's no merge gate. The deployment smoke test itself runs --only administrators.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  full-seed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v5
+
+      # Main's run on fe5f841 (41816611728) stopped on "No space left on device": three images, kind's node and its volumes fill the runner.
+      # The smoke test uses none of these toolchains on the runner itself (the builds run in Docker), so they go first.
+      - name: Free disk space
+        run: |
+          df -h / | tail -n 1
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL /usr/share/swift
+          docker image prune -af > /dev/null
+          df -h / | tail -n 1
+
+      # The Preview's Traefik must get the TLS-ALPN-01 challenge: with tlsChallenge: {} the chart rendered no argument, and no certificate came.
+      - name: The Preview's Traefik arguments
+        run: deploy/preview/check-traefik.sh
+
+      - uses: helm/kind-action@v1
+        with:
+          cluster_name: insys-smoke
+
+      - name: Build and load the images
+        run: |
+          docker build -q -f deploy/docker/api.Dockerfile -t insys-api:smoke .
+          docker build -q -f deploy/docker/migrator.Dockerfile -t insys-migrator:smoke .
+          kind load docker-image insys-api:smoke insys-migrator:smoke --name insys-smoke
+
+      # The console's image is private: the workflow's own token reads it (the package gives this repository read access). It's pulled by the
+      # digest the chart pins and loaded into the cluster, so the cluster needs no pull secret here; the Preview uses one.
+      - name: The console's image, by the chart's digest
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          image=$(sed -n 's/^  image: \(ghcr.io\/[^ ]*@sha256:[0-9a-f]*\).*/\1/p' deploy/helm/insys/values.yaml)
+          echo "$GHCR_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin > /dev/null
+          if ! docker pull -q "$image"; then
+            # What the registry itself says to this token: its tags (refused if the package gives this repository no access), then the pinned digest.
+            repo=${image#ghcr.io/}; repo=${repo%@*}
+            bearer=$(curl -s -u "${{ github.actor }}:$GHCR_TOKEN" "https://ghcr.io/token?scope=repository:$repo:pull" | jq -r .token)
+            echo "Tags: $(curl -s -H "Authorization: Bearer $bearer" "https://ghcr.io/v2/$repo/tags/list" | jq -c '.tags // .errors' | cut -c1-600)"
+            echo "Pinned digest: HTTP $(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $bearer" \
+              -H 'Accept: application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json' \
+              "https://ghcr.io/v2/$repo/manifests/${image#*@}")"
+            exit 1
+          fi
+          docker tag "$image" insys-console:smoke
+          kind load docker-image insys-console:smoke --name insys-smoke
+
+      # The seed runs from the runner against the deployed API (run.sh's last phase, batch 6), so the SDK goes back after the disk was freed.
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Build the seed
+        run: |
+          dotnet build tools/Insys.Seed -c Release -v q
+          df -h / | tail -n 1
+
+      - name: Deploy, smoke test and the whole seed
+        env:
+          SEED_DLL: tools/Insys.Seed/bin/Release/net10.0/Insys.Seed.dll
+          # The whole seed (no --only), with three hours for it: from the runner its roles stage alone took 669 s (run 44618453581).
+          SEED_ONLY: ""
+          SEED_TIMEOUT: "10800"
+        run: deploy/smoke/run.sh

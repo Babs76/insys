@@ -191,7 +191,8 @@ public sealed class Persona(HttpClient http, Action<string>? afterCall = null)
 }
 
 /// <summary>What the seed runs with: who it acts as, and how to wait for events to be delivered, and, where it can be asked, how to run the daily jobs now (elsewhere their timers do). OwnRealm: users are made in INSYS's own Keycloak realm, which signs them in (KeycloakSignIn). Accounts: the INSYS Preview's generic accounts too.</summary>
-/// <param name="Only">Null for the whole seed; <c>personas</c> stops once the tenant, its administrators, roles, configuration and personas exist,
+/// <param name="Only">Null for the whole seed; <c>administrators</c> stops once the tenant's two first administrators have each signed in and read
+/// <c>/identity/me</c> (the deployment smoke test, batch 6 (a)); <c>personas</c> stops once the tenant, its administrators, roles, configuration and personas exist,
 /// before products and business (the deployment smoke test's fallback when the whole seed is too slow for its job, batch 6).</param>
 /// <param name="Progress">Where each stage's name and elapsed time go (the deployment smoke test and the Preview write them to stderr); none by default.</param>
 public sealed record SeedContext(Persona PlatformMaker, Persona PlatformChecker, Func<Guid, string, Persona> Tenant, Func<Task> Settle, Func<Task>? Jobs = null, bool OwnRealm = false, bool Accounts = false,

@@ -113,11 +113,12 @@ async Task Settle()
     Console.Error.WriteLine($"seed: settle {settles} waited 30s: {last}");
 }
 
-// --only personas: the tenant, its administrators, roles, configuration and personas, and nothing after (the deployment smoke test's fallback).
+// --only administrators: the tenant and its two first administrators, each signed in and reading /identity/me, and nothing after (the deployment
+// smoke test, batch 6 (a)). --only personas: the tenant, its administrators, roles, configuration and personas, and nothing after.
 var only = options.GetValueOrDefault("only");
-if (only is not null and not "personas")
+if (only is not null and not ("administrators" or "personas"))
 {
-    Console.Error.WriteLine("--only takes personas, or is left out for the whole seed.");
+    Console.Error.WriteLine("--only takes administrators or personas, or is left out for the whole seed.");
     return 2;
 }
 
@@ -174,5 +175,5 @@ if (keycloak is not null && options.ContainsKey("accounts"))
     return 0;
 }
 
-Console.WriteLine(only is null ? $"{OftzaSeed.TenantCode}: {seed.TenantId}. Active, with its sample records." : $"{OftzaSeed.TenantCode}: {seed.TenantId}, with its personas only (--only {only}).");
+Console.WriteLine(only is null ? $"{OftzaSeed.TenantCode}: {seed.TenantId}. Active, with its sample records." : $"{OftzaSeed.TenantCode}: {seed.TenantId}, with its {only} only (--only {only}).");
 return 0;
