@@ -1,0 +1,14 @@
+REPRO claim-payment rule rows before: 0
+REPRO create CLAIMS_DRAFT_INSTRUCTION: 201
+REPRO submit DRAFT: 200
+REPRO no rule row: assign DRAFT role 204, then RELEASE role 204
+REPRO release action by a user holding both: 404 NOT_FOUND
+REPRO with the rule row: assign DRAFT role 204, then RELEASE role 409 SEGREGATION_OF_DUTIES
+REPRO release action, rule in force, user already holding both: 404 NOT_FOUND
+REPRO approve SOD_REPRO_ROLE:CLAIMS_DRAFT_INSTRUCTION: 200 {"changeRequestId":"01a1f81a-133e-76cf-9ba8-61c0b1b87915"}
+REPRO activate SOD_REPRO_ROLE:CLAIMS_DRAFT_INSTRUCTION: 200
+REPRO create CLAIMS_RELEASE_INSTRUCTION: 201
+REPRO submit RELEASE to a role holding DRAFT: 200 {"roleCode":"SOD_REPRO_ROLE","functionCode":"CLAIMS_RELEASE_INSTRUCTION","id":"01a1f81a-22be-768b-88e4-73e1d13fa1a1","tenantId":"0199f000-0000-7000-8000-00000000000a","code":"SOD_REPRO_ROLE:CLAIMS_RELEASE_INSTRUCTION","version":1,"effectiveFrom":"2026-11-20","effectiveTo":null,"recordStatus":"SUBMITTED","supersedesId":null,"labels":null,"description":null,"recordSource":null,"recordSourceVersion":null,"externalMappings":null,"recordClass":"INTERNAL","sortOrder":null,"displayFlags":null,"changeRequestId":"01a1f81a-22cd-7051-b2ab-835e5b4d2242","importBatchId":null,"createdAt":"2026-11-20T08:37:04.832052+00:00","createdBy":"01a1f81a-0fe9-7ea9-b0f9-5ada37a23f35","approvedAt":null,"approvedBy":null,"changeReason":"repro","rowVersion":2,"displayLabel":null,"displayLabelLanguage":null}
+REPRO approve SOD_REPRO_ROLE:CLAIMS_RELEASE_INSTRUCTION: 200 {"changeRequestId":"01a1f81a-22cd-7051-b2ab-835e5b4d2242"}
+REPRO activate SOD_REPRO_ROLE:CLAIMS_RELEASE_INSTRUCTION: 200
+REPRO grants in force on the role: 0

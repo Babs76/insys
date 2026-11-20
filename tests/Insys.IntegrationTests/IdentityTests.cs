@@ -171,6 +171,47 @@ public sealed class IdentityTests(DatabaseFixture fixture) : IClassFixture<Datab
         (await response.Code()).ShouldBe("SEGREGATION_OF_DUTIES");
     }
 
+    /// <summary>REPRO (not for merge): assignment with and without the claim-payment rule in the tenant's table, and the action for a user holding both.</summary>
+    [Fact]
+    public async Task Repro_AUserIsAssignedDraftAndRelease_WithAndWithoutTheRuleRow_AndTheReleaseAction()
+    {
+        var t = DatabaseFixture.TenantA;
+        var admin = _factory.ClientFor(t, Admin);
+        var handler = await fixture.Database.RoleWithFunctions(t, "CLAIMS_DRAFT_INSTRUCTION");
+        var manager = await fixture.Database.RoleWithFunctions(t, "CLAIMS_RELEASE_INSTRUCTION");
+        var rows = await fixture.Database.ScalarAsOwner<long>("""
+            SELECT count(*) FROM iam.cfg_segregation_of_duties_conflict_rules WHERE tenant_id = @t AND function_a = 'CLAIMS_DRAFT_INSTRUCTION' AND record_status = 'EFFECTIVE'
+            """, ("t", t));
+        System.IO.File.AppendAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "sod-repro.txt"), $"REPRO claim-payment rule rows before: {rows}" + "\n");
+
+        async Task<HttpResponseMessage> Assign(Guid userId, string role)
+        {
+            var user = await admin.GetAsync($"/api/v1/identity/users/{userId}");
+            return await admin.Send(HttpMethod.Post, $"/api/v1/identity/users/{userId}/assign-role", new { roleCode = role }, ifMatch: user.ETag());
+        }
+
+        var first = await fixture.Database.UserWithPermissions(t, "repro-sod-1");
+        System.IO.File.AppendAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "sod-repro.txt"), $"REPRO no rule row: assign DRAFT role {(int)(await Assign(first, handler)).StatusCode}, then RELEASE role {(int)(await Assign(first, manager)).StatusCode}" + "\n");
+
+        var both = await fixture.Database.UserWithFunctions(t, "repro-sod-both", "CLAIMS_DRAFT_INSTRUCTION", "CLAIMS_RELEASE_INSTRUCTION");
+        var client = _factory.ClientFor(t, "repro-sod-both");
+        var release = await client.Send(HttpMethod.Post, $"/api/v1/claims/payment-instructions/{Guid.CreateVersion7()}/release", new { }, ifMatch: "\"1\"");
+        System.IO.File.AppendAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "sod-repro.txt"), $"REPRO release action by a user holding both: {(int)release.StatusCode} {await release.Code()}" + "\n");
+
+        await fixture.Database.ExecuteAsOwner("""
+            INSERT INTO iam.cfg_segregation_of_duties_conflict_rules
+              (tenant_id, code, version, effective_from, record_status, created_by, change_reason, function_a, function_b, conflict)
+            VALUES (@t, 'SOD_CLAIM_PAY_ID_REPRO', 1, DATE '2026-01-01', 'EFFECTIVE', 'seed', 'repro', 'CLAIMS_DRAFT_INSTRUCTION', 'CLAIMS_RELEASE_INSTRUCTION', 'BLOCK')
+            ON CONFLICT DO NOTHING
+            """, ("t", t));
+        var second = await fixture.Database.UserWithPermissions(t, "repro-sod-2");
+        var a = await Assign(second, handler);
+        var b = await Assign(second, manager);
+        System.IO.File.AppendAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "sod-repro.txt"), $"REPRO with the rule row: assign DRAFT role {(int)a.StatusCode}, then RELEASE role {(int)b.StatusCode} {await b.Code()}" + "\n");
+        var release2 = await client.Send(HttpMethod.Post, $"/api/v1/claims/payment-instructions/{Guid.CreateVersion7()}/release", new { }, ifMatch: "\"1\"");
+        System.IO.File.AppendAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "sod-repro.txt"), $"REPRO release action, rule in force, user already holding both: {(int)release2.StatusCode} {await release2.Code()}" + "\n");
+    }
+
     [Fact]
     public async Task AssignRole_ThatRequiresMfa_ToAUserWithoutMfa_IsRefused_IAM003()
     {

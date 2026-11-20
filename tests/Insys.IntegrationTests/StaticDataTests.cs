@@ -299,6 +299,51 @@ public sealed class StaticDataTests(DatabaseFixture fixture) : IClassFixture<Dat
         (await maker.Send(HttpMethod.Post, grants, Grant("BR019-GOOD", "IDENTITY_USERS"), idempotent: true)).StatusCode.ShouldBe(HttpStatusCode.Created);
     }
 
+    /// <summary>REPRO (not for merge): a role's grants against a BLOCK rule in force, at submission and approval.</summary>
+    [Fact]
+    public async Task Repro_ARoleHoldingDraft_IsGrantedRelease_DespiteABlockRuleInForce()
+    {
+        await fixture.Database.ExecuteAsOwner("""
+            INSERT INTO iam.cfg_segregation_of_duties_conflict_rules
+              (tenant_id, code, version, effective_from, record_status, created_by, change_reason, function_a, function_b, conflict)
+            VALUES (@t, 'SOD_CLAIM_PAY_REPRO', 1, DATE '2026-01-01', 'EFFECTIVE', 'seed', 'repro', 'CLAIMS_DRAFT_INSTRUCTION', 'CLAIMS_RELEASE_INSTRUCTION', 'BLOCK')
+            ON CONFLICT DO NOTHING
+            """, ("t", DatabaseFixture.TenantA));
+        const string grants = "/api/v1/identity/static/role-function-assignments";
+        var maker = _factory.ClientFor(DatabaseFixture.TenantA, "maker-a");
+        var checker = _factory.ClientFor(DatabaseFixture.TenantA, "checker-a");
+        static object Grant(string code, string function) => new { code, roleCode = "SOD_REPRO_ROLE", functionCode = function, changeReason = "repro" };
+
+        async Task<HttpResponseMessage> Submit(string code, string function)
+        {
+            var created = await maker.Send(HttpMethod.Post, grants, Grant(code, function), idempotent: true);
+            System.IO.File.AppendAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "sod-repro.txt"), $"REPRO create {function}: {(int)created.StatusCode}" + "\n");
+            return await maker.Send(HttpMethod.Post, $"{grants}/{code}/versions/1/submit", ifMatch: created.ETag());
+        }
+
+        async Task Approve(string code)
+        {
+            await _factory.DrainOutbox();
+            var approved = await checker.Send(HttpMethod.Post, $"{grants}/{code}/versions/1/approve");
+            System.IO.File.AppendAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "sod-repro.txt"), $"REPRO approve {code}: {(int)approved.StatusCode} {await approved.Content.ReadAsStringAsync()}" + "\n");
+            await _factory.DrainOutbox();
+            var version = (await (await maker.GetAsync($"{grants}/{code}/versions")).Json())[0];
+            var activated = await maker.Send(HttpMethod.Post, $"{grants}/{code}/versions/1/activate", ifMatch: $"\"{version.GetProperty("rowVersion").GetInt64()}\"");
+            System.IO.File.AppendAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "sod-repro.txt"), $"REPRO activate {code}: {(int)activated.StatusCode}" + "\n");
+        }
+
+        var draft = await Submit("SOD_REPRO_ROLE:CLAIMS_DRAFT_INSTRUCTION", "CLAIMS_DRAFT_INSTRUCTION");
+        System.IO.File.AppendAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "sod-repro.txt"), $"REPRO submit DRAFT: {(int)draft.StatusCode}" + "\n");
+        await Approve("SOD_REPRO_ROLE:CLAIMS_DRAFT_INSTRUCTION");
+        var release = await Submit("SOD_REPRO_ROLE:CLAIMS_RELEASE_INSTRUCTION", "CLAIMS_RELEASE_INSTRUCTION");
+        System.IO.File.AppendAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "sod-repro.txt"), $"REPRO submit RELEASE to a role holding DRAFT: {(int)release.StatusCode} {await release.Content.ReadAsStringAsync()}" + "\n");
+        await Approve("SOD_REPRO_ROLE:CLAIMS_RELEASE_INSTRUCTION");
+        var held = await fixture.Database.ScalarAsOwner<long>("""
+            SELECT count(*) FROM iam.cfg_role_function_assignments WHERE tenant_id = @t AND role_code = 'SOD_REPRO_ROLE' AND record_status = 'EFFECTIVE'
+            """, ("t", DatabaseFixture.TenantA));
+        System.IO.File.AppendAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "sod-repro.txt"), $"REPRO grants in force on the role: {held}" + "\n");
+    }
+
     /// <summary>
     /// OQ-190 (Ade, 19 November 2026): a role granted ASSIST_PRODUCT_DRAFT_RUN must also hold ASSIST_PRODUCT_DRAFT_REVIEW. RUN alone is refused at submission;
     /// with REVIEW in force it is accepted; REVIEW can't be deprecated or retired while RUN stays, and goes once RUN has gone.
