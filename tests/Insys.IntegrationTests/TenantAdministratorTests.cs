@@ -275,9 +275,10 @@ public sealed class TenantAdministratorTests(DatabaseFixture fixture) : IClassFi
     /// change requests, and approving.
     /// </summary>
     /// <summary>
-    /// SRS-002 (Ade, 20 November 2026), the front end's capture: with no rule in force INSYS accepts both; with the role-templates addendum's three BLOCK rules
-    /// in force, a grant giving a role holding CLAIMS_DRAFT_INSTRUCTION CLAIMS_RELEASE_INSTRUCTION too is refused at submission (alone and as two lines of
-    /// one import), and one user given a draft role and then a release role is refused.
+    /// SRS-002 (Ade, 20 November 2026, OQ-197): the role-templates addendum's three BLOCK rules are a platform baseline, in force with none of the tenant's rows:
+    /// a grant giving a role holding CLAIMS_DRAFT_INSTRUCTION CLAIMS_RELEASE_INSTRUCTION too is refused at submission (alone and as two lines of one import),
+    /// and one user given a draft role and then a release role is refused; the tenant's own rows on the same pairs change nothing. A grant giving role X one
+    /// side, when a user holding X holds the other through role Y, is refused too.
     /// </summary>
     [Fact]
     public async Task ARoleOrAUser_HoldingBothSidesOfABlockRuleInForce_IsRefused_SRS002()
@@ -336,7 +337,7 @@ public sealed class TenantAdministratorTests(DatabaseFixture fixture) : IClassFi
             return assigned;
         }
 
-        foreach (var role in new[] { "SOD_DRAFTER", "SOD_RELEASER", "SOD_UNRULED" })
+        foreach (var role in new[] { "SOD_DRAFTER", "SOD_RELEASER", "SOD_UNRULED", "SOD_OTHER" })
         {
             await NewRole(role);
         }
@@ -344,14 +345,26 @@ public sealed class TenantAdministratorTests(DatabaseFixture fixture) : IClassFi
         await Grant("SOD_DRAFTER", "CLAIMS_DRAFT_INSTRUCTION");
         await Grant("SOD_RELEASER", "CLAIMS_RELEASE_INSTRUCTION");
         await Grant("SOD_UNRULED", "CLAIMS_DRAFT_INSTRUCTION");
+        await Grant("SOD_OTHER", "CLAIMS_SUBMIT_INSTRUCTION");
 
-        // No rule in force: the checks are driven by the tenant's rules, so both are accepted.
-        (await SubmitGrant("SOD_UNRULED", "CLAIMS_RELEASE_INSTRUCTION")).StatusCode.ShouldBe(HttpStatusCode.OK, "no rule is in force yet");
+        // None of the tenant's rows: the platform baseline is in force all the same, so both are refused.
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM iam.cfg_segregation_of_duties_conflict_rules WHERE tenant_id = @t", ("t", tenantId)))
+            .ShouldBe(0L);
+        var baselineGrant = await SubmitGrant("SOD_UNRULED", "CLAIMS_RELEASE_INSTRUCTION");
+        baselineGrant.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity, await baselineGrant.Content.ReadAsStringAsync());
+        (await baselineGrant.Code()).ShouldBe("ROLE_SEGREGATION_OF_DUTIES");
         var before = await NewUser("sod-before");
         (await Assign(before, "SOD_DRAFTER")).StatusCode.ShouldBe(HttpStatusCode.NoContent);
-        (await Assign(before, "SOD_RELEASER")).StatusCode.ShouldBe(HttpStatusCode.NoContent, "no rule is in force yet");
+        (await (await Assign(before, "SOD_RELEASER")).Code()).ShouldBe("SEGREGATION_OF_DUTIES", "the baseline is in force with no row of the tenant's");
 
-        // The addendum's three rules, in force in the tenant (as the OFTZA seed puts them).
+        // Across users: sod-before holds SOD_DRAFTER (the draft side) and SOD_OTHER; giving SOD_OTHER the release side would give them both.
+        (await Assign(before, "SOD_OTHER")).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        var crossing = await SubmitGrant("SOD_OTHER", "CLAIMS_RELEASE_INSTRUCTION");
+        crossing.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity, await crossing.Content.ReadAsStringAsync());
+        (await crossing.Code()).ShouldBe("ROLE_SEGREGATION_OF_DUTIES");
+        (await crossing.Content.ReadAsStringAsync()).ShouldContain("through role SOD_DRAFTER");
+
+        // The addendum's three rules, in force in the tenant as well (as the OFTZA seed puts them): nothing changes.
         foreach (var (code, a, b) in OftzaSeed.SegregationOfDuties)
         {
             await fixture.Database.ExecuteAsOwner("""
@@ -387,6 +400,72 @@ public sealed class TenantAdministratorTests(DatabaseFixture fixture) : IClassFi
         var refused = await Assign(user, "SOD_RELEASER");
         refused.StatusCode.ShouldBe(HttpStatusCode.Conflict, await refused.Content.ReadAsStringAsync());
         (await refused.Code()).ShouldBe("SEGREGATION_OF_DUTIES");
+    }
+
+    /// <summary>
+    /// SRS-002 (Ade, 20 November 2026, OQ-197): the platform baseline can't be retired or weakened. A tenant's row on a baseline pair, in either order, is refused
+    /// as WARN or with an end date, and once in force can't be deprecated; a rule of the tenant's own on another pair, WARN included, is accepted.
+    /// </summary>
+    [Fact]
+    public async Task ThePlatformBaseline_CannotBeRetiredOrWeakenedByATenant_SRS002()
+    {
+        var one = _factory.ClientFor(Operator, "platform-one");
+        var two = _factory.ClientFor(Operator, "platform-two");
+        var (tenantId, url) = await RegisterTenantAtAccessStep(one, "SODBASE");
+        var request = new { tenantId, administrators = new[] { Person("sodbase-ana"), Person("sodbase-ben") }, functions = ConfiguringFunctions };
+        var requestId = (await (await one.Send(HttpMethod.Post, "/api/v1/identity/tenant-administrators", request, idempotent: true)).Json()).GetProperty("id").GetGuid();
+        await _factory.DrainOutbox();
+        (await two.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{await Approval(one, requestId)}/approve", ifMatch: "\"1\"")).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        await _factory.DrainOutbox();
+        var ana = _factory.ClientFor(tenantId, "sodbase-ana");
+        var ben = _factory.ClientFor(tenantId, "sodbase-ben");
+        foreach (var admin in new[] { ana, ben })
+        {
+            (await admin.GetAsync("/api/v1/identity/me")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        }
+
+        await CompleteOnboardingAndActivate(one, url, (await one.GetAsync(url)).ETag(), "ORGANISATION_AND_ACCESS");
+        const string rules = "/api/v1/identity/static/segregation-of-duties-conflict-rules";
+
+        async Task<HttpResponseMessage> Submit(string code, object fields)
+        {
+            var body = System.Text.Json.JsonSerializer.SerializeToElement(fields);
+            var draft = new Dictionary<string, object?> { ["code"] = code, ["changeReason"] = "SRS-002" };
+            foreach (var field in body.EnumerateObject())
+            {
+                draft[field.Name] = field.Value;
+            }
+
+            var created = await ana.Send(HttpMethod.Post, rules, draft, idempotent: true);
+            created.StatusCode.ShouldBe(HttpStatusCode.Created, await created.Content.ReadAsStringAsync());
+            return await ana.Send(HttpMethod.Post, $"{rules}/{code}/versions/1/submit", ifMatch: created.ETag());
+        }
+
+        async Task Refused(HttpResponseMessage response)
+        {
+            response.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity, await response.Content.ReadAsStringAsync());
+            (await response.Code()).ShouldBe("SEGREGATION_BASELINE_PROTECTED");
+        }
+
+        // Weakened: WARN on a baseline pair, in its order or the other; an end date.
+        await Refused(await Submit("SOD_WEAK", new { functionA = "CLAIMS_DRAFT_INSTRUCTION", functionB = "CLAIMS_RELEASE_INSTRUCTION", conflict = "WARN" }));
+        await Refused(await Submit("SOD_WEAK_REV", new { functionA = "PAYMENTS_RELEASE_BATCH", functionB = "PAYMENTS_BUILD_BATCH", conflict = "WARN" }));
+        await Refused(await Submit("SOD_ENDING", new
+        {
+            functionA = "PARTY_ADD_BANK_ACCOUNT", functionB = "PARTY_BANK_ACCOUNT_VERIFY", conflict = "BLOCK", effectiveTo = TestClock.Today.AddDays(30),
+        }));
+
+        // As BLOCK with no end date it is accepted, and once in force it can't be deprecated.
+        (await Submit("SOD_CLAIM_PAYMENT", new { functionA = "CLAIMS_DRAFT_INSTRUCTION", functionB = "CLAIMS_RELEASE_INSTRUCTION", conflict = "BLOCK" }))
+            .StatusCode.ShouldBe(HttpStatusCode.OK);
+        await ApproveInTenant(ana, ben, tenantId, StaticDataApprovals.BusinessRefType, "SOD_CLAIM_PAYMENT@1");
+        await Activate(ana, $"{rules}/SOD_CLAIM_PAYMENT");
+        var published = (await (await ana.GetAsync($"{rules}/SOD_CLAIM_PAYMENT/versions")).Json())[0];
+        await Refused(await ana.Send(HttpMethod.Post, $"{rules}/SOD_CLAIM_PAYMENT/versions/1/deprecate",
+            ifMatch: $"\"{published.GetProperty("rowVersion").GetInt64()}\""));
+
+        // The tenant's own rule on another pair, even WARN, is its own to set.
+        (await Submit("SOD_OWN", new { functionA = "CLAIMS_SUBMIT_INSTRUCTION", functionB = "CLAIMS_MOVE_RESERVE", conflict = "WARN" })).StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
     private static readonly string[] ConfiguringFunctions =

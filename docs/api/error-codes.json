@@ -2014,7 +2014,7 @@
       "httpStatus": 422,
       "messageKey": "error.identity.role_segregation_of_duties",
       "retryable": false,
-      "means": "The role would hold two duties your organisation keeps apart, such as preparing and releasing the same payment.",
+      "means": "The role would hold two duties your organisation keeps apart, such as preparing and releasing the same payment, or would give a user holding it both through their other roles.",
       "remedy": "Grant the function to a different role, or end the role's conflicting function first."
     },
     {
@@ -2026,12 +2026,28 @@
       "remedy": null
     },
     {
+      "code": "SEGREGATION_BASELINE_PROTECTED",
+      "httpStatus": 422,
+      "messageKey": "error.identity.segregation_baseline_protected",
+      "retryable": false,
+      "means": "This segregation-of-duties rule is part of the platform's baseline, which every organisation keeps in force as a block.",
+      "remedy": "Leave the rule as a block with no end date; you can add rules of your own on other pairs of functions."
+    },
+    {
       "code": "SEGREGATION_OF_DUTIES",
       "httpStatus": 409,
       "messageKey": "error.identity.segregation_of_duties",
       "retryable": false,
       "means": "The role would give the user two duties your organisation keeps apart, such as preparing and releasing the same payment.",
       "remedy": "Give the role to someone else, or remove the conflicting role first."
+    },
+    {
+      "code": "SEGREGATION_OF_DUTIES_BLOCKED",
+      "httpStatus": 403,
+      "messageKey": "error.identity.segregation_of_duties_blocked",
+      "retryable": false,
+      "means": "Your roles give you two duties your organisation keeps apart, such as preparing and releasing the same payment, so you can't do the release or verification part.",
+      "remedy": "Ask another person to do it, or ask your administrator to end one of the conflicting roles."
     },
     {
       "code": "SETTLEMENT_SUBJECT_CHANGED",

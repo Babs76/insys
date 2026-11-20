@@ -152,11 +152,15 @@ internal sealed class RolePolicyReader(IdentityDbContext db, FunctionCatalogueRe
             .ToList();
     }
 
-    /// <summary>The rules on function pairs (ADR-026 §4); a rule still on permissions has been converted and retired.</summary>
+    /// <summary>
+    /// The rules on function pairs (ADR-026 §4): the platform baseline and the tenant's own (OQ-197); a rule still on permissions has been converted and
+    /// retired.
+    /// </summary>
     public async Task<IReadOnlyList<DutyConflictRule>> ConflictRules(DateOnly day, CancellationToken cancellationToken) =>
-        await db.Set<SegregationOfDutiesConflictRules>().AsNoTracking().InForce(Descriptor<SegregationOfDutiesConflictRules>().Lifecycle, day)
+        SegregationOfDutiesBaseline.WithTenantRules(await db.Set<SegregationOfDutiesConflictRules>().AsNoTracking()
+            .InForce(Descriptor<SegregationOfDutiesConflictRules>().Lifecycle, day)
             .Where(r => r.FunctionA != null && r.FunctionB != null)
-            .Select(r => new DutyConflictRule(r.FunctionA!, r.FunctionB!, r.Conflict)).ToListAsync(cancellationToken);
+            .Select(r => new DutyConflictRule(r.FunctionA!, r.FunctionB!, r.Conflict, r.Code)).ToListAsync(cancellationToken));
 
     /// <summary>The roles a policy names, and those holding a privileged function (ADR-026 §4).</summary>
     public async Task<IReadOnlySet<string>> PrivilegedRoles(DateOnly day, CancellationToken cancellationToken) =>
@@ -224,7 +228,8 @@ internal sealed class AccessRepository(IdentityDbContext db) : Application.Acces
     public void Add(Domain.Access.AccessReview review) => db.Reviews.Add(review);
 }
 
-internal sealed class AccessQueries(IdentityDbContext db) : Application.Access.IAccessQueries
+internal sealed class AccessQueries(IdentityDbContext db, Application.Access.SegregationConflictFinder conflicts, IBusinessDate businessDate)
+    : Application.Access.IAccessQueries
 {
     public async Task<IReadOnlyList<Application.Access.GrantView>> Grants(string? status, Guid? afterId, int limit, CancellationToken cancellationToken)
     {
@@ -253,18 +258,32 @@ internal sealed class AccessQueries(IdentityDbContext db) : Application.Access.I
             query = query.Where(r => r.Id.CompareTo(afterId.Value) > 0);
         }
 
-        return (await query.OrderBy(r => r.Id).Take(limit).ToListAsync(cancellationToken)).Select(View).ToList();
+        var reviews = await query.OrderBy(r => r.Id).Take(limit).ToListAsync(cancellationToken);
+        var flags = await Conflicts(reviews, cancellationToken);
+        return reviews.Select(r => View(r, flags)).ToList();
     }
 
     public async Task<Application.Access.ReviewView?> Review(Guid id, CancellationToken cancellationToken) =>
-        await db.Reviews.AsNoTracking().Include(r => r.Items).SingleOrDefaultAsync(r => r.Id == id, cancellationToken) is { } review ? View(review) : null;
+        await db.Reviews.AsNoTracking().Include(r => r.Items).SingleOrDefaultAsync(r => r.Id == id, cancellationToken) is { } review
+            ? View(review, await Conflicts([review], cancellationToken))
+            : null;
+
+    /// <summary>OQ-197: by user and role, the BLOCK rules in force today whose two sides the user holds, that role giving one of them.</summary>
+    private async Task<ILookup<(Guid UserId, string RoleCode), string>> Conflicts(IReadOnlyList<Domain.Access.AccessReview> reviews, CancellationToken cancellationToken)
+    {
+        var found = reviews.Any(r => r.Items.Count > 0) ? await conflicts.InForce(businessDate.Today, cancellationToken) : [];
+        return found
+            .SelectMany(c => c.RolesGivingA.Concat(c.RolesGivingB).Distinct(StringComparer.Ordinal).Select(role => (Key: (c.UserId, role), c.Rule)))
+            .Distinct().ToLookup(c => c.Key, c => c.Rule);
+    }
 
     private static Application.Access.GrantView View(Domain.Access.PrivilegedAccessGrant g) =>
         new(g.Id, g.UserId, g.Purpose, g.RequestedBy, g.ApprovedBy, g.ValidFrom, g.ValidTo, g.Status, g.DecidedAt, g.RejectionReason, g.RowVersion);
 
-    private static Application.Access.ReviewView View(Domain.Access.AccessReview r) =>
+    private static Application.Access.ReviewView View(Domain.Access.AccessReview r, ILookup<(Guid UserId, string RoleCode), string> conflicts) =>
         new(r.Id, r.Scope.ToString(), r.ReviewerId, r.DueDate, r.Status, r.ItemsTotal, r.ItemsRevoked,
-            r.Items.OrderBy(i => i.Id).Select(i => new Application.Access.ReviewItemView(i.Id, i.UserId, i.RoleCode, i.Decision.ToString(), i.DecidedBy, i.DecidedAt))
+            r.Items.OrderBy(i => i.Id).Select(i => new Application.Access.ReviewItemView(i.Id, i.UserId, i.RoleCode, i.Decision.ToString(), i.DecidedBy, i.DecidedAt,
+                    [.. conflicts[(i.UserId, i.RoleCode)].Order(StringComparer.Ordinal)]))
                 .ToList(),
             r.RowVersion);
 }

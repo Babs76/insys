@@ -59,6 +59,10 @@ public static class IdentityInfrastructure
         services.AddSingleton<IStaticSetGuard>(sp => sp.GetRequiredService<StaticData.FunctionRequirementGuard>());
         services.AddSingleton<IStaticRemovalGuard>(sp => sp.GetRequiredService<StaticData.FunctionRequirementGuard>());
         services.AddSingleton<IStaticSubmissionGuard, StaticData.RoleSegregationGuard>();
+        // OQ-197 (Ade, 20 November 2026): a tenant can't retire or weaken the platform's segregation-of-duties baseline.
+        services.AddSingleton<StaticData.SegregationBaselineGuard>();
+        services.AddSingleton<IStaticChangeGuard>(sp => sp.GetRequiredService<StaticData.SegregationBaselineGuard>());
+        services.AddSingleton<IStaticRemovalGuard>(sp => sp.GetRequiredService<StaticData.SegregationBaselineGuard>());
         services.AddModuleHandlers<IdentityDbContext>(typeof(ProvisionUser).Assembly);
         services.AddDomainEventMapper<IdentityEventMapper>(IdentityDbContext.SchemaName);
         services.AddScoped<IUserRepository, UserRepository>();
@@ -104,6 +108,7 @@ public static class IdentityInfrastructure
             IdentityDbContext.SchemaName, "ApprovalRejected");
 
         services.AddScoped<IAccessRepository, AccessRepository>();
+        services.AddScoped<SegregationConflictFinder>();
         services.AddScoped<IAccessQueries, AccessQueries>();
         services.AddIntegrationEventHandler<Contracts.AccessReviewCompleted, RevokeReviewedAccess, IdentityDbContext>(IdentityDbContext.SchemaName);
         services.AddOptions<PrivilegedAccessOptions>().BindConfiguration("Identity:PrivilegedAccess");

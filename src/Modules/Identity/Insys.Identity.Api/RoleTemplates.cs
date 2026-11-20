@@ -50,12 +50,9 @@ public sealed record PrivilegedProposal(string Function, string Why, bool Flagge
 /// </summary>
 public static class RoleTemplates
 {
+    /// <summary>The platform baseline (OQ-197), from its one source, <see cref="Domain.Users.SegregationOfDutiesBaseline"/>.</summary>
     public static readonly IReadOnlyList<SodRule> SodRules =
-    [
-        new("CLAIMS_DRAFT_INSTRUCTION", "CLAIMS_RELEASE_INSTRUCTION", "Who prepares a claim payment does not release it"),
-        new("PAYMENTS_BUILD_BATCH", "PAYMENTS_RELEASE_BATCH", "Who builds a payout batch does not release it"),
-        new("PARTY_ADD_BANK_ACCOUNT", "PARTY_BANK_ACCOUNT_VERIFY", "Who adds a payee account does not verify it"),
-    ];
+        Domain.Users.SegregationOfDutiesBaseline.Rules.Select(r => new SodRule(r.FunctionA, r.FunctionB, r.Why)).ToList();
 
     /// <summary>
     /// The privileged functions: two flagged before the review, TERMINATE_TENANT flagged now (decided), and the rest

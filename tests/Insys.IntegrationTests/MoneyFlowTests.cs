@@ -69,8 +69,9 @@ public sealed class MoneyFlowTests(DatabaseFixture fixture) : IClassFixture<Data
     {
         _factory = await fixture.Host();
         var db = fixture.Database;
-        await db.UserWithPermissions(Tenant, "money-maker", Permissions);
-        var checker = await db.UserWithPermissions(Tenant, "money-checker", Permissions);
+        // The platform's segregation-of-duties baseline (SRS-002, OQ-197): the maker drafts, builds and adds; the checker approves, releases and verifies.
+        await db.UserWithPermissions(Tenant, "money-maker", Permissions.MakerSide());
+        var checker = await db.UserWithPermissions(Tenant, "money-checker", Permissions.CheckerSide());
         _maker = _factory.ClientFor(Tenant, "money-maker");
         _checker = _factory.ClientFor(Tenant, "money-checker");
 
@@ -320,13 +321,13 @@ public sealed class MoneyFlowTests(DatabaseFixture fixture) : IClassFixture<Data
         await Approve(PaymentApprovals.PayoutBusinessRefType, batch);
 
         await fixture.Database.ExecuteAsOwner("UPDATE payment.payment SET amount = amount + 1 WHERE payout_batch_id = @b", ("b", batch));
-        var refused = await _maker.PostAsync($"/api/v1/payments/payout-batches/{batch}/release", null);
+        var refused = await _checker.PostAsync($"/api/v1/payments/payout-batches/{batch}/release", null);
         refused.StatusCode.ShouldBe(HttpStatusCode.Conflict);
         (await refused.Code()).ShouldBe("PAYOUT_BATCH_CHANGED");
         (await (await _maker.GetAsync($"/api/v1/payments/payout-batches/{batch}")).Json()).GetProperty("status").GetString().ShouldBe("Approved");
 
         await fixture.Database.ExecuteAsOwner("UPDATE payment.payment SET amount = amount - 1 WHERE payout_batch_id = @b", ("b", batch));
-        (await _maker.PostAsync($"/api/v1/payments/payout-batches/{batch}/release", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await _checker.PostAsync($"/api/v1/payments/payout-batches/{batch}/release", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
     /// <summary>A bank statement line matched to the payment, by its reference and amount (PAY-003).</summary>
@@ -466,7 +467,7 @@ public sealed class MoneyFlowTests(DatabaseFixture fixture) : IClassFixture<Data
         (listedBatch.GetProperty("approvalId").GetGuid(), listedBatch.GetProperty("builtAt").ValueKind).ShouldBe((approval, JsonValueKind.String));
         (await (await _maker.GetAsync("/api/v1/payments/payout-batches?status=Built&limit=200")).Json()).GetProperty("items").EnumerateArray()
             .ShouldNotContain(b => b.GetProperty("id").GetGuid() == batch);
-        (await _maker.PostAsync($"/api/v1/payments/payout-batches/{batch}/release", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await _checker.PostAsync($"/api/v1/payments/payout-batches/{batch}/release", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
         (await (await _maker.GetAsync($"/api/v1/payments/payout-batches/{batch}/payments")).Json()).EnumerateArray().Select(p => p.GetProperty("id").GetGuid())
             .ShouldBe([created]);
 
@@ -497,7 +498,7 @@ public sealed class MoneyFlowTests(DatabaseFixture fixture) : IClassFixture<Data
         (await _maker.PostAsync($"/api/v1/claims/payment-instructions/{instruction}/release", null)).StatusCode.ShouldNotBe(HttpStatusCode.OK);
         await _factory.DrainOutbox();
         await Approve(ClaimsApprovals.InstructionBusinessRefType, instruction);
-        (await _maker.PostAsync($"/api/v1/claims/payment-instructions/{instruction}/release", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await _checker.PostAsync($"/api/v1/claims/payment-instructions/{instruction}/release", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
         await _factory.DrainOutbox();
 
         // GAP-036: the released instruction shows its payment before the payment completes, and the claim lists its instructions.
@@ -510,7 +511,7 @@ public sealed class MoneyFlowTests(DatabaseFixture fixture) : IClassFixture<Data
             idempotent: true)).Json()).GetProperty("id").GetGuid();
         await _factory.DrainOutbox();
         await Approve(PaymentApprovals.PayoutBusinessRefType, batch);
-        (await _maker.PostAsync($"/api/v1/payments/payout-batches/{batch}/release", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await _checker.PostAsync($"/api/v1/payments/payout-batches/{batch}/release", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
         var payout = await fixture.Database.ScalarAsOwner<Guid>("SELECT id FROM payment.payment WHERE business_ref_id = @i", ("i", instruction));
         (await Callback(payout, "PAID")).StatusCode.ShouldBe(HttpStatusCode.OK);
         await _factory.DrainOutbox();
@@ -559,7 +560,7 @@ public sealed class MoneyFlowTests(DatabaseFixture fixture) : IClassFixture<Data
 
         (await _maker.PostAsJsonAsync($"/api/v1/claims/claims/{number}/reserves", new { action = "Set", reserveType = "INDEMNITY", amount = 500m, currency = "ZAR", reason = "Assessed" }))
             .StatusCode.ShouldBe(HttpStatusCode.OK);
-        (await _maker.PostAsync($"/api/v1/claims/payment-instructions/{id}/release", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await _checker.PostAsync($"/api/v1/claims/payment-instructions/{id}/release", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
         var released = await (await _maker.GetAsync($"/api/v1/claims/payment-instructions/{id}")).Json();
         released.GetProperty("status").GetString().ShouldBe("Released");
         released.GetProperty("heldReason").ValueKind.ShouldBe(JsonValueKind.Null);

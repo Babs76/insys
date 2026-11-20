@@ -32,12 +32,15 @@ namespace Insys.BuildingBlocks.Api;
 /// <summary>
 /// The target types audit events name (GAP-029): every aggregate type (record history names a changed aggregate by its
 /// type), the static data entity codes (static data changes), the few other records a module registers (Party's
-/// BankAccount), and Endpoint (denied requests). As stored: at most 30 characters (audit.audit_event.target_type).
+/// BankAccount), Endpoint (denied requests) and Function (a function refused for segregation of duties, OQ-197). As stored: at most 30 characters (audit.audit_event.target_type).
 /// The documents declare them as the enum of targetType on the audit operations.
 /// </summary>
 public static class AuditTargetTypes
 {
     public const string Endpoint = "Endpoint";
+
+    /// <summary>A function refused for segregation of duties (SRS-002, OQ-197): the target is its code.</summary>
+    public const string Function = "Function";
 
     private const int MaxLength = 30;
 
@@ -64,6 +67,7 @@ public static class AuditTargetTypes
             .Concat(Registered.Keys)
             .Concat(StateEnums.EntityCodes.Select(Stored))
             .Append(Endpoint)
+            .Append(Function)
             .Distinct(StringComparer.Ordinal)
             .Order(StringComparer.Ordinal)
             .ToList();

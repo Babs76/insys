@@ -45,9 +45,28 @@ public sealed record ResolvedPrincipal(Guid UserId, IReadOnlySet<string> Permiss
 /// <param name="Refusals">For every function in force in the catalogue, the tenant's refusal; FUNCTION_NOT_GRANTED for one it allows.</param>
 public sealed record FunctionAccess(IReadOnlySet<string> Usable, IReadOnlyDictionary<string, string> Refusals)
 {
+    /// <summary>
+    /// SRS-002 (OQ-197): the functions refused because the user's roles give both sides of a BLOCK segregation-of-duties rule in force, by function. Each is
+    /// left out of <see cref="Usable"/>, and its refusal is the block's code.
+    /// </summary>
+    public IReadOnlyDictionary<string, SegregationBlock>? Blocked { get; init; }
+
+    /// <summary>The permissions only a blocked function gave the user, by permission: a check on the permission alone (an approval's) names the block.</summary>
+    public IReadOnlyDictionary<string, SegregationBlock>? BlockedPermissions { get; init; }
+
     /// <summary>Null when the user may use any of the codes (an operation shared by two portals has one per portal); else the first one's refusal.</summary>
     public string? Refusal(IReadOnlyList<string> codes) =>
         codes.Any(Usable.Contains) ? null : codes.Count == 0 ? null : Refusals.GetValueOrDefault(codes[0], Domain.ErrorCodes.FunctionDisabled);
+}
+
+/// <summary>
+/// A function refused for segregation of duties (SRS-002, OQ-197): the user holds both it and <paramref name="HeldWith"/>, the other side of
+/// <paramref name="Rule"/>. <paramref name="Code"/> is the refusal's catalogued error code (Identity's).
+/// </summary>
+public sealed record SegregationBlock(string Function, string HeldWith, string Rule, string Code)
+{
+    /// <summary>The audit operation of a refusal (IAM-006), event type ACCESS, target the function refused.</summary>
+    public const string AuditOperation = "SegregationOfDutiesRefused";
 }
 
 /// <summary>

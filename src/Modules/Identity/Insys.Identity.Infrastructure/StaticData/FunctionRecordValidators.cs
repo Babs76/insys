@@ -51,7 +51,8 @@ internal sealed class DutyConflictRuleValidator : IStaticRecordValidator
 
     public string Table => "cfg_segregation_of_duties_conflict_rules";
 
-    public string Rules => "functionA and functionB are required and differ; permissionA and permissionB are retired (ADR-026 §4) and must be empty.";
+    public string Rules => "functionA and functionB are required and differ; permissionA and permissionB are retired (ADR-026 §4) and must be empty. "
+        + SegregationBaselineGuard.Rules;
 
     public IReadOnlyDictionary<string, string[]> Validate(StaticRecord record)
     {
