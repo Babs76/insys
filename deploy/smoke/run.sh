@@ -204,7 +204,6 @@ pending_events() { # each module outbox's unpublished events by type and attempt
 }
 progress=$(mktemp)
 stages_summary() { # the seed's own stage lines only (stage names, seconds, 429 counts): no request or response content
-  grep -E '^seed: ' "$progress" | cut -c1-200 || true
   [ -z "${GITHUB_STEP_SUMMARY:-}" ] || { printf '\nThe seed'"'"'s stages:\n```\n'; grep -E '^seed: ' "$progress" | cut -c1-200 || true; printf '```\n'; } >> "$GITHUB_STEP_SUMMARY"
 }
 kubectl run seed --image=insys-api:smoke --image-pull-policy=Never --restart=Never --command -- sleep $(( seed_timeout + 600 ))
