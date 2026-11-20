@@ -117,6 +117,45 @@ public static class IdentitySeed
             ON CONFLICT DO NOTHING
             """, ("t", tenantId), ("role", roleCode), ("from", from), ("permissions", permissions));
 
+    /// <summary>
+    /// The platform's segregation-of-duties baseline (SRS-002, OQ-197) as the permissions its functions need: the draft, build or add side, and the release
+    /// or verify side a user holding both is refused.
+    /// </summary>
+    public static readonly IReadOnlyList<(string Draft, string Release)> BaselinePermissionPairs =
+    [
+        ("claim_payment.create", "claim_payment.release"),
+        ("payout_batch.create", "payout_batch.release"),
+        ("bank_account.create", "bank_account.verify"),
+    ];
+
+    /// <summary>A maker's share of these permissions: the release or verify side of each baseline pair whose draft side is among them is left out (OQ-197).</summary>
+    public static string[] MakerSide(this string[] permissions) =>
+        [.. permissions.Where(p => !BaselinePermissionPairs.Any(pair => pair.Release == p && permissions.Contains(pair.Draft)))];
+
+    /// <summary>A checker's share of these permissions: the draft, build or add side of each baseline pair whose release side is among them is left out (OQ-197).</summary>
+    public static string[] CheckerSide(this string[] permissions) =>
+        [.. permissions.Where(p => !BaselinePermissionPairs.Any(pair => pair.Draft == p && permissions.Contains(pair.Release)))];
+
+    /// <summary>
+    /// The platform's segregation-of-duties baseline (OQ-197) between two users seeded with the same functions: the maker's roles lose each rule's release or
+    /// verify side and the checker's its draft, build or add side, so neither holds both. Every other function stays, those that share a side's permission
+    /// included (CLAIMS_RETRY_INSTRUCTION, say).
+    /// </summary>
+    public static async Task SegregateDuties(this TestDatabase database, Guid tenantId, Guid maker, Guid checker)
+    {
+        foreach (var (user, functions) in new[]
+                 {
+                     (maker, Identity.Domain.Users.SegregationOfDutiesBaseline.Rules.Select(r => r.FunctionB).ToArray()),
+                     (checker, Identity.Domain.Users.SegregationOfDutiesBaseline.Rules.Select(r => r.FunctionA).ToArray()),
+                 })
+        {
+            await database.ExecuteAsOwner("""
+                UPDATE iam.cfg_role_function_assignments g SET record_status = 'RETIRED' FROM iam.user_role_assignment a
+                WHERE a.tenant_id = @t AND a.user_id = @u AND g.tenant_id = a.tenant_id AND g.role_code = a.role_code AND g.function_code = ANY(@f)
+                """, ("t", tenantId), ("u", user), ("f", functions));
+        }
+    }
+
     /// <summary>Converts roles, SoD rules and channel rows seeded with permissions to functions, as the release does (ADR-026 §7).</summary>
     public static Task AdoptFunctionCatalogue(this TestDatabase database) => database.ExecuteAsOwner("SELECT iam.adopt_function_catalogue()");
 

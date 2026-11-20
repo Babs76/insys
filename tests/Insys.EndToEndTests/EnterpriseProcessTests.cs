@@ -98,6 +98,8 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
         await _db.SeedTenant(Tenant, "TENA");
         var maker = await _db.UserWithPermissions(Tenant, "underwriter", Permissions);
         var checker = await _db.UserWithPermissions(Tenant, "senior-underwriter", Permissions);
+        // The platform's segregation-of-duties baseline (SRS-002, OQ-197): the maker drafts, builds and adds; the checker releases and verifies.
+        await _db.SegregateDuties(Tenant, maker, checker);
         var approverRole = await _db.RoleWithPermissions(Tenant);
         await _db.AssignRole(Tenant, checker, approverRole);
         _reportRole = await _db.RoleWithPermissions(Tenant);
@@ -1054,7 +1056,7 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
         var batch = (await built.Json()).GetProperty("id").GetGuid();
         await _factory.DrainOutbox();
         await Decide(PaymentApprovals.PayoutBusinessRefType, batch);
-        (await _maker.PostAsync($"/api/v1/payments/payout-batches/{batch}/release", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await _checker.PostAsync($"/api/v1/payments/payout-batches/{batch}/release", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
         var payment = await _db.ScalarAsOwner<Guid>("SELECT id FROM payment.payment WHERE business_ref_id = @r AND payout_batch_id = @b", ("r", businessRefId), ("b", batch));
         (await Callback(payment, "PAID")).StatusCode.ShouldBe(HttpStatusCode.OK);
         await _factory.DrainOutbox();

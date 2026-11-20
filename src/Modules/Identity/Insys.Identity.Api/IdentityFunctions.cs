@@ -38,7 +38,8 @@ internal static class IdentityFunctions
     public static readonly IReadOnlyList<FunctionDeclaration> All =
     [
         .. new FunctionMap(Audiences.StaffAndPlatform, null)
-        .Screen("IDENTITY_ACCESS_REVIEWS", "IDENTITY_ACCESS", "Access reviews", "identity/access-reviews", "ListAccessReviews", "GetAccessReview")
+        .Screen("IDENTITY_ACCESS_REVIEWS", "IDENTITY_ACCESS", "Access reviews", "identity/access-reviews", "ListAccessReviews", "GetAccessReview",
+            "IdentityListSegregationConflicts")
         .Action("START_REVIEW", "IDENTITY_ACCESS_REVIEWS", "StartReview")
         .Action("CONFIRM_ACCESS", "IDENTITY_ACCESS_REVIEWS", "ConfirmAccess")
         .Action("REVOKE_ACCESS", "IDENTITY_ACCESS_REVIEWS", "RevokeAccess")

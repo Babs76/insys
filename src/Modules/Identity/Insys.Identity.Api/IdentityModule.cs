@@ -423,6 +423,19 @@ public sealed class IdentityModule : IModule
             .WithSummary("List access reviews")
             .RequirePermission(IdentityPermissions.AccessReviewRead);
 
+        // OQ-197 (Ade, 20 November 2026): who holds both sides of a BLOCK segregation-of-duties rule in force, for an access review; read on an existing
+        // tenant before the deploy that enforces the baseline.
+        reviews.MapGet("/segregation-conflicts", async (IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Query(new ListSegregationConflicts(), ct)).ToHttp(items => Results.Ok(items)))
+            .Produces<IReadOnlyList<SegregationConflictView>>(StatusCodes.Status200OK)
+            .WithName("IdentityListSegregationConflicts")
+            .WithSummary("Users holding both sides of a segregation-of-duties rule in force, for access review (SRS-002)")
+            .WithDescription("One row per user and BLOCK rule in force today, the platform baseline (SOD_CLAIM_PAYMENT, SOD_PAYOUT_BATCH, SOD_PAYEE_ACCOUNT) and the "
+                + "tenant's own rules, whose two functions the user's role assignments in effect both give: the rule, its functions, the one refused to the user "
+                + "(functionB, the release or verify side: 403 SEGREGATION_OF_DUTIES_BLOCKED, audited), and the roles giving each side. Names come from the "
+                + "display-name lookup. Changes nothing. Read it on an existing tenant before enforcing the baseline there (OQ-197).")
+            .RequirePermission(IdentityPermissions.AccessReviewRead);
+
         reviews.MapGet("/{id:guid}", async (Guid id, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
                 (await dispatcher.Query(new GetReview(id), ct)).ToHttp(review =>
                 {

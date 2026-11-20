@@ -25,10 +25,12 @@
  * ============================================================================
  */
 using Insys.BuildingBlocks.Api.StaticData;
+using Insys.BuildingBlocks.Application.Auditing;
 using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Infrastructure.StaticData;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Insys.BuildingBlocks.Api.Functions;
 
@@ -68,6 +70,14 @@ public static class FunctionChecks
             return null;
         }
 
+        // SRS-002 (OQ-197): refused for segregation of duties, the release or verify side of a BLOCK rule whose two sides the user holds. Audited (IAM-006).
+        if (functions.Blocked is { } blocked && codes.Select(c => blocked.GetValueOrDefault(c)).FirstOrDefault(b => b is not null && b.Code == code) is { } block)
+        {
+            return new SegregationRefusal(block, Problems.For(code,
+                $"Your roles give you both {block.HeldWith} and {block.Function} (segregation-of-duties rule {block.Rule}, SRS-002), so {block.Function} is refused; "
+                + $"{block.HeldWith} still works.", StatusCodes.Status403Forbidden));
+        }
+
         return code switch
         {
             Domain.ErrorCodes.TenantNotActive => Problems.For(code, "The tenant is still onboarding: business transactions start once it is activated.",
@@ -76,5 +86,32 @@ public static class FunctionChecks
             Domain.ErrorCodes.FeatureNotEntitled => Problems.For(code, "The tenant is not entitled to the feature this function needs.", StatusCodes.Status403Forbidden),
             _ => Problems.For(code, "The caller's roles do not grant this function.", StatusCodes.Status403Forbidden),
         };
+    }
+
+    /// <summary>Writes the audit entry of a segregation-of-duties refusal (IAM-006), then the refusal. The audit never blocks the response.</summary>
+    private sealed class SegregationRefusal(SegregationBlock block, IResult problem) : IResult
+    {
+        public async Task ExecuteAsync(HttpContext httpContext)
+        {
+            var execution = httpContext.RequestServices.GetRequiredService<ExecutionScope>();
+            if (httpContext.RequestServices.GetService<IAuditSink>() is { } sink && execution.TenantId is { } tenantId)
+            {
+                try
+                {
+                    var path = $"{httpContext.Request.Method} {httpContext.Request.Path}";
+                    await sink.Record(new AuditRecord(tenantId, execution.ActorId, "USER",
+                        new AuditEntry("ACCESS", SegregationBlock.AuditOperation, "Function", block.Function,
+                            new Dictionary<string, string?> { ["function"] = block.Function, ["heldWith"] = block.HeldWith, ["rule"] = block.Rule, ["path"] = path }),
+                        AuditOutcome.Denied, DateTimeOffset.UtcNow, execution.CorrelationId), httpContext.RequestAborted);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    httpContext.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(FunctionChecks))
+                        .LogWarning("Could not audit a segregation-of-duties refusal: {ExceptionType}", ex.GetType().Name);
+                }
+            }
+
+            await problem.ExecuteAsync(httpContext);
+        }
     }
 }

@@ -143,7 +143,11 @@ public sealed class BankAccountTests(DatabaseFixture fixture) : IClassFixture<Da
         var account = await Add(party, "62000123123");
         var approval = await Approval(account);
 
-        (await (await _clerk.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval}/approve", ifMatch: "\"1\"")).Code()).ShouldBe("MAKER_CHECKER_SAME_PERSON");
+        // The clerk holds both PARTY_ADD_BANK_ACCOUNT and PARTY_BANK_ACCOUNT_VERIFY, the platform baseline's SOD_PAYEE_ACCOUNT (OQ-197): the verify side is
+        // refused before maker-checker is reached, and the refusal is audited (IAM-006).
+        var own = await _clerk.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval}/approve", ifMatch: "\"1\"");
+        own.StatusCode.ShouldBe(HttpStatusCode.Forbidden, await own.Content.ReadAsStringAsync());
+        (await own.Code()).ShouldBe("SEGREGATION_OF_DUTIES_BLOCKED");
         (await (await _approverWithoutVerify.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval}/approve", ifMatch: "\"1\"")).Code()).ShouldBe("FORBIDDEN");
         await _factory.DrainOutbox();
         (await Status(party, account)).ShouldBe("PENDING_VERIFICATION");
@@ -152,6 +156,11 @@ public sealed class BankAccountTests(DatabaseFixture fixture) : IClassFixture<Da
         (await Status(party, account)).ShouldBe("ACTIVE");
         await _factory.DrainOutbox();
         (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM audit.audit_event WHERE operation = 'VerifyBankAccount' AND target_id = @a", ("a", account.ToString())))
+            .ShouldBe(1L);
+        (await fixture.Database.ScalarAsOwner<long>("""
+                SELECT count(*) FROM audit.audit_event WHERE operation = 'SegregationOfDutiesRefused' AND target_id = 'PARTY_BANK_ACCOUNT_VERIFY'
+                  AND outcome = 'DENIED' AND details ->> 'rule' = 'SOD_PAYEE_ACCOUNT' AND details ->> 'approval' = @approval
+                """, ("approval", approval.ToString())))
             .ShouldBe(1L);
     }
 

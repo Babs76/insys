@@ -46170,6 +46170,50 @@
         ]
       }
     },
+    "/api/v1/identity/access-reviews/segregation-conflicts": {
+      "get": {
+        "tags": [
+          "Identity"
+        ],
+        "summary": "Users holding both sides of a segregation-of-duties rule in force, for access review (SRS-002)",
+        "description": "One row per user and BLOCK rule in force today, the platform baseline (SOD_CLAIM_PAYMENT, SOD_PAYOUT_BATCH, SOD_PAYEE_ACCOUNT) and the tenant\u0027s own rules, whose two functions the user\u0027s role assignments in effect both give: the rule, its functions, the one refused to the user (functionB, the release or verify side: 403 SEGREGATION_OF_DUTIES_BLOCKED, audited), and the roles giving each side. Names come from the display-name lookup. Changes nothing. Read it on an existing tenant before enforcing the baseline there (OQ-197).",
+        "operationId": "IdentityListSegregationConflicts",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IdentitySegregationConflictView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "access_review.read",
+        "x-function": [
+          "IDENTITY_ACCESS_REVIEWS"
+        ]
+      }
+    },
     "/api/v1/identity/access-reviews/{id}": {
       "get": {
         "tags": [
@@ -68762,7 +68806,8 @@
           "roleCode",
           "decision",
           "decidedBy",
-          "decidedAt"
+          "decidedAt",
+          "segregationConflicts"
         ],
         "type": "object",
         "properties": {
@@ -68793,6 +68838,12 @@
               "string"
             ],
             "format": "date-time"
+          },
+          "segregationConflicts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -69295,6 +69346,52 @@
               "string"
             ],
             "format": "date"
+          }
+        }
+      },
+      "IdentitySegregationConflictView": {
+        "required": [
+          "userId",
+          "rule",
+          "baseline",
+          "functionA",
+          "functionB",
+          "refusedFunction",
+          "rolesGivingA",
+          "rolesGivingB"
+        ],
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "rule": {
+            "type": "string"
+          },
+          "baseline": {
+            "type": "boolean"
+          },
+          "functionA": {
+            "type": "string"
+          },
+          "functionB": {
+            "type": "string"
+          },
+          "refusedFunction": {
+            "type": "string"
+          },
+          "rolesGivingA": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rolesGivingB": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },

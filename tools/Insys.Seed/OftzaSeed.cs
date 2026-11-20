@@ -719,7 +719,8 @@ public sealed partial class OftzaSeed(SeedContext context)
 
     /// <summary>
     /// The role-templates addendum's three segregation-of-duties rules (SRS-002), in force before any role or user, so that INSYS refuses a role or a user
-    /// holding both sides (Ade, 20 November 2026). Sample data for the business to confirm; the same pairs as RoleTemplates.SodRules.
+    /// holding both sides (Ade, 20 November 2026). Since OQ-197 they are the platform baseline (SegregationOfDutiesBaseline), in force whatever the tenant's
+    /// rows; the seed still records them as the tenant's rows, which OftzaSeedTests pins to the baseline.
     /// </summary>
     public static readonly IReadOnlyList<(string Code, string FunctionA, string FunctionB)> SegregationOfDuties =
     [

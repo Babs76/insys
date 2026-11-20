@@ -138,6 +138,7 @@ public sealed class PrincipalResolver(
 {
     private static readonly string[] RoleStatuses = IdentityStaticData.Descriptors.Single(d => d.EntityType == typeof(RolesAndPermissionSets)).Lifecycle.InForce;
     private static readonly string[] GrantStatuses = IdentityStaticData.Descriptors.Single(d => d.EntityType == typeof(RoleFunctionAssignments)).Lifecycle.InForce;
+    private static readonly string[] RuleStatuses = IdentityStaticData.Descriptors.Single(d => d.EntityType == typeof(SegregationOfDutiesConflictRules)).Lifecycle.InForce;
 
     public Task<ResolvedPrincipal?> Resolve(Guid tenantId, string subject, CancellationToken cancellationToken) => Resolve(tenantId, subject, signIn: true, cancellationToken);
 
@@ -289,6 +290,25 @@ public sealed class PrincipalResolver(
             }
         }
 
+        // SRS-002 (OQ-197): the tenant's BLOCK rules in force today, for the action-time check below with the platform baseline.
+        var tenantRules = new List<DutyConflictRule>();
+        if (granted.Count > 0)
+        {
+            await using var rules = new NpgsqlCommand("""
+                SELECT code, function_a, function_b FROM iam.cfg_segregation_of_duties_conflict_rules
+                WHERE tenant_id = @t AND record_status = ANY(@statuses) AND conflict = 'BLOCK' AND function_a IS NOT NULL AND function_b IS NOT NULL
+                  AND effective_from <= @today AND (effective_to IS NULL OR effective_to > @today)
+                """, connection, transaction);
+            rules.Parameters.AddWithValue("t", tenantId);
+            rules.Parameters.AddWithValue("statuses", RuleStatuses);
+            rules.Parameters.AddWithValue("today", day);
+            await using var reader = await rules.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                tenantRules.Add(new DutyConflictRule(reader.GetString(1), reader.GetString(2), SegregationOfDutiesBaseline.Block, reader.GetString(0)));
+            }
+        }
+
         await transaction.CommitAsync(cancellationToken);
         var external = link is { } l
             ? new ExternalSubject(l.Kind, l.Party, l.Intermediary,
@@ -298,11 +318,41 @@ public sealed class PrincipalResolver(
         var refusals = await Refusals(tenantId, configurationOnly, day, cancellationToken);
         var usable = granted.Where(g => refusals.TryGetValue(g.Function, out var refusal) && refusal == ErrorCodes.FunctionNotGranted).ToList();
         var functions = await catalogue.Functions(day, cancellationToken);
+
+        // SRS-002 (Ade, 20 November 2026, OQ-197): a user whose roles give both sides of a BLOCK rule in force is refused its release or verify side
+        // (function B), wherever it is used; the other side still works. Its permissions go too, unless another usable function gives them.
+        var blocked = Blocks(granted.Select(g => g.Function).ToHashSet(StringComparer.Ordinal), tenantRules);
+        if (blocked.Count > 0)
+        {
+            var copy = new Dictionary<string, string>(refusals, StringComparer.Ordinal);
+            foreach (var function in blocked.Keys.Where(f => copy.GetValueOrDefault(f) == ErrorCodes.FunctionNotGranted))
+            {
+                copy[function] = IdentityErrorCodes.SegregationOfDutiesBlocked;
+            }
+
+            refusals = copy;
+            usable = usable.Where(g => !blocked.ContainsKey(g.Function)).ToList();
+        }
+
         var scoped = usable.SelectMany(g => functions[g.Function].Permissions.Select(p => (Permission: p, g.Products, g.Branches))).ToList();
         var permissions = scoped.Select(s => s.Permission).ToHashSet(StringComparer.Ordinal);
+        var blockedPermissions = blocked.Values.Where(b => functions.ContainsKey(b.Function))
+            .SelectMany(b => functions[b.Function].Permissions.Where(p => !permissions.Contains(p)).Select(p => (Permission: p, Block: b)))
+            .GroupBy(p => p.Permission, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.First().Block, StringComparer.Ordinal);
         return new ResolvedPrincipal(userId, permissions, await Grants(tenantId, scoped, day, cancellationToken), roles, external, configurationOnly,
-            new FunctionAccess(usable.Select(g => g.Function).ToHashSet(StringComparer.Ordinal), refusals));
+            new FunctionAccess(usable.Select(g => g.Function).ToHashSet(StringComparer.Ordinal), refusals)
+            {
+                Blocked = blocked.Count > 0 ? blocked : null,
+                BlockedPermissions = blockedPermissions.Count > 0 ? blockedPermissions : null,
+            });
     }
+
+    /// <summary>The functions refused for segregation of duties: of each BLOCK rule in force (baseline and tenant's) whose two sides the user holds, side B.</summary>
+    private static Dictionary<string, SegregationBlock> Blocks(IReadOnlySet<string> held, IReadOnlyList<DutyConflictRule> tenantRules) =>
+        SegregationOfDutiesBaseline.HeldBothSides(held, SegregationOfDutiesBaseline.WithTenantRules(tenantRules))
+            .GroupBy(r => r.FunctionB, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => new SegregationBlock(g.Key, g.First().FunctionA, g.First().Code ?? "", IdentityErrorCodes.SegregationOfDutiesBlocked),
+                StringComparer.Ordinal);
 
     /// <summary>
     /// Every function in force in the catalogue with the tenant's refusal, in the order of checks (ADR-026 §2): Onboarding,

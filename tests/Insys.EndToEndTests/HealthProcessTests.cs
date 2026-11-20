@@ -75,8 +75,10 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         _db = await server.CreateMigratedDatabase();
         _watchdog = StallWatchdog.Start(_db, TimeSpan.FromSeconds(90), $"HealthProcessTests.{TestContext.Current.TestMethod?.MethodName}");
         await _db.SeedTenant(Tenant, "TENA");
-        await _db.UserWithPermissions(Tenant, "health-administrator", Permissions);
+        var administrator = await _db.UserWithPermissions(Tenant, "health-administrator", Permissions);
         var checker = await _db.UserWithPermissions(Tenant, "health-manager", Permissions);
+        // The platform's segregation-of-duties baseline (SRS-002, OQ-197): the maker drafts, builds and adds; the checker releases and verifies.
+        await _db.SegregateDuties(Tenant, administrator, checker);
         var approverRole = await _db.RoleWithPermissions(Tenant);
         await _db.AssignRole(Tenant, checker, approverRole);
         await _db.AllowBankAccountVerification(Tenant, approverRole, Today.AddYears(-1));
@@ -411,7 +413,7 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
         var batch = (await built.Json()).GetProperty("id").GetGuid();
         await _factory.DrainOutbox();
         await Decide(PaymentApprovals.PayoutBusinessRefType, batch);
-        (await _maker.PostAsync($"/api/v1/payments/payout-batches/{batch}/release", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await _checker.PostAsync($"/api/v1/payments/payout-batches/{batch}/release", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
         var payment = await _db.ScalarAsOwner<Guid>("SELECT id FROM payment.payment WHERE business_ref_id = @r", ("r", remittance));
         (await _db.ScalarAsOwner<Guid>("SELECT bank_account_id FROM payment.payment WHERE id = @p", ("p", payment))).ShouldBe(providerAccount);
         (await _maker.SimulatorCallback(_factory, _db, payment, "PAID")).StatusCode.ShouldBe(HttpStatusCode.OK);

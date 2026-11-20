@@ -180,8 +180,11 @@ public sealed record RoleFacts(string RoleCode, bool Exists, IReadOnlySet<string
     public IReadOnlySet<string> Functions { get; init; } = new HashSet<string>();
 }
 
-/// <summary>A segregation-of-duties rule on a pair of functions (iam.cfg_segregation_of_duties_conflict_rules, ADR-026 §4): Block or Warn.</summary>
-public sealed record DutyConflictRule(string FunctionA, string FunctionB, string Conflict);
+/// <summary>
+/// A segregation-of-duties rule on a pair of functions (iam.cfg_segregation_of_duties_conflict_rules, ADR-026 §4, or the platform baseline): Block or Warn.
+/// A user holding both sides of a Block rule is refused <see cref="FunctionB"/>, the release or verify side (OQ-197).
+/// </summary>
+public sealed record DutyConflictRule(string FunctionA, string FunctionB, string Conflict, string? Code = null);
 
 public sealed record RoleAssigned(Guid UserId, string RoleCode, DateOnly ValidFrom, DateOnly? ValidTo, DateTimeOffset OccurredAt) : IDomainEvent;
 
@@ -771,10 +774,26 @@ public static class IdentityErrorCodes
         Remedy = "Give the role to someone else, or remove the conflicting role first.")]
     public const string SegregationOfDuties = "SEGREGATION_OF_DUTIES";
 
-    /// <summary>SRS-002 (Ade, 20 November 2026): a role's grants may not hold both functions of a BLOCK rule in force; checked when a grant is submitted.</summary>
-    [ErrorCode(422, "error.identity.role_segregation_of_duties", Means = "The role would hold two duties your organisation keeps apart, such as preparing and releasing the same payment.",
+    /// <summary>
+    /// SRS-002 (Ade, 20 November 2026): a role's grants may not hold both functions of a BLOCK rule in force, nor give one to a user who holds the other through
+    /// another role; checked when a grant is submitted.
+    /// </summary>
+    [ErrorCode(422, "error.identity.role_segregation_of_duties", Means = "The role would hold two duties your organisation keeps apart, such as preparing and releasing the same payment, or would give a user holding it both through their other roles.",
         Remedy = "Grant the function to a different role, or end the role's conflicting function first.")]
     public const string RoleSegregationOfDuties = "ROLE_SEGREGATION_OF_DUTIES";
+
+    /// <summary>
+    /// SRS-002 (Ade, 20 November 2026, OQ-197): a user whose roles give both sides of a BLOCK rule in force (the platform baseline or the tenant's) is refused the
+    /// rule's release or verify side, at every operation carrying that function; the draft, build or add side still works. Audited (IAM-006).
+    /// </summary>
+    [ErrorCode(403, "error.identity.segregation_of_duties_blocked", Means = "Your roles give you two duties your organisation keeps apart, such as preparing and releasing the same payment, so you can't do the release or verification part.",
+        Remedy = "Ask another person to do it, or ask your administrator to end one of the conflicting roles.")]
+    public const string SegregationOfDutiesBlocked = "SEGREGATION_OF_DUTIES_BLOCKED";
+
+    /// <summary>SRS-002 (Ade, 20 November 2026, OQ-197): a tenant's rule on a platform baseline pair can't be retired, end-dated, set to WARN or moved to another pair.</summary>
+    [ErrorCode(422, "error.identity.segregation_baseline_protected", Means = "This segregation-of-duties rule is part of the platform's baseline, which every organisation keeps in force as a block.",
+        Remedy = "Leave the rule as a block with no end date; you can add rules of your own on other pairs of functions.")]
+    public const string SegregationBaselineProtected = "SEGREGATION_BASELINE_PROTECTED";
 
     [ErrorCode(409, "error.identity.username_taken", Means = "The username is already in use.",
         Remedy = "Choose another username.")]

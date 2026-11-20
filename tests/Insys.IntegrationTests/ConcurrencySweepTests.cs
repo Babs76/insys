@@ -50,14 +50,20 @@ public sealed class ConcurrencySweepTests(DatabaseFixture fixture) : IClassFixtu
                     && System.Text.RegularExpressions.Regex.IsMatch(e.RoutePattern.RawText ?? "", @"^/api/v\{[^}]+\}/(general|claims|billing|distribution|life|health)/(?!static/)")))
             .Where(c => c.Method != "GET").ToList();
         calls.Count.ShouldBeGreaterThan(80);
-        await fixture.Database.UserWithPermissions(DatabaseFixture.TenantA, Holder,
-            [.. calls.Select(c => c.Endpoint.Metadata.GetMetadata<RequiredPermissionMetadata>()!.Permission).Distinct()]);
+        string[] permissions = [.. calls.Select(c => c.Endpoint.Metadata.GetMetadata<RequiredPermissionMetadata>()!.Permission).Distinct()];
+        // The platform's segregation-of-duties baseline (SRS-002, OQ-197): one holder of both sides would be refused the release side first, so the release
+        // sides are a second holder's.
+        await fixture.Database.UserWithPermissions(DatabaseFixture.TenantA, Holder, permissions.MakerSide());
+        await fixture.Database.UserWithPermissions(DatabaseFixture.TenantA, $"{Holder}-release", permissions.CheckerSide());
         var client = factory.ClientFor(DatabaseFixture.TenantA, Holder);
+        var releaser = factory.ClientFor(DatabaseFixture.TenantA, $"{Holder}-release");
 
         var answered = new List<string>();
-        foreach (var (method, url, _) in calls)
+        foreach (var (method, url, endpoint) in calls)
         {
-            var response = await client.Send(new HttpMethod(method), url, new { }, raw: true);
+            var permission = endpoint.Metadata.GetMetadata<RequiredPermissionMetadata>()!.Permission;
+            var caller = IdentitySeed.BaselinePermissionPairs.Any(p => p.Release == permission) ? releaser : client;
+            var response = await caller.Send(new HttpMethod(method), url, new { }, raw: true);
             if (response.StatusCode != HttpStatusCode.PreconditionRequired)
             {
                 answered.Add($"{method} {url}: {(int)response.StatusCode} {await response.Code()}");

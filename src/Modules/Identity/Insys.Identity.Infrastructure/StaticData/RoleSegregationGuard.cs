@@ -34,10 +34,13 @@ using Microsoft.EntityFrameworkCore;
 namespace Insys.Identity.Infrastructure.StaticData;
 
 /// <summary>
-/// SRS-002 (Ade, 20 November 2026): a role's function grant is submitted (alone or as a line of an import) only if the role's grants in force or on their way,
-/// its import's other lines and this one don't hold both functions of a BLOCK rule of the tenant's iam.cfg_segregation_of_duties_conflict_rules whose period
-/// meets the grant's. 422 ROLE_SEGREGATION_OF_DUTIES on functionCode, naming both functions. Checked at submission only: a rule put in force after a grant,
-/// or two grants submitted separately before either is approved, aren't caught here (OQ-197).
+/// SRS-002 (Ade, 20 November 2026): a role's function grant is submitted (alone or as a line of an import) only if it breaks no BLOCK rule in force: the
+/// platform baseline and the tenant's own rules in iam.cfg_segregation_of_duties_conflict_rules whose period meets the grant's (OQ-197). Refused when the
+/// role's grants in force or on their way, its import's other lines and this one hold both functions of a rule; and when a user holding the role (an
+/// assignment active or waiting for approval, whose period meets the grant's) already holds the rule's other function through another of their roles.
+/// 422 ROLE_SEGREGATION_OF_DUTIES on functionCode, naming both functions. Checked at submission only: the static data flow has no guard at approval or
+/// activation, so a rule put in force after a grant, or two grants submitted separately before either is approved, aren't caught here; the action-time
+/// check refuses such a user the release or verify side (OQ-197).
 /// </summary>
 internal sealed class RoleSegregationGuard : IStaticSubmissionGuard
 {
@@ -53,28 +56,52 @@ internal sealed class RoleSegregationGuard : IStaticSubmissionGuard
             return Result.Success();
         }
 
-        var held = others.Concat(importLines).OfType<RoleFunctionAssignments>().Where(g => g.RoleCode == grant.RoleCode && g.FunctionCode != grant.FunctionCode)
-            .Select(g => g.FunctionCode).ToHashSet(StringComparer.Ordinal);
-        if (held.Count == 0)
-        {
-            return Result.Success();
-        }
-
         var inForce = IdentityStaticData.Descriptors.Single(d => d.EntityType == typeof(SegregationOfDutiesConflictRules)).Lifecycle.InForce;
         var from = grant.EffectiveFrom;
         var to = grant.EffectiveTo;
-        var rules = await db.Set<SegregationOfDutiesConflictRules>().AsNoTracking()
-            .Where(r => inForce.Contains(r.RecordStatus) && r.Conflict == "BLOCK" && r.FunctionA != null && r.FunctionB != null
+        var tenantRules = await db.Set<SegregationOfDutiesConflictRules>().AsNoTracking()
+            .Where(r => inForce.Contains(r.RecordStatus) && r.Conflict == SegregationOfDutiesBaseline.Block && r.FunctionA != null && r.FunctionB != null
                         && (r.EffectiveTo == null || r.EffectiveTo > from) && (to == null || r.EffectiveFrom < to)
                         && (r.FunctionA == grant.FunctionCode || r.FunctionB == grant.FunctionCode))
+            .Select(r => new DutyConflictRule(r.FunctionA!, r.FunctionB!, r.Conflict, r.Code))
             .ToListAsync(cancellationToken);
-        var broken = rules.FirstOrDefault(r => held.Contains(r.FunctionA == grant.FunctionCode ? r.FunctionB! : r.FunctionA!));
-        if (broken is null)
+        var rules = SegregationOfDutiesBaseline.WithTenantRules(tenantRules)
+            .Where(r => r.Conflict == SegregationOfDutiesBaseline.Block && (r.FunctionA == grant.FunctionCode || r.FunctionB == grant.FunctionCode))
+            .Select(r => (Rule: r, Other: r.FunctionA == grant.FunctionCode ? r.FunctionB : r.FunctionA))
+            .ToList();
+        if (rules.Count == 0)
         {
             return Result.Success();
         }
 
-        var message = $"Role {grant.RoleCode} cannot hold both {broken.FunctionA} and {broken.FunctionB} (segregation-of-duties rule {broken.Code}, SRS-002).";
-        return Error.Validation(IdentityErrorCodes.RoleSegregationOfDuties, message, new Dictionary<string, string[]> { ["functionCode"] = [message] });
+        var grants = others.Concat(importLines).OfType<RoleFunctionAssignments>().Where(g => g.FunctionCode != grant.FunctionCode).ToList();
+        var held = grants.Where(g => g.RoleCode == grant.RoleCode).Select(g => g.FunctionCode).ToHashSet(StringComparer.Ordinal);
+        if (rules.FirstOrDefault(r => held.Contains(r.Other)) is { Rule: not null } broken)
+        {
+            return Refused($"Role {grant.RoleCode} cannot hold both {broken.Rule.FunctionA} and {broken.Rule.FunctionB} "
+                           + $"(segregation-of-duties rule {broken.Rule.Code}, SRS-002).");
+        }
+
+        // A user holding the role already holds the other side through another role: the grant would give them both.
+        var statuses = new[] { AssignmentStatus.Active, AssignmentStatus.PendingApproval };
+        var assignments = db.Set<RoleAssignment>().AsNoTracking()
+            .Where(a => statuses.Contains(a.Status) && (a.ValidTo == null || a.ValidTo > from) && (to == null || a.ValidFrom < to));
+        var holders = assignments.Where(a => a.RoleCode == grant.RoleCode).Select(a => a.UserId);
+        var otherRoles = await assignments.Where(a => a.RoleCode != grant.RoleCode && holders.Contains(a.UserId)).Select(a => a.RoleCode).Distinct()
+            .ToListAsync(cancellationToken);
+        foreach (var role in otherRoles.Order(StringComparer.Ordinal))
+        {
+            var through = grants.Where(g => g.RoleCode == role).Select(g => g.FunctionCode).ToHashSet(StringComparer.Ordinal);
+            if (rules.FirstOrDefault(r => through.Contains(r.Other)) is { Rule: not null } crossing)
+            {
+                return Refused($"A user holding role {grant.RoleCode} already holds {crossing.Other} through role {role}, so {grant.RoleCode} cannot hold "
+                               + $"{grant.FunctionCode} (segregation-of-duties rule {crossing.Rule.Code}, SRS-002).");
+            }
+        }
+
+        return Result.Success();
     }
+
+    private static Error Refused(string message) =>
+        Error.Validation(IdentityErrorCodes.RoleSegregationOfDuties, message, new Dictionary<string, string[]> { ["functionCode"] = [message] });
 }

@@ -45,8 +45,9 @@ internal sealed class RoleFunctionGrantValidator : IStaticRecordValidator
         + "the catalogue does not have, is refused (422 on functionCode, BR-019). A role granted ASSIST_PRODUCT_DRAFT_RUN must also hold ASSIST_PRODUCT_DRAFT_REVIEW, in "
         + "force or on its way, for as long as the grant runs; ending or retiring ASSIST_PRODUCT_DRAFT_REVIEW while the role keeps ASSIST_PRODUCT_DRAFT_RUN is refused too "
         + "(422 ASSIST_RUN_NEEDS_REVIEW, OQ-190). A grant is refused at submission when the role's grants in force or on their way, the import's other lines "
-        + "and this one would hold both functions of a BLOCK segregation-of-duties rule in force (identity/static/segregation-of-duties-conflict-rules): 422 "
-        + "ROLE_SEGREGATION_OF_DUTIES on functionCode, naming both (SRS-002).";
+        + "and this one would hold both functions of a BLOCK segregation-of-duties rule in force (the platform baseline, and the tenant's rules in "
+        + "identity/static/segregation-of-duties-conflict-rules), or when a user holding the role (active or waiting for approval) already holds the rule's other "
+        + "function through another role: 422 ROLE_SEGREGATION_OF_DUTIES on functionCode, naming both (SRS-002, OQ-197).";
 
     public IReadOnlyDictionary<string, string[]> Validate(StaticRecord record)
     {

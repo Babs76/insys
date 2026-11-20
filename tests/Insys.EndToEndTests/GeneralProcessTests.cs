@@ -87,6 +87,8 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         await _db.SeedTenant(Tenant, "TENA");
         var underwriter = await _db.UserWithPermissions(Tenant, "underwriter", Permissions);
         var checker = await _db.UserWithPermissions(Tenant, "senior-underwriter", Permissions);
+        // The platform's segregation-of-duties baseline (SRS-002, OQ-197): the maker drafts, builds and adds; the checker releases and verifies.
+        await _db.SegregateDuties(Tenant, underwriter, checker);
         var approverRole = await _db.RoleWithPermissions(Tenant);
         await _db.AssignRole(Tenant, checker, approverRole);
         await _db.AllowBankAccountVerification(Tenant, approverRole, Today.AddYears(-1));
@@ -558,7 +560,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         // Path 1: held until the arrears are paid, then released; a person cannot release it before.
         var (_, heldInstruction) = await Approved(held.Policy, held.Vehicle, "Held Repairs");
         (await Instruction(heldInstruction)).ShouldBe(("Approved", "PREMIUM_ARREARS", 15_000m));
-        (await (await _maker.Send(HttpMethod.Post, $"/api/v1/claims/payment-instructions/{heldInstruction}/release",
+        (await (await _checker.Send(HttpMethod.Post, $"/api/v1/claims/payment-instructions/{heldInstruction}/release",
             ifMatch: (await _maker.GetAsync($"/api/v1/claims/payment-instructions/{heldInstruction}")).ETag())).Code()).ShouldBe("PREMIUM_ARREARS");
         foreach (var payment in await _db.ScalarAsOwner<Guid[]>("""
                      SELECT array_agg(p.id) FROM payment.payment p JOIN billing.invoice i ON i.id = p.business_ref_id WHERE i.policy_ref = @p
@@ -2065,7 +2067,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         var held = await (await _maker.GetAsync($"/api/v1/claims/payment-instructions/{instruction}")).Json();
         (held.GetProperty("status").GetString(), held.GetProperty("heldReason").GetString()).ShouldBe(("Approved", "DUE_DILIGENCE_NOT_CLEARED"));
         (await _db.ScalarAsOwner<long>("SELECT count(*) FROM payment.payment WHERE business_ref_id = @i", ("i", instruction))).ShouldBe(0L, "nothing is paid");
-        var released = await _maker.Send(HttpMethod.Post, $"/api/v1/claims/payment-instructions/{instruction}/release",
+        var released = await _checker.Send(HttpMethod.Post, $"/api/v1/claims/payment-instructions/{instruction}/release",
             ifMatch: (await _maker.GetAsync($"/api/v1/claims/payment-instructions/{instruction}")).ETag());
         (await released.Code()).ShouldBe("DUE_DILIGENCE_NOT_CLEARED", "a person cannot release it either");
 
@@ -2646,14 +2648,14 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         await _factory.DrainOutbox();
 
         // The payout batch keeps its own release approval, whatever approved the payments in it (SRS-002).
-        (await _maker.PostAsync($"/api/v1/payments/payout-batches/{batch}/release", null)).StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        (await _checker.PostAsync($"/api/v1/payments/payout-batches/{batch}/release", null)).StatusCode.ShouldBe(HttpStatusCode.Conflict);
         await Decide(PaymentApprovals.PayoutBusinessRefType, batch, approve: true);
         if (beforeRelease is not null)
         {
             await beforeRelease();
         }
 
-        (await _maker.PostAsync($"/api/v1/payments/payout-batches/{batch}/release", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await _checker.PostAsync($"/api/v1/payments/payout-batches/{batch}/release", null)).StatusCode.ShouldBe(HttpStatusCode.OK);
         var payment = await _db.ScalarAsOwner<Guid>("SELECT id FROM payment.payment WHERE business_ref_id = @i AND payout_batch_id = @b", ("i", instruction), ("b", batch));
         if (providerStatus is not null)
         {

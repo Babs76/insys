@@ -131,6 +131,109 @@ public sealed class AccessTests(DatabaseFixture fixture) : IClassFixture<Databas
         error.SqlState.ShouldBe(PostgresErrorCodes.CheckViolation);
     }
 
+    /// <summary>
+    /// SRS-002 (Ade, 20 November 2026, OQ-197): a user whose roles give both sides of a BLOCK rule in force (here seeded straight in the database, as an existing
+    /// tenant's users may already be) is refused only the release side, at the operation carrying it: 403 SEGREGATION_OF_DUTIES_BLOCKED, audited (IAM-006).
+    /// The draft and build sides still pass the function check, and a user holding the release side alone isn't refused. A tenant's own rule refuses its
+    /// function B the same way.
+    /// </summary>
+    [Fact]
+    public async Task AUserHoldingBothSides_IsRefusedTheReleaseSide_ButNotTheDraftSide_AndIsAudited_SRS002()
+    {
+        var db = fixture.Database;
+        var drafter = await db.RoleWithFunctions(DatabaseFixture.TenantA, "CLAIM_PAYMENT_INSTRUCTIONS", "CLAIMS_DRAFT_INSTRUCTION", "PAYMENT_PAYOUT_BATCHES",
+            "PAYMENTS_BUILD_BATCH", "CLAIMS_SUBMIT_INSTRUCTION");
+        var releaser = await db.RoleWithFunctions(DatabaseFixture.TenantA, "CLAIM_PAYMENT_INSTRUCTIONS", "CLAIMS_RELEASE_INSTRUCTION", "PAYMENT_PAYOUT_BATCHES",
+            "PAYMENTS_RELEASE_BATCH", "CLAIM_FINANCIALS", "CLAIMS_MOVE_RESERVE");
+        var both = await db.UserWithPermissions(DatabaseFixture.TenantA, "sod-both");
+        await db.AssignRole(DatabaseFixture.TenantA, both, drafter);
+        await db.AssignRole(DatabaseFixture.TenantA, both, releaser);
+        var alone = await db.UserWithPermissions(DatabaseFixture.TenantA, "sod-release-only");
+        await db.AssignRole(DatabaseFixture.TenantA, alone, releaser);
+        // The tenant's own rule, on a pair of its choosing: its function B (CLAIMS_MOVE_RESERVE) is the side refused.
+        await db.ExecuteAsOwner("""
+            INSERT INTO iam.cfg_segregation_of_duties_conflict_rules
+              (tenant_id, code, version, effective_from, record_status, created_by, change_reason, function_a, function_b, conflict)
+            VALUES (@t, 'SOD_TENANT_OWN', 1, DATE '2026-01-01', 'PUBLISHED', 'seed', 'SRS-002', 'CLAIMS_SUBMIT_INSTRUCTION', 'CLAIMS_MOVE_RESERVE', 'BLOCK')
+            ON CONFLICT DO NOTHING
+            """, ("t", DatabaseFixture.TenantA));
+
+        var client = _factory.ClientFor(DatabaseFixture.TenantA, "sod-both");
+        var instruction = Guid.CreateVersion7();
+        var batch = Guid.CreateVersion7();
+        foreach (var (url, function) in new[]
+                 {
+                     ($"/api/v1/claims/payment-instructions/{instruction}/release", "CLAIMS_RELEASE_INSTRUCTION"),
+                     ($"/api/v1/payments/payout-batches/{batch}/release", "PAYMENTS_RELEASE_BATCH"),
+                 })
+        {
+            var refused = await client.PostAsync(url, null);
+            refused.StatusCode.ShouldBe(HttpStatusCode.Forbidden, await refused.Content.ReadAsStringAsync());
+            (await refused.Code()).ShouldBe("SEGREGATION_OF_DUTIES_BLOCKED");
+            (await refused.Content.ReadAsStringAsync()).ShouldContain(function);
+        }
+
+        var reserve = await client.Send(HttpMethod.Post, "/api/v1/claims/claims/CLM-NONE/reserves",
+            new { action = "Set", reserveType = "INDEMNITY", amount = 1m, currency = "ZAR", reason = "SRS-002" }, idempotent: true);
+        (await reserve.Code()).ShouldBe("SEGREGATION_OF_DUTIES_BLOCKED", "the tenant's own rule refuses its function B");
+
+        // The draft and build sides pass the function check: what refuses them is the claim or batch that isn't there.
+        var draft = await client.Send(HttpMethod.Post, "/api/v1/claims/claims/CLM-NONE/payment-instructions", new
+        {
+            instructionRef = "SOD-1", payeePartyId = Guid.CreateVersion7(), bankAccountId = Guid.CreateVersion7(), amount = 10m, approvedAmount = 10m, currency = "ZAR",
+            reserveType = "INDEMNITY",
+        }, idempotent: true);
+        draft.StatusCode.ShouldNotBe(HttpStatusCode.Forbidden, await draft.Content.ReadAsStringAsync());
+        (await client.GetAsync($"/api/v1/claims/payment-instructions/{instruction}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+
+        // Holding the release side alone is not a conflict.
+        var releasing = await _factory.ClientFor(DatabaseFixture.TenantA, "sod-release-only").PostAsync($"/api/v1/claims/payment-instructions/{instruction}/release", null);
+        releasing.StatusCode.ShouldBe(HttpStatusCode.NotFound, await releasing.Content.ReadAsStringAsync());
+
+        await _factory.DrainOutbox();
+        (await fixture.Database.ScalarAsOwner<string>("""
+                SELECT string_agg(target_id || ':' || (details ->> 'rule'), ',' ORDER BY target_id) FROM audit.audit_event
+                WHERE tenant_id = @t AND operation = 'SegregationOfDutiesRefused' AND actor_id = @u AND outcome = 'DENIED'
+                """, ("t", DatabaseFixture.TenantA), ("u", both.ToString())))
+            .ShouldBe("CLAIMS_MOVE_RESERVE:SOD_TENANT_OWN,CLAIMS_RELEASE_INSTRUCTION:SOD_CLAIM_PAYMENT,PAYMENTS_RELEASE_BATCH:SOD_PAYOUT_BATCH");
+
+        // The menu (ADR-026) leaves the refused release side out, and keeps the draft side.
+        var menu = await (await client.GetAsync("/api/v1/identity/me/menu")).Content.ReadAsStringAsync();
+        menu.ShouldContain("CLAIMS_DRAFT_INSTRUCTION");
+        menu.ShouldNotContain("CLAIMS_RELEASE_INSTRUCTION");
+
+        // The listing for access review names the user, each rule, and the roles giving each side.
+        var listed = await _factory.ClientFor(DatabaseFixture.TenantA, "access-requester").GetAsync("/api/v1/identity/access-reviews/segregation-conflicts");
+        var listedBody = await listed.Content.ReadAsStringAsync();
+        listed.StatusCode.ShouldBe(HttpStatusCode.OK, listedBody);
+        var conflicts = System.Text.Json.JsonDocument.Parse(listedBody).RootElement;
+        var rows = conflicts.EnumerateArray().Where(r => r.GetProperty("userId").GetGuid() == both).ToList();
+        DocumentedSchema.ResponseProblems(conflicts, "core", "IdentityListSegregationConflicts").ShouldBeEmpty();
+        rows.Select(r => (r.GetProperty("rule").GetString(), r.GetProperty("baseline").GetBoolean(), r.GetProperty("refusedFunction").GetString(),
+                r.GetProperty("rolesGivingA")[0].GetString(), r.GetProperty("rolesGivingB")[0].GetString()))
+            .OrderBy(r => r.Item1, StringComparer.Ordinal)
+            .ShouldBe([
+                ("SOD_CLAIM_PAYMENT", true, "CLAIMS_RELEASE_INSTRUCTION", drafter, releaser),
+                ("SOD_PAYOUT_BATCH", true, "PAYMENTS_RELEASE_BATCH", drafter, releaser),
+                ("SOD_TENANT_OWN", false, "CLAIMS_MOVE_RESERVE", drafter, releaser),
+            ]);
+        conflicts.EnumerateArray().ShouldNotContain(r => r.GetProperty("userId").GetGuid() == alone);
+
+        // And an access review flags the user's two conflicting assignments.
+        var started = await _factory.ClientFor(DatabaseFixture.TenantA, "access-requester").Send(HttpMethod.Post, "/api/v1/identity/access-reviews",
+            new { scope = "AllUsers", reviewerId = _approver, dueDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(7)) }, idempotent: true);
+        started.StatusCode.ShouldBe(HttpStatusCode.Created, await started.Content.ReadAsStringAsync());
+        var review = await (await _factory.ClientFor(DatabaseFixture.TenantA, "access-approver")
+            .GetAsync($"/api/v1/identity/access-reviews/{(await started.Json()).GetProperty("id").GetGuid()}")).Json();
+        var items = review.GetProperty("items").EnumerateArray().ToList();
+        items.Where(i => i.GetProperty("userId").GetGuid() == both)
+            .Select(i => $"{i.GetProperty("roleCode").GetString()}={string.Join(',', i.GetProperty("segregationConflicts").EnumerateArray().Select(c => c.GetString()))}")
+            .Order(StringComparer.Ordinal)
+            .ShouldBe(new[] { $"{drafter}=SOD_CLAIM_PAYMENT,SOD_PAYOUT_BATCH,SOD_TENANT_OWN", $"{releaser}=SOD_CLAIM_PAYMENT,SOD_PAYOUT_BATCH,SOD_TENANT_OWN" }
+                .Order(StringComparer.Ordinal));
+        items.Where(i => i.GetProperty("userId").GetGuid() == alone).ShouldAllBe(i => i.GetProperty("segregationConflicts").GetArrayLength() == 0);
+    }
+
     [Fact]
     public async Task AccessReview_RevokedAccess_EndsTheRoleWhenTheReviewCompletes_IAM005()
     {

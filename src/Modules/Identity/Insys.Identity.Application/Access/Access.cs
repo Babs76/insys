@@ -65,7 +65,12 @@ public sealed class PrivilegedAccessOptions
 public sealed record GrantView(Guid Id, Guid UserId, string Purpose, Guid RequestedBy, Guid? ApprovedBy, DateTimeOffset ValidFrom, DateTimeOffset ValidTo,
     GrantStatus Status, DateTimeOffset? DecidedAt, string? RejectionReason, long RowVersion);
 
-public sealed record ReviewItemView(Guid Id, Guid UserId, string RoleCode, string Decision, Guid? DecidedBy, DateTimeOffset? DecidedAt);
+/// <param name="SegregationConflicts">
+/// The BLOCK segregation-of-duties rules in force today whose two sides the user holds, with this item's role giving one of them (SRS-002, OQ-197): flagged
+/// for the reviewer. Empty when there are none.
+/// </param>
+public sealed record ReviewItemView(Guid Id, Guid UserId, string RoleCode, string Decision, Guid? DecidedBy, DateTimeOffset? DecidedAt,
+    IReadOnlyList<string> SegregationConflicts);
 
 public sealed record ReviewView(Guid Id, string Scope, Guid ReviewerId, DateOnly DueDate, ReviewStatus Status, int ItemsTotal, int ItemsRevoked,
     IReadOnlyList<ReviewItemView> Items, long RowVersion);

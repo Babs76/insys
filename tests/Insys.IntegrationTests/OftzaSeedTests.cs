@@ -167,6 +167,21 @@ public sealed class OftzaSeedTests(DatabaseFixture fixture) : IClassFixture<Data
                           WHERE a.tenant_id = r.tenant_id AND a.function_code = r.function_a AND b.function_code = r.function_b
                             AND a.record_status NOT IN ('WITHDRAWN', 'RETIRED') AND b.record_status NOT IN ('WITHDRAWN', 'RETIRED'))
             """)).ShouldBe(0L);
+        // OQ-197: the seed's rules are the platform baseline, and no seeded user holds both sides of one through all their roles, so nobody is refused a
+        // release or verify side for segregation of duties.
+        OftzaSeed.SegregationOfDuties.ShouldBe(Insys.Identity.Domain.Users.SegregationOfDutiesBaseline.Rules.Select(r => (r.Code, r.FunctionA, r.FunctionB)).ToList());
+        (await fixture.Database.ScalarAsOwner<string>("""
+            SELECT string_agg(DISTINCT u.username || ':' || r.function_b, ',') FROM iam.user_account u
+            CROSS JOIN unnest(@a::text[], @b::text[]) AS r(function_a, function_b)
+            WHERE u.tenant_id = @t
+              AND EXISTS (SELECT 1 FROM iam.user_role_assignment x JOIN iam.cfg_role_function_assignments g ON g.tenant_id = x.tenant_id AND g.role_code = x.role_code
+                          WHERE x.tenant_id = u.tenant_id AND x.user_id = u.id AND x.status = 'ACTIVE' AND g.function_code = r.function_a
+                            AND g.record_status NOT IN ('WITHDRAWN', 'RETIRED'))
+              AND EXISTS (SELECT 1 FROM iam.user_role_assignment x JOIN iam.cfg_role_function_assignments g ON g.tenant_id = x.tenant_id AND g.role_code = x.role_code
+                          WHERE x.tenant_id = u.tenant_id AND x.user_id = u.id AND x.status = 'ACTIVE' AND g.function_code = r.function_b
+                            AND g.record_status NOT IN ('WITHDRAWN', 'RETIRED'))
+            """, ("t", seed.TenantId), ("a", OftzaSeed.SegregationOfDuties.Select(r => r.FunctionA).ToArray()),
+            ("b", OftzaSeed.SegregationOfDuties.Select(r => r.FunctionB).ToArray()))).ShouldBeNull("no seeded user holds both sides of a baseline rule");
 
         // BR-146: the four Life accounts left in arrears show at once, in both buckets (B1, 1 to 30 days; B2, 31 and over), whatever the business date.
         (await Count("SELECT count(DISTINCT bucket_code) FROM billing.arrears_case WHERE tenant_id = @t AND bucket_code IN ('B1', 'B2')")).ShouldBe(2L);

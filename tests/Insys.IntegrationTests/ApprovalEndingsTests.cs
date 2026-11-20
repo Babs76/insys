@@ -466,8 +466,9 @@ public abstract class ApprovalEndings(DatabaseFixture fixture) : IClassFixture<D
                 await world.Db.SeedTenant(tenant, world.Code);
             }
 
-            world.MakerId = await world.Db.UserWithPermissions(tenant, $"maker-{suffix}", @case.Permissions);
-            world.CheckerId = await world.Db.UserWithPermissions(tenant, $"checker-{suffix}", @case.Permissions);
+            // The platform's segregation-of-duties baseline (OQ-197): the maker drafts, builds and adds; the checker releases and verifies.
+            world.MakerId = await world.Db.UserWithPermissions(tenant, $"maker-{suffix}", @case.Permissions.MakerSide());
+            world.CheckerId = await world.Db.UserWithPermissions(tenant, $"checker-{suffix}", @case.Permissions.CheckerSide());
             world.MakerRole = await world.Db.RoleWithPermissions(tenant);
             await world.Db.AssignRole(tenant, world.MakerId, world.MakerRole);
             world.ApproverRole = await world.Db.RoleWithPermissions(tenant);

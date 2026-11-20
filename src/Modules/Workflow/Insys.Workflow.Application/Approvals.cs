@@ -238,6 +238,18 @@ public sealed class ApprovalDecision(IUserRoleQuery roles, IAuthorityReader auth
         // The checker also holds the permission the requester named (bank_account.verify, say), for approving and rejecting alike.
         if (approval.RequiredPermission is { } permission && !execution.HasPermission(permission))
         {
+            // SRS-002 (OQ-197): the permission was the release or verify side of a segregation-of-duties rule whose two sides the checker holds.
+            if (scope.Functions?.BlockedPermissions?.GetValueOrDefault(permission) is { } block)
+            {
+                audit.Record(new AuditEntry("ACCESS", SegregationBlock.AuditOperation, "Function", block.Function,
+                    new Dictionary<string, string?> { ["function"] = block.Function, ["heldWith"] = block.HeldWith, ["rule"] = block.Rule, ["approval"] = approval.Id.ToString() })
+                {
+                    Outcome = AuditOutcome.Denied,
+                });
+                return Error.Forbidden(block.Code, $"Your roles give you both {block.HeldWith} and {block.Function} (segregation-of-duties rule {block.Rule}, SRS-002), "
+                    + $"so deciding this approval, which needs {block.Function}, is refused.");
+            }
+
             return Error.Forbidden(ErrorCodes.Forbidden, $"Deciding this approval needs the {permission} permission.");
         }
 
