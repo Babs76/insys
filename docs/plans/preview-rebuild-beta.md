@@ -6,6 +6,8 @@
 
 **Why `reset` and not `upgrade`:** OpenBao has been sealed since 7 November, and its unseal key is lost. `upgrade` never initialises OpenBao (`deploy/preview/preview.sh`, `upgrade`), so the API would start against a sealed key store. Row 38's other path, replacing only OpenBao and keeping the databases, has no procedure or script. It would leave the one existing data key's fields unreadable, and how the API treats that orphaned key is untested. So this plan uses the documented `reset`.
 
+**Segregation of duties enforcement (Ade, 20 November 2026, OQ-197):** the release carrying `sod-baseline` refuses the release or verify side to any user holding both sides of a baseline rule, from the moment it is deployed, on every tenant. It reaches the Preview only through a reset (the `reset` action here; for the front end's demo stack, `demo:up`), never through an in-place upgrade (`upgrade` here, `demo:upgrade` in the front end). Any in-place upgrade of an existing tenant first reads `GET /identity/access-reviews/segregation-conflicts` on that tenant and stops if the list isn't empty.
+
 ## 0. Before approval (no change to the Preview)
 | # | Step | Who | Check |
 |---|---|---|---|
