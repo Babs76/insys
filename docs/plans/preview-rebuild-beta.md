@@ -23,7 +23,7 @@ The 19 November `check` found a reboot pending, for a newer kernel and `libc6`. 
 | # | Step | Check after it |
 |---|---|---|
 | 0A.1 | `backup` | Its counts and the dump listed, as every backup. OpenBao is sealed with its key lost, so its encrypted fields are unreadable in the dump too; the backup is of the databases as they are, in case the reset has to be abandoned. |
-| 0A.2 | The reboot. There is no `reboot` action: Ade reboots the server from Hetzner's console, or with `hcloud server reboot` and his own token. Alternatively, a `reboot` action is added to `preview.sh` first (a `deploy/**` change, merged on green smoke). | — |
+| 0A.2 | `reboot` (Ade, 20 November 2026: added to `preview.sh`; it runs only through `preview.yml` in the approved `preview` environment, with `reboot` typed in confirm). It refuses unless 0A.1's backup of the same day is on the server, reboots with `systemctl reboot` (logged in the journal with the run's id), and waits for a new boot. | The run's own check: a new boot time and the kernel before and after; what still waits for a reboot; the k3s node Ready and every pod back within 10 minutes (OpenBao left out of the wait); OpenBao's state, sealed as expected. The run fails if any of these doesn't hold. |
 | 0A.3 | `check` | "Restarts and reboots" no longer reports a pending reboot; the kernel is the new one; k3s and every pod are running. OpenBao reports sealed, as before: the reset replaces it. |
 
 ## 1. The reset run (one approval, about 2 to 3 hours)
