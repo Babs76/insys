@@ -40,9 +40,9 @@ permissions:
   packages: read
 
 jobs:
-  smoke:
+  full-seed:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 240
     steps:
       - uses: actions/checkout@v5
 
@@ -100,7 +100,10 @@ jobs:
           dotnet build tools/Insys.Seed -c Release -v q
           df -h / | tail -n 1
 
-      - name: Deploy and smoke test
+      - name: Deploy, smoke test and the whole seed
         env:
           SEED_DLL: tools/Insys.Seed/bin/Release/net10.0/Insys.Seed.dll
+          # The whole seed (no --only), with three hours for it: from the runner its roles stage alone took 669 s (run 44618453581).
+          SEED_ONLY: ""
+          SEED_TIMEOUT: "10800"
         run: deploy/smoke/run.sh
