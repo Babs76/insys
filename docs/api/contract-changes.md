@@ -11,6 +11,9 @@ What changed in the API contract, newest first, so the front end can sync. The O
 - **Access review items gain `segregationConflicts`** (`GET /identity/access-reviews`, `GET /identity/access-reviews/{id}`): the rule codes in force today whose two sides the item's user holds, with the item's role giving one of them; empty when none.
 - No other path, body or response shape changes. `docs/api/error-codes.json` and the OpenAPI documents regenerated.
 
+## Privileged access window refusal wording (20 November 2026, Ade)
+- `ACCESS_WINDOW_TOO_LONG` (422, `POST /identity/privileged-access`): the detail no longer cites TEN-007, which sets no maximum, and gives the limit in words with the setting it comes from: "Privileged access can be asked for at most 8 hours at a time (the Identity:PrivilegedAccess:MaxWindow setting)." It used to read "at most 08:00:00 (TEN-007)". Code, status, message key and the catalogue's meaning are unchanged.
+
 ## Segregation of duties: the seed's rules and a role grant's check (SRS-002, 20 November 2026; approved by Ade, OQ-197)
 - **New refusal `ROLE_SEGREGATION_OF_DUTIES` (422, on `functionCode`):** submitting a role's function grant (`POST /identity/static/role-function-assignments/{code}/versions/{n}/submit`, or the import's submit) when the role's grants in force or on their way, the import's other lines and this one would hold both functions of a BLOCK rule in force (`identity/static/segregation-of-duties-conflict-rules`). The message names both functions and the rule. Without a rule in force, nothing changes.
 - **The OFTZA sample:** three BLOCK rules in force, `SOD_CLAIM_PAYMENT` (`CLAIMS_DRAFT_INSTRUCTION` / `CLAIMS_RELEASE_INSTRUCTION`), `SOD_PAYOUT_BATCH` (`PAYMENTS_BUILD_BATCH` / `PAYMENTS_RELEASE_BATCH`) and `SOD_PAYEE_ACCOUNT` (`PARTY_ADD_BANK_ACCOUNT` / `PARTY_BANK_ACCOUNT_VERIFY`). So the assignment refusal `SEGREGATION_OF_DUTIES` (409) now applies there too.

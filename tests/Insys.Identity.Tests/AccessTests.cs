@@ -70,8 +70,13 @@ public sealed class PrivilegedAccessGrantTests
     {
         PrivilegedAccessGrant.RequestAccess(Guid.CreateVersion7(), Guid.CreateVersion7(), " ", Now.AddMinutes(1), Now.AddHours(1), Requester, TimeSpan.FromHours(8), Now)
             .Error!.Code.ShouldBe(ErrorCodes.ValidationFailed);
-        PrivilegedAccessGrant.RequestAccess(Guid.CreateVersion7(), Guid.CreateVersion7(), "x", Now.AddMinutes(1), Now.AddHours(9), Requester, TimeSpan.FromHours(8), Now)
-            .Error!.Code.ShouldBe("ACCESS_WINDOW_TOO_LONG");
+        var tooLong = PrivilegedAccessGrant.RequestAccess(Guid.CreateVersion7(), Guid.CreateVersion7(), "x", Now.AddMinutes(1), Now.AddHours(9), Requester,
+            TimeSpan.FromHours(8), Now).Error!;
+        tooLong.Code.ShouldBe("ACCESS_WINDOW_TOO_LONG");
+        // The maximum is INSYS's setting, in words; TEN-007 sets none (Ade, 20 November 2026).
+        tooLong.Message.ShouldBe("Privileged access can be asked for at most 8 hours at a time (the Identity:PrivilegedAccess:MaxWindow setting).");
+        PrivilegedAccessGrant.RequestAccess(Guid.CreateVersion7(), Guid.CreateVersion7(), "x", Now.AddMinutes(1), Now.AddMinutes(120), Requester,
+            TimeSpan.FromMinutes(90), Now).Error!.Message.ShouldContain("at most 90 minutes");
     }
 
     [Fact]
