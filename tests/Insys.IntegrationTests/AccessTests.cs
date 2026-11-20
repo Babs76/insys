@@ -234,6 +234,58 @@ public sealed class AccessTests(DatabaseFixture fixture) : IClassFixture<Databas
         items.Where(i => i.GetProperty("userId").GetGuid() == alone).ShouldAllBe(i => i.GetProperty("segregationConflicts").GetArrayLength() == 0);
     }
 
+    /// <summary>
+    /// SRS-002 (Ade, 20 November 2026, OQ-197): the platform administrator holds IDENTITY_ACCESS_REVIEWS in the operator tenant, so the listing of users holding
+    /// both sides, and the access review items' flags, must give only the caller's own tenant: the operator's staff, never a business tenant's users.
+    /// </summary>
+    [Fact]
+    public async Task APlatformAdministrator_SeesOnlyTheOperatorTenantsSegregationConflicts_NeverAnotherTenants_SRS002()
+    {
+        var db = fixture.Database;
+        var (op, business) = (DatabaseFixture.Operator, DatabaseFixture.TenantA);
+        var opDrafter = await db.RoleWithFunctions(op, "CLAIM_PAYMENT_INSTRUCTIONS", "CLAIMS_DRAFT_INSTRUCTION");
+        var opReleaser = await db.RoleWithFunctions(op, "CLAIM_PAYMENT_INSTRUCTIONS", "CLAIMS_RELEASE_INSTRUCTION");
+        var operatorUser = await db.UserWithPermissions(op, "sod-op-both");
+        await db.AssignRole(op, operatorUser, opDrafter);
+        await db.AssignRole(op, operatorUser, opReleaser);
+        var drafter = await db.RoleWithFunctions(business, "CLAIM_PAYMENT_INSTRUCTIONS", "CLAIMS_DRAFT_INSTRUCTION");
+        var releaser = await db.RoleWithFunctions(business, "CLAIM_PAYMENT_INSTRUCTIONS", "CLAIMS_RELEASE_INSTRUCTION");
+        var businessUser = await db.UserWithPermissions(business, "sod-tenant-both");
+        await db.AssignRole(business, businessUser, drafter);
+        await db.AssignRole(business, businessUser, releaser);
+        await db.UserWithFunctions(op, "sod-platform-admin", "IDENTITY_ACCESS_REVIEWS", "START_REVIEW");
+        var opReviewer = await db.UserWithFunctions(op, "sod-platform-reviewer", "IDENTITY_ACCESS_REVIEWS");
+        var platformAdmin = _factory.ClientFor(op, "sod-platform-admin");
+
+        var listed = await platformAdmin.GetAsync("/api/v1/identity/access-reviews/segregation-conflicts");
+        var body = await listed.Content.ReadAsStringAsync();
+        listed.StatusCode.ShouldBe(HttpStatusCode.OK, body);
+        var users = System.Text.Json.JsonDocument.Parse(body).RootElement.EnumerateArray().Select(r => r.GetProperty("userId").GetGuid()).ToHashSet();
+        users.ShouldContain(operatorUser, "the operator's own staff are listed");
+        users.ShouldNotContain(businessUser, "a business tenant's users are never listed to the operator");
+        var businessIds = (await db.ScalarAsOwner<string>("SELECT string_agg(id::text, ',') FROM iam.user_account WHERE tenant_id <> @t", ("t", op)) ?? "")
+            .Split(',', StringSplitOptions.RemoveEmptyEntries).Select(Guid.Parse).ToHashSet();
+        users.ShouldNotContain(u => businessIds.Contains(u), "no user of any other tenant");
+
+        // The business tenant's listing doesn't give the operator's staff either.
+        var tenantListed = await (await _factory.ClientFor(business, "access-requester").GetAsync("/api/v1/identity/access-reviews/segregation-conflicts")).Content.ReadAsStringAsync();
+        var tenantUsers = System.Text.Json.JsonDocument.Parse(tenantListed).RootElement.EnumerateArray().Select(r => r.GetProperty("userId").GetGuid()).ToList();
+        tenantUsers.ShouldContain(businessUser);
+        tenantUsers.ShouldNotContain(operatorUser);
+
+        // An access review the platform administrator starts holds and flags only the operator's users.
+        var started = await platformAdmin.Send(HttpMethod.Post, "/api/v1/identity/access-reviews",
+            new { scope = "AllUsers", reviewerId = opReviewer, dueDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(7)) }, idempotent: true);
+        started.StatusCode.ShouldBe(HttpStatusCode.Created, await started.Content.ReadAsStringAsync());
+        var reviewId = (await started.Json()).GetProperty("id").GetGuid();
+        var review = await (await platformAdmin.GetAsync($"/api/v1/identity/access-reviews/{reviewId}")).Json();
+        var items = review.GetProperty("items").EnumerateArray().ToList();
+        items.ShouldContain(i => i.GetProperty("userId").GetGuid() == operatorUser && i.GetProperty("segregationConflicts").GetArrayLength() > 0);
+        items.ShouldNotContain(i => businessIds.Contains(i.GetProperty("userId").GetGuid()), "no other tenant's user is an item");
+        (await _factory.ClientFor(business, "access-requester").GetAsync($"/api/v1/identity/access-reviews/{reviewId}")).StatusCode
+            .ShouldBe(HttpStatusCode.NotFound, "the operator's review isn't readable from a business tenant");
+    }
+
     [Fact]
     public async Task AccessReview_RevokedAccess_EndsTheRoleWhenTheReviewCompletes_IAM005()
     {
