@@ -674,7 +674,7 @@ public sealed class CaseTests(DatabaseFixture fixture) : IClassFixture<DatabaseF
         (await _clerk.GetAsync($"{Cases}/{appeal}")).StatusCode.ShouldBe(HttpStatusCode.NotFound, "an existing link without its line counts as Health");
 
         var jobs = _factory.Services.GetRequiredService<CaseTimelineJobs>();
-        (await jobs.ResolveClaimLines(T, CancellationToken.None)).ShouldBeGreaterThanOrEqualTo(1);
+        (await jobs.ResolveClaimLines(T, CancellationToken.None)).Resolved.ShouldBeGreaterThanOrEqualTo(1);
         (await ClaimLine(appeal)).ShouldBe("LIFE");
         (await ClaimLine(unknown)).ShouldBeNull();
         (await _clerk.GetAsync($"{Cases}/{appeal}")).StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -683,6 +683,50 @@ public sealed class CaseTests(DatabaseFixture fixture) : IClassFixture<DatabaseF
         await db.ExecuteAsOwner("UPDATE workflow.case_link SET claim_line = NULL WHERE case_id = @c", ("c", appeal));
         await jobs.RunForTenant(T, CancellationToken.None);
         (await ClaimLine(appeal)).ShouldBe("LIFE");
+    }
+
+    /// <summary>
+    /// OQ-196 B (Ade, 20 November 2026): each run of the CASE_TIMELINES job carries on after the last case it looked at, so a blank CLAIM link beyond the
+    /// first batch is reached on a later run even when the cases before it can never be filled in; and each run reports how many cases are still blank.
+    /// The batch is set to 1 here, standing for the job's 500, so that "beyond the first batch" needs two cases rather than 501.
+    /// </summary>
+    [Fact]
+    public async Task ABlankClaimLink_BeyondTheFirstBatch_IsReachedOnALaterRun_AndTheBlankCountIsReported_OQ196()
+    {
+        var db = fixture.Database;
+        var jobs = _factory.Services.GetRequiredService<CaseTimelineJobs>();
+        var never = await ClaimAppeal(Guid.CreateVersion7(), "XC-OQ196-CURSOR");
+        var later = await ClaimAppeal(await MemberLifeClaim(), "LC-OQ196-CURSOR");
+        await db.ExecuteAsOwner("UPDATE workflow.case_link SET claim_line = NULL WHERE case_id = @c", ("c", later));
+        (never < later).ShouldBeTrue("case ids are time ordered, so the case that can't be filled in comes first");
+        Task<long> Blank() => db.ScalarAsOwner<long>(
+            "SELECT count(DISTINCT case_id) FROM workflow.case_link WHERE tenant_id = @t AND link_type = 'CLAIM' AND claim_line IS NULL", ("t", T));
+        var blank = await Blank();
+
+        jobs.ClaimLineBatchSize = 1;
+        try
+        {
+            // The first run takes the first blank case only: the later one is still blank, and the count says how many are.
+            var first = await jobs.ResolveClaimLines(T, CancellationToken.None);
+            (await ClaimLine(later)).ShouldBeNull("a batch of one doesn't reach the later case on the first run");
+            first.StillBlank.ShouldBe((int)await Blank(), "the run reports how many cases are still blank");
+
+            // Later runs carry on from the last case id, so the later case is filled in within as many runs as there are blank cases.
+            for (var run = 1; run < blank && await ClaimLine(later) is null; run++)
+            {
+                await jobs.ResolveClaimLines(T, CancellationToken.None);
+            }
+
+            (await ClaimLine(later)).ShouldBe("LIFE", "the blank link beyond the first batch is reached on a later run");
+            (await ClaimLine(never)).ShouldBeNull("a claim no module holds stays blank, and so Health");
+            var after = await jobs.ResolveClaimLines(T, CancellationToken.None);
+            after.StillBlank.ShouldBe((int)await Blank());
+            after.StillBlank.ShouldBeLessThan((int)blank, "the later case is no longer blank");
+        }
+        finally
+        {
+            jobs.ClaimLineBatchSize = CaseTimelineJobs.ClaimLineBatch;
+        }
     }
 
     /// <summary>Opened by a user with medical_claim.read: opening answers with the case, which a Health case's reader alone may read.</summary>

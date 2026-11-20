@@ -92,9 +92,14 @@ internal sealed class CaseRepository(WorkflowDbContext db) : ICaseRepository
         await db.Cases.AsNoTracking().Where(c => Ended.Contains(c.Status) && c.RetainUntil != null && c.RetainUntil < today)
             .OrderBy(c => c.RetainUntil).Select(c => c.Id).Take(limit).ToListAsync(cancellationToken);
 
-    public async Task<IReadOnlyList<Guid>> WithUnknownClaimLines(int limit, CancellationToken cancellationToken) =>
-        await db.Set<CaseLink>().AsNoTracking().Where(l => l.LinkType == CaseLinkTypes.Claim && l.ClaimLine == null)
-            .Select(l => l.CaseId).Distinct().OrderBy(id => id).Take(limit).ToListAsync(cancellationToken);
+    public async Task<IReadOnlyList<Guid>> WithUnknownClaimLines(Guid? after, int limit, CancellationToken cancellationToken) =>
+        await UnknownClaimLines().Where(id => after == null || id > after.Value).Distinct().OrderBy(id => id).Take(limit).ToListAsync(cancellationToken);
+
+    public async Task<int> CountWithUnknownClaimLines(CancellationToken cancellationToken) =>
+        await UnknownClaimLines().Distinct().CountAsync(cancellationToken);
+
+    private IQueryable<Guid> UnknownClaimLines() =>
+        db.Set<CaseLink>().AsNoTracking().Where(l => l.LinkType == CaseLinkTypes.Claim && l.ClaimLine == null).Select(l => l.CaseId);
 }
 
 /// <summary>The case configuration in force (workflow static data); a tenant's own reference row before a global one.</summary>

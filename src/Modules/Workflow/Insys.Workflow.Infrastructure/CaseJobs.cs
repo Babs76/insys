@@ -24,6 +24,7 @@
  * UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
  * ============================================================================
  */
+using System.Collections.Concurrent;
 using Insys.BuildingBlocks.Application;
 using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Messaging;
@@ -96,23 +97,43 @@ public sealed class CaseTimelineJobs(IServiceScopeFactory scopes, ITenantDirecto
     /// <summary>The most cases whose CLAIM links' lines one run looks up.</summary>
     public const int ClaimLineBatch = 500;
 
+    /// <summary>The batch one run takes; <see cref="ClaimLineBatch"/> unless a test sets a smaller one to reach past it without making 500 cases.</summary>
+    public int ClaimLineBatchSize { get; set; } = ClaimLineBatch;
+
+    /// <summary>Per tenant, the last case id a run looked at, so the next run carries on after it (Ade, 20 November 2026). Held in memory: a restart starts again from the first.</summary>
+    private readonly ConcurrentDictionary<Guid, Guid> _claimLineCursor = new();
+
     /// <summary>
     /// OQ-196 B: fills in the line of CLAIM links that have none (links added before V0148, or when the claim modules couldn't tell it), through
-    /// the claim modules' public query, one case per transaction. Until then such a case counts as Health. Returns the cases filled in.
+    /// the claim modules' public query, one case per transaction. Until then such a case counts as Health.
+    /// Each run takes the next batch by case id after the previous run's last one, and starts again from the first once it reaches the end, so every
+    /// blank link is reached across runs even when more than a batch can't be filled in (Ade, 20 November 2026). After the run it logs how many cases
+    /// still have a blank line: the count only, no claim, case or person data. Returns the cases filled in and the count still blank.
     /// </summary>
-    public async Task<int> ResolveClaimLines(Guid tenantId, CancellationToken cancellationToken)
+    public async Task<(int Resolved, int StillBlank)> ResolveClaimLines(Guid tenantId, CancellationToken cancellationToken)
     {
+        var batch = Math.Max(1, ClaimLineBatchSize);
+        Guid? after = _claimLineCursor.TryGetValue(tenantId, out var last) ? last : null;
         IReadOnlyList<Guid> unknown;
         await using (var scope = scopes.CreateAsyncScope())
         {
             scope.ServiceProvider.GetRequiredService<ExecutionScope>().InitialiseForService(tenantId, ServiceName);
-            var result = await scope.ServiceProvider.GetRequiredService<IDispatcher>().Query(new CasesWithUnknownClaimLines(ClaimLineBatch), cancellationToken);
+            var result = await scope.ServiceProvider.GetRequiredService<IDispatcher>().Query(new CasesWithUnknownClaimLines(after, batch), cancellationToken);
             if (result.IsFailure)
             {
-                return 0;
+                return (0, -1);
             }
 
             unknown = result.Value;
+        }
+
+        if (unknown.Count < batch)
+        {
+            _claimLineCursor.TryRemove(tenantId, out _);
+        }
+        else
+        {
+            _claimLineCursor[tenantId] = unknown[^1];
         }
 
         var resolved = 0;
@@ -121,7 +142,19 @@ public sealed class CaseTimelineJobs(IServiceScopeFactory scopes, ITenantDirecto
             resolved += await Send(tenantId, new ResolveCaseClaimLines(id), cancellationToken) ? 1 : 0;
         }
 
-        return resolved;
+        var stillBlank = -1;
+        await using (var scope = scopes.CreateAsyncScope())
+        {
+            scope.ServiceProvider.GetRequiredService<ExecutionScope>().InitialiseForService(tenantId, ServiceName);
+            var counted = await scope.ServiceProvider.GetRequiredService<IDispatcher>().Query(new CountCasesWithUnknownClaimLines(), cancellationToken);
+            if (counted.IsSuccess)
+            {
+                stillBlank = counted.Value;
+                logger.LogInformation("Case timelines: {StillBlank} cases still have a CLAIM link with no line", stillBlank);
+            }
+        }
+
+        return (resolved, stillBlank);
     }
 
     private async Task<bool> Send(Guid tenantId, ICommand<bool> command, CancellationToken cancellationToken)

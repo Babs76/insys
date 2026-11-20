@@ -131,8 +131,11 @@ public interface ICaseRepository
     /// <summary>Closed cases past their retention date and not under a legal hold (OQ-106).</summary>
     Task<IReadOnlyList<Guid>> DueForDisposal(DateOnly today, int limit, CancellationToken cancellationToken);
 
-    /// <summary>Cases with a CLAIM link whose line isn't recorded yet (OQ-196 B), for the CASE_TIMELINES job to fill in.</summary>
-    Task<IReadOnlyList<Guid>> WithUnknownClaimLines(int limit, CancellationToken cancellationToken);
+    /// <summary>Cases with a CLAIM link whose line isn't recorded yet (OQ-196 B), for the CASE_TIMELINES job to fill in: by case id, after <paramref name="after"/>.</summary>
+    Task<IReadOnlyList<Guid>> WithUnknownClaimLines(Guid? after, int limit, CancellationToken cancellationToken);
+
+    /// <summary>How many cases still have a CLAIM link whose line isn't recorded (OQ-196 B).</summary>
+    Task<int> CountWithUnknownClaimLines(CancellationToken cancellationToken);
 }
 
 public sealed record CaseLinkView([property: AllowedValues("POLICY", "CLAIM", "MEMBERSHIP", "PAYMENT", "INVOICE", "BILLING_ACCOUNT", "PARTY", "PROVIDER", "REMITTANCE", "PAYMENT_RUN", "INTERMEDIARY")]
@@ -322,8 +325,11 @@ public sealed record MarkCaseOverdue(Guid CaseId) : ICommand<bool>;
 /// <summary>Disposes of a closed case past its retention (OQ-106), unless it is under a legal hold.</summary>
 public sealed record DisposeCase(Guid CaseId) : ICommand<bool>;
 
-/// <summary>The CASE_TIMELINES job's fill-in (OQ-196 B): the cases whose CLAIM links have no line yet.</summary>
-public sealed record CasesWithUnknownClaimLines(int Limit) : IQuery<IReadOnlyList<Guid>>;
+/// <summary>The CASE_TIMELINES job's fill-in (OQ-196 B): the cases whose CLAIM links have no line yet, by case id after <see cref="After"/>.</summary>
+public sealed record CasesWithUnknownClaimLines(Guid? After, int Limit) : IQuery<IReadOnlyList<Guid>>;
+
+/// <summary>How many cases still have a CLAIM link with no line (OQ-196 B): the count the CASE_TIMELINES job logs after each run.</summary>
+public sealed record CountCasesWithUnknownClaimLines : IQuery<int>;
 
 /// <summary>Records the line of each of a case's CLAIM links that has none, from the claim modules (OQ-196 B). True when one was recorded.</summary>
 public sealed record ResolveCaseClaimLines(Guid CaseId) : ICommand<bool>;
@@ -932,10 +938,14 @@ internal sealed class CaseQueryHandlers(ICaseQueries queries, ICaseRepository ca
     IQueryHandler<CasesSummary, BuildingBlocks.Application.DashboardSummary>,
     IQueryHandler<GetComplaintsReport, ComplaintsReport>,
     IQueryHandler<CasesDue, CasesDueView>,
-    IQueryHandler<CasesWithUnknownClaimLines, IReadOnlyList<Guid>>
+    IQueryHandler<CasesWithUnknownClaimLines, IReadOnlyList<Guid>>,
+    IQueryHandler<CountCasesWithUnknownClaimLines, int>
 {
     public async Task<Result<IReadOnlyList<Guid>>> Handle(CasesWithUnknownClaimLines query, CancellationToken cancellationToken) =>
-        Result.Success(await cases.WithUnknownClaimLines(query.Limit, cancellationToken));
+        Result.Success(await cases.WithUnknownClaimLines(query.After, query.Limit, cancellationToken));
+
+    public async Task<Result<int>> Handle(CountCasesWithUnknownClaimLines query, CancellationToken cancellationToken) =>
+        Result.Success(await cases.CountWithUnknownClaimLines(cancellationToken));
 
     public async Task<Result<IReadOnlyList<CaseSummaryView>>> Handle(ListCases query, CancellationToken cancellationToken) =>
         Result.Success(await queries.List(query.Filter, query.AfterId, query.Limit, cancellationToken));
