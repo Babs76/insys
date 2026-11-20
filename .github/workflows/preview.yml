@@ -35,9 +35,9 @@ on:
       action:
         description: What to do
         type: choice
-        options: [check, diagnose, provision, upgrade, open-ssh, backup, restore, os-update, rotate-ssh-key, reset, rotate-passwords, destroy]
+        options: [check, diagnose, provision, upgrade, open-ssh, backup, restore, os-update, reboot, rotate-ssh-key, reset, rotate-passwords, destroy]
       confirm:
-        description: For restore, os-update, rotate-ssh-key, reset, rotate-passwords and destroy, type the action's name
+        description: For restore, os-update, reboot, rotate-ssh-key, reset, rotate-passwords and destroy, type the action's name
         default: ""
       ssh_from:
         description: For open-ssh and restore, the address to allow (your own IP)
@@ -78,7 +78,7 @@ jobs:
       PREVIEW_BACKUP_DAY: ${{ inputs.backup_day }}
     steps:
       - name: Confirmation
-        if: contains(fromJSON('["restore", "os-update", "rotate-ssh-key", "reset", "rotate-passwords", "destroy"]'), inputs.action) && inputs.confirm != inputs.action
+        if: contains(fromJSON('["restore", "os-update", "reboot", "rotate-ssh-key", "reset", "rotate-passwords", "destroy"]'), inputs.action) && inputs.confirm != inputs.action
         run: |
           echo "::error::Type the action's name in confirm to ${{ inputs.action }}."
           exit 1

@@ -68,7 +68,8 @@ kubectl rollout restart deploy/insys-api
 for d in insys-keycloak insys-api; do kubectl rollout status "deploy/$d" --timeout=600s; done
 kubectl rollout status statefulset/insys-seaweedfs --timeout=300s
 
-kubectl run smoke --image=alpine:3.20 --restart=Never --command -- sleep 3600
+# It outlives the seed (SEED_TIMEOUT): after the whole seed's two hours a one-hour pod had exited, and the sign-in check after it couldn't exec (run 44699166104).
+kubectl run smoke --image=alpine:3.20 --restart=Never --command -- sleep $(( ${SEED_TIMEOUT:-1500} + 3600 ))
 kubectl wait --for=condition=ready pod/smoke --timeout=120s
 kubectl exec smoke -- apk add -q curl jq
 in_cluster() { kubectl exec smoke -- sh -c "$1"; }
@@ -204,7 +205,6 @@ pending_events() { # each module outbox's unpublished events by type and attempt
 }
 progress=$(mktemp)
 stages_summary() { # the seed's own stage lines only (stage names, seconds, 429 counts): no request or response content
-  grep -E '^seed: ' "$progress" | cut -c1-200 || true
   [ -z "${GITHUB_STEP_SUMMARY:-}" ] || { printf '\nThe seed'"'"'s stages:\n```\n'; grep -E '^seed: ' "$progress" | cut -c1-200 || true; printf '```\n'; } >> "$GITHUB_STEP_SUMMARY"
 }
 kubectl run seed --image=insys-api:smoke --image-pull-policy=Never --restart=Never --command -- sleep $(( seed_timeout + 600 ))

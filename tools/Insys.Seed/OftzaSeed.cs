@@ -53,6 +53,15 @@ public sealed partial class OftzaSeed(SeedContext context)
     /// <summary>Each role's functions, as Roles() assigned them: a portal channel's rows follow its role's (BR-140).</summary>
     private readonly Dictionary<string, List<string>> _roleFunctions = new(StringComparer.Ordinal);
 
+    /// <summary>Sample legal hold reasons (§18.1), each the compliance officer's; invented, not a regulator's list. Codes are at most 15 characters.</summary>
+    public static readonly (string Code, string Label)[] LegalHoldReasons =
+    [
+        ("LITIGATION", "Pending or expected litigation (sample)"),
+        ("REG_INQUIRY", "Regulatory inquiry (sample)"),
+        ("INVESTIGATION", "Internal or fraud investigation (sample)"),
+        ("DISPUTE", "Complaint or ombud dispute (sample)"),
+    ];
+
     /// <summary>The portals' channels (BR-140, F005): each portal role's functions allowed on the channel of its Keycloak client.</summary>
     private static readonly (string Channel, string Audience, string Name, string ClientId, string Role)[] PortalChannels =
     [
@@ -846,6 +855,15 @@ public sealed partial class OftzaSeed(SeedContext context)
         {
             await Static("party/static/consent-purposes", purpose, new { purposeCode = purpose, label, legalBasis = "CONSENT", jurisdiction = "ZA", defaultValue = false, retentionPeriod = "P5Y" });
         }
+        // Legal hold (Ade, 25 October 2026): the compliance officer approves a hold's release, so readiness's fallback below never gives LEGAL_HOLD_RELEASE to
+        // the tenant administrator. Sample reasons (all invented, and marked so); a code is at most 15 characters (document.ref_legal_hold_reason_codes.code).
+        await Static("workflow/static/delegation-and-approval-authority", "AUTH-LEGAL_HOLD_RELEASE-COMPLIANCE_OFFICER",
+            new { roleCode = "COMPLIANCE_OFFICER", transactionType = "LEGAL_HOLD_RELEASE", limitValue = 0m, delegationAllowed = false });
+        foreach (var (reason, label) in LegalHoldReasons)
+        {
+            await Static("documents/static/legal-hold-reason-codes", reason, new { label, authorityRole = "COMPLIANCE_OFFICER" });
+        }
+
         await Static("finance/static/chart-of-accounts-subledger", "ACC-1100", new { accountCode = "1100", name = "Premium receivable (sample)", type = "ASSET", glAccount = "1100", status = "ACTIVE" });
         await Static("workflow/static/business-calendars", "CAL-ZA", new { calendarCode = "CAL-ZA", workingDays = new[] { "MON", "TUE", "WED", "THU", "FRI" }, hours = "08:00-17:00", holidayCalendar = "ZA", timeZone = "Africa/Johannesburg" });
         await Static("workflow/static/task-types-and-work-queues", "OFTZA-TASKS", new { queueCode = "OFTZA-TASKS", taskTypes = new[] { "REVIEW" }, assignmentRule = "MANUAL_PULL" });
