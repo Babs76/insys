@@ -2010,6 +2010,14 @@
       "remedy": "Choose a role in force, or ask your administrator to put it in force first."
     },
     {
+      "code": "ROLE_SEGREGATION_OF_DUTIES",
+      "httpStatus": 422,
+      "messageKey": "error.identity.role_segregation_of_duties",
+      "retryable": false,
+      "means": "The role would hold two duties your organisation keeps apart, such as preparing and releasing the same payment.",
+      "remedy": "Grant the function to a different role, or end the role's conflicting function first."
+    },
+    {
       "code": "RULESET_NOT_FOUND",
       "httpStatus": 404,
       "messageKey": "error.rules.ruleset_not_found",
