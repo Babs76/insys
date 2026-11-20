@@ -41,3 +41,13 @@ internal sealed class LifeClaimRecipients([FromKeyedServices(LifeDbContext.Schem
             """, r => new NoticeRecipient(r.GetGuid(0), r.GetString(1), r.IsDBNull(2) ? null : r.GetString(2), r.IsDBNull(3) ? null : r.GetString(3)),
             cancellationToken, ("t", tenantId), ("id", claimId));
 }
+
+/// <summary>IClaimLineSource (OQ-196): a Life claim is one of life.claim.</summary>
+internal sealed class LifeClaimLines([FromKeyedServices(LifeDbContext.SchemaName)] NpgsqlDataSource dataSource) : ClaimsFramework.Contracts.IClaimLineSource
+{
+    public string Line => ClaimsFramework.Contracts.ClaimLines.Life;
+
+    public async Task<bool> Holds(Guid tenantId, Guid claimId, CancellationToken cancellationToken) =>
+        await TenantReads.First(dataSource, tenantId, "SELECT 1 FROM life.claim WHERE tenant_id = @t AND id = @id", _ => Line, cancellationToken,
+            ("t", tenantId), ("id", claimId)) is not null;
+}

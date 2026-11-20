@@ -164,3 +164,25 @@ public interface IClaimDecisionReasons
     /// <summary>The reason in force on the day, or null.</summary>
     Task<ClaimDecisionReason?> InForce(Guid tenantId, string code, DateOnly day, CancellationToken cancellationToken);
 }
+
+/// <summary>The line of business a domain claim belongs to: the claim module that holds it.</summary>
+public static class ClaimLines
+{
+    public const string General = "GENERAL";
+    public const string Life = "LIFE";
+    public const string Health = "HEALTH";
+}
+
+/// <summary>
+/// Public query interface, one per claim module (General, Life and Health each implement it for their own claims): whether
+/// a claim ID is one of the module's claims, so another module can tell a claim's line from its ID alone (OQ-196, option B,
+/// Ade 20 November 2026: Workflow records it on a case's CLAIM link). Read on the module's own connection, in the tenant.
+/// Nothing about the claim is returned but whether the module holds it.
+/// </summary>
+public interface IClaimLineSource
+{
+    /// <summary>The line this module's claims belong to (<see cref="ClaimLines"/>).</summary>
+    string Line { get; }
+
+    Task<bool> Holds(Guid tenantId, Guid claimId, CancellationToken cancellationToken);
+}

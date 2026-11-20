@@ -90,6 +90,7 @@ public sealed class CaseTests(DatabaseFixture fixture) : IClassFixture<DatabaseF
         await Type(db, "REVIEW_T", "APPEAL", ["POLICY", "CLAIM"], ["CUSTOMER"], false, null);
         await Type(db, "ENQUIRY_T", "ENQUIRY", ["POLICY", "PARTY"], ["CUSTOMER", "BROKER"], false, null);
         await Type(db, "DISPUTE_P", "DISPUTE", ["REMITTANCE"], ["PROVIDER"], false, null);
+        await Type(db, "DISPUTE_C", "DISPUTE", ["CLAIM", "POLICY"], ["CUSTOMER"], false, null);
         await Timeline(db, "COMPLAINT_T", "ACKNOWLEDGE", "P2D", "BUSINESS", "CAL-ZA", false, null);
         await Timeline(db, "COMPLAINT_T", "RESOLVE", "P30D", "CALENDAR", null, true, "P10D");
         await Timeline(db, "COMPLAINT_T", "DECIDE_REPRESENTATIONS", "P45D", "CALENDAR", null, false, null);
@@ -518,6 +519,230 @@ public sealed class CaseTests(DatabaseFixture fixture) : IClassFixture<DatabaseF
     }
 
     /// <summary>A legal hold on the case itself (D-34, document.record_hold) keeps it past its retention too, until the hold is released.</summary>
+    /// <summary>
+    /// BR-100 (OQ-196, Ade 20 November 2026): each case screen has its own reads, under its own function alone. A role holding only SERVICE_DISPUTES reads
+    /// disputes and nothing else; one holding only CLAIM_DISPUTES reads only disputes that link a claim; neither reads the complaints screen's list.
+    /// </summary>
+    [Fact]
+    public async Task EachCaseScreen_ReadsOnlyItsOwnCases_UnderItsOwnFunction_AndIsRefusedTheOthers_BR100()
+    {
+        var db = fixture.Database;
+        var enquiry = (await Open(_clerk, new { caseTypeCode = "ENQUIRY_T", receivedChannel = "PHONE", complainantPartyId = Guid.CreateVersion7(), summary = "Q" }))
+            .GetProperty("id").GetGuid();
+        var complaint = await OpenComplaint();
+        // A General claim: under OQ-196 (B) a claim whose line isn't known is Health's, and isn't a claim dispute.
+        var generalClaim = await MemberGeneralClaim(Guid.CreateVersion7());
+        var claimDispute = (await Open(_clerk, new
+        {
+            caseTypeCode = "DISPUTE_C", receivedChannel = "PHONE", complainantPartyId = Guid.CreateVersion7(), summary = "D",
+            links = new[] { new { linkType = "CLAIM", recordId = generalClaim, reference = "GC-BR100" } },
+        })).GetProperty("id").GetGuid();
+        var policyDispute = (await Open(_clerk, new
+        {
+            caseTypeCode = "DISPUTE_C", receivedChannel = "PHONE", complainantPartyId = Guid.CreateVersion7(), summary = "D",
+            links = new[] { new { linkType = "POLICY", recordId = Guid.CreateVersion7(), reference = "GP-BR100" } },
+        })).GetProperty("id").GetGuid();
+
+        string[] screens = ["enquiries", "disputes", "appeals", "claim-disputes", "claim-appeals", "health-claim-appeals", "provider-disputes"];
+        await db.UserWithFunctions(T, "br100-disputes", "SERVICE_DISPUTES");
+        await db.UserWithFunctions(T, "br100-claim-disputes", "CLAIM_DISPUTES");
+        await db.UserWithFunctions(T, "br100-enquiries", "SERVICE_ENQUIRIES");
+        var disputes = _factory.ClientFor(T, "br100-disputes");
+        var claimDisputes = _factory.ClientFor(T, "br100-claim-disputes");
+        var enquiries = _factory.ClientFor(T, "br100-enquiries");
+
+        async Task<List<(Guid Id, string Family)>> List(HttpClient client, string screen)
+        {
+            var response = await client.GetAsync($"{Cases}/{screen}?limit=200");
+            response.StatusCode.ShouldBe(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+            return (await response.Json()).GetProperty("items").EnumerateArray()
+                .Select(i => (i.GetProperty("id").GetGuid(), i.GetProperty("family").GetString()!)).ToList();
+        }
+
+        // SERVICE_DISPUTES: every dispute, only disputes; the case itself through its own read; the complaints screen's reads and the other screens refused.
+        var seen = await List(disputes, "disputes");
+        seen.Select(c => c.Id).ShouldContain(claimDispute);
+        seen.Select(c => c.Id).ShouldContain(policyDispute);
+        seen.ShouldAllBe(c => c.Family == "DISPUTE");
+        (await disputes.GetAsync($"{Cases}/disputes/{policyDispute}")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await disputes.GetAsync($"{Cases}/disputes/{enquiry}")).StatusCode.ShouldBe(HttpStatusCode.NotFound, "an enquiry isn't a dispute");
+        (await disputes.GetAsync(Cases)).StatusCode.ShouldBe(HttpStatusCode.Forbidden, "the complaints screen's list needs SERVICE_COMPLAINTS");
+        (await disputes.GetAsync($"{Cases}/{policyDispute}")).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        foreach (var other in screens.Where(s => s != "disputes"))
+        {
+            (await disputes.GetAsync($"{Cases}/{other}")).StatusCode.ShouldBe(HttpStatusCode.Forbidden, other);
+        }
+
+        // CLAIM_DISPUTES: only disputes that link a claim.
+        var claims = await List(claimDisputes, "claim-disputes");
+        claims.Select(c => c.Id).ShouldContain(claimDispute);
+        claims.Select(c => c.Id).ShouldNotContain(policyDispute);
+        (await claimDisputes.GetAsync($"{Cases}/claim-disputes/{claimDispute}")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await claimDisputes.GetAsync($"{Cases}/claim-disputes/{policyDispute}")).StatusCode.ShouldBe(HttpStatusCode.NotFound, "it links no claim");
+        (await claimDisputes.GetAsync($"{Cases}/disputes")).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+
+        // SERVICE_ENQUIRIES: only enquiries; not the complaint.
+        var asked = await List(enquiries, "enquiries");
+        asked.Select(c => c.Id).ShouldContain(enquiry);
+        asked.Select(c => c.Id).ShouldNotContain(complaint);
+        asked.ShouldAllBe(c => c.Family == "ENQUIRY");
+        (await enquiries.GetAsync($"{Cases}/enquiries/{complaint}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+    }
+
+    /// <summary>
+    /// cases.md §9 (OQ-196, option B, Ade 20 November 2026): a Health claim appeal that links only its medical claim is Health's, as the claim's line,
+    /// recorded on the link from Health's public query, says. It is readable only by those who may read Health claims (medical_claim.read), and it is
+    /// under HEALTH_CLAIM_APPEALS, not CLAIM_APPEALS.
+    /// </summary>
+    [Fact]
+    public async Task AHealthClaimAppeal_LinkingOnlyItsClaim_IsHiddenWithoutMedicalClaimRead_Cases9()
+    {
+        var db = fixture.Database;
+        var claim = await MemberHealthClaim();
+        var appeal = await ClaimAppeal(claim, "HC-OQ196");
+        (await ClaimLine(appeal)).ShouldBe("HEALTH", "the line is recorded as the link is added");
+
+        // Without medical_claim.read: not found, and left out of every list.
+        (await _clerk.GetAsync($"{Cases}/{appeal}")).StatusCode.ShouldBe(HttpStatusCode.NotFound, "a Health claim appeal needs medical_claim.read");
+        (await ListIds(_clerk, $"{Cases}?family=APPEAL")).ShouldNotContain(appeal);
+        await db.UserWithFunctions(T, "oq196-claim-appeals", "CLAIM_APPEALS");
+        var claimAppeals = _factory.ClientFor(T, "oq196-claim-appeals");
+        (await ListIds(claimAppeals, $"{Cases}/claim-appeals")).ShouldNotContain(appeal);
+        (await claimAppeals.GetAsync($"{Cases}/claim-appeals/{appeal}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+
+        // With it: read, and under HEALTH_CLAIM_APPEALS, not CLAIM_APPEALS.
+        (await _factory.ClientFor(T, "case-health").GetAsync($"{Cases}/{appeal}")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        var healthAppeals = await HealthScreenUser("oq196-health-appeals", "HEALTH_CLAIM_APPEALS");
+        (await ListIds(healthAppeals, $"{Cases}/health-claim-appeals")).ShouldContain(appeal);
+        (await healthAppeals.GetAsync($"{Cases}/health-claim-appeals/{appeal}")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        var both = await HealthScreenUser("oq196-both-appeals", "CLAIM_APPEALS");
+        (await ListIds(both, $"{Cases}/claim-appeals")).ShouldNotContain(appeal, "a Health claim is not a General or Life one");
+        (await both.GetAsync($"{Cases}/claim-appeals/{appeal}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+    }
+
+    /// <summary>
+    /// OQ-196 (B): a CLAIM link records its claim's line when it is added, here through the case's link action; an appeal on a General claim is
+    /// under CLAIM_APPEALS, not HEALTH_CLAIM_APPEALS, and staff without medical_claim.read read it.
+    /// </summary>
+    [Fact]
+    public async Task AGeneralClaimAppeal_RecordsItsLine_AndIsUnderClaimAppeals_NotHealthClaimAppeals_OQ196()
+    {
+        var claim = await MemberGeneralClaim(Guid.CreateVersion7());
+        var appeal = (await Open(_clerk, new { caseTypeCode = "REVIEW_T", receivedChannel = "LETTER", complainantName = "X", summary = "Review", parentCaseId = await ClosedComplaint() }))
+            .GetProperty("id").GetGuid();
+        (await Act(_clerk, appeal, "links", new { linkType = "CLAIM", recordId = claim, reference = "GC-OQ196" })).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        (await ClaimLine(appeal)).ShouldBe("GENERAL");
+
+        (await _clerk.GetAsync($"{Cases}/{appeal}")).StatusCode.ShouldBe(HttpStatusCode.OK, "a General claim appeal isn't Health's");
+        await fixture.Database.UserWithFunctions(T, "oq196-general-appeals", "CLAIM_APPEALS");
+        var claimAppeals = _factory.ClientFor(T, "oq196-general-appeals");
+        (await ListIds(claimAppeals, $"{Cases}/claim-appeals")).ShouldContain(appeal);
+        (await claimAppeals.GetAsync($"{Cases}/claim-appeals/{appeal}")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        var healthAppeals = await HealthScreenUser("oq196-general-health", "HEALTH_CLAIM_APPEALS");
+        (await ListIds(healthAppeals, $"{Cases}/health-claim-appeals")).ShouldNotContain(appeal);
+        (await healthAppeals.GetAsync($"{Cases}/health-claim-appeals/{appeal}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+    }
+
+    /// <summary>OQ-196 (B), point 3: a claim no claim module holds has no line, and the case fails closed: Health's, hidden without medical_claim.read.</summary>
+    [Fact]
+    public async Task AClaimAppeal_WhoseLineIsUnknown_FailsClosed_AsHealth_OQ196()
+    {
+        var appeal = await ClaimAppeal(Guid.CreateVersion7(), "XC-OQ196");
+        (await ClaimLine(appeal)).ShouldBeNull("no module holds the claim");
+
+        (await _clerk.GetAsync($"{Cases}/{appeal}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await ListIds(_clerk, $"{Cases}?family=APPEAL")).ShouldNotContain(appeal);
+        var claimAppeals = await HealthScreenUser("oq196-unknown-claim", "CLAIM_APPEALS");
+        (await ListIds(claimAppeals, $"{Cases}/claim-appeals")).ShouldNotContain(appeal, "an unknown line isn't General or Life");
+        var healthAppeals = await HealthScreenUser("oq196-unknown-health", "HEALTH_CLAIM_APPEALS");
+        (await ListIds(healthAppeals, $"{Cases}/health-claim-appeals")).ShouldContain(appeal);
+    }
+
+    /// <summary>
+    /// OQ-196 (B), point 2: links added before V0148 have no line. The CASE_TIMELINES job fills it in through the claim modules' public query; until
+    /// then the case counts as Health. A link whose claim no module holds stays without one.
+    /// </summary>
+    [Fact]
+    public async Task TheCaseTimelinesJob_FillsInTheLineOfExistingClaimLinks_OQ196()
+    {
+        var db = fixture.Database;
+        var life = await MemberLifeClaim();
+        var appeal = await ClaimAppeal(life, "LC-OQ196");
+        var unknown = await ClaimAppeal(Guid.CreateVersion7(), "XC-OQ196-2");
+        (await ClaimLine(appeal)).ShouldBe("LIFE");
+        await db.ExecuteAsOwner("UPDATE workflow.case_link SET claim_line = NULL WHERE case_id = @c", ("c", appeal));
+        (await _clerk.GetAsync($"{Cases}/{appeal}")).StatusCode.ShouldBe(HttpStatusCode.NotFound, "an existing link without its line counts as Health");
+
+        var jobs = _factory.Services.GetRequiredService<CaseTimelineJobs>();
+        (await jobs.ResolveClaimLines(T, CancellationToken.None)).ShouldBeGreaterThanOrEqualTo(1);
+        (await ClaimLine(appeal)).ShouldBe("LIFE");
+        (await ClaimLine(unknown)).ShouldBeNull();
+        (await _clerk.GetAsync($"{Cases}/{appeal}")).StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        // The job's own run does the same.
+        await db.ExecuteAsOwner("UPDATE workflow.case_link SET claim_line = NULL WHERE case_id = @c", ("c", appeal));
+        await jobs.RunForTenant(T, CancellationToken.None);
+        (await ClaimLine(appeal)).ShouldBe("LIFE");
+    }
+
+    /// <summary>Opened by a user with medical_claim.read: opening answers with the case, which a Health case's reader alone may read.</summary>
+    private async Task<Guid> ClaimAppeal(Guid claim, string reference) =>
+        (await Open(_factory.ClientFor(T, "case-health"), new
+        {
+            caseTypeCode = "REVIEW_T", receivedChannel = "LETTER", complainantName = "X", summary = "Review", parentCaseId = await ClosedComplaint(),
+            links = new[] { new { linkType = "CLAIM", recordId = claim, reference } },
+        })).GetProperty("id").GetGuid();
+
+    private Task<string?> ClaimLine(Guid caseId) =>
+        fixture.Database.ScalarAsOwner<string>("SELECT claim_line FROM workflow.case_link WHERE case_id = @c AND link_type = 'CLAIM'", ("c", caseId));
+
+    /// <summary>A user holding a case screen's function and medical_claim.read.</summary>
+    private async Task<HttpClient> HealthScreenUser(string subject, string function)
+    {
+        await fixture.Database.UserWithFunctions(T, subject, function);
+        await fixture.Database.UserWithPermissions(T, subject, Health.Contracts.HealthPermissions.ClaimRead);
+        return _factory.ClientFor(T, subject);
+    }
+
+    private static async Task<List<Guid>> ListIds(HttpClient client, string url)
+    {
+        var response = await client.GetAsync(url + (url.Contains('?', StringComparison.Ordinal) ? "&" : "?") + "limit=200");
+        response.StatusCode.ShouldBe(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+        return (await response.Json()).GetProperty("items").EnumerateArray().Select(i => i.GetProperty("id").GetGuid()).ToList();
+    }
+
+    private async Task<Guid> MemberHealthClaim()
+    {
+        var (membership, claim, principal) = (Guid.CreateVersion7(), Guid.CreateVersion7(), Guid.CreateVersion7());
+        await fixture.Database.ExecuteAsOwner("""
+            INSERT INTO health.membership (tenant_id, id, row_version, created_at, created_by, updated_at, updated_by, member_number, principal_party_id, plan_code,
+                                           option_code, plan_version, status, start_date, currency)
+            VALUES (@t, @m, 1, now(), 'seed', now(), 'seed', @mn, @pp, 'HLT-CORE', 'A', 1, 'ACTIVE', current_date - 100, 'ZAR');
+            INSERT INTO health.medical_claim (tenant_id, id, row_version, created_at, created_by, updated_at, updated_by, claim_number, source, provider_id,
+                                              membership_id, patient_party_id, service_date, submitted_at, format_code, total_claimed, total_paid, status, currency)
+            VALUES (@t, @c, 1, now(), 'seed', now(), 'seed', @cn, 'PROVIDER', 'PRV-1', @m, @pp, current_date - 3, now(), 'API', 1000, 0, 'REJECTED', 'ZAR');
+            """, ("t", T), ("m", membership), ("c", claim), ("pp", principal), ("mn", "M" + membership.ToString("N")[..10]), ("cn", $"HC-{claim:N}"[..25]));
+        return claim;
+    }
+
+    private async Task<Guid> MemberLifeClaim()
+    {
+        var (policy, claim) = (Guid.CreateVersion7(), Guid.CreateVersion7());
+        await fixture.Database.ExecuteAsOwner("""
+            INSERT INTO life.proposal (tenant_id, id, row_version, created_at, created_by, updated_at, updated_by, proposal_number, product_code, product_version,
+                                       applicant_party_id, channel_code, status, currency, frequency)
+            VALUES (@t, @p, 1, now(), 'seed', now(), 'seed', @pn, 'TERM', 1, gen_random_uuid(), 'BRK_PORTAL', 'DRAFT', 'ZAR', 'MONTHLY');
+            INSERT INTO life.policy (tenant_id, id, row_version, created_at, created_by, updated_at, updated_by, policy_number, proposal_id, product_code, product_version,
+                                     rating_version, policyholder_party_id, status, inception_date, currency, premium_frequency, billing_account_ref)
+            VALUES (@t, @p, 1, now(), 'seed', now(), 'seed', @pn, @p, 'TERM', 1, 1, gen_random_uuid(), 'IN_FORCE', current_date - 100, 'ZAR', 'MONTHLY', gen_random_uuid());
+            INSERT INTO life.claim (tenant_id, id, row_version, created_at, created_by, updated_at, updated_by, claim_number, policy_id, claim_type, event_date,
+                                    claimant_party_id, status, insured_life_id, currency, notified_at, decision_reason, decision_rationale)
+            VALUES (@t, @c, 1, now(), 'seed', now(), 'seed', @cn, @p, 'DEATH', current_date - 5, gen_random_uuid(), 'DECLINED', gen_random_uuid(), 'ZAR', now(),
+                    'NON_DISCLOSURE', 'Not disclosed');
+            """, ("t", T), ("p", policy), ("c", claim), ("pn", "LP-" + policy.ToString("N")[..12]), ("cn", "LC-" + claim.ToString("N")[..20]));
+        return claim;
+    }
+
     [Fact]
     public async Task ARecordHoldOnTheCase_KeepsItPastItsRetention_UntilReleased_D34()
     {

@@ -1068,7 +1068,9 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
             await Seed("workflow.cfg_case_timelines", "EFFECTIVE", $"DISPUTE_T-{step}", ("case_type_code", "DISPUTE_T"), ("step", step), ("duration", duration), ("basis", "CALENDAR"), ("extension_allowed", false));
         }
 
-        await _db.UserWithPermissions(Tenant, "dispute-handler", CasePermissions.Read, CasePermissions.Create, CasePermissions.Update, CasePermissions.Decide);
+        // The dispute links a Health claim, so it is Health's (cases.md §9, OQ-196 B): its handler reads Health claims.
+        await _db.UserWithPermissions(Tenant, "dispute-handler", CasePermissions.Read, CasePermissions.Create, CasePermissions.Update, CasePermissions.Decide,
+            HealthPermissions.ClaimRead);
         await _db.AdoptFunctionCatalogue();
         var handler = _factory.ClientFor(Tenant, "dispute-handler");
         var opened = await handler.Send(HttpMethod.Post, "/api/v1/workflow/cases", new

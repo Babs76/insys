@@ -174,12 +174,36 @@ public sealed class CaseLink : Entity<Guid>, ITenantScoped
 
     public string AddedBy { get; private set; } = "";
 
-    internal static CaseLink Create(Guid caseId, string linkType, Guid recordId, string reference, string actor, DateTimeOffset now) =>
+    /// <summary>
+    /// A CLAIM link's line, GENERAL, LIFE or HEALTH (OQ-196, option B): from the claim modules' public query when the link is added, or
+    /// later by the CASE_TIMELINES job. Null until known, and a CLAIM link with no line is treated as Health (fail closed). Null for other links.
+    /// </summary>
+    public string? ClaimLine { get; private set; }
+
+    /// <summary>A CLAIM link whose line isn't known yet, so it counts as Health.</summary>
+    public bool ClaimLineUnknown => LinkType == ClaimLinkType && ClaimLine is null;
+
+    internal const string ClaimLinkType = "CLAIM";
+
+    internal static CaseLink Create(Guid caseId, string linkType, Guid recordId, string reference, string actor, DateTimeOffset now, string? claimLine = null) =>
         new()
         {
             Id = Guid.CreateVersion7(), CaseId = caseId, LinkType = linkType, RecordId = Guard.NotEmpty(recordId),
             Reference = Guard.MaxLength(Guard.NotNullOrWhiteSpace(reference), 60), AddedAt = now, AddedBy = Guard.MaxLength(actor, 80),
+            ClaimLine = linkType == ClaimLinkType ? claimLine : null,
         };
+
+    /// <summary>Records a CLAIM link's line once it is known; a line already recorded is kept.</summary>
+    internal bool RecordClaimLine(string line)
+    {
+        if (!ClaimLineUnknown)
+        {
+            return false;
+        }
+
+        ClaimLine = Guard.MaxLength(line, 10);
+        return true;
+    }
 }
 
 /// <summary>A message between the complainant (or broker, provider) and staff (workflow.case_message): what the portal shows.</summary>
@@ -444,7 +468,8 @@ public sealed class ServiceCase : AggregateRoot<Guid>
     }
 
     /// <summary>Command LinkRecord: only the record types the case type allows (CASE_LINK_NOT_ALLOWED).</summary>
-    public Result LinkRecord(CaseTypeRules type, string linkType, Guid recordId, string reference, string actor, DateTimeOffset now)
+    /// <param name="claimLine">A CLAIM link's line when the claim modules know it (OQ-196); null otherwise.</param>
+    public Result LinkRecord(CaseTypeRules type, string linkType, Guid recordId, string reference, string actor, DateTimeOffset now, string? claimLine = null)
     {
         var open = EnsureOpen();
         if (open.IsFailure)
@@ -462,7 +487,7 @@ public sealed class ServiceCase : AggregateRoot<Guid>
             return Error.Conflict(ErrorCodes.DuplicateRecord,"The case already links this record.");
         }
 
-        _links.Add(CaseLink.Create(Id, linkType, recordId, reference, actor, now));
+        _links.Add(CaseLink.Create(Id, linkType, recordId, reference, actor, now, claimLine));
         Record(CaseEventTypes.Linked, actor, now, $"{linkType} {reference}");
         return Result.Success();
     }
@@ -841,6 +866,10 @@ public sealed class ServiceCase : AggregateRoot<Guid>
         MarkChanged();
         Record(eventType, actor, now, detail);
     }
+
+    /// <summary>Records the line of a CLAIM link whose line wasn't known (OQ-196): a fill-in, not a change to the case, so no history entry.</summary>
+    public bool RecordClaimLine(Guid recordId, string line) =>
+        _links.FirstOrDefault(l => l.LinkType == CaseLink.ClaimLinkType && l.RecordId == recordId) is { } link && link.RecordClaimLine(line);
 
     public IReadOnlyList<CaseLinkRecord> LinkRecords() => _links.Select(l => new CaseLinkRecord(l.LinkType, l.RecordId, l.Reference)).ToList();
 

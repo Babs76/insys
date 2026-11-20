@@ -89,6 +89,7 @@ internal static class CaseEndpoints
     {
         var cases = api.MapGroup("/workflow/cases").WithTags(tag).RefuseOperatorTenant();
         MapReads(cases);
+        MapScreenReads(cases);
         MapChanges(cases);
         MapPortal(api.MapGroup("/portal/cases").WithTags(tag).RefuseOperatorTenant());
     }
@@ -122,7 +123,7 @@ internal static class CaseEndpoints
             .WithName("WorkflowListCases")
             .WithSummary("List cases: by family, type, status, category, overdue, or a linked record (linkType, linkId)")
             .WithDescription("Within the caller's scope (F103): a case is in scope when its product and node are, and a case with no scoped record is tenant-wide. "
-                + "A Health-linked case (a membership, provider, remittance or payment run, or raised by a provider) is listed only to callers with medical_claim.read. "
+                + "A Health-linked case (a membership, provider, remittance or payment run, a Health claim or a claim whose line is not known, or raised by a provider) is listed only to callers with medical_claim.read. "
                 + "status is a case status (Received, Acknowledged, InProgress, AwaitingComplainant, Decided, Closed, Withdrawn, Reopened; any case is accepted); overdue means open and past its expected date. Oldest first by ID, cursor paged.")
             .AlsoChecks(Health.Contracts.HealthPermissions.ClaimRead, "a case is Health-linked: without it the case is left out")
             .WithKnownValues("family", [CaseFamilies.Enquiry, CaseFamilies.Complaint, CaseFamilies.Dispute, CaseFamilies.Appeal], "The case family.")
@@ -174,6 +175,79 @@ internal static class CaseEndpoints
             .WithName("WorkflowGetCaseRedress")
             .WithSummary("A redress on a case, with how its approval last ended without being granted (latestRejection, OQ-113)")
             .RequirePermission(CasePermissions.Read);
+    }
+
+    /// <summary>
+    /// Each case screen's own reads (BR-100, OQ-196, Ade 20 November 2026): a list and a case, under that screen's function alone (ADR-026 unchanged), with
+    /// only the cases the screen reads. Endpoint names are WorkflowList{Plural} and WorkflowGet{Singular}.
+    /// </summary>
+    public static readonly IReadOnlyList<(CaseScreenFilter Screen, string Path, string Plural, string Singular, string Reads)> ScreenReads =
+    [
+        (CaseScreens.Enquiries, "enquiries", "Enquiries", "Enquiry", "enquiries (family ENQUIRY)"),
+        (CaseScreens.Disputes, "disputes", "Disputes", "Dispute", "disputes (family DISPUTE)"),
+        (CaseScreens.Appeals, "appeals", "Appeals", "Appeal", "appeals (family APPEAL)"),
+        (CaseScreens.ClaimDisputes, "claim-disputes", "ClaimDisputes", "ClaimDispute", "disputes that link a General or Life claim"),
+        (CaseScreens.ClaimAppeals, "claim-appeals", "ClaimAppeals", "ClaimAppeal", "appeals that link a General or Life claim"),
+        (CaseScreens.HealthClaimAppeals, "health-claim-appeals", "HealthClaimAppeals", "HealthClaimAppeal",
+            "Health appeals (a Health claim or one whose line is not known, a membership, provider, remittance or payment run link, or raised by a provider)"),
+        (CaseScreens.ProviderDisputes, "provider-disputes", "ProviderDisputes", "ProviderDispute",
+            "provider disputes (a provider, remittance or payment run link, or raised by a provider)"),
+    ];
+
+    private static void MapScreenReads(RouteGroupBuilder cases)
+    {
+        foreach (var (screen, path, plural, singular, reads) in ScreenReads)
+        {
+            cases.MapGet($"/{path}", async (string? type, string? status, string? category, bool? overdue, string? linkType, Guid? linkId, string? cursor, int? limit,
+                    IDispatcher dispatcher, CancellationToken ct) =>
+                {
+                    if (!Cursor.TryDecode(cursor, out var afterId))
+                    {
+                        return Problems.For(ErrorCodes.ValidationFailed, "The cursor is not valid.", StatusCodes.Status422UnprocessableEntity);
+                    }
+
+                    CaseStatus? parsed = null;
+                    if (status is not null)
+                    {
+                        if (!Enum.TryParse<CaseStatus>(status.Replace("_", "", StringComparison.Ordinal), ignoreCase: true, out var value))
+                        {
+                            return Problems.For(ErrorCodes.ValidationFailed, "status is not a case status.", StatusCodes.Status422UnprocessableEntity);
+                        }
+
+                        parsed = value;
+                    }
+
+                    var size = Cursor.ClampLimit(limit);
+                    return (await dispatcher.Query(new ListCases(new CaseFilter(null, type, parsed, category, overdue, linkType, linkId, screen), afterId, size), ct))
+                        .ToHttp(items => Results.Ok(new CursorPage<CaseSummaryView>(items, items.Count == size ? Cursor.Encode(items[^1].Id) : null)));
+                })
+                .Produces<CursorPage<CaseSummaryView>>(StatusCodes.Status200OK)
+                .WithName($"WorkflowList{plural}")
+                .WithSummary($"The {screen.Screen} screen's cases: {reads} (BR-100)")
+                .WithDescription($"As GET /workflow/cases, limited to {reads}, under {screen.Screen} alone. Within the caller's scope (F103); a Health-linked case only "
+                    + "with medical_claim.read. The filters narrow it further. Oldest first by ID, cursor paged.")
+                .AlsoChecks(Health.Contracts.HealthPermissions.ClaimRead, "a case is Health-linked: without it the case is left out")
+                .WithKnownValues("type", [], "A case type code (workflow/static/case-types).")
+                .WithKnownValues("category", [], "A case category code (workflow/static/case-categories).")
+                .WithKnownValues("linkType", [CaseLinkTypes.Policy, CaseLinkTypes.Claim, CaseLinkTypes.Membership, CaseLinkTypes.Payment, CaseLinkTypes.Invoice,
+                    CaseLinkTypes.BillingAccount, CaseLinkTypes.Party, CaseLinkTypes.Provider, CaseLinkTypes.Remittance, CaseLinkTypes.PaymentRun, CaseLinkTypes.Intermediary],
+                    "With linkId: the cases that link that record.")
+                .WithKnownValues("status", ["Received", "Acknowledged", "InProgress", "AwaitingComplainant", "Decided", "Closed", "Withdrawn", "Reopened"], "The case status.")
+                .RequirePermission(CasePermissions.Read);
+
+            cases.MapGet($"/{path}/{{id:guid}}", async (Guid id, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+                    (await dispatcher.Query(new GetCase(id, screen), ct)).ToHttp(view =>
+                    {
+                        Concurrency.SetETag(http, view.RowVersion);
+                        return Results.Ok(view);
+                    }))
+                .Produces<CaseView>(StatusCodes.Status200OK)
+                .WithName($"WorkflowGet{singular}")
+                .WithSummary($"A case of the {screen.Screen} screen, with its links, history and messages (BR-100)")
+                .WithDescription($"As GET /workflow/cases/{{id}}, under {screen.Screen} alone: 404 for a case that isn't one of its {reads}.")
+                .AlsoChecks(Health.Contracts.HealthPermissions.ClaimRead, "the case is Health-linked: without it the case is not found")
+                .RequirePermission(CasePermissions.Read);
+        }
     }
 
     private static void MapChanges(RouteGroupBuilder cases)

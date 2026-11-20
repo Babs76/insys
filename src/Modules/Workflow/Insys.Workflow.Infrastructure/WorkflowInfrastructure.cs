@@ -131,6 +131,7 @@ public static class WorkflowInfrastructure
         services.AddScoped<ICasePortalQueries, CasePortalQueries>();
         services.AddScoped<CaseTimes>();
         services.AddScoped<CaseAccess>();
+        services.AddScoped<CaseClaimLines>();
         services.AddScoped<CaseOpening>();
         services.AddScoped<CaseNoticeTexts>();
         services.AddScoped<Contracts.ICaseNotices, CaseNotices>();

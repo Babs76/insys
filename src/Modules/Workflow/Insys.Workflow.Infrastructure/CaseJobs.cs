@@ -89,7 +89,39 @@ public sealed class CaseTimelineJobs(IServiceScopeFactory scopes, ITenantDirecto
             disposed += await Send(tenantId, new DisposeCase(id), cancellationToken) ? 1 : 0;
         }
 
+        await ResolveClaimLines(tenantId, cancellationToken);
         return (overdue, disposed);
+    }
+
+    /// <summary>The most cases whose CLAIM links' lines one run looks up.</summary>
+    public const int ClaimLineBatch = 500;
+
+    /// <summary>
+    /// OQ-196 B: fills in the line of CLAIM links that have none (links added before V0148, or when the claim modules couldn't tell it), through
+    /// the claim modules' public query, one case per transaction. Until then such a case counts as Health. Returns the cases filled in.
+    /// </summary>
+    public async Task<int> ResolveClaimLines(Guid tenantId, CancellationToken cancellationToken)
+    {
+        IReadOnlyList<Guid> unknown;
+        await using (var scope = scopes.CreateAsyncScope())
+        {
+            scope.ServiceProvider.GetRequiredService<ExecutionScope>().InitialiseForService(tenantId, ServiceName);
+            var result = await scope.ServiceProvider.GetRequiredService<IDispatcher>().Query(new CasesWithUnknownClaimLines(ClaimLineBatch), cancellationToken);
+            if (result.IsFailure)
+            {
+                return 0;
+            }
+
+            unknown = result.Value;
+        }
+
+        var resolved = 0;
+        foreach (var id in unknown)
+        {
+            resolved += await Send(tenantId, new ResolveCaseClaimLines(id), cancellationToken) ? 1 : 0;
+        }
+
+        return resolved;
     }
 
     private async Task<bool> Send(Guid tenantId, ICommand<bool> command, CancellationToken cancellationToken)

@@ -77,6 +77,7 @@ public static class HealthInfrastructure
         services.AddScoped<IHealthRepository, HealthRepository>();
         services.AddScoped<Workflow.Contracts.IPortalCaseLinks, Application.PortalHealthClaimCaseLinks>();
         services.AddSingleton<Contracts.IHealthNoticeRecipients, HealthNoticeRecipients>();
+        services.AddSingleton<ClaimsFramework.Contracts.IClaimLineSource, HealthClaimLines>();
         services.AddScoped<IHealthPortalQueries, HealthPortalQueries>();
         services.AddSingleton<BuildingBlocks.Infrastructure.StaticData.IStaticSetGuard, PlanProductsGuard>();
         services.AddSingleton<BuildingBlocks.Contracts.IBusinessRecordScopes, HealthRemittanceScopes>();
