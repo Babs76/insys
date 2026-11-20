@@ -118,6 +118,7 @@ public sealed partial class OftzaSeed(SeedContext context)
             return;
         }
 
+        await SegregationRules();
         await Roles();
         Stage("roles");
         await Loaders();
@@ -715,6 +716,25 @@ public sealed partial class OftzaSeed(SeedContext context)
     {
         tenant = TenantCode, baseCurrency = "ZAR", languages = new[] { "en", "af", "zu", "xh" }, defaultLanguage = "en", timeZone = "Africa/Johannesburg", country = "ZA",
     });
+
+    /// <summary>
+    /// The role-templates addendum's three segregation-of-duties rules (SRS-002), in force before any role or user, so that INSYS refuses a role or a user
+    /// holding both sides (Ade, 20 November 2026). Sample data for the business to confirm; the same pairs as RoleTemplates.SodRules.
+    /// </summary>
+    public static readonly IReadOnlyList<(string Code, string FunctionA, string FunctionB)> SegregationOfDuties =
+    [
+        ("SOD_CLAIM_PAYMENT", "CLAIMS_DRAFT_INSTRUCTION", "CLAIMS_RELEASE_INSTRUCTION"),
+        ("SOD_PAYOUT_BATCH", "PAYMENTS_BUILD_BATCH", "PAYMENTS_RELEASE_BATCH"),
+        ("SOD_PAYEE_ACCOUNT", "PARTY_ADD_BANK_ACCOUNT", "PARTY_BANK_ACCOUNT_VERIFY"),
+    ];
+
+    private async Task SegregationRules()
+    {
+        foreach (var (code, functionA, functionB) in SegregationOfDuties)
+        {
+            await Static("identity/static/segregation-of-duties-conflict-rules", code, new { functionA, functionB, conflict = "BLOCK" });
+        }
+    }
 
     /// <summary>Every signed-off role template for tenant users (OQ-111), with the functions available to this tenant. The template's privileged functions are only those it names.</summary>
     private async Task Roles()

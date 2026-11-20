@@ -58,6 +58,7 @@ public static class IdentityInfrastructure
         services.AddSingleton<StaticData.FunctionRequirementGuard>();
         services.AddSingleton<IStaticSetGuard>(sp => sp.GetRequiredService<StaticData.FunctionRequirementGuard>());
         services.AddSingleton<IStaticRemovalGuard>(sp => sp.GetRequiredService<StaticData.FunctionRequirementGuard>());
+        services.AddSingleton<IStaticSubmissionGuard, StaticData.RoleSegregationGuard>();
         services.AddModuleHandlers<IdentityDbContext>(typeof(ProvisionUser).Assembly);
         services.AddDomainEventMapper<IdentityEventMapper>(IdentityDbContext.SchemaName);
         services.AddScoped<IUserRepository, UserRepository>();

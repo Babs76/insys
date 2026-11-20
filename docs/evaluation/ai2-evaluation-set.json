@@ -562,6 +562,14 @@
       "fieldsInError": 0
     },
     {
+      "id": "R-ROLE_SEGREGATION_OF_DUTIES",
+      "code": "ROLE_SEGREGATION_OF_DUTIES",
+      "retryable": false,
+      "means": "The role would hold two duties your organisation keeps apart, such as preparing and releasing the same payment.",
+      "remedy": "Grant the function to a different role, or end the role\u0027s conflicting function first.",
+      "fieldsInError": 0
+    },
+    {
       "id": "R-SEGREGATION_OF_DUTIES",
       "code": "SEGREGATION_OF_DUTIES",
       "retryable": false,

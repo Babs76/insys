@@ -28,6 +28,7 @@ using System.Net;
 using System.Text.Json;
 using Insys.Identity.Contracts;
 using Insys.Integration.Contracts;
+using Insys.Seed;
 using Insys.StaticData.Contracts;
 using Insys.Tenancy.Contracts;
 using Insys.Testing;
@@ -273,6 +274,121 @@ public sealed class TenantAdministratorTests(DatabaseFixture fixture) : IClassFi
     /// What a tenant's first administrators need to configure it themselves: users and roles, the role tables (privileged),
     /// change requests, and approving.
     /// </summary>
+    /// <summary>
+    /// SRS-002 (Ade, 20 November 2026), the front end's capture: with no rule in force INSYS accepts both; with the role-templates addendum's three BLOCK rules
+    /// in force, a grant giving a role holding CLAIMS_DRAFT_INSTRUCTION CLAIMS_RELEASE_INSTRUCTION too is refused at submission (alone and as two lines of
+    /// one import), and one user given a draft role and then a release role is refused.
+    /// </summary>
+    [Fact]
+    public async Task ARoleOrAUser_HoldingBothSidesOfABlockRuleInForce_IsRefused_SRS002()
+    {
+        var one = _factory.ClientFor(Operator, "platform-one");
+        var two = _factory.ClientFor(Operator, "platform-two");
+        var (tenantId, url) = await RegisterTenantAtAccessStep(one, "SODBLOCK");
+        var request = new { tenantId, administrators = new[] { Person("sodblock-ana"), Person("sodblock-ben") }, functions = ConfiguringFunctions };
+        var requestId = (await (await one.Send(HttpMethod.Post, "/api/v1/identity/tenant-administrators", request, idempotent: true)).Json()).GetProperty("id").GetGuid();
+        await _factory.DrainOutbox();
+        (await two.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{await Approval(one, requestId)}/approve", ifMatch: "\"1\"")).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        await _factory.DrainOutbox();
+        var ana = _factory.ClientFor(tenantId, "sodblock-ana");
+        var ben = _factory.ClientFor(tenantId, "sodblock-ben");
+        foreach (var admin in new[] { ana, ben })
+        {
+            (await admin.GetAsync("/api/v1/identity/me")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        }
+
+        await CompleteOnboardingAndActivate(one, url, (await one.GetAsync(url)).ETag(), "ORGANISATION_AND_ACCESS");
+        const string roles = "/api/v1/identity/static/roles-and-permission-sets";
+        const string grants = "/api/v1/identity/static/role-function-assignments";
+
+        async Task NewRole(string code)
+        {
+            var role = await ana.Send(HttpMethod.Post, roles, new { code, roleCode = code, changeReason = "SRS-002" }, idempotent: true);
+            role.StatusCode.ShouldBe(HttpStatusCode.Created, await role.Content.ReadAsStringAsync());
+            (await ana.Send(HttpMethod.Post, $"{roles}/{code}/versions/1/submit", ifMatch: role.ETag())).StatusCode.ShouldBe(HttpStatusCode.OK);
+            await ApproveInTenant(ana, ben, tenantId, StaticDataApprovals.BusinessRefType, $"{code}@1");
+            await Activate(ana, $"{roles}/{code}");
+        }
+
+        async Task<HttpResponseMessage> SubmitGrant(string role, string function)
+        {
+            var created = await ana.Send(HttpMethod.Post, grants, new { code = $"{role}:{function}", roleCode = role, functionCode = function, changeReason = "SRS-002" }, idempotent: true);
+            created.StatusCode.ShouldBe(HttpStatusCode.Created, await created.Content.ReadAsStringAsync());
+            return await ana.Send(HttpMethod.Post, $"{grants}/{role}:{function}/versions/1/submit", ifMatch: created.ETag());
+        }
+
+        async Task Grant(string role, string function)
+        {
+            (await SubmitGrant(role, function)).StatusCode.ShouldBe(HttpStatusCode.OK);
+            await ApproveInTenant(ana, ben, tenantId, StaticDataApprovals.BusinessRefType, $"{role}:{function}@1");
+            await Activate(ana, $"{grants}/{role}:{function}");
+        }
+
+        async Task<Guid> NewUser(string sub) =>
+            (await (await ana.Send(HttpMethod.Post, "/api/v1/identity/users", new { username = sub, displayName = sub, idpCode = "OIDC", externalSubject = sub, mfaEnrolled = true },
+                idempotent: true)).Json()).GetProperty("id").GetGuid();
+
+        async Task<HttpResponseMessage> Assign(Guid user, string role)
+        {
+            var current = await ana.GetAsync($"/api/v1/identity/users/{user}");
+            var assigned = await ana.Send(HttpMethod.Post, $"/api/v1/identity/users/{user}/assign-role", new { roleCode = role }, ifMatch: current.ETag());
+            await _factory.DrainOutbox();
+            return assigned;
+        }
+
+        foreach (var role in new[] { "SOD_DRAFTER", "SOD_RELEASER", "SOD_UNRULED" })
+        {
+            await NewRole(role);
+        }
+
+        await Grant("SOD_DRAFTER", "CLAIMS_DRAFT_INSTRUCTION");
+        await Grant("SOD_RELEASER", "CLAIMS_RELEASE_INSTRUCTION");
+        await Grant("SOD_UNRULED", "CLAIMS_DRAFT_INSTRUCTION");
+
+        // No rule in force: the checks are driven by the tenant's rules, so both are accepted.
+        (await SubmitGrant("SOD_UNRULED", "CLAIMS_RELEASE_INSTRUCTION")).StatusCode.ShouldBe(HttpStatusCode.OK, "no rule is in force yet");
+        var before = await NewUser("sod-before");
+        (await Assign(before, "SOD_DRAFTER")).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        (await Assign(before, "SOD_RELEASER")).StatusCode.ShouldBe(HttpStatusCode.NoContent, "no rule is in force yet");
+
+        // The addendum's three rules, in force in the tenant (as the OFTZA seed puts them).
+        foreach (var (code, a, b) in OftzaSeed.SegregationOfDuties)
+        {
+            await fixture.Database.ExecuteAsOwner("""
+                INSERT INTO iam.cfg_segregation_of_duties_conflict_rules
+                  (tenant_id, code, version, effective_from, record_status, created_by, change_reason, function_a, function_b, conflict)
+                VALUES (@t, @c, 1, DATE '2026-01-01', 'PUBLISHED', 'seed', 'SRS-002', @a, @b, 'BLOCK')
+                """, ("t", tenantId), ("c", code), ("a", a), ("b", b));
+        }
+
+        // The role grant: refused at submission, alone and as two lines of one import.
+        var grant = await SubmitGrant("SOD_DRAFTER", "CLAIMS_RELEASE_INSTRUCTION");
+        grant.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity, await grant.Content.ReadAsStringAsync());
+        (await grant.Code()).ShouldBe("ROLE_SEGREGATION_OF_DUTIES");
+        await NewRole("SOD_IMPORTED");
+        var imported = await ana.Send(HttpMethod.Post, $"{grants}/imports", new
+        {
+            fileRef = "sod.csv",
+            lines = new object[]
+            {
+                new { code = "SOD_IMPORTED:PAYMENTS_BUILD_BATCH", roleCode = "SOD_IMPORTED", functionCode = "PAYMENTS_BUILD_BATCH", changeReason = "SRS-002" },
+                new { code = "SOD_IMPORTED:PAYMENTS_RELEASE_BATCH", roleCode = "SOD_IMPORTED", functionCode = "PAYMENTS_RELEASE_BATCH", changeReason = "SRS-002" },
+            },
+        }, idempotent: true);
+        imported.StatusCode.ShouldBe(HttpStatusCode.OK, await imported.Content.ReadAsStringAsync());
+        var batch = (await imported.Json()).GetProperty("batchId").GetGuid();
+        var submitted = await ana.Send(HttpMethod.Post, $"{grants}/imports/{batch}/submit");
+        submitted.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity, await submitted.Content.ReadAsStringAsync());
+        (await submitted.Code()).ShouldBe("ROLE_SEGREGATION_OF_DUTIES");
+
+        // The user: a draft role, then a release role, refused.
+        var user = await NewUser("sod-after");
+        (await Assign(user, "SOD_DRAFTER")).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        var refused = await Assign(user, "SOD_RELEASER");
+        refused.StatusCode.ShouldBe(HttpStatusCode.Conflict, await refused.Content.ReadAsStringAsync());
+        (await refused.Code()).ShouldBe("SEGREGATION_OF_DUTIES");
+    }
+
     private static readonly string[] ConfiguringFunctions =
     [
         "ASSIGN_ROLE", "IDENTITY_USERS", "PROVISION_USER", "SD_IDENTITY_AND_ACCESS_MANAGEMENT_APPROVE", "SD_IDENTITY_AND_ACCESS_MANAGEMENT_MAINTAIN",

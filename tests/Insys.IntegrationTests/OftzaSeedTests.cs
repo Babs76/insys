@@ -156,6 +156,18 @@ public sealed class OftzaSeedTests(DatabaseFixture fixture) : IClassFixture<Data
         (await fixture.Database.ScalarAsOwner<string>("SELECT string_agg(code, ',' ORDER BY code) FROM document.ref_legal_hold_reason_codes WHERE tenant_id = @t AND record_status = 'ACTIVE' AND authority_role = 'COMPLIANCE_OFFICER'",
             ("t", seed.TenantId))).ShouldBe(string.Join(',', OftzaSeed.LegalHoldReasons.Select(r => r.Code).Order(StringComparer.Ordinal)));
 
+        // SRS-002 (Ade, 20 November 2026): the addendum's three BLOCK rules are in force, so INSYS refuses a role or a user holding both sides; no seeded
+        // role holds both functions of one.
+        (await fixture.Database.ScalarAsOwner<string>("SELECT string_agg(code || '=' || function_a || '/' || function_b, ',' ORDER BY code) FROM iam.cfg_segregation_of_duties_conflict_rules WHERE tenant_id = @t AND record_status IN ('PUBLISHED', 'EFFECTIVE') AND conflict = 'BLOCK'",
+            ("t", seed.TenantId))).ShouldBe(string.Join(',', OftzaSeed.SegregationOfDuties.OrderBy(r => r.Code, StringComparer.Ordinal).Select(r => $"{r.Code}={r.FunctionA}/{r.FunctionB}")));
+        (await Count("""
+            SELECT count(*) FROM iam.cfg_segregation_of_duties_conflict_rules r
+            WHERE r.tenant_id = @t AND r.conflict = 'BLOCK' AND r.record_status IN ('PUBLISHED', 'EFFECTIVE')
+              AND EXISTS (SELECT 1 FROM iam.cfg_role_function_assignments a JOIN iam.cfg_role_function_assignments b ON b.tenant_id = a.tenant_id AND b.role_code = a.role_code
+                          WHERE a.tenant_id = r.tenant_id AND a.function_code = r.function_a AND b.function_code = r.function_b
+                            AND a.record_status NOT IN ('WITHDRAWN', 'RETIRED') AND b.record_status NOT IN ('WITHDRAWN', 'RETIRED'))
+            """)).ShouldBe(0L);
+
         // BR-146: the four Life accounts left in arrears show at once, in both buckets (B1, 1 to 30 days; B2, 31 and over), whatever the business date.
         (await Count("SELECT count(DISTINCT bucket_code) FROM billing.arrears_case WHERE tenant_id = @t AND bucket_code IN ('B1', 'B2')")).ShouldBe(2L);
         var inArrears = await host.StrictClientFor(seed.TenantId, "oftza-finance-officer", "insys-web").GetAsync("/api/v1/billing/accounts?status=InArrears&limit=100");

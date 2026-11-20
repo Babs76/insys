@@ -92,6 +92,21 @@ public interface IStaticSetGuard
 }
 
 /// <summary>
+/// A module's rule for a draft being submitted that also reads another of the module's own tables, in the same context as the submission: the proposed version,
+/// the other codes' versions in force or on their way from its start (as for <see cref="IStaticSetGuard"/>), and the other lines of its import, which are
+/// still drafts. Identity's segregation-of-duties rules on a role's function grants, say (SRS-002).
+/// </summary>
+public interface IStaticSubmissionGuard
+{
+    string Schema { get; }
+
+    string Table { get; }
+
+    Task<Result> Check(ModuleDbContext db, StaticRecord proposed, IReadOnlyList<StaticRecord> others, IReadOnlyList<StaticRecord> importLines,
+        CancellationToken cancellationToken);
+}
+
+/// <summary>
 /// A module's rule for taking a code out of force (deprecating, withdrawing or retiring it), checked before the transition: the code leaving against the
 /// other codes in force or on their way today. A grant another grant needs can't go while that one stays, say (OQ-190).
 /// </summary>
