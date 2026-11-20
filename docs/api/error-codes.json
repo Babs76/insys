@@ -1926,8 +1926,8 @@
       "httpStatus": 409,
       "messageKey": "error.identity.review_incomplete",
       "retryable": false,
-      "means": "Every item must be confirmed or revoked before the review completes.",
-      "remedy": "Decide the remaining items, then complete the review."
+      "means": "The review can't be completed while some of its items are neither confirmed nor revoked.",
+      "remedy": "Confirm or revoke each remaining item, then complete the review."
     },
     {
       "code": "RISK_ATTRIBUTES_INVALID",

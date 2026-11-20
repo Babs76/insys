@@ -788,8 +788,8 @@ public static class IdentityErrorCodes
         Remedy = "Widen the review's scope, or no review is needed.")]
     public const string NothingToReview = "NOTHING_TO_REVIEW";
 
-    [ErrorCode(409, "error.identity.review_incomplete", Means = "Every item must be confirmed or revoked before the review completes.",
-        Remedy = "Decide the remaining items, then complete the review.")]
+    [ErrorCode(409, "error.identity.review_incomplete", Means = "The review can't be completed while some of its items are neither confirmed nor revoked.",
+        Remedy = "Confirm or revoke each remaining item, then complete the review.")]
     public const string ReviewIncomplete = "REVIEW_INCOMPLETE";
 
     [ErrorCode(409, "error.identity.tenant_not_onboarding", Means = "First administrators are set up only while the organisation is being onboarded.",

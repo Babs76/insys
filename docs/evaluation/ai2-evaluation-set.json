@@ -533,8 +533,8 @@
       "id": "R-REVIEW_INCOMPLETE",
       "code": "REVIEW_INCOMPLETE",
       "retryable": false,
-      "means": "Every item must be confirmed or revoked before the review completes.",
-      "remedy": "Decide the remaining items, then complete the review.",
+      "means": "The review can\u0027t be completed while some of its items are neither confirmed nor revoked.",
+      "remedy": "Confirm or revoke each remaining item, then complete the review.",
       "fieldsInError": 0
     },
     {

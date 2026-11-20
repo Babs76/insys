@@ -26,6 +26,7 @@
  */
 using Insys.BuildingBlocks.Domain;
 using Insys.Identity.Domain.Access;
+using Insys.Identity.Domain.Users;
 using Insys.Testing;
 
 namespace Insys.Identity.Tests;
@@ -115,7 +116,13 @@ public sealed class AccessReviewTests
         var review = Review();
         review.ConfirmAccess(review.Items[0].Id, Reviewer, Now);
 
-        review.CompleteReview(Reviewer, Now).Error!.Code.ShouldBe("REVIEW_INCOMPLETE");
+        var refused = review.CompleteReview(Reviewer, Now).Error!;
+        refused.Code.ShouldBe("REVIEW_INCOMPLETE");
+        // The detail says how much is left; the title is the catalogue's own sentence, so the refusal never repeats itself.
+        refused.Message.ShouldBe("1 of 2 items is still undecided.");
+        var means = typeof(IdentityErrorCodes).GetField(nameof(IdentityErrorCodes.ReviewIncomplete))!
+            .GetCustomAttributes(typeof(Insys.BuildingBlocks.Domain.ErrorCodeAttribute), false).Cast<Insys.BuildingBlocks.Domain.ErrorCodeAttribute>().Single().Means;
+        refused.Message.ShouldNotBe(means);
     }
 
     [Fact]
