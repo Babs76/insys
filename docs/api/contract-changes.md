@@ -2,7 +2,7 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
-## Segregation of duties: the seed's rules and a role grant's check (SRS-002, 20 November 2026; waiting for Ade's approval, OQ-197)
+## Segregation of duties: the seed's rules and a role grant's check (SRS-002, 20 November 2026; approved by Ade, OQ-197)
 - **New refusal `ROLE_SEGREGATION_OF_DUTIES` (422, on `functionCode`):** submitting a role's function grant (`POST /identity/static/role-function-assignments/{code}/versions/{n}/submit`, or the import's submit) when the role's grants in force or on their way, the import's other lines and this one would hold both functions of a BLOCK rule in force (`identity/static/segregation-of-duties-conflict-rules`). The message names both functions and the rule. Without a rule in force, nothing changes.
 - **The OFTZA sample:** three BLOCK rules in force, `SOD_CLAIM_PAYMENT` (`CLAIMS_DRAFT_INSTRUCTION` / `CLAIMS_RELEASE_INSTRUCTION`), `SOD_PAYOUT_BATCH` (`PAYMENTS_BUILD_BATCH` / `PAYMENTS_RELEASE_BATCH`) and `SOD_PAYEE_ACCOUNT` (`PARTY_ADD_BANK_ACCOUNT` / `PARTY_BANK_ACCOUNT_VERIFY`). So the assignment refusal `SEGREGATION_OF_DUTIES` (409) now applies there too.
 - No path, body or response shape changes.

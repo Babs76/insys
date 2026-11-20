@@ -618,11 +618,17 @@ Ade's decisions on 7.5, the same day. Contract note: "AI-1's submission check".
   - `AssistTests`: the function's place in the catalogue and the three templates.
   - Regenerated: `R__function_catalogue.sql`, `R__error_code_catalogue.sql`, `docs/api/error-codes.json`, `role-templates.md`.
 
-### Segregation of duties (20 November 2026, branch `sod-seed`; waiting for Ade's approval, OQ-197)
+### Segregation of duties (20 November 2026, branch `sod-seed`; approved by Ade, OQ-197)
 - **The checks are driven only by the tenant's rows** in `iam.cfg_segregation_of_duties_conflict_rules`; with none in force, nothing is refused.
 - **Seed:** OFTZA puts the addendum's three BLOCK rules in force before any role or user (`OftzaSeed.SegregationOfDuties`); `OftzaSeedTests` pins them and that no seeded role holds both sides.
 - **Grant check:** `RoleSegregationGuard`, a new `IStaticSubmissionGuard` (building block: a submission guard that reads another of its module's tables in the submission's own context, and sees the import's other lines). It refuses a role's grant at submission when the role would hold both functions of a BLOCK rule in force: 422 `ROLE_SEGREGATION_OF_DUTIES`. Approval and activation aren't re-checked yet (OQ-197).
 - **Test:** `TenantAdministratorTests.ARoleOrAUser_HoldingBothSidesOfABlockRuleInForce_IsRefused_SRS002`, in its own tenant: both accepted with no rule in force; with the three rules, the grant (alone and as an import's two lines) and the second role's assignment refused.
+- **Known gap:** the grant check compares only the role's own grants; a grant giving role X one side, when a user holding X already holds the other through role Y, isn't caught (OQ-197).
+- **Ade's decisions, 20 November 2026:**
+  - OQ-197: the three rules become a platform baseline no tenant can retire or weaken (report existing users holding both sides first); a user holding both is blocked only on the release or verify side and listed for access review; the action-time check comes first, ahead of beta.
+  - OQ-198: `POST /identity/role-templates/{code}/copy` is built after beta; until then, create the role and import its grants (two approvals).
+  - The sample legal hold reason code stays `REG_INQUIRY` (the column is `varchar(15)`); no migration.
+  - The full seed's slow stage (parties, line configuration and readiness, about 52 minutes) is post-beta work.
 
 ### Batch 1 (19 November 2026, branch `batch-1`)
 - **Built:**
