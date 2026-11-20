@@ -84,6 +84,7 @@ public static class GeneralInfrastructure
         services.AddScoped<IGeneralRepository, GeneralRepository>();
         services.AddScoped<Workflow.Contracts.IPortalCaseLinks, Application.PortalGeneralClaimCaseLinks>();
         services.AddSingleton<Contracts.IGeneralClaimRecipients, GeneralClaimRecipients>();
+        services.AddSingleton<ClaimsFramework.Contracts.IClaimLineSource, GeneralClaimLines>();
         services.AddSingleton<Workflow.Contracts.IApprovalScopeSource, GeneralApprovalScopes>();
         services.AddScoped<IGeneralLists, GeneralLists>();
         services.AddScoped<IAggregationAlerts, AggregationAlerts>();

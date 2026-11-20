@@ -91,6 +91,10 @@ internal sealed class CaseRepository(WorkflowDbContext db) : ICaseRepository
     public async Task<IReadOnlyList<Guid>> DueForDisposal(DateOnly today, int limit, CancellationToken cancellationToken) =>
         await db.Cases.AsNoTracking().Where(c => Ended.Contains(c.Status) && c.RetainUntil != null && c.RetainUntil < today)
             .OrderBy(c => c.RetainUntil).Select(c => c.Id).Take(limit).ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<Guid>> WithUnknownClaimLines(int limit, CancellationToken cancellationToken) =>
+        await db.Set<CaseLink>().AsNoTracking().Where(l => l.LinkType == CaseLinkTypes.Claim && l.ClaimLine == null)
+            .Select(l => l.CaseId).Distinct().OrderBy(id => id).Take(limit).ToListAsync(cancellationToken);
 }
 
 /// <summary>The case configuration in force (workflow static data); a tenant's own reference row before a global one.</summary>
@@ -184,12 +188,15 @@ internal sealed class CaseQueries(WorkflowDbContext db, IExecutionContext execut
         if (filter.Screen is { } screen)
         {
             query = query.Where(c => c.Family == screen.Family);
-            if (screen.LinkTypes is { } screenLinks)
+            if (screen.Restricted)
             {
-                var links = screenLinks.ToArray();
-                query = screen.RaisedByProvider
-                    ? query.Where(c => c.RaisedByProviderId != null || c.Links.Any(l => links.Contains(l.LinkType)))
-                    : query.Where(c => c.Links.Any(l => links.Contains(l.LinkType)));
+                // As CaseScreenFilter.Matches: a link of the screen's types, a CLAIM link of its lines (or of no known line), or raised by a provider.
+                var links = (screen.LinkTypes ?? []).ToArray();
+                var lines = (screen.ClaimLines ?? []).ToArray();
+                var unknown = screen.UnknownClaimLine;
+                var byProvider = screen.RaisedByProvider;
+                query = query.Where(c => (byProvider && c.RaisedByProviderId != null) || c.Links.Any(l => links.Contains(l.LinkType)
+                    || (l.LinkType == CaseLinkTypes.Claim && ((l.ClaimLine != null && lines.Contains(l.ClaimLine)) || (unknown && l.ClaimLine == null)))));
             }
         }
 
@@ -203,7 +210,7 @@ internal sealed class CaseQueries(WorkflowDbContext db, IExecutionContext execut
     {
         var c = await db.Cases.AsNoTracking().Include(x => x.Links).SingleOrDefaultAsync(x => x.Id == id, cancellationToken);
         if (c is null || (CaseAccess.IsHealth(c) && !access.MayReadHealth) || !access.InScope(c)
-            || (screen is not null && !screen.Matches(c.Family, c.Links.Select(l => l.LinkType), c.RaisedByProviderId)))
+            || (screen is not null && !screen.Matches(c.Family, c.Links, c.RaisedByProviderId)))
         {
             return null;
         }
@@ -299,8 +306,10 @@ internal sealed class CaseQueries(WorkflowDbContext db, IExecutionContext execut
 
         if (!access.MayReadHealth)
         {
+            // As CaseAccess.IsHealth: a CLAIM link to a Health claim, or to one whose line isn't known, is Health's too (OQ-196 B, fail closed).
             var health = CaseAccess.HealthLinkTypes.ToArray();
-            query = query.Where(c => c.RaisedByProviderId == null && !c.Links.Any(l => health.Contains(l.LinkType)));
+            query = query.Where(c => c.RaisedByProviderId == null && !c.Links.Any(l => health.Contains(l.LinkType)
+                || (l.LinkType == CaseLinkTypes.Claim && (l.ClaimLine == null || l.ClaimLine == ClaimsFramework.Contracts.ClaimLines.Health))));
         }
 
         return query;

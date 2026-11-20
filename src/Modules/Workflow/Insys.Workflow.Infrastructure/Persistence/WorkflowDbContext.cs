@@ -209,6 +209,7 @@ public sealed class WorkflowDbContext(DbContextOptions<WorkflowDbContext> option
             l.Property(x => x.LinkType).HasMaxLength(20);
             l.Property(x => x.Reference).HasMaxLength(60);
             l.Property(x => x.AddedBy).HasMaxLength(80);
+            l.Property(x => x.ClaimLine).HasMaxLength(10);
         });
 
         modelBuilder.Entity<CaseHistoryEntry>(h =>

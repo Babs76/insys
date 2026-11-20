@@ -123,7 +123,7 @@ internal static class CaseEndpoints
             .WithName("WorkflowListCases")
             .WithSummary("List cases: by family, type, status, category, overdue, or a linked record (linkType, linkId)")
             .WithDescription("Within the caller's scope (F103): a case is in scope when its product and node are, and a case with no scoped record is tenant-wide. "
-                + "A Health-linked case (a membership, provider, remittance or payment run, or raised by a provider) is listed only to callers with medical_claim.read. "
+                + "A Health-linked case (a membership, provider, remittance or payment run, a Health claim or a claim whose line is not known, or raised by a provider) is listed only to callers with medical_claim.read. "
                 + "status is a case status (Received, Acknowledged, InProgress, AwaitingComplainant, Decided, Closed, Withdrawn, Reopened; any case is accepted); overdue means open and past its expected date. Oldest first by ID, cursor paged.")
             .AlsoChecks(Health.Contracts.HealthPermissions.ClaimRead, "a case is Health-linked: without it the case is left out")
             .WithKnownValues("family", [CaseFamilies.Enquiry, CaseFamilies.Complaint, CaseFamilies.Dispute, CaseFamilies.Appeal], "The case family.")
@@ -186,10 +186,10 @@ internal static class CaseEndpoints
         (CaseScreens.Enquiries, "enquiries", "Enquiries", "Enquiry", "enquiries (family ENQUIRY)"),
         (CaseScreens.Disputes, "disputes", "Disputes", "Dispute", "disputes (family DISPUTE)"),
         (CaseScreens.Appeals, "appeals", "Appeals", "Appeal", "appeals (family APPEAL)"),
-        (CaseScreens.ClaimDisputes, "claim-disputes", "ClaimDisputes", "ClaimDispute", "disputes that link a claim"),
-        (CaseScreens.ClaimAppeals, "claim-appeals", "ClaimAppeals", "ClaimAppeal", "appeals that link a claim"),
+        (CaseScreens.ClaimDisputes, "claim-disputes", "ClaimDisputes", "ClaimDispute", "disputes that link a General or Life claim"),
+        (CaseScreens.ClaimAppeals, "claim-appeals", "ClaimAppeals", "ClaimAppeal", "appeals that link a General or Life claim"),
         (CaseScreens.HealthClaimAppeals, "health-claim-appeals", "HealthClaimAppeals", "HealthClaimAppeal",
-            "Health-linked appeals (a membership, provider, remittance or payment run link, or raised by a provider)"),
+            "Health appeals (a Health claim or one whose line is not known, a membership, provider, remittance or payment run link, or raised by a provider)"),
         (CaseScreens.ProviderDisputes, "provider-disputes", "ProviderDisputes", "ProviderDispute",
             "provider disputes (a provider, remittance or payment run link, or raised by a provider)"),
     ];

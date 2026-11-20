@@ -43,3 +43,13 @@ internal sealed class GeneralClaimRecipients([FromKeyedServices(GeneralDbContext
             """, r => new NoticeRecipient(r.GetGuid(0), r.GetString(1), r.IsDBNull(2) ? null : r.GetString(2), r.IsDBNull(3) ? null : r.GetString(3)),
             cancellationToken, ("t", tenantId), ("id", claimId));
 }
+
+/// <summary>IClaimLineSource (OQ-196): a General claim is one of general.claim.</summary>
+internal sealed class GeneralClaimLines([FromKeyedServices(GeneralDbContext.SchemaName)] NpgsqlDataSource dataSource) : ClaimsFramework.Contracts.IClaimLineSource
+{
+    public string Line => ClaimsFramework.Contracts.ClaimLines.General;
+
+    public async Task<bool> Holds(Guid tenantId, Guid claimId, CancellationToken cancellationToken) =>
+        await TenantReads.First(dataSource, tenantId, "SELECT 1 FROM general.claim WHERE tenant_id = @t AND id = @id", _ => Line, cancellationToken,
+            ("t", tenantId), ("id", claimId)) is not null;
+}

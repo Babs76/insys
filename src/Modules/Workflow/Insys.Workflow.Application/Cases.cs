@@ -130,6 +130,9 @@ public interface ICaseRepository
 
     /// <summary>Closed cases past their retention date and not under a legal hold (OQ-106).</summary>
     Task<IReadOnlyList<Guid>> DueForDisposal(DateOnly today, int limit, CancellationToken cancellationToken);
+
+    /// <summary>Cases with a CLAIM link whose line isn't recorded yet (OQ-196 B), for the CASE_TIMELINES job to fill in.</summary>
+    Task<IReadOnlyList<Guid>> WithUnknownClaimLines(int limit, CancellationToken cancellationToken);
 }
 
 public sealed record CaseLinkView([property: AllowedValues("POLICY", "CLAIM", "MEMBERSHIP", "PAYMENT", "INVOICE", "BILLING_ACCOUNT", "PARTY", "PROVIDER", "REMITTANCE", "PAYMENT_RUN", "INTERMEDIARY")]
@@ -184,25 +187,42 @@ public sealed record CaseFilter(string? Family, string? CaseTypeCode, CaseStatus
     CaseScreenFilter? Screen = null);
 
 /// <summary>
-/// The cases one case screen reads (BR-100, OQ-196, Ade 20 November 2026: each case family has its own read endpoints): its family and, for the claim,
-/// Health and provider screens, a link of one of LinkTypes, or (RaisedByProvider) a case a provider raised. The screens and their meaning are those of
-/// addenda/cases.md §9; which links stand for each screen is read from the screen's name (TODO(spec): OQ-196 records it for confirmation).
+/// The cases one case screen reads (BR-100, OQ-196, Ade 20 November 2026: each case family has its own read endpoints; option B, by the case's
+/// line): its family and, for the claim, Health and provider screens, a link of one of LinkTypes, a CLAIM link whose line is one of ClaimLines
+/// (or, with UnknownClaimLine, whose line isn't known), or (RaisedByProvider) a case a provider raised. The screens are those of addenda/cases.md §9.
 /// </summary>
-public sealed record CaseScreenFilter(string Screen, string Family, IReadOnlyList<string>? LinkTypes = null, bool RaisedByProvider = false)
+public sealed record CaseScreenFilter(string Screen, string Family, IReadOnlyList<string>? LinkTypes = null, bool RaisedByProvider = false,
+    IReadOnlyList<string>? ClaimLines = null, bool UnknownClaimLine = false)
 {
-    public bool Matches(string family, IEnumerable<string> linkTypes, string? raisedByProviderId) =>
-        family == Family && (LinkTypes is null || linkTypes.Any(LinkTypes.Contains) || (RaisedByProvider && raisedByProviderId is not null));
+    /// <summary>Whether the screen reads only some of its family's cases.</summary>
+    public bool Restricted => LinkTypes is not null || ClaimLines is not null;
+
+    public bool Matches(string family, IEnumerable<CaseLink> links, string? raisedByProviderId) =>
+        family == Family && (!Restricted || (RaisedByProvider && raisedByProviderId is not null) || links.Any(l =>
+            (LinkTypes?.Contains(l.LinkType) ?? false)
+            || (l.LinkType == CaseLinkTypes.Claim && (l.ClaimLine is { } line ? ClaimLines?.Contains(line) ?? false : UnknownClaimLine))));
 }
 
 /// <summary>The case screens other than complaints, each with the cases it reads (BR-100). The complaints screen keeps the unfiltered reads.</summary>
 public static class CaseScreens
 {
+    /// <summary>The lines of the claim screens (OQ-196 B): a claim of these lines is not Health.</summary>
+    public static readonly IReadOnlyList<string> GeneralAndLife = [ClaimsFramework.Contracts.ClaimLines.General, ClaimsFramework.Contracts.ClaimLines.Life];
+
     public static readonly CaseScreenFilter Enquiries = new("SERVICE_ENQUIRIES", CaseFamilies.Enquiry);
     public static readonly CaseScreenFilter Disputes = new("SERVICE_DISPUTES", CaseFamilies.Dispute);
     public static readonly CaseScreenFilter Appeals = new("SERVICE_APPEALS", CaseFamilies.Appeal);
-    public static readonly CaseScreenFilter ClaimDisputes = new("CLAIM_DISPUTES", CaseFamilies.Dispute, [CaseLinkTypes.Claim]);
-    public static readonly CaseScreenFilter ClaimAppeals = new("CLAIM_APPEALS", CaseFamilies.Appeal, [CaseLinkTypes.Claim]);
-    public static readonly CaseScreenFilter HealthClaimAppeals = new("HEALTH_CLAIM_APPEALS", CaseFamilies.Appeal, CaseAccess.HealthLinkTypes, RaisedByProvider: true);
+
+    /// <summary>Disputes linked to a General or Life claim (OQ-196 B).</summary>
+    // TODO(spec): OQ-196, a dispute linked only to a Health claim (no provider link, not raised by a provider) is under no claim or Health screen.
+    public static readonly CaseScreenFilter ClaimDisputes = new("CLAIM_DISPUTES", CaseFamilies.Dispute, ClaimLines: GeneralAndLife);
+
+    /// <summary>Appeals linked to a General or Life claim (OQ-196 B).</summary>
+    public static readonly CaseScreenFilter ClaimAppeals = new("CLAIM_APPEALS", CaseFamilies.Appeal, ClaimLines: GeneralAndLife);
+
+    /// <summary>Appeals linked to a Health claim or one whose line isn't known (fail closed), or with a Health link, or raised by a provider (OQ-196 B).</summary>
+    public static readonly CaseScreenFilter HealthClaimAppeals = new("HEALTH_CLAIM_APPEALS", CaseFamilies.Appeal, CaseAccess.HealthLinkTypes, RaisedByProvider: true,
+        ClaimLines: [ClaimsFramework.Contracts.ClaimLines.Health], UnknownClaimLine: true);
     public static readonly CaseScreenFilter ProviderDisputes =
         new("PROVIDER_DISPUTES", CaseFamilies.Dispute, [CaseLinkTypes.Provider, CaseLinkTypes.Remittance, CaseLinkTypes.PaymentRun], RaisedByProvider: true);
 
@@ -301,6 +321,12 @@ public sealed record MarkCaseOverdue(Guid CaseId) : ICommand<bool>;
 
 /// <summary>Disposes of a closed case past its retention (OQ-106), unless it is under a legal hold.</summary>
 public sealed record DisposeCase(Guid CaseId) : ICommand<bool>;
+
+/// <summary>The CASE_TIMELINES job's fill-in (OQ-196 B): the cases whose CLAIM links have no line yet.</summary>
+public sealed record CasesWithUnknownClaimLines(int Limit) : IQuery<IReadOnlyList<Guid>>;
+
+/// <summary>Records the line of each of a case's CLAIM links that has none, from the claim modules (OQ-196 B). True when one was recorded.</summary>
+public sealed record ResolveCaseClaimLines(Guid CaseId) : ICommand<bool>;
 
 public sealed class OpenCaseValidator : AbstractValidator<OpenCase>
 {
@@ -460,7 +486,15 @@ public sealed class CaseAccess(IExecutionContext execution)
     /// <summary>The links that make a case Health's: a membership, a provider, a remittance or a provider payment run.</summary>
     public static readonly IReadOnlyList<string> HealthLinkTypes = [CaseLinkTypes.Membership, CaseLinkTypes.Provider, CaseLinkTypes.Remittance, CaseLinkTypes.PaymentRun];
 
-    public static bool IsHealth(ServiceCase c) => c.RaisedByProviderId is not null || c.Links.Any(l => HealthLinkTypes.Contains(l.LinkType));
+    /// <summary>
+    /// Health's: raised by a provider, or a Health link, or a CLAIM link to a Health claim or to one whose line isn't known (OQ-196 B, fail closed:
+    /// cases.md §9, readable only by those who may read Health claims).
+    /// </summary>
+    public static bool IsHealth(ServiceCase c) => c.RaisedByProviderId is not null || c.Links.Any(l => HealthLinkTypes.Contains(l.LinkType) || IsHealthClaim(l));
+
+    /// <summary>A CLAIM link to a Health claim, or one whose line isn't known (OQ-196 B).</summary>
+    public static bool IsHealthClaim(CaseLink l) =>
+        l.LinkType == CaseLinkTypes.Claim && (l.ClaimLine is null || l.ClaimLine == ClaimsFramework.Contracts.ClaimLines.Health);
 
     public bool MayReadHealth => execution.HasPermission(Health.Contracts.HealthPermissions.ClaimRead);
 
@@ -491,13 +525,41 @@ public sealed class CaseAccess(IExecutionContext execution)
 }
 
 /// <summary>
+/// A claim's line (OQ-196 B, Ade 20 November 2026), through each claim module's public query (ClaimsFramework.Contracts.IClaimLineSource): the line
+/// of the module that holds the claim. Null when none does or a query fails, so the link counts as Health (fail closed). Logs carry no claim data.
+/// </summary>
+public sealed class CaseClaimLines(IEnumerable<ClaimsFramework.Contracts.IClaimLineSource> sources, ITenantContext tenant, ILogger<CaseClaimLines> logger)
+{
+    public async Task<string?> LineOf(Guid claimId, CancellationToken cancellationToken)
+    {
+        var tenantId = tenant.RequireTenantId();
+        foreach (var source in sources)
+        {
+            try
+            {
+                if (await source.Holds(tenantId, claimId, cancellationToken))
+                {
+                    return source.Line;
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogWarning("The {Line} claim line query failed ({ExceptionType}); the link counts as Health until its line is known", source.Line, ex.GetType().Name);
+            }
+        }
+
+        return null;
+    }
+}
+
+/// <summary>
 /// Opens a case: its number from the tenant's counter, its timelines (ACKNOWLEDGE, else the resolution step) as the
 /// expected date, and its case type's process started on the case (§1), so tasks, queues, SLAs and escalation run it.
 /// A case raised by a person is never refused for missing timelines; one raised from an event parks (ADR-022).
 /// </summary>
 public sealed class CaseOpening(ICaseRepository cases, ICaseConfiguration configuration, CaseTimes times, IWorkflowConfiguration workflow, IProcessRepository processes,
     IEnumerable<BuildingBlocks.Contracts.IBusinessRecordScopes> recordScopes, ITenantContext tenant, IBusinessDate businessDate, IClock clock, IAuditTrail audit,
-    ILogger<CaseOpening> logger)
+    CaseClaimLines claimLines, ILogger<CaseOpening> logger)
 {
     public const string BusinessRefType = CaseApprovals.CaseBusinessRefType;
 
@@ -574,10 +636,16 @@ public sealed class CaseOpening(ICaseRepository cases, ICaseConfiguration config
         return serviceCase;
     }
 
-    /// <summary>Links a record: only types the case type allows; the record's product and node (F103) when its module tells them.</summary>
+    /// <summary>
+    /// Links a record: only types the case type allows; the record's product and node (F103) when its module tells them; a claim's line
+    /// (OQ-196 B) from the claim modules, or none when they can't tell it, so the case counts as Health until the CASE_TIMELINES job does.
+    /// </summary>
     public async Task<Result> Link(ServiceCase serviceCase, CaseTypeConfig type, CaseLinkInput link, string actor, CancellationToken cancellationToken)
     {
-        var linked = serviceCase.LinkRecord(type.Rules, link.LinkType, link.RecordId, link.Reference, actor, clock.UtcNow);
+        var claimLine = link.LinkType == CaseLinkTypes.Claim && type.Rules.LinkTypes.Contains(link.LinkType)
+            ? await claimLines.LineOf(link.RecordId, cancellationToken)
+            : null;
+        var linked = serviceCase.LinkRecord(type.Rules, link.LinkType, link.RecordId, link.Reference, actor, clock.UtcNow, claimLine);
         if (linked.IsFailure)
         {
             return linked;
@@ -863,8 +931,12 @@ internal sealed class CaseQueryHandlers(ICaseQueries queries, ICaseRepository ca
     IQueryHandler<GetCaseRedress, CaseRedressView>,
     IQueryHandler<CasesSummary, BuildingBlocks.Application.DashboardSummary>,
     IQueryHandler<GetComplaintsReport, ComplaintsReport>,
-    IQueryHandler<CasesDue, CasesDueView>
+    IQueryHandler<CasesDue, CasesDueView>,
+    IQueryHandler<CasesWithUnknownClaimLines, IReadOnlyList<Guid>>
 {
+    public async Task<Result<IReadOnlyList<Guid>>> Handle(CasesWithUnknownClaimLines query, CancellationToken cancellationToken) =>
+        Result.Success(await cases.WithUnknownClaimLines(query.Limit, cancellationToken));
+
     public async Task<Result<IReadOnlyList<CaseSummaryView>>> Handle(ListCases query, CancellationToken cancellationToken) =>
         Result.Success(await queries.List(query.Filter, query.AfterId, query.Limit, cancellationToken));
 
@@ -894,11 +966,32 @@ internal sealed class CaseQueryHandlers(ICaseQueries queries, ICaseRepository ca
 }
 
 /// <summary>The CASE_TIMELINES job's work on one case (a service identity, one case per transaction).</summary>
-internal sealed class CaseJobHandlers(ICaseRepository cases, Documents.Contracts.IRecordHolds holds, IBusinessDate businessDate, IClock clock, IAuditTrail audit) :
+internal sealed class CaseJobHandlers(ICaseRepository cases, Documents.Contracts.IRecordHolds holds, CaseClaimLines claimLines, IBusinessDate businessDate, IClock clock,
+    IAuditTrail audit) :
     ICommandHandler<MarkCaseOverdue, bool>,
-    ICommandHandler<DisposeCase, bool>
+    ICommandHandler<DisposeCase, bool>,
+    ICommandHandler<ResolveCaseClaimLines, bool>
 {
     public const string Actor = "case-timelines";
+
+    public async Task<Result<bool>> Handle(ResolveCaseClaimLines command, CancellationToken cancellationToken)
+    {
+        if (await cases.Get(command.CaseId, cancellationToken) is not { } c)
+        {
+            return false;
+        }
+
+        var recorded = false;
+        foreach (var link in c.Links.Where(l => l.ClaimLineUnknown).ToList())
+        {
+            if (await claimLines.LineOf(link.RecordId, cancellationToken) is { } line)
+            {
+                recorded |= c.RecordClaimLine(link.RecordId, line);
+            }
+        }
+
+        return recorded;
+    }
 
     public async Task<Result<bool>> Handle(MarkCaseOverdue command, CancellationToken cancellationToken) =>
         await cases.Get(command.CaseId, cancellationToken) is { } c && c.MarkOverdue(Actor, clock.UtcNow).IsSuccess;

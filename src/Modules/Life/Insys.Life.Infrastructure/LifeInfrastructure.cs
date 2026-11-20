@@ -79,6 +79,7 @@ public static class LifeInfrastructure
         services.AddScoped<ILifeRepository, LifeRepository>();
         services.AddScoped<Workflow.Contracts.IPortalCaseLinks, Application.PortalLifeClaimCaseLinks>();
         services.AddSingleton<Contracts.ILifeClaimRecipients, LifeClaimRecipients>();
+        services.AddSingleton<ClaimsFramework.Contracts.IClaimLineSource, LifeClaimLines>();
         services.AddScoped<ILifeCodes, LifeCodes>();
         services.AddScoped<ILifeLists, LifeLists>();
         services.AddScoped<ILifePortalQueries, LifePortalQueries>();

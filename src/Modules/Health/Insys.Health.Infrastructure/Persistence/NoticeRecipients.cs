@@ -72,3 +72,13 @@ internal sealed class HealthNoticeRecipients([FromKeyedServices(HealthDbContext.
 
     private sealed record Row(Guid Patient, Guid Principal, string Reference, string? ProductCode, string? OrgNodeCode);
 }
+
+/// <summary>IClaimLineSource (OQ-196): a Health claim is one of health.medical_claim. Only whether it exists is read.</summary>
+internal sealed class HealthClaimLines([FromKeyedServices(HealthDbContext.SchemaName)] NpgsqlDataSource dataSource) : ClaimsFramework.Contracts.IClaimLineSource
+{
+    public string Line => ClaimsFramework.Contracts.ClaimLines.Health;
+
+    public async Task<bool> Holds(Guid tenantId, Guid claimId, CancellationToken cancellationToken) =>
+        await TenantReads.First(dataSource, tenantId, "SELECT 1 FROM health.medical_claim WHERE tenant_id = @t AND id = @id", _ => Line, cancellationToken,
+            ("t", tenantId), ("id", claimId)) is not null;
+}
