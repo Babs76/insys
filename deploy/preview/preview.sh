@@ -32,6 +32,8 @@
 #   open-ssh <ip>     SSH from that address, until the next run closes it (for Ade to unseal OpenBao); check closes it soonest
 #   diagnose          read only: what rebooted the server or restarted k3s (boots, package runs, needrestart, the journal, Hetzner's actions)
 #   os-update         the server's packages updated, nothing restarted or rebooted; says what would need a restart or reboot
+#   reboot            the server rebooted (the rebuild plan's 0A.2, each run approved by Ade), only after a backup taken today; then a check
+#                     that it booted again, on which kernel, that k3s and the pods came back, and what OpenBao reports (sealed, as after any reboot)
 #   rotate-ssh-key    PREVIEW_SSH_KEY_NEW put in place of PREVIEW_SSH_KEY: on the server, every other key removed; and in Hetzner
 #   reset             everything removed and made again from the seed, with new passwords and a new OpenBao
 #   rotate-passwords  new passwords for the accounts
@@ -612,6 +614,43 @@ os_update() {
     if [ -f /var/run/reboot-required ]; then echo "A reboot is needed ($(paste -sd, /var/run/reboot-required.pkgs 2>/dev/null)). Not done: a reboot seals OpenBao."; else echo "No reboot is needed."; fi'
 }
 
+# The rebuild plan's 0A.2 (Ade, 20 November 2026): the pending reboot, only through this workflow's approved preview environment. It refuses unless
+# today's backup is on the server (0A.1 first), reboots with systemctl (a clean shutdown, recorded in the journal with this run's id), waits for a new
+# boot, then checks it: the boot time and kernel, what still waits for a reboot, the node, and every pod's state. OpenBao comes back sealed, as after
+# any reboot; that is reported, not a failure, as the reset replaces it. Nothing else is changed.
+reboot_server() {
+  local day before kernel after
+  day=$(date -u +%F)
+  on_server "for f in $day-insys.dump $day-keycloak.dump $day-openbao.tar.gz; do [ -s /var/backups/insys/\$f ] || exit 1; done" \
+    || fail "no backup of $day on the server: run backup first (the rebuild plan's 0A.1), then reboot"
+  before=$(on_server 'uptime -s'); kernel=$(on_server 'uname -r')
+  echo "Before: booted $before, kernel $kernel; $(pending_restarts)"
+  on_server "logger -t insys-preview 'reboot by preview.sh, run ${GITHUB_RUN_ID:-unknown}'; systemd-run --on-active=5 --unit=insys-preview-reboot systemctl reboot >/dev/null" \
+    || fail "the reboot couldn't be scheduled"
+  echo "Reboot scheduled; waiting for the server to come back."
+  for _ in $(seq 1 120); do   # up to 10 minutes for a new boot
+    sleep 5
+    after=$(on_server 'uptime -s' 2>/dev/null) || continue
+    [ "$after" != "$before" ] && break
+  done
+  [ -n "${after:-}" ] && [ "$after" != "$before" ] || fail "the server didn't come back with a new boot within 10 minutes (last boot seen: ${after:-none})"
+  echo "After: booted $after, kernel $(on_server 'uname -r') (was $kernel); $(pending_restarts)"
+  # shellcheck disable=SC2016 # it runs on the server, which expands it
+  on_server 'kubectl wait --for=condition=Ready node --all --timeout=600s >/dev/null' || fail "the k3s node wasn't Ready within 10 minutes of the boot"
+  # Every pod Running and ready, or Succeeded; OpenBao is left out of the wait, as it comes back sealed and so not ready.
+  # shellcheck disable=SC2016 # it runs on the server, which expands it
+  on_server 'for _ in $(seq 1 120); do
+      waiting=$(kubectl get pods -A --no-headers -o custom-columns="NS:.metadata.namespace,POD:.metadata.name,PHASE:.status.phase,READY:.status.containerStatuses[*].ready" \
+        | awk "\$2 !~ /openbao/ && \$3 != \"Succeeded\" && (\$3 != \"Running\" || \$4 ~ /false/)")
+      [ -z "$waiting" ] && exit 0; sleep 5
+    done
+    printf "Not back within 10 minutes:\n%s\n" "$waiting"; exit 1' || fail "pods didn't come back after the reboot"
+  echo "k3s: the node is Ready and every pod is back."
+  on_server 'kubectl get pods -A --no-headers -o custom-columns="POD:.metadata.name,PHASE:.status.phase,RESTARTS:.status.containerStatuses[*].restartCount"' | sed 's/^/  /'
+  echo "OpenBao: $(openbao_state || echo "didn't answer") (sealed is expected after a reboot; the reset replaces it)."
+  summary "Reboot: booted $before, now $after; kernel $kernel, now $(on_server 'uname -r'). Node Ready, every pod back. OpenBao: $(openbao_state || echo "didn't answer")."
+}
+
 # Read only: what rebooted the server or restarted k3s. The boots, the reboot records, unattended-upgrades' and apt's logs for the last 14
 # days, needrestart's lines in apt's log, and the journal's system lines around each boot and k3s's last start; then Hetzner's own record
 # of actions on the server (a reboot or reset from its API or console is there). The repository is public, so only system lines are read:
@@ -845,6 +884,9 @@ case "$action" in
     ;;
   os-update)
     ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; os_policy; os_update
+    ;;
+  reboot)
+    ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; os_policy; reboot_server
     ;;
   backup)
     ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; backup_now
