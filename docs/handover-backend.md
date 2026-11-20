@@ -622,7 +622,8 @@ Ade's decisions on 7.5, the same day. Contract note: "AI-1's submission check".
   - **Row 31:** `Invited -DisableUser-> Disabled`. `POST /identity/users/{id}/disable` on an invited user revokes the invitation: audited (`DisableUser`), the Keycloak user disabled through `UserDisabled`, and the next request with its token refused. Tests: `UserAccountTests.InvitedUser_IsDisabled_SoTheInvitationIsRevoked_AndCannotBeUsed_Row31`, `IdentityTests.InvitedUser_IsDisabled_AndTheRevokedInvitation_CannotSignIn_Row31`.
   - **OQ-165:** readiness `CHANNELS` checks each entitled portal's channel and its roles' rows (`IPortalRoles`); portal-only roles are no longer staff roles.
   - **OQ-183:** an approved SETUP batch not in force ends `REJECTED` when its set is abandoned.
-- **Waiting on Ade (each with a proposal and size):** row 32 (OQ-193), row 33 (OQ-194), row 34 (OQ-195), BR-100 (OQ-196, sized at half a day to a day, an amendment to ADR-026's sign-off decision 3).
+- **Waiting on Ade (each with a proposal and size):** row 32 (OQ-193), row 33 (OQ-194), row 34 (OQ-195).
+- **BR-100 (OQ-196), decided 20 November (per-family read endpoints, no ADR change), built on branch `br100-case-reads`:** each case screen other than complaints has a list and a case of its own cases under its own function (`CaseScreens` in Workflow Application, `CaseEndpoints.ScreenReads`); 14 operations, `openapi-core.json` regenerated, the function catalogue unchanged. Test: `CaseTests.EachCaseScreen_ReadsOnlyItsOwnCases_UnderItsOwnFunction_AndIsRefusedTheOthers_BR100`. The claim, Health and provider screens' link rules are read from their names (OQ-196, for confirmation).
 
 ### Wave 7 batch 7.5 (19 November 2026, branch `wave7-5`)
 Ade, 19 November: D-7's line is Life funeral. Build against sample documents, with the evaluation waiting for D-7's real documents.
@@ -854,7 +855,7 @@ If every item arrives on time, the build ends about 16 December; each phase's ex
 - **The test host supplies `If-Match` and `Idempotency-Key` when a call leaves them out** (`TestPreconditionsHandler`), so a test can pass where a real client is refused. The seed's main test now runs on `StrictClientFor`, which adds nothing, and the seed reads a record's version itself when the API asks. Other API clients may have the same gap.
 - **INSYS has no route that cancels a Life policy,** so the sample Life book has no cancelled status. For the business review.
 - **A seed run that crosses midnight UTC can fail at activation** with `PRODUCT_PUBLISHED` not ready, seen once; run again, it completed. Not investigated.
-- **BR-100:** the function registry refuses one endpoint under two functions for one audience, so the case reads declare only `SERVICE_COMPLAINTS`. From reading the code, not a test, a role holding only another case screen is refused those reads. It needs a change to the registry (ADR-026).
+- **BR-100:** a role holding only a case screen other than complaints was refused the case reads, which declared only `SERVICE_COMPLAINTS`. Fixed 20 November with per-screen read endpoints (OQ-196); see batch 1.
 - **The same decline gap in Life and General:** their decline handlers take `reason?.CustomerWording`, so an unknown reason sends a notice with no wording, as Health did before BR-127. General's lapse job does too. Not asked for and not fixed.
 - **A Health decline with no notice recipient** still goes without a notice, silently.
 - **OpenBao's token** is a static token from the secret; Kubernetes auth isn't built. The chart's in-cluster OpenBao is development mode only, and running a real one is the runbook's subject. The security lead's three questions in ADR-027 are unanswered.

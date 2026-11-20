@@ -2,6 +2,22 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
+## BR-100: each case screen's own reads (Ade, 20 November 2026, OQ-196)
+All added, none breaking. ADR-026 is unchanged: each new operation has one `x-function`, the case screen's own. The complaints screen's reads (`GET /workflow/cases`, `/{id}`, `/{id}/redress/{redressId}`, `/summary`) stay under `SERVICE_COMPLAINTS`.
+- **New operations,** 14 in all: a list (the filters of `GET /workflow/cases` without `family`; cursor paged) and a case (`/{id}`, with ETag), limited to the screen's cases. A case the screen doesn't read is 404 on its `/{id}`. Scope (F103) and the Health rule (`medical_claim.read`) apply as on the complaints reads.
+
+  | Function | List | Case | Its cases |
+  |---|---|---|---|
+  | `SERVICE_ENQUIRIES` | `GET /workflow/cases/enquiries` (`WorkflowListEnquiries`) | `GET /workflow/cases/enquiries/{id}` (`WorkflowGetEnquiry`) | family `ENQUIRY` |
+  | `SERVICE_DISPUTES` | `GET /workflow/cases/disputes` (`WorkflowListDisputes`) | `…/disputes/{id}` (`WorkflowGetDispute`) | family `DISPUTE` |
+  | `SERVICE_APPEALS` | `GET /workflow/cases/appeals` (`WorkflowListAppeals`) | `…/appeals/{id}` (`WorkflowGetAppeal`) | family `APPEAL` |
+  | `CLAIM_DISPUTES` | `GET /workflow/cases/claim-disputes` (`WorkflowListClaimDisputes`) | `…/claim-disputes/{id}` (`WorkflowGetClaimDispute`) | disputes with a `CLAIM` link |
+  | `CLAIM_APPEALS` | `GET /workflow/cases/claim-appeals` (`WorkflowListClaimAppeals`) | `…/claim-appeals/{id}` (`WorkflowGetClaimAppeal`) | appeals with a `CLAIM` link |
+  | `HEALTH_CLAIM_APPEALS` | `GET /workflow/cases/health-claim-appeals` (`WorkflowListHealthClaimAppeals`) | `…/health-claim-appeals/{id}` (`WorkflowGetHealthClaimAppeal`) | appeals with a `MEMBERSHIP`, `PROVIDER`, `REMITTANCE` or `PAYMENT_RUN` link, or raised by a provider |
+  | `PROVIDER_DISPUTES` | `GET /workflow/cases/provider-disputes` (`WorkflowListProviderDisputes`) | `…/provider-disputes/{id}` (`WorkflowGetProviderDispute`) | disputes with a `PROVIDER`, `REMITTANCE` or `PAYMENT_RUN` link, or raised by a provider |
+- **Which links stand for the claim, Health and provider screens** is read from the screens' names in `addenda/cases.md` §9; OQ-196 records it for confirmation.
+- **For the front end:** each case screen reads through its own operations, so a role holding only that screen (a disputes clerk, say) can open it. The case's actions are unchanged, still under `SERVICE_COMPLAINTS` (BR-100 asked only for the reads).
+
 ## Batch 1: revoking an invitation, portal readiness, abandoned SETUP batches (19 November 2026)
 All additive; no path, body or response shape changes.
 - **`POST /identity/users/{id}/disable`** now accepts an `Invited` user (register row 31): it revokes the invitation. Before, it answered 409 `INVALID_STATE_TRANSITION`. The user's status becomes `Disabled`; its token is refused from the next request.

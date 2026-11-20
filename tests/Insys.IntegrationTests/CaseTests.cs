@@ -90,6 +90,7 @@ public sealed class CaseTests(DatabaseFixture fixture) : IClassFixture<DatabaseF
         await Type(db, "REVIEW_T", "APPEAL", ["POLICY", "CLAIM"], ["CUSTOMER"], false, null);
         await Type(db, "ENQUIRY_T", "ENQUIRY", ["POLICY", "PARTY"], ["CUSTOMER", "BROKER"], false, null);
         await Type(db, "DISPUTE_P", "DISPUTE", ["REMITTANCE"], ["PROVIDER"], false, null);
+        await Type(db, "DISPUTE_C", "DISPUTE", ["CLAIM", "POLICY"], ["CUSTOMER"], false, null);
         await Timeline(db, "COMPLAINT_T", "ACKNOWLEDGE", "P2D", "BUSINESS", "CAL-ZA", false, null);
         await Timeline(db, "COMPLAINT_T", "RESOLVE", "P30D", "CALENDAR", null, true, "P10D");
         await Timeline(db, "COMPLAINT_T", "DECIDE_REPRESENTATIONS", "P45D", "CALENDAR", null, false, null);
@@ -518,6 +519,74 @@ public sealed class CaseTests(DatabaseFixture fixture) : IClassFixture<DatabaseF
     }
 
     /// <summary>A legal hold on the case itself (D-34, document.record_hold) keeps it past its retention too, until the hold is released.</summary>
+    /// <summary>
+    /// BR-100 (OQ-196, Ade 20 November 2026): each case screen has its own reads, under its own function alone. A role holding only SERVICE_DISPUTES reads
+    /// disputes and nothing else; one holding only CLAIM_DISPUTES reads only disputes that link a claim; neither reads the complaints screen's list.
+    /// </summary>
+    [Fact]
+    public async Task EachCaseScreen_ReadsOnlyItsOwnCases_UnderItsOwnFunction_AndIsRefusedTheOthers_BR100()
+    {
+        var db = fixture.Database;
+        var enquiry = (await Open(_clerk, new { caseTypeCode = "ENQUIRY_T", receivedChannel = "PHONE", complainantPartyId = Guid.CreateVersion7(), summary = "Q" }))
+            .GetProperty("id").GetGuid();
+        var complaint = await OpenComplaint();
+        var claimDispute = (await Open(_clerk, new
+        {
+            caseTypeCode = "DISPUTE_C", receivedChannel = "PHONE", complainantPartyId = Guid.CreateVersion7(), summary = "D",
+            links = new[] { new { linkType = "CLAIM", recordId = Guid.CreateVersion7(), reference = "GC-BR100" } },
+        })).GetProperty("id").GetGuid();
+        var policyDispute = (await Open(_clerk, new
+        {
+            caseTypeCode = "DISPUTE_C", receivedChannel = "PHONE", complainantPartyId = Guid.CreateVersion7(), summary = "D",
+            links = new[] { new { linkType = "POLICY", recordId = Guid.CreateVersion7(), reference = "GP-BR100" } },
+        })).GetProperty("id").GetGuid();
+
+        string[] screens = ["enquiries", "disputes", "appeals", "claim-disputes", "claim-appeals", "health-claim-appeals", "provider-disputes"];
+        await db.UserWithFunctions(T, "br100-disputes", "SERVICE_DISPUTES");
+        await db.UserWithFunctions(T, "br100-claim-disputes", "CLAIM_DISPUTES");
+        await db.UserWithFunctions(T, "br100-enquiries", "SERVICE_ENQUIRIES");
+        var disputes = _factory.ClientFor(T, "br100-disputes");
+        var claimDisputes = _factory.ClientFor(T, "br100-claim-disputes");
+        var enquiries = _factory.ClientFor(T, "br100-enquiries");
+
+        async Task<List<(Guid Id, string Family)>> List(HttpClient client, string screen)
+        {
+            var response = await client.GetAsync($"{Cases}/{screen}?limit=200");
+            response.StatusCode.ShouldBe(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+            return (await response.Json()).GetProperty("items").EnumerateArray()
+                .Select(i => (i.GetProperty("id").GetGuid(), i.GetProperty("family").GetString()!)).ToList();
+        }
+
+        // SERVICE_DISPUTES: every dispute, only disputes; the case itself through its own read; the complaints screen's reads and the other screens refused.
+        var seen = await List(disputes, "disputes");
+        seen.Select(c => c.Id).ShouldContain(claimDispute);
+        seen.Select(c => c.Id).ShouldContain(policyDispute);
+        seen.ShouldAllBe(c => c.Family == "DISPUTE");
+        (await disputes.GetAsync($"{Cases}/disputes/{policyDispute}")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await disputes.GetAsync($"{Cases}/disputes/{enquiry}")).StatusCode.ShouldBe(HttpStatusCode.NotFound, "an enquiry isn't a dispute");
+        (await disputes.GetAsync(Cases)).StatusCode.ShouldBe(HttpStatusCode.Forbidden, "the complaints screen's list needs SERVICE_COMPLAINTS");
+        (await disputes.GetAsync($"{Cases}/{policyDispute}")).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        foreach (var other in screens.Where(s => s != "disputes"))
+        {
+            (await disputes.GetAsync($"{Cases}/{other}")).StatusCode.ShouldBe(HttpStatusCode.Forbidden, other);
+        }
+
+        // CLAIM_DISPUTES: only disputes that link a claim.
+        var claims = await List(claimDisputes, "claim-disputes");
+        claims.Select(c => c.Id).ShouldContain(claimDispute);
+        claims.Select(c => c.Id).ShouldNotContain(policyDispute);
+        (await claimDisputes.GetAsync($"{Cases}/claim-disputes/{claimDispute}")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await claimDisputes.GetAsync($"{Cases}/claim-disputes/{policyDispute}")).StatusCode.ShouldBe(HttpStatusCode.NotFound, "it links no claim");
+        (await claimDisputes.GetAsync($"{Cases}/disputes")).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+
+        // SERVICE_ENQUIRIES: only enquiries; not the complaint.
+        var asked = await List(enquiries, "enquiries");
+        asked.Select(c => c.Id).ShouldContain(enquiry);
+        asked.Select(c => c.Id).ShouldNotContain(complaint);
+        asked.ShouldAllBe(c => c.Family == "ENQUIRY");
+        (await enquiries.GetAsync($"{Cases}/enquiries/{complaint}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+    }
+
     [Fact]
     public async Task ARecordHoldOnTheCase_KeepsItPastItsRetention_UntilReleased_D34()
     {

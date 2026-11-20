@@ -8880,6 +8880,1434 @@
         ]
       }
     },
+    "/api/v1/workflow/cases/enquiries": {
+      "get": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "The SERVICE_ENQUIRIES screen\u0027s cases: enquiries (family ENQUIRY) (BR-100)",
+        "description": "As GET /workflow/cases, limited to enquiries (family ENQUIRY), under SERVICE_ENQUIRIES alone. Within the caller\u0027s scope (F103); a Health-linked case only with medical_claim.read. The filters narrow it further. Oldest first by ID, cursor paged.",
+        "operationId": "WorkflowListEnquiries",
+        "parameters": [
+          {
+            "name": "type",
+            "in": "query",
+            "description": "A case type code (workflow/static/case-types).",
+            "schema": {
+              "type": "string"
+            },
+            "x-known-values": []
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "The case status.",
+            "schema": {
+              "type": "string"
+            },
+            "x-known-values": [
+              "Received",
+              "Acknowledged",
+              "InProgress",
+              "AwaitingComplainant",
+              "Decided",
+              "Closed",
+              "Withdrawn",
+              "Reopened"
+            ]
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "description": "A case category code (workflow/static/case-categories).",
+            "schema": {
+              "type": "string"
+            },
+            "x-known-values": []
+          },
+          {
+            "name": "overdue",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "linkType",
+            "in": "query",
+            "description": "With linkId: the cases that link that record.",
+            "schema": {
+              "type": "string"
+            },
+            "x-known-values": [
+              "POLICY",
+              "CLAIM",
+              "MEMBERSHIP",
+              "PAYMENT",
+              "INVOICE",
+              "BILLING_ACCOUNT",
+              "PARTY",
+              "PROVIDER",
+              "REMITTANCE",
+              "PAYMENT_RUN",
+              "INTERMEDIARY"
+            ]
+          },
+          {
+            "name": "linkId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfWorkflowCaseSummaryView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "case.read",
+        "x-function": [
+          "SERVICE_ENQUIRIES"
+        ],
+        "x-additional-permissions": [
+          {
+            "permission": "medical_claim.read",
+            "when": "a case is Health-linked: without it the case is left out"
+          }
+        ]
+      }
+    },
+    "/api/v1/workflow/cases/enquiries/{id}": {
+      "get": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "A case of the SERVICE_ENQUIRIES screen, with its links, history and messages (BR-100)",
+        "description": "As GET /workflow/cases/{id}, under SERVICE_ENQUIRIES alone: 404 for a case that isn\u0027t one of its enquiries (family ENQUIRY).",
+        "operationId": "WorkflowGetEnquiry",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowCaseView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "case.read",
+        "x-function": [
+          "SERVICE_ENQUIRIES"
+        ],
+        "x-additional-permissions": [
+          {
+            "permission": "medical_claim.read",
+            "when": "the case is Health-linked: without it the case is not found"
+          }
+        ]
+      }
+    },
+    "/api/v1/workflow/cases/disputes": {
+      "get": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "The SERVICE_DISPUTES screen\u0027s cases: disputes (family DISPUTE) (BR-100)",
+        "description": "As GET /workflow/cases, limited to disputes (family DISPUTE), under SERVICE_DISPUTES alone. Within the caller\u0027s scope (F103); a Health-linked case only with medical_claim.read. The filters narrow it further. Oldest first by ID, cursor paged.",
+        "operationId": "WorkflowListDisputes",
+        "parameters": [
+          {
+            "name": "type",
+            "in": "query",
+            "description": "A case type code (workflow/static/case-types).",
+            "schema": {
+              "type": "string"
+            },
+            "x-known-values": []
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "The case status.",
+            "schema": {
+              "type": "string"
+            },
+            "x-known-values": [
+              "Received",
+              "Acknowledged",
+              "InProgress",
+              "AwaitingComplainant",
+              "Decided",
+              "Closed",
+              "Withdrawn",
+              "Reopened"
+            ]
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "description": "A case category code (workflow/static/case-categories).",
+            "schema": {
+              "type": "string"
+            },
+            "x-known-values": []
+          },
+          {
+            "name": "overdue",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "linkType",
+            "in": "query",
+            "description": "With linkId: the cases that link that record.",
+            "schema": {
+              "type": "string"
+            },
+            "x-known-values": [
+              "POLICY",
+              "CLAIM",
+              "MEMBERSHIP",
+              "PAYMENT",
+              "INVOICE",
+              "BILLING_ACCOUNT",
+              "PARTY",
+              "PROVIDER",
+              "REMITTANCE",
+              "PAYMENT_RUN",
+              "INTERMEDIARY"
+            ]
+          },
+          {
+            "name": "linkId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfWorkflowCaseSummaryView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "case.read",
+        "x-function": [
+          "SERVICE_DISPUTES"
+        ],
+        "x-additional-permissions": [
+          {
+            "permission": "medical_claim.read",
+            "when": "a case is Health-linked: without it the case is left out"
+          }
+        ]
+      }
+    },
+    "/api/v1/workflow/cases/disputes/{id}": {
+      "get": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "A case of the SERVICE_DISPUTES screen, with its links, history and messages (BR-100)",
+        "description": "As GET /workflow/cases/{id}, under SERVICE_DISPUTES alone: 404 for a case that isn\u0027t one of its disputes (family DISPUTE).",
+        "operationId": "WorkflowGetDispute",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowCaseView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "case.read",
+        "x-function": [
+          "SERVICE_DISPUTES"
+        ],
+        "x-additional-permissions": [
+          {
+            "permission": "medical_claim.read",
+            "when": "the case is Health-linked: without it the case is not found"
+          }
+        ]
+      }
+    },
+    "/api/v1/workflow/cases/appeals": {
+      "get": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "The SERVICE_APPEALS screen\u0027s cases: appeals (family APPEAL) (BR-100)",
+        "description": "As GET /workflow/cases, limited to appeals (family APPEAL), under SERVICE_APPEALS alone. Within the caller\u0027s scope (F103); a Health-linked case only with medical_claim.read. The filters narrow it further. Oldest first by ID, cursor paged.",
+        "operationId": "WorkflowListAppeals",
+        "parameters": [
+          {
+            "name": "type",
+            "in": "query",
+            "description": "A case type code (workflow/static/case-types).",
+            "schema": {
+              "type": "string"
+            },
+            "x-known-values": []
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "The case status.",
+            "schema": {
+              "type": "string"
+            },
+            "x-known-values": [
+              "Received",
+              "Acknowledged",
+              "InProgress",
+              "AwaitingComplainant",
+              "Decided",
+              "Closed",
+              "Withdrawn",
+              "Reopened"
+            ]
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "description": "A case category code (workflow/static/case-categories).",
+            "schema": {
+              "type": "string"
+            },
+            "x-known-values": []
+          },
+          {
+            "name": "overdue",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "linkType",
+            "in": "query",
+            "description": "With linkId: the cases that link that record.",
+            "schema": {
+              "type": "string"
+            },
+            "x-known-values": [
+              "POLICY",
+              "CLAIM",
+              "MEMBERSHIP",
+              "PAYMENT",
+              "INVOICE",
+              "BILLING_ACCOUNT",
+              "PARTY",
+              "PROVIDER",
+              "REMITTANCE",
+              "PAYMENT_RUN",
+              "INTERMEDIARY"
+            ]
+          },
+          {
+            "name": "linkId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfWorkflowCaseSummaryView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "case.read",
+        "x-function": [
+          "SERVICE_APPEALS"
+        ],
+        "x-additional-permissions": [
+          {
+            "permission": "medical_claim.read",
+            "when": "a case is Health-linked: without it the case is left out"
+          }
+        ]
+      }
+    },
+    "/api/v1/workflow/cases/appeals/{id}": {
+      "get": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "A case of the SERVICE_APPEALS screen, with its links, history and messages (BR-100)",
+        "description": "As GET /workflow/cases/{id}, under SERVICE_APPEALS alone: 404 for a case that isn\u0027t one of its appeals (family APPEAL).",
+        "operationId": "WorkflowGetAppeal",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowCaseView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "case.read",
+        "x-function": [
+          "SERVICE_APPEALS"
+        ],
+        "x-additional-permissions": [
+          {
+            "permission": "medical_claim.read",
+            "when": "the case is Health-linked: without it the case is not found"
+          }
+        ]
+      }
+    },
+    "/api/v1/workflow/cases/claim-disputes": {
+      "get": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "The CLAIM_DISPUTES screen\u0027s cases: disputes that link a claim (BR-100)",
+        "description": "As GET /workflow/cases, limited to disputes that link a claim, under CLAIM_DISPUTES alone. Within the caller\u0027s scope (F103); a Health-linked case only with medical_claim.read. The filters narrow it further. Oldest first by ID, cursor paged.",
+        "operationId": "WorkflowListClaimDisputes",
+        "parameters": [
+          {
+            "name": "type",
+            "in": "query",
+            "description": "A case type code (workflow/static/case-types).",
+            "schema": {
+              "type": "string"
+            },
+            "x-known-values": []
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "The case status.",
+            "schema": {
+              "type": "string"
+            },
+            "x-known-values": [
+              "Received",
+              "Acknowledged",
+              "InProgress",
+              "AwaitingComplainant",
+              "Decided",
+              "Closed",
+              "Withdrawn",
+              "Reopened"
+            ]
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "description": "A case category code (workflow/static/case-categories).",
+            "schema": {
+              "type": "string"
+            },
+            "x-known-values": []
+          },
+          {
+            "name": "overdue",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "linkType",
+            "in": "query",
+            "description": "With linkId: the cases that link that record.",
+            "schema": {
+              "type": "string"
+            },
+            "x-known-values": [
+              "POLICY",
+              "CLAIM",
+              "MEMBERSHIP",
+              "PAYMENT",
+              "INVOICE",
+              "BILLING_ACCOUNT",
+              "PARTY",
+              "PROVIDER",
+              "REMITTANCE",
+              "PAYMENT_RUN",
+              "INTERMEDIARY"
+            ]
+          },
+          {
+            "name": "linkId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfWorkflowCaseSummaryView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "case.read",
+        "x-function": [
+          "CLAIM_DISPUTES"
+        ],
+        "x-additional-permissions": [
+          {
+            "permission": "medical_claim.read",
+            "when": "a case is Health-linked: without it the case is left out"
+          }
+        ]
+      }
+    },
+    "/api/v1/workflow/cases/claim-disputes/{id}": {
+      "get": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "A case of the CLAIM_DISPUTES screen, with its links, history and messages (BR-100)",
+        "description": "As GET /workflow/cases/{id}, under CLAIM_DISPUTES alone: 404 for a case that isn\u0027t one of its disputes that link a claim.",
+        "operationId": "WorkflowGetClaimDispute",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowCaseView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "case.read",
+        "x-function": [
+          "CLAIM_DISPUTES"
+        ],
+        "x-additional-permissions": [
+          {
+            "permission": "medical_claim.read",
+            "when": "the case is Health-linked: without it the case is not found"
+          }
+        ]
+      }
+    },
+    "/api/v1/workflow/cases/claim-appeals": {
+      "get": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "The CLAIM_APPEALS screen\u0027s cases: appeals that link a claim (BR-100)",
+        "description": "As GET /workflow/cases, limited to appeals that link a claim, under CLAIM_APPEALS alone. Within the caller\u0027s scope (F103); a Health-linked case only with medical_claim.read. The filters narrow it further. Oldest first by ID, cursor paged.",
+        "operationId": "WorkflowListClaimAppeals",
+        "parameters": [
+          {
+            "name": "type",
+            "in": "query",
+            "description": "A case type code (workflow/static/case-types).",
+            "schema": {
+              "type": "string"
+            },
+            "x-known-values": []
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "The case status.",
+            "schema": {
+              "type": "string"
+            },
+            "x-known-values": [
+              "Received",
+              "Acknowledged",
+              "InProgress",
+              "AwaitingComplainant",
+              "Decided",
+              "Closed",
+              "Withdrawn",
+              "Reopened"
+            ]
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "description": "A case category code (workflow/static/case-categories).",
+            "schema": {
+              "type": "string"
+            },
+            "x-known-values": []
+          },
+          {
+            "name": "overdue",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "linkType",
+            "in": "query",
+            "description": "With linkId: the cases that link that record.",
+            "schema": {
+              "type": "string"
+            },
+            "x-known-values": [
+              "POLICY",
+              "CLAIM",
+              "MEMBERSHIP",
+              "PAYMENT",
+              "INVOICE",
+              "BILLING_ACCOUNT",
+              "PARTY",
+              "PROVIDER",
+              "REMITTANCE",
+              "PAYMENT_RUN",
+              "INTERMEDIARY"
+            ]
+          },
+          {
+            "name": "linkId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfWorkflowCaseSummaryView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "case.read",
+        "x-function": [
+          "CLAIM_APPEALS"
+        ],
+        "x-additional-permissions": [
+          {
+            "permission": "medical_claim.read",
+            "when": "a case is Health-linked: without it the case is left out"
+          }
+        ]
+      }
+    },
+    "/api/v1/workflow/cases/claim-appeals/{id}": {
+      "get": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "A case of the CLAIM_APPEALS screen, with its links, history and messages (BR-100)",
+        "description": "As GET /workflow/cases/{id}, under CLAIM_APPEALS alone: 404 for a case that isn\u0027t one of its appeals that link a claim.",
+        "operationId": "WorkflowGetClaimAppeal",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowCaseView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "case.read",
+        "x-function": [
+          "CLAIM_APPEALS"
+        ],
+        "x-additional-permissions": [
+          {
+            "permission": "medical_claim.read",
+            "when": "the case is Health-linked: without it the case is not found"
+          }
+        ]
+      }
+    },
+    "/api/v1/workflow/cases/health-claim-appeals": {
+      "get": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "The HEALTH_CLAIM_APPEALS screen\u0027s cases: Health-linked appeals (a membership, provider, remittance or payment run link, or raised by a provider) (BR-100)",
+        "description": "As GET /workflow/cases, limited to Health-linked appeals (a membership, provider, remittance or payment run link, or raised by a provider), under HEALTH_CLAIM_APPEALS alone. Within the caller\u0027s scope (F103); a Health-linked case only with medical_claim.read. The filters narrow it further. Oldest first by ID, cursor paged.",
+        "operationId": "WorkflowListHealthClaimAppeals",
+        "parameters": [
+          {
+            "name": "type",
+            "in": "query",
+            "description": "A case type code (workflow/static/case-types).",
+            "schema": {
+              "type": "string"
+            },
+            "x-known-values": []
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "The case status.",
+            "schema": {
+              "type": "string"
+            },
+            "x-known-values": [
+              "Received",
+              "Acknowledged",
+              "InProgress",
+              "AwaitingComplainant",
+              "Decided",
+              "Closed",
+              "Withdrawn",
+              "Reopened"
+            ]
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "description": "A case category code (workflow/static/case-categories).",
+            "schema": {
+              "type": "string"
+            },
+            "x-known-values": []
+          },
+          {
+            "name": "overdue",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "linkType",
+            "in": "query",
+            "description": "With linkId: the cases that link that record.",
+            "schema": {
+              "type": "string"
+            },
+            "x-known-values": [
+              "POLICY",
+              "CLAIM",
+              "MEMBERSHIP",
+              "PAYMENT",
+              "INVOICE",
+              "BILLING_ACCOUNT",
+              "PARTY",
+              "PROVIDER",
+              "REMITTANCE",
+              "PAYMENT_RUN",
+              "INTERMEDIARY"
+            ]
+          },
+          {
+            "name": "linkId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfWorkflowCaseSummaryView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "case.read",
+        "x-function": [
+          "HEALTH_CLAIM_APPEALS"
+        ],
+        "x-additional-permissions": [
+          {
+            "permission": "medical_claim.read",
+            "when": "a case is Health-linked: without it the case is left out"
+          }
+        ]
+      }
+    },
+    "/api/v1/workflow/cases/health-claim-appeals/{id}": {
+      "get": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "A case of the HEALTH_CLAIM_APPEALS screen, with its links, history and messages (BR-100)",
+        "description": "As GET /workflow/cases/{id}, under HEALTH_CLAIM_APPEALS alone: 404 for a case that isn\u0027t one of its Health-linked appeals (a membership, provider, remittance or payment run link, or raised by a provider).",
+        "operationId": "WorkflowGetHealthClaimAppeal",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowCaseView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "case.read",
+        "x-function": [
+          "HEALTH_CLAIM_APPEALS"
+        ],
+        "x-additional-permissions": [
+          {
+            "permission": "medical_claim.read",
+            "when": "the case is Health-linked: without it the case is not found"
+          }
+        ]
+      }
+    },
+    "/api/v1/workflow/cases/provider-disputes": {
+      "get": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "The PROVIDER_DISPUTES screen\u0027s cases: provider disputes (a provider, remittance or payment run link, or raised by a provider) (BR-100)",
+        "description": "As GET /workflow/cases, limited to provider disputes (a provider, remittance or payment run link, or raised by a provider), under PROVIDER_DISPUTES alone. Within the caller\u0027s scope (F103); a Health-linked case only with medical_claim.read. The filters narrow it further. Oldest first by ID, cursor paged.",
+        "operationId": "WorkflowListProviderDisputes",
+        "parameters": [
+          {
+            "name": "type",
+            "in": "query",
+            "description": "A case type code (workflow/static/case-types).",
+            "schema": {
+              "type": "string"
+            },
+            "x-known-values": []
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "The case status.",
+            "schema": {
+              "type": "string"
+            },
+            "x-known-values": [
+              "Received",
+              "Acknowledged",
+              "InProgress",
+              "AwaitingComplainant",
+              "Decided",
+              "Closed",
+              "Withdrawn",
+              "Reopened"
+            ]
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "description": "A case category code (workflow/static/case-categories).",
+            "schema": {
+              "type": "string"
+            },
+            "x-known-values": []
+          },
+          {
+            "name": "overdue",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "linkType",
+            "in": "query",
+            "description": "With linkId: the cases that link that record.",
+            "schema": {
+              "type": "string"
+            },
+            "x-known-values": [
+              "POLICY",
+              "CLAIM",
+              "MEMBERSHIP",
+              "PAYMENT",
+              "INVOICE",
+              "BILLING_ACCOUNT",
+              "PARTY",
+              "PROVIDER",
+              "REMITTANCE",
+              "PAYMENT_RUN",
+              "INTERMEDIARY"
+            ]
+          },
+          {
+            "name": "linkId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfWorkflowCaseSummaryView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "case.read",
+        "x-function": [
+          "PROVIDER_DISPUTES"
+        ],
+        "x-additional-permissions": [
+          {
+            "permission": "medical_claim.read",
+            "when": "a case is Health-linked: without it the case is left out"
+          }
+        ]
+      }
+    },
+    "/api/v1/workflow/cases/provider-disputes/{id}": {
+      "get": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "A case of the PROVIDER_DISPUTES screen, with its links, history and messages (BR-100)",
+        "description": "As GET /workflow/cases/{id}, under PROVIDER_DISPUTES alone: 404 for a case that isn\u0027t one of its provider disputes (a provider, remittance or payment run link, or raised by a provider).",
+        "operationId": "WorkflowGetProviderDispute",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowCaseView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "case.read",
+        "x-function": [
+          "PROVIDER_DISPUTES"
+        ],
+        "x-additional-permissions": [
+          {
+            "permission": "medical_claim.read",
+            "when": "the case is Health-linked: without it the case is not found"
+          }
+        ]
+      }
+    },
     "/api/v1/workflow/cases/{id}/acknowledge": {
       "post": {
         "tags": [

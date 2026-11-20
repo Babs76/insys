@@ -179,15 +179,42 @@ public sealed record CaseSummaryView(Guid Id, string CaseNumber, string CaseType
     CaseStatus Status, [property: AllowedValues("UPHELD", "PARTLY_UPHELD", "REJECTED", "WITHDRAWN", "ANSWERED")] string? Outcome, string? CategoryCode,
     DateTimeOffset ReceivedAt, DateTimeOffset? ExpectedBy, bool Overdue, Guid? ComplainantPartyId, Guid? ParentCaseId, long RowVersion);
 
-/// <summary>The list filters of GET /workflow/cases (§11).</summary>
-public sealed record CaseFilter(string? Family, string? CaseTypeCode, CaseStatus? Status, string? CategoryCode, bool? Overdue, string? LinkType, Guid? LinkId);
+/// <summary>The list filters of GET /workflow/cases (§11). Screen, when set, is a case screen's own read (BR-100): only its cases.</summary>
+public sealed record CaseFilter(string? Family, string? CaseTypeCode, CaseStatus? Status, string? CategoryCode, bool? Overdue, string? LinkType, Guid? LinkId,
+    CaseScreenFilter? Screen = null);
+
+/// <summary>
+/// The cases one case screen reads (BR-100, OQ-196, Ade 20 November 2026: each case family has its own read endpoints): its family and, for the claim,
+/// Health and provider screens, a link of one of LinkTypes, or (RaisedByProvider) a case a provider raised. The screens and their meaning are those of
+/// addenda/cases.md §9; which links stand for each screen is read from the screen's name (TODO(spec): OQ-196 records it for confirmation).
+/// </summary>
+public sealed record CaseScreenFilter(string Screen, string Family, IReadOnlyList<string>? LinkTypes = null, bool RaisedByProvider = false)
+{
+    public bool Matches(string family, IEnumerable<string> linkTypes, string? raisedByProviderId) =>
+        family == Family && (LinkTypes is null || linkTypes.Any(LinkTypes.Contains) || (RaisedByProvider && raisedByProviderId is not null));
+}
+
+/// <summary>The case screens other than complaints, each with the cases it reads (BR-100). The complaints screen keeps the unfiltered reads.</summary>
+public static class CaseScreens
+{
+    public static readonly CaseScreenFilter Enquiries = new("SERVICE_ENQUIRIES", CaseFamilies.Enquiry);
+    public static readonly CaseScreenFilter Disputes = new("SERVICE_DISPUTES", CaseFamilies.Dispute);
+    public static readonly CaseScreenFilter Appeals = new("SERVICE_APPEALS", CaseFamilies.Appeal);
+    public static readonly CaseScreenFilter ClaimDisputes = new("CLAIM_DISPUTES", CaseFamilies.Dispute, [CaseLinkTypes.Claim]);
+    public static readonly CaseScreenFilter ClaimAppeals = new("CLAIM_APPEALS", CaseFamilies.Appeal, [CaseLinkTypes.Claim]);
+    public static readonly CaseScreenFilter HealthClaimAppeals = new("HEALTH_CLAIM_APPEALS", CaseFamilies.Appeal, CaseAccess.HealthLinkTypes, RaisedByProvider: true);
+    public static readonly CaseScreenFilter ProviderDisputes =
+        new("PROVIDER_DISPUTES", CaseFamilies.Dispute, [CaseLinkTypes.Provider, CaseLinkTypes.Remittance, CaseLinkTypes.PaymentRun], RaisedByProvider: true);
+
+    public static readonly IReadOnlyList<CaseScreenFilter> All = [Enquiries, Disputes, Appeals, ClaimDisputes, ClaimAppeals, HealthClaimAppeals, ProviderDisputes];
+}
 
 /// <summary>Case reading for staff: within the caller's scope (F103) and, for a Health-linked case, with medical_claim.read.</summary>
 public interface ICaseQueries
 {
     Task<IReadOnlyList<CaseSummaryView>> List(CaseFilter filter, Guid? afterId, int limit, CancellationToken cancellationToken);
 
-    Task<CaseView?> Get(Guid id, CancellationToken cancellationToken);
+    Task<CaseView?> Get(Guid id, CancellationToken cancellationToken, CaseScreenFilter? screen = null);
 
     Task<BuildingBlocks.Application.DashboardSummary> Summary(CancellationToken cancellationToken);
 
@@ -256,7 +283,8 @@ public sealed record RecordCaseRedress(Guid CaseId, string RedressType, decimal 
 
 public sealed record ListCases(CaseFilter Filter, Guid? AfterId, int Limit) : IQuery<IReadOnlyList<CaseSummaryView>>;
 
-public sealed record GetCase(Guid CaseId) : IQuery<CaseView>;
+/// <param name="Screen">A case screen's own read (BR-100): a case the screen does not read is not found.</param>
+public sealed record GetCase(Guid CaseId, CaseScreenFilter? Screen = null) : IQuery<CaseView>;
 
 public sealed record GetCaseRedress(Guid CaseId, Guid RedressId) : IQuery<CaseRedressView>;
 
@@ -841,7 +869,7 @@ internal sealed class CaseQueryHandlers(ICaseQueries queries, ICaseRepository ca
         Result.Success(await queries.List(query.Filter, query.AfterId, query.Limit, cancellationToken));
 
     public async Task<Result<CaseView>> Handle(GetCase query, CancellationToken cancellationToken) =>
-        await queries.Get(query.CaseId, cancellationToken) is { } view ? view : Error.NotFound(ErrorCodes.NotFound, "The case was not found.");
+        await queries.Get(query.CaseId, cancellationToken, query.Screen) is { } view ? view : Error.NotFound(ErrorCodes.NotFound, "The case was not found.");
 
     public async Task<Result<CaseRedressView>> Handle(GetCaseRedress query, CancellationToken cancellationToken)
     {

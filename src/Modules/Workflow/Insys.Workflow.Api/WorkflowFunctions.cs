@@ -84,13 +84,16 @@ internal static class WorkflowFunctions
         // OQ-109: deciding an appeal is privileged; the decide handler requires it for a case of family APPEAL.
         new FunctionDeclaration(CaseFunctions.DecideAppeal, FunctionKind.Action, "CUSTOMER_SERVICE", "Complaints", "SERVICE_COMPLAINTS", [Audiences.Staff], null, null,
             true, [], [CasePermissions.Decide]),
-        CaseScreen("SERVICE_ENQUIRIES", "CUSTOMER_SERVICE", "Enquiries", "workflow/cases/enquiries", null),
-        CaseScreen("SERVICE_DISPUTES", "CUSTOMER_SERVICE", "Disputes", "workflow/cases/disputes", null),
-        CaseScreen("SERVICE_APPEALS", "CUSTOMER_SERVICE", "Appeals", "workflow/cases/appeals", null),
-        CaseScreen("CLAIM_DISPUTES", "DISPUTES_APPEALS", "Claim disputes", "workflow/cases/claim-disputes", null),
-        CaseScreen("CLAIM_APPEALS", "DISPUTES_APPEALS", "Claim appeals", "workflow/cases/claim-appeals", null),
-        CaseScreen("HEALTH_CLAIM_APPEALS", "HEALTH_MEDICAL_CLAIMS", "Claim appeals", "workflow/cases/health-claim-appeals", Features.Health),
-        CaseScreen("PROVIDER_DISPUTES", "HEALTH_PROVIDER_MANAGEMENT", "Provider disputes", "workflow/cases/provider-disputes", Features.Health),
+        // BR-100 (OQ-196, Ade 20 November 2026): each case screen has its own reads, a list and a case of its cases only (CaseEndpoints.ScreenReads).
+        CaseScreen("SERVICE_ENQUIRIES", "CUSTOMER_SERVICE", "Enquiries", "workflow/cases/enquiries", null, "Enquiries", "Enquiry"),
+        CaseScreen("SERVICE_DISPUTES", "CUSTOMER_SERVICE", "Disputes", "workflow/cases/disputes", null, "Disputes", "Dispute"),
+        CaseScreen("SERVICE_APPEALS", "CUSTOMER_SERVICE", "Appeals", "workflow/cases/appeals", null, "Appeals", "Appeal"),
+        CaseScreen("CLAIM_DISPUTES", "DISPUTES_APPEALS", "Claim disputes", "workflow/cases/claim-disputes", null, "ClaimDisputes", "ClaimDispute"),
+        CaseScreen("CLAIM_APPEALS", "DISPUTES_APPEALS", "Claim appeals", "workflow/cases/claim-appeals", null, "ClaimAppeals", "ClaimAppeal"),
+        CaseScreen("HEALTH_CLAIM_APPEALS", "HEALTH_MEDICAL_CLAIMS", "Claim appeals", "workflow/cases/health-claim-appeals", Features.Health, "HealthClaimAppeals",
+            "HealthClaimAppeal"),
+        CaseScreen("PROVIDER_DISPUTES", "HEALTH_PROVIDER_MANAGEMENT", "Provider disputes", "workflow/cases/provider-disputes", Features.Health, "ProviderDisputes",
+            "ProviderDispute"),
 
         .. new FunctionMap([Audiences.Customer], Features.CustomerPortal)
         .Screen("CUSTOMER_PORTAL_CASES", "CUSTOMER_PORTAL", "Complaints & enquiries", "portal/cases", "PortalListCases", "PortalGetCase", "PortalGetCaseOptions")
@@ -113,6 +116,7 @@ internal static class WorkflowFunctions
     ];
 
     /// <summary>A case screen reached through the case list (filtered by family or linked record): it requires case.read.</summary>
-    private static FunctionDeclaration CaseScreen(string code, string subDomain, string processArea, string routeKey, string? feature) =>
-        new(code, FunctionKind.Screen, subDomain, processArea, null, [Audiences.Staff], routeKey, feature, false, [], [CasePermissions.Read]);
+    private static FunctionDeclaration CaseScreen(string code, string subDomain, string processArea, string routeKey, string? feature, string plural, string singular) =>
+        new(code, FunctionKind.Screen, subDomain, processArea, null, [Audiences.Staff], routeKey, feature, false, [$"WorkflowList{plural}", $"WorkflowGet{singular}"],
+            [CasePermissions.Read]);
 }

@@ -181,16 +181,29 @@ internal sealed class CaseQueries(WorkflowDbContext db, IExecutionContext execut
             query = query.Where(c => c.Links.Any(l => (filter.LinkType == null || l.LinkType == filter.LinkType) && (filter.LinkId == null || l.RecordId == filter.LinkId)));
         }
 
+        if (filter.Screen is { } screen)
+        {
+            query = query.Where(c => c.Family == screen.Family);
+            if (screen.LinkTypes is { } screenLinks)
+            {
+                var links = screenLinks.ToArray();
+                query = screen.RaisedByProvider
+                    ? query.Where(c => c.RaisedByProviderId != null || c.Links.Any(l => links.Contains(l.LinkType)))
+                    : query.Where(c => c.Links.Any(l => links.Contains(l.LinkType)));
+            }
+        }
+
         query = afterId is { } after ? query.Where(c => c.Id.CompareTo(after) > 0) : query;
         return (await query.OrderBy(c => c.Id).Take(limit).ToListAsync(cancellationToken))
             .Select(c => new CaseSummaryView(c.Id, c.CaseNumber, c.CaseTypeCode, c.Family, c.Status, c.Outcome, c.CategoryCode, c.ReceivedAt, c.ExpectedBy,
                 IsOverdue(c, now), c.ComplainantPartyId, c.ParentCaseId, c.RowVersion)).ToList();
     }
 
-    public async Task<CaseView?> Get(Guid id, CancellationToken cancellationToken)
+    public async Task<CaseView?> Get(Guid id, CancellationToken cancellationToken, CaseScreenFilter? screen = null)
     {
         var c = await db.Cases.AsNoTracking().Include(x => x.Links).SingleOrDefaultAsync(x => x.Id == id, cancellationToken);
-        if (c is null || (CaseAccess.IsHealth(c) && !access.MayReadHealth) || !access.InScope(c))
+        if (c is null || (CaseAccess.IsHealth(c) && !access.MayReadHealth) || !access.InScope(c)
+            || (screen is not null && !screen.Matches(c.Family, c.Links.Select(l => l.LinkType), c.RaisedByProviderId)))
         {
             return null;
         }
