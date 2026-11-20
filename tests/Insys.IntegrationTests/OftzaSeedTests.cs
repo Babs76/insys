@@ -150,6 +150,12 @@ public sealed class OftzaSeedTests(DatabaseFixture fixture) : IClassFixture<Data
         (await Count("SELECT count(*) FROM reinsurance.cfg_bordereaux_layouts WHERE tenant_id = @t AND record_status IN ('PUBLISHED', 'EFFECTIVE', 'ACTIVE') AND treaty = 'OFT-QS-1'")).ShouldBe(1L);
         (await Count("SELECT count(*) FROM party.cfg_consent_purposes WHERE tenant_id = @t AND record_status IN ('PUBLISHED', 'EFFECTIVE', 'ACTIVE') AND jurisdiction = 'ZA'")).ShouldBe(2L);
 
+        // Legal hold (Ade, 25 October 2026): only the compliance officer approves a release, never the tenant administrator; and the sample reasons are in force.
+        (await fixture.Database.ScalarAsOwner<string>("SELECT string_agg(DISTINCT role_code, ',') FROM workflow.cfg_delegation_and_approval_authority WHERE tenant_id = @t AND transaction_type = 'LEGAL_HOLD_RELEASE' AND record_status NOT IN ('WITHDRAWN', 'RETIRED')",
+            ("t", seed.TenantId))).ShouldBe("COMPLIANCE_OFFICER");
+        (await fixture.Database.ScalarAsOwner<string>("SELECT string_agg(code, ',' ORDER BY code) FROM document.ref_legal_hold_reason_codes WHERE tenant_id = @t AND record_status = 'ACTIVE' AND authority_role = 'COMPLIANCE_OFFICER'",
+            ("t", seed.TenantId))).ShouldBe(string.Join(',', OftzaSeed.LegalHoldReasons.Select(r => r.Code).Order(StringComparer.Ordinal)));
+
         // BR-146: the four Life accounts left in arrears show at once, in both buckets (B1, 1 to 30 days; B2, 31 and over), whatever the business date.
         (await Count("SELECT count(DISTINCT bucket_code) FROM billing.arrears_case WHERE tenant_id = @t AND bucket_code IN ('B1', 'B2')")).ShouldBe(2L);
         var inArrears = await host.StrictClientFor(seed.TenantId, "oftza-finance-officer", "insys-web").GetAsync("/api/v1/billing/accounts?status=InArrears&limit=100");

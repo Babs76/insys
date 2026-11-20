@@ -87,6 +87,7 @@
 | CI: dated end-to-end shards | OQ-129: each clock in four shards by test method, balanced from measured times; 7 to 14 minutes a shard (run 44602526513); limit 30 minutes | Branch `e2e-shards` |
 | Batch 6 (Workstream F) | The OFTZA seed run against a deployed API through Keycloak in the deployment smoke test, then a seeded persona signs in and reads; OQ-164's beta check of the sample Life premiums (all monthly instalments; the arrears now one missed instalment); OQ-163 kept at (a); the Workstream F plan's stale "Next" corrected (cases of every family and every notice's template were already done) | Branch `seed-smoke` |
 | Batch 1 | Row 31 (an invited user disabled revokes the invitation), OQ-165 (portal channels in readiness), OQ-183 (abandoned SETUP batches end Rejected); rows 32 to 34 and BR-100 wait on Ade (OQ-193 to OQ-196) | Branch `batch-1` |
+| Security-management fixes (points 2 to 4) | The seed gives LEGAL_HOLD_RELEASE authority only to COMPLIANCE_OFFICER (Ade, 25 October 2026), never the tenant administrator; four sample legal hold reasons (LITIGATION, REG_INQUIRY, INVESTIGATION, DISPUTE: a code is at most 15 characters, so REGULATORY_INQUIRY can't be one); the data protection officer's template gains PARTY_SEARCH_PARTIES (Ade, 20 November 2026). Segregation of duties (point 1) waits on Ade's decision | Branch `security-fixes` |
 
 ## Phase 1 review items
 
