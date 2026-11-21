@@ -8582,7 +8582,7 @@
           "Workflow"
         ],
         "summary": "Open (receive) a case: numbered, its case type\u0027s process started, its first timeline as the expected date",
-        "description": "422 CASE_TYPE_NOT_IN_FORCE for a type not in force; CASE_CATEGORY_REQUIRED when the type requires a category; CASE_LINK_NOT_ALLOWED for a link type the case type does not allow. A case raised by a person is never refused for missing timelines: it opens without an expected date. An appeal names parentCaseId, a decided case whose type\u0027s review type is this type. Completes asynchronously (GAP-027): workflow.CaseOpened reaches Communications and other modules; the case type\u0027s process has its first task in its queue.",
+        "description": "201 with the CaseView and its ETag when the caller can read the case. When they can\u0027t (a Health-linked case without medical_claim.read, cases.md \u00A79, or one outside their scope), 201 with a CaseOpenedReceipt instead: only the case\u0027s id, caseNumber and status, and readable false, with no ETag; GET of the case answers them 404 (OQ-196). Location names the case either way, and a retry with the same Idempotency-Key returns the same answer. 422 CASE_TYPE_NOT_IN_FORCE for a type not in force; CASE_CATEGORY_REQUIRED when the type requires a category; CASE_LINK_NOT_ALLOWED for a link type the case type does not allow. A case raised by a person is never refused for missing timelines: it opens without an expected date. An appeal names parentCaseId, a decided case whose type\u0027s review type is this type. Completes asynchronously (GAP-027): workflow.CaseOpened reaches Communications and other modules; the case type\u0027s process has its first task in its queue.",
         "operationId": "WorkflowOpenCase",
         "parameters": [
           {
@@ -8612,7 +8612,14 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/WorkflowCaseView"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/WorkflowCaseView"
+                    },
+                    {
+                      "$ref": "#/components/schemas/WorkflowCaseOpenedReceipt"
+                    }
+                  ]
                 }
               }
             }
@@ -80385,6 +80392,31 @@
           "createdAt": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "WorkflowCaseOpenedReceipt": {
+        "required": [
+          "id",
+          "caseNumber",
+          "status",
+          "readable"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "caseNumber": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/WorkflowCaseStatus"
+          },
+          "readable": {
+            "type": "boolean",
+            "description": "Always false: the caller can\u0027t read the case (GET answers 404). A CaseView never carries it."
           }
         }
       },

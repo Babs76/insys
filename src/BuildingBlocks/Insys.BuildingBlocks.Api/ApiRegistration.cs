@@ -374,6 +374,35 @@ public static class ApiRegistration
 
             return Task.CompletedTask;
         });
+        options.AddOperationTransformer(async (operation, context, cancellationToken) =>
+        {
+            // OQ-196: a response that carries one of two bodies is documented as oneOf the declared body and the alternative.
+            foreach (var alternative in context.Description.ActionDescriptor.EndpointMetadata.OfType<AlternativeResponseMetadata>())
+            {
+                if (context.Document is not { } document || operation.Responses is not { } responses
+                    || !responses.TryGetValue(alternative.StatusCode.ToString(System.Globalization.CultureInfo.InvariantCulture), out var response)
+                    || response.Content is not { } content || !content.TryGetValue("application/json", out var media) || media is not { Schema: { } declared })
+                {
+                    throw new InvalidOperationException($"{operation.OperationId} declares an alternative {alternative.StatusCode} body, but no JSON body for that status.");
+                }
+
+                var id = SchemaNames.Id(alternative.Type) ?? alternative.Type.Name;
+                var schema = await context.GetOrCreateSchemaAsync(alternative.Type, null, cancellationToken);
+                foreach (var property in alternative.Type.GetProperties())
+                {
+                    // A property of a type the document already names (a state enum) refers to it, as the declared body's does.
+                    var name = System.Text.Json.JsonNamingPolicy.CamelCase.ConvertName(property.Name);
+                    if (SchemaNames.Id(property.PropertyType) is { } named && document.Components?.Schemas?.ContainsKey(named) == true
+                        && schema.Properties?.ContainsKey(name) == true)
+                    {
+                        schema.Properties[name] = new OpenApiSchemaReference(named, document);
+                    }
+                }
+
+                document.AddComponent(id, schema);
+                media.Schema = new OpenApiSchema { OneOf = [declared, new OpenApiSchemaReference(id, document)] };
+            }
+        });
     }
 
     /// <summary>

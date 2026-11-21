@@ -256,20 +256,36 @@ internal static class CaseEndpoints
             {
                 var opened = await dispatcher.Send(new OpenCase(r.CaseTypeCode, r.ReceivedChannel, r.ReceivedAt, r.ComplainantPartyId, r.ComplainantName, r.ComplainantContact,
                     r.OnBehalfOfPartyId, r.CategoryCode, r.Summary, r.UpheldAtReceipt == true, r.ParentCaseId, r.Links), ct);
-                return opened.IsFailure
-                    ? Problems.For(opened.Error)
-                    : (await dispatcher.Query(new GetCase(opened.Value), ct)).ToHttp(view =>
-                    {
-                        Concurrency.SetETag(http, view.RowVersion);
-                        return Results.Created($"/api/v1/workflow/cases/{view.Id}", view);
-                    });
+                if (opened.IsFailure)
+                {
+                    return Problems.For(opened.Error);
+                }
+
+                // The case is read back as the caller. One they can't read (a Health case without medical_claim.read, cases.md §9) still opened, so
+                // the answer is 201 with its id, number and status alone, from what the command committed, never a 404 (OQ-196, Ade 21 November 2026).
+                var location = $"/api/v1/workflow/cases/{opened.Value.Id}";
+                var read = await dispatcher.Query(new GetCase(opened.Value.Id), ct);
+                if (read.IsFailure && read.Error.Kind == ErrorKind.NotFound)
+                {
+                    return Results.Created(location, CaseOpenedReceipt.Of(opened.Value));
+                }
+
+                return read.ToHttp(view =>
+                {
+                    Concurrency.SetETag(http, view.RowVersion);
+                    return Results.Created(location, view);
+                });
             })
             .Produces<CaseView>(StatusCodes.Status201Created)
+            .ProducesAlternative<CaseOpenedReceipt, RouteHandlerBuilder>(StatusCodes.Status201Created)
             .WithName("WorkflowOpenCase")
             .WithSummary("Open (receive) a case: numbered, its case type's process started, its first timeline as the expected date")
-            .WithDescription("422 CASE_TYPE_NOT_IN_FORCE for a type not in force; CASE_CATEGORY_REQUIRED when the type requires a category; CASE_LINK_NOT_ALLOWED "
-                + "for a link type the case type does not allow. A case raised by a person is never refused for missing timelines: it opens without an "
-                + "expected date. An appeal names parentCaseId, a decided case whose type's review type is this type.")
+            .WithDescription("201 with the CaseView and its ETag when the caller can read the case. When they can't (a Health-linked case without "
+                + "medical_claim.read, cases.md §9, or one outside their scope), 201 with a CaseOpenedReceipt instead: only the case's id, caseNumber and status, "
+                + "and readable false, with no ETag; GET of the case answers them 404 (OQ-196). Location names the case either way, and a retry with the same "
+                + "Idempotency-Key returns the same answer. 422 CASE_TYPE_NOT_IN_FORCE for a type not in force; CASE_CATEGORY_REQUIRED when the type requires a "
+                + "category; CASE_LINK_NOT_ALLOWED for a link type the case type does not allow. A case raised by a person is never refused for missing "
+                + "timelines: it opens without an expected date. An appeal names parentCaseId, a decided case whose type's review type is this type.")
             .WithEventualEffects("workflow.CaseOpened reaches Communications and other modules; the case type's process has its first task in its queue.")
             .RequirePermission(CasePermissions.Create)
             .RequireIdempotencyKey();

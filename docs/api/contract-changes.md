@@ -10,6 +10,17 @@ What changed in the API contract, newest first, so the front end can sync. The O
 - `docs/api/openapi-platform-operator.json` regenerated (the enum, the field, and the four operations' descriptions). No path or body changes, no new error code.
 - **For the front end's coverage list:** a new status value (`NotApplied`) and a new field (`notAppliedReason`) on `GetTenantAdministratorRequest` and `ListTenantAdministratorRequests`; no new operation.
 
+## Opening a case the caller can't read: a receipt, not 404 (OQ-196, approved by Ade 21 November 2026; branch `oq196-receipt`)
+- **`POST /workflow/cases`** (`WorkflowOpenCase`) answered 404 after creating a case the caller can't read: a Health-linked case (a `CLAIM` link to a Health claim or one whose line isn't known, or a `MEMBERSHIP`, `PROVIDER`, `REMITTANCE` or `PAYMENT_RUN` link) opened by staff without `medical_claim.read` (`cases.md` §9), or a case outside their scope. The case was created all the same, and a retry with a new `Idempotency-Key` opened a second one. It now answers **`201 Created`** with `Location: /api/v1/workflow/cases/{id}` and a **`CaseOpenedReceipt`** (schema `WorkflowCaseOpenedReceipt`), with no ETag:
+  ```json
+  { "id": "<uuid>", "caseNumber": "<string>", "status": "<WorkflowCaseStatus, e.g. Received>", "readable": false }
+  ```
+  Nothing else of the case is in it. `GET /workflow/cases/{id}` is still 404 to that caller.
+- **A caller who can read the case** gets the full `CaseView` with its ETag, unchanged; `CaseView` has no `readable` field. Tell the two apart by `readable` (present and false only on the receipt).
+- **Retries:** a retry with the same `Idempotency-Key` returns the same 201 receipt (`Idempotent-Replayed: true`).
+- The 201 response is now `oneOf` `WorkflowCaseView` or `WorkflowCaseOpenedReceipt`; the operation's description says when each comes back. `docs/api/openapi-core.json` regenerated.
+- **For the front end's coverage list:** a new response schema, `WorkflowCaseOpenedReceipt`, on `WorkflowOpenCase`'s 201; no new operation, no new error code.
+
 ## First administrators: no role with both sides of a baseline rule (SRS-002, OQ-099, OQ-197; approved by Ade, 21 November 2026, merged `0bd03b5`)
 - **`POST /identity/tenant-administrators`** (`ProvisionTenantAdministrator`): `functions` that hold both sides of a platform baseline segregation-of-duties rule (`CLAIMS_DRAFT_INSTRUCTION` / `CLAIMS_RELEASE_INSTRUCTION`, `PAYMENTS_BUILD_BATCH` / `PAYMENTS_RELEASE_BATCH`, `PARTY_ADD_BANK_ACCOUNT` / `PARTY_BANK_ACCOUNT_VERIFY`) are refused with 422 `ROLE_SEGREGATION_OF_DUTIES` on `functions`, one message per rule naming the pair and the rule. Checked before the catalogue checks.
 - **The back end's rule** for the request is unchanged (each function a staff function in force that the tenant can hold) and now also refuses both sides of a baseline rule in one role.
