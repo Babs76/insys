@@ -2,6 +2,11 @@
 
 **Signed off once its two fixes are made (25 October 2026, Ade): the search log only for audit roles (made), and a second person for releasing a legal hold (proposed below). Not seeded.**
 
+**Customer due diligence: evidence and deciding are split (signed off by Ade, 21 November 2026).** Built in Wave 3 batch 2 (`docs/reports/2026-10-30-wave3-batch2.md`, item 11); the reading of `due-diligence.md` §4.3 is proven by `DueDiligenceTests` (`..._EvidenceAlone_...`, `..._WithoutTheComplianceFunction_...`).
+- **Evidence** (running and recording checks, recording beneficial owners: `PARTY_DUE_DILIGENCE` and `PARTY_RUN_DUE_DILIGENCE_CHECK`) belongs to `GENERAL_UNDERWRITER`, `LIFE_UNDERWRITER` and `HEALTH_MEMBERSHIP_ADMINISTRATOR`, as well as `COMPLIANCE_OFFICER`.
+- **Deciding** belongs to `COMPLIANCE_OFFICER` only: `PARTY_REVIEW_SCREENING_HIT`, `PARTY_COMPLETE_DUE_DILIGENCE_REVIEW`, `PARTY_OVERRIDE_RISK_CLASS`, `PARTY_RECORD_FIC_REPORT`, and the privileged `PARTY_UNBLOCK_DUE_DILIGENCE`, with the approvals `DUE_DILIGENCE_RISK_OVERRIDE` and `DUE_DILIGENCE_UNBLOCK`.
+- **Enhanced approval** (`PARTY_APPROVE_ENHANCED_DD`, privileged) is in no template and is granted one by one, standing for senior management (FICA s21F, OQ-126).
+
 Generated from `src/Modules/Identity/Insys.Identity.Api/RoleTemplates.cs` (published at `GET /api/v1/identity/role-templates`, BR-088) from the function catalogue as built; `RoleTemplateTests` checks every template against every segregation-of-duties rule and the privileged list. Optional starting points a tenant copies and adjusts: copying a template creates the tenant's own role (`iam.cfg_roles_and_permission_sets`) and its function grants (`iam.cfg_role_function_assignments`), which go through approval like any Tier 1 change. INSYS never changes a tenant's copy when a template changes.
 
 - **Basis:** ADR-026 (a role holds functions), the function catalogue as built (723 functions), `INSYS_NAVIGATION.md` (sub-domains), the approval types and authority (`frontend-integration-guide.md` §3).
