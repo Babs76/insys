@@ -595,4 +595,18 @@ internal sealed class ApprovalHistory([Microsoft.Extensions.DependencyInjection.
         await transaction.CommitAsync(cancellationToken);
         return latest;
     }
+
+    public async Task<Guid?> Checker(Guid approvalId, CancellationToken cancellationToken)
+    {
+        var tenantId = tenant.RequireTenantId();
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await BuildingBlocks.Infrastructure.Persistence.TenantSession.SetTenant(connection, transaction, tenantId, cancellationToken);
+        await using var command = new Npgsql.NpgsqlCommand("SELECT checker_id FROM workflow.approval WHERE tenant_id = @t AND id = @id", connection, transaction);
+        command.Parameters.AddWithValue("t", tenantId);
+        command.Parameters.AddWithValue("id", approvalId);
+        var checker = await command.ExecuteScalarAsync(cancellationToken) as Guid?;
+        await transaction.CommitAsync(cancellationToken);
+        return checker;
+    }
 }

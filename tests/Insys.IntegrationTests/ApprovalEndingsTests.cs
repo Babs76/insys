@@ -403,7 +403,7 @@ public abstract class ApprovalEndings(DatabaseFixture fixture) : IClassFixture<D
         [IdentityApprovals.TenantAdministratorApprovalType] = new(
             [TenancyPermissions.Read, TenancyPermissions.Create, TenancyPermissions.Update, IdentityPermissions.UserRead, IdentityPermissions.UserCreate, .. Approving],
             [IdentityApprovals.TenantAdministratorApprovalType], TenantAdministrator, "PendingApproval", ["Provisioned"], "Rejected", Operator: true,
-            Refuse: RefuseTenantAdministrator, WhenRefused: "PendingApproval"),
+            Refuse: RefuseTenantAdministrator, WhenRefused: "NotApplied"),
         [PartyApprovals.MatchResolutionType] = new([PartyPermissions.PartyCreate, PartyPermissions.PartyRead, PartyPermissions.PartyUpdate, .. Approving],
             [PartyApprovals.MatchResolutionType], PartyMatch, "PROPOSED", ["LINKED"], "PENDING_REVIEW", Refuse: RefusePartyMatch, WhenRefused: "PROPOSED"),
         ["BANK_ACCOUNT_VERIFICATION"] = new(

@@ -553,13 +553,68 @@ public sealed class TenantAdministratorTests(DatabaseFixture fixture) : IClassFi
             "UPDATE iam.tenant_administrator_request SET functions = functions || ARRAY['CLAIMS_DRAFT_INSTRUCTION', 'CLAIMS_RELEASE_INSTRUCTION'] WHERE id = @r",
             ("r", requestId));
         await _factory.DrainOutbox();
-        (await two.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{await Approval(one, requestId)}/approve", ifMatch: "\"1\"")).StatusCode
+        var approval = await Approval(one, requestId);
+        (await two.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval}/approve", ifMatch: "\"1\"")).StatusCode
             .ShouldBe(HttpStatusCode.NoContent);
         await _factory.DrainOutbox();
 
-        (await (await one.GetAsync($"/api/v1/identity/tenant-administrators/{requestId}")).Json()).GetProperty("status").GetString()
-            .ShouldBe("PendingApproval", "the grant isn't applied");
+        // OQ-099 follow-up (Ade, 21 November 2026): the request ends NotApplied, with the reason the approver reads, and the approval reads NotApplied.
+        var request = await NotApplied(one, requestId, "SOD_CLAIM_PAYMENT");
+        request.GetProperty("notAppliedReason").GetString()!.ShouldContain("CLAIMS_RELEASE_INSTRUCTION");
+        (await (await one.GetAsync($"/api/v1/workflow/approvals/{approval}")).Json()).GetProperty("status").GetString().ShouldBe("NotApplied");
         (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM iam.user_account WHERE tenant_id = @t", ("t", tenantId))).ShouldBe(0);
+
+        // A NotApplied request no longer blocks a new one for the same tenant.
+        (await one.Send(HttpMethod.Post, "/api/v1/identity/tenant-administrators", Request(tenantId, "sodadm-again"), idempotent: true)).StatusCode
+            .ShouldBe(HttpStatusCode.Created);
+    }
+
+    /// <summary>
+    /// OQ-067, BR-013 (OQ-099 follow-up, Ade, 21 November 2026): a new tenant that gets a user between the request and its approval gets no first
+    /// administrators; the request ends NotApplied with the reason, decided by the approval's checker, rather than waiting for ever. The parked item
+    /// names the request and the approval.
+    /// </summary>
+    [Fact]
+    public async Task FirstAdministrators_ForATenantThatHasHadUsersSinceTheRequest_EndNotApplied_WithTheReason_OQ067_BR013()
+    {
+        var one = _factory.ClientFor(Operator, "platform-one");
+        var two = _factory.ClientFor(Operator, "platform-two");
+        var (tenantId, _) = await RegisterTenantAtAccessStep(one, "LATEUSER");
+        var requestId = (await (await one.Send(HttpMethod.Post, "/api/v1/identity/tenant-administrators", Request(tenantId, "lateuser-admin"), idempotent: true))
+            .Json()).GetProperty("id").GetGuid();
+        await _factory.DrainOutbox();
+        await fixture.Database.UserWithPermissions(tenantId, "lateuser-someone");
+
+        var approval = await Approval(one, requestId);
+        (await two.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval}/approve", ifMatch: "\"1\"")).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        await _factory.DrainOutbox();
+
+        var request = await NotApplied(one, requestId, "The tenant already has users.");
+        request.GetProperty("notAppliedReason").GetString().ShouldBe("The tenant already has users.");
+        var checker = await fixture.Database.ScalarAsOwner<Guid>("SELECT id FROM iam.user_account WHERE tenant_id = @t AND username = 'platform-two'", ("t", Operator));
+        request.GetProperty("decidedBy").GetGuid().ShouldBe(checker);
+        request.GetProperty("decidedAt").ValueKind.ShouldBe(System.Text.Json.JsonValueKind.String);
+        (await (await one.GetAsync($"/api/v1/workflow/approvals/{approval}")).Json()).GetProperty("status").GetString().ShouldBe("NotApplied");
+        (await fixture.Database.ScalarAsOwner<string>("""
+                SELECT prerequisite_item FROM integration.parked_delivery
+                WHERE tenant_id = @t AND prerequisite_code = 'APPROVAL_NOT_APPLIED' AND prerequisite_item LIKE '%' || @a
+                """, ("t", Operator), ("a", approval.ToString())))
+            .ShouldBe($"TENANT_ADMINISTRATOR:{requestId}:{approval}");
+
+        // The list shows the same, and the only user is the one added before the approval.
+        var listed = (await (await one.GetAsync($"/api/v1/identity/tenant-administrators?tenantId={tenantId}")).Json()).EnumerateArray().Single();
+        (listed.GetProperty("status").GetString(), listed.GetProperty("notAppliedReason").GetString()).ShouldBe(("NotApplied", "The tenant already has users."));
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM iam.user_account WHERE tenant_id = @t", ("t", tenantId))).ShouldBe(1);
+    }
+
+    /// <summary>The request reads NotApplied, documented, with a reason containing <paramref name="reasonPart"/>.</summary>
+    private static async Task<System.Text.Json.JsonElement> NotApplied(HttpClient client, Guid requestId, string reasonPart)
+    {
+        var request = await (await client.GetAsync($"/api/v1/identity/tenant-administrators/{requestId}")).Json();
+        DocumentedSchema.ResponseProblems(request, "platform-operator", "GetTenantAdministratorRequest").ShouldBeEmpty();
+        request.GetProperty("status").GetString().ShouldBe("NotApplied", "the grant isn't applied");
+        request.GetProperty("notAppliedReason").GetString()!.ShouldContain(reasonPart);
+        return request;
     }
 
     [Fact]

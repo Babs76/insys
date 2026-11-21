@@ -28,12 +28,18 @@ using Insys.BuildingBlocks.Domain;
 
 namespace Insys.Identity.Domain.Tenants;
 
-/// <summary>iam.tenant_administrator_request.status (V0026, V0062): the decision. An approved request's identities are read separately (BR-018).</summary>
+/// <summary>iam.tenant_administrator_request.status (V0026, V0062, V0149): the decision. An approved request's identities are read separately (BR-018).</summary>
 public enum TenantAdministratorRequestStatus
 {
     PendingApproval,
     Approved,
     Rejected,
+
+    /// <summary>
+    /// Granted in Workflow, but the grant could not be applied (OQ-099 follow-up, Ade, 21 November 2026): a final state, with the reason. Nothing
+    /// was created in the tenant, and a new request may be made.
+    /// </summary>
+    NotApplied,
 }
 
 /// <summary>What the request is for (V0062, BR-013).</summary>
@@ -135,6 +141,12 @@ public sealed class TenantAdministratorRequest : AggregateRoot<Guid>
 
     public DateTimeOffset? DecidedAt { get; private set; }
 
+    /// <summary>The longest <see cref="NotAppliedReason"/> kept (V0149).</summary>
+    public const int NotAppliedReasonLength = 500;
+
+    /// <summary>Why a granted request could not be applied, as plain text with no personal data; set only when NotApplied.</summary>
+    public string? NotAppliedReason { get; private set; }
+
     /// <summary>A new tenant's first administrators: exactly two people, with distinct usernames, and at least one function.</summary>
     public static Result<TenantAdministratorRequest> ForNewTenant(Guid targetTenantId, IReadOnlyList<TenantAdministratorPersonDetails> people,
         IEnumerable<string> functions, Guid requestedBy, DateTimeOffset now)
@@ -222,6 +234,31 @@ public sealed class TenantAdministratorRequest : AggregateRoot<Guid>
             }
         }
 
+        MarkChanged();
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// Workflow granted the request but the grant could not be applied (OQ-099 follow-up, Ade, 21 November 2026): the request ends NotApplied with the
+    /// reason and the approval's checker, instead of waiting for ever. Nothing is created in the tenant. The checker is never the requester (SRS-002).
+    /// </summary>
+    public Result MarkNotApplied(string reason, Guid? checkerId, DateTimeOffset now)
+    {
+        if (Status != TenantAdministratorRequestStatus.PendingApproval)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, "The request has already been decided.");
+        }
+
+        if (checkerId is { } checker && checker == RequestedBy)
+        {
+            return MakerChecker.EnsureDifferentPeople(RequestedBy.ToString(), checker.ToString());
+        }
+
+        var text = Guard.NotNullOrWhiteSpace(reason);
+        Status = TenantAdministratorRequestStatus.NotApplied;
+        NotAppliedReason = text.Length <= NotAppliedReasonLength ? text : text[..NotAppliedReasonLength];
+        DecidedBy = checkerId is { } id && id != Guid.Empty ? id : null;
+        DecidedAt = now;
         MarkChanged();
         return Result.Success();
     }

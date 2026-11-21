@@ -46868,7 +46868,7 @@
           "Identity"
         ],
         "summary": "Request a new tenant\u0027s two first administrators",
-        "description": "Platform operator only, while the tenant is Onboarding and has no users. Names exactly two administrators (BR-013), so that from the start one can approve what the other does (a privileged role, a static data change); else 422 VALIDATION_FAILED on administrators. A second platform administrator approves it in Workflow (approval type TENANT_ADMINISTRATOR); a platform administrator never approves anything inside the tenant. Then the tenant\u0027s TENANT_ADMIN role (granted these functions: at least one, each a staff function in force in the catalogue, else 422 VALIDATION_FAILED on functions; never both sides of a platform baseline segregation-of-duties rule, such as CLAIMS_DRAFT_INSTRUCTION and CLAIMS_RELEASE_INSTRUCTION, else 422 ROLE_SEGREGATION_OF_DUTIES on functions naming the pair, SRS-002), both users and their active assignments are created. status is then AwaitingIdentity until both identities are linked (Provisioned), IdentityParked while one waits on Keycloak, or IdentityFailed when one needs a fix and a retry (BR-018). The ORGANISATION_AND_ACCESS step completes once both administrators are active: identity linked and at least one successful authenticated request each. With idpCode KEYCLOAK, displayName must not contain a character Keycloak\u0027s name validator refuses (\u003C \u003E \u0026 \u0022 $ % ! # ? \u00A7 ; * ~ / \\ | ^ = [ ] { } ( ) and control characters): a 422 with a field error on displayName (BR-006). Completes asynchronously (GAP-027): the TENANT_ADMINISTRATOR approval appears in Workflow; after approval the users\u0027 identities are created and linked (Provisioned), and Tenancy checks the onboarding step.",
+        "description": "Platform operator only, while the tenant is Onboarding and has no users. Names exactly two administrators (BR-013), so that from the start one can approve what the other does (a privileged role, a static data change); else 422 VALIDATION_FAILED on administrators. A second platform administrator approves it in Workflow (approval type TENANT_ADMINISTRATOR); a platform administrator never approves anything inside the tenant. Then the tenant\u0027s TENANT_ADMIN role (granted these functions: at least one, each a staff function in force in the catalogue, else 422 VALIDATION_FAILED on functions; never both sides of a platform baseline segregation-of-duties rule, such as CLAIMS_DRAFT_INSTRUCTION and CLAIMS_RELEASE_INSTRUCTION, else 422 ROLE_SEGREGATION_OF_DUTIES on functions naming the pair, SRS-002), both users and their active assignments are created. status is then AwaitingIdentity until both identities are linked (Provisioned), IdentityParked while one waits on Keycloak, or IdentityFailed when one needs a fix and a retry (BR-018). The ORGANISATION_AND_ACCESS step completes once both administrators are active: identity linked and at least one successful authenticated request each. A request granted in Workflow whose grant can\u0027t be applied (the new tenant has had users since, the tenant\u0027s TENANT_ADMIN role is no longer in force, a username is now taken, or the functions hold both sides of a platform baseline segregation-of-duties rule) creates nothing and ends NotApplied, a final state: notAppliedReason says why in plain text (null otherwise), decidedBy is the approval\u0027s checker and decidedAt when it ended, and the Workflow approval reads NotApplied. A new request may then be made for the tenant. With idpCode KEYCLOAK, displayName must not contain a character Keycloak\u0027s name validator refuses (\u003C \u003E \u0026 \u0022 $ % ! # ? \u00A7 ; * ~ / \\ | ^ = [ ] { } ( ) and control characters): a 422 with a field error on displayName (BR-006). Completes asynchronously (GAP-027): the TENANT_ADMINISTRATOR approval appears in Workflow; after approval the users\u0027 identities are created and linked (Provisioned), and Tenancy checks the onboarding step.",
         "operationId": "ProvisionTenantAdministrator",
         "parameters": [
           {
@@ -46939,6 +46939,7 @@
           "Identity"
         ],
         "summary": "List first-administrator requests, optionally for one tenant",
+        "description": "Each request as GetTenantAdministratorRequest gives it, with status PendingApproval, AwaitingIdentity, IdentityParked, IdentityFailed, Provisioned, Rejected or NotApplied. A request granted in Workflow whose grant can\u0027t be applied (the new tenant has had users since, the tenant\u0027s TENANT_ADMIN role is no longer in force, a username is now taken, or the functions hold both sides of a platform baseline segregation-of-duties rule) creates nothing and ends NotApplied, a final state: notAppliedReason says why in plain text (null otherwise), decidedBy is the approval\u0027s checker and decidedAt when it ended, and the Workflow approval reads NotApplied. A new request may then be made for the tenant.",
         "operationId": "ListTenantAdministratorRequests",
         "parameters": [
           {
@@ -46992,7 +46993,7 @@
           "Identity"
         ],
         "summary": "Request one more administrator for an existing tenant",
-        "description": "Platform operator only (BR-013), for a tenant that is Active or Onboarding and has its TENANT_ADMIN role in force. A second platform administrator approves it in Workflow (approval type TENANT_ADMINISTRATOR), never anyone inside the tenant; the user is then created with an active TENANT_ADMIN assignment, and the request reads as a first-administrator request does (BR-018). 409 DUPLICATE_RECORD when the tenant has the username or another request waits. With idpCode KEYCLOAK, displayName must not contain a character Keycloak\u0027s name validator refuses (\u003C \u003E \u0026 \u0022 $ % ! # ? \u00A7 ; * ~ / \\ | ^ = [ ] { } ( ) and control characters): a 422 with a field error on displayName (BR-006). Completes asynchronously (GAP-027): the TENANT_ADMINISTRATOR approval appears in Workflow; after approval the user\u0027s identity is created and linked.",
+        "description": "Platform operator only (BR-013), for a tenant that is Active or Onboarding and has its TENANT_ADMIN role in force. A second platform administrator approves it in Workflow (approval type TENANT_ADMINISTRATOR), never anyone inside the tenant; the user is then created with an active TENANT_ADMIN assignment, and the request reads as a first-administrator request does (BR-018). 409 DUPLICATE_RECORD when the tenant has the username or another request waits. A request granted in Workflow whose grant can\u0027t be applied (the new tenant has had users since, the tenant\u0027s TENANT_ADMIN role is no longer in force, a username is now taken, or the functions hold both sides of a platform baseline segregation-of-duties rule) creates nothing and ends NotApplied, a final state: notAppliedReason says why in plain text (null otherwise), decidedBy is the approval\u0027s checker and decidedAt when it ended, and the Workflow approval reads NotApplied. A new request may then be made for the tenant. With idpCode KEYCLOAK, displayName must not contain a character Keycloak\u0027s name validator refuses (\u003C \u003E \u0026 \u0022 $ % ! # ? \u00A7 ; * ~ / \\ | ^ = [ ] { } ( ) and control characters): a 422 with a field error on displayName (BR-006). Completes asynchronously (GAP-027): the TENANT_ADMINISTRATOR approval appears in Workflow; after approval the user\u0027s identity is created and linked.",
         "operationId": "RequestAdditionalAdministrator",
         "parameters": [
           {
@@ -47130,6 +47131,7 @@
           "Identity"
         ],
         "summary": "Get a first-administrator request and its decision",
+        "description": "status is PendingApproval until a second platform administrator decides it in Workflow; then Rejected (every ending other than approval, with latestRejection), NotApplied, or AwaitingIdentity, IdentityParked, IdentityFailed and Provisioned as its administrators\u0027 identities are created (BR-018). A request granted in Workflow whose grant can\u0027t be applied (the new tenant has had users since, the tenant\u0027s TENANT_ADMIN role is no longer in force, a username is now taken, or the functions hold both sides of a platform baseline segregation-of-duties rule) creates nothing and ends NotApplied, a final state: notAppliedReason says why in plain text (null otherwise), decidedBy is the approval\u0027s checker and decidedAt when it ended, and the Workflow approval reads NotApplied. A new request may then be made for the tenant.",
         "operationId": "GetTenantAdministratorRequest",
         "parameters": [
           {
@@ -59802,7 +59804,8 @@
           "IdentityParked",
           "IdentityFailed",
           "Provisioned",
-          "Rejected"
+          "Rejected",
+          "NotApplied"
         ]
       },
       "IdentityTenantAdministratorRequestView": {
@@ -59818,7 +59821,8 @@
           "decidedAt",
           "administrators",
           "rowVersion",
-          "latestRejection"
+          "latestRejection",
+          "notAppliedReason"
         ],
         "type": "object",
         "properties": {
@@ -59885,6 +59889,12 @@
               {
                 "$ref": "#/components/schemas/WorkflowLatestRejection"
               }
+            ]
+          },
+          "notAppliedReason": {
+            "type": [
+              "null",
+              "string"
             ]
           }
         }

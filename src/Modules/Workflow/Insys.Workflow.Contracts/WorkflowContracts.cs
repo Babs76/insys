@@ -172,6 +172,12 @@ public interface IApprovalHistory
 
     /// <summary>For the current tenant: who asked for the record's most recent approval and when, whatever its ending, or null (BR-024).</summary>
     Task<ApprovalRequest?> LatestRequest(string businessRefType, Guid businessRefId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// For the current tenant: the checker who decided the approval, or null when it is not found or nobody decided it (OQ-099 follow-up: a
+    /// module records who granted an approval its record could not apply).
+    /// </summary>
+    Task<Guid?> Checker(Guid approvalId, CancellationToken cancellationToken);
 }
 
 /// <summary>Who asked for a record's approval (the maker) and when.</summary>

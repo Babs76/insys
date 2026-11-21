@@ -38,7 +38,10 @@ public sealed class PrerequisiteMissingException(string code, string? item = nul
 {
     public string Code { get; } = code.Length <= 60 ? code : throw new ArgumentException("A prerequisite code is at most 60 characters.", nameof(code));
 
-    public string? Item { get; } = item is null || item.Length <= 80 ? item : item[..80];
+    /// <summary>The longest item kept (integration.parked_delivery.prerequisite_item, V0149): a grant not applied names two IDs.</summary>
+    public const int ItemLength = 120;
+
+    public string? Item { get; } = item is null || item.Length <= ItemLength ? item : item[..ItemLength];
 }
 
 /// <summary>

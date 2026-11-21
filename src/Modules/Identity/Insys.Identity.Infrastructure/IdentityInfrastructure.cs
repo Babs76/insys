@@ -106,6 +106,9 @@ public static class IdentityInfrastructure
             IdentityDbContext.SchemaName, "ApprovalGranted");
         services.AddIntegrationEventHandler<Workflow.Contracts.ApprovalRejected, Application.Tenants.TenantAdministratorApprovalPolicy, IdentityDbContext>(
             IdentityDbContext.SchemaName, "ApprovalRejected");
+        // OQ-099 follow-up (Ade, 21 November 2026): a grant the policy above parked as not applied ends the request NotApplied.
+        services.AddIntegrationEventHandler<Integration.Contracts.DeliveryParked, Application.Tenants.TenantAdministratorNotAppliedPolicy, IdentityDbContext>(
+            IdentityDbContext.SchemaName);
 
         services.AddScoped<IAccessRepository, AccessRepository>();
         services.AddScoped<SegregationConflictFinder>();

@@ -88,6 +88,12 @@ public sealed class IdentityModule : IModule
     private static readonly string DisplayNameRule = "With idpCode KEYCLOAK, displayName must not contain a character Keycloak's name validator refuses ("
         + string.Join(" ", KeycloakNames.ProhibitedCharacters.ToCharArray()) + " and control characters): a 422 with a field error on displayName (BR-006).";
 
+    /// <summary>OQ-099 follow-up (Ade, 21 November 2026): a grant that can't be applied ends the request.</summary>
+    private const string NotAppliedRule = "A request granted in Workflow whose grant can't be applied (the new tenant has had users since, the tenant's "
+        + "TENANT_ADMIN role is no longer in force, a username is now taken, or the functions hold both sides of a platform baseline segregation-of-duties "
+        + "rule) creates nothing and ends NotApplied, a final state: notAppliedReason says why in plain text (null otherwise), decidedBy is the "
+        + "approval's checker and decidedAt when it ended, and the Workflow approval reads NotApplied. A new request may then be made for the tenant.";
+
     public void Register(IServiceCollection services, IConfiguration configuration)
     {
         services.AddIdentityInfrastructure();
@@ -520,7 +526,7 @@ public sealed class IdentityModule : IModule
                 + "SRS-002), both users and their active assignments are created. "
                 + "status is then AwaitingIdentity until both identities are linked (Provisioned), IdentityParked while one waits on Keycloak, or "
                 + "IdentityFailed when one needs a fix and a retry (BR-018). The ORGANISATION_AND_ACCESS step completes once both administrators are "
-                + "active: identity linked and at least one successful authenticated request each. " + DisplayNameRule)
+                + "active: identity linked and at least one successful authenticated request each. " + NotAppliedRule + " " + DisplayNameRule)
             .WithEventualEffects("the TENANT_ADMINISTRATOR approval appears in Workflow; after approval the users' identities are created and linked "
                 + "(Provisioned), and Tenancy checks the onboarding step.")
             .RequirePlatformPermission(IdentityPermissions.UserCreate)
@@ -539,7 +545,7 @@ public sealed class IdentityModule : IModule
             .WithDescription("Platform operator only (BR-013), for a tenant that is Active or Onboarding and has its TENANT_ADMIN role in force. A second "
                 + "platform administrator approves it in Workflow (approval type TENANT_ADMINISTRATOR), never anyone inside the tenant; the user is then "
                 + "created with an active TENANT_ADMIN assignment, and the request reads as a first-administrator request does (BR-018). 409 "
-                + "DUPLICATE_RECORD when the tenant has the username or another request waits. " + DisplayNameRule)
+                + "DUPLICATE_RECORD when the tenant has the username or another request waits. " + NotAppliedRule + " " + DisplayNameRule)
             .WithEventualEffects("the TENANT_ADMINISTRATOR approval appears in Workflow; after approval the user's identity is created and linked.")
             .RequirePlatformPermission(IdentityPermissions.UserCreate)
             .RequireIdempotencyKey();
@@ -560,6 +566,8 @@ public sealed class IdentityModule : IModule
             .Produces<IReadOnlyList<TenantAdministratorRequestView>>(StatusCodes.Status200OK)
             .WithName("ListTenantAdministratorRequests")
             .WithSummary("List first-administrator requests, optionally for one tenant")
+            .WithDescription("Each request as GetTenantAdministratorRequest gives it, with status PendingApproval, AwaitingIdentity, IdentityParked, "
+                + "IdentityFailed, Provisioned, Rejected or NotApplied. " + NotAppliedRule)
             .RequirePlatformPermission(IdentityPermissions.UserRead);
 
         requests.MapGet("/{id:guid}", async (Guid id, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
@@ -571,6 +579,9 @@ public sealed class IdentityModule : IModule
             .Produces<TenantAdministratorRequestView>(StatusCodes.Status200OK)
             .WithName("GetTenantAdministratorRequest")
             .WithSummary("Get a first-administrator request and its decision")
+            .WithDescription("status is PendingApproval until a second platform administrator decides it in Workflow; then Rejected (every ending "
+                + "other than approval, with latestRejection), NotApplied, or AwaitingIdentity, IdentityParked, IdentityFailed and Provisioned as "
+                + "its administrators' identities are created (BR-018). " + NotAppliedRule)
             .RequirePlatformPermission(IdentityPermissions.UserRead);
     }
 }

@@ -110,7 +110,8 @@ public sealed record RetryAdministratorIdentity(Guid RequestId) : ICommand<int>;
 
 /// <summary>
 /// The state of a request as people see it (BR-018): an approved request is Provisioned only once every administrator's
-/// identity is linked, and usable. Until then it awaits the identities, or shows that one is parked or has failed.
+/// identity is linked, and usable. Until then it awaits the identities, or shows that one is parked or has failed. A request granted in Workflow whose
+/// grant could not be applied is NotApplied, with notAppliedReason (OQ-099 follow-up, Ade, 21 November 2026).
 /// </summary>
 public enum TenantAdministratorRequestState
 {
@@ -120,6 +121,7 @@ public enum TenantAdministratorRequestState
     IdentityFailed,
     Provisioned,
     Rejected,
+    NotApplied,
 }
 
 /// <summary>One administrator's identity: not created yet, parked (retried by the parking job), failed (needs a fix and a retry) or linked.</summary>
@@ -142,9 +144,15 @@ public sealed record TenantAdministratorPersonView(string Username, string Displ
     [property: BuildingBlocks.Contracts.AlwaysPresent] string? IdentityReason);
 
 /// <summary>A tenant administrator request, its decision and its administrators' identities.</summary>
+/// <param name="DecidedBy">The approval's checker; for NotApplied, the checker who granted the approval that could not be applied.</param>
+/// <param name="NotAppliedReason">
+/// Why a granted request could not be applied, as plain text with no personal data (for example "The tenant already has users."); null unless the
+/// status is NotApplied (OQ-099 follow-up, Ade, 21 November 2026).
+/// </param>
 public sealed record TenantAdministratorRequestView(Guid Id, Guid TargetTenantId, TenantAdministratorRequestKind Kind, string RoleCode, string[] Functions,
     Guid RequestedBy, TenantAdministratorRequestState Status, Guid? DecidedBy, DateTimeOffset? DecidedAt, IReadOnlyList<TenantAdministratorPersonView> Administrators,
-    long RowVersion, [property: BuildingBlocks.Contracts.AlwaysPresent] LatestRejection? LatestRejection = null);
+    long RowVersion, [property: BuildingBlocks.Contracts.AlwaysPresent] LatestRejection? LatestRejection = null,
+    [property: BuildingBlocks.Contracts.AlwaysPresent] string? NotAppliedReason = null);
 
 /// <summary>An administrator's user in the tenant: whether Keycloak's identity is linked yet.</summary>
 public sealed record AdministratorUser(Guid UserId, bool Linked);
@@ -227,6 +235,7 @@ public static class AdministratorIdentity
         {
             TenantAdministratorRequestStatus.PendingApproval => TenantAdministratorRequestState.PendingApproval,
             TenantAdministratorRequestStatus.Rejected => TenantAdministratorRequestState.Rejected,
+            TenantAdministratorRequestStatus.NotApplied => TenantAdministratorRequestState.NotApplied,
             _ when states.Values.Any(s => s.State == AdministratorIdentityState.Failed) => TenantAdministratorRequestState.IdentityFailed,
             _ when states.Values.Any(s => s.State == AdministratorIdentityState.Parked) => TenantAdministratorRequestState.IdentityParked,
             _ when states.Count == people.Count && states.Values.All(s => s.State == AdministratorIdentityState.Linked) => TenantAdministratorRequestState.Provisioned,
@@ -237,7 +246,7 @@ public static class AdministratorIdentity
             [.. people.Select(p => p.UserId is { } id && states.TryGetValue(id, out var s)
                 ? new TenantAdministratorPersonView(p.Username, p.DisplayName, p.IdpCode, p.ExternalSubject, p.MfaEnrolled, id, s.State, s.Reason)
                 : new TenantAdministratorPersonView(p.Username, p.DisplayName, p.IdpCode, p.ExternalSubject, p.MfaEnrolled, p.UserId, null, null))],
-            request.RowVersion);
+            request.RowVersion, NotAppliedReason: request.NotAppliedReason);
     }
 }
 
@@ -452,17 +461,79 @@ public static class FirstAdministratorSegregation
         + "give the two sides to separate roles.";
 }
 
+
+/// <summary>
+/// Whether a granted tenant administrator request can be applied, and if not why (OQ-099 follow-up, Ade, 21 November 2026). The approval policy
+/// refuses the grant when there is a reason, and the not-applied policy records the same reason on the request, so the two stay in step.
+/// </summary>
+public static class TenantAdministratorGrant
+{
+    public const string TenantHasUsers = "The tenant already has users.";
+    public const string RoleNotInForce = "The tenant's TENANT_ADMIN role is no longer in force.";
+    public const string UsernameTaken = "A username is already taken in the tenant.";
+
+    /// <summary>When the grant fails for a reason not checked beforehand (the request would not take the decision).</summary>
+    public const string NotTaken = "The request could not take the grant.";
+
+    /// <summary>
+    /// Plain text with no personal data: a new tenant that has had users since the request was made, an existing tenant whose TENANT_ADMIN role is
+    /// no longer in force, or a username the tenant now has; then, for a new tenant, each platform baseline segregation-of-duties rule its functions
+    /// hold both sides of (SRS-002, OQ-197). Null when the grant can be applied.
+    /// </summary>
+    public static async Task<string?> NotAppliedReason(TenantAdministratorRequest request, ITenantAdministrators administrators, CancellationToken cancellationToken)
+    {
+        if (request.Kind == TenantAdministratorRequestKind.FirstAdministrators)
+        {
+            if (await administrators.TenantHasUsers(request.TargetTenantId, cancellationToken))
+            {
+                return TenantHasUsers;
+            }
+        }
+        else
+        {
+            if (!await administrators.TenantHasAdministratorRole(request.TargetTenantId, cancellationToken))
+            {
+                return RoleNotInForce;
+            }
+
+            if ((await administrators.UsernamesTaken(request.TargetTenantId, request.People.Select(p => p.Username), cancellationToken)).Count > 0)
+            {
+                return UsernameTaken;
+            }
+        }
+
+        // SRS-002 (OQ-197): a request made before the request-time check (or one the baseline has since grown to cover) is not applied either.
+        return request.Kind == TenantAdministratorRequestKind.FirstAdministrators && FirstAdministratorSegregation.Broken(request.Functions) is { Count: > 0 } broken
+            ? string.Join(" ", broken.Select(FirstAdministratorSegregation.Message))
+            : null;
+    }
+
+    /// <summary>The parked item of a grant not applied: "TENANT_ADMINISTRATOR:{requestId}:{approvalId}". Workflow reads the approval after the last colon.</summary>
+    public static string Item(Guid requestId, Guid approvalId) => $"{IdentityApprovals.TenantAdministratorApprovalType}:{requestId}:{approvalId}";
+
+    /// <summary>The request and approval a parked item names, or null when it is not a tenant administrator grant's item.</summary>
+    public static (Guid RequestId, Guid ApprovalId)? FromItem(string? item) =>
+        item?.Split(':') is [IdentityApprovals.TenantAdministratorApprovalType, var request, var approval]
+        && Guid.TryParse(request, out var requestId) && Guid.TryParse(approval, out var approvalId)
+            ? (requestId, approvalId)
+            : null;
+}
+
 /// <summary>
 /// Identity's policy for Workflow's decision on a first-administrator request (OQ-067): granted, the user, the role
 /// and the assignment are created in the new tenant in this same transaction; rejected, nothing is created. A decision
 /// the request will not take parks the delivery (D-5, ADR-022): an ending (APPROVAL_ENDING_NOT_APPLIED), or a grant
-/// (APPROVAL_NOT_APPLIED) on a request already decided otherwise or for a tenant that has had users since it was asked for;
-/// Workflow then marks the approval not applied and tells the requester.
+/// (APPROVAL_NOT_APPLIED) on a request already decided otherwise or one <see cref="TenantAdministratorGrant.NotAppliedReason"/> refuses;
+/// Workflow then marks the approval not applied and tells the requester, and <see cref="TenantAdministratorNotAppliedPolicy"/> ends the request
+/// NotApplied. The parked item is "TENANT_ADMINISTRATOR:{requestId}:{approvalId}".
 /// </summary>
 public sealed class TenantAdministratorApprovalPolicy(ITenantAdministrators administrators, IClock clock) :
     IIntegrationEventHandler<ApprovalGranted>,
     IIntegrationEventHandler<ApprovalRejected>
 {
+    /// <summary>This policy's consumer of workflow.ApprovalGranted, as Identity's infrastructure registers it (schema iam, suffix ApprovalGranted).</summary>
+    public const string GrantConsumer = "iam." + nameof(TenantAdministratorApprovalPolicy) + ".ApprovalGranted";
+
     public Task Handle(ApprovalGranted granted, EventEnvelope envelope, CancellationToken cancellationToken) =>
         Decide(granted.BusinessRefType, granted.BusinessRefId, approved: true, granted.ApprovalId, granted.CheckerId, cancellationToken);
 
@@ -484,35 +555,54 @@ public sealed class TenantAdministratorApprovalPolicy(ITenantAdministrators admi
             return;
         }
 
+        // Already decided otherwise, or ended NotApplied (a retried parked grant stays not applied).
         if (request.Status != TenantAdministratorRequestStatus.PendingApproval)
         {
-            throw NotApplied(approved, approvalId);
+            throw NotApplied(approved, requestId, approvalId);
         }
 
-        // A new tenant that has had users since the request was made, an existing tenant whose TENANT_ADMIN role is no longer
-        // in force, or a username the tenant now has: the grant cannot be applied as asked.
-        if (approved && (request.Kind == TenantAdministratorRequestKind.FirstAdministrators
-                ? await administrators.TenantHasUsers(request.TargetTenantId, cancellationToken)
-                : !await administrators.TenantHasAdministratorRole(request.TargetTenantId, cancellationToken)
-                  || (await administrators.UsernamesTaken(request.TargetTenantId, request.People.Select(p => p.Username), cancellationToken)).Count > 0))
+        if (approved && await TenantAdministratorGrant.NotAppliedReason(request, administrators, cancellationToken) is not null)
         {
-            throw NotApplied(approved, approvalId);
-        }
-
-        // SRS-002 (OQ-197): a request made before the check above (or one the baseline has since grown to cover) is not applied either.
-        if (approved && request.Kind == TenantAdministratorRequestKind.FirstAdministrators && FirstAdministratorSegregation.Broken(request.Functions).Count > 0)
-        {
-            throw NotApplied(approved, approvalId);
+            throw NotApplied(approved, requestId, approvalId);
         }
 
         var userIds = approved ? await administrators.Provision(request, checkerId, cancellationToken) : null;
         if (request.Decide(approved, checkerId, userIds, clock.UtcNow).IsFailure)
         {
-            throw NotApplied(approved, approvalId);
+            throw NotApplied(approved, requestId, approvalId);
         }
     }
 
-    private static PrerequisiteMissingException NotApplied(bool approved, Guid approvalId) =>
-        new(approved ? PrerequisiteCodes.ApprovalNotApplied : PrerequisiteCodes.ApprovalEndingNotApplied,
-            $"{IdentityApprovals.TenantAdministratorApprovalType}:{approvalId}");
+    private static PrerequisiteMissingException NotApplied(bool approved, Guid requestId, Guid approvalId) =>
+        new(approved ? PrerequisiteCodes.ApprovalNotApplied : PrerequisiteCodes.ApprovalEndingNotApplied, TenantAdministratorGrant.Item(requestId, approvalId));
+}
+
+/// <summary>
+/// Identity's policy for integration.DeliveryParked (OQ-099 follow-up, Ade, 21 November 2026): when <see cref="TenantAdministratorApprovalPolicy"/>
+/// parked a grant as APPROVAL_NOT_APPLIED, the request still waiting for approval ends NotApplied, with the reason recomputed as the policy decided it,
+/// the approval's checker and the time. Workflow, consuming the same event, marks the approval NotApplied and tells the requester. A redelivery, or
+/// a request no longer waiting, changes nothing.
+/// </summary>
+public sealed class TenantAdministratorNotAppliedPolicy(ITenantAdministrators administrators, IApprovalHistory approvals, IClock clock, IAuditTrail audit)
+    : IIntegrationEventHandler<Integration.Contracts.DeliveryParked>
+{
+    private static readonly string GrantedType = IntegrationEventTypes.Describe(typeof(ApprovalGranted)).Type;
+
+    public async Task Handle(Integration.Contracts.DeliveryParked parked, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (parked.Code != PrerequisiteCodes.ApprovalNotApplied || parked.EventType != GrantedType || parked.Consumer != TenantAdministratorApprovalPolicy.GrantConsumer
+            || TenantAdministratorGrant.FromItem(parked.Item) is not { } parkedGrant
+            || await administrators.Get(parkedGrant.RequestId, cancellationToken) is not { Status: TenantAdministratorRequestStatus.PendingApproval } request)
+        {
+            return;
+        }
+
+        var reason = await TenantAdministratorGrant.NotAppliedReason(request, administrators, cancellationToken) ?? TenantAdministratorGrant.NotTaken;
+        var checker = await approvals.Checker(parkedGrant.ApprovalId, cancellationToken);
+        if (request.MarkNotApplied(reason, checker, clock.UtcNow).IsSuccess)
+        {
+            audit.Record(new AuditEntry("IDENTITY", "TenantAdministratorsNotApplied", nameof(TenantAdministratorRequest), request.Id.ToString(),
+                new Dictionary<string, string?> { ["approval"] = parkedGrant.ApprovalId.ToString(), ["reason"] = request.NotAppliedReason }));
+        }
+    }
 }

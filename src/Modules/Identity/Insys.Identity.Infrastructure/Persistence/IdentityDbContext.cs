@@ -108,6 +108,7 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
             request.Property(r => r.Role).HasColumnName("role_code").HasMaxLength(30);
             request.Property(r => r.Status).HasConversion(new UpperCaseEnumConverter<TenantAdministratorRequestStatus>()).HasMaxLength(20);
             request.Property(r => r.Kind).HasConversion(new UpperCaseEnumConverter<TenantAdministratorRequestKind>()).HasMaxLength(24);
+            request.Property(r => r.NotAppliedReason).HasMaxLength(TenantAdministratorRequest.NotAppliedReasonLength); // V0149
             request.HasMany(r => r.People).WithOne().HasForeignKey(p => new { p.TenantId, p.RequestId });
             request.Navigation(r => r.People).UsePropertyAccessMode(PropertyAccessMode.Field);
         });
