@@ -282,6 +282,7 @@ They are also in `CLAUDE.md`.
 - If an approved head fails and the fix is more than tests, report to Ade before merging, even once it is green.
 - Merge without asking only when it's built with its test, green on the exact head, and needs no decision from Ade.
 - Decisions for Ade go in reports. **Ade decides the first customer after his trip,** and coordinates remotely.
+- **Every change report lists the AI-2 evaluation case IDs added or changed** in `docs/evaluation/ai2-evaluation-set.json` (for example `R-SEGREGATION_OF_DUTIES_BLOCKED`), or says none changed, so the expert review's Sonnet sheet can be kept current (Ade, 21 November 2026).
 - **Only one back-end session works at a time.** The Mac session stops before a cloud one starts.
 - **Wave 7 resumed on 15 November (Ade), the Preview having been live since early November,** in the D-8 order: 7.2, 7.3, 7.6, 7.7, 7.4, 7.5, 7.8. Nigeria's row 24 stays deferred until a first Nigerian customer is chosen.
 - **The Mac session stops on Wednesday 4 November 2026:** nothing new after 07:00, the handover merged and checked by 10:00. A cloud session continues from this document and GitHub.
@@ -617,6 +618,12 @@ Ade's decisions on 7.5, the same day. Contract note: "AI-1's submission check".
   - `AssistProductDraftReviewTests`: submission refused until every Interpreted value is reviewed, then submitted; a product manager reads a report with AI Assist ended, the menu shows it under `PRODUCTS`, and a user without the function gets 403 `FUNCTION_NOT_GRANTED`.
   - `AssistTests`: the function's place in the catalogue and the three templates.
   - Regenerated: `R__function_catalogue.sql`, `R__error_code_catalogue.sql`, `docs/api/error-codes.json`, `role-templates.md`.
+
+### The receipt for a case the caller can't read (21 November 2026, branch `oq196-receipt`; approved by Ade, OQ-196)
+- **`POST /workflow/cases`** answered 404 after opening a case the caller can't read (a Health-linked case without `medical_claim.read`, `cases.md` §9; or one outside their scope), and a retry with a new key opened a second case. It now answers 201 with `CaseOpenedReceipt` (`{ id, caseNumber, status, readable: false }`, no ETag, `Location` as before). A caller who can read the case still gets the `CaseView` and its ETag.
+- **How:** the endpoint reads the case with `GetCase` as the caller, as before; on NotFound it builds the receipt from the command's own result (`OpenCase` returns `OpenedCase(Id, CaseNumber, Status)`), so no read skips the caller's visibility. The 201 is documented as `oneOf` the two (`ProducesAlternative<T, TBuilder>` in `BuildingBlocks.Api`, applied by an operation transformer in `ApiRegistration`).
+- **Seed:** the OFTZA provider dispute expects the receipt; the 404 catch is gone.
+- **Tests:** three `CaseTests` named `..._OQ196` (receipt shape and 404 on GET; same-key replay and one case; the reader's `CaseView` and ETag); `OftzaSeedTests`.
 
 ### Segregation of duties (20 November 2026, branch `sod-seed`; approved by Ade, OQ-197)
 - **On `sod-seed`, the checks were driven only by the tenant's rows** in `iam.cfg_segregation_of_duties_conflict_rules`; since `sod-baseline` the platform baseline is in force as well (below).

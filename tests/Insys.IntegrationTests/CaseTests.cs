@@ -621,6 +621,88 @@ public sealed class CaseTests(DatabaseFixture fixture) : IClassFixture<DatabaseF
     }
 
     /// <summary>
+    /// OQ-196 (Ade, 21 November 2026), cases.md §9: staff without medical_claim.read who open a Health claim appeal can't read it, so opening answers
+    /// 201 with the case's receipt (CaseOpenedReceipt): exactly its id, caseNumber and status, and readable false, with no ETag. The case still is 404 to
+    /// them, and Location names it.
+    /// </summary>
+    [Fact]
+    public async Task OpeningACaseTheCallerCannotRead_Answers201WithOnlyItsReceipt_AndNoETag_OQ196()
+    {
+        var claim = await MemberHealthClaim();
+        var opened = await _clerk.SendAsync(OpenRequest(await HealthClaimAppealBody(claim, "HC-OQ196-RECEIPT"), Guid.NewGuid().ToString()));
+        var text = await opened.Content.ReadAsStringAsync();
+        opened.StatusCode.ShouldBe(HttpStatusCode.Created, text);
+        var receipt = await opened.Json();
+        receipt.EnumerateObject().Select(p => p.Name).Order(StringComparer.Ordinal).ToList()
+            .ShouldBe(["caseNumber", "id", "readable", "status"], customMessage: "the receipt carries only the case's id, number and status");
+        receipt.GetProperty("readable").GetBoolean().ShouldBeFalse();
+        receipt.GetProperty("status").GetString().ShouldBe("Received");
+        opened.Headers.ETag.ShouldBeNull("the caller can't change a case they can't read");
+        text.ShouldNotContain("HC-OQ196-RECEIPT", customMessage: "nothing of the case's links is shown");
+        var id = receipt.GetProperty("id").GetGuid();
+        opened.Headers.Location!.ToString().ShouldBe($"{Cases}/{id}");
+        receipt.GetProperty("caseNumber").GetString().ShouldBe(await fixture.Database.ScalarAsOwner<string>(
+            "SELECT case_number FROM workflow.service_case WHERE id = @c", ("c", id)));
+
+        (await _clerk.GetAsync($"{Cases}/{id}")).StatusCode.ShouldBe(HttpStatusCode.NotFound, "the receipt reads nothing the caller couldn't read before");
+        (await _factory.ClientFor(T, "case-health").GetAsync($"{Cases}/{id}")).StatusCode.ShouldBe(HttpStatusCode.OK);
+    }
+
+    /// <summary>OQ-196: a retry with the same Idempotency-Key replays the same 201 receipt, and opens no second case.</summary>
+    [Fact]
+    public async Task ARetryOfAnOpeningAnsweredWithAReceipt_ReplaysTheSameReceipt_AndOpensOneCase_OQ196()
+    {
+        var claim = await MemberHealthClaim();
+        var body = await HealthClaimAppealBody(claim, "HC-OQ196-RETRY");
+        var key = Guid.NewGuid().ToString();
+        var first = await _clerk.SendAsync(OpenRequest(body, key));
+        first.StatusCode.ShouldBe(HttpStatusCode.Created, await first.Content.ReadAsStringAsync());
+        var retry = await _clerk.SendAsync(OpenRequest(body, key));
+        retry.StatusCode.ShouldBe(HttpStatusCode.Created, await retry.Content.ReadAsStringAsync());
+        retry.Headers.GetValues(Insys.BuildingBlocks.Api.IdempotencyFilter.ReplayedHeader).ShouldBe(["true"]);
+
+        var (once, again) = (await first.Json(), await retry.Json());
+        again.GetProperty("id").GetGuid().ShouldBe(once.GetProperty("id").GetGuid());
+        again.GetProperty("caseNumber").GetString().ShouldBe(once.GetProperty("caseNumber").GetString());
+        again.GetProperty("readable").GetBoolean().ShouldBeFalse();
+        retry.Headers.ETag.ShouldBeNull();
+        retry.Headers.Location.ShouldBe(first.Headers.Location);
+        (await fixture.Database.ScalarAsOwner<long>(
+            "SELECT count(DISTINCT case_id) FROM workflow.case_link WHERE tenant_id = @t AND link_type = 'CLAIM' AND record_id = @c", ("t", T), ("c", claim)))
+            .ShouldBe(1, "only one case links the claim");
+    }
+
+    /// <summary>OQ-196: a caller with medical_claim.read who opens a Health claim appeal gets the full CaseView with its ETag, as before; no readable field.</summary>
+    [Fact]
+    public async Task OpeningACaseTheCallerCanRead_StillAnswersTheCaseViewWithItsETag_OQ196()
+    {
+        var claim = await MemberHealthClaim();
+        var opened = await _factory.ClientFor(T, "case-health").SendAsync(OpenRequest(await HealthClaimAppealBody(claim, "HC-OQ196-VIEW"), Guid.NewGuid().ToString()));
+        opened.StatusCode.ShouldBe(HttpStatusCode.Created, await opened.Content.ReadAsStringAsync());
+        var view = await opened.Json();
+        view.TryGetProperty("readable", out _).ShouldBeFalse("a CaseView doesn't carry readable");
+        view.GetProperty("caseTypeCode").GetString().ShouldBe("REVIEW_T");
+        view.GetProperty("links").EnumerateArray().Single().GetProperty("reference").GetString().ShouldBe("HC-OQ196-VIEW");
+        opened.Headers.ETag.ShouldNotBeNull();
+        opened.Headers.ETag!.Tag.ShouldBe(Insys.BuildingBlocks.Api.Concurrency.ETagFor(view.GetProperty("rowVersion").GetInt64()));
+        opened.Headers.Location!.ToString().ShouldBe($"{Cases}/{view.GetProperty("id").GetGuid()}");
+    }
+
+    private async Task<object> HealthClaimAppealBody(Guid claim, string reference) => new
+    {
+        caseTypeCode = "REVIEW_T", receivedChannel = "LETTER", complainantName = "X", summary = "Review", parentCaseId = await ClosedComplaint(),
+        links = new[] { new { linkType = "CLAIM", recordId = claim, reference } },
+    };
+
+    private static HttpRequestMessage OpenRequest(object body, string key)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, Cases) { Content = System.Net.Http.Json.JsonContent.Create(body) };
+        request.Options.Set(TestPreconditionsHandler.Raw, true);
+        request.Headers.Add(Insys.BuildingBlocks.Api.IdempotencyFilter.HeaderName, key);
+        return request;
+    }
+
+    /// <summary>
     /// OQ-196 (B): a CLAIM link records its claim's line when it is added, here through the case's link action; an appeal on a General claim is
     /// under CLAIM_APPEALS, not HEALTH_CLAIM_APPEALS, and staff without medical_claim.read read it.
     /// </summary>

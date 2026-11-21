@@ -265,7 +265,22 @@ public sealed record CaseLinkInput([property: AllowedValues("POLICY", "CLAIM", "
 /// <param name="ParentCaseId">For an appeal: the case whose decision it appeals; its type is that case type's review type.</param>
 public sealed record OpenCase(string CaseTypeCode, string ReceivedChannel, DateTimeOffset? ReceivedAt, Guid? ComplainantPartyId, string? ComplainantName,
     string? ComplainantContact, Guid? OnBehalfOfPartyId, string? CategoryCode, string Summary, bool UpheldAtReceipt, Guid? ParentCaseId,
-    IReadOnlyList<CaseLinkInput>? Links) : ICommand<Guid>;
+    IReadOnlyList<CaseLinkInput>? Links) : ICommand<OpenedCase>;
+
+/// <summary>What opening a case committed: its id, number and status. The answer to a caller who can't read the case is built from it alone (OQ-196).</summary>
+public sealed record OpenedCase(Guid Id, string CaseNumber, CaseStatus Status);
+
+/// <summary>
+/// The answer to POST /workflow/cases when the caller can't read the case they just opened (OQ-196, Ade 21 November 2026): a Health case to staff
+/// without medical_claim.read (cases.md §9), or one outside their scope. Only its id, number and status, so a retry with a new key isn't needed to
+/// learn the case was opened, and nothing else of the case is shown. Readable is always false; a caller who can read the case gets the CaseView.
+/// </summary>
+/// <param name="Readable">Always false: the caller can't read the case (GET answers 404), which tells this answer apart from a CaseView.</param>
+public sealed record CaseOpenedReceipt(Guid Id, string CaseNumber, CaseStatus Status,
+    [property: System.ComponentModel.Description("Always false: the caller can't read the case (GET answers 404). A CaseView never carries it.")] bool Readable)
+{
+    public static CaseOpenedReceipt Of(OpenedCase opened) => new(opened.Id, opened.CaseNumber, opened.Status, Readable: false);
+}
 
 public sealed record AcknowledgeCase(Guid CaseId, long ExpectedVersion) : ICommand<long>, IVersionedCommand;
 
@@ -691,7 +706,7 @@ public sealed class CaseOpening(ICaseRepository cases, ICaseConfiguration config
 
 internal sealed class CaseCommandHandlers(ICaseRepository cases, ICaseConfiguration configuration, CaseOpening opening, CaseTimes times, CaseAccess access,
     ExecutionScope scope, IBusinessDate businessDate, IClock clock, IAuditTrail audit) :
-    ICommandHandler<OpenCase, Guid>,
+    ICommandHandler<OpenCase, OpenedCase>,
     ICommandHandler<AcknowledgeCase, long>,
     ICommandHandler<AddCaseMessage, long>,
     ICommandHandler<LinkCaseRecord, long>,
@@ -709,7 +724,7 @@ internal sealed class CaseCommandHandlers(ICaseRepository cases, ICaseConfigurat
 {
     private DateOnly Today => businessDate.Today;
 
-    public async Task<Result<Guid>> Handle(OpenCase command, CancellationToken cancellationToken)
+    public async Task<Result<OpenedCase>> Handle(OpenCase command, CancellationToken cancellationToken)
     {
         if (await configuration.Type(command.CaseTypeCode, Today, cancellationToken) is not { } type)
         {
@@ -742,7 +757,7 @@ internal sealed class CaseCommandHandlers(ICaseRepository cases, ICaseConfigurat
             new Complainant(command.ComplainantPartyId, command.ComplainantName, command.ComplainantContact, command.OnBehalfOfPartyId),
             new CaseRaiser(CaseAudiences.Staff, access.UserId == Guid.Empty ? null : access.UserId, null, null), command.CategoryCode ?? inheritedCategory, command.Summary,
             command.UpheldAtReceipt, command.ParentCaseId, command.Links ?? [], access.Actor, raisedFromEvent: false, cancellationToken, inheritedCategory);
-        return opened.IsFailure ? opened.Error : opened.Value.Id;
+        return opened.IsFailure ? opened.Error : new OpenedCase(opened.Value.Id, opened.Value.CaseNumber, opened.Value.Status);
     }
 
     /// <summary>An appeal is of the appealed case's review type, about a decided case (PPR 18.6).</summary>

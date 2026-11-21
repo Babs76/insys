@@ -60,3 +60,16 @@ public static class KnownValuesExtensions
         builder.WithMetadata(new KnownValuesMetadata(parameter, values, description));
 }
 
+
+/// <summary>
+/// A second body a response may carry instead of the one Produces declares (OQ-196): the documents give that status's JSON body as oneOf the two.
+/// </summary>
+public sealed record AlternativeResponseMetadata(int StatusCode, Type Type);
+
+public static class AlternativeResponseExtensions
+{
+    /// <summary>Declares that the response with <paramref name="statusCode"/> may carry a <typeparamref name="T"/> instead of its declared body.</summary>
+    public static TBuilder ProducesAlternative<T, TBuilder>(this TBuilder builder, int statusCode)
+        where TBuilder : IEndpointConventionBuilder =>
+        builder.WithMetadata(new AlternativeResponseMetadata(statusCode, typeof(T)));
+}

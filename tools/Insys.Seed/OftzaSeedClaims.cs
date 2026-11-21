@@ -25,7 +25,6 @@
  * ============================================================================
  */
 using System.Globalization;
-using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -406,15 +405,16 @@ public sealed partial class OftzaSeed
         await agent.Send(HttpMethod.Post, "/api/v1/workflow/cases", Case("ENQUIRY", party, null, "Sample: when does my cover renew?", null,
             ("POLICY", policy.GetProperty("id").GetGuid(), policy.GetProperty("policyNumber").GetString())), key: $"{TenantCode}:enquiry:{party}");
         var paid = (await Assessor.Send(HttpMethod.Get, $"/api/v1/health/claims?membershipId={await Membership(8)}")).GetProperty("items")[0];
-        try
+        // It links a Health claim, so it is Health's (cases.md §9, OQ-196 B): the agent, without medical_claim.read, is answered with the case's receipt
+        // (CaseOpenedReceipt: its id, number and status alone), not the case (OQ-196, Ade 21 November 2026).
+        var dispute = await agent.Send(HttpMethod.Post, "/api/v1/workflow/cases", Case("PROVIDER_DISPUTE", null, SampleParties.Providers[0].Name,
+            "Sample: the practice disputes a short payment.", null, ("CLAIM", paid.GetProperty("id").GetGuid(), paid.GetProperty("claimNumber").GetString())),
+            key: $"{TenantCode}:dispute:{paid.GetProperty("id").GetGuid()}");
+        if (!dispute.TryGetProperty("readable", out var readable) || readable.GetBoolean())
         {
-            await agent.Send(HttpMethod.Post, "/api/v1/workflow/cases", Case("PROVIDER_DISPUTE", null, SampleParties.Providers[0].Name, "Sample: the practice disputes a short payment.", null,
-                ("CLAIM", paid.GetProperty("id").GetGuid(), paid.GetProperty("claimNumber").GetString())), key: $"{TenantCode}:dispute:{paid.GetProperty("id").GetGuid()}");
+            throw new InvalidOperationException("The provider dispute on a Health claim was answered with the case, not its receipt: the agent can read Health cases.");
         }
-        catch (SeedRefusedException hidden) when (hidden.Status == HttpStatusCode.NotFound && hidden.Message.Contains("The case was not found.", StringComparison.Ordinal))
-        {
-            // Opened. It links a Health claim, so it is Health's (cases.md §9, OQ-196 B), and the agent, without medical_claim.read, isn't shown it in the answer.
-        }
+
         var other = await Person(4);
         var decided = (await agent.Send(HttpMethod.Post, "/api/v1/workflow/cases", Case("COMPLAINT", other, null, "Sample: the policyholder complains about service.", "CLAIM_DISPUTE"), key: $"{TenantCode}:complaint:{other}")).GetProperty("id").GetGuid();
         var url = $"/api/v1/workflow/cases/{decided}";
