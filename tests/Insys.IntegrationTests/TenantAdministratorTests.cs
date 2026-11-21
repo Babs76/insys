@@ -523,6 +523,45 @@ public sealed class TenantAdministratorTests(DatabaseFixture fixture) : IClassFi
             .ShouldBe("TENANT_HAS_USERS");
     }
 
+    /// <summary>
+    /// SRS-002 (OQ-197): a new tenant's TENANT_ADMIN role may not hold both sides of a platform baseline rule, the check a role's function grant gets.
+    /// Asked for, it is refused with 422 ROLE_SEGREGATION_OF_DUTIES on functions, naming the pair; a request already made with both (before this check)
+    /// is not applied when approved, so the tenant never starts with administrators refused every release and verify.
+    /// </summary>
+    [Fact]
+    public async Task FirstAdministrators_WhoseFunctionsHoldBothSidesOfABaselineRule_AreRefused_SRS002()
+    {
+        var one = _factory.ClientFor(Operator, "platform-one");
+        var two = _factory.ClientFor(Operator, "platform-two");
+        var (tenantId, _) = await RegisterTenantAtAccessStep(one, "SODADM");
+        string[] both = ["CLAIM_PAYMENT_INSTRUCTIONS", "CLAIMS_DRAFT_INSTRUCTION", "CLAIMS_RELEASE_INSTRUCTION"];
+        var refused = await one.Send(HttpMethod.Post, "/api/v1/identity/tenant-administrators",
+            new { tenantId, administrators = new[] { Person("sodadm-a"), Person("sodadm-b") }, functions = AdminFunctions.Concat(both).ToArray() }, idempotent: true);
+        var body = await refused.Content.ReadAsStringAsync();
+        refused.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity, body);
+        var problem = System.Text.Json.JsonDocument.Parse(body).RootElement;
+        problem.GetProperty("code").GetString().ShouldBe("ROLE_SEGREGATION_OF_DUTIES");
+        var messages = problem.GetProperty("errors").GetProperty("functions").EnumerateArray().Select(m => m.GetString()!).ToList();
+        messages.ShouldHaveSingleItem().ShouldContain("CLAIMS_DRAFT_INSTRUCTION");
+        messages[0].ShouldContain("CLAIMS_RELEASE_INSTRUCTION");
+        messages[0].ShouldContain("SOD_CLAIM_PAYMENT");
+
+        // A request made before the check, with both sides: approving it creates nothing.
+        var requestId = (await (await one.Send(HttpMethod.Post, "/api/v1/identity/tenant-administrators", Request(tenantId, "sodadm-admin"), idempotent: true))
+            .Json()).GetProperty("id").GetGuid();
+        await fixture.Database.ExecuteAsOwner(
+            "UPDATE iam.tenant_administrator_request SET functions = functions || ARRAY['CLAIMS_DRAFT_INSTRUCTION', 'CLAIMS_RELEASE_INSTRUCTION'] WHERE id = @r",
+            ("r", requestId));
+        await _factory.DrainOutbox();
+        (await two.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{await Approval(one, requestId)}/approve", ifMatch: "\"1\"")).StatusCode
+            .ShouldBe(HttpStatusCode.NoContent);
+        await _factory.DrainOutbox();
+
+        (await (await one.GetAsync($"/api/v1/identity/tenant-administrators/{requestId}")).Json()).GetProperty("status").GetString()
+            .ShouldBe("PendingApproval", "the grant isn't applied");
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM iam.user_account WHERE tenant_id = @t", ("t", tenantId))).ShouldBe(0);
+    }
+
     [Fact]
     public async Task ARejectedRequest_CreatesNothing()
     {

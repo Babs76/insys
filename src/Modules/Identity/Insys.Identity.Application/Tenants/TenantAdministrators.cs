@@ -273,6 +273,14 @@ internal sealed class ProvisionTenantAdministratorsHandler(ITenantAdministrators
                 new Dictionary<string, string[]> { ["functions"] = [.. missing.Select(m => Insys.Identity.Domain.Access.FunctionRequirements.Message(m.Function, m.Needs))] });
         }
 
+        // SRS-002 (OQ-197): the TENANT_ADMIN role these functions make may not hold both sides of a baseline rule, the same check a role's
+        // function grant gets. A role holding both would leave the first administrators refused every release and verify.
+        if (FirstAdministratorSegregation.Broken(command.Functions) is { Count: > 0 } broken)
+        {
+            var messages = broken.Select(FirstAdministratorSegregation.Message).ToArray();
+            return Error.Validation(IdentityErrorCodes.RoleSegregationOfDuties, messages[0], new Dictionary<string, string[]> { ["functions"] = messages });
+        }
+
         // ADR-026: each function must be in force in the catalogue and one staff use (OQ-099).
         if (await catalogue.NotForStaff(command.Functions, businessDate.Today, cancellationToken) is { Count: > 0 } unknown)
         {
@@ -431,6 +439,20 @@ internal sealed class ListTenantAdministratorRequestsHandler(ITenantAdministrato
 }
 
 /// <summary>
+/// The platform baseline's segregation-of-duties check on a new tenant's TENANT_ADMIN functions (SRS-002, OQ-197): the baseline rules only, as the
+/// tenant has no rules of its own before its first administrators. TODO(spec): a tenant's own rules, if a platform seed ever adds them before then.
+/// </summary>
+public static class FirstAdministratorSegregation
+{
+    public static IReadOnlyList<DutyConflictRule> Broken(IReadOnlyCollection<string> functions) =>
+        SegregationOfDutiesBaseline.HeldBothSides(functions, SegregationOfDutiesBaseline.WithTenantRules([]));
+
+    public static string Message(DutyConflictRule rule) =>
+        $"Role TENANT_ADMIN cannot hold both {rule.FunctionA} and {rule.FunctionB} (segregation-of-duties rule {rule.Code}, SRS-002); "
+        + "give the two sides to separate roles.";
+}
+
+/// <summary>
 /// Identity's policy for Workflow's decision on a first-administrator request (OQ-067): granted, the user, the role
 /// and the assignment are created in the new tenant in this same transaction; rejected, nothing is created. A decision
 /// the request will not take parks the delivery (D-5, ADR-022): an ending (APPROVAL_ENDING_NOT_APPLIED), or a grant
@@ -473,6 +495,12 @@ public sealed class TenantAdministratorApprovalPolicy(ITenantAdministrators admi
                 ? await administrators.TenantHasUsers(request.TargetTenantId, cancellationToken)
                 : !await administrators.TenantHasAdministratorRole(request.TargetTenantId, cancellationToken)
                   || (await administrators.UsernamesTaken(request.TargetTenantId, request.People.Select(p => p.Username), cancellationToken)).Count > 0))
+        {
+            throw NotApplied(approved, approvalId);
+        }
+
+        // SRS-002 (OQ-197): a request made before the check above (or one the baseline has since grown to cover) is not applied either.
+        if (approved && request.Kind == TenantAdministratorRequestKind.FirstAdministrators && FirstAdministratorSegregation.Broken(request.Functions).Count > 0)
         {
             throw NotApplied(approved, approvalId);
         }

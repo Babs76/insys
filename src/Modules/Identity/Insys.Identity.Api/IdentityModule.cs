@@ -515,7 +515,9 @@ public sealed class IdentityModule : IModule
                 + "from the start one can approve what the other does (a privileged role, a static data change); else 422 VALIDATION_FAILED on "
                 + "administrators. A second platform administrator approves it in Workflow (approval type TENANT_ADMINISTRATOR); a platform administrator "
                 + "never approves anything inside the tenant. Then the tenant's TENANT_ADMIN role (granted these functions: at least one, each a staff "
-                + "function in force in the catalogue, else 422 VALIDATION_FAILED on functions), both users and their active assignments are created. "
+                + "function in force in the catalogue, else 422 VALIDATION_FAILED on functions; never both sides of a platform baseline segregation-of-duties "
+                + "rule, such as CLAIMS_DRAFT_INSTRUCTION and CLAIMS_RELEASE_INSTRUCTION, else 422 ROLE_SEGREGATION_OF_DUTIES on functions naming the pair, "
+                + "SRS-002), both users and their active assignments are created. "
                 + "status is then AwaitingIdentity until both identities are linked (Provisioned), IdentityParked while one waits on Keycloak, or "
                 + "IdentityFailed when one needs a fix and a retry (BR-018). The ORGANISATION_AND_ACCESS step completes once both administrators are "
                 + "active: identity linked and at least one successful authenticated request each. " + DisplayNameRule)
