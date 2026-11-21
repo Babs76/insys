@@ -282,6 +282,7 @@ They are also in `CLAUDE.md`.
 - If an approved head fails and the fix is more than tests, report to Ade before merging, even once it is green.
 - Merge without asking only when it's built with its test, green on the exact head, and needs no decision from Ade.
 - Decisions for Ade go in reports. **Ade decides the first customer after his trip,** and coordinates remotely.
+- **Every change report lists the AI-2 evaluation case IDs added or changed** in `docs/evaluation/ai2-evaluation-set.json` (for example `R-SEGREGATION_OF_DUTIES_BLOCKED`), or says none changed, so the expert review's Sonnet sheet can be kept current (Ade, 21 November 2026).
 - **Only one back-end session works at a time.** The Mac session stops before a cloud one starts.
 - **Wave 7 resumed on 15 November (Ade), the Preview having been live since early November,** in the D-8 order: 7.2, 7.3, 7.6, 7.7, 7.4, 7.5, 7.8. Nigeria's row 24 stays deferred until a first Nigerian customer is chosen.
 - **The Mac session stops on Wednesday 4 November 2026:** nothing new after 07:00, the handover merged and checked by 10:00. A cloud session continues from this document and GitHub.
