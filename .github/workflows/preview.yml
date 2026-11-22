@@ -35,9 +35,9 @@ on:
       action:
         description: What to do
         type: choice
-        options: [check, diagnose, provision, upgrade, open-ssh, backup, restore, os-update, reboot, rotate-ssh-key, reset, rotate-passwords, destroy]
+        options: [check, diagnose, provision, upgrade, open-ssh, backup, restore, os-update, reboot, keycloak-theme, keycloak-theme-revert, rotate-ssh-key, reset, rotate-passwords, destroy]
       confirm:
-        description: For restore, os-update, reboot, rotate-ssh-key, reset, rotate-passwords and destroy, type the action's name
+        description: For restore, os-update, reboot, keycloak-theme, keycloak-theme-revert, rotate-ssh-key, reset, rotate-passwords and destroy, type the action's name
         default: ""
       ssh_from:
         description: For open-ssh and restore, the address to allow (your own IP)
@@ -78,7 +78,7 @@ jobs:
       PREVIEW_BACKUP_DAY: ${{ inputs.backup_day }}
     steps:
       - name: Confirmation
-        if: contains(fromJSON('["restore", "os-update", "reboot", "rotate-ssh-key", "reset", "rotate-passwords", "destroy"]'), inputs.action) && inputs.confirm != inputs.action
+        if: contains(fromJSON('["restore", "os-update", "reboot", "keycloak-theme", "keycloak-theme-revert", "rotate-ssh-key", "reset", "rotate-passwords", "destroy"]'), inputs.action) && inputs.confirm != inputs.action
         run: |
           echo "::error::Type the action's name in confirm to ${{ inputs.action }}."
           exit 1
@@ -98,6 +98,15 @@ jobs:
           grep ' hcloud-linux-amd64.tar.gz$' checksums.txt | sha256sum -c -
           tar -xzf hcloud-linux-amd64.tar.gz hcloud && sudo install hcloud /usr/local/bin/hcloud
           sudo apt-get install -y -qq age > /dev/null
+
+      # The login theme check's browser (BR-168), for the two Keycloak theme actions only: Playwright 1.63.0 (Apache-2.0, the version the check
+      # was proven with locally) and its Chromium, outside the checkout. Node is the runner's own.
+      - name: Playwright, for the login theme check
+        if: inputs.action == 'keycloak-theme' || inputs.action == 'keycloak-theme-revert'
+        run: |
+          npm install --prefix "$RUNNER_TEMP/playwright" --no-save --no-audit --no-fund playwright@1.63.0 > /dev/null
+          "$RUNNER_TEMP/playwright/node_modules/.bin/playwright" install --with-deps chromium > /dev/null
+          echo "NODE_PATH=$RUNNER_TEMP/playwright/node_modules" >> "$GITHUB_ENV"
 
       - name: ${{ inputs.action }}
         env:
