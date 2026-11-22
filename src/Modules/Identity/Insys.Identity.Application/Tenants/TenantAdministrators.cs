@@ -473,7 +473,7 @@ public static class TenantAdministratorGrant
     public const string UsernameTaken = "A username is already taken in the tenant.";
 
     /// <summary>When the grant fails for a reason not checked beforehand (the request would not take the decision).</summary>
-    public const string NotTaken = "The request could not take the grant.";
+    public const string NotTaken = "The request couldn't be applied, because what it needed has changed since it was made. Make a new request.";
 
     /// <summary>
     /// Plain text with no personal data: a new tenant that has had users since the request was made, an existing tenant whose TENANT_ADMIN role is
