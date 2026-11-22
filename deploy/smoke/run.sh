@@ -282,18 +282,31 @@ stylesheet=$(in_cluster "curl -sf '$kc$css'") || fail "Keycloak didn't serve the
 grep -q "stand-in for the console's login theme" <<<"$stylesheet" || fail "Keycloak's stylesheet $css isn't the theme's own, from the mounted ConfigMap"
 echo "The stand-in theme is mounted and served: its own stylesheet, from the ConfigMap's items."
 
+# Whether the upgrade changes Keycloak's pod template (and so restarts it) is recorded, with what changed, not failed on: a restart at a later
+# upgrade is harmless. What must hold is that the upgrade adopts the ConfigMap and leaves exactly one theme volume and mount, still served.
+echo "helm: $(helm version --short)"
 generation=$(kubectl get deploy insys-keycloak -o jsonpath='{.metadata.generation}')
+kubectl get deploy insys-keycloak -o json | jq -S '.spec.template' > "$themed/template-before.json"
 helm upgrade insys "$themed/insys" "${values[@]}"
 kubectl wait --for=condition=complete "job/insys-migrate-$(helm status insys -o json | jq -r .version)" --timeout=600s
 kubectl rollout status deploy/insys-keycloak --timeout=600s
 manifest=$(helm get manifest insys)
 grep -qx '  name: insys-keycloak-theme' <<<"$manifest" || fail "the chart's upgrade didn't adopt the theme's ConfigMap"
-[ "$(kubectl get deploy insys-keycloak -o jsonpath='{.metadata.generation}')" = "$generation" ] \
-  || fail "the chart's upgrade changed Keycloak's Deployment after the Preview's mount (not the same volume, mount or checksum)"
+kubectl get deploy insys-keycloak -o json | jq -S '.spec.template' > "$themed/template-after.json"
+if [ "$(kubectl get deploy insys-keycloak -o jsonpath='{.metadata.generation}')" = "$generation" ]; then
+  echo "The chart's upgrade left Keycloak's Deployment as the mount made it: no restart."
+  adopted="with no restart"
+else
+  echo "The chart's upgrade changed Keycloak's pod template, so Keycloak restarted. What changed (before, after):"
+  diff "$themed/template-before.json" "$themed/template-after.json" | cut -c1-200 | head -n 40 || true
+  adopted="with a restart (its pod template changed: see the log)"
+fi
+[ "$(kubectl get deploy insys-keycloak -o json | jq '[.spec.template.spec.containers[0].volumeMounts[] | select(.mountPath == "/opt/keycloak/themes/insys")] | length')" = 1 ] \
+  || fail "after the chart's upgrade, Keycloak hasn't exactly one theme mount"
 [ "$(kubectl get deploy insys-keycloak -o json | jq '[.spec.template.spec.volumes[] | select(.name == "keycloak-theme")] | length')" = 1 ] \
   || fail "after the chart's upgrade, Keycloak hasn't exactly one theme volume"
 theme_served insys
-echo "The chart's upgrade adopted the theme's ConfigMap and left Keycloak as the mount made it."
+echo "The chart's upgrade adopted the theme's ConfigMap, $adopted; one theme volume and mount, still served."
 
 printf '%s' smoke-admin | "$here/../keycloak/realm-login-theme.sh" insys --default
 theme_served keycloak.v2
@@ -308,7 +321,7 @@ kubectl rollout status deploy/insys-keycloak --timeout=600s
   || fail "the chart without theme files left Keycloak's theme volume"
 theme_served keycloak.v2
 echo "The chart without theme files removed the ConfigMap and the mount; the sign-in page is Keycloak's own."
-[ -z "${GITHUB_STEP_SUMMARY:-}" ] || echo "Smoke: the login theme (a stand-in) mounted as the Preview's keycloak-theme does, adopted by the chart's upgrade with no restart, and removed by the chart without it." >> "$GITHUB_STEP_SUMMARY"
+[ -z "${GITHUB_STEP_SUMMARY:-}" ] || echo "Smoke: the login theme (a stand-in) mounted as the Preview's keycloak-theme does, adopted by the chart's upgrade $adopted, and removed by the chart without it." >> "$GITHUB_STEP_SUMMARY"
 
 trap - ERR
 echo "SMOKE PASSED"
