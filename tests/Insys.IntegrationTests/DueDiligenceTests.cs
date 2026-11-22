@@ -528,6 +528,237 @@ public sealed class DueDiligenceTests(DatabaseFixture fixture) : IClassFixture<D
             .ShouldBe([(Today.AddDays(-1).ToString("yyyy-MM-dd"), true), (Today.AddYears(10).ToString("yyyy-MM-dd"), true)], ignoreOrder: true);
     }
 
+    // ---------------------------------------------------------------------------------------------------------------------------
+    // The evidence and deciding split (role-templates.md, signed off by Ade on 21 November 2026), against due-diligence.md §4.3,
+    // §4.2 (requirement sets) and the OQ-138 amendment at its top. The evidence user holds the General underwriter template as
+    // built: PARTY_DUE_DILIGENCE and PARTY_RUN_DUE_DILIGENCE_CHECK, and no compliance function. Tests only; no behaviour changed.
+    // ---------------------------------------------------------------------------------------------------------------------------
+
+    /// <summary>The deciding side of the split: compliance's functions, the enhanced approval and the privileged unblock.</summary>
+    private static readonly string[] Deciding =
+    [
+        "PARTY_REVIEW_SCREENING_HIT", "PARTY_COMPLETE_DUE_DILIGENCE_REVIEW", "PARTY_OVERRIDE_RISK_CLASS", "PARTY_RECORD_FIC_REPORT", "PARTY_UNBLOCK_DUE_DILIGENCE",
+        "PARTY_APPROVE_ENHANCED_DD",
+    ];
+
+    /// <summary>
+    /// §4.2, §4.3: a party with no hit clears once its requirement set's checks are recorded, by a user who holds only the evidence
+    /// functions. STANDARD (Life, an individual) needs identity and address with sanctions and PEP; SIMPLIFIED needs identity and
+    /// sanctions. No compliance function, approval or review takes part.
+    /// </summary>
+    [Theory]
+    [InlineData("STANDARD")]
+    [InlineData("SIMPLIFIED")]
+    public async Task ACleanParty_ClearsOnTheEvidenceAlone_RecordedByAUserWithNoComplianceFunction_F003(string level)
+    {
+        var w = await World();
+        if (level == "SIMPLIFIED")
+        {
+            await fixture.Database.SeedStatic(w.Tenant, "party.cfg_customer_risk_classes", "EFFECTIVE", "LOW", Today.AddDays(-1), ("risk_class", "LOW"), ("min_score", -1000),
+                ("max_score", 29), ("dd_level", "SIMPLIFIED"), ("review_interval", TimeSpan.FromDays(365 * 5)));
+        }
+
+        var (evidence, evidenceId) = await EvidenceUser(w);
+        var e = w with { Clerk = evidence };
+        var party = await evidence.RegisterPerson("Clean" + level.ToLowerInvariant());
+        await w.Factory.DrainOutbox();
+        var view = await DueDiligence(evidence, party);
+        (view.GetProperty("status").GetString(), view.GetProperty("level").GetString()).ShouldBe(("IN_PROGRESS", level));
+        Outstanding(view).ShouldBe(level == "STANDARD" ? ["IDENTITY", "ADDRESS"] : ["IDENTITY"], ignoreOrder: true, "§4.2: the requirement set of the level");
+
+        await Screen(e, party);
+        await AddIdentifier(e, party, "7708085009086");
+        if (level == "STANDARD")
+        {
+            await Check(e, party, "ADDRESS", await Document(e, party));
+        }
+
+        view = await DueDiligence(evidence, party);
+        (view.GetProperty("status").GetString(), view.GetProperty("level").GetString(), Outstanding(view).Count).ShouldBe(("CLEARED", level, 0), view.GetRawText());
+        view.GetProperty("checks").EnumerateArray().Select(c => c.GetProperty("checkedBy")).Where(c => c.ValueKind != JsonValueKind.Null).Select(c => c.GetGuid())
+            .ShouldAllBe(by => by == evidenceId, "every check a person recorded is the evidence user's");
+        (view.GetProperty("clearedBy").ValueKind, view.GetProperty("reviewedBy").ValueKind).ShouldBe((JsonValueKind.Null, JsonValueKind.Null), "no approval or review cleared it");
+        (await Running(w, "DUE_DILIGENCE_HIT_REVIEW", party)).ShouldBe(0L);
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM workflow.approval WHERE tenant_id = @t AND business_ref_id = @p", ("t", w.Tenant), ("p", party)))
+            .ShouldBe(0L, "no approval was asked for");
+        (await Gate(w, party, DueDiligenceSteps.Issue, "LIFE")).Cleared.ShouldBeTrue("the Life issue gate needs CDD CLEARED (§5)");
+    }
+
+    /// <summary>
+    /// §4.3: a hit stops clearance. The evidence user records every check (identity, address, a fresh screening): the party stays
+    /// REFERRED, the hits are hidden from them, and their review is refused (403). It clears only when a holder of
+    /// PARTY_REVIEW_SCREENING_HIT marks the hits false positives.
+    /// </summary>
+    [Fact]
+    public async Task AScreeningHit_IsNeverClearedWithoutTheComplianceFunction_TheEvidenceUserIsRefusedTheReview_F003()
+    {
+        var w = await World();
+        var (evidence, _) = await EvidenceUser(w);
+        var e = w with { Clerk = evidence };
+        var party = await evidence.RegisterPerson("Sanctionlist Evidence");
+        await w.Factory.DrainOutbox();
+        await AddIdentifier(e, party, "7501015009081");
+        await Check(e, party, "ADDRESS", await Document(e, party));
+        await Screen(e, party);
+
+        var view = await DueDiligence(evidence, party);
+        (view.GetProperty("status").GetString(), Outstanding(view).Single()).ShouldBe(("REFERRED", "HIT_REVIEW"), view.GetRawText());
+        view.GetProperty("hits").ValueKind.ShouldBe(JsonValueKind.Null, "hits are shown only to holders of PARTY_REVIEW_SCREENING_HIT (§9)");
+        var hits = (await DueDiligence(w.Reviewer, party)).GetProperty("hits").EnumerateArray().Select(h => h.GetProperty("id").GetGuid()).ToList();
+        hits.ShouldNotBeEmpty();
+        (await evidence.Send(HttpMethod.Post, $"/api/v1/party/parties/{party}/due-diligence/hits/{hits[0]}/review",
+            new { outcome = "FALSE_POSITIVE", reason = "Different person" }, ifMatch: await ETag(evidence, party))).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await DueDiligence(evidence, party)).GetProperty("status").GetString().ShouldBe("REFERRED");
+
+        foreach (var hit in hits)
+        {
+            var reviewed = await w.Reviewer.Send(HttpMethod.Post, $"/api/v1/party/parties/{party}/due-diligence/hits/{hit}/review",
+                new { outcome = "FALSE_POSITIVE", reason = "Different birth date and nationality" }, ifMatch: await ETag(w.Reviewer, party));
+            reviewed.StatusCode.ShouldBe(HttpStatusCode.OK, await reviewed.Content.ReadAsStringAsync());
+        }
+
+        await w.Factory.DrainOutbox();
+        (await DueDiligence(evidence, party)).GetProperty("status").GetString().ShouldBe("CLEARED");
+    }
+
+    /// <summary>
+    /// §4.3, OQ-126: a true PEP match makes the level ENHANCED. With the source of funds recorded by the evidence user the party
+    /// stays uncleared, waiting for DUE_DILIGENCE_ENHANCED; the evidence user cannot approve it (403: it needs
+    /// due_diligence.approve_enhanced). A holder of PARTY_APPROVE_ENHANCED_DD who took no part approves it, and the party clears.
+    /// </summary>
+    [Fact]
+    public async Task AnEnhancedParty_IsNeverClearedWithoutTheComplianceFunction_OnlyByTheEnhancedApproval_F003()
+    {
+        var w = await World();
+        var (evidence, _) = await EvidenceUser(w);
+        var e = w with { Clerk = evidence };
+        var party = await evidence.RegisterPerson("Peplist Evidence");
+        await w.Factory.DrainOutbox();
+        await AddIdentifier(e, party, "6802025009087");
+        await Check(e, party, "ADDRESS", await Document(e, party));
+        var hit = (await DueDiligence(w.Reviewer, party)).GetProperty("hits").EnumerateArray().Single().GetProperty("id").GetGuid();
+        (await w.Reviewer.Send(HttpMethod.Post, $"/api/v1/party/parties/{party}/due-diligence/hits/{hit}/review",
+            new { outcome = "TRUE_MATCH", reason = "A member of a provincial legislature" }, ifMatch: await ETag(w.Reviewer, party))).StatusCode.ShouldBe(HttpStatusCode.OK);
+        await w.Factory.DrainOutbox();
+        (await DueDiligence(evidence, party)).GetProperty("level").GetString().ShouldBe("ENHANCED");
+
+        await Check(e, party, "SOURCE_OF_FUNDS", await Document(e, party));
+        await Check(e, party, "ADDRESS", await Document(e, party));
+        var view = await DueDiligence(evidence, party);
+        (view.GetProperty("status").GetString(), Outstanding(view).Single()).ShouldBe(("IN_PROGRESS", "ENHANCED_APPROVAL"), view.GetRawText());
+        var approval = await Waiting(w, PartyApprovals.DueDiligenceBusinessRefType, party);
+        (await evidence.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval}/approve", ifMatch: "\"1\"")).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await DueDiligence(evidence, party)).GetProperty("status").GetString().ShouldBe("IN_PROGRESS");
+
+        var approved = await w.Approver.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval}/approve", ifMatch: "\"1\"");
+        approved.StatusCode.ShouldBe(HttpStatusCode.NoContent, await approved.Content.ReadAsStringAsync());
+        await w.Factory.DrainOutbox();
+        view = await DueDiligence(evidence, party);
+        (view.GetProperty("status").GetString(), view.GetProperty("clearedBy").GetGuid()).ShouldBe(("CLEARED", w.ApproverId));
+    }
+
+    /// <summary>
+    /// §4.3: a true sanctions match blocks the party. It stays BLOCKED after the evidence user records identity and address; the
+    /// evidence user can neither ask to unblock it nor approve an unblock (403). Only PARTY_UNBLOCK_DUE_DILIGENCE, asked by one
+    /// holder and approved by a second (DUE_DILIGENCE_UNBLOCK), lifts the block.
+    /// </summary>
+    [Fact]
+    public async Task ABlockedParty_IsNeverClearedWithoutTheComplianceFunction_OnlyBySecondPersonUnblocking_F003()
+    {
+        var w = await World();
+        var (evidence, _) = await EvidenceUser(w);
+        var e = w with { Clerk = evidence };
+        var party = await evidence.RegisterPerson("Sanctionlist Blocked");
+        await w.Factory.DrainOutbox();
+        var hit = (await DueDiligence(w.Reviewer, party)).GetProperty("hits").EnumerateArray().Single().GetProperty("id").GetGuid();
+        (await w.Reviewer.Send(HttpMethod.Post, $"/api/v1/party/parties/{party}/due-diligence/hits/{hit}/review",
+            new { outcome = "TRUE_MATCH", reason = "Same name, birth date and nationality" }, ifMatch: await ETag(w.Reviewer, party))).StatusCode.ShouldBe(HttpStatusCode.OK);
+        await w.Factory.DrainOutbox();
+
+        await AddIdentifier(e, party, "7501015009081");
+        await Check(e, party, "ADDRESS", await Document(e, party));
+        var view = await DueDiligence(evidence, party);
+        (view.GetProperty("status").GetString(), view.GetProperty("blocked").GetBoolean()).ShouldBe(("BLOCKED", true), view.GetRawText());
+        (await evidence.Send(HttpMethod.Post, $"/api/v1/party/parties/{party}/due-diligence/unblock", new { reason = "Delisted" })).StatusCode
+            .ShouldBe(HttpStatusCode.Forbidden, "asking to unblock needs PARTY_UNBLOCK_DUE_DILIGENCE");
+
+        var requested = await w.Clerk.Send(HttpMethod.Post, $"/api/v1/party/parties/{party}/due-diligence/unblock", new { reason = "Delisted by OFAC on review" });
+        requested.StatusCode.ShouldBe(HttpStatusCode.OK, await requested.Content.ReadAsStringAsync());
+        await w.Factory.DrainOutbox();
+        var approval = await Waiting(w, PartyApprovals.UnblockBusinessRefType, party);
+        (await evidence.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval}/approve", ifMatch: "\"1\"")).StatusCode
+            .ShouldBe(HttpStatusCode.Forbidden, "approving the unblock needs due_diligence.unblock");
+        (await (await w.Clerk.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval}/approve", ifMatch: "\"1\"")).Code()).ShouldBe("MAKER_CHECKER_SAME_PERSON");
+        (await DueDiligence(evidence, party)).GetProperty("blocked").GetBoolean().ShouldBeTrue();
+
+        var approved = await w.Approver.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval}/approve", ifMatch: "\"1\"");
+        approved.StatusCode.ShouldBe(HttpStatusCode.NoContent, await approved.Content.ReadAsStringAsync());
+        await w.Factory.DrainOutbox();
+        view = await DueDiligence(evidence, party);
+        (view.GetProperty("blocked").GetBoolean(), view.GetProperty("status").GetString()).ShouldBe((false, "CLEARED"), view.GetRawText());
+    }
+
+    /// <summary>
+    /// OQ-138 (the amendment at the top of due-diligence.md), F077: an EXPIRED party whose class reviews by a person (PERSON, the
+    /// default) is not cleared by a fresh screening or a recorded check from the evidence user, who is refused the review (403).
+    /// Only PARTY_COMPLETE_DUE_DILIGENCE_REVIEW clears it.
+    /// </summary>
+    [Fact]
+    public async Task AnExpiredParty_InPersonReviewMode_IsNeverClearedWithoutTheComplianceFunction_OnlyByTheReview_F077_OQ138()
+    {
+        var w = await World();
+        var (evidence, _) = await EvidenceUser(w);
+        var e = w with { Clerk = evidence };
+        var party = await evidence.RegisterPerson("Expiring Evidence");
+        await w.Factory.DrainOutbox();
+        await AddIdentifier(e, party, "7708085009086");
+        await Check(e, party, "ADDRESS", await Document(e, party));
+        (await DueDiligence(evidence, party)).GetProperty("status").GetString().ShouldBe("CLEARED");
+        await Expire(w, party);
+
+        await Screen(e, party);
+        await Check(e, party, "ADDRESS", await Document(e, party));
+        var view = await DueDiligence(evidence, party);
+        (view.GetProperty("status").GetString(), Outstanding(view).Single()).ShouldBe(("EXPIRED", "PERIODIC_REVIEW"), view.GetRawText());
+        (await evidence.Send(HttpMethod.Post, $"/api/v1/party/parties/{party}/due-diligence/review", new { detailsCurrent = true },
+            ifMatch: await ETag(evidence, party))).StatusCode.ShouldBe(HttpStatusCode.Forbidden, "completing the review needs PARTY_COMPLETE_DUE_DILIGENCE_REVIEW");
+        (await DueDiligence(evidence, party)).GetProperty("status").GetString().ShouldBe("EXPIRED");
+
+        var reviewed = await w.Reviewer.Send(HttpMethod.Post, $"/api/v1/party/parties/{party}/due-diligence/review", new { detailsCurrent = true },
+            ifMatch: await ETag(w.Reviewer, party));
+        reviewed.StatusCode.ShouldBe(HttpStatusCode.OK, await reviewed.Content.ReadAsStringAsync());
+        await w.Factory.DrainOutbox();
+        view = await DueDiligence(evidence, party);
+        (view.GetProperty("status").GetString(), view.GetProperty("reviewedBy").GetGuid()).ShouldBe(("CLEARED", w.ReviewerId));
+    }
+
+    /// <summary>
+    /// A user holding the General underwriter template as built (role-templates.md): the evidence functions and none of
+    /// <see cref="Deciding"/>. It also pins the split the addendum records: evidence in the two underwriters, the membership
+    /// administrator and the compliance officer; deciding in the compliance officer only; the enhanced approval in no template.
+    /// </summary>
+    private async Task<(HttpClient Client, Guid Id)> EvidenceUser(DdWorld w)
+    {
+        var catalogue = Insys.BuildingBlocks.Api.Functions.FunctionRegistry.All();
+        var templates = Insys.Identity.Api.RoleTemplates.All;
+        HashSet<string> Functions(string code) =>
+            [.. Insys.Identity.Api.RoleTemplates.Expand(templates.Single(t => t.Code == code), catalogue).Select(f => f.Code)];
+        foreach (var code in new[] { "GENERAL_UNDERWRITER", "LIFE_UNDERWRITER", "HEALTH_MEMBERSHIP_ADMINISTRATOR", "COMPLIANCE_OFFICER" })
+        {
+            Functions(code).IsSupersetOf(["PARTY_DUE_DILIGENCE", "PARTY_RUN_DUE_DILIGENCE_CHECK"]).ShouldBeTrue($"{code} holds the evidence functions");
+        }
+
+        templates.Where(t => Functions(t.Code).Overlaps(Deciding)).Select(t => t.Code).ShouldBe(["COMPLIANCE_OFFICER"], "only compliance decides");
+        Functions("COMPLIANCE_OFFICER").Intersect(Deciding).ShouldBe(Deciding.Where(d => d != "PARTY_APPROVE_ENHANCED_DD"), ignoreOrder: true);
+        templates.Where(t => (t.Approves ?? []).Any(a => a is PartyApprovals.EnhancedDueDiligenceType or PartyApprovals.RiskClassOverrideType or PartyApprovals.UnblockType))
+            .Select(t => (t.Code, string.Join(",", t.Approves!.Where(a => a.StartsWith("DUE_DILIGENCE_", StringComparison.Ordinal)).Order(StringComparer.Ordinal))))
+            .ShouldBe([("COMPLIANCE_OFFICER", $"{PartyApprovals.RiskClassOverrideType},{PartyApprovals.UnblockType}")], "the enhanced approval is in no template");
+
+        var subject = "dd-evidence-" + Guid.NewGuid().ToString("N")[..8];
+        var id = await fixture.Database.UserWithFunctions(w.Tenant, subject, [.. Functions("GENERAL_UNDERWRITER")]);
+        return (w.Factory.ClientFor(w.Tenant, subject), id);
+    }
+
     private async Task Expire(DdWorld w, Guid party)
     {
         await fixture.Database.ExecuteAsOwner("UPDATE party.due_diligence SET next_review_on = @d WHERE party_id = @p", ("d", Today.AddDays(-1)), ("p", party));

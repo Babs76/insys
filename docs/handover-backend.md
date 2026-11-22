@@ -619,6 +619,16 @@ Ade's decisions on 7.5, the same day. Contract note: "AI-1's submission check".
   - `AssistTests`: the function's place in the catalogue and the three templates.
   - Regenerated: `R__function_catalogue.sql`, `R__error_code_catalogue.sql`, `docs/api/error-codes.json`, `role-templates.md`.
 
+### Due diligence split signed off (21 November 2026, branch `dd-split-signoff`; Ade's decisions)
+- **Sign-off:** `role-templates.md` records that Ade signed off the evidence and deciding split of customer due diligence (built in Wave 3 batch 2, item 11). The addendum is generated (`RoleTemplateAddendum`, checked by `RoleTemplateTests.Addendum_IsGeneratedFromTheTemplates_OQ111`), so the paragraph is written by the generator, after the sign-off line; a regeneration keeps it. The comment above `DueDiligenceCompliance` in `RoleTemplates.cs` cites `role-templates.md`, not `due-diligence.md` §9.
+- **Tests only, no behaviour change** (`DueDiligenceTests`): the evidence user holds the General underwriter template as built (`EvidenceUser`, which also pins the split: evidence in both underwriters, the membership administrator and the compliance officer; deciding in the compliance officer only; the enhanced approval in no template).
+  - `ACleanParty_ClearsOnTheEvidenceAlone_RecordedByAUserWithNoComplianceFunction_F003` (STANDARD and SIMPLIFIED): CLEARED, no approval, review or hit review.
+  - `AScreeningHit_IsNeverClearedWithoutTheComplianceFunction_TheEvidenceUserIsRefusedTheReview_F003`: REFERRED until a hit reviewer marks the hits false positives; the evidence user gets 403.
+  - `AnEnhancedParty_IsNeverClearedWithoutTheComplianceFunction_OnlyByTheEnhancedApproval_F003`: IN_PROGRESS with `ENHANCED_APPROVAL` outstanding; the evidence user gets 403 on the approval.
+  - `ABlockedParty_IsNeverClearedWithoutTheComplianceFunction_OnlyBySecondPersonUnblocking_F003`: BLOCKED after more checks; 403 on asking and on approving the unblock; CLEARED once a second holder approves.
+  - `AnExpiredParty_InPersonReviewMode_IsNeverClearedWithoutTheComplianceFunction_OnlyByTheReview_F077_OQ138`: EXPIRED after a fresh screening and a check; 403 on the review; CLEARED by a reviewer.
+- **OQ-199 (after beta, not built):** a per-record rule that the recorder of a check can't decide the hit it raised. Today nothing stops it for a user holding both functions.
+
 ### First administrators: a grant not applied ends NotApplied (21 November 2026, branch `first-admin-not-applied`; Ade's decision, OQ-099 follow-up)
 - **Before:** `TenantAdministratorApprovalPolicy` parked a grant it couldn't apply (`APPROVAL_NOT_APPLIED`): the tenant already has users, its `TENANT_ADMIN` role isn't in force, a username is taken, or (since `0bd03b5`) the functions hold both sides of a baseline rule. Workflow marked the approval `NotApplied`, but the Identity request stayed `PendingApproval` for ever.
 - **Now:**

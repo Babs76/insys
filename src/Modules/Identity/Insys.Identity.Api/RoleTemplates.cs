@@ -133,9 +133,11 @@ public static class RoleTemplates
     private static readonly string[] CallbackScreens = ["PAYMENT_CALLBACK_ENDPOINTS", "COMMUNICATION_CALLBACK_ENDPOINTS"];
 
     /// <summary>
-    /// Due diligence (addenda/due-diligence.md §9). The screen and recording checks go with onboarding (the underwriters and
-    /// the membership administrator capture the evidence); reviewing hits, overriding the risk class and FIC reports are
-    /// compliance's. The approval of enhanced due diligence is in no template: the tenant gives it to senior management.
+    /// Due diligence: evidence and deciding are split (addenda/role-templates.md, signed off by Ade, 21 November 2026). The
+    /// screen and recording checks go with onboarding (the underwriters and the membership administrator capture the
+    /// evidence, as does the compliance officer); reviewing hits, completing periodic reviews, overriding the risk class, FIC
+    /// reports and the privileged unblock are the compliance officer's only. The approval of enhanced due diligence is in no
+    /// template: the tenant gives it to senior management one by one (FICA s21F, OQ-126).
     /// </summary>
     private static readonly string[] DueDiligenceCompliance = ["PARTY_REVIEW_SCREENING_HIT", "PARTY_COMPLETE_DUE_DILIGENCE_REVIEW", "PARTY_OVERRIDE_RISK_CLASS", "PARTY_RECORD_FIC_REPORT"];
 
