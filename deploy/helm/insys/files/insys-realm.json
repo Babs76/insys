@@ -2,6 +2,7 @@
   "realm": "insys",
   "enabled": true,
   "displayName": "INSYS Core (local development)",
+  "loginTheme": "insys",
   "sslRequired": "external",
   "registrationAllowed": false,
   "loginWithEmailAllowed": false,

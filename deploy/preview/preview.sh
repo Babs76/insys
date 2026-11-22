@@ -880,6 +880,7 @@ theme_note=insys-keycloak-theme-previous                 # on the server: the lo
 theme_user=""                                            # the temporary user while it exists
 theme_pending=""                                         # yes while the realm has insys and the check hasn't passed: the exit sets it back
 theme_previous=""                                        # the login theme to go back to; empty is Keycloak's default
+theme_version=""                                         # Keycloak's version as preflight found it, for the summary
 
 # A script of deploy/keycloak shipped to $theme_dir, run on the server with Keycloak's admin password first on its stdin, from insys-secrets
 # (it never leaves the server), then whatever this side sends: kc_input for a second line (the temporary user's password), kc_run for none.
@@ -890,16 +891,19 @@ kc_input() { # script, then its arguments
 kc_run() { kc_input "$@" </dev/null; }
 shown_theme() { if [ -n "$1" ]; then printf '%s' "$1"; else printf '(default)'; fi; }
 
+# The theme in the checkout must be exactly the approved files (files/keycloak-theme/insys.sha256, Ade, 22 November 2026), before SSH opens.
 theme_in_checkout() {
   [ -f "$theme_files/insys/login/theme.properties" ] && [ -s "$theme_files/insys.commit" ] \
     || fail "the checkout has no Keycloak theme: run tools/sync-keycloak-theme.sh with the console's commit, merge it, then run this on that commit"
+  tools/sync-keycloak-theme.sh --check || fail "the checkout's theme isn't exactly the approved files: nothing was changed"
   echo "Preflight: the theme is in the checkout, from the console's commit $(cat "$theme_files/insys.commit"):"
   (cd "$theme_files/insys" && find . -type f | sed 's#^\./#  #' | LC_ALL=C sort)
 }
 
-# The scripts, and for keycloak-theme the theme's ConfigMap as the chart renders it (templates/keycloak-theme.yaml, with the Preview's values)
-# and the checksum the chart puts on Keycloak's Deployment. Rendered here with the same helm as the server's and CI's, so it is the chart's own
-# encoding; only these files go to the server, to $theme_dir, not the chart in /root/insys.
+# The scripts, and for keycloak-theme the theme's ConfigMap as the chart renders it (templates/keycloak-theme.yaml, with the Preview's values),
+# the checksum the chart puts on Keycloak's Deployment and the approved list. Rendered here with the same helm as the server's and CI's, so it
+# is the chart's own encoding; only these files go to the server, to $theme_dir, not the chart in /root/insys. The server's theme-mount.sh
+# checks every shipped file's sha256 against the approved list before it applies anything.
 theme_sum=""
 theme_ship() { # with-theme, for keycloak-theme
   local dir="$RUNNER_TEMP/keycloak-theme"
@@ -912,14 +916,16 @@ theme_ship() { # with-theme, for keycloak-theme
     render_chart templates/keycloak-theme.yaml > "$dir/keycloak-theme.yaml" || fail "the chart didn't render the theme's ConfigMap"
     theme_sum=$(render_chart templates/keycloak.yaml | sed -n 's/^ *checksum\/keycloak-theme: \([0-9a-f]\{64\}\)$/\1/p')
     [ -n "$theme_sum" ] || fail "the chart rendered no checksum/keycloak-theme on Keycloak's Deployment"
-    cp "$theme_files/insys.commit" "$dir/"
+    cp "$theme_files/insys.commit" "$theme_files/insys.sha256" "$dir/"
   fi
   tar -C "$dir" -cz . | on_server "rm -rf $theme_dir && mkdir -p $theme_dir && tar -C $theme_dir -xz"
 }
 
-# Read only: Keycloak rolled out and ready, its realm answering 200 inside the cluster, and its image the chart's 26.7.5.
+# Read only: Keycloak rolled out and ready, its realm answering 200 inside the cluster, and its version 26.7.5, which the theme was made and
+# checked for: the image tag on the Deployment, and the version the running server reports itself, both from its version.txt and its admin
+# API. Anything else stops the run before it changes anything; any Keycloak upgrade must test the theme again first.
 theme_preflight() {
-  local image
+  local image file api
   # shellcheck disable=SC2016 # it runs on the server, which expands it
   on_server 'kubectl rollout status deploy/insys-keycloak --timeout=120s >/dev/null && [ "$(kubectl get deploy insys-keycloak -o jsonpath="{.status.readyReplicas}")" -ge 1 ]' \
     || fail "deploy/insys-keycloak isn't rolled out and ready: nothing was changed"
@@ -931,8 +937,12 @@ theme_preflight() {
     pkill -f "^kubectl port-forward svc/insys-keycloak 18082:" || true
     echo "Preflight: /realms/insys inside the cluster answers HTTP $code."; [ "$code" = 200 ]' || fail "Keycloak's realm insys didn't answer 200 inside the cluster: nothing was changed"
   image=$(on_server "kubectl get deploy insys-keycloak -o jsonpath='{.spec.template.spec.containers[0].name} {.spec.template.spec.containers[0].image}'")
-  echo "Preflight: Keycloak's container and image: $image."
-  [[ $image == "keycloak quay.io/keycloak/keycloak:26.7.5" ]] || fail "Keycloak isn't the chart's quay.io/keycloak/keycloak:26.7.5, which the theme extends: nothing was changed"
+  file=$(on_server "kubectl exec deploy/insys-keycloak -c keycloak -- cat /opt/keycloak/version.txt" || true)
+  api=$(kc_run realm-login-theme.sh insys --version || true)
+  theme_version="image ${image#keycloak }; the server reports \"${file:-nothing}\" (version.txt) and ${api:-nothing} (admin API)"
+  echo "Preflight: Keycloak's version: $theme_version."
+  [[ $image == "keycloak quay.io/keycloak/keycloak:26.7.5" ]] && [ "$file" = "Keycloak - Version 26.7.5" ] && [ "$api" = 26.7.5 ] \
+    || fail "Keycloak isn't 26.7.5, the version the theme was made and checked for ($theme_version): nothing was changed. Test the theme on the new version first."
 }
 
 # The login theme now, noted on the server before it changes, so a revert later knows it. A rerun, with insys already set, keeps the first note.
@@ -965,7 +975,18 @@ theme_set() { # the theme; empty for Keycloak's default
   kc_run realm-login-theme.sh insys "${1:---default}"
 }
 
-theme_cleanup() { # the temporary user, whatever happened
+# Keycloak restarted, and waited for: production start caches themes, so it must start after the theme is mounted and before the login theme
+# is set; and again after any revert (Ade, 22 November 2026), so no page comes from the cache of the theme just left.
+theme_restart() { # why
+  echo "Restarting Keycloak: $1."
+  on_server "kubectl rollout restart deploy/insys-keycloak >/dev/null && kubectl rollout status deploy/insys-keycloak --timeout=900s >/dev/null"
+}
+# Back to the recorded theme, then a restart: on a failed check, and by keycloak-theme-revert.
+theme_back() {
+  theme_set "$theme_previous" && theme_restart "after setting the login theme back to $(shown_theme "$theme_previous")" && theme_pending=""
+}
+
+theme_cleanup() { # the temporary user: its one-time code credential, then the user, whatever happened
   [ -n "$theme_user" ] || return 0
   if kc_run theme-check-user.sh insys delete "$theme_user"; then
     theme_user=""
@@ -975,13 +996,15 @@ theme_cleanup() { # the temporary user, whatever happened
 }
 
 # The check (Ade's step 3): sign-in, two-factor setup and a one-time code, in a browser on this runner through Keycloak's public address, as
-# a temporary Keycloak-only user (the sample accounts' passwords aren't on the server). Its password is random, masked, and only on stdin;
-# the browser reads the two-factor secret from the page and keeps it, and its codes, in memory. Pass or fail per step only.
+# a dedicated temporary Keycloak-only user, never an account the team uses (the sample accounts' passwords aren't on the server anyway). Its
+# password is random, masked, and only on stdin; the browser reads the two-factor secret from the page, masks it and each code, and never
+# prints them. Pass or fail per step, then per check: sign-in, two-factor setup, one-time code.
 # PREVIEW_THEME_CHECK_URL points the browser at another Keycloak, for a rehearsal away from the Preview; the workflow never sets it.
 theme_check() { # the login theme the pages must be served with
   local expect=$1 password status=0 tls=() issuer
   password=$(openssl rand -hex 24)
   mask "$password"
+  : > "$RUNNER_TEMP/theme-check.txt"
   issuer=$(echo | openssl s_client -connect "$(address):443" -servername "id.$PREVIEW_DOMAIN" 2>/dev/null | openssl x509 -noout -issuer 2>/dev/null || true)
   if ! issued_by "$issuer" production; then
     tls=(--ignore-https-errors)
@@ -994,38 +1017,48 @@ theme_check() { # the login theme the pages must be served with
   theme_cleanup
   return "$status"
 }
-theme_check_summary() {
-  summary "$(sed 's/^/    /' "$RUNNER_TEMP/theme-check.txt" 2>/dev/null || echo "    no result")"
+theme_check_summary() { # the three checks' results, then every step
+  local results
+  results=$(sed -n 's/^RESULT  \(.*\)$/- \1/p' "$RUNNER_TEMP/theme-check.txt" 2>/dev/null)
+  summary "Keycloak's version: $theme_version."
+  summary "${results:-- sign-in, two-factor setup, one-time code: not reached (FAIL)}"
+  summary "$(grep -E '^(PASS|FAIL)  ' "$RUNNER_TEMP/theme-check.txt" 2>/dev/null | sed 's/^/    /' || echo "    no steps ran")"
 }
 
-# On any exit: the temporary user goes, and if insys is set but its check hasn't passed, the previous theme comes back; then SSH closes.
+# On any exit: the temporary user goes, and if insys is set but its check hasn't passed, the previous theme comes back with a restart; then
+# SSH closes.
 theme_exit() {
   theme_cleanup || true
   if [ "$theme_pending" = yes ]; then
     echo "Setting the login theme back to $(shown_theme "$theme_previous"), as the check didn't pass."
-    if theme_set "$theme_previous"; then theme_pending=""; else echo "::error::The login theme couldn't be set back to $(shown_theme "$theme_previous"): run keycloak-theme-revert now."; fi
+    theme_back || echo "::error::The login theme couldn't be set back to $(shown_theme "$theme_previous") with a restart: run keycloak-theme-revert now."
   fi
   close_ssh
 }
 
 keycloak_theme() {
-  local at
+  local at mounted
   theme_ship with-theme
   theme_preflight
   theme_record
   echo "Mounting the theme from the console's commit $(cat "$theme_files/insys.commit")."
-  on_server "$theme_dir/keycloak/theme-mount.sh insys $theme_dir/keycloak-theme.yaml $theme_sum" || fail "the theme wasn't mounted; the login theme is unchanged"
+  mounted=$(on_server "$theme_dir/keycloak/theme-mount.sh insys $theme_dir/keycloak-theme.yaml $theme_sum $theme_dir/insys.sha256") \
+    || { printf '%s\n' "$mounted"; fail "the theme wasn't mounted; the login theme is unchanged"; }
+  printf '%s\n' "$mounted"
+  # The mount restarted Keycloak when it changed the Deployment; when it was already in place, Keycloak restarts here, so it surely starts
+  # with the mounted files before the login theme names them.
+  case "$mounted" in *"unchanged, no restart"*) theme_restart "so it starts with the mounted theme, before the login theme is set" ;; esac
   theme_pending=yes
   theme_set insys
   at=$(date -u '+%F %T UTC')
   if theme_check insys; then
     theme_pending=""
-    summary "**Keycloak's login theme is insys**, set at $at, from the console's commit \`$(cat "$theme_files/insys.commit")\`. The check passed, as a temporary user (removed). Before it: $(shown_theme "$theme_previous") (recorded in ConfigMap $theme_note)."
+    summary "**Keycloak's login theme is insys**, set at $at, from the console's commit \`$(cat "$theme_files/insys.commit")\`. The check passed, as a temporary user (its one-time code and the user removed). Before it: $(shown_theme "$theme_previous") (recorded in ConfigMap $theme_note)."
     theme_check_summary
   else
-    echo "The check failed: setting the login theme back to $(shown_theme "$theme_previous") now."
-    theme_set "$theme_previous" && theme_pending=""
-    summary "**The login theme check failed**, so the login theme is back to $(shown_theme "$theme_previous") (insys was set at $at, from the console's commit \`$(cat "$theme_files/insys.commit")\`). The theme stays mounted, harmless without the login theme."
+    echo "The check failed: setting the login theme back to $(shown_theme "$theme_previous") and restarting Keycloak now."
+    theme_back || true
+    summary "**The login theme check failed**, so the login theme is back to $(shown_theme "$theme_previous") and Keycloak restarted (insys was set at $at, from the console's commit \`$(cat "$theme_files/insys.commit")\`). The theme stays mounted, harmless without the login theme."
     theme_check_summary
     fail "the login theme check failed (see FAIL above); the login theme is back to $(shown_theme "$theme_previous")"
   fi
@@ -1038,11 +1071,12 @@ keycloak_theme_revert() {
   theme_previous=$(theme_recorded)
   theme_set "$theme_previous"
   at=$(date -u '+%F %T UTC')
+  theme_restart "after setting the login theme back to $(shown_theme "$theme_previous")"
   if theme_check "${theme_previous:-keycloak.v2}"; then
-    summary "**Keycloak's login theme is back to $(shown_theme "$theme_previous")**, set at $at. The check passed, as a temporary user (removed)."
+    summary "**Keycloak's login theme is back to $(shown_theme "$theme_previous")**, set at $at, and Keycloak restarted. The check passed, as a temporary user (its one-time code and the user removed)."
     theme_check_summary
   else
-    summary "**Keycloak's login theme is $(shown_theme "$theme_previous")**, set at $at, but **its check failed**."
+    summary "**Keycloak's login theme is $(shown_theme "$theme_previous")**, set at $at, and Keycloak restarted, but **its check failed**."
     theme_check_summary
     fail "the check on the login theme $(shown_theme "$theme_previous") failed (see FAIL above)"
   fi

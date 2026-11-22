@@ -31,7 +31,8 @@
 #
 #   theme-check-user.sh <realm> create <name>    stdin: the master admin's password, then the user's password, one per line. Any
 #                                                earlier theme-check- user goes first, so a rerun or a run cut off leaves none behind.
-#   theme-check-user.sh <realm> delete <name>    stdin: the master admin's password. Prints whether it removed the user.
+#   theme-check-user.sh <realm> delete <name>    stdin: the master admin's password. Removes its one-time code credential, then the
+#                                                user, and prints whether it removed them.
 #
 # Neither password is ever on a command line or in a log. KEYCLOAK_RELEASE names the release (insys by default); KEYCLOAK_URL, if set, is
 # Keycloak's address instead of a port-forward (a local test).
@@ -63,6 +64,13 @@ kc() { # method, path under the realm's admin API; the body, if any, on stdin. T
   curl -sS --fail-with-body -X "$1" -H @<(printf 'Authorization: Bearer %s\n' "$token") -H 'Content-Type: application/json' \
     ${3:+--data-binary @-} "$base/admin/realms/$realm$2"
 }
+# A user's one-time code credentials removed first (its authenticator), each checked gone, then the user (Ade, 22 November 2026).
+remove() { # the user's id
+  local otp
+  for otp in $(kc GET "/users/$1/credentials" | jq -r '.[] | select(.type == "otp") | .id'); do kc DELETE "/users/$1/credentials/$otp"; done
+  [ "$(kc GET "/users/$1/credentials" | jq '[.[] | select(.type == "otp")] | length')" = 0 ] || { echo "theme-check-user: its one-time code credential is still there" >&2; exit 1; }
+  kc DELETE "/users/$1"
+}
 # The ids of theme-check- users: this name exactly, or with "all", every one (the search matches anywhere in the name, so it is narrowed here).
 ids() {
   kc GET "/users?briefRepresentation=true&max=100&username=theme-check-" \
@@ -71,7 +79,7 @@ ids() {
 
 case "$action" in
   create)
-    for id in $(ids all); do kc DELETE "/users/$id"; echo "Removed an earlier theme-check user."; done
+    for id in $(ids all); do remove "$id"; echo "Removed an earlier theme-check user and its one-time code."; done
     # The password goes into the body from stdin (jq -R), not through an argument.
     printf '%s' "$user_password" | jq -Rsc --arg n "$name" '{username: $n, enabled: true, firstName: "Theme", lastName: "Check",
         attributes: {tenant_id: ["00000000-0000-0000-0000-000000000000"]}, requiredActions: ["CONFIGURE_TOTP"],
@@ -82,9 +90,9 @@ case "$action" in
     ;;
   delete)
     found=$(ids "$name")
-    for id in $found; do kc DELETE "/users/$id"; done
+    for id in $found; do remove "$id"; done
     [ -z "$(ids "$name")" ] || { echo "theme-check-user: $name is still there" >&2; exit 1; }
-    if [ -n "$found" ]; then echo "Removed the temporary user $name."; else echo "There was no user $name to remove."; fi
+    if [ -n "$found" ]; then echo "Removed the temporary user $name: its one-time code credential, then the user."; else echo "There was no user $name to remove."; fi
     ;;
   *)
     echo "theme-check-user: create or delete, not $action" >&2; exit 1 ;;

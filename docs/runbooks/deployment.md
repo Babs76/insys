@@ -69,6 +69,8 @@ V0138 puts every document uploaded before it into quarantine (`PENDING`): each i
 
 ## Identity provider: Keycloak (ADR-017)
 
+**The login theme `insys` (BR-168) is made and checked for Keycloak 26.7.5 only.** Its `template.ftl` is a copy of 26.7.5's `keycloak.v2` one. Any Keycloak upgrade must test the theme again first, on the new version, before it reaches an environment; the Preview's `keycloak-theme` action refuses to run on any other version (`docs/handover-backend.md`, "Keycloak login theme (BR-168)"). The chart mounts it from `deploy/helm/insys/files/keycloak-theme/insys/`, which must be exactly the approved files in `insys.sha256` (`tools/sync-keycloak-theme.sh --check`).
+
 ### Locally
 
 1. Copy `deploy/keycloak/keycloak.env.example` to `deploy/keycloak/keycloak.env` (git ignores it) and set both passwords.

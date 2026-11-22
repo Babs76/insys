@@ -25,8 +25,8 @@
 {{- if .Values.keycloak.enabled }}
 {{- $realm := .Files.Get "files/insys-realm.json" }}
 {{- $theme := include "insys.keycloakTheme" . | fromJson }}
-{{- if and (eq .Values.keycloak.loginTheme "insys") (not $theme) }}
-{{- fail "keycloak.loginTheme insys needs the theme's files in files/keycloak-theme/insys/: run tools/sync-keycloak-theme.sh first." }}
+{{- if and (eq (default ((fromJson $realm).loginTheme | default "") .Values.keycloak.loginTheme) "insys") (not $theme) }}
+{{- fail "The login theme insys (keycloak.loginTheme, or the realm file's loginTheme) needs the theme's files in files/keycloak-theme/insys/: run tools/sync-keycloak-theme.sh." }}
 {{- end }}
 {{- if or .Values.keycloak.realmDisplayName .Values.keycloak.loginTheme }}
 {{- /* Keycloak imports the realm only when it doesn't exist yet, so these set a new realm's values; on an existing realm, the Preview sets them
