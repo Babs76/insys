@@ -1,0 +1,361 @@
+/*
+ * ============================================================================
+ * OPENFACTOR TECHNOLOGY GROUP
+ * CONFIDENTIAL AND PROPRIETARY SOFTWARE
+ * ============================================================================
+ * Copyright (c) 2026 OpenFactor Technology Group.
+ * All rights reserved.
+ * PRODUCT       : INSYS
+ * COMPONENT     : Sign-in theme (Keycloak)
+ * CONFIDENTIALITY AND INTELLECTUAL PROPERTY NOTICE
+ * This source code and its associated documentation contain confidential and
+ * proprietary information belonging to OpenFactor Technology Group or its
+ * applicable intellectual property rights holder.
+ * This material is provided solely for authorised development, maintenance,
+ * operation or evaluation purposes, as applicable. No person may reproduce,
+ * modify, distribute, disclose, publish or otherwise use this material except
+ * as expressly permitted by an applicable written agreement or licence.
+ * No ownership rights or licence to any intellectual property are granted
+ * by the inclusion of this notice, except as expressly provided in an
+ * applicable written agreement or licence.
+ * Third-party software, open-source components and customer-owned materials
+ * remain subject to their respective ownership rights and applicable licences
+ * or agreements.
+ * UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
+ * ============================================================================
+ */
+
+/*
+ * The sign-in page: a brand panel and a light form panel, over keycloak.v2's PatternFly 5 form markup. Colours are
+ * the console's design tokens (packages/design/src/tokens.css), copied here because Keycloak serves this file, not
+ * the console: keep them in step.
+ */
+:root {
+  /* Each --insys-<name> is the design token --t-<name>; pnpm contrast fails if one drifts (scripts/contrast.mjs) */
+  --insys-ink: #0f172a;
+  --insys-body: #475569;
+  --insys-subtle: #64748b;
+  --insys-control: #7f8ea3;
+  --insys-hairline-soft: #f1f5f9;
+  --insys-surface: #ffffff;
+  --insys-brand-navy: #1b2a4a;
+  --insys-brand-blue: #2c4a7c;
+  --insys-brand-steel: #556688;
+  --insys-brand-mist: #8899bb;
+  --insys-brand-gold: #d4a843;
+  --insys-focus: #b45309;
+  --insys-danger-fg: #be123c;
+  --insys-font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', Inter, 'Segoe UI', Roboto, sans-serif;
+
+  --pf-v5-global--FontFamily--text: var(--insys-font);
+  --pf-v5-global--FontFamily--heading: var(--insys-font);
+  --pf-v5-global--primary-color--100: var(--insys-brand-blue);
+  --pf-v5-global--primary-color--200: var(--insys-brand-navy);
+  --pf-v5-global--link--Color: var(--insys-brand-blue);
+  --pf-v5-global--link--Color--hover: var(--insys-brand-navy);
+}
+
+html,
+body.insys-login {
+  margin: 0;
+  min-height: 100%;
+  background: var(--insys-surface);
+  color: var(--insys-ink);
+  font-family: var(--insys-font);
+}
+
+/* The outer div keeps keycloak.v2's pf-v5-c-login class, for PatternFly's variables; its own box gives way to the
+   split. Two classes here and in the narrow-screen rule, so both outrank PatternFly's one */
+.insys-login .insys-split {
+  padding: 0;
+  background: none;
+  align-items: stretch;
+  justify-content: stretch;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+/* The brand panel */
+.insys-brand {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 48px 52px;
+  background: linear-gradient(160deg, var(--insys-brand-navy) 0%, var(--insys-ink) 100%);
+  color: var(--insys-surface);
+}
+.insys-brand::before,
+.insys-brand::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  background: var(--insys-brand-blue);
+  opacity: 0.45;
+  pointer-events: none;
+}
+.insys-brand::before {
+  width: 640px;
+  height: 640px;
+  top: -420px;
+  right: -280px;
+}
+.insys-brand::after {
+  width: 580px;
+  height: 580px;
+  bottom: -380px;
+  left: -300px;
+}
+.insys-brand > * {
+  position: relative;
+}
+.insys-brand__top {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.insys-brand__name {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+.insys-brand__env {
+  margin: 2px 0 0;
+  font-size: 14px;
+  color: var(--insys-surface);
+}
+.insys-brand__copy {
+  margin: auto 0;
+  max-width: 900px;
+}
+.insys-brand__headline {
+  margin: 0 0 28px;
+  max-width: 9ch;
+  font-size: clamp(40px, 5vw, 64px);
+  font-weight: 800;
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+}
+.insys-brand__tagline {
+  margin: 0;
+  max-width: 46ch;
+  font-size: 18px;
+  line-height: 1.6;
+  color: var(--insys-surface);
+}
+
+/* The mark: on the brand panel its faces take a light edge; on the form panel, the console's colours */
+.insys-mark {
+  flex-shrink: 0;
+}
+.insys-mark polygon,
+.insys-mark circle {
+  stroke: var(--insys-surface);
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
+.insys-mark__top {
+  fill: var(--insys-brand-mist);
+}
+.insys-mark__left {
+  fill: var(--insys-brand-navy);
+}
+.insys-mark__right {
+  fill: var(--insys-brand-blue);
+}
+.insys-mark__core {
+  fill: var(--insys-brand-gold);
+}
+/* On the brand panel, the mark in D-50's colours for icons on navy (scripts/icons.mjs): surface, mist, steel, gold */
+.insys-mark--on-dark polygon,
+.insys-mark--on-dark circle {
+  stroke: var(--insys-brand-navy);
+}
+.insys-mark--on-dark .insys-mark__top {
+  fill: var(--insys-surface);
+}
+.insys-mark--on-dark .insys-mark__left {
+  fill: var(--insys-brand-mist);
+}
+.insys-mark--on-dark .insys-mark__right {
+  fill: var(--insys-brand-steel);
+}
+
+/* The form panel */
+.insys-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  padding: 32px 64px;
+  box-sizing: border-box;
+  background: var(--insys-surface);
+}
+.insys-panel__inner {
+  width: 100%;
+  max-width: 540px;
+  margin: auto;
+}
+.insys-panel__head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-bottom: 32px;
+}
+.insys-panel__head .insys-mark {
+  margin-bottom: 20px;
+}
+.insys-title {
+  margin: 0;
+  font-size: 36px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--insys-ink);
+}
+.insys-subtitle {
+  margin: 10px 0 0;
+  font-size: 17px;
+  color: var(--insys-body);
+}
+.insys-footer {
+  margin-top: 32px;
+  font-size: 14px;
+  color: var(--insys-subtle);
+}
+
+/* keycloak.v2's form, in the panel's look */
+.insys-login .pf-v5-c-form {
+  --pf-v5-c-form--GridGap: 20px;
+}
+.insys-login .pf-v5-c-form__label-text {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--insys-ink);
+}
+.insys-login .pf-v5-c-form-control {
+  --pf-v5-c-form-control--BorderRadius: 10px;
+  --pf-v5-c-form-control--BackgroundColor: var(--insys-surface);
+  --pf-v5-c-form-control--Color: var(--insys-ink);
+  --pf-v5-c-form-control--FontSize: 17px;
+  --pf-v5-c-form-control--inset--base: 16px;
+  min-height: 56px;
+  border: 1px solid var(--insys-control);
+  border-radius: 10px;
+  background: var(--insys-surface);
+}
+.insys-login .pf-v5-c-form-control::before,
+.insys-login .pf-v5-c-form-control::after {
+  display: none;
+}
+.insys-login .pf-v5-c-form-control > input {
+  padding-block: 14px;
+}
+/* The field's own ring is the focus ring: no second one from the input inside it */
+.insys-login .pf-v5-c-form-control > input:focus {
+  outline: none;
+}
+/* The username already given (the one-time code page): read only, and looking it */
+.insys-login .pf-v5-c-form-control.pf-m-readonly {
+  background: var(--insys-hairline-soft);
+}
+.insys-login .pf-v5-c-form-control:focus-within {
+  outline: 2px solid var(--insys-focus);
+  outline-offset: 2px;
+}
+.insys-login .pf-v5-c-form-control.pf-m-error {
+  border-color: var(--insys-danger-fg);
+}
+
+/* The password's show and hide sits inside its field */
+.insys-login .pf-v5-c-input-group {
+  position: relative;
+}
+.insys-login .pf-v5-c-input-group > .pf-v5-c-input-group__item:last-child:has(.pf-m-control) {
+  position: absolute;
+  top: 0;
+  right: 6px;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+}
+.insys-login .pf-v5-c-input-group .pf-v5-c-form-control:has(+ *),
+.insys-login .pf-v5-c-input-group__item.pf-m-fill .pf-v5-c-form-control {
+  padding-right: 48px;
+}
+/* keycloak.v2's hidden tooltip on the restart-sign-in button sat past the field's right edge and scrolled the page
+   sideways: under the button instead, inside the field's width */
+.insys-login .kc-login-tooltip .kc-tooltip-text {
+  left: auto;
+  right: 0;
+  top: calc(100% + 4px);
+}
+/* Its arrow pointed left from the tooltip's side; under the button it has nothing to point at */
+.insys-login .kc-login-tooltip .kc-tooltip-text::after {
+  display: none;
+}
+/* PatternFly's body padding narrowed the form against the panel's title and footer */
+.insys-login .pf-v5-c-login__main-body {
+  padding-inline: 0;
+}
+.insys-login .insys-locale {
+  margin-top: 16px;
+}
+.insys-login .pf-v5-c-button.pf-m-control {
+  --pf-v5-c-button--after--BorderColor: transparent;
+  --pf-v5-c-button--m-control--BackgroundColor: transparent;
+  --pf-v5-c-button--m-control--Color: var(--insys-subtle);
+  border-radius: 8px;
+}
+.insys-login .pf-v5-c-button.pf-m-control:focus-visible {
+  outline: 2px solid var(--insys-focus);
+  outline-offset: 2px;
+}
+
+.insys-login .pf-v5-c-form__actions {
+  margin-top: 12px;
+}
+.insys-login .pf-v5-c-button.pf-m-primary {
+  --pf-v5-c-button--m-primary--BackgroundColor: var(--insys-brand-blue);
+  --pf-v5-c-button--m-primary--hover--BackgroundColor: var(--insys-brand-navy);
+  --pf-v5-c-button--m-primary--focus--BackgroundColor: var(--insys-brand-navy);
+  --pf-v5-c-button--m-primary--active--BackgroundColor: var(--insys-brand-navy);
+  --pf-v5-c-button--BorderRadius: 10px;
+  --pf-v5-c-button--FontSize: 17px;
+  --pf-v5-c-button--FontWeight: 600;
+  min-height: 56px;
+}
+.insys-login .pf-v5-c-button:focus-visible {
+  outline: 2px solid var(--insys-focus);
+  outline-offset: 2px;
+}
+.insys-login .pf-v5-c-helper-text a {
+  font-weight: 600;
+}
+
+/* Narrow screens: the form panel alone, the brand as a band above it */
+@media (max-width: 900px) {
+  .insys-login .insys-split {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
+  }
+  .insys-brand {
+    padding: 20px 16px;
+  }
+  .insys-brand::before,
+  .insys-brand::after,
+  .insys-brand__copy {
+    display: none;
+  }
+  .insys-panel {
+    min-height: 0;
+    padding: 32px 16px;
+  }
+  .insys-title {
+    font-size: 28px;
+  }
+}

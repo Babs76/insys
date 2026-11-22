@@ -1,0 +1,7 @@
+# The console's login theme as Ade approved it (BR-168, 22 November 2026): exactly these files, with these sha256, from insys-console at
+# source-commit 98c53f26c1e6b169d682919fbe2283163cd8ed31
+# tools/sync-keycloak-theme.sh refuses a commit whose keycloak-theme/insys holds anything else; its --check holds the vendored copy to it.
+85bd7156c4a6f7571c82316d9a940e40773c6503f7ab950afa315ba7e3276944  keycloak-theme/insys/login/messages/messages_en.properties
+72d4fce04aa56a65e2d718c58f045862a8aff17cf629c2981235969d7a24a23a  keycloak-theme/insys/login/resources/css/insys.css
+6d99f74b04588827de21c2b7955c620fb2a56f235325f4133d459510b7e97ccf  keycloak-theme/insys/login/template.ftl
+4fc0414b2e3fb463da4e2ff0f4981b0ebf620c5a5c38f1c38dce4b5d56f11e16  keycloak-theme/insys/login/theme.properties

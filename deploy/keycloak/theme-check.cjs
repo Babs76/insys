@@ -79,9 +79,22 @@ function totp(secret, policy, at = Date.now()) {
   return value.toString().padStart(policy.digits, '0');
 }
 
+// The three results the run summary reports (Ade, 22 November 2026): sign-in (the first sign-in with the password), two-factor setup, and
+// the one-time code (signing out, then in with the password and a code). A check not reached is a failure.
+const groups = { 'sign-in': null, 'two-factor setup': null, 'one-time code': null };
+function group(step) {
+  if (step.startsWith('First sign-in')) return 'sign-in';
+  if (step.startsWith('Two-factor setup')) return 'two-factor setup';
+  return 'one-time code';
+}
 let failed = false;
-function pass(step) { console.log(`PASS  ${step}`); }
-function fail(step, why) { failed = true; console.log(`FAIL  ${step}${why ? `: ${why}` : ''}`); }
+function pass(step) { console.log(`PASS  ${step}`); const g = group(step); if (groups[g] === null) groups[g] = true; }
+function fail(step, why) { failed = true; groups[group(step)] = false; console.log(`FAIL  ${step}${why ? `: ${why}` : ''}`); }
+function results() {
+  for (const [g, ok] of Object.entries(groups)) console.log(`RESULT  ${g}: ${ok ? 'PASS' : ok === false ? 'FAIL' : 'FAIL (not reached)'}`);
+}
+// In GitHub Actions, the two-factor secret and each code are masked before anything could print them; they are never printed anyway.
+function mask(value) { if (process.env.GITHUB_ACTIONS === 'true' && value) console.log(`::add-mask::${value}`); }
 // A step's page, for a failure: the path only, as a query can carry Keycloak's session codes.
 function where(page) { try { return new URL(page.url()).pathname; } catch { return 'unknown'; } }
 
@@ -190,8 +203,11 @@ async function main() {
       fail('Two-factor setup: the secret is read from the page', 'no time-based secret shown');
       return;
     }
+    mask(secret);
     pass('Two-factor setup: the secret is read from the page (not printed)');
-    await page.fill('#totp', totp(secret, policy));
+    const first = totp(secret, policy);
+    mask(first);
+    await page.fill('#totp', first);
     if (await page.$('#userLabel')) await page.fill('#userLabel', 'theme check');
     const used = Math.floor(Date.now() / 1000 / policy.period);
     await page.click('#saveTOTPBtn');
@@ -224,7 +240,9 @@ async function main() {
     // A code is taken once: wait for the next period after the one used at setup.
     const wait = (used + 1) * policy.period * 1000 - Date.now() + 1500;
     if (wait > 0) await page.waitForTimeout(wait);
-    await page.fill('#otp', totp(secret, policy));
+    const second = totp(secret, policy);
+    mask(second);
+    await page.fill('#otp', second);
     await page.click('#kc-login');
     await page.waitForLoadState('domcontentloaded');
     await accountPage(page, cfg, 'Second sign-in: the one-time code is taken, and');
@@ -234,6 +252,12 @@ async function main() {
 }
 
 main().then(
-  () => process.exit(failed ? 1 : 0),
-  (e) => { console.log(`FAIL  the check stopped: ${String((e && e.message) || e).split('\n')[0].slice(0, 200)}`); process.exit(1); },
+  () => { results(); process.exit(failed || Object.values(groups).some((ok) => ok !== true) ? 1 : 0); },
+  (e) => {
+    failed = true;
+    console.log(`FAIL  the check stopped: ${String((e && e.message) || e).split('\n')[0].slice(0, 200)}`);
+    for (const g of Object.keys(groups)) if (groups[g] !== true) groups[g] = false;
+    results();
+    process.exit(1);
+  },
 );

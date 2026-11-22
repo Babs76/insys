@@ -29,19 +29,34 @@
 # mount and checksum annotation. A second run changes nothing: the patch merges the volume by name and the mount by path, and replaces the
 # items. Keycloak restarts only when the theme changed. Nothing secret passes through it.
 #
-#   theme-mount.sh <release> <the rendered ConfigMap> <the chart's checksum>
+#   theme-mount.sh <release> <the rendered ConfigMap> <the chart's checksum> [<the approved list>]
 #
 # The checksum is the one the chart renders on the Deployment (checksum/keycloak-theme); this computes it again from the applied ConfigMap,
 # as the chart does (sha256 of its binaryData as compact JSON with sorted keys), and stops before the patch if they differ.
+# With the approved list (files/keycloak-theme/insys.sha256, as the Preview passes it), every file the ConfigMap carries is decoded and its
+# sha256 compared with the list before anything is applied: exactly those files with those hashes, or it stops having changed nothing.
 set -euo pipefail
 release=${1:?the release}
 rendered=${2:?the rendered ConfigMap}
 want=${3:?the checksum the chart renders}
+list=${4:-}
 cm=$release-keycloak-theme
 fail() { echo "theme-mount: $*" >&2; exit 1; }
 [[ $want =~ ^[0-9a-f]{64}$ ]] || fail "the checksum isn't a sha256: $want"
 { grep -qx 'kind: ConfigMap' "$rendered" && grep -qx "  name: $cm" "$rendered" && grep -qx 'binaryData:' "$rendered"; } \
   || fail "$rendered isn't the chart's ConfigMap $cm"
+if [ -n "$list" ]; then
+  approved=$(grep -E '^[0-9a-f]{64}  keycloak-theme/insys/' "$list" | LC_ALL=C sort -k2)
+  [ -n "$approved" ] || fail "$list holds no approved files"
+  shipped=$(sed -n '/^binaryData:$/,/^[^ ]/p' "$rendered" | sed -n 's/^  \([-._a-zA-Z0-9]*\): \([A-Za-z0-9+\/=]*\)$/\1 \2/p' | while read -r key b64; do
+      printf '%s  keycloak-theme/insys/%s\n' "$(printf '%s' "$b64" | base64 -d | sha256sum | cut -d' ' -f1)" "${key//__//}"
+    done | LC_ALL=C sort -k2)
+  if [ "$shipped" != "$approved" ]; then
+    { diff <(printf '%s\n' "$approved") <(printf '%s\n' "$shipped") || true; } | sed -n 's/^< /  approved, not shipped: /p; s/^> /  shipped, not approved: /p' >&2
+    fail "the shipped theme isn't exactly the approved files: nothing was applied"
+  fi
+  echo "Theme files: the $(wc -l <<<"$shipped") shipped are exactly the approved ones, each sha256 checked."
+fi
 namespace=$(kubectl config view --minify -o jsonpath='{..namespace}')
 namespace=${namespace:-default}
 

@@ -31,13 +31,14 @@
 #   realm-login-theme.sh <realm> --show        prints the realm's login theme, or (default) when it has none (Keycloak's own, keycloak.v2)
 #   realm-login-theme.sh <realm> <theme>       sets it, such as insys, and prints what it was
 #   realm-login-theme.sh <realm> --default     clears it, back to Keycloak's default
+#   realm-login-theme.sh <realm> --version     prints the version Keycloak itself reports (the admin API's server info), such as 26.7.5
 #
 # KEYCLOAK_RELEASE names the release (insys by default). KEYCLOAK_URL, if set, is Keycloak's address instead of a port-forward (a local test).
 set -euo pipefail
 realm=${1:?the realm}
-want=${2:?the theme, --default or --show}
+want=${2:?the theme, --default, --show or --version}
 case "$want" in
-  --show | --default) ;;
+  --show | --default | --version) ;;
   *) [[ $want =~ ^[A-Za-z0-9._-]+$ ]] || { echo "realm-login-theme: \"$want\" isn't a theme name" >&2; exit 1; } ;;
 esac
 IFS= read -r password || [ -n "$password" ]   # with or without a final newline
@@ -60,6 +61,10 @@ kc() { # method, path under /admin; the body, if any, on stdin. The token goes i
 }
 shown() { if [ -n "$1" ]; then printf '%s' "$1"; else printf '(default)'; fi; }
 
+if [ "$want" = --version ]; then
+  kc GET /serverinfo | jq -r '.systemInfo.version'
+  exit 0
+fi
 current=$(kc GET "/realms/$realm" | jq -r '.loginTheme // ""')
 if [ "$want" = --show ]; then
   shown "$current"; echo

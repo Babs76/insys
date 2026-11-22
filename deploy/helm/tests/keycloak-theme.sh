@@ -23,8 +23,9 @@
 # or agreements.
 # UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
 # ============================================================================
-# The chart's Keycloak login theme (BR-168), rendered both ways: with no files in files/keycloak-theme/insys/ (as the chart is committed until
-# the console's theme is synced) nothing extra renders; with this folder's stand-in theme copied into a copy of the chart, the ConfigMap holds
+# The chart's Keycloak login theme (BR-168), rendered both ways: with no files in files/keycloak-theme/insys/ and no loginTheme in the realm
+# file (the chart as it was before the console's theme was synced) nothing extra renders, and a login theme insys is refused; the chart as
+# committed carries the approved theme and names it; with this folder's stand-in theme copied into a copy of the chart, the ConfigMap holds
 # every file in binaryData (the image byte for byte), the Deployment maps each key back to its path under /opt/keycloak/themes/insys, read
 # only, and its checksum annotation is the sum deploy/keycloak/theme-mount.sh computes on the Preview from the ConfigMap. The stand-in is never
 # copied into the chart itself. Run by CI's deployment job, with helm from the same image as its other chart checks.
@@ -46,8 +47,12 @@ render() { # the chart folder (under $work), then helm's arguments after the cha
 
 [ ! -e "$chart/files/keycloak-theme" ] || [ -f "$chart/files/keycloak-theme/insys/login/theme.properties" ] \
   || fail "the chart's files/keycloak-theme holds something other than a synced theme"
+cp -r "$chart" "$work/committed"
 cp -r "$chart" "$work/bare"
-rm -rf "$work/bare/files/keycloak-theme"   # the chart as committed before a sync, whatever this checkout holds
+rm -rf "$work/bare/files/keycloak-theme"   # the chart before the sync: no theme files, and a realm file naming no theme
+jq 'del(.loginTheme)' "$chart/files/insys-realm.json" > "$work/bare/files/insys-realm.json"
+cp -r "$work/bare" "$work/unsynced"        # the realm file naming insys, but no files
+cp "$chart/files/insys-realm.json" "$work/unsynced/files/insys-realm.json"
 cp -r "$chart" "$work/themed"
 rm -rf "$work/themed/files/keycloak-theme"
 mkdir -p "$work/themed/files/keycloak-theme"
@@ -59,7 +64,18 @@ out=$(render bare --set keycloak.enabled=true)
 ! grep -q '"loginTheme"' <<<"$out" || fail "with no theme files, the realm names a login theme"
 pass "no theme files: no ConfigMap, volume, mount or checksum, and no loginTheme in the realm"
 if render bare --set keycloak.enabled=true,keycloak.loginTheme=insys >/dev/null 2>&1; then fail "keycloak.loginTheme insys rendered with no theme files"; fi
-pass "no theme files: keycloak.loginTheme insys is refused"
+if render unsynced --set keycloak.enabled=true >/dev/null 2>&1; then fail "a realm file naming insys rendered with no theme files"; fi
+pass "no theme files: a login theme insys, from the values or the realm file, is refused"
+
+# 1b. The chart as committed: the approved theme (tools/sync-keycloak-theme.sh --check), its ConfigMap and mount, and the realm naming it.
+if [ -f "$chart/files/keycloak-theme/insys.sha256" ]; then
+  out=$(render committed --set keycloak.enabled=true)
+  n=$(grep -cE '^[0-9a-f]{64}  keycloak-theme/insys/' "$chart/files/keycloak-theme/insys.sha256")
+  grep -q '^  name: t-keycloak-theme$' <<<"$out" || fail "the committed chart has no theme ConfigMap"
+  [ "$(grep -c -- '- {key: ' <<<"$out")" = "$n" ] || fail "the committed chart doesn't mount exactly the $n approved files"
+  grep -q '"loginTheme": "insys"' <<<"$out" || fail "the committed chart's realm doesn't name insys"
+  pass "the chart as committed: the $n approved files in the ConfigMap and mounted, and the realm's loginTheme insys"
+fi
 
 # 2. The stand-in theme: the ConfigMap, every file in binaryData, byte for byte.
 out=$(render themed --set keycloak.enabled=true,keycloak.loginTheme=insys)

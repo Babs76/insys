@@ -47,7 +47,7 @@ postgres: {enabled: true, storage: 20Gi}
 openbao: {enabled: true, devMode: false, storage: 1Gi}
 seaweedfs: {enabled: true, storage: 20Gi}
 # The console's banner shows only after sign-in, so the sign-in page says it too.
-keycloak: {enabled: true, devMode: false, realmDisplayName: "INSYS Preview (sample data only)"}
+keycloak: {enabled: true, devMode: false, realmDisplayName: "INSYS Preview (sample data only)", loginTheme: insys}
 # The front end's apps, from the chart's pinned digest; ghcr is the pull secret preview.sh makes from PREVIEW_CONSOLE_PULL_TOKEN.
 console: {enabled: true, pullSecret: ghcr, environmentName: preview}
 ingress:
