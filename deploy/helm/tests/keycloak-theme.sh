@@ -109,6 +109,20 @@ out=$(render themed --set keycloak.enabled=true --show-only templates/keycloak-t
 { [ "$(grep -c '^kind: ' <<<"$out")" = 1 ] && grep -q '^kind: ConfigMap$' <<<"$out"; } || fail "--show-only templates/keycloak-theme.yaml isn't the ConfigMap alone"
 pass "templates/keycloak-theme.yaml renders the ConfigMap alone (the Preview's keycloak-theme action applies it)"
 
+# 3b. The Preview's checksum and the chart's agree: deploy/keycloak/theme-mount.sh --checksum over the rendered ConfigMap, as the action
+# computes it before applying anything, against the annotation the chart renders, for the stand-in and for the chart as committed.
+agree() { # the chart folder under $work, what it is
+  local cm annotation mine
+  cm="$work/$1-keycloak-theme.yaml"
+  render "$1" --set keycloak.enabled=true --show-only templates/keycloak-theme.yaml > "$cm"
+  annotation=$(render "$1" --set keycloak.enabled=true --show-only templates/keycloak.yaml | sed -n 's/^ *checksum\/keycloak-theme: \([0-9a-f]\{64\}\)$/\1/p')
+  mine=$("$here/../../keycloak/theme-mount.sh" --checksum "$cm")
+  [ -n "$annotation" ] && [ "$mine" = "$annotation" ] || fail "$2: theme-mount.sh computes $mine, the chart's annotation is ${annotation:-none}"
+  pass "$2: theme-mount.sh's checksum of the rendered ConfigMap is the chart's annotation, $mine"
+}
+agree themed "the stand-in theme"
+[ ! -f "$chart/files/keycloak-theme/insys.sha256" ] || agree committed "the chart as committed"
+
 # 4. A change of theme changes the checksum; Keycloak off renders none of it; a file a key can't hold is refused.
 printf '\n/* changed */\n' >> "$work/themed/files/keycloak-theme/insys/login/resources/css/insys.css"
 ! render themed --set keycloak.enabled=true | grep -qxF "        checksum/keycloak-theme: $sum" || fail "a changed file kept the checksum"
