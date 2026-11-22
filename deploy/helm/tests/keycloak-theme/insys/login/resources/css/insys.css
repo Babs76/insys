@@ -1,0 +1,4 @@
+/* A stand-in for the console's login theme (BR-168), for the chart's tests only. */
+.pf-v5-c-login__main-header {
+  border-top: 4px solid #1f4e79;
+}

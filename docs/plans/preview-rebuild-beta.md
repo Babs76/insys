@@ -144,3 +144,14 @@ Not part of the rebuild. Each item is its own change, merged on green, and turne
 | 6.9 | Checks: an explanation of one of OFTZA's sample refusals answers from the catalogue's wording, and the API starts with `assist.provider: claude` and its key. The verifier's refusal of a forged number is already proven by the stub's tests, not on the Preview. | Proof before the team uses it | Back end |
 
 **Order:** 6.1, 6.2 and 6.6 are decisions. Then 6.3 and 6.4, then 6.5 and 6.7, then 6.9. 6.8 governs which features are turned on.
+
+## 7. The console's login theme (BR-168, Ade, 22 November 2026): Keycloak only, outside the reset
+Two `preview.yml` actions, each run approved by Ade with its name typed in confirm. They change Keycloak only: never the images, `helm upgrade`, the migrations, the seed, OpenBao (sealed since 7 November, left alone) or the encrypted file. So they never bring INSYS forward, which an upgrade would (the segregation-of-duties baseline needs a reset first). Details are in `docs/handover-backend.md`, "Keycloak login theme (BR-168)".
+
+| Action | What it changes on the server | Check |
+|---|---|---|
+| `keycloak-theme`, on the commit that synced the theme (`tools/sync-keycloak-theme.sh`) | The ConfigMap `insys-keycloak-theme` (the theme, as the chart renders it, marked as the release's); a volume, mount and checksum annotation on `deploy/insys-keycloak`, so Keycloak restarts once; the realm's `loginTheme` set to `insys`; the ConfigMap `insys-keycloak-theme-previous` noting the theme before; a temporary user `theme-check-<run id>`, removed at the end | Preflight (read only): Keycloak ready, `/realms/insys` 200 in the cluster, its image 26.7.5, the theme in the checkout. Then sign-in, two-factor setup and a one-time code in a browser as the temporary user, every page served with `insys`. **If it fails, the previous theme is set back at once**; the mount stays, harmless |
+| `keycloak-theme-revert` | The realm's `loginTheme` set back to the recorded one (or Keycloak's default); a temporary user, removed at the end | The same check, on that theme |
+
+- **Why a temporary user:** the sample accounts' passwords aren't on the server; the seed gives them only to Ade's encrypted file. The user is Keycloak's only, not INSYS's, with a random password that never leaves the run.
+- **At the reset (section 1):** the chart at that commit renders the same ConfigMap and mount, and adopts the ConfigMap `keycloak-theme` made; the realm import takes `loginTheme: insys` from `deploy/preview/values.yaml`, and `chart()` sets it again through `realm-login-theme.sh` after `realm_name`. Step 2.6's sign-ins then show the theme.

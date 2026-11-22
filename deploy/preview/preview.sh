@@ -35,6 +35,10 @@
 #   reboot            the server rebooted (the rebuild plan's 0A.2, each run approved by Ade), only after a backup taken today; then a check
 #                     that it booted again, on which kernel, that k3s and the pods came back, and what OpenBao reports (sealed, as after any reboot)
 #   rotate-ssh-key    PREVIEW_SSH_KEY_NEW put in place of PREVIEW_SSH_KEY: on the server, every other key removed; and in Hetzner
+#   keycloak-theme    Keycloak only (BR-168): the console's login theme insys, as synced into the chart's files, mounted in the running
+#                     Keycloak as the chart would and set on the realm; then a sign-in, two-factor setup and one-time code check as a
+#                     temporary Keycloak-only user, removed at the end. If the check fails, the realm's previous login theme is set back at once
+#   keycloak-theme-revert  Keycloak only: the realm's login theme set back to the one keycloak-theme recorded (or Keycloak's default), then the same check
 #   reset             everything removed and made again from the seed, with new passwords and a new OpenBao
 #   rotate-passwords  new passwords for the accounts
 #   destroy           the server and its firewall; the address is kept, so the DNS records stay right
@@ -173,16 +177,19 @@ pull_secret() {
 }
 
 # The API reads Keycloak's keys inside the cluster, not through the public address and its certificate; its tokens' issuer stays the public one.
-chart() {
-  tar -C deploy -cz helm/insys preview/values.yaml preview/backup.yaml openbao/openbao.sh keycloak/realm-name.sh keycloak/user-admin-secret.sh keycloak/realm-smtp.sh keycloak/smtp-test.sh | on_server "rm -rf /root/insys && mkdir -p /root/insys && tar -C /root/insys -xz"
-  on_server "cd /root/insys && KUBECONFIG=/etc/rancher/k3s/k3s.yaml helm upgrade --install insys helm/insys -f preview/values.yaml \
-    --set ingress.host=$PREVIEW_DOMAIN,ingress.apiPath=/api/,console.environmentName=preview,keycloak.ingressHost=id.$PREVIEW_DOMAIN,keycloak.hostname=https://id.$PREVIEW_DOMAIN \
+# The same settings render the theme's ConfigMap for keycloak-theme (theme_ship), so it is what this chart would install.
+chart_set="--set ingress.host=$PREVIEW_DOMAIN,ingress.apiPath=/api/,console.environmentName=preview,keycloak.ingressHost=id.$PREVIEW_DOMAIN,keycloak.hostname=https://id.$PREVIEW_DOMAIN \
     --set authentication.authority=http://insys-keycloak:8080/realms/insys,authentication.requireHttpsMetadata=false \
     --set authentication.issuer=https://id.$PREVIEW_DOMAIN/realms/insys,console.issuer=https://id.$PREVIEW_DOMAIN/realms/insys"
+chart() {
+  tar -C deploy -cz helm/insys preview/values.yaml preview/backup.yaml openbao/openbao.sh keycloak/realm-name.sh keycloak/realm-login-theme.sh keycloak/user-admin-secret.sh keycloak/realm-smtp.sh keycloak/smtp-test.sh | on_server "rm -rf /root/insys && mkdir -p /root/insys && tar -C /root/insys -xz"
+  on_server "cd /root/insys && KUBECONFIG=/etc/rancher/k3s/k3s.yaml helm upgrade --install insys helm/insys -f preview/values.yaml \
+    $chart_set"
   on_server "kubectl wait --for=condition=complete job -l app.kubernetes.io/name=migrate --timeout=900s && kubectl rollout status statefulset/insys-openbao --timeout=600s"
   alert_secret
   on_server "kubectl apply -f /root/insys/preview/backup.yaml >/dev/null"
   realm_name
+  realm_login_theme
   user_admin
   storage_check
   realm_smtp
@@ -196,6 +203,16 @@ realm_name() {
   [ -n "$label" ] || fail "deploy/preview/values.yaml sets no keycloak.realmDisplayName"
   on_server "kubectl rollout status deploy/insys-keycloak --timeout=900s >/dev/null && kubectl get secret insys-secrets -o jsonpath='{.data.keycloakAdminPassword}' \
     | base64 -d | /root/insys/keycloak/realm-name.sh insys insys $(printf '%q' "$label")"
+}
+
+# The realm's login theme, from the values (keycloak.loginTheme, BR-168), on an existing realm too, as realm_name names it: the chart's import
+# sets it only on a new realm. Nothing when the values set none. The chart has already mounted the theme from its files, or refused to render.
+realm_login_theme() {
+  local theme
+  theme=$(sed -n 's/^keycloak:.*loginTheme: "\{0,1\}\([A-Za-z0-9._-]*\)"\{0,1\}[,}].*/\1/p' deploy/preview/values.yaml)
+  [ -n "$theme" ] || return 0
+  on_server "kubectl rollout status deploy/insys-keycloak --timeout=900s >/dev/null && kubectl get secret insys-secrets -o jsonpath='{.data.keycloakAdminPassword}' \
+    | base64 -d | /root/insys/keycloak/realm-login-theme.sh insys $(printf '%q' "$theme")"
 }
 
 # OpenBao made new: initialised, unsealed and configured. Its unseal key and root token go only into the encrypted file.
@@ -853,6 +870,184 @@ check_pull() {
   echo "reads the pinned manifest, $repo@${image#*@}"
 }
 
+# Keycloak's login theme (BR-168, Ade, 22 November 2026): the console's theme insys, put on the running Preview without a Helm upgrade, the
+# images, the migrations, the seed or OpenBao (which stays sealed). Only Keycloak changes: a ConfigMap of the theme, a volume and mount on its
+# Deployment (so it restarts once), the realm's loginTheme, a ConfigMap noting the theme before, and a temporary user for the check. Each
+# matches what the chart renders, and both are marked as the release's, so a later upgrade or reset adopts them (docs/handover-backend.md).
+theme_dir=/root/insys-keycloak-theme                     # on the server: this run's scripts and the rendered ConfigMap, replaced each run
+theme_files=deploy/helm/insys/files/keycloak-theme       # in the checkout, from tools/sync-keycloak-theme.sh
+theme_note=insys-keycloak-theme-previous                 # on the server: the login theme before keycloak-theme set insys
+theme_user=""                                            # the temporary user while it exists
+theme_pending=""                                         # yes while the realm has insys and the check hasn't passed: the exit sets it back
+theme_previous=""                                        # the login theme to go back to; empty is Keycloak's default
+
+# A script of deploy/keycloak shipped to $theme_dir, run on the server with Keycloak's admin password first on its stdin, from insys-secrets
+# (it never leaves the server), then whatever this side sends: kc_input for a second line (the temporary user's password), kc_run for none.
+kc_input() { # script, then its arguments
+  local script=$1; shift
+  on_server "{ kubectl get secret insys-secrets -o jsonpath='{.data.keycloakAdminPassword}' | base64 -d; echo; cat; } | $theme_dir/keycloak/$script $(printf '%q ' "$@")"
+}
+kc_run() { kc_input "$@" </dev/null; }
+shown_theme() { if [ -n "$1" ]; then printf '%s' "$1"; else printf '(default)'; fi; }
+
+theme_in_checkout() {
+  [ -f "$theme_files/insys/login/theme.properties" ] && [ -s "$theme_files/insys.commit" ] \
+    || fail "the checkout has no Keycloak theme: run tools/sync-keycloak-theme.sh with the console's commit, merge it, then run this on that commit"
+  echo "Preflight: the theme is in the checkout, from the console's commit $(cat "$theme_files/insys.commit"):"
+  (cd "$theme_files/insys" && find . -type f | sed 's#^\./#  #' | LC_ALL=C sort)
+}
+
+# The scripts, and for keycloak-theme the theme's ConfigMap as the chart renders it (templates/keycloak-theme.yaml, with the Preview's values)
+# and the checksum the chart puts on Keycloak's Deployment. Rendered here with the same helm as the server's and CI's, so it is the chart's own
+# encoding; only these files go to the server, to $theme_dir, not the chart in /root/insys.
+theme_sum=""
+theme_ship() { # with-theme, for keycloak-theme
+  local dir="$RUNNER_TEMP/keycloak-theme"
+  rm -rf "$dir" && mkdir -p "$dir/keycloak"
+  cp deploy/keycloak/realm-login-theme.sh deploy/keycloak/theme-check-user.sh deploy/keycloak/theme-mount.sh "$dir/keycloak/"
+  if [ "${1:-}" = with-theme ]; then
+    # shellcheck disable=SC2086 # chart_set is chart()'s --set arguments, split into words as there
+    render_chart() { docker run --rm -v "$PWD/deploy:/deploy:ro" -w /deploy "alpine/helm:${helm_version#v}" template insys helm/insys -f preview/values.yaml \
+      $chart_set --show-only "$1"; }
+    render_chart templates/keycloak-theme.yaml > "$dir/keycloak-theme.yaml" || fail "the chart didn't render the theme's ConfigMap"
+    theme_sum=$(render_chart templates/keycloak.yaml | sed -n 's/^ *checksum\/keycloak-theme: \([0-9a-f]\{64\}\)$/\1/p')
+    [ -n "$theme_sum" ] || fail "the chart rendered no checksum/keycloak-theme on Keycloak's Deployment"
+    cp "$theme_files/insys.commit" "$dir/"
+  fi
+  tar -C "$dir" -cz . | on_server "rm -rf $theme_dir && mkdir -p $theme_dir && tar -C $theme_dir -xz"
+}
+
+# Read only: Keycloak rolled out and ready, its realm answering 200 inside the cluster, and its image the chart's 26.7.5.
+theme_preflight() {
+  local image
+  # shellcheck disable=SC2016 # it runs on the server, which expands it
+  on_server 'kubectl rollout status deploy/insys-keycloak --timeout=120s >/dev/null && [ "$(kubectl get deploy insys-keycloak -o jsonpath="{.status.readyReplicas}")" -ge 1 ]' \
+    || fail "deploy/insys-keycloak isn't rolled out and ready: nothing was changed"
+  echo "Preflight: deploy/insys-keycloak is rolled out and ready."
+  # shellcheck disable=SC2016 # it runs on the server, which expands it
+  on_server 'pkill -f "^kubectl port-forward svc/insys-keycloak 18082:" || true
+    (nohup kubectl port-forward svc/insys-keycloak 18082:8080 >/tmp/forward-theme.log 2>&1 &)
+    for _ in $(seq 1 30); do code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:18082/realms/insys); [ "$code" = 200 ] && break; sleep 1; done
+    pkill -f "^kubectl port-forward svc/insys-keycloak 18082:" || true
+    echo "Preflight: /realms/insys inside the cluster answers HTTP $code."; [ "$code" = 200 ]' || fail "Keycloak's realm insys didn't answer 200 inside the cluster: nothing was changed"
+  image=$(on_server "kubectl get deploy insys-keycloak -o jsonpath='{.spec.template.spec.containers[0].name} {.spec.template.spec.containers[0].image}'")
+  echo "Preflight: Keycloak's container and image: $image."
+  [[ $image == "keycloak quay.io/keycloak/keycloak:26.7.5" ]] || fail "Keycloak isn't the chart's quay.io/keycloak/keycloak:26.7.5, which the theme extends: nothing was changed"
+}
+
+# The login theme now, noted on the server before it changes, so a revert later knows it. A rerun, with insys already set, keeps the first note.
+theme_record() {
+  local current note
+  current=$(kc_run realm-login-theme.sh insys --show) || fail "couldn't read the realm's login theme: nothing was changed"
+  [[ $current =~ ^[A-Za-z0-9._-]+$|^\(default\)$ ]] || fail "the realm's login theme reads \"$current\""
+  [ "$current" = "(default)" ] && current=""
+  note=$(on_server "kubectl get configmap $theme_note -o json 2>/dev/null" || true)
+  if [ "$current" != insys ]; then
+    on_server "kubectl create configmap $theme_note --from-literal=loginTheme=$current --from-literal=recordedAt=$(date -u +%FT%TZ) \
+      --from-literal=run=${GITHUB_RUN_ID:-local} --dry-run=client -o yaml | kubectl apply -f - >/dev/null"
+    theme_previous=$current
+    echo "Previous login theme: $(shown_theme "$current"), recorded on the server in ConfigMap $theme_note."
+  elif [ -n "$note" ]; then
+    theme_previous=$(jq -r '.data.loginTheme // ""' <<<"$note")
+    echo "The login theme is already insys; the one before, recorded by run $(jq -r '.data.run // "?"' <<<"$note") at $(jq -r '.data.recordedAt // "?"' <<<"$note"): $(shown_theme "$theme_previous")."
+  else
+    theme_previous=""
+    echo "::warning::The login theme is already insys and nothing recorded the one before: a revert would set Keycloak's default."
+  fi
+}
+theme_recorded() { # the recorded previous theme, or empty for none (Keycloak's default)
+  local note
+  note=$(on_server "kubectl get configmap $theme_note -o json 2>/dev/null" || true)
+  if [ -n "$note" ]; then jq -r '.data.loginTheme // ""' <<<"$note"; fi
+}
+
+theme_set() { # the theme; empty for Keycloak's default
+  kc_run realm-login-theme.sh insys "${1:---default}"
+}
+
+theme_cleanup() { # the temporary user, whatever happened
+  [ -n "$theme_user" ] || return 0
+  if kc_run theme-check-user.sh insys delete "$theme_user"; then
+    theme_user=""
+  else
+    echo "::warning::The temporary user $theme_user couldn't be removed; the next keycloak-theme run removes it first, or remove it in Keycloak's admin console."
+  fi
+}
+
+# The check (Ade's step 3): sign-in, two-factor setup and a one-time code, in a browser on this runner through Keycloak's public address, as
+# a temporary Keycloak-only user (the sample accounts' passwords aren't on the server). Its password is random, masked, and only on stdin;
+# the browser reads the two-factor secret from the page and keeps it, and its codes, in memory. Pass or fail per step only.
+# PREVIEW_THEME_CHECK_URL points the browser at another Keycloak, for a rehearsal away from the Preview; the workflow never sets it.
+theme_check() { # the login theme the pages must be served with
+  local expect=$1 password status=0 tls=() issuer
+  password=$(openssl rand -hex 24)
+  mask "$password"
+  issuer=$(echo | openssl s_client -connect "$(address):443" -servername "id.$PREVIEW_DOMAIN" 2>/dev/null | openssl x509 -noout -issuer 2>/dev/null || true)
+  if ! issued_by "$issuer" production; then
+    tls=(--ignore-https-errors)
+    echo "id.$PREVIEW_DOMAIN has no Let's Encrypt production certificate ($issuer): the browser accepts it for this check."
+  fi
+  theme_user="theme-check-${GITHUB_RUN_ID:-local}"
+  printf '%s\n' "$password" | kc_input theme-check-user.sh insys create "$theme_user" || { echo "FAIL  the temporary user wasn't made"; theme_cleanup; return 1; }
+  printf '%s\n' "$password" | node deploy/keycloak/theme-check.cjs --url "${PREVIEW_THEME_CHECK_URL:-https://id.$PREVIEW_DOMAIN}" --realm insys --username "$theme_user" \
+    --theme "$expect" "${tls[@]}" | tee "$RUNNER_TEMP/theme-check.txt" || status=1
+  theme_cleanup
+  return "$status"
+}
+theme_check_summary() {
+  summary "$(sed 's/^/    /' "$RUNNER_TEMP/theme-check.txt" 2>/dev/null || echo "    no result")"
+}
+
+# On any exit: the temporary user goes, and if insys is set but its check hasn't passed, the previous theme comes back; then SSH closes.
+theme_exit() {
+  theme_cleanup || true
+  if [ "$theme_pending" = yes ]; then
+    echo "Setting the login theme back to $(shown_theme "$theme_previous"), as the check didn't pass."
+    if theme_set "$theme_previous"; then theme_pending=""; else echo "::error::The login theme couldn't be set back to $(shown_theme "$theme_previous"): run keycloak-theme-revert now."; fi
+  fi
+  close_ssh
+}
+
+keycloak_theme() {
+  local at
+  theme_ship with-theme
+  theme_preflight
+  theme_record
+  echo "Mounting the theme from the console's commit $(cat "$theme_files/insys.commit")."
+  on_server "$theme_dir/keycloak/theme-mount.sh insys $theme_dir/keycloak-theme.yaml $theme_sum" || fail "the theme wasn't mounted; the login theme is unchanged"
+  theme_pending=yes
+  theme_set insys
+  at=$(date -u '+%F %T UTC')
+  if theme_check insys; then
+    theme_pending=""
+    summary "**Keycloak's login theme is insys**, set at $at, from the console's commit \`$(cat "$theme_files/insys.commit")\`. The check passed, as a temporary user (removed). Before it: $(shown_theme "$theme_previous") (recorded in ConfigMap $theme_note)."
+    theme_check_summary
+  else
+    echo "The check failed: setting the login theme back to $(shown_theme "$theme_previous") now."
+    theme_set "$theme_previous" && theme_pending=""
+    summary "**The login theme check failed**, so the login theme is back to $(shown_theme "$theme_previous") (insys was set at $at, from the console's commit \`$(cat "$theme_files/insys.commit")\`). The theme stays mounted, harmless without the login theme."
+    theme_check_summary
+    fail "the login theme check failed (see FAIL above); the login theme is back to $(shown_theme "$theme_previous")"
+  fi
+}
+
+keycloak_theme_revert() {
+  local at
+  theme_ship
+  theme_preflight
+  theme_previous=$(theme_recorded)
+  theme_set "$theme_previous"
+  at=$(date -u '+%F %T UTC')
+  if theme_check "${theme_previous:-keycloak.v2}"; then
+    summary "**Keycloak's login theme is back to $(shown_theme "$theme_previous")**, set at $at. The check passed, as a temporary user (removed)."
+    theme_check_summary
+  else
+    summary "**Keycloak's login theme is $(shown_theme "$theme_previous")**, set at $at, but **its check failed**."
+    theme_check_summary
+    fail "the check on the login theme $(shown_theme "$theme_previous") failed (see FAIL above)"
+  fi
+}
+
 if [ "$action" = check ]; then
   check
   exit 0
@@ -902,6 +1097,17 @@ case "$action" in
     ;;
   rotate-passwords)
     ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; seed; encrypt
+    ;;
+  keycloak-theme)   # Keycloak only: no images, chart, migrations, seed, OpenBao or encrypt
+    theme_in_checkout
+    ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh
+    trap theme_exit EXIT
+    keycloak_theme
+    ;;
+  keycloak-theme-revert)
+    ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh
+    trap theme_exit EXIT
+    keycloak_theme_revert
     ;;
   destroy)
     hcloud server delete "$name" >/dev/null 2>&1 || true

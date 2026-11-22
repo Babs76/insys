@@ -2,6 +2,9 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
+## Keycloak login theme (BR-168, 22 November 2026; branch `keycloak-theme`)
+- **No API change:** the chart and the Preview's scripts only (the console's Keycloak login theme `insys`); no OpenAPI document, error code or field changed.
+
 ## Segregation of duties: the platform baseline and the action-time check (SRS-002, 20 November 2026; Ade's decisions, OQ-197; branch `sod-baseline`)
 - **The baseline is in force for every tenant:** `SOD_CLAIM_PAYMENT` (`CLAIMS_DRAFT_INSTRUCTION` / `CLAIMS_RELEASE_INSTRUCTION`), `SOD_PAYOUT_BATCH` (`PAYMENTS_BUILD_BATCH` / `PAYMENTS_RELEASE_BATCH`) and `SOD_PAYEE_ACCOUNT` (`PARTY_ADD_BANK_ACCOUNT` / `PARTY_BANK_ACCOUNT_VERIFY`), as BLOCK, whatever the tenant's rows in `identity/static/segregation-of-duties-conflict-rules`. The tenant's own rules on other pairs still apply. So `SEGREGATION_OF_DUTIES` (409, assigning a role) and `ROLE_SEGREGATION_OF_DUTIES` (422, a role's grant) now apply in every tenant.
 - **New refusal `SEGREGATION_OF_DUTIES_BLOCKED` (403):** a user whose role assignments in effect give both sides of a BLOCK rule in force is refused the rule's release or verify side (function B) at every operation carrying it: `POST /claims/payment-instructions/{id}/release`, `POST /payments/payout-batches/{id}/release`, and deciding a `BANK_ACCOUNT` verification approval (`POST /workflow/approvals/{id}/approve` or `/reject`, which needs `bank_account.verify`). The draft, build and add sides still work. The refusal is audited (`ACCESS` / `SegregationOfDutiesRefused`, target the function). The menu (`GET /identity/me/menu`) leaves the refused function out. For a tenant's own rule, function B of its row is the side refused.
