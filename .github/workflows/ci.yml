@@ -310,8 +310,10 @@ jobs:
           dotnet test --project tests/Insys.IntegrationTests --no-build --configuration Release --
           $(for c in ${{ matrix.classes }}; do printf -- '--filter-class "*.%s" ' "$c"; done)
 
-  # Two jobs from 29 October 2026 (one took 27.6 minutes; Ade: every job well under 20), split by end-to-end test class.
-  # Every end-to-end class runs in exactly one group (checked below), so a new class cannot be left out.
+  # Split by end-to-end test class. Two jobs from 29 October 2026 (one took 27.6 minutes; Ade: every job well under 20); four
+  # from 22 November 2026 (Ade, option c), after the Life, Health and Enterprise group took 36 to 42 minutes against the 45-minute
+  # limit (runs 44920405075, 44916260638). GeneralProcessTests, the heaviest class, runs alone, and the sweeps run with the two
+  # light classes. Every end-to-end class runs in exactly one group (checked below), so a new class cannot be left out.
   sweeps-and-end-to-end:
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -320,10 +322,14 @@ jobs:
       matrix:
         include:
           - group: 1
-            classes: GeneralProcessTests ProductPublicationTests ProcessTests
+            classes: GeneralProcessTests
           - group: 2
-            classes: LifeProcessTests HealthProcessTests EnterpriseProcessTests
-    name: sweeps-and-end-to-end (${{ matrix.group }} of 2)
+            classes: HealthProcessTests
+          - group: 3
+            classes: LifeProcessTests EnterpriseProcessTests
+          - group: 4
+            classes: ProductPublicationTests ProcessTests
+    name: sweeps-and-end-to-end (${{ matrix.group }} of 4)
     steps:
       - uses: actions/checkout@v5
 
@@ -346,7 +352,7 @@ jobs:
           fi
 
       - name: Endpoint security sweeps (§27.4)
-        if: matrix.group == 1
+        if: matrix.group == 4
         run: dotnet test --project tests/Insys.IntegrationTests --no-build --configuration Release -- --filter-class "*EndpointSecuritySweepTests"
 
       - name: End-to-end processes (${{ matrix.classes }})
