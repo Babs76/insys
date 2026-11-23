@@ -39,7 +39,8 @@
 #                     Keycloak as the chart would and set on the realm; then a sign-in, two-factor setup and one-time code check as a
 #                     temporary Keycloak-only user, removed at the end. If the check fails, the realm's previous login theme is set back at once
 #   keycloak-theme-revert  Keycloak only: the realm's login theme set back to the one keycloak-theme recorded (or Keycloak's default), then the same check
-#   reset             everything removed and made again from the seed, with new passwords and a new OpenBao
+#   reset             everything removed and made again from the seed, with new passwords and a new OpenBao; then the post-reset checks
+#                     (the sign-in theme, no segregation conflicts, BR-141's maker-checker, readiness), which report and undo nothing
 #   rotate-passwords  new passwords for the accounts
 #   destroy           the server and its firewall; the address is kept, so the DNS records stay right
 #
@@ -1120,6 +1121,209 @@ keycloak_theme_revert() {
   fi
 }
 
+# The checks after a reset (Ade, 23 November 2026), run at its end while the seed's accounts are still in memory ($ACCOUNTS, their passwords
+# masked by seed()). Each prints PASS or FAIL with a reason, never a token, password or code, and the run summary lists them all. They report:
+# they don't stop the reset or undo anything, but if any fails the step ends non-zero once all have run, so the run shows red.
+#   (i)   the sign-in theme: the realm's login theme is insys; the chart's theme checksum equals the annotation on deploy/insys-keycloak, the
+#         ConfigMap in the cluster and the rendered ConfigMap (theme-mount.sh --checksum); then keycloak-theme's own check, as a temporary user
+#   (ii)  GET /identity/access-reviews/segregation-conflicts on OFTZA, as oftza.admin01, is an empty list (OQ-197)
+#   (iii) BR-141: oftza.product01 drafts and submits a rounding rule (a real record, ZAR-PREVIEW-CHECK-<run id>), can't approve its own, and
+#         oftza.product02 approves it
+#   (iv)  /health/ready answers 200, and OFTZA's readiness, as oftza.admin01, has every step complete and ready, with nothing missing
+# A sample account signs in by the password grant on the realm's insys-seed client, the way the seed does. The seed disables that client when it
+# ends, and no other client of the realm takes a password, so the checks enable it for (ii) to (iv) only, as the seed does for its own run, and
+# disable it again at once after them and on any exit; the disable is checked, and a failure to disable is an error.
+post_api=http://127.0.0.1:18080
+post_kc=http://127.0.0.1:18081
+seed_client_on=""
+post_why() { printf '%s\n' "$*" > "$RUNNER_TEMP/post-check.why"; echo "  $*"; }
+post_etag() { tr -d '\r' < "$RUNNER_TEMP/post-check.head" | sed -n 's/^[Ee][Tt][Aa][Gg]: *//p' | tail -n 1; }
+post_code() { # the problem's code, if the answer has one, as ", <code>"
+  local code
+  code=$(jq -r 'if type == "object" then .code // empty else empty end' "$RUNNER_TEMP/post-check.json" 2>/dev/null || true)
+  [ -z "$code" ] || printf ', %s' "$code"
+}
+# A call to the API through the tunnel: prints the HTTP status only. The body goes to post-check.json, the headers to post-check.head.
+api() { # token, method, path[, JSON body[, one more header]]
+  local body=${4:-} extra=${5:-} args=()
+  [ -z "$body" ] || args+=(-H 'Content-Type: application/json' --data-binary "$body")
+  [ -z "$extra" ] || args+=(-H "$extra")
+  curl -s -o "$RUNNER_TEMP/post-check.json" -D "$RUNNER_TEMP/post-check.head" -w '%{http_code}' -X "$2" \
+    -H @<(printf 'Authorization: Bearer %s\n' "$1") "${args[@]}" "$post_api$3" || true
+}
+# A sample account's token, from Keycloak's token endpoint by the password grant on insys-seed, for the caller's $(...) only; the password goes
+# from $ACCOUNTS to curl's stdin. Only Keycloak's error code is ever printed, never its answer.
+user_token() { # the account's Keycloak username, such as oftza.admin01
+  local answer
+  jq -e --arg u "$1" 'any(.accounts[]; .signIn == $u)' <<<"$ACCOUNTS" >/dev/null 2>&1 || { echo "  the seed's accounts have no $1" >&2; return 1; }
+  answer=$(jq -j --arg u "$1" '.accounts[] | select(.signIn == $u) | .password' <<<"$ACCOUNTS" \
+    | curl -s -d grant_type=password -d client_id=insys-seed -d scope=openid --data-urlencode "username=$1" --data-urlencode password@- \
+      "$post_kc/realms/insys/protocol/openid-connect/token") || { echo "  Keycloak's token endpoint didn't answer for $1" >&2; return 1; }
+  jq -er '.access_token // empty' <<<"$answer" 2>/dev/null \
+    || { echo "  Keycloak gave $1 no token ($(jq -r '.error // "no error code"' <<<"$answer" 2>/dev/null || echo "no JSON"))" >&2; return 1; }
+}
+# The realm's insys-seed client enabled (true) or disabled (false), through the admin API, as the seed does (KeycloakSignIn.Start, Stop), then
+# read back. Keycloak's admin password stays on the server until this reads it into memory; it and the token are masked.
+seed_client() { # true or false
+  local admin answer token id state
+  admin=$(on_server "kubectl get secret insys-secrets -o jsonpath='{.data.keycloakAdminPassword}' | base64 -d") || { echo "  couldn't read Keycloak's admin password on the server"; return 1; }
+  mask "$admin"
+  answer=$(printf '%s' "$admin" | curl -sf -d grant_type=password -d client_id=admin-cli -d username=admin --data-urlencode password@- \
+    "$post_kc/realms/master/protocol/openid-connect/token") || { echo "  Keycloak's admin token: curl exit $?"; return 1; }
+  token=$(jq -er .access_token <<<"$answer") || { echo "  Keycloak's admin token: no access_token"; return 1; }
+  mask "$token"
+  answer=$(curl -sf -H @<(printf 'Authorization: Bearer %s\n' "$token") "$post_kc/admin/realms/insys/clients?clientId=insys-seed") \
+    || { echo "  finding Keycloak's client insys-seed: curl exit $?"; return 1; }
+  id=$(jq -er '.[0].id' <<<"$answer") || { echo "  Keycloak has no client insys-seed"; return 1; }
+  if [ "$1" = true ]; then seed_client_on=yes; fi   # from here, the exit disables it whatever happens
+  jq -c --argjson on "$1" '.[0] | .enabled = $on' <<<"$answer" | curl -sf -X PUT -H @<(printf 'Authorization: Bearer %s\n' "$token") \
+    -H 'Content-Type: application/json' --data-binary @- "$post_kc/admin/realms/insys/clients/$id" || { echo "  updating insys-seed: curl exit $?"; return 1; }
+  state=$(curl -sf -H @<(printf 'Authorization: Bearer %s\n' "$token") "$post_kc/admin/realms/insys/clients/$id" | jq -r .enabled) || state=unknown
+  [ "$state" = "$1" ] || { echo "  insys-seed reads enabled: $state, not $1"; return 1; }
+  [ "$1" = true ] || seed_client_on=""
+  echo "Keycloak's client insys-seed: enabled $state."
+}
+
+post_theme() { # (i)
+  local realm annotation live rendered
+  theme_ship with-theme   # fail() in it, or in the preflight, ends this check's subshell as FAIL
+  theme_preflight
+  realm=$(kc_run realm-login-theme.sh insys --show) || { post_why "couldn't read the realm's login theme"; return 1; }
+  echo "  the realm's login theme: $realm"
+  [ "$realm" = insys ] || { post_why "the realm's login theme is $realm, not insys"; return 1; }
+  annotation=$(on_server "kubectl get deploy insys-keycloak -o json | jq -r '.spec.template.metadata.annotations[\"checksum/keycloak-theme\"] // \"\"'") || annotation=""
+  live=$(on_server "kubectl get configmap insys-keycloak-theme -o json | jq -jcS '.binaryData // {}' | sha256sum | cut -d' ' -f1") || live=""
+  rendered=$(on_server "$theme_dir/keycloak/theme-mount.sh --checksum $theme_dir/keycloak-theme.yaml") || rendered=""
+  echo "  theme checksum: the chart's $theme_sum; on deploy/insys-keycloak ${annotation:-none}; the ConfigMap in the cluster ${live:-unread}; the rendered ConfigMap ${rendered:-unread}"
+  [ "$annotation" = "$theme_sum" ] || { post_why "deploy/insys-keycloak's checksum/keycloak-theme is ${annotation:-none}, not the chart's $theme_sum"; return 1; }
+  [ "$live" = "$theme_sum" ] || { post_why "the ConfigMap insys-keycloak-theme's files hash to ${live:-unread}, not the chart's $theme_sum"; return 1; }
+  [ "$rendered" = "$theme_sum" ] || { post_why "theme-mount.sh --checksum of the rendered ConfigMap is ${rendered:-unread}, not $theme_sum"; return 1; }
+  if theme_check insys; then theme_check_summary; else theme_check_summary; post_why "sign-in, two-factor setup or one-time code failed on insys (see FAIL above)"; return 1; fi
+}
+
+post_sod() { # (ii)
+  local token code count
+  token=$(user_token oftza.admin01) || { post_why "no token for oftza.admin01"; return 1; }
+  mask "$token"
+  code=$(api "$token" GET /api/v1/identity/access-reviews/segregation-conflicts)
+  [ "$code" = 200 ] || { post_why "HTTP $code$(post_code)"; return 1; }
+  count=$(jq -er 'if type == "array" then length else error("not a list") end' "$RUNNER_TEMP/post-check.json" 2>/dev/null) || { post_why "the answer isn't a list"; return 1; }
+  echo "  segregation conflicts on OFTZA: $count"
+  [ "$count" = 0 ] || { post_why "$count listed, for the rules $(jq -r '[.[].rule] | unique | join(", ")' "$RUNNER_TEMP/post-check.json")"; return 1; }
+}
+
+post_br141() { # (iii)
+  local maker checker code etag run=${GITHUB_RUN_ID:-local} rounding=/api/v1/rating/static/rounding-and-currency-precision-rules item rule body
+  item="ZAR-PREVIEW-CHECK-$run"
+  rule="PRV$(printf '%s' "$run" | tail -c 12)"   # the table's rule_code is at most 15 characters: PRV and the run id's last 12
+  maker=$(user_token oftza.product01) || { post_why "no token for oftza.product01"; return 1; }
+  mask "$maker"
+  checker=$(user_token oftza.product02) || { post_why "no token for oftza.product02"; return 1; }
+  mask "$checker"
+  body=$(jq -nc --arg code "$item" --arg rule "$rule" \
+    '{code: $code, ruleCode: $rule, currency: "ZAR", step: 0.01, method: "HALF_UP", stage: "FINAL_PREMIUM", changeReason: "Preview reset check (BR-141)"}')
+  code=$(api "$maker" POST "$rounding" "$body" "Idempotency-Key: preview-check-$run-br141")
+  echo "  product01 drafts $item: HTTP $code"
+  [ "$code" = 201 ] || { post_why "product01's draft answered HTTP $code$(post_code)"; return 1; }
+  etag=$(post_etag)
+  [ -n "$etag" ] || { post_why "the draft came back with no ETag"; return 1; }
+  code=$(api "$maker" POST "$rounding/$item/versions/1/submit" "" "If-Match: $etag")
+  echo "  product01 submits it: HTTP $code"
+  [ "$code" = 200 ] || { post_why "product01's submit answered HTTP $code$(post_code)"; return 1; }
+  # The change request appears in Workflow within seconds of the submit (404 until then).
+  for _ in $(seq 1 60); do code=$(api "$maker" POST "$rounding/$item/versions/1/approve"); case "$code" in 404 | 429) sleep 2 ;; *) break ;; esac; done
+  echo "  product01 approves its own: HTTP $code$(post_code)"
+  [ "$code" = 403 ] || [ "$(post_code)" = ", MAKER_CHECKER_SAME_PERSON" ] || { post_why "product01's own approval answered HTTP $code$(post_code), not 403"; return 1; }
+  for _ in $(seq 1 60); do code=$(api "$checker" POST "$rounding/$item/versions/1/approve"); case "$code" in 404 | 429) sleep 2 ;; *) break ;; esac; done
+  echo "  product02 approves it: HTTP $code$(post_code)"
+  [ "$code" = 200 ] || { post_why "product02's approval answered HTTP $code$(post_code)"; return 1; }
+}
+
+# Readiness's answer (TenantReadinessView): each step's name and state, then each check not advisory that isn't ready or misses something.
+readiness_report() { # the answer's file
+  jq -r '.steps[] | "  \(.step) (\(.label)): \(if .completed then "complete" else "NOT complete" end), \(if .ready then "ready" else "NOT ready" end)"' "$1"
+  jq -r '.steps[] | .step as $s | .checks[] | select((.advisory | not) and ((.ready | not) or ((.missing // []) | length > 0)))
+    | "    missing in \($s): \(.code): \((.missing // []) | .[:8] | join(", "))"' "$1"
+  jq -r '.steps[] | .step as $s | .checks[] | select(.advisory and (.ready | not)) | "    advisory, not ready, in \($s): \(.code)"' "$1"
+}
+readiness_gaps() { # the answer's file: how many steps aren't complete and ready, plus how many required checks aren't ready or miss something
+  jq -e '([.steps[] | select((.completed and .ready) | not)] | length)
+    + ([.steps[].checks[] | select((.advisory | not) and ((.ready | not) or ((.missing // []) | length > 0)))] | length)' "$1"
+}
+post_ready() { # (iv)
+  local health token code gaps
+  health=$(curl -s -o /dev/null -w '%{http_code}' "$post_api/health/ready" || true)
+  echo "  /health/ready: HTTP $health"
+  token=$(user_token oftza.admin01) || { post_why "no token for oftza.admin01"; return 1; }
+  mask "$token"
+  code=$(api "$token" GET /api/v1/tenancy/readiness)
+  [ "$code" = 200 ] || { post_why "readiness answered HTTP $code$(post_code)"; return 1; }
+  readiness_report "$RUNNER_TEMP/post-check.json" || { post_why "readiness's answer isn't its view"; return 1; }
+  gaps=$(readiness_gaps "$RUNNER_TEMP/post-check.json") || { post_why "readiness's answer isn't its view"; return 1; }
+  [ "$gaps" = 0 ] || { post_why "$gaps steps or checks not complete, not ready or missing something (listed above)"; return 1; }
+  [ "$health" = 200 ] || { post_why "/health/ready answered HTTP $health, not 200"; return 1; }
+}
+
+# The runner's end of seed()'s tunnel to the forwards (18080, 18081), opened again if it no longer answers at all.
+post_tunnel() {
+  local url code
+  for url in "$post_api/health/ready" "$post_kc/realms/insys"; do
+    code=$(curl -s -o /dev/null --max-time 10 -w '%{http_code}' "$url" || true)
+    [ "$code" = 000 ] || continue
+    pkill -f -- "-fN -L 18080:127.0.0.1:18080" || true
+    ssh -i "$key" -o UserKnownHostsFile="$RUNNER_TEMP/known_hosts" -fN -L 18080:127.0.0.1:18080 -L 18081:127.0.0.1:18081 "root@$(address)" || return 1
+    break
+  done
+  for url in "$post_api/health/ready" "$post_kc/realms/insys"; do
+    for _ in $(seq 1 30); do code=$(curl -s -o /dev/null --max-time 10 -w '%{http_code}' "$url" || true); [ "$code" = 200 ] && continue 2; sleep 1; done
+    echo "through the runner's tunnel, $url answered HTTP $code, not 200"; return 1
+  done
+}
+
+post_checks_exit() { # on any exit: insys-seed disabled, the temporary theme user gone, the port-forwards stopped, then SSH closed
+  if [ -n "$seed_client_on" ]; then
+    seed_client false || echo "::error::Keycloak's client insys-seed may still be enabled: disable it in Keycloak's admin console now."
+  fi
+  kc_run theme-check-user.sh insys delete "theme-check-${GITHUB_RUN_ID:-local}" >/dev/null 2>&1 || true
+  on_server "pkill -f '^kubectl port-forward svc/insys-' || true" >/dev/null 2>&1 || true
+  close_ssh
+}
+
+post_reset_checks() {
+  local failed=0 results=() why api_up=yes
+  trap post_checks_exit EXIT
+  post_run() { # label, then the check, in a subshell so a fail() in it ends only the check
+    local label=$1; shift
+    rm -f "$RUNNER_TEMP/post-check.why"
+    echo "== Post-reset check $label"
+    if ( "$@" ); then
+      echo "PASS  $label"; results+=("- PASS $label")
+    else
+      why=$(cat "$RUNNER_TEMP/post-check.why" 2>/dev/null || true)
+      echo "FAIL  $label: ${why:-see the log above}"; results+=("- FAIL $label: ${why:-see the job log}"); failed=1
+    fi
+  }
+  post_skip() { echo "FAIL  $1: $2"; results+=("- FAIL $1: $2"); failed=1; }
+  post_run "(i) sign-in theme insys" post_theme
+  ( forwards && post_tunnel ) || api_up=""
+  if [ -z "$api_up" ]; then
+    for label in "(ii) no segregation conflicts" "(iii) BR-141 maker-checker" "(iv) readiness and /health/ready"; do post_skip "$label" "the API's or Keycloak's port-forward didn't answer"; done
+  elif ! seed_client true; then
+    for label in "(ii) no segregation conflicts" "(iii) BR-141 maker-checker" "(iv) readiness and /health/ready"; do post_skip "$label" "couldn't enable insys-seed for the sign-ins"; done
+  else
+    post_run "(ii) no segregation conflicts" post_sod
+    post_run "(iii) BR-141 maker-checker" post_br141
+    post_run "(iv) readiness and /health/ready" post_ready
+  fi
+  if [ -n "$seed_client_on" ] && ! seed_client false; then
+    echo "::error::Keycloak's client insys-seed may still be enabled: disable it in Keycloak's admin console now."
+    results+=("- FAIL insys-seed disabled again after the checks"); failed=1
+  fi
+  summary "**Post-reset checks** (Ade, 23 November 2026):"$'\n'"$(printf '%s\n' "${results[@]}")"
+  [ "$failed" = 0 ] || fail "At least one post-reset check failed (see FAIL above). The reset itself completed; nothing was undone."
+  echo "Every post-reset check passed."
+}
+
 if [ "$action" = check ]; then
   check
   exit 0
@@ -1142,6 +1346,7 @@ case "$action" in
     ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; os_policy
     on_server "KUBECONFIG=/etc/rancher/k3s/k3s.yaml helm uninstall insys --wait || true; kubectl delete pvc --all --wait=true; kubectl delete secret insys-secrets --ignore-not-found"
     cluster; images; server_secrets; pull_secret; chart; openbao; encrypt; seed; encrypt; check_tls
+    post_reset_checks   # report only: they undo nothing, but any FAIL ends the step red once all have run
     ;;
   diagnose)
     ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; diagnose

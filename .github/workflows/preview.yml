@@ -99,10 +99,10 @@ jobs:
           tar -xzf hcloud-linux-amd64.tar.gz hcloud && sudo install hcloud /usr/local/bin/hcloud
           sudo apt-get install -y -qq age > /dev/null
 
-      # The login theme check's browser (BR-168), for the two Keycloak theme actions only: Playwright 1.63.0 (Apache-2.0, the version the check
-      # was proven with locally) and its Chromium, outside the checkout. Node is the runner's own.
+      # The login theme check's browser (BR-168), for the two Keycloak theme actions and reset's post-reset check (i): Playwright 1.63.0
+      # (Apache-2.0, the version the check was proven with locally) and its Chromium, outside the checkout. Node is the runner's own.
       - name: Playwright, for the login theme check
-        if: inputs.action == 'keycloak-theme' || inputs.action == 'keycloak-theme-revert'
+        if: inputs.action == 'keycloak-theme' || inputs.action == 'keycloak-theme-revert' || inputs.action == 'reset'
         run: |
           npm install --prefix "$RUNNER_TEMP/playwright" --no-save --no-audit --no-fund playwright@1.63.0 > /dev/null
           "$RUNNER_TEMP/playwright/node_modules/.bin/playwright" install --with-deps chromium > /dev/null
