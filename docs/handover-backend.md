@@ -116,7 +116,7 @@ Rehearsed against OpenSSH on Ubuntu 24.04: an extra key in root's file and in a 
 **Rebuilt:**
 - The OFTZA sample data, from the seed.
 - A new OpenBao, with a new unseal key and root token.
-- The 51 accounts, with new passwords.
+- The 51 accounts, with new passwords (53 on the release branch `preview-release-ca1bf2b`, with the OFTZA sample's two demo accounts).
 - The realm's name, the SMTP relay and the clients' addresses.
 
 **How long:** about 2 hours of running, inside the job's 240-minute limit, plus the wait for approval. The estimate comes from two runs:
@@ -129,7 +129,7 @@ Rehearsed against OpenSSH on Ubuntu 24.04: an extra key in root's file and in a 
 ```bash
 age -d -i ~/insys-preview-age-key.txt preview-secrets.age | jq '{unsealKey: (.openbao.unsealKey | type == "string" and length > 0), rootToken: (.openbao.rootToken | type == "string" and length > 0), accounts: (.accounts | length)}'
 ```
-It must print `true`, `true` and `51`. Any `false` means this isn't the file. If the reset runs after `preview-seal-backup` is on main, its run summary also says so in bold, and the artifact lasts 90 days. **So merge `preview-seal-backup` first.**
+It must print `true`, `true` and `51` (`53` for a reset on `preview-release-ca1bf2b`, which adds the two demo accounts). Any `false` means this isn't the file. If the reset runs after `preview-seal-backup` is on main, its run summary also says so in bold, and the artifact lasts 90 days. **So merge `preview-seal-backup` first.**
 
 **Then the restore rehearsal** (`docs/preview/restore.md`), before the team gets access:
 1. `backup`.
