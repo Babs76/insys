@@ -328,6 +328,39 @@ user_admin() {
     | base64 -d | /root/insys/keycloak/user-admin-secret.sh insys insys"
 }
 
+# One memory reading during the seed's longest stage (the rebuild plan's 0.7, as Ade amended it on 23 November 2026): "parties, line
+# configuration and readiness", 3,192 s to 6,298 s in the full-seed run 44699166104, about 52 minutes. A background watcher on the seed's
+# stderr waits for "seed: products done", then about 25 minutes, the middle of that stage; if the stage's own "done" line comes sooner, it reads
+# at once; if no "products done" has come 80 minutes into the seed, it reads then. It prints the check action's Memory item (memory_use) once,
+# into the job log. Read only, and it never fails or slows the seed: its errors are ignored, and the seed's end stops it.
+# PREVIEW_MEMORY_POLL, PREVIEW_MEMORY_MID and PREVIEW_MEMORY_CAP (seconds) are for a local test of the timing only; the workflow sets none.
+memory_watcher=""
+memory_watch() { # the seed's stderr file
+  set +e
+  local err=$1 poll=${PREVIEW_MEMORY_POLL:-15} mid=${PREVIEW_MEMORY_MID:-1500} cap=${PREVIEW_MEMORY_CAP:-4800} start now products="" why
+  start=$(date +%s)
+  while :; do
+    now=$(date +%s)
+    if [ -z "$products" ] && grep -q '^seed: products done' "$err" 2>/dev/null; then products=$now; fi
+    if grep -q '^seed: parties, line configuration and readiness done' "$err" 2>/dev/null; then
+      why="the stage ended sooner than $((mid / 60)) minutes after products"; break
+    fi
+    if [ -n "$products" ] && [ $((now - products)) -ge "$mid" ]; then why="$((mid / 60)) minutes after products were done"; break; fi
+    if [ -z "$products" ] && [ $((now - start)) -ge "$cap" ]; then why="no \"products done\" after $((cap / 60)) minutes of the seed"; break; fi
+    sleep "$poll"
+  done
+  printf '\n== Memory during the seed (stage: parties, line configuration and readiness)\n'
+  printf 'Read at %s, %s s into the seed: %s.\n' "$(date -u '+%F %T UTC')" "$(( $(date +%s) - start ))" "$why"
+  memory_use 2>&1 || printf 'The memory reading did not answer; the seed goes on.\n'
+  printf '== end of the memory reading\n\n'
+  return 0
+}
+memory_watch_stop() { # never fails: the watcher and anything it started (its ssh, its sleep)
+  [ -n "$memory_watcher" ] || return 0
+  { pkill -P "$memory_watcher"; kill "$memory_watcher"; wait "$memory_watcher"; } 2>/dev/null || true   # quiet: no "Terminated" in the log
+  memory_watcher=""
+}
+
 # The seed and the accounts, through tunnels to the API and Keycloak. The accounts' passwords come back on the seed's stdout only.
 # "^kubectl port-forward": anchored, so pkill -f matches only the forwards, not the remote shell running it, whose command line holds the same text.
 seed() {
@@ -344,14 +377,19 @@ seed() {
   done
   clients "$admin"
   dotnet build tools/Insys.Seed -c Release -v q >/dev/null
+  : > "$RUNNER_TEMP/seed.err"
+  memory_watch "$RUNNER_TEMP/seed.err" 2>/dev/null &   # its reading is on stdout; stderr would only carry a killed sleep's "Terminated"
+  memory_watcher=$!
   ACCOUNTS=$(INSYS_SEED_KEYCLOAK_ADMIN_PASSWORD="$admin" dotnet tools/Insys.Seed/bin/Release/net10.0/Insys.Seed.dll --api http://127.0.0.1:18080 \
     --keycloak-url http://127.0.0.1:18081 --keycloak-admin admin --operator-tenant "$operator_tenant" --platform-1 insys-admin --platform-2 insys-admin-2 --accounts true \
     2> >(tee "$RUNNER_TEMP/seed.err" >&2)) || {
+    memory_watch_stop
     on_server "kubectl logs deploy/insys-api --tail=400 | grep -E 'IDX[0-9]+|Bearer|metadata|SSL|certificate' | tail -n 20" || true   # why, from the API: IDX messages hide the token
     events || true
     failure_state "$(sleep 1; grep -o '"traceId":"[^"]*"' "$RUNNER_TEMP/seed.err" 2>/dev/null | tail -n 1 | cut -d'"' -f4)" || true
     fail "the seed failed"
   }
+  memory_watch_stop
   while read -r password; do mask "$password"; done < <(jq -r '.accounts[].password' <<<"$ACCOUNTS")
   on_server "pkill -f '^kubectl port-forward svc/insys-' || true"
 }
