@@ -162,6 +162,10 @@ if (keycloak is not null && options.ContainsKey("accounts"))
         // signIn: exactly what to type at the sign-in page, the tenant's code included; displayName: what INSYS shows for the account.
         var signIn = KeycloakSignIn.Username(OftzaSeed.TenantCode, username);
         passwords.Add(new { signIn, displayName = OftzaSeed.DisplayName(role), username, role, password = await keycloak.SetPassword(signIn) });
+        if (OftzaSeed.SetUpTotpAtFirstSignIn.Contains(username))
+        {
+            await keycloak.RequireTotpSetUp(signIn);   // after the password, which clears required actions
+        }
     }
 
     foreach (var (username, role) in OftzaSeed.OperatorAccounts)
