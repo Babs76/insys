@@ -135,6 +135,25 @@ jobs:
             exit 1
           fi
 
+      # BR-168: the console's login theme renders both ways. With no files in files/keycloak-theme/insys/ nothing extra renders; with a stand-in
+      # theme (deploy/helm/tests/keycloak-theme, copied into a copy of the chart, never into the chart) the ConfigMap, its items, the read-only
+      # mount and the checksum annotation that deploy/keycloak/theme-mount.sh computes on the Preview.
+      - name: The chart's Keycloak login theme
+        run: deploy/helm/tests/keycloak-theme.sh
+
+      # Ade, 22 November 2026: the vendored theme is exactly the approved files, with their sha256 (files/keycloak-theme/insys.sha256), and
+      # insys.commit their source commit. Any other file, another theme type than login/ included, fails.
+      - name: The vendored Keycloak theme is exactly the approved files
+        run: tools/sync-keycloak-theme.sh --check
+
+      - name: The Keycloak theme scripts parse
+        run: |
+          for f in tools/sync-keycloak-theme.sh deploy/keycloak/realm-login-theme.sh deploy/keycloak/theme-check-user.sh deploy/keycloak/theme-mount.sh \
+            deploy/helm/tests/keycloak-theme.sh deploy/preview/preview.sh; do bash -n "$f"; done
+          node --check deploy/keycloak/theme-check.cjs
+          shellcheck tools/sync-keycloak-theme.sh deploy/keycloak/realm-login-theme.sh deploy/keycloak/theme-check-user.sh deploy/keycloak/theme-mount.sh \
+            deploy/helm/tests/keycloak-theme.sh
+
       - name: The images build
         run: |
           docker build -q -f deploy/docker/api.Dockerfile -t insys-api .

@@ -2,6 +2,9 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
+## Keycloak login theme (BR-168, 22 November 2026; branch `keycloak-theme`)
+- **No API change:** the chart and the Preview's scripts only (the console's Keycloak login theme `insys`); no OpenAPI document, error code or field changed.
+
 ## Tenant administrator requests: a grant not applied ends `NotApplied` (OQ-099 follow-up; decided by Ade, 21 November 2026; branch `first-admin-not-applied`, V0149)
 - **`TenantAdministratorRequestView`** (`GET /identity/tenant-administrators/{id}`, `GetTenantAdministratorRequest`, and each item of `GET /identity/tenant-administrators`, `ListTenantAdministratorRequests`):
   - `status` gains the value **`NotApplied`**: the request was granted in Workflow but the grant couldn't be applied (the new tenant has had users since the request, the tenant's `TENANT_ADMIN` role is no longer in force, a username is now taken, or the functions hold both sides of a platform baseline segregation-of-duties rule). A final state: nothing is created in the tenant. Such a request used to stay `PendingApproval` for ever.

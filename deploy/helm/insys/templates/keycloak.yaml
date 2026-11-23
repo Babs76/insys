@@ -24,11 +24,22 @@
 # ============================================================================
 {{- if .Values.keycloak.enabled }}
 {{- $realm := .Files.Get "files/insys-realm.json" }}
-{{- with .Values.keycloak.realmDisplayName }}
-{{- /* The sign-in page's title and heading. Keycloak imports the realm only when it doesn't exist yet, so this names a new realm. */}}
+{{- $theme := include "insys.keycloakTheme" . | fromJson }}
+{{- if and (eq (default ((fromJson $realm).loginTheme | default "") .Values.keycloak.loginTheme) "insys") (not $theme) }}
+{{- fail "The login theme insys (keycloak.loginTheme, or the realm file's loginTheme) needs the theme's files in files/keycloak-theme/insys/: run tools/sync-keycloak-theme.sh." }}
+{{- end }}
+{{- if or .Values.keycloak.realmDisplayName .Values.keycloak.loginTheme }}
+{{- /* Keycloak imports the realm only when it doesn't exist yet, so these set a new realm's values; on an existing realm, the Preview sets them
+through the admin API (deploy/keycloak/realm-name.sh and realm-login-theme.sh). The realm file itself names neither. */}}
 {{- $parsed := fromJson $realm }}
+{{- with .Values.keycloak.realmDisplayName }}
+{{- /* The sign-in page's title and heading. */}}
 {{- $_ := set $parsed "displayName" . }}
 {{- $_ := set $parsed "displayNameHtml" (html .) }}
+{{- end }}
+{{- with .Values.keycloak.loginTheme }}
+{{- $_ := set $parsed "loginTheme" . }}
+{{- end }}
 {{- $realm = toPrettyJson $parsed }}
 {{- end }}
 apiVersion: v1
@@ -58,6 +69,11 @@ spec:
       labels:
         app.kubernetes.io/name: keycloak
         {{- include "insys.labels" . | nindent 8 }}
+      {{- if $theme }}
+      annotations:
+        # A change of theme restarts Keycloak. The same sum as deploy/keycloak/theme-mount.sh's, so the Preview's mount and the chart agree.
+        checksum/keycloak-theme: {{ include "insys.keycloakTheme" . | sha256sum }}
+      {{- end }}
     spec:
       containers:
         - name: keycloak
@@ -100,9 +116,22 @@ spec:
             {{- end }}
           volumeMounts:
             - {name: realm, mountPath: /opt/keycloak/data/import, readOnly: true}
+            {{- if $theme }}
+            - {name: keycloak-theme, mountPath: /opt/keycloak/themes/insys, readOnly: true}
+            {{- end }}
       volumes:
         - name: realm
           configMap: {name: {{ .Release.Name }}-keycloak-realm}
+        {{- if $theme }}
+        # Each key back to its path under the theme (login/theme.properties, login/resources/css/...), as keycloak-theme.yaml encodes it.
+        - name: keycloak-theme
+          configMap:
+            name: {{ .Release.Name }}-keycloak-theme
+            items:
+              {{- range $key := keys $theme | sortAlpha }}
+              - {key: {{ $key }}, path: {{ replace "__" "/" $key }}}
+              {{- end }}
+        {{- end }}
 ---
 apiVersion: v1
 kind: Service
