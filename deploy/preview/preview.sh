@@ -40,7 +40,9 @@
 #                     temporary Keycloak-only user, removed at the end. If the check fails, the realm's previous login theme is set back at once
 #   keycloak-theme-revert  Keycloak only: the realm's login theme set back to the one keycloak-theme recorded (or Keycloak's default), then the same check
 #   reset             everything removed and made again from the seed, with new passwords and a new OpenBao; then the post-reset checks
-#                     (the sign-in theme, no segregation conflicts, BR-141's maker-checker, readiness), which report and undo nothing
+#                     (the sign-in theme, no segregation conflicts, BR-141's maker-checker, readiness, the demo users untouched, the
+#                     console on its pinned digest), which report and undo nothing; it stops first, before anything is removed, if the
+#                     console's pinned image doesn't resolve with the pull credentials
 #   rotate-passwords  new passwords for the accounts
 #   destroy           the server and its firewall; the address is kept, so the DNS records stay right
 #
@@ -1133,6 +1135,9 @@ keycloak_theme_revert() {
 #   (v)   the demo users (Ade, 23 November 2026), read only through Keycloak's admin API: oftza.demouser01 and oftza.demouser02 still have
 #         CONFIGURE_TOTP required and no one-time code credential, as Ade will first find them. Nothing about them is changed, and no check
 #         signs in as either: their own maker-checker and payout checks are Ade's, by hand, once he has set up their two-factor sign-in.
+#   (vi)  the console (Ade, 23 November 2026): deploy/insys-console's image is the chart's pinned digest, its rollout is complete, every console
+#         pod is ready and runs that digest (its imageID), and through the public host the back office (/) and the member portal (/member/)
+#         answer 200 with HTML, and each app's config.json answers 200 with JSON
 # (ii) runs once the seed has made the demo users, so it covers them too.
 # A sample account signs in by the password grant on the realm's insys-seed client, the way the seed does. The seed disables that client when it
 # ends, and no other client of the realm takes a password, so the checks enable it for (ii) to (iv) only (Ade, 23 November 2026), as the seed
@@ -1295,6 +1300,40 @@ post_ready() { # (iv)
   [ "$health" = 200 ] || { post_why "/health/ready answered HTTP $health, not 200"; return 1; }
 }
 
+post_console() {
+  local want digest spec pods line count=0 path code type
+  want=$(sed -n 's/^  image: \(ghcr.io\/[^ ]*@sha256:[0-9a-f]*\).*/\1/p' "$here/../helm/insys/values.yaml")
+  [ -n "$want" ] || { post_why "the chart has no console image pinned by digest"; return 1; }
+  digest=${want#*@}
+  spec=$(on_server "kubectl get deploy insys-console -o jsonpath='{.spec.template.spec.containers[0].image}'") || { post_why "deploy/insys-console couldn't be read"; return 1; }
+  [ "$spec" = "$want" ] || { post_why "deploy/insys-console's image is $spec, not the pinned $want"; return 1; }
+  on_server "kubectl rollout status deploy/insys-console --timeout=180s" >/dev/null || { post_why "deploy/insys-console's rollout isn't complete"; return 1; }
+  pods=$(on_server "kubectl get pods -l app.kubernetes.io/name=console,app.kubernetes.io/instance=insys -o jsonpath='{range .items[*]}{.metadata.name} {.status.containerStatuses[0].ready} {.status.containerStatuses[0].imageID}{\"\\n\"}{end}'") \
+    || { post_why "the console's pods couldn't be read"; return 1; }
+  while read -r line; do
+    [ -n "$line" ] || continue
+    set -- $line
+    [ "${2:-}" = true ] || { post_why "console pod $1 isn't ready"; return 1; }
+    [ "${3##*@}" = "$digest" ] || { post_why "console pod $1 runs ${3:-no image id}, not $digest"; return 1; }
+    count=$((count + 1))
+  done <<<"$pods"
+  [ "$count" -gt 0 ] || { post_why "no console pod"; return 1; }
+  echo "  $count console pod(s) ready, each running $digest"
+  local tls=()
+  [ "${PREVIEW_ACME:-staging}" = production ] || tls=(-k)   # a staging certificate isn't trusted; check_tls has already checked its issuer
+  for path in / /member/ /config.json /member/config.json; do
+    code=$(curl -s "${tls[@]}" --max-time 20 -o "$RUNNER_TEMP/post-check.json" -w '%{http_code} %{content_type}' "https://$PREVIEW_DOMAIN$path" || echo 000)
+    type=${code#* }; code=${code%% *}
+    [ "$code" = 200 ] || { post_why "https://$PREVIEW_DOMAIN$path answered HTTP $code"; return 1; }
+    case "$path" in
+      */config.json) jq -e 'type == "object"' "$RUNNER_TEMP/post-check.json" >/dev/null 2>&1 || { post_why "$path isn't a JSON object"; return 1; } ;;
+      *) case "$type" in text/html*) ;; *) post_why "$path answered $type, not HTML"; return 1 ;; esac
+         grep -qi '<html' "$RUNNER_TEMP/post-check.json" || { post_why "$path has no HTML page"; return 1; } ;;
+    esac
+    echo "  https://$PREVIEW_DOMAIN$path: 200 ${type:-}"
+  done
+}
+
 # The runner's end of seed()'s tunnel to the forwards (18080, 18081), opened again if it no longer answers at all.
 post_tunnel() {
   local url code
@@ -1337,6 +1376,7 @@ post_reset_checks() {
   }
   post_skip() { echo "FAIL  $1: $2"; results+=("- FAIL $1: $2"); failed=1; }
   post_run "(i) sign-in theme insys" post_theme
+  post_run "(vi) the console: pinned digest running, back office and member portal answer" post_console
   local signed=("(ii) no segregation conflicts, the demo users included" "(iii) BR-141 maker-checker" "(iv) readiness and /health/ready")
   ( forwards && post_tunnel ) || api_up=""
   [ -z "$api_up" ] || kc_admin GET "" >/dev/null 2>&1 || true   # in this shell, so the admin password is read from the server once
@@ -1380,6 +1420,10 @@ case "$action" in
     echo "SSH is open from $2 until the next run closes it."
     ;;
   reset)
+    # Before anything is removed (Ade, 23 November 2026): the console's pinned image must resolve with the Preview's pull credentials.
+    exec 3>&1   # the step's output, for check_pull's mask
+    pull=$(check_pull 2>&1) || fail "Stopped before anything was removed: the console's pinned image doesn't resolve with the Preview's pull credentials (${pull:-no detail})."
+    echo "Console image, before the reset: $pull"
     ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; os_policy
     on_server "KUBECONFIG=/etc/rancher/k3s/k3s.yaml helm uninstall insys --wait || true; kubectl delete pvc --all --wait=true; kubectl delete secret insys-secrets --ignore-not-found"
     cluster; images; server_secrets; pull_secret; chart; openbao; encrypt; seed; encrypt; check_tls
