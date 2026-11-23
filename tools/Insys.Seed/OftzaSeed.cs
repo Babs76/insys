@@ -120,6 +120,11 @@ public sealed partial class OftzaSeed(SeedContext context)
 
         await SegregationRules();
         await Roles();
+        if (context.Accounts)
+        {
+            await DemoRoles();   // with the Preview's accounts only (Ade, 23 November 2026)
+        }
+
         Stage("roles");
         await Loaders();
         await Locale();
@@ -137,6 +142,11 @@ public sealed partial class OftzaSeed(SeedContext context)
         await Parties();
         await LineConfiguration();
         await FromReadiness();
+        if (context.Accounts && !_loadersDone)
+        {
+            await DemoAuthority();
+        }
+
         await Channels();
         await Missing();
         Stage("parties, line configuration and readiness");

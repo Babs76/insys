@@ -43,7 +43,12 @@ public sealed partial class OftzaSeed
         .. Pair("integ", "INTEGRATION_ADMINISTRATOR"), .. Pair("audit", "AUDITOR"), .. Pair("healthaud", "HEALTH_AUDITOR"), .. Pair("approver", "OFTZA_APPROVER"),
         .. Pair("linecfg", "LINE_CONFIGURATION_MANAGER"),
         ("broker01", "BROKER"), ("member01", "MEMBER"), ("provider01", "PROVIDER"),
+        // The OFTZA sample's demonstration accounts (Ade, 23 November 2026): one role each (OftzaSeedDemo), a one-time code set up at first sign-in.
+        ("demouser01", DemoMaker), ("demouser02", DemoChecker),
     ];
+
+    /// <summary>The accounts whose authenticator their user sets up at first sign-in: Keycloak requires CONFIGURE_TOTP of them after the seed.</summary>
+    public static readonly IReadOnlySet<string> SetUpTotpAtFirstSignIn = new HashSet<string>(["demouser01", "demouser02"], StringComparer.Ordinal);
 
     /// <summary>The operator tenant's, whose Keycloak usernames carry its code, OPERATOR.</summary>
     public static readonly IReadOnlyList<(string Username, string Role)> OperatorAccounts = [.. Pair("operator", "PLATFORM_ADMIN"), .. Pair("steward", "PLATFORM_STATIC_DATA_STEWARD")];
