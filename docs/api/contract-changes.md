@@ -2,6 +2,21 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
+## Role templates: the dead ends closed (DE-001 to DE-005, DE-014, DE-015, DE-019, DE-021, DE-028, DE-044, DE-058; Ade, 24 November 2026; branch `role-templates-de`)
+- **No OpenAPI change:** no path, body, field, enum or error code moved; the function catalogue is unchanged (729 functions).
+- **`GET /identity/role-templates` and `/{code}`** return different contents (`docs/specs/addenda/role-templates.md` lists each template's functions):
+  - the Workflow inbox (`WORKFLOW_APPROVALS`, `WORKFLOW_APPROVE`, `WORKFLOW_REJECT`) in `LIFE_UNDERWRITER`, `GENERAL_UNDERWRITER`, `PRODUCT_MANAGER`, `FINANCE_OFFICER`, `DISTRIBUTION_ADMINISTRATOR`, `REINSURANCE_OFFICER`, `INTEGRATION_ADMINISTRATOR`, `HEALTH_CLAIMS_ASSESSOR`, `DATA_PROTECTION_OFFICER`;
+  - `STATIC_DATA_CHANGE_REQUESTS` in every template that maintains or approves static data;
+  - `GENERAL_UNDERWRITER`: the `GENERAL_RENEWALS` sub-domain (renewals and retention cases), approves `GENERAL_NON_RENEWAL`;
+  - `HEALTH_CLAIMS_ASSESSOR`: `HEALTH_PROVIDER_PERFORMANCE`, `HEALTH_RECORD_PROVIDER_QUALITY_REVIEW`, `HEALTH_RECOVERIES` (screen); approves `PROVIDER_RECOVERY_FINDING`;
+  - `FINANCE_MANAGER`: `COMMISSION_STATEMENTS`, `CLAIM_PAYMENT_INSTRUCTIONS`, `SERVICE_COMPLAINTS` (screens only); approves `PROVIDER_CREDIT_NOTE`, `PROVIDER_RECOVERY_WRITE_OFF`;
+  - `COMPLIANCE_OFFICER`: `DOCUMENTS` (screen only) and the Party and Audit static data (`SD_PARTY_MANAGEMENT_*`, `SD_AUDIT_*`);
+  - `CLAIMS_MANAGER`: the Claims Framework's static data (`SD_SHARED_CLAIMS_FRAMEWORK_*`), approves `STATIC_DATA_T1`, `STATIC_DATA_T2`;
+  - `TENANT_ADMIN`: the Communications, Documents and Analytics static data (`SD_COMMUNICATIONS_*`, `SD_DOCUMENT_AND_CONTENT_MANAGEMENT_*`, `SD_ANALYTICS_*`);
+  - `DATA_PROTECTION_OFFICER`: the eight data-subject request functions (`PARTY_DATA_SUBJECT_REQUESTS` and its actions) and `PARTY_RESOLVE_MATCH`; approves `PARTY_MATCH_RESOLUTION`. The underwriters, claims handler, claims manager, Health claims assessor, Health membership administrator and customer service agent no longer hold the data-subject request functions.
+- **Menus** (`GET /identity/me/menu`) change only for users whose roles a tenant builds from the new templates; a tenant's existing roles are never changed.
+- **`GET /integration/parking-setting`:** with no setting of the tenant's own (`isDefault: true`), `configurationOwnerRole` is now `INTEGRATION_ADMINISTRATOR` (was `TENANT_ADMIN`), so the first escalation's tasks and F009's configuration review tasks go to that queue. A tenant's stored setting is unchanged; the second escalation still goes to `TENANT_ADMIN` (OQ-072).
+
 ## Money group: failed payouts, nil and negative commission statements, credit notes needing approval, discarding dead letters (DE-007, DE-008, DE-009, DE-010, DE-011, DE-031; Ade, 24 November 2026; branch `money-group`, V0150 to V0154)
 - **Typed reference:** every new step that moves money, or discards what would have, takes the reference of what it acts on in its body; a mismatch is 422 `TYPED_REFERENCE_MISMATCH` (new code) and changes nothing. A failed payout's reference is its payment's `paymentRef`.
 - **Payments:** `GET /payments/reconciliation-exceptions` is now a cursor page (`items`, `nextCursor`; pass `cursor`), not an array (DE-031). Exception type `PAYMENT_FAILED` is new: a failed outbound payment, with `paymentRef`, `businessRefType`, `businessRefId`; INSYS resolves it itself (`resolution`) when a later attempt pays the record or its module gives the payout up.
