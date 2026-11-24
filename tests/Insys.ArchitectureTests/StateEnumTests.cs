@@ -99,6 +99,11 @@ public sealed partial class StateEnumTests
         [("Approval", "NotApplied", "extra")] = "D-5, extended (25 October 2026, Ade): a granted approval its record will not take is NotApplied; domain-model.json has no such state.",
         [("PayoutBatch", "Rejected", "extra")] = "D-1 (Wave 2 batch 1, signed off): an approval that is not granted ends the batch as Rejected; domain-model.json has no reject transition.",
         [("ProviderPaymentRun", "Rejected", "extra")] = "D-2 (Wave 2 batch 1, signed off): an approval that is not granted ends the run as Rejected; domain-model.json has no reject transition.",
+        [("CommissionStatement", "ClosedNil", "extra")] = "OQ-062 (Ade, 24 November 2026): a statement approved with a net of exactly zero closes, with no payout.",
+        [("CommissionStatement", "CarriedForward", "extra")] = "OQ-062 (Ade, 24 November 2026): a statement approved with a negative net is carried to the next statements.",
+        [("CommissionStatement", "SettledByCarryForward", "extra")] = "OQ-062 (Ade, 24 November 2026): what a carried-forward statement carried was absorbed by later statements.",
+        [("CommissionStatement", "Invoiced", "extra")] = "OQ-062 (Ade, 24 November 2026): what a carried-forward statement still carried was invoiced to the intermediary.",
+        [("CommissionStatement", "PaymentFailed", "extra")] = "DE-008 (Ade, 24 November 2026): the statement's payout failed, until a second person grants its retry.",
         [("UserAccount", "PendingIdentity", "extra")] = "keycloak-user-provisioning (signed off 24 October 2026) §4: a user of INSYS's own realm waits for its Keycloak user.",
     };
 

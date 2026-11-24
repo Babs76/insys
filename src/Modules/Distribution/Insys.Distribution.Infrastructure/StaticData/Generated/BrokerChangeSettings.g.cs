@@ -42,9 +42,12 @@ public sealed class BrokerChangeSettings : StaticRecord<BrokerChangeSettingsInpu
     [Insys.BuildingBlocks.Domain.OneOf("RECOVER", "KEEP")]
     public string PaidCommission { get; set; } = "";
 
+    public int? ClawbackInvoiceAfterDays { get; set; }
+
     public override void ApplyFields(BrokerChangeSettingsInput input, IFieldProtector protector)
     {
         PaidCommission = input.PaidCommission!;
+        ClawbackInvoiceAfterDays = input.ClawbackInvoiceAfterDays;
     }
 }
 
@@ -55,10 +58,13 @@ public sealed record BrokerChangeSettingsInput : StaticRecordInput
     [Insys.BuildingBlocks.Domain.RequiredField]
     public string? PaidCommission { get; init; }
 
+    public int? ClawbackInvoiceAfterDays { get; init; }
+
     protected override void ValidateFields(StaticFieldErrors errors)
     {
         errors.Required("paidCommission", PaidCommission);
         errors.MaxLength("paidCommission", PaidCommission, 10);
         errors.OneOf("paidCommission", PaidCommission, ["RECOVER", "KEEP"]);
+        if (ClawbackInvoiceAfterDays is < 1 or > 3650) { errors.Add("clawbackInvoiceAfterDays", "clawbackInvoiceAfterDays must be between 1 and 3650."); }
     }
 }

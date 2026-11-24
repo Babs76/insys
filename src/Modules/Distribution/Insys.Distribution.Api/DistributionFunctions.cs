@@ -43,6 +43,8 @@ internal static class DistributionFunctions
         .Screen("INTERMEDIARIES", "INTERMEDIARIES", "Brokers", "distribution/intermediaries", "DistributionCheckIntermediary")
         .Screen("COMMISSION_STATEMENTS", "COMMISSION", "Statements (second person)", "distribution/statements", "DistributionListStatements", "DistributionGetStatement")
         .Action("DISTRIBUTION_PREPARE_STATEMENT", "COMMISSION_STATEMENTS", "DistributionPrepareStatement")
+        .Action("DISTRIBUTION_RETRY_STATEMENT_PAYOUT", "COMMISSION_STATEMENTS", "DistributionRetryStatementPayout")
+        .Action("DISTRIBUTION_INVOICE_STATEMENT_CLAWBACK", "COMMISSION_STATEMENTS", "DistributionInvoiceStatementClawback")
         .Job("DISTRIBUTION_EVENT_PROCESSING", "COMMISSION", "Background processing")
             .Functions,
         .. new FunctionMap([Audiences.Broker], Features.BrokerPortal)

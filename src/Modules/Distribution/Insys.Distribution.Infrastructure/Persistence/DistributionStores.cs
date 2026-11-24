@@ -93,9 +93,14 @@ internal sealed class DistributionRepository(DistributionDbContext db) : IDistri
         await Entitlements().Where(e => e.StatementId == statementId || e.Clawbacks.Any(c => c.StatementId == statementId)).OrderBy(e => e.Id).ToListAsync(cancellationToken);
 
     public async Task<IReadOnlyList<CommissionStatement>> Statements(string? intermediaryCode, string? periodCode, StatementStatus? status, Guid? afterId, int limit,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, DateOnly? carriedOnOrBefore = null)
     {
         var query = db.Statements.AsNoTracking();
+        if (carriedOnOrBefore is { } carriedBy)
+        {
+            query = query.Where(s => s.Status == StatementStatus.CarriedForward && s.PendingAction == null && s.CarriedOn <= carriedBy);
+        }
+
         if (intermediaryCode is not null)
         {
             query = query.Where(s => s.IntermediaryCode == intermediaryCode);
@@ -153,6 +158,14 @@ internal sealed class DistributionRepository(DistributionDbContext db) : IDistri
 
     public Task<CommissionStatement?> Statement(Guid id, CancellationToken cancellationToken) => db.Statements.SingleOrDefaultAsync(s => s.Id == id, cancellationToken);
 
+    public async Task<IReadOnlyList<CommissionStatement>> CarriedForward(string intermediaryCode, string currency, CancellationToken cancellationToken) =>
+        await db.Statements.Where(s => s.IntermediaryCode == intermediaryCode && s.Currency == currency && s.Status == StatementStatus.CarriedForward && s.PendingAction == null
+                                       && s.CarriedAmount - s.CarrySettledAmount - s.CarryOnStatementAmount > 0)
+            .OrderBy(s => s.CarriedOn).ThenBy(s => s.Id).ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<CommissionStatement>> CarriedOn(Guid statementId, CancellationToken cancellationToken) =>
+        await db.Statements.Where(s => s.CarryOnStatementId == statementId).OrderBy(s => s.Id).ToListAsync(cancellationToken);
+
     public Task<CommissionStatement?> Statement(string intermediaryCode, string periodCode, CancellationToken cancellationToken) =>
         db.Statements.SingleOrDefaultAsync(s => s.IntermediaryCode == intermediaryCode && s.PeriodCode == periodCode, cancellationToken);
 
@@ -171,6 +184,10 @@ internal sealed class DistributionCodes(DistributionDbContext db) : IDistributio
 
     public async Task<string> PaidCommissionOnBrokerChange(DateOnly day, CancellationToken cancellationToken) =>
         await InForce<StaticData.BrokerChangeSettings>(day).OrderBy(s => s.Code).Select(s => s.PaidCommission).FirstOrDefaultAsync(cancellationToken) ?? BrokerChangePaidCommission.Recover;
+
+    public async Task<int> ClawbackInvoiceAfterDays(DateOnly day, CancellationToken cancellationToken) =>
+        await InForce<StaticData.BrokerChangeSettings>(day).OrderBy(s => s.Code).Select(s => s.ClawbackInvoiceAfterDays).FirstOrDefaultAsync(cancellationToken)
+        ?? StatementActions.DefaultInvoiceAfterDays;
 
     public async Task<string?> PlanCodeFor(string intermediaryCode, string productCode, DateOnly day, CancellationToken cancellationToken) =>
         await InForce<IntermediaryProductPermissions>(day).Where(p => p.Intermediary == intermediaryCode && p.Product == productCode && p.PlanCode != null)
@@ -335,6 +352,13 @@ internal sealed class DistributionEventMapper : IDomainEventMapper
             e.BankAccountId, e.NetAmount, e.Currency),
         StatementSubmitted e => new BuildingBlocks.Contracts.Approvals.ApprovalRequested(DistributionApprovals.StatementBusinessRefType, e.StatementId,
             DistributionApprovals.StatementApprovalType, e.RequestedBy, e.NetAmount, e.Currency, $"Commission statement {e.IntermediaryCode} {e.PeriodCode}", e.SubjectHash),
+        // DE-008 and the clawback invoice: a second person decides the action on the statement (FINANCE_MANAGER).
+        StatementActionRequested e => new BuildingBlocks.Contracts.Approvals.ApprovalRequested(DistributionApprovals.StatementBusinessRefType, e.StatementId, e.ApprovalType,
+            e.RequestedBy, e.Amount, e.Currency, e.Description, e.SubjectHash),
+        StatementPayoutRetried e => new Payments.Contracts.PayoutRequested(DistributionApprovals.StatementBusinessRefType, e.StatementId, e.Attempt,
+            Payments.Contracts.PaymentPurposes.Commission, e.NetAmount, e.Currency, e.PayeePartyId, e.BankAccountId, Gated: false),
+        ClawbackInvoiceRequested e => new Contracts.CommissionClawbackInvoiceRequested(e.StatementId, e.Reference, e.IntermediaryCode, e.PayerPartyId, e.Amount, e.Currency,
+            e.DueOn),
         _ => null,
     };
 }

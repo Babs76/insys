@@ -77,9 +77,18 @@ public interface IDistributionRepository
     Task<IReadOnlyList<CommissionEntitlement>> List(string? intermediaryCode, Guid? policyRef, EntitlementStatus? status, Guid? afterId, int limit,
         CancellationToken cancellationToken, Guid? statementId = null);
 
-    /// <summary>BR-058: statements by intermediary, period and status, by ID after <paramref name="afterId"/>.</summary>
+    /// <summary>
+    /// BR-058: statements by intermediary, period and status, by ID after <paramref name="afterId"/>; with <paramref name="carriedOnOrBefore"/>, only
+    /// carried-forward statements carried on or before the day with nothing awaiting approval (those old enough to invoice).
+    /// </summary>
     Task<IReadOnlyList<CommissionStatement>> Statements(string? intermediaryCode, string? periodCode, StatementStatus? status, Guid? afterId, int limit,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken, DateOnly? carriedOnOrBefore = null);
+
+    /// <summary>The intermediary's carried-forward statements in the currency with something still to absorb and no action awaiting approval, oldest first.</summary>
+    Task<IReadOnlyList<CommissionStatement>> CarriedForward(string intermediaryCode, string currency, CancellationToken cancellationToken);
+
+    /// <summary>The carried-forward statements part of whose amount a later statement takes.</summary>
+    Task<IReadOnlyList<CommissionStatement>> CarriedOn(Guid statementId, CancellationToken cancellationToken);
 
     Task<CommissionStatement?> Statement(Guid id, CancellationToken cancellationToken);
 
@@ -102,6 +111,12 @@ public interface IDistributionCodes
 {
     /// <summary>B-009: RECOVER, unless the tenant's setting in force says KEEP.</summary>
     Task<string> PaidCommissionOnBrokerChange(DateOnly day, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// After how many days a carried-forward statement's amount may be invoiced (Ade, 24 November 2026): the tenant's
+    /// clawback_invoice_after_days on its commission settings (commission.cfg_broker_change_settings) in force, or 90.
+    /// </summary>
+    Task<int> ClawbackInvoiceAfterDays(DateOnly day, CancellationToken cancellationToken);
 
     Task<IntermediaryInfo?> Intermediary(string intermediaryCode, DateOnly day, CancellationToken cancellationToken);
 
@@ -134,12 +149,29 @@ public sealed record EntitlementView(Guid Id, string IntermediaryCode, string So
 }
 
 /// <param name="ApprovalId">The Workflow approval the statement was last submitted for (BR-058): the one that approved it once Approved.</param>
+/// <param name="Reference">The statement's reference (intermediary/period, e.g. BRK-1/2026-10), typed to confirm invoicing its clawback.</param>
+/// <param name="OpeningAmount">The opening line: what the statement takes of the intermediary's earlier carried-forward statements, already in its gross.</param>
+/// <param name="CarriedOn">The business date a negative statement was carried forward.</param>
+/// <param name="CarriedAmount">What a carried-forward statement carries: its negative net as a positive amount.</param>
+/// <param name="CarrySettledAmount">What later statements, paid or closed, have absorbed of it.</param>
+/// <param name="CarryOnStatementId">The later statement taking part of it while that statement waits for approval and payment.</param>
+/// <param name="CarriedOwed">What a carried-forward statement still carries that no later statement takes: what an invoice would ask for.</param>
+/// <param name="CarriedDays">How many days it has been carried, to the tenant's business date.</param>
+/// <param name="FailedPaymentRef">DE-008: the reference of the failed payout, typed to confirm its retry.</param>
+/// <param name="PayoutAttempt">1 for the first payout; each granted retry is the next attempt.</param>
+/// <param name="PendingAction">PAYOUT_RETRY or COMMISSION_CLAWBACK_INVOICE while that action waits for a second person.</param>
 public sealed record StatementView(Guid Id, string IntermediaryCode, string PeriodCode, string Currency, decimal GrossAmount, decimal TaxAmount, decimal NetAmount,
     StatementStatus Status, bool ApprovalPending, Guid? ApprovedBy, Guid? PayeePartyId, Guid? BankAccountId, Guid? PaymentRef, DateOnly? PaidOn, long RowVersion,
-    LatestRejection? LatestRejection = null, Guid? ApprovalId = null)
+    LatestRejection? LatestRejection = null, Guid? ApprovalId = null, string Reference = "", decimal OpeningAmount = 0m, DateOnly? CarriedOn = null,
+    decimal CarriedAmount = 0m, decimal CarrySettledAmount = 0m, Guid? CarryOnStatementId = null, decimal CarriedOwed = 0m, int? CarriedDays = null,
+    DateOnly? InvoicedOn = null, decimal? InvoicedAmount = null, string? FailedPaymentRef = null, int PayoutAttempt = 1,
+    [property: OneOf(StatementActions.PayoutRetry, StatementActions.ClawbackInvoice)] string? PendingAction = null, string? PendingReason = null)
 {
-    public static StatementView From(CommissionStatement s) => new(s.Id, s.IntermediaryCode, s.PeriodCode, s.Currency, s.GrossAmount, s.TaxAmount, s.NetAmount,
-        s.Status, s.ApprovalPending, s.ApprovedBy, s.PayeePartyId, s.BankAccountId, s.PaymentRef, s.PaidOn, s.RowVersion, null, s.ApprovalId);
+    public static StatementView From(CommissionStatement s, DateOnly? today = null) => new(s.Id, s.IntermediaryCode, s.PeriodCode, s.Currency, s.GrossAmount, s.TaxAmount,
+        s.NetAmount, s.Status, s.ApprovalPending, s.ApprovedBy, s.PayeePartyId, s.BankAccountId, s.PaymentRef, s.PaidOn, s.RowVersion, null, s.ApprovalId, s.Reference,
+        s.OpeningAmount, s.CarriedOn, s.CarriedAmount, s.CarrySettledAmount, s.CarryOnStatementId, s.CarriedOwed,
+        s.CarriedOn is { } on && today is { } day ? day.DayNumber - on.DayNumber : null, s.InvoicedOn, s.InvoicedAmount, s.FailedPaymentRef, s.PayoutAttempt,
+        s.PendingAction, s.PendingReason);
 }
 
 /// <summary>Command PrepareStatement for an intermediary, a period (yyyy-MM) and a currency; preparing a draft again recalculates it.</summary>
@@ -154,8 +186,21 @@ public sealed record GetEntitlement(Guid EntitlementId) : IQuery<EntitlementView
 public sealed record ListEntitlements(string? IntermediaryCode, Guid? PolicyRef, EntitlementStatus? Status, Guid? AfterId, int Limit, Guid? StatementId = null)
     : IQuery<IReadOnlyList<EntitlementView>>;
 
-/// <summary>BR-058: commission statements by intermediary, period and status, oldest first.</summary>
-public sealed record ListStatements(string? IntermediaryCode, string? PeriodCode, StatementStatus? Status, Guid? AfterId, int Limit) : IQuery<IReadOnlyList<StatementView>>;
+/// <summary>
+/// BR-058: commission statements by intermediary, period and status, oldest first. <paramref name="InvoiceDue"/>: only carried-forward
+/// statements carried for at least the tenant's days (90 unless set), with nothing awaiting approval: those whose clawback may be invoiced.
+/// </summary>
+public sealed record ListStatements(string? IntermediaryCode, string? PeriodCode, StatementStatus? Status, Guid? AfterId, int Limit, bool InvoiceDue = false)
+    : IQuery<IReadOnlyList<StatementView>>;
+
+/// <summary>Command RetryStatementPayout (DE-008): the failed payout's reference, typed by the requester; a second person approves the retry (PAYOUT_RETRY).</summary>
+public sealed record RetryStatementPayout(Guid StatementId, string PaymentRef) : ICommand<StatementView>;
+
+/// <summary>
+/// Command InvoiceStatementClawback (Ade, 24 November 2026): the statement's reference, typed by the requester, and why; a second person
+/// approves invoicing the intermediary for what the statement still carries (COMMISSION_CLAWBACK_INVOICE).
+/// </summary>
+public sealed record InvoiceStatementClawback(Guid StatementId, string Reference, string Reason) : ICommand<StatementView>;
 
 public sealed record GetStatement(Guid StatementId) : IQuery<StatementView>;
 
@@ -177,6 +222,90 @@ public sealed class PrepareStatementValidator : AbstractValidator<PrepareStateme
 public sealed class ClawBackCommissionValidator : AbstractValidator<ClawBackCommission>
 {
     public ClawBackCommissionValidator() => RuleFor(c => c.Reason).NotEmpty().MaximumLength(20);
+}
+
+public sealed class RetryStatementPayoutValidator : AbstractValidator<RetryStatementPayout>
+{
+    public RetryStatementPayoutValidator() => RuleFor(c => c.PaymentRef).NotEmpty().MaximumLength(25);
+}
+
+public sealed class InvoiceStatementClawbackValidator : AbstractValidator<InvoiceStatementClawback>
+{
+    public InvoiceStatementClawbackValidator()
+    {
+        RuleFor(c => c.Reference).NotEmpty().MaximumLength(30);
+        RuleFor(c => c.Reason).NotEmpty().MaximumLength(500);
+    }
+}
+
+/// <summary>
+/// DE-008: asks a second person to approve paying a statement's failed payout again (PAYOUT_RETRY, amount the net). The
+/// failed payment's reference must be typed; once granted, Payments makes the next attempt's payout, paid in a released batch.
+/// </summary>
+internal sealed class RetryStatementPayoutHandler(IDistributionRepository repository, IExecutionContext execution, IBusinessDate businessDate, IClock clock,
+    IAuditTrail audit) : ICommandHandler<RetryStatementPayout, StatementView>
+{
+    public async Task<Result<StatementView>> Handle(RetryStatementPayout command, CancellationToken cancellationToken)
+    {
+        var user = Users.Require(execution);
+        if (user.IsFailure)
+        {
+            return user.Error;
+        }
+
+        if (await repository.Statement(command.StatementId, cancellationToken) is not { } statement)
+        {
+            return Error.NotFound(ErrorCodes.NotFound, "The commission statement was not found.");
+        }
+
+        var result = statement.RequestPayoutRetry(command.PaymentRef, user.Value, clock.UtcNow);
+        if (result.IsFailure)
+        {
+            return result.Error;
+        }
+
+        audit.Record(new AuditEntry("COMMISSION", "RetryStatementPayout", nameof(CommissionStatement), statement.Id.ToString(),
+            new Dictionary<string, string?> { ["paymentRef"] = statement.FailedPaymentRef, ["attempt"] = (statement.PayoutAttempt + 1).ToString(System.Globalization.CultureInfo.InvariantCulture) }));
+        return StatementView.From(statement, businessDate.Today);
+    }
+}
+
+/// <summary>
+/// Asks a second person to approve invoicing the intermediary for what a carried-forward statement still carries
+/// (COMMISSION_CLAWBACK_INVOICE, Ade, 24 November 2026): only once the intermediary is terminated in the register, or the
+/// amount has been carried for the tenant's days (90 unless set). The statement's reference must be typed.
+/// </summary>
+internal sealed class InvoiceStatementClawbackHandler(IDistributionRepository repository, IDistributionCodes codes, IExecutionContext execution, IBusinessDate businessDate,
+    IClock clock, IAuditTrail audit) : ICommandHandler<InvoiceStatementClawback, StatementView>
+{
+    public const string Terminated = "TERMINATED";
+
+    public async Task<Result<StatementView>> Handle(InvoiceStatementClawback command, CancellationToken cancellationToken)
+    {
+        var user = Users.Require(execution);
+        if (user.IsFailure)
+        {
+            return user.Error;
+        }
+
+        if (await repository.Statement(command.StatementId, cancellationToken) is not { } statement)
+        {
+            return Error.NotFound(ErrorCodes.NotFound, "The commission statement was not found.");
+        }
+
+        var today = businessDate.Today;
+        var terminated = (await codes.Intermediary(statement.IntermediaryCode, today, cancellationToken))?.Status == Terminated;
+        var result = statement.RequestClawbackInvoice(command.Reference, command.Reason, terminated, await codes.ClawbackInvoiceAfterDays(today, cancellationToken), today,
+            user.Value, clock.UtcNow);
+        if (result.IsFailure)
+        {
+            return result.Error;
+        }
+
+        audit.Record(new AuditEntry("COMMISSION", "InvoiceStatementClawback", nameof(CommissionStatement), statement.Id.ToString(),
+            new Dictionary<string, string?> { ["reference"] = statement.Reference, ["reason"] = command.Reason, ["intermediaryTerminated"] = terminated ? "true" : "false" }));
+        return StatementView.From(statement, today);
+    }
 }
 
 internal static class Users
@@ -227,6 +356,11 @@ internal sealed class PrepareStatementHandler(IDistributionRepository repository
             recovery.Release();
         }
 
+        foreach (var carried in await repository.CarriedOn(statement.Id, cancellationToken))
+        {
+            carried.ReleaseCarry();
+        }
+
         var current = await repository.OnStatement(statement.Id, cancellationToken);
         var (payable, toRecover) = await repository.Due(command.IntermediaryCode, command.Currency, cancellationToken);
         audit.Record(new AuditEntry("COMMISSION", "PrepareStatement", nameof(CommissionStatement), statement.Id.ToString(),
@@ -236,8 +370,9 @@ internal sealed class PrepareStatementHandler(IDistributionRepository repository
         var again = current.Where(e => e.Status == EntitlementStatus.Payable && e.StatementId == statement.Id).ToList();
         var recoverAgain = current.Where(e => e.Clawback?.StatementId == statement.Id).ToList();
         var prepared = statement.PrepareStatement(payable.Concat(again).DistinctBy(e => e.Id).ToList(), toRecover.Concat(recoverAgain).DistinctBy(e => e.Id).ToList(),
-            current, new StatementPayee(partyId, account.Id, account.AccountNumberHash), user.Value, clock.UtcNow, await repository.RecoveriesOwed(command.IntermediaryCode, command.Currency, cancellationToken));
-        return prepared.IsFailure ? prepared.Error : StatementView.From(statement);
+            current, new StatementPayee(partyId, account.Id, account.AccountNumberHash), user.Value, clock.UtcNow, await repository.RecoveriesOwed(command.IntermediaryCode, command.Currency, cancellationToken),
+            (await repository.CarriedForward(command.IntermediaryCode, command.Currency, cancellationToken)).Where(c => c.Id != statement.Id).ToList());
+        return prepared.IsFailure ? prepared.Error : StatementView.From(statement, businessDate.Today);
     }
 }
 
@@ -277,8 +412,8 @@ internal sealed class ClawBackCommissionHandler(IDistributionRepository reposito
     }
 }
 
-internal sealed class DistributionQueries(IDistributionRepository repository, IIntermediaries intermediaries, ITenantContext tenant, IBusinessDate businessDate,
-    IApprovalHistory approvals) :
+internal sealed class DistributionQueries(IDistributionRepository repository, IDistributionCodes codes, IIntermediaries intermediaries, ITenantContext tenant,
+    IBusinessDate businessDate, IApprovalHistory approvals) :
     IQueryHandler<GetEntitlement, EntitlementView>,
     IQueryHandler<ListEntitlements, IReadOnlyList<EntitlementView>>,
     IQueryHandler<ListStatements, IReadOnlyList<StatementView>>,
@@ -292,13 +427,18 @@ internal sealed class DistributionQueries(IDistributionRepository repository, II
         (await repository.List(query.IntermediaryCode, query.PolicyRef, query.Status, query.AfterId, Math.Clamp(query.Limit, 1, 200), cancellationToken, query.StatementId))
         .Select(EntitlementView.From).ToList();
 
-    public async Task<Result<IReadOnlyList<StatementView>>> Handle(ListStatements query, CancellationToken cancellationToken) =>
-        (await repository.Statements(query.IntermediaryCode, query.PeriodCode, query.Status, query.AfterId, query.Limit, cancellationToken)).Select(StatementView.From).ToList();
+    public async Task<Result<IReadOnlyList<StatementView>>> Handle(ListStatements query, CancellationToken cancellationToken)
+    {
+        var today = businessDate.Today;
+        DateOnly? carriedBy = query.InvoiceDue ? today.AddDays(-await codes.ClawbackInvoiceAfterDays(today, cancellationToken)) : null;
+        return (await repository.Statements(query.IntermediaryCode, query.PeriodCode, query.Status, query.AfterId, query.Limit, cancellationToken, carriedBy))
+            .Select(s => StatementView.From(s, today)).ToList();
+    }
 
     /// <summary>The statement, with how its latest approval ended without being granted, if one did (OQ-113).</summary>
     public async Task<Result<StatementView>> Handle(GetStatement query, CancellationToken cancellationToken) =>
         await repository.Statement(query.StatementId, cancellationToken) is { } s
-            ? StatementView.From(s) with { LatestRejection = await approvals.Latest(DistributionApprovals.StatementBusinessRefType, s.Id, cancellationToken) }
+            ? StatementView.From(s, businessDate.Today) with { LatestRejection = await approvals.Latest(DistributionApprovals.StatementBusinessRefType, s.Id, cancellationToken) }
             : Error.NotFound(ErrorCodes.NotFound, "The commission statement was not found.");
 
     public async Task<Result<IntermediaryCheckView>> Handle(CheckIntermediary query, CancellationToken cancellationToken)
@@ -324,7 +464,8 @@ public sealed class CommissionPolicies(IDistributionRepository repository, IDist
     IIntegrationEventHandler<LifePolicyLapsed>,
     IIntegrationEventHandler<ApprovalGranted>,
     IIntegrationEventHandler<ApprovalRejected>,
-    IIntegrationEventHandler<PaymentSucceeded>
+    IIntegrationEventHandler<PaymentSucceeded>,
+    IIntegrationEventHandler<PaymentFailed>
 {
     public async Task Handle(InvoiceIssued issued, EventEnvelope envelope, CancellationToken cancellationToken)
     {
@@ -381,24 +522,32 @@ public sealed class CommissionPolicies(IDistributionRepository repository, IDist
     /// </summary>
     public async Task Handle(ApprovalGranted granted, EventEnvelope envelope, CancellationToken cancellationToken)
     {
-        if (granted.BusinessRefType != DistributionApprovals.StatementBusinessRefType || await repository.Statement(granted.BusinessRefId, cancellationToken) is not { } statement
-            || statement.GrantedBy(granted.ApprovalId))
+        if (granted.BusinessRefType != DistributionApprovals.StatementBusinessRefType || await repository.Statement(granted.BusinessRefId, cancellationToken) is not { } statement)
         {
             return;
         }
 
-        if (statement.ApproveStatement(true, granted.ApprovalId, granted.CheckerId, granted.SubjectHash, clock.UtcNow).IsFailure)
+        if (granted.ApprovalType != DistributionApprovals.StatementApprovalType)
+        {
+            await DecideAction(statement, true, granted.ApprovalType, granted.ApprovalId, granted.SubjectHash, PrerequisiteCodes.ApprovalNotApplied);
+            return;
+        }
+
+        if (statement.GrantedBy(granted.ApprovalId))
+        {
+            return;
+        }
+
+        if (statement.ApproveStatement(true, granted.ApprovalId, granted.CheckerId, granted.SubjectHash, clock.UtcNow,
+                await repository.OnStatement(statement.Id, cancellationToken), businessDate.Today).IsFailure)
         {
             throw new PrerequisiteMissingException(PrerequisiteCodes.ApprovalNotApplied, $"{granted.ApprovalType}:{granted.ApprovalId}");
         }
 
-        // B-009: with nothing to pay, no payout will settle it, so what it recovered is recovered now.
+        // B-009 and the carry-forward: with nothing to pay (closed nil, or carried forward), no payout will settle it, so what it took is absorbed now.
         if (statement.NetAmount <= 0)
         {
-            foreach (var recovery in await repository.RecoveriesOn(statement.Id, cancellationToken))
-            {
-                recovery.Settle();
-            }
+            await SettleTaken(statement.Id, cancellationToken);
         }
     }
 
@@ -410,8 +559,18 @@ public sealed class CommissionPolicies(IDistributionRepository repository, IDist
     /// </summary>
     public async Task Handle(ApprovalRejected rejected, EventEnvelope envelope, CancellationToken cancellationToken)
     {
-        if (rejected.BusinessRefType != DistributionApprovals.StatementBusinessRefType || await repository.Statement(rejected.BusinessRefId, cancellationToken) is not { } statement
-            || statement.EndedBy(rejected.ApprovalId))
+        if (rejected.BusinessRefType != DistributionApprovals.StatementBusinessRefType || await repository.Statement(rejected.BusinessRefId, cancellationToken) is not { } statement)
+        {
+            return;
+        }
+
+        if (rejected.ApprovalType != DistributionApprovals.StatementApprovalType)
+        {
+            await DecideAction(statement, false, rejected.ApprovalType, rejected.ApprovalId, rejected.SubjectHash, PrerequisiteCodes.ApprovalEndingNotApplied);
+            return;
+        }
+
+        if (statement.EndedBy(rejected.ApprovalId))
         {
             return;
         }
@@ -426,19 +585,63 @@ public sealed class CommissionPolicies(IDistributionRepository repository, IDist
         {
             recovery.Release();
         }
+
+        foreach (var carried in await repository.CarriedOn(statement.Id, cancellationToken))
+        {
+            carried.ReleaseCarry();
+        }
     }
 
-    /// <summary>"Payout settled": the statement and its payable entitlements are paid.</summary>
+    /// <summary>"Payout settled": the statement and its payable entitlements are paid, and what it took of earlier debts is absorbed.</summary>
     public async Task Handle(PaymentSucceeded succeeded, EventEnvelope envelope, CancellationToken cancellationToken)
     {
         if (succeeded.BusinessRefType == DistributionApprovals.StatementBusinessRefType && succeeded.BusinessRefId is { } id
             && await repository.Statement(id, cancellationToken) is { Status: StatementStatus.Approved } statement)
         {
             statement.PayoutSettled(succeeded.PaymentId, succeeded.ValueDate, await repository.OnStatement(statement.Id, cancellationToken));
-            foreach (var recovery in await repository.RecoveriesOn(statement.Id, cancellationToken))
-            {
-                recovery.Settle();
-            }
+            await SettleTaken(statement.Id, cancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// DE-008: the statement's payout failed. It is PaymentFailed with the failed payment's reference, until a second person
+    /// grants a retry; its entitlements and what it took of earlier debts stay on it. A failure of a statement that is not
+    /// waiting for its payout (already failed with this reference, or paid) changes nothing.
+    /// </summary>
+    public async Task Handle(PaymentFailed failed, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (failed.BusinessRefType == DistributionApprovals.StatementBusinessRefType && failed.BusinessRefId is { } id && failed.Purpose == PaymentPurposes.Commission
+            && await repository.Statement(id, cancellationToken) is { Status: StatementStatus.Approved or StatementStatus.PaymentFailed } statement)
+        {
+            statement.PayoutFailed(failed.PaymentRef);
+        }
+    }
+
+    /// <summary>
+    /// Workflow's decision of a statement's action (PAYOUT_RETRY, COMMISSION_CLAWBACK_INVOICE). One already decided by this
+    /// approval is a redelivery; one the statement will not take (no such action waiting, or another subject) parks (D-5).
+    /// </summary>
+    private Task DecideAction(CommissionStatement statement, bool approved, string approvalType, Guid approvalId, string? subjectHash, string parkCode)
+    {
+        if (statement.DecideAction(approved, approvalType, approvalId, subjectHash, businessDate.Today, clock.UtcNow).IsFailure)
+        {
+            throw new PrerequisiteMissingException(parkCode, $"{approvalType}:{approvalId}");
+        }
+
+        return Task.CompletedTask;
+    }
+
+    /// <summary>What a decided statement took of the intermediary's earlier debts (B-009 recoveries, carried-forward statements) is absorbed.</summary>
+    private async Task SettleTaken(Guid statementId, CancellationToken cancellationToken)
+    {
+        foreach (var recovery in await repository.RecoveriesOn(statementId, cancellationToken))
+        {
+            recovery.Settle();
+        }
+
+        foreach (var carried in await repository.CarriedOn(statementId, cancellationToken))
+        {
+            carried.SettleCarry();
         }
     }
 

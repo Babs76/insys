@@ -45,7 +45,8 @@ public static class DistributionInfrastructure
     public static IServiceCollection AddDistributionInfrastructure(this IServiceCollection services)
     {
         // Its approval kinds and the screens that open their records (BR-005).
-        BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Distribution.Contracts.DistributionApprovals.StatementBusinessRefType, "COMMISSION_STATEMENTS", Insys.Distribution.Contracts.DistributionApprovals.StatementApprovalType);
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Distribution.Contracts.DistributionApprovals.StatementBusinessRefType, "COMMISSION_STATEMENTS", Insys.Distribution.Contracts.DistributionApprovals.StatementApprovalType,
+            PaymentApprovals.PayoutRetryApprovalType, Insys.Distribution.Contracts.DistributionApprovals.ClawbackInvoiceApprovalType);
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Unscoped(Insys.Distribution.Contracts.DistributionApprovals.StatementBusinessRefType,
             "commission statements are payouts, outside branch scope (access-scopes.md, OQ-174)");
         // ADR-026 §2: this module's event consumers run under its JOB function.
@@ -70,6 +71,7 @@ public static class DistributionInfrastructure
         services.AddIntegrationEventHandler<ApprovalGranted, CommissionPolicies, DistributionDbContext>(schema, "ApprovalGranted");
         services.AddIntegrationEventHandler<ApprovalRejected, CommissionPolicies, DistributionDbContext>(schema, "ApprovalRejected");
         services.AddIntegrationEventHandler<PaymentSucceeded, CommissionPolicies, DistributionDbContext>(schema, "PaymentSucceeded");
+        services.AddIntegrationEventHandler<PaymentFailed, CommissionPolicies, DistributionDbContext>(schema, "PaymentFailed"); // DE-008
         services.AddIntegrationEventHandler<StaticDataChangeApproved, IntermediaryStatusPolicy, DistributionDbContext>(schema, "IntermediaryStatus");
         services.AddSingleton<BuildingBlocks.Application.Context.IPortalRecordRelations, DistributionPortalRelations>(); // external-user access §2
         return services;
