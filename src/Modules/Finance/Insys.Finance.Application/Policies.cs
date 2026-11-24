@@ -91,7 +91,9 @@ public sealed class PostingPolicies(EventPoster poster, IBusinessDate businessDa
     /// <summary>The invoice's total is due; the tax it includes moves from premium income to the tax code's account (OQ-058). An invoice with no tax posts as it always has.</summary>
     public async Task Handle(InvoiceIssued e, EventEnvelope envelope, CancellationToken cancellationToken)
     {
-        if (e.SourceDomain == Health.Contracts.HealthReferences.RecoverySourceDomain)
+        // A Health recovery and, likewise, a commission clawback (OQ-062, Ade 24 November 2026) are debts owed back, not premium due.
+        // TODO(spec): whether a clawback invoice posts to a commission receivable instead (put to Ade, 24 November 2026).
+        if (e.SourceDomain == Health.Contracts.HealthReferences.RecoverySourceDomain || e.SourceDomain == Distribution.Contracts.DistributionReferences.ClawbackSourceDomain)
         {
             return;
         }

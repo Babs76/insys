@@ -186,7 +186,7 @@ public static class RoleTemplates
             Excluded: ["PAYMENTS_BUILD_BATCH", .. CallbackScreens], Extra: [.. Approving, "PARTY_BANK_ACCOUNTS", "PARTY_BANK_ACCOUNT_VERIFY"],
             PrivilegedGrants: ["TENANT_SWITCH_OFF_MONEY_JOBS", "PAYMENTS_REVERSE"],
             Approves: ["STATIC_DATA_T1", "STATIC_DATA_T2", "REFUND", "CLAIM_PAYMENT", "PAYOUT_RELEASE", "PERIOD_REOPEN", "PROVIDER_PAYMENT_RUN", "COMMISSION_STATEMENT", "BANK_ACCOUNT_VERIFICATION", "CASE_REDRESS",
-                "UNKNOWN_PAYMENT_RESOLUTION", "PAYOUT_RETRY", "COMMISSION_CLAWBACK_INVOICE"]), // DE-008, OQ-062 (Ade, 24 November 2026)
+                "UNKNOWN_PAYMENT_RESOLUTION", "PAYOUT_RETRY", "COMMISSION_CLAWBACK_INVOICE", "CREDIT_NOTE"]), // DE-008, OQ-062 (Ade, 24 November 2026)
         new("DISTRIBUTION_ADMINISTRATOR", "Distribution administrator", "STAFF", "Intermediaries, commission and their configuration",
             ["INTERMEDIARIES", "COMMISSION", "CONFIG_DISTRIBUTION"], Approves: ["STATIC_DATA_T1", "STATIC_DATA_T2"]),
         new("REINSURANCE_OFFICER", "Reinsurance officer", "STAFF", "Treaties, cessions and bordereaux", ["REINSURANCE", "CONFIG_REINSURANCE"],

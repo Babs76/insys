@@ -83,6 +83,7 @@ public static class BillingInfrastructure
         services.AddIntegrationEventHandler<LifePolicyReinstated, LifePolicyBilling, BillingDbContext>(schema, "LifePolicyReinstated");
         services.AddIntegrationEventHandler<Health.Contracts.HealthMemberEnrolled, HealthContributionBilling, BillingDbContext>(schema, "HealthMemberEnrolled");
         services.AddIntegrationEventHandler<Health.Contracts.ProviderRecoveryInvoiceRequested, RecoveryInvoicing, BillingDbContext>(schema);
+        services.AddIntegrationEventHandler<Distribution.Contracts.CommissionClawbackInvoiceRequested, CommissionClawbackInvoicing, BillingDbContext>(schema); // OQ-062
         services.AddIntegrationEventHandler<Health.Contracts.DependantAdded, HealthContributionBilling, BillingDbContext>(schema, "DependantAdded");
         services.AddIntegrationEventHandler<Health.Contracts.HealthMemberStatusChanged, HealthContributionBilling, BillingDbContext>(schema, "MemberStatusChanged");
         services.AddIntegrationEventHandler<Health.Contracts.MembershipProductAssigned, HealthContributionBilling, BillingDbContext>(schema, "MembershipProductAssigned");
