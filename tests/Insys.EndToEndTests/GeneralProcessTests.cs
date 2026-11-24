@@ -1871,7 +1871,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         (await _db.ScalarAsOwner<string>("""
             SELECT t.queue_code FROM workflow.process_instance p JOIN workflow.task t ON t.tenant_id = p.tenant_id AND t.process_instance_id = p.id
             WHERE p.process_code = 'CONFIG_REVIEW' AND p.business_ref_type = 'FRAUD_INDICATOR'
-            """)).ShouldBe("INTEGRATION_ADMINISTRATOR", customMessage: "F009: the configuration owner (by default, DE-028) gets a review task, not only a log line");
+            """)).ShouldBe("TENANT_ADMIN", customMessage: "F009: the configuration owner gets a review task, not only a log line");
         var claims = await (await _maker.GetAsync($"/api/v1/general/claims?claimNumber={number}")).Json();
         ShouldMatchDocumented(claims, "GeneralListClaims");
         claims.GetProperty("items").EnumerateArray().Single().GetProperty("id").GetGuid().ShouldBe(claim);

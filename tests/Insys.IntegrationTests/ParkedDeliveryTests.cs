@@ -164,24 +164,34 @@ public sealed class ParkedDeliveryTests(DatabaseFixture fixture) : IClassFixture
     }
 
     /// <summary>
-    /// DE-028 (Ade, 24 November 2026): a tenant with no parking setting of its own has the integration administrator as its configuration owner, who lists parked
-    /// deliveries (it was the tenant administrator, who cannot); a tenant that chose a role keeps its choice.
+    /// DE-028 (Ade, 24 November 2026): a tenant with no parking setting of its own escalates parked deliveries to the integration administrator, who lists them
+    /// (it was the tenant administrator, who cannot), while other configuration alerts (F009's review) keep the tenant administrator as their default owner;
+    /// a tenant that chose a role keeps its choice. The escalation's default is asserted on the escalated event in the test below.
     /// </summary>
     [Fact]
-    public async Task TheDefaultConfigurationOwner_IsTheIntegrationAdministrator_AndATenantsOwnChoiceStays_DE028()
+    public async Task TheDefaultEscalationRole_IsTheIntegrationAdministrator_TheConfigurationOwnerStaysTheTenantAdministrator_AndATenantsOwnChoiceStays_DE028()
     {
         var owner = _services.GetRequiredService<Insys.Integration.Contracts.IConfigurationOwner>();
-        var tenant = Guid.CreateVersion7();
-        await fixture.Database.SeedTenant(tenant, "PK" + Guid.NewGuid().ToString("N")[..8].ToUpperInvariant());
-        (await owner.Role(tenant, CancellationToken.None)).ShouldBe("INTEGRATION_ADMINISTRATOR");
+        var options = _services.GetRequiredService<Microsoft.Extensions.Options.IOptions<ParkingOptions>>().Value;
+        (options.DefaultEscalationRole, options.DefaultConfigurationOwnerRole).ShouldBe(("INTEGRATION_ADMINISTRATOR", "TENANT_ADMIN"));
+        // Tenant B: no other test of this class uses it, and a new tenant would add work to the outbox the other tests relay once.
+        var tenant = DatabaseFixture.TenantB;
+        (await owner.Role(tenant, CancellationToken.None)).ShouldBe("TENANT_ADMIN", "F009's configuration review keeps its default");
 
-        // A setting stored before the change, naming the tenant administrator: the tenant's explicit choice, left as it is.
+        // A setting of the tenant's own (stored before the change, say): its explicit choice, left as it is.
         await fixture.Database.ExecuteAsOwner("""
             INSERT INTO integration.parking_setting (tenant_id, id, row_version, created_at, created_by, updated_at, updated_by, configuration_owner_role,
                 calendar_code, money_first, money_second, other_first, other_second)
-            VALUES (@t, @id, 1, now(), 'test', now(), 'test', 'TENANT_ADMIN', NULL, 'PT4H', 'P1D', 'P1D', 'P3D')
+            VALUES (@t, @id, 1, now(), 'test', now(), 'test', 'CLAIMS_MANAGER', NULL, 'PT4H', 'P1D', 'P1D', 'P3D')
             """, ("t", tenant), ("id", Guid.CreateVersion7()));
-        (await owner.Role(tenant, CancellationToken.None)).ShouldBe("TENANT_ADMIN");
+        try
+        {
+            (await owner.Role(tenant, CancellationToken.None)).ShouldBe("CLAIMS_MANAGER");
+        }
+        finally
+        {
+            await fixture.Database.ExecuteAsOwner("DELETE FROM integration.parking_setting WHERE tenant_id = @t", ("t", tenant));
+        }
     }
 
     [Fact]

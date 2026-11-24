@@ -198,7 +198,7 @@ internal sealed class ParkedDeliveryStore(
             return await reader.ReadAsync(cancellationToken)
                 ? new ParkingSettingView(reader.GetString(0), reader.IsDBNull(1) ? null : reader.GetString(1), reader.GetString(2), reader.GetString(3),
                     reader.GetString(4), reader.GetString(5), false, reader.GetInt64(6))
-                : new ParkingSettingView(defaults.DefaultConfigurationOwnerRole, null, defaults.MoneyFirst, defaults.MoneySecond, defaults.OtherFirst,
+                : new ParkingSettingView(defaults.DefaultEscalationRole, null, defaults.MoneyFirst, defaults.MoneySecond, defaults.OtherFirst,
                     defaults.OtherSecond, true, 0);
         }, cancellationToken);
 
@@ -254,6 +254,9 @@ internal sealed class ParkedDeliveryStore(
 internal sealed class ConfigurationOwner([FromKeyedServices(IntegrationDbContext.SchemaName)] NpgsqlDataSource dataSource, IOptions<ParkingOptions> options)
     : Contracts.IConfigurationOwner
 {
+    /// <summary>The tenant's own setting's role; with none, the configuration owner default, not the parked deliveries' escalation default (DE-028).</summary>
     public async Task<string> Role(Guid tenantId, CancellationToken cancellationToken) =>
-        (await ParkedDeliveryStore.ReadSetting(dataSource, tenantId, options.Value, cancellationToken)).ConfigurationOwnerRole;
+        await ParkedDeliveryStore.ReadSetting(dataSource, tenantId, options.Value, cancellationToken) is { IsDefault: false } own
+            ? own.ConfigurationOwnerRole
+            : options.Value.DefaultConfigurationOwnerRole;
 }
