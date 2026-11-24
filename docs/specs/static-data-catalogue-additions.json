@@ -1820,7 +1820,7 @@
    "scope": "T",
    "tier": 1,
    "proposedOwner": "Finance Officer",
-   "provenance": "B-009 (Ade, 30 October 2026)",
+   "provenance": "B-009 (Ade, 30 October 2026); clawback_invoice_after_days: OQ-062 negative statements (Ade, 24 November 2026)",
    "basis": "DST-004",
    "fields": [
     {
@@ -1828,6 +1828,12 @@
      "logicalType": "Enum{Recover,Keep}",
      "mandatory": true,
      "sample": "Recover"
+    },
+    {
+     "name": "clawback_invoice_after_days",
+     "logicalType": "Integer",
+     "mandatory": false,
+     "sample": "90"
     }
    ]
   }

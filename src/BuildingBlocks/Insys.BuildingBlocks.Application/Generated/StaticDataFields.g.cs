@@ -57,7 +57,7 @@ public static class StaticDataFields
         ["claims.ref_claim_status_model"] = ["statusCode", "label", "allowedNext", "domainOverride"],
         ["claims.ref_evidence_types"] = ["documentCategory", "mandatoryFor"],
         ["claims.ref_reserve_types"] = ["category", "postingRule"],
-        ["commission.cfg_broker_change_settings"] = ["paidCommission"],
+        ["commission.cfg_broker_change_settings"] = ["paidCommission", "clawbackInvoiceAfterDays"],
         ["commission.cfg_commission_plans"] = ["planCode", "basis", "rate", "clawbackRule"],
         ["commission.cfg_distribution_hierarchy"] = ["nodeCode", "parent", "overridingCommission"],
         ["commission.cfg_intermediary_product_permissions"] = ["intermediary", "product", "transactionsAllowed", "planCode"],

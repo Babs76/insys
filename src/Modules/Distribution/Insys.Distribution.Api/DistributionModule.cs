@@ -41,6 +41,12 @@ namespace Insys.Distribution.Api;
 
 public sealed record ClawBackRequest(string Reason);
 
+/// <summary>DE-008: the failed payout's reference, typed as shown on the statement.</summary>
+public sealed record RetryStatementPayoutRequest(string PaymentRef);
+
+/// <summary>The statement's reference (intermediary/period), typed as shown on the statement, and why the intermediary is invoiced.</summary>
+public sealed record InvoiceStatementClawbackRequest(string Reference, string Reason);
+
 /// <summary>
 /// The Distribution module (§16): intermediaries, their product permissions (DST-001) and lifecycle as static data;
 /// commission accrued at the plan version in force on the invoice (DST-002, DST-003), made payable when the invoice is
@@ -116,8 +122,8 @@ public sealed class DistributionModule : IModule
             .WithSummary("Prepare an intermediary's statement for a month, or prepare a draft again; a second person approves it in Workflow (DST-004)")
             .RequirePermission(DistributionPermissions.StatementCreate);
 
-        distribution.MapGet("/statements", async (string? intermediaryCode, string? periodCode, StatementStatus? status, string? cursor, int? limit, IDispatcher d,
-                CancellationToken ct) =>
+        distribution.MapGet("/statements", async (string? intermediaryCode, string? periodCode, StatementStatus? status, bool? invoiceDue, string? cursor, int? limit,
+                IDispatcher d, CancellationToken ct) =>
             {
                 if (!Cursor.TryDecode(cursor, out var after))
                 {
@@ -125,13 +131,49 @@ public sealed class DistributionModule : IModule
                 }
 
                 var size = Cursor.ClampLimit(limit);
-                return (await d.Query(new ListStatements(intermediaryCode, periodCode, status, after, size), ct))
+                return (await d.Query(new ListStatements(intermediaryCode, periodCode, status, after, size, invoiceDue ?? false), ct))
                     .ToHttp(items => Results.Ok(new CursorPage<StatementView>(items, items.Count == size ? Cursor.Encode(items[^1].Id) : null)));
             })
             .Produces<CursorPage<StatementView>>(StatusCodes.Status200OK)
             .WithName("DistributionListStatements")
             .WithSummary("Commission statements by intermediary, period (yyyy-MM) and status, oldest first (BR-058)")
+            .WithDescription("status=CarriedForward lists the statements approved with a negative net whose amount is still carried; invoiceDue=true lists only "
+                             + "carried-forward statements carried for at least the tenant's clawbackInvoiceAfterDays (commission settings, 90 unless set) with "
+                             + "nothing awaiting approval: those whose clawback may be invoiced (a terminated intermediary's may be invoiced sooner). "
+                             + "carriedDays is the age to the tenant's business date.")
             .RequirePermission(DistributionPermissions.StatementRead);
+
+        distribution.MapPost("/statements/{id:guid}/retry-payout", async (Guid id, RetryStatementPayoutRequest r, IDispatcher d, CancellationToken ct) =>
+                (await d.Send(new RetryStatementPayout(id, r.PaymentRef), ct)).ToHttp(Results.Ok))
+            .Produces<StatementView>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status409Conflict).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .TakesIfMatch()
+            .WithName("DistributionRetryStatementPayout")
+            .WithSummary("Retry a statement's failed payout: a second person approves it (PAYOUT_RETRY, DE-008)")
+            .WithDescription("Only a PaymentFailed statement. paymentRef is the failed payout's reference (failedPaymentRef), typed by the requester; another is "
+                             + "refused with 422 TYPED_REFERENCE_MISMATCH and changes nothing. The statement then reads pendingAction PAYOUT_RETRY; the approval "
+                             + "is for its net amount, by a checker other than the requester and within authority.")
+            .WithEventualEffects("the Workflow approval appears (GET /api/v1/workflow/approvals, businessRefType COMMISSION_STATEMENT, approvalType PAYOUT_RETRY). "
+                                 + "Granted, the statement reads Approved with the next payoutAttempt and Payments makes its payout, paid once a payout batch is "
+                                 + "released (GET /api/v1/payments/payments?businessRefId=); rejected, expired or withdrawn, pendingAction clears and it stays PaymentFailed.")
+            .RequirePermission(DistributionPermissions.StatementUpdate);
+
+        distribution.MapPost("/statements/{id:guid}/invoice-clawback", async (Guid id, InvoiceStatementClawbackRequest r, IDispatcher d, CancellationToken ct) =>
+                (await d.Send(new InvoiceStatementClawback(id, r.Reference, r.Reason), ct)).ToHttp(Results.Ok))
+            .Produces<StatementView>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status409Conflict).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .TakesIfMatch()
+            .WithName("DistributionInvoiceStatementClawback")
+            .WithSummary("Invoice the intermediary for what a carried-forward statement still carries: a second person approves it (COMMISSION_CLAWBACK_INVOICE)")
+            .WithDescription("Only a CarriedForward statement, once its intermediary is TERMINATED in the register or it has been carried for at least the "
+                             + "tenant's clawbackInvoiceAfterDays (90 unless set; 422 CLAWBACK_INVOICE_NOT_DUE otherwise), and not while a later statement "
+                             + "awaiting approval or payment takes part of it (409 STATEMENT_CARRY_ON_STATEMENT). reference is the statement's reference, typed "
+                             + "by the requester (422 TYPED_REFERENCE_MISMATCH otherwise); reason says why. The approval is for carriedAmount less carrySettledAmount.")
+            .WithEventualEffects("the Workflow approval appears (businessRefType COMMISSION_STATEMENT, approvalType COMMISSION_CLAWBACK_INVOICE). Granted, the "
+                                 + "statement reads Invoiced with invoicedOn and invoicedAmount, no later statement takes it, and Billing issues an invoice to the "
+                                 + "intermediary's party with sourceDomain DIST_CLAW and the statement's ID as its policyRef (GET /api/v1/billing/accounts/{id}/invoices "
+                                 + "of the party's account); rejected, expired or withdrawn, pendingAction clears and it stays CarriedForward.")
+            .RequirePermission(DistributionPermissions.StatementUpdate);
 
         distribution.MapGet("/statements/{id:guid}", async (Guid id, IDispatcher d, CancellationToken ct) =>
                 (await d.Query(new GetStatement(id), ct)).ToHttp(Results.Ok))

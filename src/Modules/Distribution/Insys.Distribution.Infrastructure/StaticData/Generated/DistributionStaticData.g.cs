@@ -55,6 +55,7 @@ public static class DistributionStaticData
             entity.ToTable("cfg_broker_change_settings", "commission");
             StaticModel.ConfigureCommon(entity);
             entity.Property(x => x.PaidCommission).HasColumnName("paid_commission").HasMaxLength(10);
+            entity.Property(x => x.ClawbackInvoiceAfterDays).HasColumnName("clawback_invoice_after_days");
         });
         modelBuilder.Entity<CommissionPlans>(entity =>
         {

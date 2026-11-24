@@ -57,7 +57,14 @@ public sealed class CommissionTests
     public void Lifecycles_MatchDomainModel()
     {
         Model(CommissionEntitlement.Lifecycle).ShouldBe(Spec("CommissionEntitlement", ("Premium received", "PremiumReceived"), ("Statement settled", "StatementSettled")));
-        Model(CommissionStatement.Lifecycle).ShouldBe(Spec("CommissionStatement", ("Payout settled", "PayoutSettled")));
+        // Ade (24 November 2026, OQ-062 and DE-008): the nil close, the carry-forward and its ends, and the failed payout and its retry, beyond domain-model.json.
+        string[] decided =
+        [
+            "Draft-CloseNil->ClosedNil", "Draft-CarryForward->CarriedForward", "CarriedForward-CarryForwardSettled->SettledByCarryForward",
+            "CarriedForward-InvoiceClawback->Invoiced", "Approved-PayoutFailed->PaymentFailed", "PaymentFailed-RetryPayout->Approved",
+        ];
+        Model(CommissionStatement.Lifecycle).ShouldBe(string.Join("|", Spec("CommissionStatement", ("Payout settled", "PayoutSettled")).Split('|').Concat(decided)
+            .OrderBy(t => t, StringComparer.Ordinal)));
         Model(Intermediary.Lifecycle).ShouldBe(Spec("Intermediary"));
     }
 
@@ -253,5 +260,182 @@ public sealed class CommissionTests
         entitlement.Share(0.5m, "BROKER_OF_RECORD_CHANGED", new DateOnly(2026, 10, 16), Now).IsSuccess.ShouldBeTrue();
         (entitlement.Amount, entitlement.BasisAmount, entitlement.Status).ShouldBe((62.5m, 500m, EntitlementStatus.Accrued));
         entitlement.DomainEvents.OfType<CommissionShared>().Single().ShouldSatisfyAllConditions(e => e.AmountBefore.ShouldBe(125m), e => e.Amount.ShouldBe(62.5m));
+    }
+    private static CommissionEntitlement Payable(decimal net = 1_000m)
+    {
+        var entitlement = Accrued(net);
+        entitlement.MarkPayable().IsSuccess.ShouldBeTrue();
+        return entitlement;
+    }
+
+    /// <summary>A statement approved with the clawbacks it recovers (each the 125 of a paid entitlement) against its commission.</summary>
+    private static (CommissionStatement Statement, CommissionEntitlement[] Lines) Approved(string period, decimal commissionNet, int clawbacks,
+        CommissionStatement[]? carried = null, DateOnly? on = null)
+    {
+        var recover = new List<CommissionEntitlement>();
+        for (var i = 0; i < clawbacks; i++)
+        {
+            var earlier = Payable();
+            var previous = CommissionStatement.Open(Guid.CreateVersion7(), "BRK-1", "2025-01", "ZAR");
+            previous.PrepareStatement([earlier], [], [], Payee, Guid.CreateVersion7(), Now).IsSuccess.ShouldBeTrue();
+            previous.ApproveStatement(true, Guid.CreateVersion7(), Guid.CreateVersion7(), previous.SubjectHash, Now).IsSuccess.ShouldBeTrue();
+            earlier.ClawBack("POLICY_CANCELLED", Today, Now).IsSuccess.ShouldBeTrue(); // on an approved statement, not yet paid: recovered on the next
+            recover.Add(earlier);
+        }
+
+        CommissionEntitlement[] payable = commissionNet > 0 ? [Payable(commissionNet)] : [];
+        var statement = CommissionStatement.Open(Guid.CreateVersion7(), "BRK-1", period, "ZAR");
+        statement.PrepareStatement(payable, recover, [], Payee, Guid.CreateVersion7(), Now, null, carried).IsSuccess.ShouldBeTrue();
+        statement.ApproveStatement(true, Guid.CreateVersion7(), Guid.CreateVersion7(), statement.SubjectHash, Now, [.. payable, .. recover], on ?? Today).IsSuccess
+            .ShouldBeTrue();
+        return (statement, [.. payable, .. recover]);
+    }
+
+    [Fact]
+    public void AStatementApprovedWithANetOfZero_ClosesNil_WithNoPayout_AndItsEntitlementsSettled_OQ062()
+    {
+        var (statement, lines) = Approved("2026-10", 1_000m, 1); // 125 commission less one 125 clawback
+        statement.NetAmount.ShouldBe(0m);
+        statement.Status.ShouldBe(StatementStatus.ClosedNil);
+        statement.DomainEvents.OfType<CommissionStatementApproved>().ShouldBeEmpty("nothing is paid");
+        lines[0].Status.ShouldBe(EntitlementStatus.Paid, "settled by the nil close, never counted again");
+        statement.CarriedAmount.ShouldBe(0m);
+    }
+
+    [Fact]
+    public void AStatementApprovedWithANegativeNet_IsCarriedForward_OnTheBusinessDate_AndItsLinesAreSettledByIt_OQ062()
+    {
+        var carriedOn = new DateOnly(2026, 10, 31);
+        var (statement, lines) = Approved("2026-10", 1_000m, 3, on: carriedOn); // 125 - 375
+        (statement.Status, statement.NetAmount, statement.CarriedAmount, statement.CarriedOn, statement.CarriedOwed)
+            .ShouldBe((StatementStatus.CarriedForward, -250m, 250m, (DateOnly?)carriedOn, 250m));
+        statement.DomainEvents.OfType<CommissionStatementApproved>().ShouldBeEmpty();
+        lines[0].Status.ShouldBe(EntitlementStatus.Paid);
+        lines.Skip(1).ShouldAllBe(e => e.Clawback!.StatementId == statement.Id && !e.NeedsRecovery, "its clawbacks are recovered by it, never on a later statement");
+    }
+
+    [Fact]
+    public void ACarriedAmount_IsTheOpeningLineOfTheNextStatements_AsFarAsTheirCommissionCovers_ThenSettledByCarryForward_OQ062()
+    {
+        var (october, _) = Approved("2026-10", 0m, 2); // carries 250
+
+        // November has 125: it takes 125 as its opening line and nets to nil; 125 stays carried.
+        var november = CommissionStatement.Open(Guid.CreateVersion7(), "BRK-1", "2026-11", "ZAR");
+        var novemberLine = Payable();
+        november.PrepareStatement([novemberLine], [], [], Payee, Guid.CreateVersion7(), Now, null, [october]).IsSuccess.ShouldBeTrue();
+        (november.OpeningAmount, november.NetAmount, october.CarryOnStatementId, october.CarriedOwed).ShouldBe((125m, 0m, (Guid?)november.Id, 125m));
+
+        // Rejected, it gives the amount back; prepared again it takes it again.
+        november.ApproveStatement(false, Guid.CreateVersion7(), Guid.Empty, november.SubjectHash, Now, [novemberLine]);
+        october.ReleaseCarry();
+        october.CarriedOwed.ShouldBe(250m);
+        november.PrepareStatement([novemberLine], [], [novemberLine], Payee, Guid.CreateVersion7(), Now, null, [october]).IsSuccess.ShouldBeTrue();
+        november.ApproveStatement(true, Guid.CreateVersion7(), Guid.CreateVersion7(), november.SubjectHash, Now, [novemberLine], Today).IsSuccess.ShouldBeTrue();
+        november.Status.ShouldBe(StatementStatus.ClosedNil);
+        october.SettleCarry();
+        (october.Status, october.CarrySettledAmount, october.CarriedOwed).ShouldBe((StatementStatus.CarriedForward, 125m, 125m));
+
+        // December has 1,250: it takes the remaining 125 and pays 1,125; paid, October is settled by the carry-forward.
+        var december = CommissionStatement.Open(Guid.CreateVersion7(), "BRK-1", "2026-12", "ZAR");
+        var decemberLine = Payable(10_000m);
+        december.PrepareStatement([decemberLine], [], [], Payee, Guid.CreateVersion7(), Now, null, [october]).IsSuccess.ShouldBeTrue();
+        (december.OpeningAmount, december.NetAmount).ShouldBe((125m, 1_125m));
+        december.ApproveStatement(true, Guid.CreateVersion7(), Guid.CreateVersion7(), december.SubjectHash, Now, [decemberLine], Today).IsSuccess.ShouldBeTrue();
+        december.DomainEvents.OfType<CommissionStatementApproved>().ShouldHaveSingleItem().NetAmount.ShouldBe(1_125m);
+        december.PayoutSettled(Guid.CreateVersion7(), Today, [decemberLine]).IsSuccess.ShouldBeTrue();
+        october.SettleCarry();
+        (october.Status, october.CarrySettledAmount, october.CarriedOwed).ShouldBe((StatementStatus.SettledByCarryForward, 250m, 0m));
+    }
+
+    [Fact]
+    public void AClawbackInvoice_NeedsTheTypedReference_AndTerminationOrTheTenantsDays_ThenASecondPerson_OQ062()
+    {
+        var carriedOn = new DateOnly(2026, 8, 1);
+        var (statement, _) = Approved("2026-07", 0m, 2, on: carriedOn); // carries 250
+        statement.Reference.ShouldBe("BRK-1/2026-07");
+        var requester = Guid.CreateVersion7();
+
+        statement.RequestClawbackInvoice("BRK-1/2026-08", "Broker left", false, 90, carriedOn.AddDays(120), requester, Now).Error!.Code
+            .ShouldBe(ErrorCodes.TypedReferenceMismatch);
+        statement.RequestClawbackInvoice("BRK-1/2026-07", "Broker left", false, 90, carriedOn.AddDays(89), requester, Now).Error!.Code
+            .ShouldBe(DistributionErrorCodes.ClawbackInvoiceNotDue);
+        statement.PendingAction.ShouldBeNull("a refusal changes nothing");
+        statement.RequestClawbackInvoice("BRK-1/2026-07", "Broker left", true, 90, carriedOn.AddDays(1), requester, Now).IsSuccess.ShouldBeTrue("terminated: at once");
+        var asked = statement.DomainEvents.OfType<StatementActionRequested>().ShouldHaveSingleItem();
+        (asked.ApprovalType, asked.Amount, asked.RequestedBy, asked.SubjectHash).ShouldBe((StatementActions.ClawbackInvoice, 250m, requester, statement.ActionSubjectHash));
+        statement.RequestClawbackInvoice("BRK-1/2026-07", "Again", true, 90, carriedOn.AddDays(1), requester, Now).Error!.Code.ShouldBe(ErrorCodes.InvalidStateTransition);
+
+        // Rejected (or expired, withdrawn): it stays carried; redelivered, nothing changes.
+        var rejection = Guid.CreateVersion7();
+        statement.DecideAction(false, StatementActions.ClawbackInvoice, rejection, statement.ActionSubjectHash, Today, Now).IsSuccess.ShouldBeTrue();
+        (statement.Status, statement.PendingAction).ShouldBe((StatementStatus.CarriedForward, (string?)null));
+        statement.DecideAction(false, StatementActions.ClawbackInvoice, rejection, null, Today, Now).IsSuccess.ShouldBeTrue();
+
+        // After 90 days: asked again and granted, the carried amount is closed as invoiced and Billing is asked to invoice it.
+        statement.RequestClawbackInvoice("BRK-1/2026-07", "Owed for over 90 days", false, 90, carriedOn.AddDays(90), requester, Now).IsSuccess.ShouldBeTrue();
+        statement.DecideAction(true, StatementActions.ClawbackInvoice, Guid.CreateVersion7(), "another subject", Today, Now).Error!.Code
+            .ShouldBe(DistributionErrorCodes.StatementChanged);
+        statement.DecideAction(true, StatementActions.ClawbackInvoice, Guid.CreateVersion7(), statement.ActionSubjectHash, Today, Now).IsSuccess.ShouldBeTrue();
+        (statement.Status, statement.InvoicedOn, statement.InvoicedAmount, statement.CarriedOwed).ShouldBe((StatementStatus.Invoiced, (DateOnly?)Today, (decimal?)250m, 0m));
+        var invoice = statement.DomainEvents.OfType<ClawbackInvoiceRequested>().ShouldHaveSingleItem();
+        (invoice.PayerPartyId, invoice.Amount, invoice.Reference, invoice.DueOn).ShouldBe((Payee.PartyId, 250m, "BRK-1/2026-07", Today));
+    }
+
+    [Fact]
+    public void ACarriedAmountPartlyOnALaterStatement_IsNotInvoiced_AndOneAwaitingItsInvoice_IsNotTaken_OQ062()
+    {
+        var (october, _) = Approved("2026-10", 0m, 2);
+        var november = CommissionStatement.Open(Guid.CreateVersion7(), "BRK-1", "2026-11", "ZAR");
+        november.PrepareStatement([Payable()], [], [], Payee, Guid.CreateVersion7(), Now, null, [october]).IsSuccess.ShouldBeTrue();
+        october.RequestClawbackInvoice(october.Reference, "Owed", true, 90, Today, Guid.CreateVersion7(), Now).Error!.Code.ShouldBe(DistributionErrorCodes.CarryOnStatement);
+
+        october.ReleaseCarry();
+        october.RequestClawbackInvoice(october.Reference, "Owed", true, 90, Today, Guid.CreateVersion7(), Now).IsSuccess.ShouldBeTrue();
+        var december = CommissionStatement.Open(Guid.CreateVersion7(), "BRK-1", "2026-12", "ZAR");
+        december.PrepareStatement([Payable()], [], [], Payee, Guid.CreateVersion7(), Now, null, [october]).IsSuccess.ShouldBeTrue();
+        (december.OpeningAmount, december.NetAmount, october.CarryOnStatementId).ShouldBe((0m, 125m, (Guid?)null));
+    }
+
+    [Fact]
+    public void AFailedPayout_IsPaymentFailed_AndARetryNeedsTheTypedPaymentRefAndASecondPerson_ThenTheNextAttempt_DE008()
+    {
+        var line = Payable();
+        var statement = CommissionStatement.Open(Guid.CreateVersion7(), "BRK-1", "2026-10", "ZAR");
+        statement.PrepareStatement([line], [], [], Payee, Guid.CreateVersion7(), Now).IsSuccess.ShouldBeTrue();
+        statement.ApproveStatement(true, Guid.CreateVersion7(), Guid.CreateVersion7(), statement.SubjectHash, Now, [line], Today).IsSuccess.ShouldBeTrue();
+        statement.RequestPayoutRetry("PAY-1", Guid.CreateVersion7(), Now).Error!.Code.ShouldBe(ErrorCodes.InvalidStateTransition, "nothing failed");
+
+        statement.PayoutFailed("PAY-0001").IsSuccess.ShouldBeTrue();
+        statement.PayoutFailed("PAY-0001").IsSuccess.ShouldBeTrue("a redelivery");
+        (statement.Status, statement.FailedPaymentRef, line.Status).ShouldBe((StatementStatus.PaymentFailed, "PAY-0001", EntitlementStatus.Payable));
+
+        var requester = Guid.CreateVersion7();
+        statement.RequestPayoutRetry("PAY-0002", requester, Now).Error!.Code.ShouldBe(ErrorCodes.TypedReferenceMismatch);
+        statement.PendingAction.ShouldBeNull();
+        statement.RequestPayoutRetry("PAY-0001", requester, Now).IsSuccess.ShouldBeTrue();
+        var asked = statement.DomainEvents.OfType<StatementActionRequested>().ShouldHaveSingleItem();
+        (asked.ApprovalType, asked.Amount, asked.Currency).ShouldBe((StatementActions.PayoutRetry, 125m, "ZAR"));
+
+        // Rejected: it stays failed. Granted: approved again for attempt 2, asking Payments for the payout.
+        statement.DecideAction(false, StatementActions.PayoutRetry, Guid.CreateVersion7(), statement.ActionSubjectHash, Today, Now).IsSuccess.ShouldBeTrue();
+        (statement.Status, statement.PendingAction).ShouldBe((StatementStatus.PaymentFailed, (string?)null));
+        statement.RequestPayoutRetry("PAY-0001", requester, Now).IsSuccess.ShouldBeTrue();
+        var granted = Guid.CreateVersion7();
+        statement.DecideAction(true, StatementActions.ClawbackInvoice, granted, null, Today, Now).Error!.Code.ShouldBe(ErrorCodes.InvalidStateTransition);
+        statement.DecideAction(true, StatementActions.PayoutRetry, granted, statement.ActionSubjectHash, Today, Now).IsSuccess.ShouldBeTrue();
+        statement.DecideAction(true, StatementActions.PayoutRetry, granted, null, Today, Now).IsSuccess.ShouldBeTrue("a redelivery");
+        (statement.Status, statement.PayoutAttempt).ShouldBe((StatementStatus.Approved, 2));
+        var retried = statement.DomainEvents.OfType<StatementPayoutRetried>().ShouldHaveSingleItem();
+        (retried.Attempt, retried.NetAmount, retried.PayeePartyId, retried.BankAccountId).ShouldBe((2, 125m, Payee.PartyId, Payee.BankAccountId));
+
+        statement.PayoutSettled(Guid.CreateVersion7(), Today, [line]).IsSuccess.ShouldBeTrue();
+        (statement.Status, line.Status).ShouldBe((StatementStatus.Paid, EntitlementStatus.Paid));
+    }
+
+    [Fact]
+    public void TheStatementActions_AreTheSharedApprovalTypes_DE008()
+    {
+        StatementActions.PayoutRetry.ShouldBe(Insys.Payments.Contracts.PaymentApprovals.PayoutRetryApprovalType);
+        StatementActions.ClawbackInvoice.ShouldBe(Insys.Distribution.Contracts.DistributionApprovals.ClawbackInvoiceApprovalType);
     }
 }

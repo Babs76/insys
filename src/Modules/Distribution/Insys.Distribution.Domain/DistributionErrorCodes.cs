@@ -45,6 +45,14 @@ public static class DistributionErrorCodes
     [ErrorCode(409, "error.distribution.statement_changed")]
     public const string StatementChanged = "STATEMENT_CHANGED";
 
+    [ErrorCode(409, "error.distribution.carry_on_statement", Means = "Part of what this statement carries forward is on a later statement that is still awaiting approval or payment.",
+        Remedy = "Wait until that statement is approved and paid, or rejected, then ask again.")]
+    public const string CarryOnStatement = "STATEMENT_CARRY_ON_STATEMENT";
+
+    [ErrorCode(422, "error.distribution.clawback_invoice_not_due", Means = "The carried amount has not been owed long enough to invoice, and the intermediary is not terminated.",
+        Remedy = "Invoice it once it has been carried for the tenant's number of days (90 unless set in the commission settings), or once the intermediary is terminated.")]
+    public const string ClawbackInvoiceNotDue = "CLAWBACK_INVOICE_NOT_DUE";
+
     [ErrorCode(422, "error.distribution.intermediary_not_payable")]
     public const string IntermediaryNotPayable = "INTERMEDIARY_NOT_PAYABLE";
 

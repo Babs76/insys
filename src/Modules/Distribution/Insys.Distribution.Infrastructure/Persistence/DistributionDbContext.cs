@@ -108,14 +108,28 @@ public sealed class DistributionDbContext(DbContextOptions<DistributionDbContext
             statement.Ignore(s => s.HasChanges);
             statement.Ignore(s => s.ApprovalPending);
             statement.Ignore(s => s.SubjectHash);
+            statement.Ignore(s => s.ActionSubjectHash);
+            statement.Ignore(s => s.Reference);
+            statement.Ignore(s => s.CarriedOwed);
             statement.Property(s => s.IntermediaryCode).HasMaxLength(15);
             statement.Property(s => s.PeriodCode).HasColumnType("char(7)");
             statement.Property(s => s.Currency).HasColumnType("char(3)");
             statement.Property(s => s.GrossAmount).HasPrecision(18, 2);
             statement.Property(s => s.TaxAmount).HasPrecision(18, 2);
             statement.Property(s => s.NetAmount).HasPrecision(18, 2);
-            statement.Property(s => s.Status).HasConversion(new UpperCaseEnumConverter<StatementStatus>()).HasMaxLength(10);
+            statement.Property(s => s.Status).HasConversion(new UpperCaseEnumConverter<StatementStatus>()).HasMaxLength(25);
             statement.Property(s => s.BankAccountHash).HasMaxLength(64);
+            statement.Property(s => s.OpeningAmount).HasPrecision(18, 2); // V0152
+            statement.Property(s => s.CarriedAmount).HasPrecision(18, 2);
+            statement.Property(s => s.CarrySettledAmount).HasPrecision(18, 2);
+            statement.Property(s => s.CarryOnStatementAmount).HasPrecision(18, 2);
+            statement.Property(s => s.InvoicedAmount).HasPrecision(18, 2);
+            statement.Property(s => s.FailedPaymentRef).HasMaxLength(25);
+            statement.Property(s => s.PendingAction).HasMaxLength(30);
+            statement.Property(s => s.PendingReason).HasMaxLength(500);
+
+            // V0152's fk_commission_statement_carry_on, mapped so a new statement is inserted before the carried statement that names it.
+            statement.HasOne<CommissionStatement>().WithMany().HasForeignKey(s => new { s.TenantId, s.CarryOnStatementId });
         });
     }
 }
