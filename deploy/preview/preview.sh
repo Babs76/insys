@@ -476,19 +476,36 @@ openbao_file() { # the note's "<run id> <date>"
 
 # TLS is proven before anyone relies on it: the certificate must come from the CA asked for. Staging's issuers name Let's Encrypt too
 # ("O = Let's Encrypt, CN = (STAGING) ..."), so production is Let's Encrypt without "(STAGING)", and staging is Let's Encrypt with it.
-issued_by() { # issuer, then staging or production
-  case "$1" in *"O = Let's Encrypt"*) ;; *) return 1 ;; esac
-  case "$1" in *"(STAGING)"*) [ "$2" = staging ] ;; *) [ "$2" = production ] ;; esac
+# The certificate a host serves (Ade, 24 November 2026). Production: it verifies, for that host name, against the runner's system trust
+# store, and its issuer's organisation is Let's Encrypt; no list of intermediate names, so a new generation (YR1 and the like) passes.
+# Staging: its issuer's organisation is "(STAGING) Let's Encrypt" (staging's roots are trusted nowhere, so it can't verify). The issuer is
+# read in RFC 2253 form, which is the same in every OpenSSL version; the default layout isn't (3.0 prints "O = …", newer ones "O=…").
+# PREVIEW_TLS_TRUST and PREVIEW_TLS_PORT replace the trust store and the port only for deploy/helm/tests/preview-tls.sh; the workflow sets neither.
+tls_probe() { # host: prints the verify return code, a space, then the issuer
+  local out code issuer
+  out=$(timeout 20 openssl s_client -connect "$(address):${PREVIEW_TLS_PORT:-443}" -servername "$1" -verify_hostname "$1" \
+    -CAfile "${PREVIEW_TLS_TRUST:-/etc/ssl/certs/ca-certificates.crt}" </dev/null 2>&1 || true)
+  code=$(printf '%s\n' "$out" | sed -n 's/^ *Verify return code: \([0-9][0-9]*\).*/\1/p' | tail -n 1)
+  issuer=$(printf '%s\n' "$out" | openssl x509 -noout -issuer -nameopt RFC2253 2>/dev/null | sed 's/^issuer=//' || true)
+  printf '%s %s\n' "${code:-none}" "${issuer:-none}"
+}
+issued_by() { # tls_probe's line, then staging or production
+  local code=${1%% *} issuer=",${1#* },"
+  case "$2" in
+    production) [ "$code" = 0 ] && [[ $issuer == *",O=Let's Encrypt,"* ]] ;;
+    staging) [[ $issuer == *",O=(STAGING) Let's Encrypt,"* ]] ;;
+    *) return 1 ;;
+  esac
 }
 check_tls() {
   local want=${PREVIEW_ACME:-staging}
   for host in "$PREVIEW_DOMAIN" "id.$PREVIEW_DOMAIN"; do
     for _ in $(seq 1 60); do
-      issuer=$(echo | openssl s_client -connect "$(address):443" -servername "$host" 2>/dev/null | openssl x509 -noout -issuer 2>/dev/null || true)
+      issuer=$(tls_probe "$host")
       issued_by "$issuer" "$want" && break
       sleep 10
     done
-    echo "$host: $issuer"
+    echo "$host: verify return code ${issuer%% *} (0 is trusted), issuer ${issuer#* }"
     issued_by "$issuer" "$want" || {
       on_server "kubectl -n kube-system logs deploy/traefik --tail=300 | grep -iE 'acme|certificate|resolver' | tail -n 20" || true   # why, from Traefik: no secret in it
       fail "$host has no Let's Encrypt $want certificate yet"
@@ -1121,7 +1138,7 @@ theme_check() { # the login theme the pages must be served with
   password=$(openssl rand -hex 24)
   mask "$password"
   : > "$RUNNER_TEMP/theme-check.txt"
-  issuer=$(echo | openssl s_client -connect "$(address):443" -servername "id.$PREVIEW_DOMAIN" 2>/dev/null | openssl x509 -noout -issuer 2>/dev/null || true)
+  issuer=$(tls_probe "id.$PREVIEW_DOMAIN")
   if ! issued_by "$issuer" production; then
     tls=(--ignore-https-errors)
     echo "id.$PREVIEW_DOMAIN has no Let's Encrypt production certificate ($issuer): the browser accepts it for this check."
@@ -1511,6 +1528,21 @@ case "$action" in
     open_ssh "${RUNNER_IP:?}"   # the checks close SSH on their way out
     backup_resume
     [ "$post_checks_status" = 0 ] || fail "At least one post-reset check failed (see FAIL above). The reset itself completed; nothing was undone. The backup schedule is on."
+    ;;
+  post-reset-checks)
+    # Ade, 24 November 2026: the checks alone, against the Preview as it is. Nothing is removed, rebuilt or seeded, and the backup schedule
+    # isn't touched. The certificate first, reported like the others; then (i) to (vi), which close SSH on their way out.
+    exec 3>&1
+    ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh
+    echo "== Post-reset check: the certificates"
+    tls_status=0
+    ( check_tls ) || tls_status=$?
+    if [ "$tls_status" = 0 ]; then echo "PASS  the certificates"; else echo "FAIL  the certificates (see above)"; fi
+    summary "**The certificates:** $([ "$tls_status" = 0 ] && echo PASS || echo FAIL)"
+    post_checks_status=0
+    ( post_reset_checks ) || post_checks_status=$?
+    [ "$tls_status" = 0 ] && [ "$post_checks_status" = 0 ] || fail "At least one check failed (see FAIL above). Nothing was changed on the Preview."
+    echo "Every check passed, the certificates included."
     ;;
   diagnose)
     ssh_key; open_ssh "${RUNNER_IP:?}"

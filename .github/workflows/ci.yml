@@ -143,16 +143,21 @@ jobs:
 
       # Ade, 22 November 2026: the vendored theme is exactly the approved files, with their sha256 (files/keycloak-theme/insys.sha256), and
       # insys.commit their source commit. Any other file, another theme type than login/ included, fails.
+      # Ade, 24 November 2026: the Preview's certificate check accepts a certificate that verifies against the system trust store, for its
+      # host name, issued by Let's Encrypt (any intermediate); staging by its "(STAGING) Let's Encrypt" issuer. Test CAs on a local port.
+      - name: The Preview's certificate check
+        run: deploy/helm/tests/preview-tls.sh
+
       - name: The vendored Keycloak theme is exactly the approved files
         run: tools/sync-keycloak-theme.sh --check
 
       - name: The Keycloak theme scripts parse
         run: |
           for f in tools/sync-keycloak-theme.sh deploy/keycloak/realm-login-theme.sh deploy/keycloak/theme-check-user.sh deploy/keycloak/theme-mount.sh \
-            deploy/helm/tests/keycloak-theme.sh deploy/preview/preview.sh; do bash -n "$f"; done
+            deploy/helm/tests/keycloak-theme.sh deploy/helm/tests/preview-tls.sh deploy/preview/preview.sh; do bash -n "$f"; done
           node --check deploy/keycloak/theme-check.cjs
           shellcheck tools/sync-keycloak-theme.sh deploy/keycloak/realm-login-theme.sh deploy/keycloak/theme-check-user.sh deploy/keycloak/theme-mount.sh \
-            deploy/helm/tests/keycloak-theme.sh
+            deploy/helm/tests/keycloak-theme.sh deploy/helm/tests/preview-tls.sh
 
       - name: The images build
         run: |
