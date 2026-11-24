@@ -72,6 +72,26 @@ internal sealed class PaymentRunApprovalScopes([FromKeyedServices(HealthDbContex
 }
 
 /// <summary>
+/// The scope of a remittance's reissue approval (DE-008, F103): when every claim it remits shares one product and node, that one; otherwise none, so only
+/// a checker with unrestricted scope sees and decides it.
+/// </summary>
+internal sealed class RemittanceApprovalScopes([FromKeyedServices(HealthDbContext.SchemaName)] NpgsqlDataSource dataSource) : IApprovalScopeSource
+{
+    public bool Covers(string businessRefType) => businessRefType == HealthReferences.RemittanceRefType;
+
+    public async Task<RecordScope?> ScopeOf(Guid tenantId, string businessRefType, Guid businessRefId, CancellationToken cancellationToken)
+    {
+        var scopes = await RecordScopeReader.ReadAll(dataSource, tenantId, """
+            SELECT DISTINCT m.product_code, m.org_node_code FROM health.remittance_advice r
+            JOIN health.medical_claim c ON c.tenant_id = r.tenant_id AND c.payment_run_id = r.run_id
+            JOIN health.membership m ON m.tenant_id = c.tenant_id AND m.id = c.membership_id
+            WHERE r.id = @id AND ((c.source = 'MEMBER' AND m.member_number = r.provider_id) OR (c.source <> 'MEMBER' AND c.provider_id = r.provider_id))
+            """, businessRefId, cancellationToken);
+        return scopes is [var only] ? new RecordScope(only.Product, only.OrgNode) : new RecordScope(null, null);
+    }
+}
+
+/// <summary>
 /// The scope of a provider recovery's or credit note's approval (OQ-176: fail closed): a provider-level record across every product and branch the provider
 /// serves, so only a checker with unrestricted scope sees and decides it.
 /// </summary>

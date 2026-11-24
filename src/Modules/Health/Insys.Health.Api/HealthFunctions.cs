@@ -66,6 +66,7 @@ internal static class HealthFunctions
         .Action("HEALTH_CUT_OFF_RUN", "HEALTH_PAYMENT_RUNS", "HealthCutOffRun")
         .Action("HEALTH_CALCULATE_RUN", "HEALTH_PAYMENT_RUNS", "HealthCalculateRun")
         .Action("HEALTH_RELEASE_RUN", "HEALTH_PAYMENT_RUNS", "HealthReleaseRun")
+        .Action("HEALTH_REISSUE_REMITTANCE", "HEALTH_PAYMENT_RUNS", "HealthReissueRemittance")
         .Screen("HEALTH_REMITTANCES", "HEALTH_PROVIDER_PAYMENTS", "Remittance detail", "health/remittances", "HealthGetRemittance")
         .Screen("HEALTH_RECOVERIES", "HEALTH_PROVIDER_PAYMENTS", "Overpayment recoveries", "health/provider-recoveries", "HealthListRecoveries", "HealthGetRecovery")
         .Action("HEALTH_PROPOSE_RECOVERY_FINDING", "HEALTH_RECOVERIES", "HealthProposeRecoveryFinding")

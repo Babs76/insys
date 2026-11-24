@@ -144,20 +144,26 @@ public sealed record CaseLinkView([property: AllowedValues("POLICY", "CLAIM", "M
 /// <param name="Detail">What happened, in codes and references (never the case's own text, except a reason staff gave for the step).</param>
 public sealed record CaseHistoryView([property: AllowedValues("RECEIVED", "ACKNOWLEDGED", "ASSIGNED", "UPDATED", "LINKED", "MESSAGE_SENT", "MESSAGE_RECEIVED",
     "EXTENDED", "ESCALATED", "AWAITING_COMPLAINANT", "RESUMED", "DECIDED", "REDRESS_REQUESTED", "REDRESS_APPROVED", "REDRESS_REJECTED", "REDRESS_PAID",
-    "REFERRED_TO_OMBUD", "OMBUD_OUTCOME", "SHARED_WITH_BROKER", "REOPENED", "WITHDRAWN", "CLOSED", "LEGAL_HOLD_PLACED", "LEGAL_HOLD_RELEASED")] string EventType,
+    "REDRESS_PAYMENT_FAILED", "REDRESS_RETRY_REQUESTED", "REDRESS_RETRY_APPROVED", "REDRESS_RETRY_REJECTED", "REFERRED_TO_OMBUD", "OMBUD_OUTCOME", "SHARED_WITH_BROKER", "REOPENED", "WITHDRAWN", "CLOSED", "LEGAL_HOLD_PLACED", "LEGAL_HOLD_RELEASED")] string EventType,
     DateTimeOffset OccurredAt, string Actor, string? Detail);
 
 public sealed record CaseMessageView(Guid Id, [property: AllowedValues("IN", "OUT")] string Direction, [property: AllowedValues("STAFF", "CUSTOMER", "BROKER", "PROVIDER")] string AuthorAudience,
     string Body, DateTimeOffset SentAt);
 
 /// <param name="LatestRejection">How the redress's approval last ended without being granted (OQ-113), or null.</param>
+/// <param name="FailedPaymentRef">DE-008: the last failed payment's reference, what paying the redress again asks the person to type.</param>
+/// <param name="Attempt">The payout attempt: 1 for the first, 2 or more for each retry.</param>
+/// <param name="PayoutBankAccountId">The account the latest retry pays.</param>
+/// <param name="RetryPending">A retry is waiting for a second person's approval (PAYOUT_RETRY).</param>
 public sealed record CaseRedressView(Guid Id, Guid CaseId, [property: AllowedValues("COMPENSATION", "GOODWILL")] string RedressType, decimal Amount, string Currency,
     Guid PayeePartyId, Guid? BankAccountId, RedressStatus Status, Guid RequestedBy, DateTimeOffset RequestedAt, Guid? DecidedBy, DateTimeOffset? DecidedAt,
-    DateTimeOffset? PaidAt, Guid? PaymentId, long RowVersion, LatestRejection? LatestRejection = null)
+    DateTimeOffset? PaidAt, Guid? PaymentId, long RowVersion, LatestRejection? LatestRejection = null,
+    [property: BuildingBlocks.Contracts.AlwaysPresent] string? FailedPaymentRef = null, [property: BuildingBlocks.Contracts.AlwaysPresent] string? FailureReason = null, int Attempt = 1,
+    [property: BuildingBlocks.Contracts.AlwaysPresent] Guid? PayoutBankAccountId = null, bool RetryPending = false)
 {
     public static CaseRedressView Of(CaseRedress r, LatestRejection? latest = null) =>
         new(r.Id, r.CaseId, r.RedressType, r.Amount, r.Currency, r.PayeePartyId, r.BankAccountId, r.Status, r.RequestedBy, r.RequestedAt, r.DecidedBy, r.DecidedAt,
-            r.PaidAt, r.PaymentId, r.RowVersion, latest);
+            r.PaidAt, r.PaymentId, r.RowVersion, latest, r.FailedPaymentRef, r.FailureReason, r.Attempt, r.PayoutBankAccountId, r.RetryRequestedBy is not null);
 }
 
 /// <summary>A case as staff see it (§1, §4). Overdue: open and past its expected date.</summary>
@@ -319,6 +325,12 @@ public sealed record ShareCaseWithBroker(Guid CaseId, long ExpectedVersion) : IC
 
 public sealed record RecordCaseRedress(Guid CaseId, string RedressType, decimal Amount, string Currency, Guid PayeePartyId, Guid? BankAccountId) : ICommand<Guid>;
 
+/// <summary>
+/// DE-008: pay a redress whose payout failed again. <paramref name="PaymentRef"/> is the failed payment's reference, typed by the person;
+/// <paramref name="BankAccountId"/>, when given, another verified (ACTIVE) account of the payee in the redress's currency.
+/// </summary>
+public sealed record RetryRedressPayout(Guid CaseId, Guid RedressId, string PaymentRef, string Reason, Guid? BankAccountId, long ExpectedVersion) : ICommand<long>, IVersionedCommand;
+
 public sealed record ListCases(CaseFilter Filter, Guid? AfterId, int Limit) : IQuery<IReadOnlyList<CaseSummaryView>>;
 
 /// <param name="Screen">A case screen's own read (BR-100): a case the screen does not read is not found.</param>
@@ -417,6 +429,15 @@ public sealed class ReferCaseToOmbudValidator : AbstractValidator<ReferCaseToOmb
     {
         RuleFor(c => c.SchemeCode).NotEmpty().MaximumLength(20);
         RuleFor(c => c.OmbudReference).MaximumLength(60);
+    }
+}
+
+public sealed class RetryRedressPayoutValidator : AbstractValidator<RetryRedressPayout>
+{
+    public RetryRedressPayoutValidator()
+    {
+        RuleFor(c => c.PaymentRef).NotEmpty().MaximumLength(25);
+        RuleFor(c => c.Reason).NotEmpty().MaximumLength(500);
     }
 }
 

@@ -104,6 +104,7 @@ public sealed partial class StateEnumTests
         [("CommissionStatement", "SettledByCarryForward", "extra")] = "OQ-062 (Ade, 24 November 2026): what a carried-forward statement carried was absorbed by later statements.",
         [("CommissionStatement", "Invoiced", "extra")] = "OQ-062 (Ade, 24 November 2026): what a carried-forward statement still carried was invoiced to the intermediary.",
         [("CommissionStatement", "PaymentFailed", "extra")] = "DE-008 (Ade, 24 November 2026): the statement's payout failed, until a second person grants its retry.",
+        [("CaseRedress", "PaymentFailed", "extra")] = "DE-008 (Ade, 24 November 2026): a redress whose payout failed waits PaymentFailed for a retry a second person approves (PAYOUT_RETRY).",
         [("UserAccount", "PendingIdentity", "extra")] = "keycloak-user-provisioning (signed off 24 October 2026) §4: a user of INSYS's own realm waits for its Keycloak user.",
     };
 

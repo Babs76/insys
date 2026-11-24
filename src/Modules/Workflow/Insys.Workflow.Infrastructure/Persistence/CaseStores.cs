@@ -427,6 +427,11 @@ internal sealed class CaseEventMapper : IDomainEventMapper
             e.BankAccountId),
         RedressApprovalRequested e => new BuildingBlocks.Contracts.Approvals.ApprovalRequested(CaseApprovals.RedressBusinessRefType, e.RedressId,
             CaseApprovals.RedressApprovalType, e.MakerId, e.Amount, e.Currency, $"Redress on case {e.CaseNumber}", e.SubjectHash),
+        // DE-008: a failed redress paid again once a second person approves it; then a payout as the first (gated while the payee isn't cleared).
+        RedressPayoutRetryRequested e => new BuildingBlocks.Contracts.Approvals.ApprovalRequested(CaseApprovals.RedressBusinessRefType, e.RedressId,
+            Payments.Contracts.PaymentApprovals.PayoutRetryApprovalType, e.MakerId, e.Amount, e.Currency, $"Pay redress on case {e.CaseNumber} again", e.SubjectHash),
+        RedressPayoutRetried e => new Payments.Contracts.PayoutRequested(CaseApprovals.RedressBusinessRefType, e.RedressId, e.Attempt, CaseApprovals.RedressPaymentPurpose,
+            e.Amount, e.Currency, e.PayeePartyId, e.BankAccountId, Gated: true),
         _ => null,
     };
 

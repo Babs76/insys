@@ -65,6 +65,10 @@ public sealed record PendReviewRequest(IReadOnlyList<LineReview> Reviews);
 
 public sealed record ReasonRequest(string Reason);
 
+/// <param name="PaymentRef">The failed payment's reference, typed by the person (DE-008).</param>
+/// <param name="BankAccountId">Another verified, ACTIVE account of the payee in the run's currency; omitted, the same account is paid again.</param>
+public sealed record ReissueRemittanceRequest(string PaymentRef, string Reason, Guid? BankAccountId = null);
+
 /// <param name="Reason">BR-127: a claim decision reason of type DECLINE; its customer wording goes in the member's notice.</param>
 public sealed record RejectClaimRequest([property: BuildingBlocks.Domain.CodeList(HealthCodeLists.ClaimDecisionReasons, "code", Filter = "decision_type=DECLINE"), System.ComponentModel.DataAnnotations.MaxLength(30)] string Reason);
 
@@ -540,6 +544,21 @@ public sealed class HealthModule : IModule
             .Produces<PaymentRunView>(StatusCodes.Status200OK)
             .TakesIfMatch()
             .WithName("HealthReleaseRun").WithSummary("Release the approved run to Payments").RequirePermission(HealthPermissions.RunUpdate);
+        health.MapPost("/payment-runs/{id:guid}/remittances/{remittanceId:guid}/reissue", async (Guid id, Guid remittanceId, ReissueRemittanceRequest r, IDispatcher d, CancellationToken ct) =>
+                (await d.Send(new ReissueRemittance(id, remittanceId, r.PaymentRef, r.Reason, r.BankAccountId), ct)).ToHttp(Results.Ok))
+            .Produces<PaymentRunView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
+            .WithName("HealthReissueRemittance")
+            .WithSummary("Pay a failed remittance again, with the failed payment's reference typed, for a second person's approval (DE-008)")
+            .WithDescription("Only a FAILED remittance of a RELEASED run. paymentRef is the failed payment's reference as the remittance shows it (failedPaymentRef): "
+                + "anything else is refused with 422 TYPED_REFERENCE_MISMATCH and nothing changes. bankAccountId, when given, is another verified, ACTIVE account of "
+                + "the payee in the run's currency (422 PROVIDER_NOT_PAYABLE otherwise); without it the same account is paid again. A reason is required. The "
+                + "remittance stays FAILED (reissuePending true) while an approval of type PAYOUT_RETRY waits; one already waiting is refused (409). The run reads "
+                + "RECONCILED only once every remittance with an amount is PAID. If-Match is the run's ETag.")
+            .WithEventualEffects("the PAYOUT_RETRY approval appears in Workflow's approvals; once a second person grants it the remittance reads PENDING with its "
+                + "attempt raised, and payment.PayoutRequested reaches Payments, whose payout waits for a payout batch; rejected, expired or withdrawn it stays FAILED. "
+                + "Read the run again for the remittance's paymentStatus.")
+            .RequirePermission(HealthPermissions.RunUpdate);
     }
 
     /// <summary>GAP-040: Health's lists, by party, number and status, with cursor paging; fraud cases by the claim they are about.</summary>

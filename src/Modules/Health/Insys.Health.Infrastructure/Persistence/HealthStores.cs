@@ -749,6 +749,11 @@ internal sealed class HealthEventMapper : IDomainEventMapper
             $"Provider credit note {e.CreditNoteNumber}", e.SubjectHash),
         PaymentRunCalculated e => new ApprovalRequested(HealthApprovals.RunBusinessRefType, e.RunId, HealthApprovals.RunApprovalType, e.RequestedBy, e.Total, e.Currency,
             $"Provider payment run {e.RunCode}", e.SubjectHash),
+        // DE-008: a failed remittance paid again, after a second person approves it; then a payout as the run's own (claim payout, not gated).
+        Domain.Payments.RemittanceReissueRequested e => new ApprovalRequested(HealthReferences.RemittanceRefType, e.RemittanceId, Payments.Contracts.PaymentApprovals.PayoutRetryApprovalType,
+            e.RequestedBy, e.Amount, e.Currency, $"Pay remittance {e.ProviderId} of run {e.RunCode} again", e.SubjectHash),
+        Domain.Payments.RemittancePayoutReissued e => new Payments.Contracts.PayoutRequested(HealthReferences.RemittanceRefType, e.RemittanceId, e.Attempt,
+            Payments.Contracts.PaymentPurposes.ClaimPayout, e.Amount, e.Currency, e.ProviderPartyId, e.BankAccountId, Gated: false),
         Domain.Payments.ProviderPaymentRunReleased e => new Contracts.ProviderPaymentRunReleased(e.RunId, e.RunCode, e.Total, e.Currency,
             e.Remittances.Select(r => new Contracts.RemittanceReleased(r.RemittanceId, r.ProviderId, r.ProviderPartyId, r.BankAccountId, r.Amount, r.Gross, r.Offset, r.Repaid)).ToList(), e.ReleasedOn,
             e.RemittanceTemplate),

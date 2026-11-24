@@ -52,6 +52,20 @@ public enum RunTrigger
     PaymentsMatched,
 }
 
+/// <summary>
+/// Where a remittance's payment stands (DE-008): NONE for an advice whose offsets took all of it (no payment, gap 2), PENDING until Payments says, PAID once it
+/// succeeded, FAILED when it failed (the failed payment's reference and reason kept), until a reissue a second person approves makes it PENDING again.
+/// </summary>
+public static class RemittancePaymentStatuses
+{
+    public const string None = "NONE";
+    public const string Pending = "PENDING";
+    public const string Paid = "PAID";
+    public const string Failed = "FAILED";
+
+    public static readonly IReadOnlyList<string> All = [None, Pending, Paid, Failed];
+}
+
 /// <summary>A provider's share of a run: its party, its verified bank account (ADR-013), the amount and the claims in it.</summary>
 public sealed record RemittanceRequest(string ProviderId, Guid ProviderPartyId, Guid BankAccountId, decimal Amount, int ClaimCount, decimal? Gross = null, decimal Offset = 0, decimal Repaid = 0, Guid? Id = null);
 
@@ -60,6 +74,14 @@ public sealed record RemittanceReleased(Guid RemittanceId, string ProviderId, Gu
 /// <summary>Asks Workflow for a second person's approval of the run's total, within authority (SRS-002).</summary>
 public sealed record PaymentRunCalculated(Guid RunId, string RunCode, Guid RequestedBy, decimal Total, string Currency, string SubjectHash, DateTimeOffset OccurredAt)
     : IDomainEvent;
+
+/// <summary>DE-008: paying a failed remittance again asks Workflow for a second person (approval type PAYOUT_RETRY), with the remittance's amount.</summary>
+public sealed record RemittanceReissueRequested(Guid RunId, string RunCode, Guid RemittanceId, string ProviderId, Guid RequestedBy, decimal Amount, string Currency, string SubjectHash,
+    DateTimeOffset OccurredAt) : IDomainEvent;
+
+/// <summary>DE-008: the reissue was granted; Payments makes a new payout for this attempt, which waits for a payout batch.</summary>
+public sealed record RemittancePayoutReissued(Guid RunId, Guid RemittanceId, int Attempt, decimal Amount, string Currency, Guid ProviderPartyId, Guid BankAccountId,
+    DateTimeOffset OccurredAt) : IDomainEvent;
 
 public sealed record ProviderPaymentRunReleased(Guid RunId, string RunCode, decimal Total, string Currency, IReadOnlyList<RemittanceReleased> Remittances,
     DateOnly ReleasedOn, string RemittanceTemplate, DateTimeOffset OccurredAt) : IDomainEvent;
@@ -101,10 +123,44 @@ public sealed class RemittanceAdvice : Entity<Guid>, ITenantScoped
 
     public DateOnly? PaidOn { get; private set; }
 
+    /// <summary>DE-008: see <see cref="RemittancePaymentStatuses"/>.</summary>
+    public string PaymentStatus { get; private set; } = RemittancePaymentStatuses.Pending;
+
+    /// <summary>The payout attempt: 1 for the run's own, 2 or more for each reissue (PayoutRequested.Attempt).</summary>
+    public int Attempt { get; private set; } = 1;
+
+    /// <summary>The last failed payment: its id, its reference (what a reissue asks the person to type) and why it failed.</summary>
+    public Guid? FailedPaymentId { get; private set; }
+
+    public string? FailedPaymentRef { get; private set; }
+
+    public string? FailureReason { get; private set; }
+
+    /// <summary>The account the latest reissue pays, when it is not the remittance's own (<see cref="BankAccountId"/>).</summary>
+    public Guid? PayoutBankAccountId { get; private set; }
+
+    /// <summary>A reissue waiting for its second person: who asked, why, and the account it would pay.</summary>
+    public Guid? ReissueRequestedBy { get; private set; }
+
+    public string? ReissueReason { get; private set; }
+
+    public Guid? ReissueBankAccountId { get; private set; }
+
+    /// <summary>The approval that last decided a reissue: a redelivered decision changes nothing.</summary>
+    public Guid? ReissueApprovalId { get; private set; }
+
+    /// <summary>The account the next payout goes to: the reissue's, else the remittance's own.</summary>
+    public Guid CurrentBankAccountId => PayoutBankAccountId ?? BankAccountId;
+
+    /// <summary>What a reissue's approval is for: this remittance, its next attempt, the failed payment it replaces, the amount and the account.</summary>
+    public string ReissueSubjectHash(string currency) =>
+        ApprovalSubject.Hash("HEALTH_REMITTANCE_REISSUE", Id, Attempt + 1, FailedPaymentRef, Amount, currency, ProviderPartyId, ReissueBankAccountId ?? CurrentBankAccountId);
+
     internal static RemittanceAdvice Create(Guid runId, RemittanceRequest request) => new()
     {
         Id = request.Id ?? Guid.CreateVersion7(), RunId = runId, ProviderId = Guard.MaxLength(request.ProviderId, 15), Amount = request.Amount, GrossAmount = request.Gross ?? request.Amount, OffsetAmount = request.Offset, RepaidAmount = request.Repaid, ProviderPartyId = request.ProviderPartyId,
         BankAccountId = request.BankAccountId, ClaimCount = request.ClaimCount,
+        PaymentStatus = request.Amount > 0 ? RemittancePaymentStatuses.Pending : RemittancePaymentStatuses.None,
     };
 
     internal void AttachDocument(Guid documentId) => DocumentId ??= documentId;
@@ -113,6 +169,38 @@ public sealed class RemittanceAdvice : Entity<Guid>, ITenantScoped
     {
         PaymentId = paymentId;
         PaidOn = paidOn;
+        PaymentStatus = RemittancePaymentStatuses.Paid;
+    }
+
+    internal void Failed(Guid paymentId, string paymentRef, string reason)
+    {
+        FailedPaymentId = paymentId;
+        FailedPaymentRef = Guard.MaxLength(paymentRef, 25);
+        FailureReason = Guard.MaxLength(reason, 200);
+        PaymentStatus = RemittancePaymentStatuses.Failed;
+    }
+
+    internal void RequestReissue(Guid requestedBy, string reason, Guid? bankAccountId)
+    {
+        ReissueRequestedBy = requestedBy;
+        ReissueReason = Guard.MaxLength(reason, 500);
+        ReissueBankAccountId = bankAccountId;
+    }
+
+    /// <summary>Granted: the next attempt, to the requested account, waits for Payments. Otherwise the request is cleared and the remittance stays FAILED.</summary>
+    internal void DecideReissue(bool approved, Guid approvalId)
+    {
+        ReissueApprovalId = approvalId;
+        if (approved)
+        {
+            Attempt++;
+            PayoutBankAccountId = ReissueBankAccountId ?? PayoutBankAccountId;
+            PaymentStatus = RemittancePaymentStatuses.Pending;
+        }
+
+        ReissueRequestedBy = null;
+        ReissueReason = null;
+        ReissueBankAccountId = null;
     }
 }
 
@@ -287,7 +375,10 @@ public sealed class ProviderPaymentRun : AggregateRoot<Guid>
         return Result.Success();
     }
 
-    /// <summary>A remittance's payment succeeded; when all have, the run is Reconciled ("Payments matched").</summary>
+    /// <summary>
+    /// A remittance's payment succeeded; when every remittance with an amount is PAID, the run is Reconciled ("Payments matched"). A failed one keeps
+    /// the run Released until a reissue of it is paid (DE-008).
+    /// </summary>
     public Result RecordPayment(Guid remittanceId, Guid paymentId, DateOnly paidOn)
     {
         if (_remittances.SingleOrDefault(r => r.Id == remittanceId) is not { } remittance)
@@ -297,7 +388,92 @@ public sealed class ProviderPaymentRun : AggregateRoot<Guid>
 
         remittance.Paid(paymentId, paidOn);
         MarkChanged();
-        return Status == RunStatus.Released && _remittances.Where(r => r.Amount > 0).All(r => r.PaymentId is not null) ? Fire(RunTrigger.PaymentsMatched) : Result.Success();
+        return Status == RunStatus.Released && _remittances.Where(r => r.Amount > 0).All(r => r.PaymentStatus == RemittancePaymentStatuses.Paid)
+            ? Fire(RunTrigger.PaymentsMatched)
+            : Result.Success();
+    }
+
+    /// <summary>
+    /// DE-008: a remittance's payment failed. It is FAILED with the failed payment's reference and reason, and the run stays Released. A redelivery, or a
+    /// failure after it was paid, changes nothing (false).
+    /// </summary>
+    public bool RecordPaymentFailure(Guid remittanceId, Guid paymentId, string paymentRef, string reason)
+    {
+        if (_remittances.SingleOrDefault(r => r.Id == remittanceId) is not { } remittance || remittance.PaymentStatus == RemittancePaymentStatuses.Paid
+            || remittance.FailedPaymentId == paymentId)
+        {
+            return false;
+        }
+
+        remittance.Failed(paymentId, paymentRef, reason);
+        MarkChanged();
+        return true;
+    }
+
+    /// <summary>
+    /// DE-008: asks to pay a FAILED remittance again. The person types the failed payment's reference (TYPED_REFERENCE_MISMATCH otherwise) and gives a
+    /// reason; it may go to another of the provider's verified accounts (the caller checks it). A second person approves it in Workflow (PAYOUT_RETRY).
+    /// </summary>
+    public Result RequestRemittanceReissue(Guid remittanceId, string typedPaymentRef, string reason, Guid? bankAccountId, Guid requestedBy, DateTimeOffset now)
+    {
+        if (_remittances.SingleOrDefault(r => r.Id == remittanceId) is not { } remittance)
+        {
+            return Error.NotFound(ErrorCodes.NotFound, "The remittance is not in this run.");
+        }
+
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            return Error.Validation(HealthErrorCodes.ReasonRequired, "Paying a remittance again needs a reason.");
+        }
+
+        if (Status != RunStatus.Released || remittance.PaymentStatus != RemittancePaymentStatuses.Failed)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, $"Only a failed remittance of a released run is paid again; it is {remittance.PaymentStatus} in a {Status} run.");
+        }
+
+        if (remittance.ReissueRequestedBy is not null)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, "Paying this remittance again is already waiting for a second person.");
+        }
+
+        if (!string.Equals(typedPaymentRef?.Trim(), remittance.FailedPaymentRef, StringComparison.Ordinal))
+        {
+            return Error.Validation(ErrorCodes.TypedReferenceMismatch, "The reference typed is not the failed payment's reference, so nothing was done.");
+        }
+
+        remittance.RequestReissue(requestedBy, reason, bankAccountId);
+        Raise(new RemittanceReissueRequested(Id, RunCode, remittance.Id, remittance.ProviderId, requestedBy, remittance.Amount, Currency, remittance.ReissueSubjectHash(Currency), now));
+        MarkChanged();
+        return Result.Success();
+    }
+
+    /// <summary>True when this approval already decided the remittance's reissue: a redelivery changes nothing.</summary>
+    public bool ReissueDecidedBy(Guid remittanceId, Guid approvalId) => _remittances.SingleOrDefault(r => r.Id == remittanceId)?.ReissueApprovalId == approvalId;
+
+    /// <summary>
+    /// Workflow's decision on a reissue. Granted, the remittance's next attempt is requested from Payments (PayoutRequested, through a payout batch);
+    /// rejected, expired or withdrawn, the request is cleared and it stays FAILED. Refused when nothing waits or the approval was for another subject.
+    /// </summary>
+    public Result DecideRemittanceReissue(Guid remittanceId, bool approved, Guid approvalId, string? subjectHash, DateTimeOffset now)
+    {
+        if (_remittances.SingleOrDefault(r => r.Id == remittanceId) is not { } remittance)
+        {
+            return Error.NotFound(ErrorCodes.NotFound, "The remittance is not in this run.");
+        }
+
+        if (remittance.ReissueRequestedBy is null || (approved && remittance.PaymentStatus != RemittancePaymentStatuses.Failed) || subjectHash != remittance.ReissueSubjectHash(Currency))
+        {
+            return Error.Conflict(HealthErrorCodes.ApprovalSubjectChanged, "The approval was for another reissue of the remittance, or none waits.");
+        }
+
+        remittance.DecideReissue(approved, approvalId);
+        if (approved)
+        {
+            Raise(new RemittancePayoutReissued(Id, remittance.Id, remittance.Attempt, remittance.Amount, Currency, remittance.ProviderPartyId, remittance.CurrentBankAccountId, now));
+        }
+
+        MarkChanged();
+        return Result.Success();
     }
 
     private Result Fire(RunTrigger trigger)

@@ -29,13 +29,17 @@ using Insys.BuildingBlocks.Domain;
 
 namespace Insys.Workflow.Domain.Cases;
 
-/// <summary>A redress's status (workflow.case_redress.status): approved by a second person, then paid through Payments (OQ-104).</summary>
+/// <summary>
+/// A redress's status (workflow.case_redress.status): approved by a second person, then paid through Payments (OQ-104). DE-008: PaymentFailed when its
+/// payout failed, until a second person approves paying it again (back to Approved).
+/// </summary>
 public enum RedressStatus
 {
     Requested,
     Approved,
     Rejected,
     Paid,
+    PaymentFailed,
 }
 
 public enum RedressTrigger
@@ -43,6 +47,8 @@ public enum RedressTrigger
     Approve,
     Reject,
     Pay,
+    PaymentFail,
+    RetryGranted,
 }
 
 public static class RedressTypes
@@ -61,6 +67,14 @@ public sealed record RedressApprovalRequested(Guid RedressId, Guid MakerId, deci
 public sealed record CaseRedressApproved(Guid RedressId, Guid CaseId, string CaseNumber, string RedressType, decimal Amount, string Currency, Guid PayeePartyId,
     Guid? BankAccountId, DateTimeOffset OccurredAt) : IDomainEvent;
 
+/// <summary>DE-008: paying a failed redress again asks Workflow for a second person (approval type PAYOUT_RETRY), with the redress's amount.</summary>
+public sealed record RedressPayoutRetryRequested(Guid RedressId, Guid MakerId, decimal Amount, string Currency, string CaseNumber, string SubjectHash, DateTimeOffset OccurredAt)
+    : IDomainEvent;
+
+/// <summary>DE-008: the retry was granted; Payments makes a new payout for this attempt, held while the payee is not cleared (gated), as the first.</summary>
+public sealed record RedressPayoutRetried(Guid RedressId, int Attempt, decimal Amount, string Currency, Guid PayeePartyId, Guid BankAccountId, DateTimeOffset OccurredAt)
+    : IDomainEvent;
+
 /// <summary>
 /// Compensation or goodwill on a case (PPR 18.8.3; workflow.case_redress): money as decimal plus currency, REQUESTED →
 /// APPROVED (by someone other than the requester, through a Workflow approval) or REJECTED, then PAID with the payment.
@@ -71,7 +85,9 @@ public sealed class CaseRedress : AggregateRoot<Guid>
     public static readonly StateMachine<RedressStatus, RedressTrigger> Lifecycle = new StateMachine<RedressStatus, RedressTrigger>()
         .Allow(RedressStatus.Requested, RedressTrigger.Approve, RedressStatus.Approved)
         .Allow(RedressStatus.Requested, RedressTrigger.Reject, RedressStatus.Rejected)
-        .Allow(RedressStatus.Approved, RedressTrigger.Pay, RedressStatus.Paid);
+        .Allow(RedressStatus.Approved, RedressTrigger.Pay, RedressStatus.Paid)
+        .Allow(RedressStatus.Approved, RedressTrigger.PaymentFail, RedressStatus.PaymentFailed)
+        .Allow(RedressStatus.PaymentFailed, RedressTrigger.RetryGranted, RedressStatus.Approved);
 
     private readonly List<CaseHistoryEntry> _history = [];
 
@@ -104,6 +120,32 @@ public sealed class CaseRedress : AggregateRoot<Guid>
     public DateTimeOffset? PaidAt { get; private set; }
 
     public Guid? PaymentId { get; private set; }
+
+    /// <summary>DE-008: the payout attempt: 1 for the first, 2 or more for each retry (PayoutRequested.Attempt).</summary>
+    public int Attempt { get; private set; } = 1;
+
+    /// <summary>The last failed payment: its id, its reference (what a retry asks the person to type) and why it failed.</summary>
+    public Guid? FailedPaymentId { get; private set; }
+
+    public string? FailedPaymentRef { get; private set; }
+
+    public string? FailureReason { get; private set; }
+
+    /// <summary>The account the latest retry pays.</summary>
+    public Guid? PayoutBankAccountId { get; private set; }
+
+    /// <summary>A retry waiting for its second person: who asked, why, and the account it would pay.</summary>
+    public Guid? RetryRequestedBy { get; private set; }
+
+    public string? RetryReason { get; private set; }
+
+    public Guid? RetryBankAccountId { get; private set; }
+
+    /// <summary>The approval that last decided a retry: a redelivered decision changes nothing.</summary>
+    public Guid? RetryApprovalId { get; private set; }
+
+    /// <summary>What a retry's approval is for: this redress, its next attempt, the failed payment it replaces, the amount, the payee and the account.</summary>
+    public string RetrySubjectHash => ApprovalSubject.Hash("CASE_REDRESS_RETRY", Id, Attempt + 1, FailedPaymentRef, Amount, Currency, PayeePartyId, RetryBankAccountId);
 
     /// <summary>History rows of the case written since the redress was loaded.</summary>
     public IReadOnlyList<CaseHistoryEntry> NewHistory => _history;
@@ -207,6 +249,98 @@ public sealed class CaseRedress : AggregateRoot<Guid>
         PaymentId = paymentId;
         PaidAt = now;
         Record(CaseEventTypes.RedressPaid, "system", now);
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// DE-008: its payout failed. PAYMENT_FAILED with the failed payment's reference and reason. A redelivery, or a failure when it is not waiting for a
+    /// payment, changes nothing (false).
+    /// </summary>
+    public bool RecordPaymentFailure(Guid paymentId, string paymentRef, string reason, DateTimeOffset now)
+    {
+        if (Status != RedressStatus.Approved || FailedPaymentId == paymentId || Fire(RedressTrigger.PaymentFail).IsFailure)
+        {
+            return false;
+        }
+
+        FailedPaymentId = paymentId;
+        FailedPaymentRef = Guard.MaxLength(paymentRef, 25);
+        FailureReason = Guard.MaxLength(reason, 200);
+        Record(CaseEventTypes.RedressPaymentFailed, "system", now, FailedPaymentRef);
+        return true;
+    }
+
+    /// <summary>
+    /// DE-008: asks to pay a PAYMENT_FAILED redress again. The person types the failed payment's reference (TYPED_REFERENCE_MISMATCH otherwise) and gives
+    /// a reason; <paramref name="bankAccountId"/> is the payee's verified account the caller settled on. A second person approves it (PAYOUT_RETRY).
+    /// </summary>
+    public Result RequestPayoutRetry(string typedPaymentRef, string reason, Guid bankAccountId, Guid requestedBy, string caseNumber, DateTimeOffset now)
+    {
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            return Error.Validation(ErrorCodes.ValidationFailed, "Paying the redress again needs a reason.");
+        }
+
+        if (Status != RedressStatus.PaymentFailed)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, $"Only a redress whose payment failed is paid again; it is {Status}.");
+        }
+
+        if (RetryRequestedBy is not null)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, "Paying this redress again is already waiting for a second person.");
+        }
+
+        if (!string.Equals(typedPaymentRef?.Trim(), FailedPaymentRef, StringComparison.Ordinal))
+        {
+            return Error.Validation(ErrorCodes.TypedReferenceMismatch, "The reference typed is not the failed payment's reference, so nothing was done.");
+        }
+
+        RetryRequestedBy = requestedBy;
+        RetryReason = Guard.MaxLength(reason, 500);
+        RetryBankAccountId = Guard.NotEmpty(bankAccountId);
+        Record(CaseEventTypes.RedressRetryRequested, requestedBy.ToString(), now);
+        Raise(new RedressPayoutRetryRequested(Id, requestedBy, Amount, Currency, caseNumber, RetrySubjectHash, now));
+        MarkChanged();
+        return Result.Success();
+    }
+
+    /// <summary>True when this approval already decided a retry: a redelivery changes nothing.</summary>
+    public bool RetryDecidedBy(Guid approvalId) => RetryApprovalId == approvalId;
+
+    /// <summary>
+    /// Workflow's decision on a retry. Granted: APPROVED again, and the next attempt is requested from Payments (PayoutRequested, gated as the first);
+    /// rejected, expired or withdrawn: the request is cleared and it stays PAYMENT_FAILED. Refused when none waits or it was for another subject.
+    /// </summary>
+    public Result DecidePayoutRetry(bool approved, Guid approvalId, Guid? checkerId, string? subjectHash, string? ending, DateTimeOffset now)
+    {
+        if (RetryRequestedBy is null || (approved && Status != RedressStatus.PaymentFailed) || subjectHash != RetrySubjectHash)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, "The approval was for another retry of the redress, or none waits.");
+        }
+
+        var account = RetryBankAccountId!.Value;
+        RetryApprovalId = approvalId;
+        RetryRequestedBy = null;
+        RetryReason = null;
+        RetryBankAccountId = null;
+        if (!approved)
+        {
+            Record(CaseEventTypes.RedressRetryRejected, checkerId?.ToString() ?? "system", now, ending);
+            MarkChanged();
+            return Result.Success();
+        }
+
+        var fired = Fire(RedressTrigger.RetryGranted);
+        if (fired.IsFailure)
+        {
+            return fired;
+        }
+
+        Attempt++;
+        PayoutBankAccountId = account;
+        Record(CaseEventTypes.RedressRetryApproved, checkerId?.ToString() ?? "system", now);
+        Raise(new RedressPayoutRetried(Id, Attempt, Amount, Currency, PayeePartyId, account, now));
         return Result.Success();
     }
 
