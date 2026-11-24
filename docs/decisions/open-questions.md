@@ -434,7 +434,7 @@ Each item is built as stated and marked `TODO(spec)` in code.
   - The payments matching tolerance uses the lowest tolerance in force.
 - **Premium tax:** taxes on invoices are not specified, so invoices carry tax 0.
 - **Credit notes:**
-  - Those whose reason needs approval are refused until the approval flow for adjustments is specified.
+  - Those whose reason needs approval: **Resolved by Ade's decision of 24 November 2026 (DE-010), as built.** The credit note is asked for, not issued: it waits as a credit note request (`billing.credit_note_request`, V0150) for a `CREDIT_NOTE` approval, decided by a second person within their authority's amount limits (FINANCE_MANAGER; Workflow enforces requester ≠ checker and the limits). The invoice isn't frozen while it waits: allocations go on. When granted, the credit note is issued for what the invoice still asks for, never more than was asked; if nothing is outstanding by then (paid or credited meanwhile), the request lapses and nothing is credited, since a credit then would be money owed back to the payer, which is a refund's. Rejected, expired or withdrawn, the request is cleared and nothing is credited. At request time it may ask for at most what the invoice then asks for. Reasons that don't need approval are issued at once, as before.
   - System credit notes record `approved_by` as the nil UUID.
 - **Providers:**
   - **No real integrations:** none are specified. The `SIMULATOR` provider stands in for development and tests: an amount ending in .13 is rejected, .99 gets no answer (Unknown), and otherwise the payment is pending until an HMAC-signed callback.
