@@ -30,7 +30,9 @@
 #   provision         the server, its firewall and address, k3s, the images, the chart, OpenBao, the seed and the accounts
 #   upgrade           the images and the chart at this ref; data and passwords stay
 #   open-ssh <ip>     SSH from that address, until the next run closes it (for Ade to unseal OpenBao); check closes it soonest
-#   diagnose          read only: what rebooted the server or restarted k3s (boots, package runs, needrestart, the journal, Hetzner's actions)
+#   diagnose          read only: the server's state now (uptime, memory, disk, volumes and the pods mounting them, the backup schedule,
+#                     jobs, pods, releases), then what rebooted the server or restarted k3s (boots, package runs, needrestart, the
+#                     journal, Hetzner's actions)
 #   os-update         the server's packages updated, nothing restarted or rebooted; says what would need a restart or reboot
 #   reboot            the server rebooted (the rebuild plan's 0A.2, each run approved by Ade), only after a backup taken today; then a check
 #                     that it booted again, on which kernel, that k3s and the pods came back, and what OpenBao reports (sealed, as after any reboot)
@@ -76,7 +78,10 @@ ssh_key() {
 }
 
 address() { hcloud primary-ip describe "$name" -o format='{{.IP}}'; }
-on_server() { ssh -i "$key" -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile="$RUNNER_TEMP/known_hosts" -o ConnectTimeout=20 "root@$(address)" "$@"; }
+# Keep-alives (Ade, 24 November 2026): a connection that carries nothing for a long time, or a server that stops answering, fails within
+# about 3 minutes instead of hanging until the network drops it (the reset of 23 November waited 2 h 16 min on a silent connection).
+ssh_alive=(-o ServerAliveInterval=30 -o ServerAliveCountMax=6)
+on_server() { ssh -i "$key" "${ssh_alive[@]}" -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile="$RUNNER_TEMP/known_hosts" -o ConnectTimeout=20 "root@$(address)" "$@"; }
 
 # SSH is closed except during a run: only 443 is open.
 close_ssh() {
@@ -373,7 +378,7 @@ seed() {
   user_admin
   storage_check
   forwards
-  ssh -i "$key" -o UserKnownHostsFile="$RUNNER_TEMP/known_hosts" -fN -L 18080:127.0.0.1:18080 -L 18081:127.0.0.1:18081 "root@$(address)"
+  ssh -i "$key" "${ssh_alive[@]}" -o UserKnownHostsFile="$RUNNER_TEMP/known_hosts" -fN -L 18080:127.0.0.1:18080 -L 18081:127.0.0.1:18081 "root@$(address)"
   for url in http://127.0.0.1:18080/health/ready http://127.0.0.1:18081/realms/insys; do   # the runner's end of the tunnel too
     for _ in $(seq 1 30); do code=$(curl -s -o /dev/null -w '%{http_code}' "$url"); [ "$code" = 200 ] && continue 2; sleep 1; done
     fail "through the runner's tunnel, $url answered HTTP $code, not 200"
@@ -713,6 +718,76 @@ reboot_server() {
 # days, needrestart's lines in apt's log, and the journal's system lines around each boot and k3s's last start; then Hetzner's own record
 # of actions on the server (a reboot or reset from its API or console is there). The repository is public, so only system lines are read:
 # systemd, logind, the kernel, the package tools and k3s's start and stop, never an application's log, a session's address or a command line.
+# The nightly backup during a reset (Ade, 24 November 2026): suspended before the volumes are deleted, with any backup Job and its pods
+# deleted, as a backup pod mounts OpenBao's volume and would hold it; resumed after the post-reset checks, read back and reported. If the
+# reset stops before that, the exit resumes it too, so the schedule is never left off.
+backup_suspended=""
+backup_suspend() {
+  if ! on_server "kubectl get cronjob insys-backup >/dev/null 2>&1"; then echo "Backup schedule: no CronJob insys-backup yet, nothing to suspend."; return 0; fi
+  on_server "kubectl patch cronjob insys-backup --type=merge -p '{\"spec\":{\"suspend\":true}}' >/dev/null" || fail "couldn't suspend the backup CronJob; nothing was removed"
+  backup_suspended=yes
+  [ "$(on_server "kubectl get cronjob insys-backup -o jsonpath='{.spec.suspend}'")" = true ] || fail "the backup CronJob doesn't read back as suspended; nothing was removed"
+  # shellcheck disable=SC2016 # it runs on the server, which expands it
+  on_server 'jobs=$(kubectl get jobs -o name | grep "^job.batch/insys-backup" || true)
+    if [ -n "$jobs" ]; then echo "Deleting backup jobs: $(echo $jobs)"; kubectl delete $jobs --cascade=foreground --wait=true --timeout=120s >/dev/null || exit 1; fi
+    pods=$(kubectl get pods -o name | grep "^pod/insys-backup" || true)
+    if [ -n "$pods" ]; then echo "Deleting backup pods: $(echo $pods)"; kubectl delete $pods --wait=true --timeout=120s >/dev/null || exit 1; fi
+    left=$(kubectl get jobs,pods -o name | grep -E "^(job.batch|pod)/insys-backup" || true)
+    [ -z "$left" ] || { echo "still there: $left"; exit 1; }' || fail "a backup Job or pod couldn't be deleted; nothing of the release was removed yet"
+  echo "Backup schedule: suspended (read back), and no backup Job or pod is left."
+}
+backup_resume() {
+  [ -n "$backup_suspended" ] || { echo "Backup schedule: wasn't suspended by this run."; return 0; }
+  on_server "kubectl patch cronjob insys-backup --type=merge -p '{\"spec\":{\"suspend\":false}}' >/dev/null" || fail "couldn't turn the backup schedule back on: patch cronjob insys-backup's spec.suspend to false on the server"
+  [ "$(on_server "kubectl get cronjob insys-backup -o jsonpath='{.spec.suspend}'")" = false ] || fail "the backup schedule doesn't read back as on"
+  backup_suspended=""
+  echo "Backup schedule: on (read back), $(on_server "kubectl get cronjob insys-backup -o jsonpath='{.spec.schedule}'") UTC."
+  summary "**Backup schedule:** on again after the checks (read back)."
+}
+backup_resume_on_exit() { # never fails; only if the reset stopped while the schedule was suspended
+  [ -n "$backup_suspended" ] || return 0
+  open_ssh "${RUNNER_IP:?}" >/dev/null 2>&1 || true
+  if on_server "kubectl patch cronjob insys-backup --type=merge -p '{\"spec\":{\"suspend\":false}}' >/dev/null" 2>/dev/null \
+    && [ "$(on_server "kubectl get cronjob insys-backup -o jsonpath='{.spec.suspend}'" 2>/dev/null)" = false ]; then
+    echo "Backup schedule: on again (read back), as the reset stopped early."; summary "**Backup schedule:** on again (read back), as the reset stopped early."
+  else
+    echo "::error::The backup schedule may still be suspended: patch cronjob insys-backup's spec.suspend to false on the server."
+  fi
+}
+# The volumes, deleted with a time limit (Ade, 24 November 2026): about 5 minutes. On expiry, each volume still there is named with the
+# pods that mount it, and the run stops with an error.
+volumes_delete() {
+  # shellcheck disable=SC2016 # it runs on the server, which expands it
+  on_server 'kubectl delete pvc --all --wait=false
+    if kubectl wait --for=delete pvc --all --timeout=300s >/dev/null 2>&1 || [ -z "$(kubectl get pvc -o name)" ]; then echo "Volumes: all deleted."; exit 0; fi
+    echo "Volumes still there after 5 minutes:"
+    for pvc in $(kubectl get pvc -o jsonpath="{.items[*].metadata.name}"); do
+      holders=$(kubectl get pods -A -o json | jq -r --arg c "$pvc" ".items[] | select(any(.spec.volumes[]?; .persistentVolumeClaim.claimName == \$c)) | \"\(.metadata.namespace)/\(.metadata.name) (\(.status.phase))\"" | tr "\n" " ")
+      echo "  $pvc: $(kubectl get pvc "$pvc" -o jsonpath="{.status.phase}"), finalizers $(kubectl get pvc "$pvc" -o jsonpath="{.metadata.finalizers}"), held by: ${holders:-no pod}"
+    done
+    exit 1' || fail "The volumes weren't deleted within 5 minutes (see above). The release is uninstalled; nothing was rebuilt."
+}
+
+# Read only (Ade, 24 November 2026): the server's state now: uptime, memory, disk, the volumes and the pods that mount them, the backup
+# schedule and its jobs, and every pod.
+server_status() {
+  # shellcheck disable=SC2016 # it runs on the server, which expands it
+  on_server 'echo "== Uptime: $(uptime)"; echo "== Booted: $(uptime -s)"
+    echo "== Memory (MiB)"; free -m
+    echo "== Disk"; df -h / /var/lib/rancher 2>/dev/null | uniq
+    echo "== k3s: $(systemctl is-active k3s)"
+    echo "== Nodes"; kubectl get nodes -o wide 2>&1 | cut -c1-200
+    echo "== Volume claims"; kubectl get pvc -A -o wide 2>&1
+    echo "== Volume claims, deletion and finalizers"; kubectl get pvc -A -o jsonpath="{range .items[*]}{.metadata.namespace}/{.metadata.name} deleting={.metadata.deletionTimestamp} finalizers={.metadata.finalizers}{\"\n\"}{end}" 2>&1
+    echo "== Volumes"; kubectl get pv 2>&1
+    echo "== Pods that mount a volume claim"
+    kubectl get pods -A -o json 2>/dev/null | jq -r ".items[] | . as \$p | .spec.volumes[]? | select(.persistentVolumeClaim) | \"\(\$p.metadata.namespace)/\(\$p.metadata.name) \(\$p.status.phase) mounts \(.persistentVolumeClaim.claimName)\""
+    echo "== Backup schedule"; kubectl get cronjob insys-backup -o jsonpath="{.metadata.name} schedule={.spec.schedule} suspend={.spec.suspend} last={.status.lastScheduleTime}{\"\n\"}" 2>&1
+    echo "== Jobs"; kubectl get jobs -A 2>&1
+    echo "== Pods"; kubectl get pods -A -o wide 2>&1 | cut -c1-200
+    echo "== Helm releases"; KUBECONFIG=/etc/rancher/k3s/k3s.yaml helm list -A 2>&1'
+}
+
 diagnose() {
   local id
   # shellcheck disable=SC2016 # it runs on the server, which expands it
@@ -755,7 +830,7 @@ diagnose() {
 # A connection with one given key only, nothing else offered: for rotate-ssh-key, to prove which key the server accepts.
 ssh_with() { # key file, then the command
   local with=$1; shift
-  ssh -i "$with" -o IdentitiesOnly=yes -o BatchMode=yes -o PreferredAuthentications=publickey -o StrictHostKeyChecking=accept-new \
+  ssh -i "$with" "${ssh_alive[@]}" -o IdentitiesOnly=yes -o BatchMode=yes -o PreferredAuthentications=publickey -o StrictHostKeyChecking=accept-new \
     -o UserKnownHostsFile="$RUNNER_TEMP/known_hosts" -o ConnectTimeout=20 "root@$(address)" "$@"
 }
 fingerprint_of() { ssh-keygen -l -f "$1" | awk '{print $2, $NF}'; }
@@ -1341,7 +1416,7 @@ post_tunnel() {
     code=$(curl -s -o /dev/null --max-time 10 -w '%{http_code}' "$url" || true)
     [ "$code" = 000 ] || continue
     pkill -f -- "-fN -L 18080:127.0.0.1:18080" || true
-    ssh -i "$key" -o UserKnownHostsFile="$RUNNER_TEMP/known_hosts" -fN -L 18080:127.0.0.1:18080 -L 18081:127.0.0.1:18081 "root@$(address)" || return 1
+    ssh -i "$key" "${ssh_alive[@]}" -o UserKnownHostsFile="$RUNNER_TEMP/known_hosts" -fN -L 18080:127.0.0.1:18080 -L 18081:127.0.0.1:18081 "root@$(address)" || return 1
     break
   done
   for url in "$post_api/health/ready" "$post_kc/realms/insys"; do
@@ -1425,12 +1500,29 @@ case "$action" in
     pull=$(check_pull 2>&1) || fail "Stopped before anything was removed: the console's pinned image doesn't resolve with the Preview's pull credentials (${pull:-no detail})."
     echo "Console image, before the reset: $pull"
     ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; os_policy
-    on_server "KUBECONFIG=/etc/rancher/k3s/k3s.yaml helm uninstall insys --wait || true; kubectl delete pvc --all --wait=true; kubectl delete secret insys-secrets --ignore-not-found"
+    backup_suspend
+    trap 'backup_resume_on_exit; close_ssh' EXIT
+    on_server "KUBECONFIG=/etc/rancher/k3s/k3s.yaml helm uninstall insys --wait --timeout 5m || true"
+    volumes_delete
+    on_server "kubectl delete secret insys-secrets --ignore-not-found --timeout=60s"
     cluster; images; server_secrets; pull_secret; chart; openbao; encrypt; seed; encrypt; check_tls
-    post_reset_checks   # report only: they undo nothing, but any FAIL ends the step red once all have run
+    post_checks_status=0
+    ( post_reset_checks ) || post_checks_status=$?   # report only: they undo nothing, but any FAIL ends the step red once all have run
+    open_ssh "${RUNNER_IP:?}"   # the checks close SSH on their way out
+    backup_resume
+    [ "$post_checks_status" = 0 ] || fail "At least one post-reset check failed (see FAIL above). The reset itself completed; nothing was undone. The backup schedule is on."
     ;;
   diagnose)
-    ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; diagnose
+    ssh_key; open_ssh "${RUNNER_IP:?}"
+    echo "== Hetzner: the server is $(hcloud server describe "$name" -o format='{{.Status}}')"
+    if ! ( wait_for_ssh ); then
+      echo "== Hetzner's actions on the server (newest first)"
+      id=$(hcloud server describe "$name" -o format='{{.ID}}')
+      printf 'header = "Authorization: Bearer %s"\n' "$HCLOUD_TOKEN" \
+        | curl -sS --fail-with-body -K - "https://api.hetzner.cloud/v1/servers/$id/actions?sort=started:desc&per_page=25" | jq -r '.actions[] | "\(.started)  \(.command)  \(.status)"' || true
+      fail "The server didn't answer on SSH: it stopped answering. Nothing was changed."
+    fi
+    server_status; diagnose
     ;;
   rotate-ssh-key)
     ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; rotate_ssh_key
