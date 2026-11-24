@@ -37,8 +37,11 @@ The list is paged with `cursor` and `limit`. The GET returns an ETag, which repl
 3. **Discard** when the event should never be processed, for example a test event or a record corrected by hand:
    ```
    POST /api/v1/integration/dead-letters/{id}/discard  If-Match: "<etag>"   [dead_letter.update]
+   {"messageRef": "<the dead letter's messageRef, typed>", "reason": "<why, at most 300 characters>"}
    ```
-   Discarding means that event's consequences never happen in the consumers that had failed. Record why in the ticket; the API takes no reason.
+   - Discarding means that event's consequences never happen in the consumers that had failed. A `messageRef` that isn't the dead letter's exactly is refused with 422 `TYPED_REFERENCE_MISMATCH`, and nothing changes (DE-007).
+   - **It releases what the event held back** (DE-007): in the same transaction, the event's dead-lettered deliveries in the ledger become `DISCARDED` with the reason, and the parking job then delivers, in order, the later events for the same records that waited behind them (ADR-022 decision 3). A `ledger:` dead letter releases its own consumer's delivery only.
+   - **A money message needs a second person** (DE-007): one from the Payments, Billing, Finance, Claims or Distribution (`commission`) outbox, or a Health or Workflow event whose name contains Payment, Remittance, Recovery, CreditNote or Redress (`DiscardApproval` in the Integration domain). The call answers 202, the dead letter reads `DiscardRequested` (with `discardRequestedBy`, `discardRequestedAt` and `discardReason`), and a Workflow approval of type `DEAD_LETTER_DISCARD` waits for someone other than the requester. Granted, it is discarded and released as above (`resolvedBy` the requester, `discardApprovedBy` the approver); rejected, expired or withdrawn, it reads `DeadLettered` again. While it waits, replay and a second discard answer 409.
 
 Rules for both replay and discard:
 

@@ -42,8 +42,28 @@ public sealed record DeadLetterMessage(string Source, string MessageRef, string 
 /// <summary>Command ReplayMessage: delivers the message again to its consumers (INT-006).</summary>
 public sealed record ReplayMessage(Guid DeadLetterId, long ExpectedVersion) : ICommand<long>, IVersionedCommand;
 
-/// <summary>Command DiscardMessage: closes the dead letter without delivery (INT-006).</summary>
-public sealed record DiscardMessage(Guid DeadLetterId, long ExpectedVersion) : ICommand<long>, IVersionedCommand;
+/// <summary>
+/// Command DiscardMessage: closes the dead letter without delivery (INT-006), and releases what it held back (DE-007): its event's dead-lettered
+/// deliveries in the ledger are discarded, so the events waiting behind them go on. <paramref name="MessageRef"/> is typed by the operator and must
+/// be the dead letter's message ID exactly. A money message's discard asks for a second person's approval first (<see cref="DiscardApproval"/>).
+/// </summary>
+public sealed record DiscardMessage(Guid DeadLetterId, long ExpectedVersion, string MessageRef, string Reason) : ICommand<DiscardOutcome>, IVersionedCommand;
+
+/// <summary>What a discard did: the dead letter was discarded, or (a money message) its discard now waits for a second person's approval.</summary>
+public sealed record DiscardOutcome(Guid Id, bool AwaitingApproval)
+{
+    /// <summary>The dead letter's version once saved (its ETag).</summary>
+    public long RowVersion { get; set; }
+}
+
+public sealed class DiscardMessageValidator : AbstractValidator<DiscardMessage>
+{
+    public DiscardMessageValidator()
+    {
+        RuleFor(c => c.MessageRef).NotEmpty().MaximumLength(80);
+        RuleFor(c => c.Reason).NotEmpty().MaximumLength(DeadLetter.MaxReasonLength);
+    }
+}
 
 public sealed class DeadLetterMessageValidator : AbstractValidator<DeadLetterMessage>
 {
@@ -105,10 +125,10 @@ internal sealed class ReplayMessageHandler(IDeadLetterRepository repository, IEv
     }
 }
 
-internal sealed class DiscardMessageHandler(IDeadLetterRepository repository, IExecutionContext execution, IAuditTrail audit)
-    : ICommandHandler<DiscardMessage, long>
+internal sealed class DiscardMessageHandler(IDeadLetterRepository repository, IDeadLetterReleases releases, IExecutionContext execution, IAuditTrail audit,
+    IClock clock) : ICommandHandler<DiscardMessage, DiscardOutcome>
 {
-    public async Task<Result<long>> Handle(DiscardMessage command, CancellationToken cancellationToken)
+    public async Task<Result<DiscardOutcome>> Handle(DiscardMessage command, CancellationToken cancellationToken)
     {
         var loaded = await DeadLetterAccess.Load(repository, command.DeadLetterId, command.ExpectedVersion, execution, cancellationToken);
         if (loaded.IsFailure)
@@ -116,10 +136,74 @@ internal sealed class DiscardMessageHandler(IDeadLetterRepository repository, IE
             return loaded.Error;
         }
 
-        var deadLetter = loaded.Value.DeadLetter;
-        audit.Record(new AuditEntry("DEAD_LETTER", "DiscardMessage", nameof(DeadLetter), deadLetter.Id.ToString()));
-        var resolved = deadLetter.DiscardMessage(loaded.Value.OperatorId);
-        return resolved.IsFailure ? resolved.Error : deadLetter.RowVersion;
+        var (deadLetter, operatorId) = loaded.Value;
+
+        // DE-007: the operator types the message ID as a deliberate confirmation; anything else changes nothing.
+        if (!string.Equals(command.MessageRef, deadLetter.MessageRef.Value, StringComparison.Ordinal))
+        {
+            return Error.Validation(ErrorCodes.TypedReferenceMismatch, "The message reference typed is not this dead letter's message ID, so nothing was discarded.");
+        }
+
+        var held = HeldEvent.Of(deadLetter);
+        if (DiscardApproval.NeedsSecondPerson(deadLetter.Source.Value, held?.EventType))
+        {
+            var requested = deadLetter.RequestDiscard(operatorId, command.Reason, clock.UtcNow);
+            if (requested.IsFailure)
+            {
+                return requested.Error;
+            }
+
+            audit.Record(new AuditEntry("DEAD_LETTER", "RequestDiscardMessage", nameof(DeadLetter), deadLetter.Id.ToString(),
+                new Dictionary<string, string?> { ["source"] = deadLetter.Source.Value, ["eventType"] = held?.EventType, ["reason"] = command.Reason }));
+            return new DiscardOutcome(deadLetter.Id, AwaitingApproval: true) { RowVersion = deadLetter.RowVersion };
+        }
+
+        var discarded = deadLetter.DiscardMessage(operatorId, command.Reason);
+        if (discarded.IsFailure)
+        {
+            return discarded.Error;
+        }
+
+        await DeadLetterDiscards.Release(deadLetter, held, releases, audit, approvedBy: null, cancellationToken);
+        return new DiscardOutcome(deadLetter.Id, AwaitingApproval: false) { RowVersion = deadLetter.RowVersion };
+    }
+}
+
+/// <summary>The event a dead letter holds back: an outbox's or the ledger's dead letter holds its event envelope; a webhook's holds none.</summary>
+public sealed record HeldEvent(Guid EventId, string EventType)
+{
+    public static HeldEvent? Of(DeadLetter deadLetter)
+    {
+        if (!deadLetter.Source.Value.StartsWith("outbox:", StringComparison.Ordinal) && !deadLetter.Source.Value.StartsWith("ledger:", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        var envelope = JsonSerializer.Deserialize<EventEnvelope>(deadLetter.Payload, JsonSerializerOptions.Web);
+        return envelope is null || envelope.EventId == Guid.Empty ? null : new HeldEvent(envelope.EventId, envelope.EventType);
+    }
+}
+
+/// <summary>DE-007: what a discard does once it takes effect, directly or once approved: releases the event's dead-lettered deliveries and audits it.</summary>
+public static class DeadLetterDiscards
+{
+    public static async Task Release(DeadLetter deadLetter, HeldEvent? held, IDeadLetterReleases releases, IAuditTrail audit, Guid? approvedBy,
+        CancellationToken cancellationToken)
+    {
+        var released = held is null ? 0
+            : await releases.DiscardDeliveries(held.EventId, deadLetter.Source.Value, deadLetter.ResolvedBy!.Value.ToString(), deadLetter.DiscardReason!, cancellationToken);
+
+        // The reason and what was released; never the payload (INT-007, BR-017).
+        audit.Record(new AuditEntry("DEAD_LETTER", "DiscardMessage", nameof(DeadLetter), deadLetter.Id.ToString(),
+            new Dictionary<string, string?>
+            {
+                ["source"] = deadLetter.Source.Value,
+                ["eventType"] = held?.EventType,
+                ["reason"] = deadLetter.DiscardReason,
+                ["requestedBy"] = deadLetter.ResolvedBy?.ToString(),
+                ["approvedBy"] = approvedBy?.ToString(),
+                ["releasedDeliveries"] = released.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            }));
     }
 }
 

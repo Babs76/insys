@@ -48,6 +48,9 @@ public sealed record ParkedRetryAccepted(int Count);
 
 public sealed record ParkedDiscardRequest(string Reason);
 
+/// <summary>DE-007: discarding a dead letter. MessageRef is typed by the operator and must be the dead letter's messageRef exactly; Reason is required (max 300).</summary>
+public sealed record DeadLetterDiscardRequest(string MessageRef, string Reason);
+
 public sealed record ParkingSettingRequest(string ConfigurationOwnerRole, string? CalendarCode, string MoneyFirst, string MoneySecond, string OtherFirst, string OtherSecond);
 
 public sealed class IntegrationModule : IModule
@@ -103,7 +106,8 @@ public sealed class IntegrationModule : IModule
             .Produces<CursorPage<DeadLetterSummary>>(StatusCodes.Status200OK)
             .WithName("ListDeadLetters")
             .WithSummary("List dead-lettered messages")
-            .WithDescription("Messages whose delivery failed after all retries (INT-006), oldest first, with cursor pagination.")
+            .WithDescription("Messages whose delivery failed after all retries (INT-006), oldest first, with cursor pagination. status filters by the "
+                + "derived status: DeadLettered, DiscardRequested (a money message's discard waits for approval, DE-007), Replayed or Discarded.")
             .Produces<CursorPage<DeadLetterSummary>>()
             .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
             .RequirePermission(IntegrationPermissions.DeadLetterRead);
@@ -128,12 +132,44 @@ public sealed class IntegrationModule : IModule
             .RequirePermission(IntegrationPermissions.DeadLetterRead);
 
         MapResolution(deadLetters, "replay", "ReplayMessage", "Replay a dead-lettered message",
-            "Delivers the original event to its consumers again. Consumers skip events they already processed (INT-005, INT-006).",
+            "Delivers the original event to its consumers again. Consumers skip events they already processed (INT-005, INT-006). Refused (409) while "
+            + "a discard of it waits for a second person's approval (DE-007).",
             (id, version) => new ReplayMessage(id, version));
 
-        MapResolution(deadLetters, "discard", "DiscardMessage", "Discard a dead-lettered message",
-            "Closes the dead letter without delivering it (INT-006).",
-            (id, version) => new DiscardMessage(id, version));
+        deadLetters.MapPost("/{id:guid}/discard", async (Guid id, DeadLetterDiscardRequest request, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+            {
+                var expected = Concurrency.ExpectedVersion(http.Request);
+                if (expected.IsFailure)
+                {
+                    return Problems.For(expected.Error);
+                }
+
+                var result = await dispatcher.Send(new DiscardMessage(id, expected.Value, request.MessageRef, request.Reason), ct);
+                return result.ToHttp(outcome =>
+                {
+                    Concurrency.SetETag(http, outcome.RowVersion);
+                    return outcome.AwaitingApproval ? Results.StatusCode(StatusCodes.Status202Accepted) : Results.NoContent();
+                });
+            })
+            .RequireIfMatch()
+            .WithName("DiscardMessage")
+            .WithSummary("Discard a dead-lettered message")
+            .WithDescription("Closes the dead letter without delivering it (INT-006), with a reason, and releases what it held back (DE-007): its event's "
+                + "dead-lettered deliveries are discarded, so later events for the same records stop waiting behind them. messageRef must be the dead "
+                + "letter's messageRef exactly (TYPED_REFERENCE_MISMATCH, 422, otherwise; nothing changes). A money message (from the Payments, Billing, "
+                + "Finance, Claims or Distribution outbox, or a Health or Workflow payment, remittance, recovery, credit note or redress event) is not "
+                + "discarded at once: 202, its status becomes DiscardRequested and a second person approves it in Workflow (DEAD_LETTER_DISCARD). "
+                + "While a discard is requested, replay and another discard are refused (409). Otherwise 204.")
+            .WithEventualEffects("after 204, the parking job releases the deliveries that waited behind the discarded ones (GET /api/v1/integration/parked-deliveries). "
+                + "After 202, the Workflow approval appears (GET /api/v1/workflow/approvals); once granted the dead letter reads Discarded, with "
+                + "discardApprovedBy; rejected, expired or withdrawn, it reads DeadLettered again.")
+            .Produces(StatusCodes.Status204NoContent)
+            .Produces(StatusCodes.Status202Accepted)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status412PreconditionFailed)
+            .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .RequirePermission(IntegrationPermissions.DeadLetterUpdate);
 
         api.MapGroup("/integration/deliveries").WithTags(Name).MapGet("/summary", async (IDispatcher dispatcher, CancellationToken ct) =>
                 (await dispatcher.Query(new Application.Parking.DeliveriesSummaryQuery(), ct)).ToHttp(Results.Ok))

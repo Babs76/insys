@@ -46,7 +46,8 @@ internal sealed class DeadLetterQueries(IntegrationDbContext db) : IDeadLetterQu
         var query = db.DeadLetters.AsNoTracking();
         query = status switch
         {
-            DeadLetterStatus.DeadLettered => query.Where(d => d.Resolution == null),
+            DeadLetterStatus.DeadLettered => query.Where(d => d.Resolution == null && d.DiscardRequestedBy == null),
+            DeadLetterStatus.DiscardRequested => query.Where(d => d.Resolution == null && d.DiscardRequestedBy != null),
             DeadLetterStatus.Replayed => query.Where(d => d.Resolution == DeadLetterResolution.Replayed),
             DeadLetterStatus.Discarded => query.Where(d => d.Resolution == DeadLetterResolution.Discarded),
             _ => query,
@@ -64,7 +65,8 @@ internal sealed class DeadLetterQueries(IntegrationDbContext db) : IDeadLetterQu
         }
 
         var rows = await query.OrderBy(d => d.Id).Take(limit).ToListAsync(cancellationToken);
-        return rows.Select(d => new DeadLetterSummary(d.Id, d.Source.Value, d.MessageRef.Value, d.Status, d.Attempts, d.FirstFailedAt)).ToList();
+        return rows.Select(d => new DeadLetterSummary(d.Id, d.Source.Value, d.MessageRef.Value, d.Status, d.Attempts, d.FirstFailedAt,
+            d.DiscardRequestedBy, d.DiscardRequestedAt, d.DiscardReason)).ToList();
     }
 
     public async Task<DeadLetterDetail?> Get(Guid id, CancellationToken cancellationToken)
@@ -77,6 +79,6 @@ internal sealed class DeadLetterQueries(IntegrationDbContext db) : IDeadLetterQu
 
         using var payload = JsonDocument.Parse(d.Payload);
         return new DeadLetterDetail(d.Id, d.Source.Value, d.MessageRef.Value, d.Status, d.Attempts, d.FirstFailedAt, d.Error.Value,
-            payload.RootElement.Clone(), d.ResolvedBy, d.RowVersion);
+            payload.RootElement.Clone(), d.ResolvedBy, d.RowVersion, d.DiscardRequestedBy, d.DiscardRequestedAt, d.DiscardReason, d.DiscardApprovedBy);
     }
 }

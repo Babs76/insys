@@ -69,6 +69,13 @@ public sealed class IntegrationDbContext(DbContextOptions<IntegrationDbContext> 
                 .HasConversion(v => v.Value, v => new DeliveryError(v));
             entity.Ignore(d => d.Status);
 
+            // DE-007 (V0154): the discard's reason, and a money message's request for a second person's approval.
+            entity.Property(d => d.DiscardReason).HasColumnName("discard_reason").HasMaxLength(DeadLetter.MaxReasonLength);
+            entity.Property(d => d.DiscardRequestedBy).HasColumnName("discard_requested_by");
+            entity.Property(d => d.DiscardRequestedAt).HasColumnName("discard_requested_at");
+            entity.Property(d => d.DiscardSubjectHash).HasColumnName("discard_subject_hash").HasMaxLength(64);
+            entity.Property(d => d.DiscardApprovedBy).HasColumnName("discard_approved_by");
+
             // Stored as upper-case codes (the schema's enum convention); NULL while dead-lettered.
             entity.Property(d => d.Resolution).HasColumnName("resolution").HasMaxLength(20)
                 .HasConversion(v => v == DeadLetterResolution.Replayed ? "REPLAYED" : "DISCARDED",
