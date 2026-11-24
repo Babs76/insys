@@ -226,6 +226,7 @@ core	PaymentsCallbackEndpointView.providerCode	to declare
 core	PaymentsInitiatePaymentRequest.businessRefType	to declare
 core	PaymentsInitiatePaymentRequest.methodCode	to declare
 core	PaymentsIssueCallbackEndpointRequest.providerCode	to declare
+core	PaymentsExceptionView.businessRefType	to declare (DE-008: the paid record's type, as on PaymentsPaymentView)
 core	PaymentsPaymentView.businessRefType	to declare
 core	PaymentsPaymentView.methodCode	to declare
 core	PaymentsPaymentView.providerCode	to declare
