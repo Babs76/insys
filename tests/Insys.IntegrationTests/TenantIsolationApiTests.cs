@@ -194,7 +194,7 @@ public sealed class TenantIsolationApiTests(DatabaseFixture fixture) : IClassFix
     {
         var client = _factory.ClientFor(DatabaseFixture.TenantA, Operator);
 
-        var response = await PostWithIfMatch(client, $"/api/v1/integration/dead-letters/{_tenantBRow}/discard", "\"1\"");
+        var response = await PostWithIfMatch(client, $"/api/v1/integration/dead-letters/{_tenantBRow}/discard", "\"1\"", DiscardBody(_tenantBRow));
 
         response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
         (await fixture.Database.ScalarAsOwner<string>("SELECT coalesce(resolution, 'NONE') FROM integration.dead_letter_message WHERE id = @id", ("id", _tenantBRow)))
@@ -222,10 +222,10 @@ public sealed class TenantIsolationApiTests(DatabaseFixture fixture) : IClassFix
         var client = _factory.ClientFor(DatabaseFixture.TenantA, Operator);
         var url = $"/api/v1/integration/dead-letters/{_tenantA[1]}/discard";
 
-        (await client.PostAsync(url, null)).StatusCode.ShouldBe((HttpStatusCode)428);
-        (await PostWithIfMatch(client, url, "\"7\"")).StatusCode.ShouldBe(HttpStatusCode.PreconditionFailed);
+        (await client.PostAsync(url, JsonContent.Create(DiscardBody(_tenantA[1])))).StatusCode.ShouldBe((HttpStatusCode)428);
+        (await PostWithIfMatch(client, url, "\"7\"", DiscardBody(_tenantA[1]))).StatusCode.ShouldBe(HttpStatusCode.PreconditionFailed);
 
-        var discarded = await PostWithIfMatch(client, url, "\"1\"");
+        var discarded = await PostWithIfMatch(client, url, "\"1\"", DiscardBody(_tenantA[1]));
         discarded.StatusCode.ShouldBe(HttpStatusCode.NoContent);
         discarded.Headers.ETag!.Tag.ShouldBe("\"2\"");
 
@@ -300,12 +300,15 @@ public sealed class TenantIsolationApiTests(DatabaseFixture fixture) : IClassFix
         return page.GetProperty("items").EnumerateArray().Select(i => i.GetProperty("id").GetGuid()).ToList();
     }
 
-    private static Task<HttpResponseMessage> PostWithIfMatch(HttpClient client, string url, string etag)
+    private static Task<HttpResponseMessage> PostWithIfMatch(HttpClient client, string url, string etag, object? body = null)
     {
-        var request = new HttpRequestMessage(HttpMethod.Post, url);
+        var request = new HttpRequestMessage(HttpMethod.Post, url) { Content = body is null ? null : JsonContent.Create(body) };
         request.Headers.TryAddWithoutValidation("If-Match", etag);
         return client.SendAsync(request);
     }
+
+    /// <summary>DE-007: a discard names the dead letter's message ID (here its own id) and a reason.</summary>
+    private static object DiscardBody(Guid deadLetter) => new { messageRef = deadLetter.ToString(), reason = "Test discard." };
 
     private static async Task<string?> Code(HttpResponseMessage response) =>
         (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString();

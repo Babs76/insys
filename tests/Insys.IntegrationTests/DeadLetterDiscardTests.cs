@@ -73,13 +73,16 @@ public sealed class DeadLetterDiscardTests(DatabaseFixture fixture) : IClassFixt
         (await world.LedgerRow(held.WaitingEvent)).ShouldStartWith("PARKED", Case.Sensitive, "delivered, and parked for the tenant's missing document configuration");
     }
 
+    /// <summary>The message ID with its last character changed to one it is not, so the typed reference never matches by chance.</summary>
+    private static string Mistyped(string messageRef) => messageRef[..^1] + (messageRef[^1] == '0' ? '1' : '0');
+
     [Fact]
     public async Task Discard_WithAMistypedMessageReference_IsRefused_AndChangesNothing_DE007()
     {
         var world = await World.Create(fixture);
         var held = await world.HeldBack("outbox:life", "life.LifePolicyIssued");
 
-        var discard = await world.Discard(world.Operator, held, messageRef: held.BlockerEvent.ToString()[..^1] + "0");
+        var discard = await world.Discard(world.Operator, held, messageRef: Mistyped(held.BlockerEvent.ToString()));
         discard.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity, await discard.Content.ReadAsStringAsync());
         (await discard.Code()).ShouldBe("TYPED_REFERENCE_MISMATCH");
 
