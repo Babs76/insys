@@ -377,6 +377,22 @@ public sealed class HealthDbContext(DbContextOptions<HealthDbContext> options, M
             recovery.Ignore(r => r.WriteOffHash);
             recovery.Ignore(r => r.FindingHash);
             Children(recovery, r => r.Offsets, "RecoveryId");
+            Children(recovery, r => r.Credits, "RecoveryId");
+            recovery.Navigation(r => r.Credits).AutoInclude(); // DE-009: the credits are part of the recovery's view wherever it is read.
+        });
+
+        modelBuilder.Entity<ProviderRecoveryCredit>(credit =>
+        {
+            credit.ToTable("provider_recovery_credit"); // DE-009 (V0151): insert-only
+            credit.HasKey(c => new { c.TenantId, c.Id });
+            credit.HasAuditColumns(updatable: false);
+            credit.Property(c => c.CreditNoteNumber).HasMaxLength(20);
+            credit.Property(c => c.Amount).HasPrecision(18, 2);
+            credit.Property(c => c.InvoiceOutstanding).HasPrecision(18, 2);
+            credit.Property(c => c.SettledAmount).HasPrecision(18, 2);
+            credit.Property(c => c.BalanceBefore).HasPrecision(18, 2);
+            credit.Property(c => c.BalanceAfter).HasPrecision(18, 2);
+            credit.Property(c => c.Outcome).HasMaxLength(10);
         });
 
         modelBuilder.Entity<ProviderRecoveryOffset>(offset =>
@@ -486,6 +502,12 @@ public sealed class HealthDbContext(DbContextOptions<HealthDbContext> options, M
             remittance.HasAuditColumns(updatable: false);
             remittance.Property(r => r.ProviderId).HasMaxLength(15);
             remittance.Property(r => r.Amount).HasPrecision(18, 2);
+            remittance.Property(r => r.PaymentStatus).HasMaxLength(10); // DE-008 (V0151)
+            remittance.Property(r => r.Attempt).HasColumnType("smallint");
+            remittance.Property(r => r.FailedPaymentRef).HasMaxLength(25);
+            remittance.Property(r => r.FailureReason).HasMaxLength(200);
+            remittance.Property(r => r.ReissueReason).HasMaxLength(500);
+            remittance.Ignore(r => r.CurrentBankAccountId);
         });
     }
 

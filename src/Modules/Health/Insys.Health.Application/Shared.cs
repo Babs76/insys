@@ -495,8 +495,16 @@ public sealed record FraudCaseView(Guid Id, string SubjectType, string SubjectRe
 }
 
 /// <param name="DocumentId">The remittance advice document, once produced (BR-079).</param>
+/// <param name="PaymentStatus">DE-008: NONE (no payment: offsets took all of it), PENDING, PAID or FAILED.</param>
+/// <param name="FailedPaymentRef">The last failed payment's reference: what reissuing the remittance asks the person to type.</param>
+/// <param name="Attempt">The payout attempt: 1 for the run's own, 2 or more for each reissue.</param>
+/// <param name="PayoutBankAccountId">The account a reissue pays, when it is not the remittance's own.</param>
+/// <param name="ReissuePending">A reissue is waiting for a second person's approval (PAYOUT_RETRY).</param>
 public sealed record RemittanceView(Guid Id, string ProviderId, Guid ProviderPartyId, Guid BankAccountId, decimal Amount, int ClaimCount, Guid? PaymentId, DateOnly? PaidOn,
-    [property: BuildingBlocks.Contracts.AlwaysPresent] Guid? DocumentId = null, decimal GrossAmount = 0, decimal OffsetAmount = 0, decimal RepaidAmount = 0);
+    [property: BuildingBlocks.Contracts.AlwaysPresent] Guid? DocumentId = null, decimal GrossAmount = 0, decimal OffsetAmount = 0, decimal RepaidAmount = 0,
+    [property: OneOf(RemittancePaymentStatuses.None, RemittancePaymentStatuses.Pending, RemittancePaymentStatuses.Paid, RemittancePaymentStatuses.Failed)] string PaymentStatus = RemittancePaymentStatuses.Pending,
+    [property: BuildingBlocks.Contracts.AlwaysPresent] string? FailedPaymentRef = null, [property: BuildingBlocks.Contracts.AlwaysPresent] string? FailureReason = null, int Attempt = 1,
+    [property: BuildingBlocks.Contracts.AlwaysPresent] Guid? PayoutBankAccountId = null, bool ReissuePending = false);
 
 /// <param name="PartlyInScope">
 /// True when the run also pays claims outside the caller's scope (F103): only the remittances whose claims are all in scope
@@ -510,7 +518,8 @@ public sealed record PaymentRunView(Guid Id, string RunCode, DateTimeOffset CutO
 
     public static PaymentRunView Of(ProviderPaymentRun r, IReadOnlyList<RemittanceAdvice> visible, bool partly) => new(r.Id, r.RunCode, r.CutOff, r.Status, r.Currency,
         partly ? visible.Sum(x => x.ClaimCount) : r.ClaimCount, partly ? visible.Sum(x => x.Amount) : r.TotalAmount,
-        visible.Select(x => new RemittanceView(x.Id, x.ProviderId, x.ProviderPartyId, x.BankAccountId, x.Amount, x.ClaimCount, x.PaymentId, x.PaidOn, x.DocumentId, x.GrossAmount, x.OffsetAmount, x.RepaidAmount)).ToList(),
+        visible.Select(x => new RemittanceView(x.Id, x.ProviderId, x.ProviderPartyId, x.BankAccountId, x.Amount, x.ClaimCount, x.PaymentId, x.PaidOn, x.DocumentId, x.GrossAmount, x.OffsetAmount, x.RepaidAmount,
+            x.PaymentStatus, x.FailedPaymentRef, x.FailureReason, x.Attempt, x.PayoutBankAccountId, x.ReissueRequestedBy is not null)).ToList(),
         r.RowVersion, partly, null, r.ApprovalId, r.ApprovedBy, r.ReleasedAt);
 }
 

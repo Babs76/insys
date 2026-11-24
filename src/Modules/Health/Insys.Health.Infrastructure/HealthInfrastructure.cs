@@ -50,6 +50,8 @@ public static class HealthInfrastructure
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Health.Contracts.HealthApprovals.RunBusinessRefType, "HEALTH_PAYMENT_RUNS", Insys.Health.Contracts.HealthApprovals.RunApprovalType);
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Health.Contracts.HealthApprovals.RecoveryBusinessRefType, "HEALTH_RECOVERIES", Insys.Health.Contracts.HealthApprovals.RecoveryWriteOffApprovalType, Insys.Health.Contracts.HealthApprovals.RecoveryFindingApprovalType);
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Health.Contracts.HealthApprovals.CreditNoteBusinessRefType, "HEALTH_CREDIT_NOTES", Insys.Health.Contracts.HealthApprovals.CreditNoteApprovalType);
+        // DE-008: paying a failed remittance again is approved on the remittance, opened from its run's screen.
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Health.Contracts.HealthReferences.RemittanceRefType, "HEALTH_PAYMENT_RUNS", Insys.Payments.Contracts.PaymentApprovals.PayoutRetryApprovalType);
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.RaisedWith("HEALTH", Insys.Health.Contracts.HealthApprovals.RunApprovalType, Insys.Health.Contracts.HealthApprovals.RecoveryWriteOffApprovalType,
             Insys.Health.Contracts.HealthApprovals.RecoveryFindingApprovalType, Insys.Health.Contracts.HealthApprovals.CreditNoteApprovalType);
         // ADR-026 §2: this module's event consumers run under its JOB function.
@@ -83,6 +85,7 @@ public static class HealthInfrastructure
         services.AddSingleton<BuildingBlocks.Contracts.IBusinessRecordScopes, HealthRemittanceScopes>();
         services.AddSingleton<Contracts.IProviderDirectory, ProviderDirectory>();
         services.AddSingleton<Workflow.Contracts.IApprovalScopeSource, PaymentRunApprovalScopes>();
+        services.AddSingleton<Workflow.Contracts.IApprovalScopeSource, RemittanceApprovalScopes>();
         services.AddSingleton<Workflow.Contracts.IApprovalScopeSource, ProviderAccountApprovalScopes>();
         services.AddSingleton<Workflow.Contracts.IApprovalScopeSource, MembershipRecordScopes>(); // scope batch 4: processes about a membership
         services.AddHealthChecks().AddCheck<PlanProductsHealthCheck>("health-plan-products");
@@ -161,6 +164,7 @@ public static class HealthInfrastructure
         services.AddIntegrationEventHandler<ApprovalRejected, HealthEventPolicies, HealthDbContext>(schema, "ApprovalRejected");
         services.AddIntegrationEventHandler<ProviderPaymentRunReleased, HealthEventPolicies, HealthDbContext>(schema, "ProviderPaymentRunReleased");
         services.AddIntegrationEventHandler<PaymentSucceeded, HealthEventPolicies, HealthDbContext>(schema, "PaymentSucceeded");
+        services.AddIntegrationEventHandler<PaymentFailed, HealthEventPolicies, HealthDbContext>(schema, "PaymentFailed"); // DE-008
         services.AddIntegrationEventHandler<Documents.Contracts.DocumentGenerated, HealthEventPolicies, HealthDbContext>(schema, "DocumentGenerated");
         // Wave 5a §4.6 to §4.8: recoveries, credit notes and disputes.
         services.AddScoped<RecoveryRaiser>();
@@ -171,6 +175,7 @@ public static class HealthInfrastructure
         services.AddIntegrationEventHandler<Workflow.Contracts.CaseClosed, RecoveryPolicies, HealthDbContext>(schema, "Recovery.CaseClosed");
         services.AddIntegrationEventHandler<Billing.Contracts.InvoiceIssued, RecoveryPolicies, HealthDbContext>(schema, "Recovery.InvoiceIssued");
         services.AddIntegrationEventHandler<Billing.Contracts.InvoiceSettled, RecoveryPolicies, HealthDbContext>(schema, "Recovery.InvoiceSettled");
+        services.AddIntegrationEventHandler<Billing.Contracts.CreditNoteIssued, RecoveryPolicies, HealthDbContext>(schema, "Recovery.CreditNoteIssued"); // DE-009
         services.AddOptions<HealthJobOptions>().BindConfiguration("Health:Jobs");
         services.AddSingleton<HealthJobs>();
         if (!InfrastructureRegistration.IsBuildTimeDocumentGeneration)

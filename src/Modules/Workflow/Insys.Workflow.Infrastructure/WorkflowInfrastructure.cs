@@ -139,9 +139,12 @@ public static class WorkflowInfrastructure
         services.AddIntegrationEventHandler<Contracts.ApprovalGranted, CaseRedressPolicies, WorkflowDbContext>(schema);
         services.AddIntegrationEventHandler<Contracts.ApprovalRejected, CaseRedressPolicies, WorkflowDbContext>(schema);
         services.AddIntegrationEventHandler<Payments.Contracts.PaymentSucceeded, CaseRedressPolicies, WorkflowDbContext>(schema);
+        services.AddIntegrationEventHandler<Payments.Contracts.PaymentFailed, CaseRedressPolicies, WorkflowDbContext>(schema); // DE-008
 
         // OQ-104: redress is approved by a second person, from the case's screen.
-        ApprovalKinds.Declare(Contracts.CaseApprovals.RedressBusinessRefType, "SERVICE_COMPLAINTS", Contracts.CaseApprovals.RedressApprovalType);
+        // DE-008: paying a redress whose payout failed again, approved the same way.
+        ApprovalKinds.Declare(Contracts.CaseApprovals.RedressBusinessRefType, "SERVICE_COMPLAINTS", Contracts.CaseApprovals.RedressApprovalType,
+            Payments.Contracts.PaymentApprovals.PayoutRetryApprovalType);
         // Scope batch 4 (F103, OQ-169): the record types Workflow's processes are about that aren't scoped, with the reason. Every other type is scoped
         // through its module's source, or fails closed.
         ApprovalKinds.Unscoped("PARTY", "a party's record: parties are shared across products (PTY-003)");

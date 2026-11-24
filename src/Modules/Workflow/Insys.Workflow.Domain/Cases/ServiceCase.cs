@@ -99,6 +99,12 @@ public static class CaseEventTypes
     public const string RedressApproved = "REDRESS_APPROVED";
     public const string RedressRejected = "REDRESS_REJECTED";
     public const string RedressPaid = "REDRESS_PAID";
+
+    /// <summary>DE-008: a redress's payout failed; a retry was asked for, then approved or not.</summary>
+    public const string RedressPaymentFailed = "REDRESS_PAYMENT_FAILED";
+    public const string RedressRetryRequested = "REDRESS_RETRY_REQUESTED";
+    public const string RedressRetryApproved = "REDRESS_RETRY_APPROVED";
+    public const string RedressRetryRejected = "REDRESS_RETRY_REJECTED";
     public const string ReferredToOmbud = "REFERRED_TO_OMBUD";
     public const string OmbudOutcome = "OMBUD_OUTCOME";
     public const string SharedWithBroker = "SHARED_WITH_BROKER";

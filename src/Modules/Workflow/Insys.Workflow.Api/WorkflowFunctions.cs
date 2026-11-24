@@ -69,6 +69,7 @@ internal static class WorkflowFunctions
         .Action("CASE_ESCALATE", "SERVICE_COMPLAINTS", "WorkflowEscalateCase")
         .Action("CASE_DECIDE", "SERVICE_COMPLAINTS", "WorkflowDecideCase")
         .Action("CASE_RECORD_REDRESS", "SERVICE_COMPLAINTS", "WorkflowRecordCaseRedress", privileged: true)
+        .Action("CASE_RETRY_REDRESS_PAYOUT", "SERVICE_COMPLAINTS", "WorkflowRetryCaseRedressPayout")
         .Action("CASE_REFER_TO_OMBUD", "SERVICE_COMPLAINTS", "WorkflowReferCaseToOmbud")
         .Action("CASE_RECORD_OMBUD_OUTCOME", "SERVICE_COMPLAINTS", "WorkflowRecordCaseOmbudOutcome")
         .Action("CASE_REOPEN", "SERVICE_COMPLAINTS", "WorkflowReopenCase", privileged: true)

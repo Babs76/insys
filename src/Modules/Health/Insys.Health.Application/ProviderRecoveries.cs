@@ -37,6 +37,7 @@ using Insys.Health.Domain;
 using Insys.Health.Domain.Care;
 using Insys.Health.Domain.Payments;
 using Insys.Workflow.Contracts;
+using Microsoft.Extensions.Logging;
 
 namespace Insys.Health.Application;
 
@@ -49,11 +50,23 @@ public sealed record ProviderRecoveryView(Guid Id, string RecoveryNumber, [prope
     [property: OneOf(RecoveryBases.Offset, RecoveryBases.Invoice, RecoveryBases.Person)] string Basis,
     [property: OneOf(RecoveryStatuses.Proposed, RecoveryStatuses.Open, RecoveryStatuses.Invoiced, RecoveryStatuses.Recovered, RecoveryStatuses.WrittenOff, RecoveryStatuses.Reversed, RecoveryStatuses.Rejected)] string Status,
     string Reason, DateOnly RaisedOn, DateOnly? ReviewDueOn, bool InReview, Guid? HeldByCaseId, Guid? InvoiceId, string? WriteOffReason, decimal RepayAmount, Guid? RepaidInRunId, DateOnly? ClosedOn,
-    IReadOnlyList<RecoveryOffsetView> Offsets, long RowVersion)
+    IReadOnlyList<RecoveryOffsetView> Offsets, long RowVersion, IReadOnlyList<RecoveryCreditView>? Credits = null)
 {
     public static ProviderRecoveryView From(ProviderRecovery r) => new(r.Id, r.RecoveryNumber, r.DebtorKind, r.ProviderId, r.Source, r.ClaimId, r.ClaimNumber, r.OriginalAmount, r.Balance, r.Currency, r.Basis, r.Status,
         r.Reason, r.RaisedOn, r.ReviewDueOn, r.InReview, r.HeldByCaseId, r.InvoiceId, r.WriteOffReason, r.RepayAmount, r.RepaidInRunId, r.ClosedOn,
-        r.Offsets.Select(o => new RecoveryOffsetView(o.Id, o.RunId, o.RemittanceId, o.Amount, o.Status)).ToList(), r.RowVersion);
+        r.Offsets.Select(o => new RecoveryOffsetView(o.Id, o.RunId, o.RemittanceId, o.Amount, o.Status)).ToList(), r.RowVersion,
+        r.Credits.OrderBy(c => c.CreditedOn).ThenBy(c => c.Id).Select(RecoveryCreditView.From).ToList());
+}
+
+/// <summary>
+/// DE-009: a Billing credit note on the recovery's invoice. Amount is net of tax; invoiceOutstanding is what the invoice still asked for after it;
+/// settledAmount, on a withdrawal, what the invoice had collected and was settled on the recovery.
+/// </summary>
+public sealed record RecoveryCreditView(Guid CreditNoteId, string CreditNoteNumber, Guid InvoiceId, decimal Amount, decimal InvoiceOutstanding, decimal SettledAmount, decimal BalanceBefore,
+    decimal BalanceAfter, [property: OneOf(RecoveryCreditOutcomes.Partial, RecoveryCreditOutcomes.Withdrawn)] string Outcome, DateOnly CreditedOn)
+{
+    public static RecoveryCreditView From(ProviderRecoveryCredit c) =>
+        new(c.CreditNoteId, c.CreditNoteNumber, c.InvoiceId, c.Amount, c.InvoiceOutstanding, c.SettledAmount, c.BalanceBefore, c.BalanceAfter, c.Outcome, c.CreditedOn);
 }
 
 /// <summary>A provider's view of what it owes: no internal reason, review or approval.</summary>
@@ -428,14 +441,16 @@ internal sealed class PortalRecoveryHandlers(IHealthRepository health, IHealthCo
 /// Reactions: a reversed claim raises its recovery (a member's goes to a person, OQ-145); Workflow decides credit notes, findings and write-offs;
 /// a dispute holds a recovery from offsets until its case closes (OQ-146); a recovery's invoice settles it.
 /// </summary>
-public sealed class RecoveryPolicies(IHealthRepository health, IHealthCodes codes, RecoveryRaiser raiser, IBusinessDate businessDate, IClock clock) :
+public sealed class RecoveryPolicies(IHealthRepository health, IHealthCodes codes, RecoveryRaiser raiser, IBusinessDate businessDate, IClock clock,
+    ILogger<RecoveryPolicies> logger) :
     IIntegrationEventHandler<Contracts.MedicalClaimReversed>,
     IIntegrationEventHandler<ApprovalGranted>,
     IIntegrationEventHandler<ApprovalRejected>,
     IIntegrationEventHandler<CaseOpened>,
     IIntegrationEventHandler<CaseClosed>,
     IIntegrationEventHandler<InvoiceIssued>,
-    IIntegrationEventHandler<InvoiceSettled>
+    IIntegrationEventHandler<InvoiceSettled>,
+    IIntegrationEventHandler<CreditNoteIssued>
 {
     public async Task Handle(Contracts.MedicalClaimReversed reversed, EventEnvelope envelope, CancellationToken cancellationToken)
     {
@@ -555,6 +570,31 @@ public sealed class RecoveryPolicies(IHealthRepository health, IHealthCodes code
         if (settled.SourceDomain == HealthReferences.RecoverySourceDomain && await health.Recovery(settled.PolicyRef, cancellationToken) is { } recovery)
         {
             recovery.InvoiceSettled(businessDate.Today, clock.UtcNow);
+        }
+    }
+
+    /// <summary>
+    /// DE-009: a credit note on a recovery's invoice. Partly credited, the recovery's balance falls by the credit and it stays INVOICED; fully credited
+    /// (nothing outstanding), the invoice is withdrawn and the recovery is OPEN again with what is still owed (ProviderRecovery.CreditInvoice). A producer
+    /// that does not say what is outstanding leaves it unknown: nothing changes, and a warning says so. A redelivery changes nothing.
+    /// </summary>
+    public async Task Handle(CreditNoteIssued issued, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (issued.SourceDomain != HealthReferences.RecoverySourceDomain || await health.Recovery(issued.PolicyRef, cancellationToken) is not { } recovery)
+        {
+            return;
+        }
+
+        if (issued.InvoiceOutstanding is not { } outstanding)
+        {
+            logger.LogWarning("Credit note {CreditNoteNumber} on recovery {RecoveryNumber}'s invoice does not say what the invoice still asks for; the recovery is unchanged",
+                issued.CreditNoteNumber, recovery.RecoveryNumber);
+            return;
+        }
+
+        if (!recovery.CreditInvoice(issued.CreditNoteId, issued.CreditNoteNumber, issued.InvoiceId, issued.TotalAmount - issued.TaxAmount, outstanding, businessDate.Today, clock.UtcNow))
+        {
+            logger.LogInformation("Credit note {CreditNoteNumber} left recovery {RecoveryNumber} ({Status}) as it was", issued.CreditNoteNumber, recovery.RecoveryNumber, recovery.Status);
         }
     }
 }

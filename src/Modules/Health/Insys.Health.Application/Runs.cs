@@ -46,6 +46,12 @@ public sealed record ReleasePaymentRun(Guid RunId) : ICommand<PaymentRunView>;
 
 public sealed record GetPaymentRun(Guid RunId) : IQuery<PaymentRunView>;
 
+/// <summary>
+/// DE-008: pay a FAILED remittance of a released run again. <paramref name="PaymentRef"/> is the failed payment's reference, typed by the person;
+/// <paramref name="BankAccountId"/>, when given, another verified (ACTIVE) account of the provider in the run's currency.
+/// </summary>
+public sealed record ReissueRemittance(Guid RunId, Guid RemittanceId, string PaymentRef, string Reason, Guid? BankAccountId) : ICommand<PaymentRunView>;
+
 public sealed record OpenUtilisationCase(Guid MembershipId, string RuleCode, Guid? ClaimId) : ICommand<UtilisationCaseView>;
 
 public sealed record ReviewUtilisationCase(Guid CaseId) : ICommand<UtilisationCaseView>;
@@ -66,6 +72,15 @@ public sealed class OpenPaymentRunValidator : AbstractValidator<OpenPaymentRun>
     {
         RuleFor(c => c.RunCode).NotEmpty().MaximumLength(15);
         RuleFor(c => c.Currency).Length(3);
+    }
+}
+
+public sealed class ReissueRemittanceValidator : AbstractValidator<ReissueRemittance>
+{
+    public ReissueRemittanceValidator()
+    {
+        RuleFor(c => c.PaymentRef).NotEmpty().MaximumLength(25);
+        RuleFor(c => c.Reason).NotEmpty().MaximumLength(500);
     }
 }
 
@@ -96,7 +111,8 @@ internal sealed class PaymentRunHandlers(IHealthRepository health, IHealthCodes 
     IBusinessDate businessDate, IClock clock, IAuditTrail audit) :
     ICommandHandler<CutOffPaymentRun, PaymentRunView>,
     ICommandHandler<CalculatePaymentRun, PaymentRunView>,
-    ICommandHandler<ReleasePaymentRun, PaymentRunView>
+    ICommandHandler<ReleasePaymentRun, PaymentRunView>,
+    ICommandHandler<ReissueRemittance, PaymentRunView>
 {
     public Task<Result<PaymentRunView>> Handle(CutOffPaymentRun command, CancellationToken cancellationToken) =>
         Apply(command.RunId, "CutOffRun", run => Task.FromResult(run.CutOffRun(clock.UtcNow)), cancellationToken);
@@ -201,7 +217,36 @@ internal sealed class PaymentRunHandlers(IHealthRepository health, IHealthCodes 
             ? run.ReleaseRun(businessDate.Today, template, clock.UtcNow)
             : Error.Validation(HealthErrorCodes.CodeNotInForce, "No remittance advice format is in force."), cancellationToken);
 
-    private async Task<Result<PaymentRunView>> Apply(Guid id, string operation, Func<ProviderPaymentRun, Task<Result>> change, CancellationToken cancellationToken)
+    /// <summary>
+    /// DE-008: a failed remittance is asked to be paid again, for a second person's approval (PAYOUT_RETRY). A named account must be the provider's own,
+    /// verified and ACTIVE, in the run's currency (ADR-013); otherwise the remittance's account (or its last reissue's) is paid again.
+    /// </summary>
+    public Task<Result<PaymentRunView>> Handle(ReissueRemittance command, CancellationToken cancellationToken) =>
+        Apply(command.RunId, "ReissueRemittance", async run =>
+        {
+            var user = Users.Require(execution);
+            if (user.IsFailure)
+            {
+                return user.Error;
+            }
+
+            if (run.Remittances.SingleOrDefault(r => r.Id == command.RemittanceId) is not { } remittance)
+            {
+                return Error.NotFound(ErrorCodes.NotFound, "The remittance is not in this run.");
+            }
+
+            if (command.BankAccountId is { } accountId
+                && (await bankAccounts.Get(tenant.RequireTenantId(), accountId, cancellationToken) is not { IsPayable: true } account || account.PartyId != remittance.ProviderPartyId
+                    || !string.Equals(account.Currency, run.Currency, StringComparison.Ordinal)))
+            {
+                return Error.Validation(HealthErrorCodes.ProviderNotPayable, $"The account named is not a verified, active account of the payee in {run.Currency}.");
+            }
+
+            return run.RequestRemittanceReissue(command.RemittanceId, command.PaymentRef, command.Reason, command.BankAccountId, user.Value, clock.UtcNow);
+        }, cancellationToken, new Dictionary<string, string?> { ["remittance"] = command.RemittanceId.ToString(), ["bankAccountChanged"] = (command.BankAccountId is not null).ToString() });
+
+    private async Task<Result<PaymentRunView>> Apply(Guid id, string operation, Func<ProviderPaymentRun, Task<Result>> change, CancellationToken cancellationToken,
+        Dictionary<string, string?>? details = null)
     {
         if (await health.Run(id, cancellationToken) is not { } run)
         {
@@ -218,7 +263,7 @@ internal sealed class PaymentRunHandlers(IHealthRepository health, IHealthCodes 
                 : Error.Forbidden(ErrorCodes.OutOfScope, "The run also pays claims outside your scope.");
         }
 
-        audit.Record(new AuditEntry("HEALTH", operation, nameof(ProviderPaymentRun), run.Id.ToString()));
+        audit.Record(new AuditEntry("HEALTH", operation, nameof(ProviderPaymentRun), run.Id.ToString(), details));
         var result = await change(run);
         return result.IsFailure ? result.Error : PaymentRunView.From(run);
     }

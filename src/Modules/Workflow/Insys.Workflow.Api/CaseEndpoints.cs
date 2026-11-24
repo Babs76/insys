@@ -67,6 +67,10 @@ public sealed record CaseReasonRequest(string Reason);
 /// <param name="BankAccountId">The payee's verified bank account Payments pays into.</param>
 public sealed record CaseRedressRequest([property: System.ComponentModel.DataAnnotations.AllowedValues("COMPENSATION", "GOODWILL")] string RedressType, decimal Amount, string Currency, Guid PayeePartyId, Guid? BankAccountId);
 
+/// <param name="PaymentRef">The failed payment's reference, typed by the person (DE-008).</param>
+/// <param name="BankAccountId">Another verified, ACTIVE account of the payee in the redress's currency; omitted, the account the last payout went to.</param>
+public sealed record RetryRedressPayoutRequest(string PaymentRef, string Reason, Guid? BankAccountId = null);
+
 /// <param name="SchemeCode">One of the ombud schemes the case type names (workflow/static/ombud-schemes).</param>
 public sealed record OmbudReferralRequest(string SchemeCode, string? OmbudReference, DateTimeOffset? ReferredAt);
 
@@ -360,6 +364,38 @@ internal static class CaseEndpoints
                 + "redress again for its status.")
             .RequirePermission(CasePermissions.Redress)
             .RequireIdempotencyKey();
+
+        cases.MapPost("/{id:guid}/redress/{redressId:guid}/retry-payout", async (Guid id, Guid redressId, RetryRedressPayoutRequest r, IDispatcher dispatcher, HttpContext http,
+                CancellationToken ct) =>
+            {
+                var expected = Concurrency.ExpectedVersion(http.Request);
+                if (expected.IsFailure)
+                {
+                    return Problems.For(expected.Error);
+                }
+
+                var sent = await dispatcher.Send(new RetryRedressPayout(id, redressId, r.PaymentRef, r.Reason, r.BankAccountId, expected.Value), ct);
+                return sent.IsFailure
+                    ? Problems.For(sent.Error)
+                    : (await dispatcher.Query(new GetCaseRedress(id, redressId), ct)).ToHttp(view =>
+                    {
+                        Concurrency.SetETag(http, view.RowVersion);
+                        return Results.Ok(view);
+                    });
+            })
+            .Produces<CaseRedressView>(StatusCodes.Status200OK)
+            .RequireIfMatch()
+            .WithName("WorkflowRetryCaseRedressPayout")
+            .WithSummary("Pay a redress whose payout failed again, with the failed payment's reference typed, for a second person's approval (DE-008)")
+            .WithDescription("Only a PAYMENT_FAILED redress. paymentRef is the failed payment's reference as the redress shows it (failedPaymentRef): anything else is "
+                + "refused with 422 TYPED_REFERENCE_MISMATCH and nothing changes. bankAccountId, when given, is another verified, ACTIVE account of the payee in "
+                + "the redress's currency (422 VALIDATION_FAILED otherwise); without it the account the last payout went to is paid again. A reason is required. "
+                + "The redress stays PAYMENT_FAILED (retryPending true) while an approval of type PAYOUT_RETRY for its amount waits; one already waiting is "
+                + "refused (409). A failed redress cannot be cancelled (not decided). If-Match is the redress's ETag.")
+            .WithEventualEffects("the PAYOUT_RETRY approval appears in Workflow's approvals; once someone other than the requester grants it the redress reads "
+                + "APPROVED with its attempt raised, and payment.PayoutRequested reaches Payments, whose payout waits for a payout batch; rejected, expired or "
+                + "withdrawn it stays PAYMENT_FAILED. Read the redress again for its status.")
+            .RequirePermission(CasePermissions.Redress);
     }
 
     private static void MapPortal(RouteGroupBuilder portal)

@@ -240,7 +240,12 @@ public sealed class WorkflowDbContext(DbContextOptions<WorkflowDbContext> option
             r.Property(x => x.RedressType).HasMaxLength(14);
             r.Property(x => x.Amount).HasPrecision(18, 2);
             r.Property(x => x.Currency).HasColumnType("char(3)");
-            r.Property(x => x.Status).HasConversion(new UpperCaseEnumConverter<RedressStatus>()).HasMaxLength(12);
+            r.Property(x => x.Status).HasConversion(new UpperCaseEnumConverter<RedressStatus>()).HasMaxLength(14);
+            r.Ignore(x => x.RetrySubjectHash);
+            r.Property(x => x.Attempt).HasColumnType("smallint"); // DE-008 (V0151)
+            r.Property(x => x.FailedPaymentRef).HasMaxLength(25);
+            r.Property(x => x.FailureReason).HasMaxLength(200);
+            r.Property(x => x.RetryReason).HasMaxLength(500);
         });
     }
 }

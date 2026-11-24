@@ -50,6 +50,7 @@ public sealed class HealthEventPolicies(IHealthRepository health, BenefitContext
     IIntegrationEventHandler<ApprovalRejected>,
     IIntegrationEventHandler<ProviderPaymentRunReleased>,
     IIntegrationEventHandler<PaymentSucceeded>,
+    IIntegrationEventHandler<PaymentFailed>,
     IIntegrationEventHandler<DocumentGenerated>
 {
     /// <summary>A remittance advice was generated from its template: it is attached to its remittance. A document merely filed against the remittance isn't (BR-121).</summary>
@@ -96,6 +97,12 @@ public sealed class HealthEventPolicies(IHealthRepository health, BenefitContext
     /// </summary>
     public async Task Handle(ApprovalGranted granted, EventEnvelope envelope, CancellationToken cancellationToken)
     {
+        if (granted.BusinessRefType == HealthReferences.RemittanceRefType)
+        {
+            await DecideReissue(true, granted.BusinessRefId, granted.ApprovalType, granted.ApprovalId, granted.SubjectHash, PrerequisiteCodes.ApprovalNotApplied, cancellationToken);
+            return;
+        }
+
         if (granted.BusinessRefType != HealthApprovals.RunBusinessRefType || await health.Run(granted.BusinessRefId, cancellationToken) is not { } run
             || run.GrantedBy(granted.ApprovalId))
         {
@@ -115,6 +122,12 @@ public sealed class HealthEventPolicies(IHealthRepository health, BenefitContext
     /// </summary>
     public async Task Handle(ApprovalRejected rejected, EventEnvelope envelope, CancellationToken cancellationToken)
     {
+        if (rejected.BusinessRefType == HealthReferences.RemittanceRefType)
+        {
+            await DecideReissue(false, rejected.BusinessRefId, rejected.ApprovalType, rejected.ApprovalId, rejected.SubjectHash, PrerequisiteCodes.ApprovalEndingNotApplied, cancellationToken);
+            return;
+        }
+
         if (rejected.BusinessRefType != HealthApprovals.RunBusinessRefType || await health.Run(rejected.BusinessRefId, cancellationToken) is not { } run
             || run.EndedBy(rejected.ApprovalId))
         {
@@ -168,6 +181,39 @@ public sealed class HealthEventPolicies(IHealthRepository health, BenefitContext
             && await health.RunForRemittance(remittanceId, cancellationToken) is { } run)
         {
             run.RecordPayment(remittanceId, succeeded.PaymentId, succeeded.ValueDate);
+        }
+    }
+
+    /// <summary>
+    /// DE-008: a remittance's payment failed. It is FAILED with the failed payment's reference and reason, and its run stays Released until a reissue of
+    /// it is paid. A redelivery, or a failure after it was paid, changes nothing.
+    /// </summary>
+    public async Task Handle(PaymentFailed failed, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (failed.BusinessRefType == HealthReferences.RemittanceRefType && failed.BusinessRefId is { } remittanceId
+            && await health.RunForRemittance(remittanceId, cancellationToken) is { } run
+            && !run.RecordPaymentFailure(remittanceId, failed.PaymentId, failed.PaymentRef, failed.Reason))
+        {
+            logger.LogInformation("Payment {PaymentRef} failing left remittance {RemittanceId} of run {RunCode} as it was", failed.PaymentRef, remittanceId, run.RunCode);
+        }
+    }
+
+    /// <summary>
+    /// DE-008: Workflow's decision on paying a failed remittance again (PAYOUT_RETRY). Granted, its next attempt goes to Payments; ended any other way it
+    /// stays FAILED. A redelivery changes nothing; a remittance that will not take the decision parks the delivery (ADR-022, D-5).
+    /// </summary>
+    private async Task DecideReissue(bool approved, Guid remittanceId, string approvalType, Guid approvalId, string? subjectHash, string prerequisite,
+        CancellationToken cancellationToken)
+    {
+        if (approvalType != PaymentApprovals.PayoutRetryApprovalType || await health.RunForRemittance(remittanceId, cancellationToken) is not { } run
+            || run.ReissueDecidedBy(remittanceId, approvalId))
+        {
+            return;
+        }
+
+        if (run.DecideRemittanceReissue(remittanceId, approved, approvalId, subjectHash, clock.UtcNow).IsFailure)
+        {
+            throw new PrerequisiteMissingException(prerequisite, $"{approvalType}:{approvalId}");
         }
     }
 

@@ -67,6 +67,16 @@ public static class OffsetStatuses
     public const string Released = "RELEASED";
 }
 
+/// <summary>
+/// DE-009: what a Billing credit note on a recovery's invoice did. PARTIAL: the invoice still asks for something, and the recovery's balance fell by the
+/// credit. WITHDRAWN: it asks for nothing more, so the invoice no longer collects the recovery, which is OPEN again for a person.
+/// </summary>
+public static class RecoveryCreditOutcomes
+{
+    public const string Partial = "PARTIAL";
+    public const string Withdrawn = "WITHDRAWN";
+}
+
 public static class CreditNoteStatuses
 {
     public const string Submitted = "SUBMITTED";
@@ -100,6 +110,51 @@ public sealed record ProviderRecoveryWriteOffRequested(Guid RecoveryId, string R
 public sealed record ProviderRecoveryFindingProposed(Guid RecoveryId, string RecoveryNumber, Guid RequestedBy, decimal Amount, string Currency, string SubjectHash, DateTimeOffset OccurredAt) : IDomainEvent;
 
 public sealed record ProviderCreditNoteSubmitted(Guid CreditNoteId, string CreditNoteNumber, Guid RequestedBy, decimal Amount, string Currency, string SubjectHash, DateTimeOffset OccurredAt) : IDomainEvent;
+
+/// <summary>
+/// Entity ProviderRecoveryCredit (health.provider_recovery_credit, DE-009): one Billing credit note on the recovery's invoice, kept as the recovery's
+/// history of credits. Insert-only.
+/// </summary>
+public sealed class ProviderRecoveryCredit : Entity<Guid>, ITenantScoped
+{
+    private ProviderRecoveryCredit()
+    {
+    }
+
+    public Guid TenantId { get; private set; }
+
+    public Guid RecoveryId { get; private set; }
+
+    public Guid InvoiceId { get; private set; }
+
+    public Guid CreditNoteId { get; private set; }
+
+    public string CreditNoteNumber { get; private set; } = "";
+
+    /// <summary>The credit, net of tax: what it took off what the invoice asked for the recovery.</summary>
+    public decimal Amount { get; private set; }
+
+    /// <summary>What the invoice still asked for after the credit (Billing's figure).</summary>
+    public decimal InvoiceOutstanding { get; private set; }
+
+    /// <summary>On a withdrawal, what the invoice had collected before it was fully credited, settled on the recovery.</summary>
+    public decimal SettledAmount { get; private set; }
+
+    public decimal BalanceBefore { get; private set; }
+
+    public decimal BalanceAfter { get; private set; }
+
+    public string Outcome { get; private set; } = RecoveryCreditOutcomes.Partial;
+
+    public DateOnly CreditedOn { get; private set; }
+
+    internal static ProviderRecoveryCredit Create(Guid recoveryId, Guid invoiceId, Guid creditNoteId, string number, decimal amount, decimal outstanding, decimal settled,
+        decimal before, decimal after, string outcome, DateOnly on) => new()
+    {
+        Id = Guid.CreateVersion7(), RecoveryId = recoveryId, InvoiceId = invoiceId, CreditNoteId = creditNoteId, CreditNoteNumber = Guard.MaxLength(number, 20), Amount = amount,
+        InvoiceOutstanding = outstanding, SettledAmount = settled, BalanceBefore = before, BalanceAfter = after, Outcome = outcome, CreditedOn = on,
+    };
+}
 
 /// <summary>One deduction of a recovery from a remittance. Reserved when the run is calculated; taken when it is released; released when its approval ends.</summary>
 public sealed class ProviderRecoveryOffset : Entity<Guid>, ITenantScoped
@@ -138,6 +193,7 @@ public sealed class ProviderRecoveryOffset : Entity<Guid>, ITenantScoped
 public sealed class ProviderRecovery : AggregateRoot<Guid>
 {
     private readonly List<ProviderRecoveryOffset> _offsets = [];
+    private readonly List<ProviderRecoveryCredit> _credits = [];
 
     private ProviderRecovery()
     {
@@ -198,6 +254,9 @@ public sealed class ProviderRecovery : AggregateRoot<Guid>
     public DateOnly? ClosedOn { get; private set; }
 
     public IReadOnlyList<ProviderRecoveryOffset> Offsets => _offsets;
+
+    /// <summary>DE-009: the credit notes Billing issued on the recovery's invoices, oldest first.</summary>
+    public IReadOnlyList<ProviderRecoveryCredit> Credits => _credits;
 
     public decimal Taken => _offsets.Where(o => o.Status == OffsetStatuses.Taken).Sum(o => o.Amount);
 
@@ -395,6 +454,13 @@ public sealed class ProviderRecovery : AggregateRoot<Guid>
             return Error.Conflict(ErrorCodes.InvalidStateTransition, "Part of the recovery is in a payment run still being decided.");
         }
 
+        // TODO(spec): DE-009. Billing schedules one invoice per recovery (RecoveryInvoicing), so a second request would never be invoiced. Until it is
+        // decided whether a withdrawn invoice may be replaced, a recovery whose invoice was fully credited is written off or reversed, not invoiced again.
+        if (_credits.Any(c => c.Outcome == RecoveryCreditOutcomes.Withdrawn))
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, $"Recovery {RecoveryNumber}'s invoice was fully credited; write it off or reverse it instead.");
+        }
+
         RequestInvoice(today, collectionMethod, now);
         MarkChanged();
         return Result.Success();
@@ -414,6 +480,65 @@ public sealed class ProviderRecovery : AggregateRoot<Guid>
     {
         InvoiceId ??= invoiceId;
         MarkChanged();
+    }
+
+    /// <summary>
+    /// DE-009: Billing issued a credit note on the recovery's invoice (<paramref name="amount"/> net of tax; <paramref name="invoiceOutstanding"/> what
+    /// the invoice still asks for after it). Only an INVOICED recovery takes it, once per credit note; false when nothing changed.
+    /// <para>
+    /// Partly credited (something still outstanding): the invoice asks for less, so the balance falls by the credit, which the history keeps, and the
+    /// recovery stays INVOICED; when the invoice is paid it is recovered with what the invoice still asked.
+    /// </para>
+    /// <para>
+    /// Fully credited (nothing outstanding): the invoice no longer collects the recovery; it is withdrawn, not forgiven, since by the recovery's own rules
+    /// what is owed falls only by offsets and settlement and ends only recovered, written off with a second person or reversed (§4.7). While invoiced the
+    /// balance is what the invoice asks for, so whatever of it this credit does not cover had been paid on the invoice: that part is settled
+    /// (ProviderRecoverySettled), and the rest, this credit's amount, stays owed. The recovery is OPEN again, with no invoice, and goes to a person, for
+    /// the write-off (second person) or reversal that apply from OPEN. Earlier partial credits stay credited, as their history shows.
+    /// </para>
+    /// </summary>
+    public bool CreditInvoice(Guid creditNoteId, string creditNoteNumber, Guid invoiceId, decimal amount, decimal invoiceOutstanding, DateOnly today, DateTimeOffset now)
+    {
+        if (Status != RecoveryStatuses.Invoiced || (InvoiceId is { } current && current != invoiceId) || amount <= 0 || _credits.Any(c => c.CreditNoteId == creditNoteId))
+        {
+            return false;
+        }
+
+        InvoiceId ??= invoiceId;
+        var before = Balance;
+        var credited = Math.Min(amount, Balance);
+        if (invoiceOutstanding > 0)
+        {
+            Balance -= credited;
+            _credits.Add(ProviderRecoveryCredit.Create(Id, invoiceId, creditNoteId, creditNoteNumber, credited, invoiceOutstanding, 0, before, Balance, RecoveryCreditOutcomes.Partial, today));
+            MarkChanged();
+            return true;
+        }
+
+        var settled = Balance - credited;
+        if (settled > 0)
+        {
+            Raise(new ProviderRecoverySettled(Id, settled, Currency, today, now));
+        }
+
+        Balance = credited;
+        _credits.Add(ProviderRecoveryCredit.Create(Id, invoiceId, creditNoteId, creditNoteNumber, credited, invoiceOutstanding, settled, before, Balance, RecoveryCreditOutcomes.Withdrawn, today));
+        InvoiceId = null;
+        if (Balance == 0)
+        {
+            // Nothing is left owed: what the invoice collected recovered all of it.
+            Status = RecoveryStatuses.Recovered;
+            ClosedOn = today;
+        }
+        else
+        {
+            Status = RecoveryStatuses.Open;
+            InReview = true;
+            Raise(new ProviderRecoveryReviewDue(Id, RecoveryNumber, DebtorKind, ProviderId, Balance, Currency, now));
+        }
+
+        MarkChanged();
+        return true;
     }
 
     /// <summary>The invoice was paid: the balance is recovered. A redelivery changes nothing.</summary>
@@ -494,6 +619,8 @@ public sealed class ProviderRecovery : AggregateRoot<Guid>
             return Error.Conflict(ErrorCodes.InvalidStateTransition, $"Recovery {RecoveryNumber} is {Status}; one invoiced, or part in a run being decided, cannot be reversed.");
         }
 
+        // TODO(spec): DE-009. After a withdrawn invoice, what the invoice had collected (its credit's SettledAmount) was settled on the recovery; whether
+        // reversing it repays that too, as a taken offset is, is not decided. Only taken offsets are repaid.
         RepayAmount = Taken;
         Balance = 0;
         Status = RecoveryStatuses.Reversed;
