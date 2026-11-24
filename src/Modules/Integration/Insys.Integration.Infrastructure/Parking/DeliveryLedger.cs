@@ -60,7 +60,11 @@ public sealed class ParkingOptions
     /// </summary>
     public string[] MoneySchemas { get; set; } = ["billing", "payment", "finance", "claims", "commission", "reinsurance"];
 
-    public string DefaultConfigurationOwnerRole { get; set; } = "TENANT_ADMIN";
+    /// <summary>
+    /// The configuration owner role of a tenant with no parking setting of its own: the first escalation's task, and the F009 configuration review. The
+    /// integration administrator, who lists parked deliveries (DE-028, Ade, 24 November 2026; it was TENANT_ADMIN, who cannot). A tenant's own setting stays.
+    /// </summary>
+    public string DefaultConfigurationOwnerRole { get; set; } = "INTEGRATION_ADMINISTRATOR";
 
     /// <summary>The role of the second escalation's task (OQ-072: the tenant administrator).</summary>
     public string TenantAdministratorRole { get; set; } = "TENANT_ADMIN";
