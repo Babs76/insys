@@ -200321,6 +200321,15 @@
             ],
             "type": "string"
           },
+          "clawbackInvoiceAfterDays": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
           "id": {
             "type": "string",
             "format": "uuid"
@@ -200514,6 +200523,15 @@
               "null",
               "string"
             ]
+          },
+          "clawbackInvoiceAfterDays": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           },
           "code": {
             "type": "string"
@@ -288463,7 +288481,10 @@
               "CASE_REDRESS",
               "CLAIM_PAYMENT",
               "CLAIM_SETTLEMENT",
+              "COMMISSION_CLAWBACK_INVOICE",
               "COMMISSION_STATEMENT",
+              "CREDIT_NOTE",
+              "DEAD_LETTER_DISCARD",
               "DUE_DILIGENCE_ENHANCED",
               "DUE_DILIGENCE_RISK_OVERRIDE",
               "DUE_DILIGENCE_UNBLOCK",
@@ -288475,6 +288496,7 @@
               "LIFE_UNDERWRITING",
               "PARTY_MATCH_RESOLUTION",
               "PAYOUT_RELEASE",
+              "PAYOUT_RETRY",
               "PERIOD_REOPEN",
               "PRIVILEGED_ROLE",
               "PRODUCT_PUBLICATION",

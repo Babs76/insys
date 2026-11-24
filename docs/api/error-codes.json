@@ -530,6 +530,14 @@
       "remedy": null
     },
     {
+      "code": "CLAWBACK_INVOICE_NOT_DUE",
+      "httpStatus": 422,
+      "messageKey": "error.distribution.clawback_invoice_not_due",
+      "retryable": false,
+      "means": "The carried amount has not been owed long enough to invoice, and the intermediary is not terminated.",
+      "remedy": "Invoice it once it has been carried for the tenant's number of days (90 unless set in the commission settings), or once the intermediary is terminated."
+    },
+    {
       "code": "COMMISSION_NOTHING_TO_ACCRUE",
       "httpStatus": 409,
       "messageKey": "error.distribution.nothing_to_accrue",
@@ -2066,6 +2074,14 @@
       "remedy": "Correct a live organisation's configuration through ordinary changes, one table at a time."
     },
     {
+      "code": "STATEMENT_CARRY_ON_STATEMENT",
+      "httpStatus": 409,
+      "messageKey": "error.distribution.carry_on_statement",
+      "retryable": false,
+      "means": "Part of what this statement carries forward is on a later statement that is still awaiting approval or payment.",
+      "remedy": "Wait until that statement is approved and paid, or rejected, then ask again."
+    },
+    {
       "code": "STATEMENT_CHANGED",
       "httpStatus": 409,
       "messageKey": "error.distribution.statement_changed",
@@ -2216,6 +2232,14 @@
       "retryable": false,
       "means": "The process doesn't allow a move from its current step to the one asked for.",
       "remedy": "Open the record to see its current step and the moves it allows."
+    },
+    {
+      "code": "TYPED_REFERENCE_MISMATCH",
+      "httpStatus": 422,
+      "messageKey": "error.request.typed_reference_mismatch",
+      "retryable": false,
+      "means": "The reference you typed isn't the one this step acts on, so nothing was done.",
+      "remedy": "Copy the reference shown on the record exactly, then send the step again."
     },
     {
       "code": "UNAUTHENTICATED",

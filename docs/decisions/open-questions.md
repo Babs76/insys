@@ -1640,3 +1640,17 @@ Raised by the read-scope sweep (`docs/reviews/read-scope-sweep.md`, at `06ecae1`
   - BR-109 (`EnhancedApprovalContributors`): nobody who recorded a check or reviewed a hit since the party was last cleared, or completed its current periodic review (OQ-138), may give its enhanced approval.
 - **What the code does on hit review (checked 21 November 2026):** nothing stops the recorder deciding the hit. `ReviewScreeningHit` (`src/Modules/Party/Insys.Party.Application/DueDiligence.cs`) needs only `due_diligence.review_hit` on the route; `DueDiligence.ReviewHit` (`src/Modules/Party/Insys.Party.Domain/Parties/DueDiligence.cs`) checks only that the hit exists and is open. A hit doesn't record who ran the screening that raised it beyond its check (`due_diligence_check.checked_by`), and the reviewer isn't compared with it.
 - **Proposed:** refuse a hit's review by the person whose check raised it (the screening's `checked_by`; a screening run by the platform or a job has no person and stays open to any reviewer), with its own error code, audited. A new rule in the Party domain, no migration.
+
+### OQ-200 Money group: what failed payouts, credited recoveries and discarded dead letters do at their edges (24 November 2026)
+- **Status:** open, for Ade. Built as stated below and marked `TODO(spec)` in the code; each is a small change once decided.
+- **Health recovery, invoice fully credited (DE-009):** treated as the invoice being withdrawn, not the debt forgiven. What the invoice had collected is settled; the credited amount stays owed; the recovery returns to Open for review (write-off with a second person, or reverse, as before). Alternative: a full credit forgives the debt.
+- **Health recovery, partial credit:** the balance falls by the credit and stays credited, with no Health write-off. Confirm the credited part is forgiven.
+- **Health recovery, re-invoicing:** an Open recovery whose invoice was fully credited can't be invoiced again (409): Billing schedules one invoice per recovery.
+- **Health recovery, reversal after a withdrawn invoice:** repays the offsets taken, not what the invoice had collected.
+- **Cancelling a failed payout:** a refund can be cancelled (its money kept as credit); a remittance or case redress can't (no rule given).
+- **Retry account:** a remittance or redress retry with no account named pays the previous account again; Payments or the payout fails it if that account is no longer active. A refund retry checks the account's payability at request.
+- **Late success:** a payment that succeeds while its retry waits for approval leaves the request; a later grant parks as APPROVAL_NOT_APPLIED, a rejection clears it.
+- **Finance postings:** a commission clawback invoice (DIST_CLAW) is not posted, as a Health recovery invoice isn't; should it post to a commission receivable? A credit note on a Health recovery invoice posts PREMIUM_CREDITED, though the invoice itself posted nothing.
+- **Clawback invoice to an intermediary with no billing account:** parks (CollectionMethodNotInForce): no setting names an intermediary's collection method. The `invoiceDue` list filter lists by age only, not a terminated intermediary's statements early.
+- **Credit note approved with nothing outstanding:** the request lapses and nothing is credited (money owed back is a refund's job).
+- **Dead letters made by the ledger** (`ledger:<consumer>`): judged money or not by their event type's module prefix (a `payment.*` event is money).

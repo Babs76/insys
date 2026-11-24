@@ -389,7 +389,7 @@
           "Integration"
         ],
         "summary": "List dead-lettered messages",
-        "description": "Messages whose delivery failed after all retries (INT-006), oldest first, with cursor pagination.",
+        "description": "Messages whose delivery failed after all retries (INT-006), oldest first, with cursor pagination. status filters by the derived status: DeadLettered, DiscardRequested (a money message\u0027s discard waits for approval, DE-007), Replayed or Discarded.",
         "operationId": "ListDeadLetters",
         "parameters": [
           {
@@ -526,7 +526,7 @@
           "Integration"
         ],
         "summary": "Replay a dead-lettered message",
-        "description": "Delivers the original event to its consumers again. Consumers skip events they already processed (INT-005, INT-006).",
+        "description": "Delivers the original event to its consumers again. Consumers skip events they already processed (INT-005, INT-006). Refused (409) while a discard of it waits for a second person\u0027s approval (DE-007).",
         "operationId": "ReplayMessage",
         "parameters": [
           {
@@ -598,7 +598,7 @@
           "Integration"
         ],
         "summary": "Discard a dead-lettered message",
-        "description": "Closes the dead letter without delivering it (INT-006).",
+        "description": "Closes the dead letter without delivering it (INT-006), with a reason, and releases what it held back (DE-007): its event\u0027s dead-lettered deliveries are discarded, so later events for the same records stop waiting behind them. messageRef must be the dead letter\u0027s messageRef exactly (TYPED_REFERENCE_MISMATCH, 422, otherwise; nothing changes). A money message (from the Payments, Billing, Finance, Claims or Distribution outbox, or a Health or Workflow payment, remittance, recovery, credit note or redress event) is not discarded at once: 202, its status becomes DiscardRequested and a second person approves it in Workflow (DEAD_LETTER_DISCARD). While a discard is requested, replay and another discard are refused (409). Otherwise 204. Completes asynchronously (GAP-027): after 204, the parking job releases the deliveries that waited behind the discarded ones (GET /api/v1/integration/parked-deliveries). After 202, the Workflow approval appears (GET /api/v1/workflow/approvals); once granted the dead letter reads Discarded, with discardApprovedBy; rejected, expired or withdrawn, it reads DeadLettered again.",
         "operationId": "DiscardMessage",
         "parameters": [
           {
@@ -620,6 +620,16 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IntegrationDeadLetterDiscardRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "412": {
             "$ref": "#/components/responses/Problem412"
@@ -630,11 +640,17 @@
           "204": {
             "description": "No Content"
           },
+          "202": {
+            "description": "Accepted"
+          },
           "404": {
             "$ref": "#/components/responses/Problem404"
           },
           "409": {
             "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
           },
           "401": {
             "$ref": "#/components/responses/Problem401"
@@ -653,15 +669,13 @@
           },
           "400": {
             "$ref": "#/components/responses/Problem400"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem422"
           }
         },
         "x-permission": "dead_letter.update",
         "x-function": [
           "DISCARD_MESSAGE"
-        ]
+        ],
+        "x-eventual-effects": "after 204, the parking job releases the deliveries that waited behind the discarded ones (GET /api/v1/integration/parked-deliveries). After 202, the Workflow approval appears (GET /api/v1/workflow/approvals); once granted the dead letter reads Discarded, with discardApprovedBy; rejected, expired or withdrawn, it reads DeadLettered again."
       }
     },
     "/api/v1/integration/deliveries/summary": {
@@ -11560,6 +11574,105 @@
         "x-eventual-effects": "the approval appears in Workflow\u0027s approvals; once approved, workflow.CaseRedressApproved reaches Payments, which pays it; read the redress again for its status."
       }
     },
+    "/api/v1/workflow/cases/{id}/redress/{redressId}/retry-payout": {
+      "post": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "Pay a redress whose payout failed again, with the failed payment\u0027s reference typed, for a second person\u0027s approval (DE-008)",
+        "description": "Only a PAYMENT_FAILED redress. paymentRef is the failed payment\u0027s reference as the redress shows it (failedPaymentRef): anything else is refused with 422 TYPED_REFERENCE_MISMATCH and nothing changes. bankAccountId, when given, is another verified, ACTIVE account of the payee in the redress\u0027s currency (422 VALIDATION_FAILED otherwise); without it the account the last payout went to is paid again. A reason is required. The redress stays PAYMENT_FAILED (retryPending true) while an approval of type PAYOUT_RETRY for its amount waits; one already waiting is refused (409). A failed redress cannot be cancelled (not decided). If-Match is the redress\u0027s ETag. Completes asynchronously (GAP-027): the PAYOUT_RETRY approval appears in Workflow\u0027s approvals; once someone other than the requester grants it the redress reads APPROVED with its attempt raised, and payment.PayoutRequested reaches Payments, whose payout waits for a payout batch; rejected, expired or withdrawn it stays PAYMENT_FAILED. Read the redress again for its status.",
+        "operationId": "WorkflowRetryCaseRedressPayout",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "redressId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowRetryRedressPayoutRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowCaseRedressView"
+                }
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "case.redress",
+        "x-function": [
+          "CASE_RETRY_REDRESS_PAYOUT"
+        ],
+        "x-eventual-effects": "the PAYOUT_RETRY approval appears in Workflow\u0027s approvals; once someone other than the requester grants it the redress reads APPROVED with its attempt raised, and payment.PayoutRequested reaches Payments, whose payout waits for a payout batch; rejected, expired or withdrawn it stays PAYMENT_FAILED. Read the redress again for its status."
+      }
+    },
     "/api/v1/portal/cases": {
       "get": {
         "tags": [
@@ -13984,6 +14097,7 @@
           "Billing"
         ],
         "summary": "Correct an issued invoice with a credit note; the invoice itself never changes (BIL-004)",
+        "description": "A reason that doesn\u0027t require approval issues the credit note at once (201). One that does (DE-010, OQ-058) asks for a CREDIT_NOTE approval instead (202, the credit note request), for at most what the invoice still asks for; the invoice goes on taking payments while it waits. Completes asynchronously (GAP-027): for a 202, the CREDIT_NOTE approval appears in Workflow (businessRefType CREDIT_NOTE_REQUEST, the request\u0027s id). Once a second person grants it, the request reads Issued and names its credit note, for what the invoice then still asks for, never more than was asked; if nothing is outstanding by then it reads Lapsed and nothing is credited. Rejected, expired or withdrawn, it reads Rejected and nothing is credited.",
         "operationId": "BillingRaiseCreditNote",
         "parameters": [
           {
@@ -14027,6 +14141,16 @@
               }
             }
           },
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillingCreditNoteRequestView"
+                }
+              }
+            }
+          },
           "401": {
             "$ref": "#/components/responses/Problem401"
           },
@@ -14058,6 +14182,65 @@
         "x-permission": "invoice.create",
         "x-function": [
           "BILLING_RAISE_CREDIT_NOTE"
+        ],
+        "x-eventual-effects": "for a 202, the CREDIT_NOTE approval appears in Workflow (businessRefType CREDIT_NOTE_REQUEST, the request\u0027s id). Once a second person grants it, the request reads Issued and names its credit note, for what the invoice then still asks for, never more than was asked; if nothing is outstanding by then it reads Lapsed and nothing is credited. Rejected, expired or withdrawn, it reads Rejected and nothing is credited."
+      }
+    },
+    "/api/v1/billing/credit-note-requests/{id}": {
+      "get": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Get a credit note request: a credit note waiting for, or decided by, its CREDIT_NOTE approval (DE-010)",
+        "description": "The record a CREDIT_NOTE approval names (businessRefType CREDIT_NOTE_REQUEST). Its invoice lists it too, under creditNoteRequests.",
+        "operationId": "BillingGetCreditNoteRequest",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillingCreditNoteRequestView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "invoice.read",
+        "x-function": [
+          "BILLING_INVOICES"
         ]
       }
     },
@@ -14066,7 +14249,7 @@
         "tags": [
           "Billing"
         ],
-        "summary": "Refunds by account and status, oldest first (BR-055)",
+        "summary": "Refunds by account and status, oldest first (BR-055); PaymentFailed and Cancelled included (DE-008)",
         "description": "Only refunds of accounts wholly in your scope, as a refund\u0027s read (OQ-081).",
         "operationId": "BillingListRefunds",
         "parameters": [
@@ -14136,6 +14319,202 @@
         "x-function": [
           "BILLING_REFUNDS"
         ]
+      }
+    },
+    "/api/v1/billing/refunds/{id}/retry-payout": {
+      "post": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Ask for a refund whose payout failed to be paid again; a second person approves it (DE-008, PAYOUT_RETRY)",
+        "description": "Only a PaymentFailed refund with no retry waiting. paymentRef is the failed payout\u0027s reference (failedPaymentRef), typed: another is refused with TYPED_REFERENCE_MISMATCH and nothing changes. bankAccountId, when given, is another of the payer\u0027s verified, current accounts in the refund\u0027s currency (else REFUND_ACCOUNT_NOT_PAYABLE); without it the refund\u0027s own account is paid, and must still be one. Completes asynchronously (GAP-027): the PAYOUT_RETRY approval appears in Workflow (businessRefType REFUND_REQUEST) and the refund reads retryPending. Once a second person grants it, the refund reads Approved on its next payoutAttempt, and Payments creates a new payout (payment.PayoutRequested) that waits for a released payout batch; a succeeded payout then makes it Paid. Rejected, expired or withdrawn, it stays PaymentFailed with retryPending false.",
+        "operationId": "BillingRetryRefundPayout",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BillingRetryRefundPayoutRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillingRefundView"
+                }
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "refund.retry_payout",
+        "x-function": [
+          "BILLING_RETRY_REFUND_PAYOUT"
+        ],
+        "x-eventual-effects": "the PAYOUT_RETRY approval appears in Workflow (businessRefType REFUND_REQUEST) and the refund reads retryPending. Once a second person grants it, the refund reads Approved on its next payoutAttempt, and Payments creates a new payout (payment.PayoutRequested) that waits for a released payout batch; a succeeded payout then makes it Paid. Rejected, expired or withdrawn, it stays PaymentFailed with retryPending false."
+      }
+    },
+    "/api/v1/billing/refunds/{id}/cancel": {
+      "post": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Cancel a refund whose payout failed; its money stays with the account as credit (DE-008)",
+        "description": "Only a PaymentFailed refund with no retry waiting; paymentRef is the failed payout\u0027s reference, typed (else TYPED_REFERENCE_MISMATCH). No approval, since no money moves: a refund reaches the ledger only when its payout succeeds. Completes asynchronously (GAP-027): Payments resolves the failed payout\u0027s reconciliation exception (payment.PayoutAbandoned).",
+        "operationId": "BillingCancelRefund",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BillingCancelRefundRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillingRefundView"
+                }
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "refund.cancel",
+        "x-function": [
+          "BILLING_CANCEL_REFUND"
+        ],
+        "x-eventual-effects": "Payments resolves the failed payout\u0027s reconciliation exception (payment.PayoutAbandoned)."
       }
     },
     "/api/v1/billing/refunds/{id}": {
@@ -15520,11 +15899,19 @@
         "tags": [
           "Payments"
         ],
-        "summary": "Unmatched and ambiguous items waiting for a person (PAY-005)",
+        "summary": "Unmatched, ambiguous and failed items waiting for a person (PAY-005), in the order raised, a page at a time",
+        "description": "DE-031: a cursor page (pass nextCursor back as cursor), so every exception is reachable. DE-008: a failed outbound payment raises PAYMENT_FAILED, with the payment\u0027s reference and the record it paid; INSYS resolves it itself when a later attempt pays the record or its module gives the payout up (resolution says which).",
         "operationId": "PaymentsListExceptions",
         "parameters": [
           {
             "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
             "in": "query",
             "schema": {
               "type": "string"
@@ -15549,13 +15936,13 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/PaymentsExceptionView"
-                  }
+                  "$ref": "#/components/schemas/CursorPageOfPaymentsExceptionView"
                 }
               }
             }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
           },
           "401": {
             "$ref": "#/components/responses/Problem401"
@@ -33824,6 +34211,113 @@
         ]
       }
     },
+    "/api/v1/health/payment-runs/{id}/remittances/{remittanceId}/reissue": {
+      "post": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Pay a failed remittance again, with the failed payment\u0027s reference typed, for a second person\u0027s approval (DE-008)",
+        "description": "Only a FAILED remittance of a RELEASED run. paymentRef is the failed payment\u0027s reference as the remittance shows it (failedPaymentRef): anything else is refused with 422 TYPED_REFERENCE_MISMATCH and nothing changes. bankAccountId, when given, is another verified, ACTIVE account of the payee in the run\u0027s currency (422 PROVIDER_NOT_PAYABLE otherwise); without it the same account is paid again. A reason is required. The remittance stays FAILED (reissuePending true) while an approval of type PAYOUT_RETRY waits; one already waiting is refused (409). The run reads RECONCILED only once every remittance with an amount is PAID. If-Match is the run\u0027s ETag. Completes asynchronously (GAP-027): the PAYOUT_RETRY approval appears in Workflow\u0027s approvals; once a second person grants it the remittance reads PENDING with its attempt raised, and payment.PayoutRequested reaches Payments, whose payout waits for a payout batch; rejected, expired or withdrawn it stays FAILED. Read the run again for the remittance\u0027s paymentStatus.",
+        "operationId": "HealthReissueRemittance",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "remittanceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealthReissueRemittanceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthPaymentRunView"
+                }
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "provider_payment_run.update",
+        "x-function": [
+          "HEALTH_REISSUE_REMITTANCE"
+        ],
+        "x-eventual-effects": "the PAYOUT_RETRY approval appears in Workflow\u0027s approvals; once a second person grants it the remittance reads PENDING with its attempt raised, and payment.PayoutRequested reaches Payments, whose payout waits for a payout batch; rejected, expired or withdrawn it stays FAILED. Read the run again for the remittance\u0027s paymentStatus."
+      }
+    },
     "/api/v1/health/providers/{providerId}/measures": {
       "get": {
         "tags": [
@@ -41322,6 +41816,7 @@
           "Distribution"
         ],
         "summary": "Commission statements by intermediary, period (yyyy-MM) and status, oldest first (BR-058)",
+        "description": "status=CarriedForward lists the statements approved with a negative net whose amount is still carried; invoiceDue=true lists only carried-forward statements carried for at least the tenant\u0027s clawbackInvoiceAfterDays (commission settings, 90 unless set) with nothing awaiting approval: those whose clawback may be invoiced (a terminated intermediary\u0027s may be invoiced sooner). carriedDays is the age to the tenant\u0027s business date.",
         "operationId": "DistributionListStatements",
         "parameters": [
           {
@@ -41343,6 +41838,13 @@
             "in": "query",
             "schema": {
               "$ref": "#/components/schemas/DistributionStatementStatus"
+            }
+          },
+          {
+            "name": "invoiceDue",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
             }
           },
           {
@@ -41396,6 +41898,202 @@
         "x-function": [
           "COMMISSION_STATEMENTS"
         ]
+      }
+    },
+    "/api/v1/distribution/statements/{id}/retry-payout": {
+      "post": {
+        "tags": [
+          "Distribution"
+        ],
+        "summary": "Retry a statement\u0027s failed payout: a second person approves it (PAYOUT_RETRY, DE-008)",
+        "description": "Only a PaymentFailed statement. paymentRef is the failed payout\u0027s reference (failedPaymentRef), typed by the requester; another is refused with 422 TYPED_REFERENCE_MISMATCH and changes nothing. The statement then reads pendingAction PAYOUT_RETRY; the approval is for its net amount, by a checker other than the requester and within authority. Completes asynchronously (GAP-027): the Workflow approval appears (GET /api/v1/workflow/approvals, businessRefType COMMISSION_STATEMENT, approvalType PAYOUT_RETRY). Granted, the statement reads Approved with the next payoutAttempt and Payments makes its payout, paid once a payout batch is released (GET /api/v1/payments/payments?businessRefId=); rejected, expired or withdrawn, pendingAction clears and it stays PaymentFailed.",
+        "operationId": "DistributionRetryStatementPayout",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DistributionRetryStatementPayoutRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DistributionStatementView"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          }
+        },
+        "x-permission": "commission_statement.update",
+        "x-function": [
+          "DISTRIBUTION_RETRY_STATEMENT_PAYOUT"
+        ],
+        "x-eventual-effects": "the Workflow approval appears (GET /api/v1/workflow/approvals, businessRefType COMMISSION_STATEMENT, approvalType PAYOUT_RETRY). Granted, the statement reads Approved with the next payoutAttempt and Payments makes its payout, paid once a payout batch is released (GET /api/v1/payments/payments?businessRefId=); rejected, expired or withdrawn, pendingAction clears and it stays PaymentFailed."
+      }
+    },
+    "/api/v1/distribution/statements/{id}/invoice-clawback": {
+      "post": {
+        "tags": [
+          "Distribution"
+        ],
+        "summary": "Invoice the intermediary for what a carried-forward statement still carries: a second person approves it (COMMISSION_CLAWBACK_INVOICE)",
+        "description": "Only a CarriedForward statement, once its intermediary is TERMINATED in the register or it has been carried for at least the tenant\u0027s clawbackInvoiceAfterDays (90 unless set; 422 CLAWBACK_INVOICE_NOT_DUE otherwise), and not while a later statement awaiting approval or payment takes part of it (409 STATEMENT_CARRY_ON_STATEMENT). reference is the statement\u0027s reference, typed by the requester (422 TYPED_REFERENCE_MISMATCH otherwise); reason says why. The approval is for carriedAmount less carrySettledAmount. Completes asynchronously (GAP-027): the Workflow approval appears (businessRefType COMMISSION_STATEMENT, approvalType COMMISSION_CLAWBACK_INVOICE). Granted, the statement reads Invoiced with invoicedOn and invoicedAmount, no later statement takes it, and Billing issues an invoice to the intermediary\u0027s party with sourceDomain DIST_CLAW and the statement\u0027s ID as its policyRef (GET /api/v1/billing/accounts/{id}/invoices of the party\u0027s account); rejected, expired or withdrawn, pendingAction clears and it stays CarriedForward.",
+        "operationId": "DistributionInvoiceStatementClawback",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DistributionInvoiceStatementClawbackRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DistributionStatementView"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          }
+        },
+        "x-permission": "commission_statement.update",
+        "x-function": [
+          "DISTRIBUTION_INVOICE_STATEMENT_CLAWBACK"
+        ],
+        "x-eventual-effects": "the Workflow approval appears (businessRefType COMMISSION_STATEMENT, approvalType COMMISSION_CLAWBACK_INVOICE). Granted, the statement reads Invoiced with invoicedOn and invoicedAmount, no later statement takes it, and Billing issues an invoice to the intermediary\u0027s party with sourceDomain DIST_CLAW and the statement\u0027s ID as its policyRef (GET /api/v1/billing/accounts/{id}/invoices of the party\u0027s account); rejected, expired or withdrawn, pendingAction clears and it stays CarriedForward."
       }
     },
     "/api/v1/distribution/statements/{id}": {
@@ -52587,6 +53285,21 @@
           }
         }
       },
+      "BillingCancelRefundRequest": {
+        "required": [
+          "paymentRef",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "paymentRef": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
       "BillingCreateScheduleRequest": {
         "required": [
           "sourceDomain",
@@ -52659,6 +53372,122 @@
             "type": "string",
             "x-code-list": "billing.ref_adjustment_and_reversal_reason_codes",
             "x-code-list-column": "code"
+          }
+        }
+      },
+      "BillingCreditNoteRequestStatus": {
+        "enum": [
+          "Pending",
+          "Issued",
+          "Lapsed",
+          "Rejected"
+        ]
+      },
+      "BillingCreditNoteRequestView": {
+        "required": [
+          "id",
+          "invoiceId",
+          "amount",
+          "currency",
+          "reasonCode",
+          "status",
+          "requestedBy",
+          "requestedAt",
+          "decidedBy",
+          "approvalId",
+          "ending",
+          "creditNoteId",
+          "creditedAmount",
+          "latestRejection"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "invoiceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "reasonCode": {
+            "type": "string",
+            "x-code-list": "billing.ref_adjustment_and_reversal_reason_codes",
+            "x-code-list-column": "code"
+          },
+          "status": {
+            "$ref": "#/components/schemas/BillingCreditNoteRequestStatus"
+          },
+          "requestedBy": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "requestedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "decidedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "approvalId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "ending": {
+            "enum": [
+              "REJECTED",
+              "EXPIRED",
+              "WITHDRAWN",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "creditNoteId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "creditedAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "latestRejection": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WorkflowLatestRejection"
+              }
+            ]
           }
         }
       },
@@ -52884,6 +53713,15 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/BillingInvoiceLineView"
+            }
+          },
+          "creditNoteRequests": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/BillingCreditNoteRequestView"
             }
           }
         }
@@ -53164,7 +54002,9 @@
           "Requested",
           "Approved",
           "Rejected",
-          "Paid"
+          "Paid",
+          "PaymentFailed",
+          "Cancelled"
         ]
       },
       "BillingRefundView": {
@@ -53263,6 +54103,102 @@
             ],
             "format": "int64",
             "default": 0
+          },
+          "payoutAttempt": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32",
+            "default": 1
+          },
+          "failedPaymentId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "failedPaymentRef": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "failureReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "retryPending": {
+            "type": "boolean",
+            "default": false
+          },
+          "retryRequestedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "retryBankAccountId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "retryDecidedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "retryApprovalId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "cancelReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "cancelledBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
+      "BillingRetryRefundPayoutRequest": {
+        "required": [
+          "paymentRef",
+          "reason",
+          "bankAccountId"
+        ],
+        "type": "object",
+        "properties": {
+          "paymentRef": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "bankAccountId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
@@ -56761,6 +57697,27 @@
           }
         }
       },
+      "CursorPageOfPaymentsExceptionView": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PaymentsExceptionView"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "CursorPageOfPaymentsPaymentView": {
         "required": [
           "items",
@@ -57439,6 +58396,21 @@
           }
         }
       },
+      "DistributionInvoiceStatementClawbackRequest": {
+        "required": [
+          "reference",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "reference": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
       "DistributionPortalStatementView": {
         "required": [
           "id",
@@ -57521,11 +58493,27 @@
           }
         }
       },
+      "DistributionRetryStatementPayoutRequest": {
+        "required": [
+          "paymentRef"
+        ],
+        "type": "object",
+        "properties": {
+          "paymentRef": {
+            "type": "string"
+          }
+        }
+      },
       "DistributionStatementStatus": {
         "enum": [
           "Draft",
           "Approved",
-          "Paid"
+          "Paid",
+          "ClosedNil",
+          "CarriedForward",
+          "SettledByCarryForward",
+          "Invoiced",
+          "PaymentFailed"
         ]
       },
       "DistributionStatementView": {
@@ -57651,6 +58639,117 @@
               "string"
             ],
             "format": "uuid"
+          },
+          "reference": {
+            "type": "string",
+            "default": ""
+          },
+          "openingAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double",
+            "default": 0
+          },
+          "carriedOn": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "carriedAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double",
+            "default": 0
+          },
+          "carrySettledAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double",
+            "default": 0
+          },
+          "carryOnStatementId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "carriedOwed": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double",
+            "default": 0
+          },
+          "carriedDays": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "invoicedOn": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "invoicedAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "failedPaymentRef": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "payoutAttempt": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32",
+            "default": 1
+          },
+          "pendingAction": {
+            "enum": [
+              "PAYOUT_RETRY",
+              "COMMISSION_CLAWBACK_INVOICE",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "pendingReason": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -68180,6 +69279,15 @@
               "string"
             ],
             "format": "int64"
+          },
+          "credits": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/HealthRecoveryCreditView"
+            }
           }
         }
       },
@@ -68382,6 +69490,85 @@
           }
         }
       },
+      "HealthRecoveryCreditView": {
+        "required": [
+          "creditNoteId",
+          "creditNoteNumber",
+          "invoiceId",
+          "amount",
+          "invoiceOutstanding",
+          "settledAmount",
+          "balanceBefore",
+          "balanceAfter",
+          "outcome",
+          "creditedOn"
+        ],
+        "type": "object",
+        "properties": {
+          "creditNoteId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "creditNoteNumber": {
+            "type": "string"
+          },
+          "invoiceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "invoiceOutstanding": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "settledAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "balanceBefore": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "balanceAfter": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "outcome": {
+            "enum": [
+              "PARTIAL",
+              "WITHDRAWN"
+            ],
+            "type": "string"
+          },
+          "creditedOn": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      },
       "HealthRecoveryHoldRequest": {
         "required": [
           "caseId"
@@ -68489,6 +69676,28 @@
           },
           "currency": {
             "type": "string"
+          }
+        }
+      },
+      "HealthReissueRemittanceRequest": {
+        "required": [
+          "paymentRef",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "paymentRef": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "bankAccountId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
@@ -68698,7 +69907,10 @@
           "claimCount",
           "paymentId",
           "paidOn",
-          "documentId"
+          "documentId",
+          "failedPaymentRef",
+          "failureReason",
+          "payoutBankAccountId"
         ],
         "type": "object",
         "properties": {
@@ -68780,6 +69992,48 @@
             ],
             "format": "double",
             "default": 0
+          },
+          "paymentStatus": {
+            "enum": [
+              "NONE",
+              "PENDING",
+              "PAID",
+              "FAILED"
+            ],
+            "type": "string",
+            "default": "PENDING"
+          },
+          "failedPaymentRef": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "failureReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "attempt": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32",
+            "default": 1
+          },
+          "payoutBankAccountId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "reissuePending": {
+            "type": "boolean",
+            "default": false
           }
         }
       },
@@ -71170,6 +72424,48 @@
               "string"
             ],
             "format": "int64"
+          },
+          "discardRequestedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "discardRequestedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "discardReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "discardApprovedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
+      "IntegrationDeadLetterDiscardRequest": {
+        "required": [
+          "messageRef",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "messageRef": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
           }
         }
       },
@@ -71177,7 +72473,8 @@
         "enum": [
           "DeadLettered",
           "Replayed",
-          "Discarded"
+          "Discarded",
+          "DiscardRequested"
         ]
       },
       "IntegrationDeadLetterSummary": {
@@ -71215,6 +72512,26 @@
           "firstFailedAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "discardRequestedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "discardRequestedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "discardReason": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -77604,7 +78921,8 @@
           "exceptionType": {
             "enum": [
               "UNKNOWN_OUTCOME",
-              "UNMATCHED_LINE"
+              "UNMATCHED_LINE",
+              "PAYMENT_FAILED"
             ],
             "type": "string"
           },
@@ -77674,6 +78992,31 @@
               "string"
             ],
             "format": "int64"
+          },
+          "paymentRef": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "businessRefType": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "businessRefId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "resolution": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -79879,6 +81222,8 @@
               "CASE_REDRESS",
               "CLAIM_PAYMENT",
               "COMMISSION_STATEMENT",
+              "CREDIT_NOTE_REQUEST",
+              "DEAD_LETTER",
               "DOCUMENT_LEGAL_HOLD",
               "DUE_DILIGENCE",
               "DUE_DILIGENCE_RISK_OVERRIDE",
@@ -79890,6 +81235,7 @@
               "HEALTH_CREDIT_NOTE",
               "HEALTH_PAYMENT_RUN",
               "HEALTH_RECOVERY",
+              "HEALTH_REMITTANCE",
               "LIFE_CLAIM",
               "LIFE_UNDERWRITING_CASE",
               "PARTY_MATCH",
@@ -79917,7 +81263,10 @@
               "CASE_REDRESS",
               "CLAIM_PAYMENT",
               "CLAIM_SETTLEMENT",
+              "COMMISSION_CLAWBACK_INVOICE",
               "COMMISSION_STATEMENT",
+              "CREDIT_NOTE",
+              "DEAD_LETTER_DISCARD",
               "DUE_DILIGENCE_ENHANCED",
               "DUE_DILIGENCE_RISK_OVERRIDE",
               "DUE_DILIGENCE_UNBLOCK",
@@ -79929,6 +81278,7 @@
               "LIFE_UNDERWRITING",
               "PARTY_MATCH_RESOLUTION",
               "PAYOUT_RELEASE",
+              "PAYOUT_RETRY",
               "PERIOD_REOPEN",
               "PRIVILEGED_ROLE",
               "PRODUCT_PUBLICATION",
@@ -80094,7 +81444,10 @@
               "CASE_REDRESS",
               "CLAIM_PAYMENT",
               "CLAIM_SETTLEMENT",
+              "COMMISSION_CLAWBACK_INVOICE",
               "COMMISSION_STATEMENT",
+              "CREDIT_NOTE",
+              "DEAD_LETTER_DISCARD",
               "DUE_DILIGENCE_ENHANCED",
               "DUE_DILIGENCE_RISK_OVERRIDE",
               "DUE_DILIGENCE_UNBLOCK",
@@ -80106,6 +81459,7 @@
               "LIFE_UNDERWRITING",
               "PARTY_MATCH_RESOLUTION",
               "PAYOUT_RELEASE",
+              "PAYOUT_RETRY",
               "PERIOD_REOPEN",
               "PRIVILEGED_ROLE",
               "PRODUCT_PUBLICATION",
@@ -80183,6 +81537,10 @@
               "REDRESS_APPROVED",
               "REDRESS_REJECTED",
               "REDRESS_PAID",
+              "REDRESS_PAYMENT_FAILED",
+              "REDRESS_RETRY_REQUESTED",
+              "REDRESS_RETRY_APPROVED",
+              "REDRESS_RETRY_REJECTED",
               "REFERRED_TO_OMBUD",
               "OMBUD_OUTCOME",
               "SHARED_WITH_BROKER",
@@ -80489,6 +81847,9 @@
           "paidAt",
           "paymentId",
           "rowVersion",
+          "failedPaymentRef",
+          "failureReason",
+          "payoutBankAccountId",
           "latestRejection"
         ],
         "type": "object",
@@ -80586,6 +81947,38 @@
                 "$ref": "#/components/schemas/WorkflowLatestRejection"
               }
             ]
+          },
+          "failedPaymentRef": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "failureReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "attempt": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32",
+            "default": 1
+          },
+          "payoutBankAccountId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "retryPending": {
+            "type": "boolean",
+            "default": false
           }
         }
       },
@@ -81335,7 +82728,10 @@
               "CASE_REDRESS",
               "CLAIM_PAYMENT",
               "CLAIM_SETTLEMENT",
+              "COMMISSION_CLAWBACK_INVOICE",
               "COMMISSION_STATEMENT",
+              "CREDIT_NOTE",
+              "DEAD_LETTER_DISCARD",
               "DUE_DILIGENCE_ENHANCED",
               "DUE_DILIGENCE_RISK_OVERRIDE",
               "DUE_DILIGENCE_UNBLOCK",
@@ -81347,6 +82743,7 @@
               "LIFE_UNDERWRITING",
               "PARTY_MATCH_RESOLUTION",
               "PAYOUT_RELEASE",
+              "PAYOUT_RETRY",
               "PERIOD_REOPEN",
               "PRIVILEGED_ROLE",
               "PRODUCT_PUBLICATION",
@@ -82062,7 +83459,8 @@
           "Requested",
           "Approved",
           "Rejected",
-          "Paid"
+          "Paid",
+          "PaymentFailed"
         ]
       },
       "WorkflowRejectApprovalRequest": {
@@ -82073,6 +83471,28 @@
         "properties": {
           "reason": {
             "type": "string"
+          }
+        }
+      },
+      "WorkflowRetryRedressPayoutRequest": {
+        "required": [
+          "paymentRef",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "paymentRef": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "bankAccountId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },

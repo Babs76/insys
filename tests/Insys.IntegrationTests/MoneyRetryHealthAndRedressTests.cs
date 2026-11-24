@@ -62,19 +62,6 @@ public sealed class MoneyRetryHealthAndRedressTests(DatabaseFixture fixture) : I
     public async ValueTask InitializeAsync()
     {
         var db = fixture.Database;
-        // TODO: drop once R__function_catalogue.sql is regenerated at merge (a shared snapshot this branch leaves alone): the two new actions, as it will list them.
-        await db.ExecuteAsOwner("""
-            INSERT INTO iam.ref_function_catalogue (tenant_id, code, version, effective_from, record_status, record_source, record_class, created_by, approved_at, approved_by,
-                change_reason, labels, sort_order, function_code, sub_domain_code, process_area, interaction_type, function_kind, parent_function_code, audiences, route_key,
-                required_permissions, required_feature, privileged, allowed_while_onboarding)
-            SELECT NULL, f.code, 1, DATE '2026-10-01', 'ACTIVE', 'insys-core', 'PUBLIC', 'test', now(), 'test', 'DE-008 test stand-in', f.labels::jsonb, 9000, f.code, f.sub_domain,
-                   f.area, 'HUMAN', 'ACTION', f.parent, ARRAY['STAFF'], NULL, f.permissions, f.feature, false, f.onboarding
-              FROM (VALUES ('HEALTH_REISSUE_REMITTANCE', '{"en":"Reissue remittance"}', 'HEALTH_PROVIDER_PAYMENTS', 'Payment runs (second-person release)', 'HEALTH_PAYMENT_RUNS',
-                            ARRAY['provider_payment_run.update'], 'HEALTH', false),
-                           ('CASE_RETRY_REDRESS_PAYOUT', '{"en":"Retry redress payout"}', 'CUSTOMER_SERVICE', 'Complaints', 'SERVICE_COMPLAINTS', ARRAY['case.redress'], NULL, true))
-                   AS f(code, labels, sub_domain, area, parent, permissions, feature, onboarding)
-             WHERE NOT EXISTS (SELECT 1 FROM iam.ref_function_catalogue c WHERE c.tenant_id IS NULL AND c.code = f.code)
-            """);
         _factory = await fixture.Host();
         _rows = new RowFiller(db, DateTimeOffset.UtcNow);
         await db.UserWithPermissions(T, "retry-maker", Staff);
