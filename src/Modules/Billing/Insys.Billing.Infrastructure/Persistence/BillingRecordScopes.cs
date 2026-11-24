@@ -59,17 +59,21 @@ internal sealed class BillingRecordScopes([FromKeyedServices(BillingDbContext.Sc
         "BILLING_ACCOUNT" => AccountSchedules,
         Contracts.BillingApprovals.RefundBusinessRefType =>
             "SELECT s.product_code, s.org_node_code FROM billing.refund_request r JOIN billing.premium_schedule s ON s.tenant_id = r.tenant_id AND s.billing_account_id = r.billing_account_id WHERE r.id = @id",
+        // DE-010: a credit note request covers what its invoice covers.
+        Contracts.BillingApprovals.CreditNoteBusinessRefType =>
+            "SELECT i.product_code, i.org_node_code FROM billing.credit_note_request r JOIN billing.invoice i ON i.tenant_id = r.tenant_id AND i.id = r.invoice_id WHERE r.id = @id",
         _ => null,
     };
 }
 
 /// <summary>
 /// The scope of a refund's approval (F103, OQ-081, OQ-176): a refund is paid from the whole account's credit, so it is the account's one scope when every
-/// schedule on it shares one; otherwise, or with no schedule at all, only a checker with unrestricted scope sees and decides it.
+/// schedule on it shares one; otherwise, or with no schedule at all, only a checker with unrestricted scope sees and decides it. A credit note
+/// request's (DE-010) is its invoice's product and node.
 /// </summary>
 internal sealed class BillingApprovalScopes([FromKeyedServices(BillingDbContext.SchemaName)] NpgsqlDataSource dataSource) : Workflow.Contracts.IApprovalScopeSource
 {
-    public bool Covers(string businessRefType) => businessRefType == Contracts.BillingApprovals.RefundBusinessRefType;
+    public bool Covers(string businessRefType) => businessRefType is Contracts.BillingApprovals.RefundBusinessRefType or Contracts.BillingApprovals.CreditNoteBusinessRefType;
 
     public async Task<Workflow.Contracts.RecordScope?> ScopeOf(Guid tenantId, string businessRefType, Guid businessRefId, CancellationToken cancellationToken)
     {

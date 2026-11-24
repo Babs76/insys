@@ -94,7 +94,8 @@ public abstract class ApprovalEndings(DatabaseFixture fixture) : IClassFixture<D
     /// <summary>The family an approval type's rows run in; a type in no family fails the guard test.</summary>
     public static Family? FamilyOf(string approvalType) => approvalType.Split('/')[0] switch
     {
-        "CLAIM_PAYMENT" or "REFUND" or "PAYOUT_RELEASE" or "UNKNOWN_PAYMENT_RESOLUTION" or "PROVIDER_PAYMENT_RUN" or "COMMISSION_STATEMENT" or "PERIOD_REOPEN" => Family.Money,
+        "CLAIM_PAYMENT" or "REFUND" or "PAYOUT_RELEASE" or "UNKNOWN_PAYMENT_RESOLUTION" or "PROVIDER_PAYMENT_RUN" or "COMMISSION_STATEMENT" or "PERIOD_REOPEN"
+            or "PAYOUT_RETRY" or "CREDIT_NOTE" => Family.Money,
         "CLAIM_SETTLEMENT" or "LIFE_CLAIM" or "LIFE_UNDERWRITING" or "ENDORSEMENT" or "PRODUCT_PUBLICATION" => Family.ClaimsAndUnderwriting,
         "PRIVILEGED_ROLE" or "EXTERNAL_SUBJECT_LINK" or "TENANT_ADMINISTRATOR" or "PARTY_MATCH_RESOLUTION" or "BANK_ACCOUNT_VERIFICATION" or "STATIC_DATA_T1"
             or "STATIC_DATA_T2" => Family.AccessPartiesAndStaticData,
@@ -384,6 +385,14 @@ public abstract class ApprovalEndings(DatabaseFixture fixture) : IClassFixture<D
             "PendingApproval", ["Approved"], "Rejected", Refuse: RefuseClaimPayment, WhenRefused: "PendingApproval"),
         [BillingApprovals.RefundApprovalType] = new(MoneyPermissionSet, [BillingApprovals.RefundApprovalType, "BANK_ACCOUNT_VERIFICATION"], Refund,
             "Requested", ["Approved"], "Rejected", Refuse: RefuseRefund, WhenRefused: "Requested"),
+        // DE-008: a refund whose payout failed, paid again on a PAYOUT_RETRY; not granted, it stays PaymentFailed with the request cleared.
+        [$"{PaymentApprovals.PayoutRetryApprovalType}/{BillingApprovals.RefundBusinessRefType}"] = new([.. MoneyPermissionSet, BillingPermissions.RefundRetryPayout],
+            [PaymentApprovals.PayoutRetryApprovalType, BillingApprovals.RefundApprovalType, "BANK_ACCOUNT_VERIFICATION"], RefundPayoutRetry,
+            "PaymentFailed|retry pending|attempt 1", ["Approved|no retry|attempt 2"], "PaymentFailed|no retry|attempt 1", Refuse: RefuseRefundPayoutRetry,
+            WhenRefused: "PaymentFailed|retry pending|attempt 1", ApprovalType: PaymentApprovals.PayoutRetryApprovalType),
+        // DE-010: a credit note whose reason requires approval; not granted, its request is cleared and nothing is credited.
+        [BillingApprovals.CreditNoteApprovalType] = new(MoneyPermissionSet, [BillingApprovals.CreditNoteApprovalType], CreditNoteRequest,
+            "Pending|credited 0", ["Issued|credited 30"], "Rejected|credited 0", Refuse: RefuseCreditNoteRequest, WhenRefused: "Pending|credited 0"),
         [DistributionApprovals.StatementApprovalType] = new(CommissionPermissionSet, [DistributionApprovals.StatementApprovalType, "BANK_ACCOUNT_VERIFICATION"],
             CommissionStatement, "Draft|approval pending", ["Approved"], "Draft", Refuse: RefuseCommissionStatement, WhenRefused: "Draft|approval pending"),
         [FinanceApprovals.ReopenApprovalType] = new([FinancePermissions.PeriodRead, FinancePermissions.PeriodUpdate, .. Approving], [FinanceApprovals.ReopenApprovalType],
@@ -910,6 +919,55 @@ public abstract class ApprovalEndings(DatabaseFixture fixture) : IClassFixture<D
     /// </summary>
     private static Task RefuseRefund(World w, Waiting waiting) =>
         w.Db.ExecuteAsOwner("UPDATE billing.refund_request SET amount = 30 WHERE tenant_id = @t AND id = @id", ("t", w.Tenant), ("id", waiting.BusinessRefId));
+
+    /// <summary>DE-008: an approved refund's payout fails (Payments' PaymentFailed for it), and a retry is asked for, with the failed payment's reference typed.</summary>
+    private static async Task<Waiting> RefundPayoutRetry(World w)
+    {
+        await MoneyWorld(w);
+        var refund = await RequestRefund(w);
+        await w.ApproveOnTheWay(BillingApprovals.RefundBusinessRefType, refund);
+        var failedRef = await RefundPayouts.Fail(w.Factory, w.Db, w.Tenant, refund);
+        var url = $"/api/v1/billing/refunds/{refund}";
+        var etag = $"\"{(await w.Get(url)).GetProperty("rowVersion").GetInt64()}\"";
+        await w.Ok(await w.Maker.Send(HttpMethod.Post, $"{url}/retry-payout", new { paymentRef = failedRef, reason = "The payer's bank was down" }, ifMatch: etag));
+        return new(BillingApprovals.RefundBusinessRefType, refund, async () =>
+        {
+            var view = await w.Get(url);
+            return $"{view.GetProperty("status").GetString()}|{(view.GetProperty("retryPending").GetBoolean() ? "retry pending" : "no retry")}|attempt {view.GetProperty("payoutAttempt").GetInt32()}";
+        }, () => w.Get(url));
+    }
+
+    /// <summary>D-5: the refund's amount changes after the retry was asked for (25 to 30), so the granted approval is for another subject (an owner SQL update).</summary>
+    private static Task RefuseRefundPayoutRetry(World w, Waiting waiting) =>
+        w.Db.ExecuteAsOwner("UPDATE billing.refund_request SET amount = 30 WHERE tenant_id = @t AND id = @id", ("t", w.Tenant), ("id", waiting.BusinessRefId));
+
+    /// <summary>DE-010: a credit note of 30 on an invoice of 80, for a reason that requires approval; it waits as a credit note request.</summary>
+    private static async Task<Waiting> CreditNoteRequest(World w)
+    {
+        await MoneyWorld(w);
+        await w.Seed("billing.ref_adjustment_and_reversal_reason_codes", "ACTIVE", "WRITE_OFF", ("label", "Written off"), ("requires_approval", true),
+            ("accounting_impact", "CREDIT"));
+        var account = (await (await w.Maker.Send(HttpMethod.Post, "/api/v1/billing/accounts/",
+            new { payerPartyId = Guid.CreateVersion7(), currency = "ZAR", collectionMethod = "DEBIT_ORDER" }, idempotent: true)).Json()).GetProperty("id").GetGuid();
+        await w.Ok(await w.Maker.Send(HttpMethod.Post, $"/api/v1/billing/accounts/{account}/schedules", new
+        {
+            sourceDomain = "GENERAL", policyRef = Guid.CreateVersion7(), productVersionRef = "MOTOR-v1", frequency = "MONTHLY", startDate = Today,
+            endDate = (DateOnly?)null, instalmentAmount = 80m,
+        }, idempotent: true));
+        var invoice = (await (await w.Maker.Send(HttpMethod.Post, $"/api/v1/billing/accounts/{account}/invoices", new { asOf = Today }, idempotent: true)).Json())
+            .EnumerateArray().Single().GetProperty("id").GetGuid();
+        var asked = await w.Maker.Send(HttpMethod.Post, $"/api/v1/billing/invoices/{invoice}/credit-notes", new { amount = 30m, reasonCode = "WRITE_OFF" }, idempotent: true);
+        await w.Ok(asked, HttpStatusCode.Accepted);
+        var request = (await asked.Json()).GetProperty("id").GetGuid();
+        var url = $"/api/v1/billing/credit-note-requests/{request}";
+        return new(BillingApprovals.CreditNoteBusinessRefType, request, async () =>
+            $"{(await w.Get(url)).GetProperty("status").GetString()}|credited {(await w.Get($"/api/v1/billing/invoices/{invoice}")).GetProperty("credited").GetDecimal():0}",
+            () => w.Get(url));
+    }
+
+    /// <summary>D-5: the request's amount changes after it was asked for (30 to 20), so the granted approval is for another subject (an owner SQL update).</summary>
+    private static Task RefuseCreditNoteRequest(World w, Waiting waiting) =>
+        w.Db.ExecuteAsOwner("UPDATE billing.credit_note_request SET amount = 20 WHERE tenant_id = @t AND id = @id", ("t", w.Tenant), ("id", waiting.BusinessRefId));
 
     private static async Task<Waiting> ClaimPayment(World w)
     {

@@ -51,8 +51,14 @@ public sealed record AdjustmentReason(string Code, bool RequiresApproval);
 public sealed record InvoiceIssued(Guid InvoiceId, string InvoiceNumber, Guid BillingAccountId, Guid PayerPartyId, string PaymentMethod, string SourceDomain, Guid PolicyRef, string ProductVersionRef,
     DateOnly IssueDate, DateOnly DueDate, string Currency, decimal NetAmount, decimal TaxAmount, decimal TotalAmount, DateTimeOffset OccurredAt, string? TaxCode = null) : IDomainEvent;
 
+/// <param name="InvoiceOutstanding">What the invoice still asks for after this credit (DE-009).</param>
 public sealed record CreditNoteIssued(Guid CreditNoteId, string CreditNoteNumber, Guid InvoiceId, Guid BillingAccountId, string SourceDomain, Guid PolicyRef,
-    DateOnly IssueDate, string Currency, decimal TotalAmount, string ReasonCode, DateTimeOffset OccurredAt, decimal TaxAmount = 0, string? TaxCode = null) : IDomainEvent;
+    DateOnly IssueDate, string Currency, decimal TotalAmount, string ReasonCode, DateTimeOffset OccurredAt, decimal TaxAmount = 0, string? TaxCode = null,
+    decimal? InvoiceOutstanding = null) : IDomainEvent;
+
+/// <summary>DE-010 (OQ-058, Ade, 24 November 2026): asks Workflow for a CREDIT_NOTE approval of a credit whose reason requires one.</summary>
+public sealed record CreditNoteApprovalRequested(Guid RequestId, Guid InvoiceId, string InvoiceNumber, Guid RequestedBy, decimal Amount, string Currency, string ReasonCode,
+    string SubjectHash, DateTimeOffset OccurredAt) : IDomainEvent;
 
 public sealed record InvoiceSettled(Guid InvoiceId, Guid BillingAccountId, string SourceDomain, Guid PolicyRef, DateTimeOffset OccurredAt) : IDomainEvent;
 
@@ -127,6 +133,81 @@ public sealed class Adjustment : Entity<Guid>, ITenantScoped
     };
 }
 
+public enum CreditNoteRequestStatus
+{
+    /// <summary>Waiting for its CREDIT_NOTE approval; the invoice goes on taking allocations meanwhile.</summary>
+    Pending,
+
+    /// <summary>Approved, and its credit note issued for what was still outstanding (at most the amount asked).</summary>
+    Issued,
+
+    /// <summary>Approved when nothing was outstanding any more (paid or credited meanwhile): no credit note is issued.</summary>
+    Lapsed,
+
+    /// <summary>The approval ended without being granted (rejected, expired or withdrawn): nothing is credited.</summary>
+    Rejected,
+}
+
+/// <summary>
+/// Entity CreditNoteRequest (billing.credit_note_request, V0150): a credit note whose adjustment reason requires approval, waiting for a second
+/// person (DE-010, OQ-058, Ade, 24 November 2026). It belongs to the invoice it would credit, so its grant changes that one aggregate.
+/// </summary>
+public sealed class CreditNoteRequest : Entity<Guid>, ITenantScoped
+{
+    private CreditNoteRequest()
+    {
+    }
+
+    public Guid TenantId { get; private set; }
+
+    public Guid InvoiceId { get; private set; }
+
+    /// <summary>The amount asked for; what is credited is at most what the invoice still asks for when the approval is granted.</summary>
+    public decimal Amount { get; private set; }
+
+    public string Currency { get; private set; } = "";
+
+    public string ReasonCode { get; private set; } = "";
+
+    public CreditNoteRequestStatus Status { get; private set; }
+
+    public Guid RequestedBy { get; private set; }
+
+    public DateTimeOffset RequestedAt { get; private set; }
+
+    /// <summary>The checker who decided it; null for an approval that expired or was withdrawn.</summary>
+    public Guid? DecidedBy { get; private set; }
+
+    public Guid? ApprovalId { get; private set; }
+
+    /// <summary>How a refusal ended: REJECTED, EXPIRED or WITHDRAWN (Workflow's endings).</summary>
+    public string? Ending { get; private set; }
+
+    public Guid? CreditNoteId { get; private set; }
+
+    /// <summary>What the credit note issued on approval credited; 0 when it lapsed.</summary>
+    public decimal? CreditedAmount { get; private set; }
+
+    public long RowVersion { get; private set; }
+
+    /// <summary>What the CREDIT_NOTE approval covers: the invoice, the amount, its currency and the reason.</summary>
+    public string SubjectHash => ApprovalSubject.Hash("CREDIT_NOTE", Id, InvoiceId, Amount, Currency, ReasonCode);
+
+    internal static CreditNoteRequest Create(Guid id, Guid invoiceId, decimal amount, string currency, string reasonCode, Guid requestedBy, DateTimeOffset now) => new()
+    {
+        Id = Guard.NotEmpty(id), InvoiceId = invoiceId, Amount = amount, Currency = currency, ReasonCode = reasonCode, Status = CreditNoteRequestStatus.Pending,
+        RequestedBy = requestedBy, RequestedAt = now,
+    };
+
+    internal void Issue(Guid checker, Guid? approvalId, Guid creditNoteId, decimal credited) =>
+        (Status, DecidedBy, ApprovalId, CreditNoteId, CreditedAmount) = (CreditNoteRequestStatus.Issued, checker, approvalId, creditNoteId, credited);
+
+    internal void Lapse(Guid checker, Guid? approvalId) => (Status, DecidedBy, ApprovalId, CreditedAmount) = (CreditNoteRequestStatus.Lapsed, checker, approvalId, 0m);
+
+    internal void Reject(Guid? checker, Guid? approvalId, string ending) =>
+        (Status, DecidedBy, ApprovalId, Ending) = (CreditNoteRequestStatus.Rejected, checker, approvalId, Guard.MaxLength(ending, 12));
+}
+
 /// <summary>
 /// The Invoice aggregate (billing.invoice), an invoice or a credit note. It references its source policy, tenant,
 /// product version, currency and dates (BIL-002); it never changes once issued, and a correction is a credit note
@@ -136,6 +217,7 @@ public sealed class Invoice : AggregateRoot<Guid>
 {
     private readonly List<InvoiceLine> _lines = [];
     private readonly List<Adjustment> _adjustments = [];
+    private readonly List<CreditNoteRequest> _creditNoteRequests = [];
 
     private Invoice()
     {
@@ -183,6 +265,9 @@ public sealed class Invoice : AggregateRoot<Guid>
     public IReadOnlyList<InvoiceLine> Lines => _lines;
 
     public IReadOnlyList<Adjustment> Adjustments => _adjustments;
+
+    /// <summary>Credit notes asked for with a reason that requires approval (DE-010), pending or decided.</summary>
+    public IReadOnlyList<CreditNoteRequest> CreditNoteRequests => _creditNoteRequests;
 
     public decimal Outstanding => DocumentType == DocumentType.Invoice && Status != InvoiceStatus.Credited ? TotalAmount - AllocatedAmount - Credited : 0;
 
@@ -270,7 +355,6 @@ public sealed class Invoice : AggregateRoot<Guid>
         credit.NetAmount = amount - creditTax;
         credit.TotalAmount = amount;
         credit.Status = InvoiceStatus.Issued;
-        credit.Raise(new CreditNoteIssued(creditNoteId, credit.InvoiceNumber, Id, BillingAccountId, SourceDomain, PolicyRef, issueDate, Currency, amount, reason.Code, now, creditTax, taxCode));
 
         _adjustments.Add(Adjustment.Create(Id, reason.Code, amount, Currency, creditNoteId, approvedBy, now));
         if (Credited + AllocatedAmount >= TotalAmount)
@@ -278,8 +362,94 @@ public sealed class Invoice : AggregateRoot<Guid>
             Status = InvoiceStatus.Credited;
         }
 
+        // DE-009: the event says what the invoice still asks for after this credit, so a consumer knows whether it was fully credited.
+        credit.Raise(new CreditNoteIssued(creditNoteId, credit.InvoiceNumber, Id, BillingAccountId, SourceDomain, PolicyRef, issueDate, Currency, amount, reason.Code, now, creditTax,
+            taxCode, Outstanding));
         MarkChanged();
         return credit;
+    }
+
+    /// <summary>
+    /// DE-010 (OQ-058, Ade, 24 November 2026): a credit note whose reason requires approval is asked for, not issued. It waits for a
+    /// CREDIT_NOTE approval, decided by a second person within their authority (Workflow); the invoice is not frozen meanwhile. At most
+    /// what the invoice asks for now may be asked for.
+    /// </summary>
+    public Result<CreditNoteRequest> RequestCreditNote(Guid requestId, decimal amount, AdjustmentReason reason, Guid requestedBy, DateTimeOffset now)
+    {
+        if (DocumentType != DocumentType.Invoice || Status is InvoiceStatus.Draft or InvoiceStatus.Credited)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, "Only an issued invoice is credited.");
+        }
+
+        if (amount <= 0 || decimal.Round(amount, 2) != amount || amount > Outstanding)
+        {
+            return Error.Validation(BillingErrorCodes.CreditExceedsInvoice, $"A credit note that needs approval is positive and at most what the invoice still asks for, {Outstanding} {Currency}.");
+        }
+
+        var request = CreditNoteRequest.Create(requestId, Id, amount, Currency, reason.Code, requestedBy, now);
+        _creditNoteRequests.Add(request);
+        Raise(new CreditNoteApprovalRequested(request.Id, Id, InvoiceNumber, requestedBy, amount, Currency, reason.Code, request.SubjectHash, now));
+        MarkChanged();
+        return request;
+    }
+
+    /// <summary>
+    /// Workflow's decision on a credit note request (DE-010). Granted, the credit note is issued for what the invoice still asks for, never
+    /// more than was asked: allocations went on while it waited. If nothing is outstanding any more (paid or credited meanwhile), the request
+    /// lapses and no credit note is issued: a credit then would be money owed back to the payer, which is a refund's, not a credit note's.
+    /// Any other ending (rejected, expired, withdrawn) clears the request and credits nothing. The checker is never the requester; a
+    /// redelivered decision changes nothing. Returns the credit note issued, if one was.
+    /// </summary>
+    public Result<Invoice?> DecideCreditNote(Guid requestId, bool approved, Guid checkerId, string? subjectHash, Guid? approvalId, string ending, Guid creditNoteId,
+        string prefix, DateOnly issueDate, DateTimeOffset now)
+    {
+        if (_creditNoteRequests.SingleOrDefault(r => r.Id == requestId) is not { } request)
+        {
+            return Error.NotFound(ErrorCodes.NotFound, "The invoice has no such credit note request.");
+        }
+
+        if (request.Status != CreditNoteRequestStatus.Pending)
+        {
+            var redelivered = approved
+                ? request.Status is CreditNoteRequestStatus.Issued or CreditNoteRequestStatus.Lapsed && request.ApprovalId == approvalId
+                : request.Status == CreditNoteRequestStatus.Rejected;
+            return redelivered ? Result<Invoice?>.Success(null) : Error.Conflict(ErrorCodes.InvalidStateTransition, "The credit note request was already decided otherwise.");
+        }
+
+        if (subjectHash != request.SubjectHash)
+        {
+            return Error.Conflict(BillingErrorCodes.ApprovalSubjectChanged, "The approval was for another credit note.");
+        }
+
+        var hasChecker = approved || checkerId != Guid.Empty;
+        if (hasChecker && checkerId == request.RequestedBy)
+        {
+            return MakerChecker.EnsureDifferentPeople(request.RequestedBy.ToString(), checkerId.ToString()).Error!;
+        }
+
+        if (!approved)
+        {
+            request.Reject(hasChecker ? checkerId : null, approvalId, ending);
+            MarkChanged();
+            return Result<Invoice?>.Success(null);
+        }
+
+        var credit = Math.Min(request.Amount, Outstanding);
+        if (credit <= 0)
+        {
+            request.Lapse(checkerId, approvalId);
+            MarkChanged();
+            return Result<Invoice?>.Success(null);
+        }
+
+        var issued = RaiseCreditNote(creditNoteId, prefix, credit, new AdjustmentReason(request.ReasonCode, true), checkerId, issueDate, now);
+        if (issued.IsFailure)
+        {
+            return issued.Error!;
+        }
+
+        request.Issue(checkerId, approvalId, creditNoteId, credit);
+        return issued.Value;
     }
 
     /// <summary>Command MarkSettled: an allocation from Payments (BIL-003). Returns the amount applied; anything above what is outstanding is not applied.</summary>
@@ -359,6 +529,12 @@ public enum RefundStatus
     Approved,
     Rejected,
     Paid,
+
+    /// <summary>DE-008: its payout failed; it waits for a retry (PAYOUT_RETRY, a second person) or to be cancelled.</summary>
+    PaymentFailed,
+
+    /// <summary>DE-008: cancelled after its payout failed; the money stays with the account as credit and nothing is paid.</summary>
+    Cancelled,
 }
 
 public enum RefundTrigger
@@ -366,6 +542,9 @@ public enum RefundTrigger
     ApproveRefund,
     RejectRefund,
     PaymentSucceeded,
+    PaymentFailed,
+    RetryGranted,
+    CancelRefund,
 }
 
 /// <summary>Asks Workflow for a second person's approval of the refund (SRS-002).</summary>
@@ -375,13 +554,28 @@ public sealed record RefundRequested(Guid RefundId, Guid RequestedBy, decimal Am
 public sealed record RefundApproved(Guid RefundId, Guid BillingAccountId, Guid PayerPartyId, Guid BankAccountId, decimal Amount, string Currency, DateTimeOffset OccurredAt)
     : IDomainEvent;
 
+/// <summary>DE-008: asks Workflow for a PAYOUT_RETRY approval of paying the refund again (SRS-002, PAY-005).</summary>
+public sealed record RefundPayoutRetryRequested(Guid RefundId, Guid RequestedBy, int Attempt, decimal Amount, string Currency, string FailedPaymentRef, string SubjectHash,
+    DateTimeOffset OccurredAt) : IDomainEvent;
+
+/// <summary>DE-008: the retry was granted; Payments makes a new payout, which waits for a payout batch (payment.PayoutRequested).</summary>
+public sealed record RefundPayoutRetryGranted(Guid RefundId, int Attempt, decimal Amount, string Currency, Guid PayerPartyId, Guid BankAccountId, DateTimeOffset OccurredAt)
+    : IDomainEvent;
+
+/// <summary>DE-008: the refund was cancelled after its payout failed; it will not be paid (payment.PayoutAbandoned).</summary>
+public sealed record RefundCancelled(Guid RefundId, string Reason, DateTimeOffset OccurredAt) : IDomainEvent;
+
 /// <summary>The RefundRequest aggregate (billing.refund_request): approved by a second person before any payment is instructed (SRS-002).</summary>
 public sealed class RefundRequest : AggregateRoot<Guid>
 {
     public static readonly StateMachine<RefundStatus, RefundTrigger> Lifecycle = new StateMachine<RefundStatus, RefundTrigger>()
         .Allow(RefundStatus.Requested, RefundTrigger.ApproveRefund, RefundStatus.Approved)
         .Allow(RefundStatus.Requested, RefundTrigger.RejectRefund, RefundStatus.Rejected)
-        .Allow(RefundStatus.Approved, RefundTrigger.PaymentSucceeded, RefundStatus.Paid);
+        .Allow(RefundStatus.Approved, RefundTrigger.PaymentSucceeded, RefundStatus.Paid)
+        // DE-008 (Ade, 24 November 2026): a failed payout is paid again only on a second person's approval, or the refund is cancelled.
+        .Allow(RefundStatus.Approved, RefundTrigger.PaymentFailed, RefundStatus.PaymentFailed)
+        .Allow(RefundStatus.PaymentFailed, RefundTrigger.RetryGranted, RefundStatus.Approved)
+        .Allow(RefundStatus.PaymentFailed, RefundTrigger.CancelRefund, RefundStatus.Cancelled);
 
     private RefundRequest()
     {
@@ -413,6 +607,42 @@ public sealed class RefundRequest : AggregateRoot<Guid>
 
     public string? PayeeBankHash { get; private set; }
 
+    /// <summary>The payout attempt the refund is on: 1 for its first payout, then one more for each retry granted (DE-008).</summary>
+    public int PayoutAttempt { get; private set; } = 1;
+
+    /// <summary>DE-008: the last failed payout, its reference (which a retry or cancellation must be given, typed) and why it failed.</summary>
+    public Guid? FailedPaymentId { get; private set; }
+
+    public string? FailedPaymentRef { get; private set; }
+
+    public string? FailureReason { get; private set; }
+
+    /// <summary>DE-008: a PAYOUT_RETRY approval is waiting.</summary>
+    public bool RetryPending { get; private set; }
+
+    /// <summary>Who asked for the latest retry, to which of the payer's accounts and why; cleared if it is not granted.</summary>
+    public Guid? RetryRequestedBy { get; private set; }
+
+    public Guid? RetryBankAccountId { get; private set; }
+
+    public string? RetryPayeeBankHash { get; private set; }
+
+    public string? RetryReason { get; private set; }
+
+    /// <summary>Who granted the latest retry, and its Workflow approval.</summary>
+    public Guid? RetryDecidedBy { get; private set; }
+
+    public Guid? RetryApprovalId { get; private set; }
+
+    /// <summary>DE-008: why, and by whom, the refund was cancelled after its payout failed.</summary>
+    public string? CancelReason { get; private set; }
+
+    public Guid? CancelledBy { get; private set; }
+
+    /// <summary>What a PAYOUT_RETRY approval covers: the attempt, the failed payment, payee, bank account, amount and currency.</summary>
+    public string RetrySubjectHash =>
+        ApprovalSubject.Hash("PAYOUT_RETRY", Id, PayoutAttempt + 1, FailedPaymentRef, PayerPartyId, RetryBankAccountId, RetryPayeeBankHash, Amount, Currency);
+
     /// <summary>What the refund's approval covers: payer, bank account, amount and currency.</summary>
     public string SubjectHash => ApprovalSubject.Hash("REFUND", Id, PayerPartyId, BankAccountId, PayeeBankHash, Amount, Currency);
 
@@ -437,7 +667,8 @@ public sealed class RefundRequest : AggregateRoot<Guid>
     }
 
     /// <summary>True when this checker's approval was already applied (approved, and perhaps paid since): a redelivered grant changes nothing.</summary>
-    public bool GrantedBy(Guid checkerId) => Status is RefundStatus.Approved or RefundStatus.Paid && DecidedBy == checkerId;
+    public bool GrantedBy(Guid checkerId) =>
+        Status is RefundStatus.Approved or RefundStatus.Paid or RefundStatus.PaymentFailed or RefundStatus.Cancelled && DecidedBy == checkerId;
 
     /// <summary>
     /// Workflow's decision (ApproveRefund or RejectRefund). The checker is never the requester. Every ending other than
@@ -479,7 +710,7 @@ public sealed class RefundRequest : AggregateRoot<Guid>
     /// <summary>The payout was created for this refund (GAP-036): its ID is known before it completes. No status change.</summary>
     public void LinkPayment(Guid paymentId)
     {
-        if (PaymentId is null && Status == RefundStatus.Approved)
+        if (PaymentId is null && Status == RefundStatus.Approved && paymentId != FailedPaymentId)
         {
             PaymentId = paymentId;
             MarkChanged();
@@ -497,6 +728,133 @@ public sealed class RefundRequest : AggregateRoot<Guid>
 
         return result;
     }
+
+    /// <summary>
+    /// DE-008, transition "Payment failed": the refund's payout failed. Its reference and reason are kept, for the retry or cancellation that
+    /// must name it. A redelivery, or the failure of a payout the refund has moved on from, changes nothing (false).
+    /// </summary>
+    public bool MarkPaymentFailed(Guid paymentId, string paymentRef, string reason)
+    {
+        if (Status != RefundStatus.Approved || paymentId == FailedPaymentId || (PaymentId is { } linked && linked != paymentId))
+        {
+            return false;
+        }
+
+        if (Fire(RefundTrigger.PaymentFailed).IsFailure)
+        {
+            return false;
+        }
+
+        (PaymentId, FailedPaymentId, FailedPaymentRef) = (paymentId, paymentId, Guard.MaxLength(Guard.NotNullOrWhiteSpace(paymentRef), 25));
+        FailureReason = reason.Length <= 200 ? reason : reason[..200];
+        return true;
+    }
+
+    /// <summary>
+    /// DE-008, command RetryRefundPayout: pay the refund again, to the same or another of the payer's payable accounts, once a second person
+    /// approves (PAYOUT_RETRY). Only after a failed payout, with no retry already waiting, and with the failed payment's reference typed.
+    /// </summary>
+    public Result RequestPayoutRetry(string typedPaymentRef, string reason, Guid bankAccountId, string bankHash, Guid requestedBy, DateTimeOffset now)
+    {
+        if (Status != RefundStatus.PaymentFailed || RetryPending)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition,
+                RetryPending ? "A retry of this refund's payout is already waiting for approval." : "Only a refund whose payout failed is paid again.");
+        }
+
+        if (TypedReference(typedPaymentRef) is { } mismatch)
+        {
+            return mismatch;
+        }
+
+        (RetryPending, RetryRequestedBy, RetryBankAccountId, RetryPayeeBankHash, RetryReason, RetryDecidedBy) =
+            (true, requestedBy, Guard.NotEmpty(bankAccountId), bankHash, Guard.MaxLength(Guard.NotNullOrWhiteSpace(reason), 200), null);
+        Raise(new RefundPayoutRetryRequested(Id, requestedBy, PayoutAttempt + 1, Amount, Currency, FailedPaymentRef!, RetrySubjectHash, now));
+        MarkChanged();
+        return Result.Success();
+    }
+
+    /// <summary>True when this PAYOUT_RETRY approval was already applied: a redelivered grant changes nothing.</summary>
+    public bool RetryGrantedWith(Guid approvalId) => !RetryPending && RetryApprovalId == approvalId;
+
+    /// <summary>
+    /// DE-008: Workflow's decision on the retry. Granted, the refund is approved again on its next attempt, to the account asked for, and its
+    /// new payout is requested; any other ending (rejected, expired, withdrawn) leaves it PaymentFailed with the request cleared. The checker is
+    /// never the requester; an expired or withdrawn approval has no checker. A redelivered ending changes nothing.
+    /// </summary>
+    public Result DecideRetry(bool approved, Guid checkerId, string? subjectHash, Guid approvalId, DateTimeOffset now)
+    {
+        if (!RetryPending)
+        {
+            return approved && RetryApprovalId != approvalId
+                ? Error.Conflict(ErrorCodes.InvalidStateTransition, "No retry of this refund's payout is waiting.")
+                : Result.Success();
+        }
+
+        if (subjectHash != RetrySubjectHash)
+        {
+            return Error.Conflict(BillingErrorCodes.ApprovalSubjectChanged, "The approval was for another attempt, payee account or amount.");
+        }
+
+        var hasChecker = approved || checkerId != Guid.Empty;
+        if (hasChecker && checkerId == RetryRequestedBy)
+        {
+            return MakerChecker.EnsureDifferentPeople(RetryRequestedBy.ToString()!, checkerId.ToString());
+        }
+
+        if (!approved)
+        {
+            (RetryPending, RetryRequestedBy, RetryBankAccountId, RetryPayeeBankHash, RetryReason) = (false, null, null, null, null);
+            MarkChanged();
+            return Result.Success();
+        }
+
+        var fired = Fire(RefundTrigger.RetryGranted);
+        if (fired.IsFailure)
+        {
+            return fired;
+        }
+
+        PayoutAttempt++;
+        (BankAccountId, PayeeBankHash, PaymentId) = (RetryBankAccountId, RetryPayeeBankHash, null);
+        (RetryPending, RetryDecidedBy, RetryApprovalId) = (false, checkerId, approvalId);
+        Raise(new RefundPayoutRetryGranted(Id, PayoutAttempt, Amount, Currency, PayerPartyId, BankAccountId!.Value, now));
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// DE-008, command CancelRefund: after a failed payout, the refund is not paid. Nothing has left the account: a refund is posted only
+    /// when its payout succeeds (REFUND_PAID), so the money simply stays with the account as credit. No approval, since no money moves.
+    /// </summary>
+    public Result Cancel(string typedPaymentRef, string reason, Guid cancelledBy, DateTimeOffset now)
+    {
+        if (Status != RefundStatus.PaymentFailed || RetryPending)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition,
+                RetryPending ? "A retry of this refund's payout is waiting for approval; it is cancelled only once that has ended." : "Only a refund whose payout failed is cancelled.");
+        }
+
+        if (TypedReference(typedPaymentRef) is { } mismatch)
+        {
+            return mismatch;
+        }
+
+        var fired = Fire(RefundTrigger.CancelRefund);
+        if (fired.IsFailure)
+        {
+            return fired;
+        }
+
+        (CancelReason, CancelledBy) = (Guard.MaxLength(Guard.NotNullOrWhiteSpace(reason), 200), cancelledBy);
+        Raise(new RefundCancelled(Id, CancelReason, now));
+        return Result.Success();
+    }
+
+    /// <summary>Ade's rule for money steps (24 November 2026): the failed payment's reference, typed by the person, must be the one recorded.</summary>
+    private Error? TypedReference(string typed) =>
+        string.Equals(typed?.Trim(), FailedPaymentRef, StringComparison.Ordinal)
+            ? null
+            : Error.Validation(ErrorCodes.TypedReferenceMismatch, "The payment reference typed isn't the failed payout's, so nothing was done.");
 
     private Result Fire(RefundTrigger trigger)
     {

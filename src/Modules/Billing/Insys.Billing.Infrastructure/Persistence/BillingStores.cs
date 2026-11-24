@@ -59,16 +59,22 @@ internal sealed class BillingRepository(BillingDbContext db, IExecutionContext e
 
     public async Task<Invoice?> Invoice(Guid id, CancellationToken cancellationToken)
     {
-        var invoice = await db.Invoices.Include(i => i.Lines).Include(i => i.Adjustments).SingleOrDefaultAsync(i => i.Id == id, cancellationToken);
+        var invoice = await db.Invoices.Include(i => i.Lines).Include(i => i.Adjustments).Include(i => i.CreditNoteRequests).SingleOrDefaultAsync(i => i.Id == id, cancellationToken);
         return execution.InScope(invoice, invoice?.ProductCode, invoice?.OrgNodeCode);
     }
 
+    public async Task<Invoice?> InvoiceOfCreditNoteRequest(Guid requestId, CancellationToken cancellationToken)
+    {
+        var invoiceId = await db.Set<CreditNoteRequest>().AsNoTracking().Where(r => r.Id == requestId).Select(r => (Guid?)r.InvoiceId).SingleOrDefaultAsync(cancellationToken);
+        return invoiceId is { } id ? await Invoice(id, cancellationToken) : null;
+    }
+
     public async Task<IReadOnlyList<Invoice>> PolicyInvoices(string sourceDomain, Guid policyRef, CancellationToken cancellationToken) =>
-        await db.Invoices.Include(i => i.Lines).Include(i => i.Adjustments).Where(i => i.SourceDomain == sourceDomain && i.PolicyRef == policyRef)
+        await db.Invoices.Include(i => i.Lines).Include(i => i.Adjustments).Include(i => i.CreditNoteRequests).Where(i => i.SourceDomain == sourceDomain && i.PolicyRef == policyRef)
             .OrderBy(i => i.DueDate).ThenBy(i => i.Id).ToListAsync(cancellationToken);
 
     public async Task<IReadOnlyList<Invoice>> Invoices(Guid accountId, CancellationToken cancellationToken) =>
-        await db.Invoices.Include(i => i.Lines).Include(i => i.Adjustments).Where(i => i.BillingAccountId == accountId).OrderBy(i => i.DueDate).ThenBy(i => i.Id)
+        await db.Invoices.Include(i => i.Lines).Include(i => i.Adjustments).Include(i => i.CreditNoteRequests).Where(i => i.BillingAccountId == accountId).OrderBy(i => i.DueDate).ThenBy(i => i.Id)
             .ToListAsync(cancellationToken);
 
     public async Task<RefundRequest?> Refund(Guid id, CancellationToken cancellationToken)
@@ -336,7 +342,17 @@ internal sealed class BillingEventMapper : IDomainEventMapper
         Domain.Billing.InvoiceIssued e => new Contracts.InvoiceIssued(e.InvoiceId, e.InvoiceNumber, e.BillingAccountId, e.PayerPartyId, e.PaymentMethod, e.SourceDomain, e.PolicyRef, e.ProductVersionRef,
             e.IssueDate, e.DueDate, e.Currency, e.NetAmount, e.TaxAmount, e.TotalAmount, e.TaxCode),
         Domain.Billing.CreditNoteIssued e => new Contracts.CreditNoteIssued(e.CreditNoteId, e.CreditNoteNumber, e.InvoiceId, e.BillingAccountId, e.SourceDomain,
-            e.PolicyRef, e.IssueDate, e.Currency, e.TotalAmount, e.ReasonCode, e.TaxAmount, e.TaxCode),
+            e.PolicyRef, e.IssueDate, e.Currency, e.TotalAmount, e.ReasonCode, e.TaxAmount, e.TaxCode, e.InvoiceOutstanding),
+        // DE-010: a credit note whose reason requires approval asks Workflow for a CREDIT_NOTE approval.
+        CreditNoteApprovalRequested e => new BuildingBlocks.Contracts.Approvals.ApprovalRequested(BillingApprovals.CreditNoteBusinessRefType, e.RequestId,
+            BillingApprovals.CreditNoteApprovalType, e.RequestedBy, e.Amount, e.Currency, $"Credit note for {e.InvoiceNumber} ({e.ReasonCode})", e.SubjectHash),
+        // DE-008: a refund's failed payout is paid again on a PAYOUT_RETRY approval, or abandoned when the refund is cancelled.
+        RefundPayoutRetryRequested e => new BuildingBlocks.Contracts.Approvals.ApprovalRequested(BillingApprovals.RefundBusinessRefType, e.RefundId,
+            Payments.Contracts.PaymentApprovals.PayoutRetryApprovalType, e.RequestedBy, e.Amount, e.Currency,
+            $"Refund payout retry, attempt {e.Attempt}, after {e.FailedPaymentRef} failed", e.SubjectHash),
+        RefundPayoutRetryGranted e => new Payments.Contracts.PayoutRequested(BillingApprovals.RefundBusinessRefType, e.RefundId, e.Attempt, Payments.Contracts.PaymentPurposes.Refund,
+            e.Amount, e.Currency, e.PayerPartyId, e.BankAccountId, Gated: true),
+        RefundCancelled e => new Payments.Contracts.PayoutAbandoned(BillingApprovals.RefundBusinessRefType, e.RefundId, e.Reason),
         Domain.Billing.InvoiceSettled e => new Contracts.InvoiceSettled(e.InvoiceId, e.BillingAccountId, e.SourceDomain, e.PolicyRef),
         Domain.Billing.InvoiceOverdue e => new Contracts.InvoiceOverdue(e.InvoiceId, e.BillingAccountId, e.SourceDomain, e.PolicyRef, e.DueDate, e.Outstanding, e.Currency),
         Domain.Billing.ArrearsAgeingBlocked e => new Contracts.ArrearsAgeingBlocked(e.AccountId, e.BucketCode, e.DaysOverdue),

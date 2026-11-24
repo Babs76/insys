@@ -21,7 +21,9 @@ Answers to questions the front end raises that the OpenAPI documents cannot answ
 | `ENDORSEMENT` | `PendingApproval` | `Approved`, then applied | `Rejected` (final) | Draft a new endorsement |
 | `CLAIM_PAYMENT` (new instruction) | `PendingApproval` | `Approved`; the payment is created | `Rejected` (final) | Draft a new instruction with a new `instructionRef` |
 | `CLAIM_PAYMENT` (payee change on retry or redirect) | Instruction keeps its status, new payee pending | New payee applied | New payee cleared | Retry or redirect again |
-| `REFUND` | `Requested` | `Approved`; paid | `Rejected` (final) | Raise a new refund |
+| `REFUND` | `Requested` | `Approved`; paid, or `PaymentFailed` if its payout fails (DE-008) | `Rejected` (final) | Raise a new refund |
+| `PAYOUT_RETRY` (a refund, DE-008) | Refund `PaymentFailed`, `retryPending` | Refund `Approved` on its next `payoutAttempt`; its new payout waits for a released batch, then `Paid` | Refund stays `PaymentFailed`, retry cleared | Ask for a retry again, or cancel the refund (`…/cancel`, its money kept as credit) |
+| `CREDIT_NOTE` (DE-010) | Credit note request `Pending`; the invoice still takes payments | Request `Issued`, its credit note for what the invoice still asks for, at most the amount asked; `Lapsed`, nothing credited, if nothing is outstanding by then | Request `Rejected`, nothing credited | Ask for a credit note again |
 | `COMMISSION_STATEMENT` | `Draft`, submitted | `Approved`; paid out | `Draft` again; its entitlements and recoveries are released for the next statement | Prepare a statement again |
 | `PERIOD_REOPEN` | `SoftClose`, reopen requested | Reopened | `SoftClose`, request cleared | Request again, or close |
 | `PRODUCT_PUBLICATION` | Version `Submitted` | Published | Version `Draft`, simulations stale | Edit, validate, simulate, submit again |

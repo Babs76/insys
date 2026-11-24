@@ -96,7 +96,9 @@ public sealed class BillingTests
     [Fact]
     public void RefundRequest_Lifecycle_MatchesDomainModel()
     {
+        // DE-008 (Ade, 24 November 2026): a failed payout, then a retry granted or the refund cancelled; domain-model.json has neither.
         var specified = DomainModelSpec.Transitions("billing", "RefundRequest").Select(t => t.Replace("Payment succeeded", "PaymentSucceeded", StringComparison.Ordinal))
+            .Concat(["Approved-PaymentFailed->PaymentFailed", "PaymentFailed-RetryGranted->Approved", "PaymentFailed-CancelRefund->Cancelled"])
             .OrderBy(t => t, StringComparer.Ordinal).ToList();
         RefundRequest.Lifecycle.Transitions.Select(t => $"{t.From}-{t.Trigger}->{t.To}").OrderBy(t => t, StringComparer.Ordinal).ToList().ShouldBe(specified);
     }

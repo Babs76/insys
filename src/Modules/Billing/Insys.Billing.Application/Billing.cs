@@ -53,6 +53,9 @@ public interface IBillingRepository
 
     Task<RefundRequest?> Refund(Guid id, CancellationToken cancellationToken);
 
+    /// <summary>DE-010: the invoice a credit note request belongs to, with its requests.</summary>
+    Task<Invoice?> InvoiceOfCreditNoteRequest(Guid requestId, CancellationToken cancellationToken);
+
     /// <summary>BR-054: accounts with a schedule in the caller's scope, by payer, policy and status, by ID after <paramref name="afterId"/>.</summary>
     Task<IReadOnlyList<BillingAccount>> Accounts(Guid? payerPartyId, Guid? policyRef, AccountStatus? status, Guid? afterId, int limit, CancellationToken cancellationToken);
 
@@ -190,20 +193,45 @@ internal static class AccountScopes
 
 public sealed record InvoiceLineView(int LineNo, [property: OneOf("PREMIUM", "CREDIT")] string ChargeType, string Description, decimal Amount);
 
+/// <param name="CreditNoteRequests">DE-010: credit notes asked for with a reason that requires approval, pending or decided, oldest first.</param>
 public sealed record InvoiceView(Guid Id, string InvoiceNumber, [property: OneOf("Invoice", "CreditNote")] string DocumentType, Guid BillingAccountId,
     [property: OneOf("LIFE", "GENERAL", "HEALTH")] string SourceDomain, Guid PolicyRef, string ProductVersionRef,
     DateOnly IssueDate, DateOnly DueDate, string Currency, decimal NetAmount, decimal TaxAmount, decimal TotalAmount, decimal AllocatedAmount, decimal Credited,
-    decimal Outstanding, InvoiceStatus Status, Guid? ReversesInvoiceId, IReadOnlyList<InvoiceLineView> Lines)
+    decimal Outstanding, InvoiceStatus Status, Guid? ReversesInvoiceId, IReadOnlyList<InvoiceLineView> Lines, IReadOnlyList<CreditNoteRequestView>? CreditNoteRequests = null)
 {
     public static InvoiceView From(Invoice i) => new(i.Id, i.InvoiceNumber, i.DocumentType.ToString(), i.BillingAccountId, i.SourceDomain, i.PolicyRef,
         i.ProductVersionRef, i.IssueDate, i.DueDate, i.Currency, i.NetAmount, i.TaxAmount, i.TotalAmount, i.AllocatedAmount, i.Credited, i.Outstanding,
-        i.Status, i.ReversesInvoiceId, i.Lines.OrderBy(l => l.LineNo).Select(l => new InvoiceLineView(l.LineNo, l.ChargeType, l.Description, l.Amount)).ToList());
+        i.Status, i.ReversesInvoiceId, i.Lines.OrderBy(l => l.LineNo).Select(l => new InvoiceLineView(l.LineNo, l.ChargeType, l.Description, l.Amount)).ToList(),
+        i.CreditNoteRequests.OrderBy(r => r.RequestedAt).ThenBy(r => r.Id).Select(CreditNoteRequestView.From).ToList());
 }
 
+/// <summary>
+/// DE-010 (OQ-058, Ade, 24 November 2026): a credit note asked for with a reason that requires approval. Pending, it waits for its CREDIT_NOTE
+/// approval; Issued, its credit note is <paramref name="CreditNoteId"/> for <paramref name="CreditedAmount"/> (what the invoice still asked for, at
+/// most the amount asked); Lapsed, nothing was outstanding when it was approved, so nothing was credited; Rejected, the approval ended without
+/// being granted (<paramref name="Ending"/>: REJECTED, EXPIRED or WITHDRAWN).
+/// </summary>
+public sealed record CreditNoteRequestView(Guid Id, Guid InvoiceId, decimal Amount, string Currency, [property: CodeList(BillingCodeLists.AdjustmentReasons, "code")] string ReasonCode,
+    CreditNoteRequestStatus Status, Guid RequestedBy, DateTimeOffset RequestedAt, Guid? DecidedBy, Guid? ApprovalId,
+    [property: OneOf("REJECTED", "EXPIRED", "WITHDRAWN")] string? Ending, Guid? CreditNoteId, decimal? CreditedAmount, LatestRejection? LatestRejection = null)
+{
+    public static CreditNoteRequestView From(CreditNoteRequest r) => new(r.Id, r.InvoiceId, r.Amount, r.Currency, r.ReasonCode, r.Status, r.RequestedBy, r.RequestedAt,
+        r.DecidedBy, r.ApprovalId, r.Ending, r.CreditNoteId, r.CreditedAmount);
+}
+
+/// <summary>A credit note's outcome: issued at once (201, <paramref name="CreditNote"/>), or asked for, waiting for approval (202, <paramref name="Request"/>; DE-010).</summary>
+public sealed record CreditNoteOutcome(InvoiceView? CreditNote, CreditNoteRequestView? Request);
+
 /// <param name="ApprovalId">The Workflow approval that approved the refund (BR-055); null until approved, and for refunds approved before V0084.</param>
+/// <param name="PayoutAttempt">DE-008: 1 for the first payout, one more for each retry granted.</param>
+/// <param name="FailedPaymentRef">DE-008: the last failed payout's reference, which a retry or cancellation must be given, typed; with why it failed.</param>
+/// <param name="RetryPending">DE-008: a PAYOUT_RETRY approval is waiting.</param>
+/// <param name="CancelReason">DE-008: why the refund was cancelled after its payout failed.</param>
 public sealed record RefundView(Guid Id, Guid BillingAccountId, decimal Amount, string Currency, [property: CodeList(BillingCodeLists.AdjustmentReasons, "code")] string ReasonCode,
     RefundStatus Status, Guid? PaymentId, Guid? RequestedBy, Guid? DecidedBy, Guid? BankAccountId, LatestRejection? LatestRejection = null, Guid? ApprovalId = null,
-    long RowVersion = 0);
+    long RowVersion = 0, int PayoutAttempt = 1, Guid? FailedPaymentId = null, string? FailedPaymentRef = null, string? FailureReason = null, bool RetryPending = false,
+    Guid? RetryRequestedBy = null, Guid? RetryBankAccountId = null, Guid? RetryDecidedBy = null, Guid? RetryApprovalId = null, string? CancelReason = null,
+    Guid? CancelledBy = null);
 
 public sealed record OpenAccount(Guid PayerPartyId, string Currency, string CollectionMethod, string? MandateRef) : ICommand<AccountView>;
 
@@ -216,7 +244,11 @@ public sealed record AmendSchedule(Guid AccountId, Guid ScheduleId, decimal Inst
 /// <summary>Command IssueInvoice for every schedule of the account with instalments due by the day.</summary>
 public sealed record IssueDueInvoices(Guid AccountId, DateOnly AsOf) : ICommand<IReadOnlyList<InvoiceView>>;
 
-public sealed record RaiseCreditNote(Guid InvoiceId, decimal Amount, string ReasonCode) : ICommand<InvoiceView>;
+/// <summary>Command RaiseCreditNote (BIL-004); with a reason that requires approval, it asks for one instead (DE-010).</summary>
+public sealed record RaiseCreditNote(Guid InvoiceId, decimal Amount, string ReasonCode) : ICommand<CreditNoteOutcome>;
+
+/// <summary>DE-010: a credit note request, by ID (the record a CREDIT_NOTE approval names).</summary>
+public sealed record GetCreditNoteRequest(Guid RequestId) : IQuery<CreditNoteRequestView>;
 
 /// <summary>Commands DetectArrears (with the overdue invoices) and the "Due date passed" transition of its invoices.</summary>
 public sealed record AgeAccount(Guid AccountId, DateOnly Today) : ICommand<AccountView>;
@@ -225,6 +257,15 @@ public sealed record CloseAccount(Guid AccountId) : ICommand<AccountView>;
 
 /// <param name="BankAccountId">The payer's verified bank account (party.bank_account) the refund is paid to; the approval covers it.</param>
 public sealed record RequestRefund(Guid AccountId, decimal Amount, string ReasonCode, Guid BankAccountId) : ICommand<RefundView>;
+
+/// <summary>
+/// DE-008, command RetryRefundPayout: pay a refund whose payout failed again, once a second person approves (PAYOUT_RETRY). The failed payment's
+/// reference is typed (<paramref name="PaymentRef"/>); <paramref name="BankAccountId"/>, when given, is another of the payer's payable accounts.
+/// </summary>
+public sealed record RetryRefundPayout(Guid RefundId, string PaymentRef, string Reason, Guid? BankAccountId) : ICommand<RefundView>;
+
+/// <summary>DE-008, command CancelRefund: a refund whose payout failed is not paid; its money stays with the account as credit.</summary>
+public sealed record CancelRefund(Guid RefundId, string PaymentRef, string Reason) : ICommand<RefundView>;
 
 public sealed record GetAccount(Guid AccountId) : IQuery<AccountView>;
 
@@ -271,6 +312,24 @@ public sealed class RaiseCreditNoteValidator : AbstractValidator<RaiseCreditNote
     {
         RuleFor(c => c.Amount).GreaterThan(0).PrecisionScale(18, 2, true);
         RuleFor(c => c.ReasonCode).NotEmpty().MaximumLength(15);
+    }
+}
+
+public sealed class RetryRefundPayoutValidator : AbstractValidator<RetryRefundPayout>
+{
+    public RetryRefundPayoutValidator()
+    {
+        RuleFor(c => c.PaymentRef).NotEmpty().MaximumLength(25);
+        RuleFor(c => c.Reason).NotEmpty().MaximumLength(200);
+    }
+}
+
+public sealed class CancelRefundValidator : AbstractValidator<CancelRefund>
+{
+    public CancelRefundValidator()
+    {
+        RuleFor(c => c.PaymentRef).NotEmpty().MaximumLength(25);
+        RuleFor(c => c.Reason).NotEmpty().MaximumLength(200);
     }
 }
 
@@ -442,9 +501,9 @@ public static class DueInvoices
 }
 
 internal sealed class RaiseCreditNoteHandler(IBillingRepository billing, IBillingCodes codes, IExecutionContext execution, IBusinessDate businessDate, IClock clock, IAuditTrail audit)
-    : ICommandHandler<RaiseCreditNote, InvoiceView>
+    : ICommandHandler<RaiseCreditNote, CreditNoteOutcome>
 {
-    public async Task<Result<InvoiceView>> Handle(RaiseCreditNote command, CancellationToken cancellationToken)
+    public async Task<Result<CreditNoteOutcome>> Handle(RaiseCreditNote command, CancellationToken cancellationToken)
     {
         var user = Users.Require(execution);
         if (user.IsFailure)
@@ -464,8 +523,19 @@ internal sealed class RaiseCreditNoteHandler(IBillingRepository billing, IBillin
 
         if (reason.RequiresApproval)
         {
-            // TODO(spec): credit notes whose reason requires approval go through Workflow; not built yet (OQ-058).
-            return Error.Validation(BillingErrorCodes.CodeNotInForce, $"Credit notes for reason {reason.Code} need an approval, which is not available yet.");
+            // DE-010 (OQ-058, Ade, 24 November 2026): asked for, waiting for a CREDIT_NOTE approval; issued when granted.
+            var request = invoice.RequestCreditNote(Guid.CreateVersion7(), command.Amount, reason, user.Value, clock.UtcNow);
+            if (request.IsFailure)
+            {
+                return request.Error;
+            }
+
+            audit.Record(new AuditEntry("BILLING", "RequestCreditNote", nameof(Invoice), invoice.Id.ToString(),
+                new Dictionary<string, string?>
+                {
+                    ["request"] = request.Value.Id.ToString(), ["reason"] = reason.Code, ["amount"] = command.Amount.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                }));
+            return new CreditNoteOutcome(null, CreditNoteRequestView.From(request.Value));
         }
 
         audit.Record(new AuditEntry("BILLING", "RaiseCreditNote", nameof(Invoice), invoice.Id.ToString(),
@@ -478,8 +548,21 @@ internal sealed class RaiseCreditNoteHandler(IBillingRepository billing, IBillin
         }
 
         billing.Add(credit.Value);
-        return InvoiceView.From(credit.Value);
+        return new CreditNoteOutcome(InvoiceView.From(credit.Value), null);
     }
+}
+
+internal sealed class GetCreditNoteRequestHandler(IBillingRepository billing, IApprovalHistory approvals) : IQueryHandler<GetCreditNoteRequest, CreditNoteRequestView>
+{
+    /// <summary>The request through its invoice, so the caller's scope over the invoice applies (F103), with how its approval ended if not granted (OQ-113).</summary>
+    public async Task<Result<CreditNoteRequestView>> Handle(GetCreditNoteRequest query, CancellationToken cancellationToken) =>
+        await billing.InvoiceOfCreditNoteRequest(query.RequestId, cancellationToken) is { } invoice
+            && invoice.CreditNoteRequests.SingleOrDefault(r => r.Id == query.RequestId) is { } request
+            ? CreditNoteRequestView.From(request) with
+            {
+                LatestRejection = await approvals.Latest(BillingApprovals.CreditNoteBusinessRefType, request.Id, cancellationToken),
+            }
+            : Error.NotFound(ErrorCodes.NotFound, "The credit note request was not found.");
 }
 
 internal sealed class AgeAccountHandler(IBillingRepository billing, IBillingCodes codes, IClock clock, IExecutionContext execution) : ICommandHandler<AgeAccount, AccountView>
@@ -571,6 +654,83 @@ internal sealed class RequestRefundHandler(IBillingRepository billing, IBankAcco
     }
 }
 
+/// <summary>
+/// DE-008: a refund whose payout failed is paid again on a second person's PAYOUT_RETRY approval, to the same account or another of the payer's
+/// verified, current accounts in the refund's currency, as a refund is first paid to. The failed payment's reference is typed.
+/// </summary>
+internal sealed class RetryRefundPayoutHandler(IBillingRepository billing, IBankAccounts bankAccounts, ITenantContext tenant, IExecutionContext execution, IClock clock,
+    IAuditTrail audit) : ICommandHandler<RetryRefundPayout, RefundView>
+{
+    public async Task<Result<RefundView>> Handle(RetryRefundPayout command, CancellationToken cancellationToken)
+    {
+        var user = Users.Require(execution);
+        if (user.IsFailure)
+        {
+            return user.Error;
+        }
+
+        if (await billing.Refund(command.RefundId, cancellationToken) is not { } refund)
+        {
+            return Error.NotFound(ErrorCodes.NotFound, "The refund was not found.");
+        }
+
+        // The account the retry pays: the one asked for, or the refund's own; either is checked as the first payout's was, since the payer's
+        // accounts may have changed since it failed.
+        var bankAccountId = command.BankAccountId ?? refund.BankAccountId!.Value;
+        if (await bankAccounts.Get(tenant.RequireTenantId(), bankAccountId, cancellationToken) is not { IsPayable: true } bank
+            || bank.PartyId != refund.PayerPartyId || bank.Currency != refund.Currency)
+        {
+            return Error.Validation(BillingErrorCodes.BankAccountNotPayable, "The bank account is not the payer's verified, current account in the refund's currency.");
+        }
+
+        var result = refund.RequestPayoutRetry(command.PaymentRef, command.Reason, bank.Id, bank.AccountNumberHash, user.Value, clock.UtcNow);
+        if (result.IsFailure)
+        {
+            return result.Error;
+        }
+
+        audit.Record(new AuditEntry("BILLING", "RetryRefundPayout", nameof(RefundRequest), refund.Id.ToString(),
+            new Dictionary<string, string?>
+            {
+                ["failedPayment"] = refund.FailedPaymentRef, ["attempt"] = (refund.PayoutAttempt + 1).ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["bankAccount"] = bank.Id.ToString(),
+            }));
+        return Views.From(refund);
+    }
+}
+
+/// <summary>
+/// DE-008: a refund whose payout failed is cancelled, with the failed payment's reference typed. No approval: no money moves. A refund is
+/// posted to the ledger only when its payout succeeds (REFUND_PAID), and Billing keeps no separate credit balance, so nothing has to be put back:
+/// the payer's money stays with the account as credit. Payments is told the payout is abandoned (PayoutAbandoned).
+/// </summary>
+internal sealed class CancelRefundHandler(IBillingRepository billing, IExecutionContext execution, IClock clock, IAuditTrail audit) : ICommandHandler<CancelRefund, RefundView>
+{
+    public async Task<Result<RefundView>> Handle(CancelRefund command, CancellationToken cancellationToken)
+    {
+        var user = Users.Require(execution);
+        if (user.IsFailure)
+        {
+            return user.Error;
+        }
+
+        if (await billing.Refund(command.RefundId, cancellationToken) is not { } refund)
+        {
+            return Error.NotFound(ErrorCodes.NotFound, "The refund was not found.");
+        }
+
+        var result = refund.Cancel(command.PaymentRef, command.Reason, user.Value, clock.UtcNow);
+        if (result.IsFailure)
+        {
+            return result.Error;
+        }
+
+        audit.Record(new AuditEntry("BILLING", "CancelRefund", nameof(RefundRequest), refund.Id.ToString(),
+            new Dictionary<string, string?> { ["failedPayment"] = refund.FailedPaymentRef }));
+        return Views.From(refund);
+    }
+}
+
 internal sealed class GetAccountHandler(IBillingRepository billing, IExecutionContext execution) : IQueryHandler<GetAccount, AccountView>,
     IQueryHandler<ListAccounts, IReadOnlyList<AccountView>>, IQueryHandler<ListRefunds, IReadOnlyList<RefundView>>
 {
@@ -639,7 +799,8 @@ internal sealed class AccountsDueHandler(IBillingRepository billing) : IQueryHan
 internal static class Views
 {
     public static RefundView From(RefundRequest r) => new(r.Id, r.BillingAccountId, r.Amount, r.Currency, r.ReasonCode, r.Status, r.PaymentId, r.RequestedBy,
-        r.DecidedBy, r.BankAccountId, null, r.ApprovalId, r.RowVersion);
+        r.DecidedBy, r.BankAccountId, null, r.ApprovalId, r.RowVersion, r.PayoutAttempt, r.FailedPaymentId, r.FailedPaymentRef, r.FailureReason, r.RetryPending,
+        r.RetryRequestedBy, r.RetryBankAccountId, r.RetryDecidedBy, r.RetryApprovalId, r.CancelReason, r.CancelledBy);
 }
 
 /// <summary>
@@ -674,12 +835,14 @@ public sealed class PremiumOffsets(IBillingRepository billing, IClock clock, Mic
 
 /// <summary>
 /// Billing's policies: payments allocated mark invoices settled (BIL-003); a reversed payment reopens them; Workflow's
-/// decision on a refund; a succeeded refund payment marks the refund paid.
+/// decision on a refund, a refund's payout retry (DE-008) and a credit note request (DE-010); a succeeded refund payment
+/// marks the refund paid, a failed one marks its payout failed (DE-008).
 /// </summary>
-public sealed class BillingPolicies(IBillingRepository billing, IBusinessDate businessDate, IClock clock) :
+public sealed class BillingPolicies(IBillingRepository billing, IBillingCodes codes, IBusinessDate businessDate, IClock clock) :
     IIntegrationEventHandler<PaymentAllocated>,
     IIntegrationEventHandler<PaymentReversed>,
     IIntegrationEventHandler<PaymentSucceeded>,
+    IIntegrationEventHandler<PaymentFailed>,
     IIntegrationEventHandler<PaymentInitiated>,
     IIntegrationEventHandler<ApprovalGranted>,
     IIntegrationEventHandler<ApprovalRejected>
@@ -724,19 +887,43 @@ public sealed class BillingPolicies(IBillingRepository billing, IBusinessDate bu
     }
 
     /// <summary>
+    /// DE-008: the refund's payout failed (a refund payment, for this refund): the refund is PaymentFailed, with the failed payment's reference
+    /// and reason, until a retry is approved or it is cancelled. A redelivery, or a failure of a payout the refund has moved on from, changes nothing.
+    /// </summary>
+    public async Task Handle(PaymentFailed failed, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (failed.Purpose == PaymentPurposes.Refund && failed.BusinessRefType == BillingApprovals.RefundBusinessRefType && failed.BusinessRefId is { } refundId
+            && await billing.Refund(refundId, cancellationToken) is { } refund)
+        {
+            refund.MarkPaymentFailed(failed.PaymentId, failed.PaymentRef, failed.Reason);
+        }
+    }
+
+    /// <summary>
     /// The refund's approval was granted: the refund is approved and its payout follows. A refund already approved by this
     /// checker is a redelivery; one that will not take the approval (it changed after it was submitted: another subject,
-    /// already decided otherwise) parks the delivery (APPROVAL_NOT_APPLIED, ADR-022, D-5), never only logged.
+    /// already decided otherwise) parks the delivery (APPROVAL_NOT_APPLIED, ADR-022, D-5), never only logged. A granted
+    /// PAYOUT_RETRY approves the refund again on its next attempt and requests its new payout (DE-008); a granted CREDIT_NOTE
+    /// issues the credit note for what the invoice still asks for (DE-010).
     /// </summary>
     public async Task Handle(ApprovalGranted granted, EventEnvelope envelope, CancellationToken cancellationToken)
     {
-        if (granted.BusinessRefType != BillingApprovals.RefundBusinessRefType || await billing.Refund(granted.BusinessRefId, cancellationToken) is not { } refund
-            || refund.GrantedBy(granted.CheckerId))
+        var applied = (granted.BusinessRefType, granted.ApprovalType) switch
         {
-            return;
-        }
+            (BillingApprovals.RefundBusinessRefType, PaymentApprovals.PayoutRetryApprovalType) =>
+                await billing.Refund(granted.BusinessRefId, cancellationToken) is not { } refund || refund.RetryGrantedWith(granted.ApprovalId)
+                    ? Result.Success()
+                    : refund.DecideRetry(true, granted.CheckerId, granted.SubjectHash, granted.ApprovalId, clock.UtcNow),
+            (BillingApprovals.RefundBusinessRefType, _) =>
+                await billing.Refund(granted.BusinessRefId, cancellationToken) is not { } refund || refund.GrantedBy(granted.CheckerId)
+                    ? Result.Success()
+                    : refund.Decide(true, granted.CheckerId, granted.SubjectHash, clock.UtcNow, granted.ApprovalId),
+            (BillingApprovals.CreditNoteBusinessRefType, _) => await DecideCreditNote(granted.BusinessRefId, true, granted.CheckerId, granted.SubjectHash, granted.ApprovalId,
+                "GRANTED", cancellationToken),
+            _ => Result.Success(),
+        };
 
-        if (refund.Decide(true, granted.CheckerId, granted.SubjectHash, clock.UtcNow, granted.ApprovalId).IsFailure)
+        if (applied.IsFailure)
         {
             throw new PrerequisiteMissingException(PrerequisiteCodes.ApprovalNotApplied, $"{granted.ApprovalType}:{granted.ApprovalId}");
         }
@@ -745,14 +932,53 @@ public sealed class BillingPolicies(IBillingRepository billing, IBusinessDate bu
     /// <summary>
     /// The refund's approval ended without being granted, whether rejected, expired or withdrawn: the refund is rejected for
     /// good. A refund that will not take the ending (another subject, the requester as checker, already decided otherwise)
-    /// parks the delivery (ADR-022, D-5); one already rejected is a redelivery.
+    /// parks the delivery (ADR-022, D-5); one already rejected is a redelivery. A PAYOUT_RETRY that ends so leaves the refund
+    /// PaymentFailed with its request cleared (DE-008); a CREDIT_NOTE clears its request, crediting nothing (DE-010).
     /// </summary>
     public async Task Handle(ApprovalRejected rejected, EventEnvelope envelope, CancellationToken cancellationToken)
     {
-        if (rejected.BusinessRefType == BillingApprovals.RefundBusinessRefType && await billing.Refund(rejected.BusinessRefId, cancellationToken) is { } refund
-            && refund.Decide(false, rejected.CheckerId, rejected.SubjectHash, clock.UtcNow).IsFailure)
+        var applied = (rejected.BusinessRefType, rejected.ApprovalType) switch
+        {
+            (BillingApprovals.RefundBusinessRefType, PaymentApprovals.PayoutRetryApprovalType) =>
+                await billing.Refund(rejected.BusinessRefId, cancellationToken) is { } refund
+                    ? refund.DecideRetry(false, rejected.CheckerId, rejected.SubjectHash, rejected.ApprovalId, clock.UtcNow)
+                    : Result.Success(),
+            (BillingApprovals.RefundBusinessRefType, _) =>
+                await billing.Refund(rejected.BusinessRefId, cancellationToken) is { } refund
+                    ? refund.Decide(false, rejected.CheckerId, rejected.SubjectHash, clock.UtcNow)
+                    : Result.Success(),
+            (BillingApprovals.CreditNoteBusinessRefType, _) => await DecideCreditNote(rejected.BusinessRefId, false, rejected.CheckerId, rejected.SubjectHash,
+                rejected.ApprovalId, rejected.Ending, cancellationToken),
+            _ => Result.Success(),
+        };
+
+        if (applied.IsFailure)
         {
             throw new PrerequisiteMissingException(PrerequisiteCodes.ApprovalEndingNotApplied, $"{rejected.ApprovalType}:{rejected.ApprovalId}");
         }
+    }
+
+    /// <summary>DE-010: the credit note request's decision, on its invoice; a credit note issued is added as its own document.</summary>
+    private async Task<Result> DecideCreditNote(Guid requestId, bool approved, Guid checkerId, string? subjectHash, Guid approvalId, string ending,
+        CancellationToken cancellationToken)
+    {
+        if (await billing.InvoiceOfCreditNoteRequest(requestId, cancellationToken) is not { } invoice)
+        {
+            return Result.Success();
+        }
+
+        var decided = invoice.DecideCreditNote(requestId, approved, checkerId, subjectHash, approvalId, ending, Guid.CreateVersion7(),
+            await codes.NumberPrefix("CREDIT_NOTE", businessDate.Today, cancellationToken), businessDate.Today, clock.UtcNow);
+        if (decided.IsFailure)
+        {
+            return decided.Error!;
+        }
+
+        if (decided.Value is { } credit)
+        {
+            billing.Add(credit);
+        }
+
+        return Result.Success();
     }
 }

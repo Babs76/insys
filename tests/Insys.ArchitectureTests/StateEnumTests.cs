@@ -105,6 +105,8 @@ public sealed partial class StateEnumTests
         [("CommissionStatement", "Invoiced", "extra")] = "OQ-062 (Ade, 24 November 2026): what a carried-forward statement still carried was invoiced to the intermediary.",
         [("CommissionStatement", "PaymentFailed", "extra")] = "DE-008 (Ade, 24 November 2026): the statement's payout failed, until a second person grants its retry.",
         [("CaseRedress", "PaymentFailed", "extra")] = "DE-008 (Ade, 24 November 2026): a redress whose payout failed waits PaymentFailed for a retry a second person approves (PAYOUT_RETRY).",
+        [("RefundRequest", "PaymentFailed", "extra")] = "DE-008 (Ade, 24 November 2026): a refund whose payout failed waits for a PAYOUT_RETRY or to be cancelled; domain-model.json has no failure.",
+        [("RefundRequest", "Cancelled", "extra")] = "DE-008 (Ade, 24 November 2026): a refund cancelled after its payout failed, its money kept as credit; domain-model.json has no such state.",
         [("UserAccount", "PendingIdentity", "extra")] = "keycloak-user-provisioning (signed off 24 October 2026) §4: a user of INSYS's own realm waits for its Keycloak user.",
     };
 
