@@ -35,11 +35,27 @@ public interface IDeadLetterRepository
     void Add(DeadLetter deadLetter);
 }
 
-public sealed record DeadLetterSummary(Guid Id, string Source, string MessageRef, DeadLetterStatus Status, short Attempts, DateTimeOffset FirstFailedAt);
+/// <summary>
+/// DE-007: the delivery ledger's side of a discard. In the command's (or policy's) own transaction, the event's deliveries left DEAD_LETTERED
+/// (integration.parked_delivery) become DISCARDED, so later events for the same records no longer wait behind them (ADR-022 decision 3).
+/// </summary>
+public interface IDeadLetterReleases
+{
+    /// <param name="source">The dead letter's source: a ledger-made one ("ledger:&lt;consumer&gt;") releases that consumer's delivery only.</param>
+    /// <returns>How many deliveries were discarded.</returns>
+    Task<int> DiscardDeliveries(Guid eventId, string source, string discardedBy, string reason, CancellationToken cancellationToken);
+}
 
+/// <param name="DiscardRequestedBy">DE-007: who asked for the discard of a money message that waits for a second person's approval (status DiscardRequested).</param>
+public sealed record DeadLetterSummary(Guid Id, string Source, string MessageRef, DeadLetterStatus Status, short Attempts, DateTimeOffset FirstFailedAt,
+    Guid? DiscardRequestedBy = null, DateTimeOffset? DiscardRequestedAt = null, string? DiscardReason = null);
+
+/// <param name="DiscardReason">Why it was discarded, or why its discard was asked for (DE-007).</param>
+/// <param name="DiscardApprovedBy">The second person who approved the discard of a money message (DE-007).</param>
 public sealed record DeadLetterDetail(
     Guid Id, string Source, string MessageRef, DeadLetterStatus Status, short Attempts, DateTimeOffset FirstFailedAt, string Error,
-    System.Text.Json.JsonElement Payload, Guid? ResolvedBy, long RowVersion);
+    System.Text.Json.JsonElement Payload, Guid? ResolvedBy, long RowVersion, Guid? DiscardRequestedBy = null, DateTimeOffset? DiscardRequestedAt = null,
+    string? DiscardReason = null, Guid? DiscardApprovedBy = null);
 
 public interface IDeadLetterQueries
 {

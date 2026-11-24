@@ -51,6 +51,16 @@ public static class IntegrationInfrastructure
         BuildingBlocks.Application.DashboardFigureCodes.Declare(Insys.Integration.Application.Parking.DeliveryFigures.Parked, Insys.Integration.Application.Parking.DeliveryFigures.Failing, Insys.Integration.Application.Parking.DeliveryFigures.DeadLettersOpen,
             Insys.Integration.Application.Parking.DeliveryFigures.WebhooksFailing, Insys.Integration.Application.Parking.DeliveryFigures.OldestParkedAt, Insys.Integration.Application.Parking.DeliveryFigures.JobFunctionsOff);
         services.AddModuleDbContext<IntegrationDbContext>(IntegrationDbContext.SchemaName, "Integration");
+
+        // DE-007: a money dead letter's discard is approved by a second person; dead letters are tenant-wide operations records, not scoped.
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Domain.DeadLetters.DiscardApproval.BusinessRefType, "INTEGRATION_DEAD_LETTERS",
+            Domain.DeadLetters.DiscardApproval.ApprovalType);
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.Unscoped(Domain.DeadLetters.DiscardApproval.BusinessRefType,
+            "a dead letter is the tenant's operations queue for failed deliveries, not a product's or branch's record (ADR-022)");
+        services.AddDomainEventMapper<IntegrationEventMapper>(IntegrationDbContext.SchemaName);
+        services.AddScoped<IDeadLetterReleases, DeadLetterReleases>();
+        services.AddIntegrationEventHandler<Workflow.Contracts.ApprovalGranted, DeadLetterDiscardPolicies, IntegrationDbContext>(IntegrationDbContext.SchemaName, "ApprovalGranted");
+        services.AddIntegrationEventHandler<Workflow.Contracts.ApprovalRejected, DeadLetterDiscardPolicies, IntegrationDbContext>(IntegrationDbContext.SchemaName, "ApprovalRejected");
         services.AddStaticData<IntegrationDbContext>(IntegrationDbContext.SchemaName, IntegrationStaticData.Descriptors);
         services.AddSingleton<IStaticRecordValidator, Channels.ChannelRowValidator>();
         services.AddModuleHandlers<IntegrationDbContext>(typeof(DeadLetterMessage).Assembly);
