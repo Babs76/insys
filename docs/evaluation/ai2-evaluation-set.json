@@ -242,6 +242,14 @@
       "fieldsInError": 0
     },
     {
+      "id": "R-CLAWBACK_INVOICE_NOT_DUE",
+      "code": "CLAWBACK_INVOICE_NOT_DUE",
+      "retryable": false,
+      "means": "The carried amount has not been owed long enough to invoice, and the intermediary is not terminated.",
+      "remedy": "Invoice it once it has been carried for the tenant\u0027s number of days (90 unless set in the commission settings), or once the intermediary is terminated.",
+      "fieldsInError": 0
+    },
+    {
       "id": "R-CONCURRENCY_CONFLICT",
       "code": "CONCURRENCY_CONFLICT",
       "retryable": true,
@@ -602,6 +610,14 @@
       "fieldsInError": 0
     },
     {
+      "id": "R-STATEMENT_CARRY_ON_STATEMENT",
+      "code": "STATEMENT_CARRY_ON_STATEMENT",
+      "retryable": false,
+      "means": "Part of what this statement carries forward is on a later statement that is still awaiting approval or payment.",
+      "remedy": "Wait until that statement is approved and paid, or rejected, then ask again.",
+      "fieldsInError": 0
+    },
+    {
       "id": "R-STATIC_DRAFT_EXISTS",
       "code": "STATIC_DRAFT_EXISTS",
       "retryable": false,
@@ -719,6 +735,14 @@
       "retryable": false,
       "means": "The process doesn\u0027t allow a move from its current step to the one asked for.",
       "remedy": "Open the record to see its current step and the moves it allows.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-TYPED_REFERENCE_MISMATCH",
+      "code": "TYPED_REFERENCE_MISMATCH",
+      "retryable": false,
+      "means": "The reference you typed isn\u0027t the one this step acts on, so nothing was done.",
+      "remedy": "Copy the reference shown on the record exactly, then send the step again.",
       "fieldsInError": 0
     },
     {
