@@ -65,7 +65,30 @@ public static class PaymentApprovals
 
     /// <summary>BR-042: resolving an Unknown payment as succeeded without a matched bank statement line needs a second person.</summary>
     public const string UnknownResolutionApprovalType = "UNKNOWN_PAYMENT_RESOLUTION";
+
+    /// <summary>
+    /// DE-008 (Ade, 24 November 2026): paying again a refund, case redress, commission statement or remittance whose payout failed. The owning
+    /// module asks for it with the failed payment's reference typed by the requester, and a second person approves it (PAY-005, SRS-002). Once
+    /// granted, the owning module raises <see cref="PayoutRequested"/>; the money still leaves only in a released payout batch.
+    /// </summary>
+    public const string PayoutRetryApprovalType = "PAYOUT_RETRY";
 }
+
+/// <summary>
+/// DE-008: an owning module asks Payments for a new payout of a record whose earlier payout failed, after its PAYOUT_RETRY approval was granted.
+/// <paramref name="Attempt"/> starts at 2 for the first retry and makes the payment's idempotency key unique per attempt; the payout waits for a
+/// payout batch like any other. <paramref name="Gated"/>: held out of the batches while the payee isn't cleared by due diligence (§5, domain ANY).
+/// </summary>
+[IntegrationEvent("payment.PayoutRequested")]
+public sealed record PayoutRequested(string BusinessRefType, Guid BusinessRefId, int Attempt, string Purpose, decimal Amount, string Currency, Guid? PayeePartyId,
+    Guid BankAccountId, bool Gated) : IIntegrationEvent;
+
+/// <summary>
+/// DE-008: the owning module will not pay this record again (a refund cancelled, its money kept as credit, say). Payments resolves the open
+/// PAYMENT_FAILED reconciliation exception of its failed payout, recording the reason.
+/// </summary>
+[IntegrationEvent("payment.PayoutAbandoned")]
+public sealed record PayoutAbandoned(string BusinessRefType, Guid BusinessRefId, string Reason) : IIntegrationEvent;
 
 /// <summary>Who a payment is for: purposes and the business records they pay.</summary>
 public static class PaymentPurposes

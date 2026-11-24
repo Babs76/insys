@@ -61,6 +61,14 @@ public static class ErrorCodes
     public const string ValidationFailed = "VALIDATION_FAILED";
 
     /// <summary>
+    /// A step that moves money, or discards what would have (DE-007, DE-008, DE-011; Ade, 24 November 2026), asks the person to type the reference of
+    /// what it acts on (the failed payment's reference, a statement's number, a dead letter's message ID) as a deliberate confirmation.
+    /// </summary>
+    [ErrorCode(422, "error.request.typed_reference_mismatch", Means = "The reference you typed isn't the one this step acts on, so nothing was done.",
+        Remedy = "Copy the reference shown on the record exactly, then send the step again.")]
+    public const string TypedReferenceMismatch = "TYPED_REFERENCE_MISMATCH";
+
+    /// <summary>
     /// A step a due diligence gate covers (addenda/due-diligence.md §5): the party is not cleared for it. The problem's
     /// outstanding extension names what is missing, never a hit or a list. Staff only; a portal user gets PORTAL_UNDER_REVIEW.
     /// </summary>

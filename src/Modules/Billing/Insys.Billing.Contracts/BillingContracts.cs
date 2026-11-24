@@ -57,10 +57,14 @@ public sealed record BillingAccountOpened(Guid AccountId, string AccountNumber, 
 public sealed record InvoiceIssued(Guid InvoiceId, string InvoiceNumber, Guid BillingAccountId, Guid PayerPartyId, string PaymentMethod, string SourceDomain, Guid PolicyRef,
     string ProductVersionRef, DateOnly IssueDate, DateOnly DueDate, string Currency, decimal NetAmount, decimal TaxAmount, decimal TotalAmount, string? TaxCode = null) : IIntegrationEvent;
 
-/// <summary>A credit note corrects an issued invoice (BIL-004); the invoice itself never changes.</summary>
+/// <summary>
+/// A credit note corrects an issued invoice (BIL-004); the invoice itself never changes. <paramref name="InvoiceOutstanding"/> is what the invoice
+/// still asks for after the credit, so a consumer knows whether it was fully credited (DE-009); null from producers before it was added.
+/// </summary>
 [IntegrationEvent("billing.CreditNoteIssued")]
 public sealed record CreditNoteIssued(Guid CreditNoteId, string CreditNoteNumber, Guid InvoiceId, Guid BillingAccountId, string SourceDomain, Guid PolicyRef,
-    DateOnly IssueDate, string Currency, decimal TotalAmount, string ReasonCode, decimal TaxAmount = 0, string? TaxCode = null) : IIntegrationEvent;
+    DateOnly IssueDate, string Currency, decimal TotalAmount, string ReasonCode, decimal TaxAmount = 0, string? TaxCode = null, decimal? InvoiceOutstanding = null)
+    : IIntegrationEvent;
 
 [IntegrationEvent("billing.InvoiceSettled")]
 /// <summary>An invoice was paid in full; <paramref name="PolicyRef"/> is the policy it bills in <paramref name="SourceDomain"/>.</summary>
