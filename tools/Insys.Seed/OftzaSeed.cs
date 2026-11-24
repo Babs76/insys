@@ -931,9 +931,18 @@ public sealed partial class OftzaSeed(SeedContext context)
 
         foreach (var (type, role, limit) in new[] { ("CLAIM_SETTLEMENT", "CLAIMS_MANAGER", 250_000m), ("LIFE_CLAIM", "CLAIMS_MANAGER", 500_000m), ("CLAIM_PAYMENT", "FINANCE_OFFICER", 100_000m), ("REFUND", "FINANCE_OFFICER", 25_000m), ("PAYOUT_RELEASE", "FINANCE_MANAGER", 5_000_000m), ("COMMISSION_STATEMENT", "FINANCE_MANAGER", 5_000_000m),
                      ("PAYOUT_RETRY", "FINANCE_MANAGER", 5_000_000m), ("COMMISSION_CLAWBACK_INVOICE", "FINANCE_MANAGER", 5_000_000m),
-                     ("CREDIT_NOTE", "FINANCE_MANAGER", 250_000m), ("DEAD_LETTER_DISCARD", "FINANCE_MANAGER", 1m) }) // DE-008, OQ-062 (Ade, 24 November 2026)
+                     ("CREDIT_NOTE", "FINANCE_MANAGER", 250_000m), ("DEAD_LETTER_DISCARD", "FINANCE_MANAGER", 1m), // DE-008, OQ-062 (Ade, 24 November 2026)
+                     // DE-002 (Ade, 24 November 2026): the Health approvals no template could approve, at the credit note's and the settlement's sample limits.
+                     ("PROVIDER_CREDIT_NOTE", "FINANCE_MANAGER", 250_000m), ("PROVIDER_RECOVERY_WRITE_OFF", "FINANCE_MANAGER", 250_000m),
+                     ("PROVIDER_RECOVERY_FINDING", "HEALTH_CLAIMS_ASSESSOR", 250_000m) })
         {
             await Static("workflow/static/delegation-and-approval-authority", $"AUTH-{type}-{role}", new { roleCode = role, transactionType = type, limitValue = limit, delegationAllowed = false, currency = "ZAR" });
+        }
+
+        // DE-002 (Ade, 24 November 2026): approvals with no amount, as the other such types (a limit of 0).
+        foreach (var (type, role) in new[] { ("GENERAL_NON_RENEWAL", "GENERAL_UNDERWRITER"), ("PARTY_MATCH_RESOLUTION", "DATA_PROTECTION_OFFICER") })
+        {
+            await Static("workflow/static/delegation-and-approval-authority", $"AUTH-{type}-{role}", new { roleCode = role, transactionType = type, limitValue = 0m, delegationAllowed = false });
         }
 
         await Static("party/static/due-diligence-settings", "GATES", new { gatesEnabled = true, adverseMediaEnabled = false });

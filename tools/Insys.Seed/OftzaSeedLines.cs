@@ -49,7 +49,7 @@ public sealed partial class OftzaSeed
         // BR-141 (Ade, 13 and 14 November 2026): each module role approves its own areas' static data, another user than the maker. Authority is per
         // approval type; the table's own SD_<module>_APPROVE function keeps each to its own modules.
         foreach (var role in new[] { LineConfigurationRole, "PRODUCT_MANAGER", "REINSURANCE_OFFICER", "FINANCE_OFFICER", "FINANCE_MANAGER", "DISTRIBUTION_ADMINISTRATOR",
-                     "COMPLIANCE_OFFICER", "INTEGRATION_ADMINISTRATOR" })
+                     "COMPLIANCE_OFFICER", "INTEGRATION_ADMINISTRATOR", "CLAIMS_MANAGER" }) // CLAIMS_MANAGER: the Claims Framework's static data (DE-005)
         {
             foreach (var type in new[] { "STATIC_DATA_T1", "STATIC_DATA_T2" })
             {
