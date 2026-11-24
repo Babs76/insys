@@ -52,6 +52,12 @@ public sealed record IssueInvoicesRequest(DateOnly AsOf);
 
 public sealed record CreditNoteRequest(decimal Amount, [property: BuildingBlocks.Domain.CodeList(BillingCodeLists.AdjustmentReasons, "code")] string ReasonCode);
 
+/// <summary>DE-008: <paramref name="PaymentRef"/> is the failed payout's reference, typed; <paramref name="BankAccountId"/>, when given, another of the payer's accounts.</summary>
+public sealed record RetryRefundPayoutRequest(string PaymentRef, string Reason, Guid? BankAccountId);
+
+/// <summary>DE-008: <paramref name="PaymentRef"/> is the failed payout's reference, typed.</summary>
+public sealed record CancelRefundRequest(string PaymentRef, string Reason);
+
 public sealed record RefundRequestBody(decimal Amount, [property: BuildingBlocks.Domain.CodeList(BillingCodeLists.AdjustmentReasons, "code")] string ReasonCode, Guid BankAccountId);
 
 /// <summary>The Billing module: accounts, premium schedules, invoices and credit notes, arrears and refunds (BIL-001 to BIL-004).</summary>
@@ -163,20 +169,61 @@ public sealed class BillingModule : IModule
             .WithName("BillingMigrateOutstandingPremiums").WithSummary("Bring premiums outstanding in a source system, all or nothing, against the file's control totals (B-013)")
             .RequirePermission(BillingPermissions.PremiumMigrate).RequireIdempotencyKey();
         billing.MapPost("/invoices/{id:guid}/credit-notes", async (Guid id, CreditNoteRequest r, IDispatcher dispatcher, CancellationToken ct) =>
-                (await dispatcher.Send(new RaiseCreditNote(id, r.Amount, r.ReasonCode), ct)).ToHttp(view => Results.Created($"/api/v1/billing/invoices/{view.Id}", view)))
+                (await dispatcher.Send(new RaiseCreditNote(id, r.Amount, r.ReasonCode), ct)).ToHttp(outcome => outcome.CreditNote is { } credit
+                    ? Results.Created($"/api/v1/billing/invoices/{credit.Id}", credit)
+                    : Results.Accepted($"/api/v1/billing/credit-note-requests/{outcome.Request!.Id}", outcome.Request)))
             .Produces<InvoiceView>(StatusCodes.Status201Created)
+            .Produces<CreditNoteRequestView>(StatusCodes.Status202Accepted)
             .WithName("BillingRaiseCreditNote")
             .WithSummary("Correct an issued invoice with a credit note; the invoice itself never changes (BIL-004)")
+            .WithDescription("A reason that doesn't require approval issues the credit note at once (201). One that does (DE-010, OQ-058) asks for a CREDIT_NOTE approval "
+                + "instead (202, the credit note request), for at most what the invoice still asks for; the invoice goes on taking payments while it waits.")
+            .WithEventualEffects("for a 202, the CREDIT_NOTE approval appears in Workflow (businessRefType CREDIT_NOTE_REQUEST, the request's id). Once a second person "
+                + "grants it, the request reads Issued and names its credit note, for what the invoice then still asks for, never more than was asked; if nothing is "
+                + "outstanding by then it reads Lapsed and nothing is credited. Rejected, expired or withdrawn, it reads Rejected and nothing is credited.")
             .RequirePermission(BillingPermissions.InvoiceCreate)
             .RequireIdempotencyKey();
+
+        billing.MapGet("/credit-note-requests/{id:guid}", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Query(new GetCreditNoteRequest(id), ct)).ToHttp(Results.Ok))
+            .Produces<CreditNoteRequestView>(StatusCodes.Status200OK)
+            .WithName("BillingGetCreditNoteRequest")
+            .WithSummary("Get a credit note request: a credit note waiting for, or decided by, its CREDIT_NOTE approval (DE-010)")
+            .WithDescription("The record a CREDIT_NOTE approval names (businessRefType CREDIT_NOTE_REQUEST). Its invoice lists it too, under creditNoteRequests.")
+            .RequirePermission(BillingPermissions.InvoiceRead);
 
         billing.MapGet("/refunds", async (Guid? accountId, RefundStatus? status, string? cursor, int? limit, IDispatcher dispatcher, CancellationToken ct) =>
                 await Page(cursor, limit, (after, size) => dispatcher.Query(new ListRefunds(accountId, status, after, size), ct), r => r.Id))
             .Produces<CursorPage<RefundView>>(StatusCodes.Status200OK)
             .WithName("BillingListRefunds")
-            .WithSummary("Refunds by account and status, oldest first (BR-055)")
+            .WithSummary("Refunds by account and status, oldest first (BR-055); PaymentFailed and Cancelled included (DE-008)")
             .WithDescription("Only refunds of accounts wholly in your scope, as a refund's read (OQ-081).")
             .RequirePermission(BillingPermissions.RefundRead);
+
+        billing.MapPost("/refunds/{id:guid}/retry-payout", async (Guid id, RetryRefundPayoutRequest r, IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Send(new RetryRefundPayout(id, r.PaymentRef, r.Reason, r.BankAccountId), ct)).ToHttp(Results.Ok))
+            .Produces<RefundView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
+            .WithName("BillingRetryRefundPayout")
+            .WithSummary("Ask for a refund whose payout failed to be paid again; a second person approves it (DE-008, PAYOUT_RETRY)")
+            .WithDescription("Only a PaymentFailed refund with no retry waiting. paymentRef is the failed payout's reference (failedPaymentRef), typed: another is refused "
+                + "with TYPED_REFERENCE_MISMATCH and nothing changes. bankAccountId, when given, is another of the payer's verified, current accounts in the refund's "
+                + "currency (else REFUND_ACCOUNT_NOT_PAYABLE); without it the refund's own account is paid, and must still be one.")
+            .WithEventualEffects("the PAYOUT_RETRY approval appears in Workflow (businessRefType REFUND_REQUEST) and the refund reads retryPending. Once a second person "
+                + "grants it, the refund reads Approved on its next payoutAttempt, and Payments creates a new payout (payment.PayoutRequested) that waits for a "
+                + "released payout batch; a succeeded payout then makes it Paid. Rejected, expired or withdrawn, it stays PaymentFailed with retryPending false.")
+            .RequirePermission(BillingPermissions.RefundRetryPayout);
+
+        billing.MapPost("/refunds/{id:guid}/cancel", async (Guid id, CancelRefundRequest r, IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Send(new CancelRefund(id, r.PaymentRef, r.Reason), ct)).ToHttp(Results.Ok))
+            .Produces<RefundView>(StatusCodes.Status200OK)
+            .TakesIfMatch()
+            .WithName("BillingCancelRefund")
+            .WithSummary("Cancel a refund whose payout failed; its money stays with the account as credit (DE-008)")
+            .WithDescription("Only a PaymentFailed refund with no retry waiting; paymentRef is the failed payout's reference, typed (else TYPED_REFERENCE_MISMATCH). "
+                + "No approval, since no money moves: a refund reaches the ledger only when its payout succeeds.")
+            .WithEventualEffects("Payments resolves the failed payout's reconciliation exception (payment.PayoutAbandoned).")
+            .RequirePermission(BillingPermissions.RefundCancel);
 
         billing.MapGet("/refunds/{id:guid}", async (Guid id, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Query(new GetRefund(id), ct)).ToHttp(Results.Ok))
             .Produces<RefundView>(StatusCodes.Status200OK)

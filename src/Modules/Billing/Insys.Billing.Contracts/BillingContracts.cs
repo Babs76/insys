@@ -38,12 +38,24 @@ public static class BillingPermissions
     public const string PremiumMigrate = "invoice.migrate";
     public const string RefundRead = "refund.read";
     public const string RefundCreate = "refund.create";
+
+    /// <summary>DE-008: ask for a refund's failed payout to be paid again (a second person approves it, PAYOUT_RETRY).</summary>
+    public const string RefundRetryPayout = "refund.retry_payout";
+
+    /// <summary>DE-008: cancel a refund whose payout failed; its money stays with the account as credit.</summary>
+    public const string RefundCancel = "refund.cancel";
 }
 
 public static class BillingApprovals
 {
     public const string RefundBusinessRefType = "REFUND_REQUEST";
     public const string RefundApprovalType = "REFUND";
+
+    /// <summary>DE-010 (OQ-058, Ade, 24 November 2026): a credit note whose adjustment reason requires approval waits as a credit note request.</summary>
+    public const string CreditNoteBusinessRefType = "CREDIT_NOTE_REQUEST";
+
+    /// <summary>DE-010: decided by a second person within their authority's amount limits (FINANCE_MANAGER).</summary>
+    public const string CreditNoteApprovalType = "CREDIT_NOTE";
 }
 
 [IntegrationEvent("billing.BillingAccountOpened")]

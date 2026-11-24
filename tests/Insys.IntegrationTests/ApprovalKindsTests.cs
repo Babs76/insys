@@ -41,8 +41,8 @@ public sealed class ApprovalKindsTests(DatabaseFixture fixture) : IClassFixture<
     {
         await fixture.Host();
         var screens = FunctionRegistry.All().Where(f => f.Function.Kind == FunctionKind.Screen).Select(f => f.Function.Code).ToHashSet(StringComparer.Ordinal);
-        ApprovalKinds.BusinessRefTypes.Count.ShouldBe(30); // + the three due diligence references (Wave 3 batch 2), General's renewal (Wave 4 §4.3) and the SETUP change set (AIA-086)
-        ApprovalKinds.ApprovalTypes.Count.ShouldBe(28);
+        ApprovalKinds.BusinessRefTypes.Count.ShouldBe(31); // + the three due diligence references (Wave 3 batch 2), General's renewal (Wave 4 §4.3), the SETUP change set (AIA-086) and the credit note request (DE-010)
+        ApprovalKinds.ApprovalTypes.Count.ShouldBe(30); // + PAYOUT_RETRY (DE-008) and CREDIT_NOTE (DE-010)
         ApprovalKinds.BusinessRefTypes.Where(r => !screens.Contains(ApprovalKinds.ScreenFor(r)!)).ShouldBeEmpty();
     }
 

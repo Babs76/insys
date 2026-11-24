@@ -132,6 +132,26 @@ public sealed class BillingDbContext(DbContextOptions<BillingDbContext> options,
             invoice.Navigation(i => i.Lines).UsePropertyAccessMode(PropertyAccessMode.Field);
             invoice.HasMany(i => i.Adjustments).WithOne().HasForeignKey(a => new { a.TenantId, a.InvoiceId });
             invoice.Navigation(i => i.Adjustments).UsePropertyAccessMode(PropertyAccessMode.Field);
+            invoice.HasMany(i => i.CreditNoteRequests).WithOne().HasForeignKey(r => new { r.TenantId, r.InvoiceId });
+            invoice.Navigation(i => i.CreditNoteRequests).UsePropertyAccessMode(PropertyAccessMode.Field);
+        });
+
+        // DE-010 (V0150): a credit note waiting for its CREDIT_NOTE approval.
+        modelBuilder.Entity<CreditNoteRequest>(request =>
+        {
+            request.ToTable("credit_note_request");
+            request.HasKey(r => new { r.TenantId, r.Id });
+            request.HasAuditColumns();
+            request.Ignore(r => r.SubjectHash);
+            request.Property(r => r.Amount).HasPrecision(18, 2);
+            request.Property(r => r.CreditedAmount).HasPrecision(18, 2);
+            request.Property(r => r.Currency).HasColumnType("char(3)");
+            request.Property(r => r.ReasonCode).HasMaxLength(15);
+            request.Property(r => r.Ending).HasMaxLength(12);
+            request.Property(r => r.Status).HasConversion(new UpperCaseEnumConverter<CreditNoteRequestStatus>()).HasMaxLength(10);
+
+            // So the credit note is inserted before the request that names it (fk_credit_note_request_credit_note).
+            request.HasOne<Invoice>().WithMany().HasForeignKey(r => new { r.TenantId, r.CreditNoteId });
         });
 
         modelBuilder.Entity<InvoiceLine>(line =>
@@ -171,7 +191,13 @@ public sealed class BillingDbContext(DbContextOptions<BillingDbContext> options,
             refund.Property(r => r.ReasonCode).HasMaxLength(15);
             refund.Property(r => r.PayeeBankHash).HasMaxLength(64);
             refund.Ignore(r => r.SubjectHash);
-            refund.Property(r => r.Status).HasConversion(new UpperCaseEnumConverter<RefundStatus>()).HasMaxLength(12);
+            refund.Ignore(r => r.RetrySubjectHash);
+            refund.Property(r => r.FailedPaymentRef).HasMaxLength(25);
+            refund.Property(r => r.FailureReason).HasMaxLength(200);
+            refund.Property(r => r.RetryPayeeBankHash).HasMaxLength(64);
+            refund.Property(r => r.RetryReason).HasMaxLength(200);
+            refund.Property(r => r.CancelReason).HasMaxLength(200);
+            refund.Property(r => r.Status).HasConversion(new UpperCaseEnumConverter<RefundStatus>()).HasMaxLength(15);
         });
     }
 }

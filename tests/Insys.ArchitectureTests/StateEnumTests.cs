@@ -99,6 +99,8 @@ public sealed partial class StateEnumTests
         [("Approval", "NotApplied", "extra")] = "D-5, extended (25 October 2026, Ade): a granted approval its record will not take is NotApplied; domain-model.json has no such state.",
         [("PayoutBatch", "Rejected", "extra")] = "D-1 (Wave 2 batch 1, signed off): an approval that is not granted ends the batch as Rejected; domain-model.json has no reject transition.",
         [("ProviderPaymentRun", "Rejected", "extra")] = "D-2 (Wave 2 batch 1, signed off): an approval that is not granted ends the run as Rejected; domain-model.json has no reject transition.",
+        [("RefundRequest", "PaymentFailed", "extra")] = "DE-008 (Ade, 24 November 2026): a refund whose payout failed waits for a PAYOUT_RETRY or to be cancelled; domain-model.json has no failure.",
+        [("RefundRequest", "Cancelled", "extra")] = "DE-008 (Ade, 24 November 2026): a refund cancelled after its payout failed, its money kept as credit; domain-model.json has no such state.",
         [("UserAccount", "PendingIdentity", "extra")] = "keycloak-user-provisioning (signed off 24 October 2026) §4: a user of INSYS's own realm waits for its Keycloak user.",
     };
 

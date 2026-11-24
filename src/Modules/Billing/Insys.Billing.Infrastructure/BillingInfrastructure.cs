@@ -43,7 +43,10 @@ public static class BillingInfrastructure
     public static IServiceCollection AddBillingInfrastructure(this IServiceCollection services)
     {
         // Its approval kinds and the screens that open their records (BR-005).
-        BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Billing.Contracts.BillingApprovals.RefundBusinessRefType, "BILLING_REFUNDS", Insys.Billing.Contracts.BillingApprovals.RefundApprovalType);
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Billing.Contracts.BillingApprovals.RefundBusinessRefType, "BILLING_REFUNDS", Insys.Billing.Contracts.BillingApprovals.RefundApprovalType,
+            PaymentApprovals.PayoutRetryApprovalType);
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Billing.Contracts.BillingApprovals.CreditNoteBusinessRefType, "BILLING_INVOICES",
+            Insys.Billing.Contracts.BillingApprovals.CreditNoteApprovalType);
         // Its dashboard figure codes, for the OpenAPI enum of DashboardFigure.code.
         BuildingBlocks.Application.DashboardFigureCodes.Declare(Insys.Billing.Application.BillingFigures.OpenArrears);
         const string schema = BillingDbContext.SchemaName;
@@ -65,6 +68,7 @@ public static class BillingInfrastructure
         services.AddIntegrationEventHandler<PaymentReversed, BillingPolicies, BillingDbContext>(schema, "PaymentReversed");
         services.AddIntegrationEventHandler<PaymentSucceeded, BillingPolicies, BillingDbContext>(schema, "PaymentSucceeded");
         services.AddIntegrationEventHandler<PaymentInitiated, BillingPolicies, BillingDbContext>(schema, "PaymentInitiated");
+        services.AddIntegrationEventHandler<PaymentFailed, BillingPolicies, BillingDbContext>(schema, "PaymentFailed"); // DE-008
         services.AddIntegrationEventHandler<ApprovalGranted, BillingPolicies, BillingDbContext>(schema, "ApprovalGranted");
         services.AddIntegrationEventHandler<ApprovalRejected, BillingPolicies, BillingDbContext>(schema, "ApprovalRejected");
         services.AddIntegrationEventHandler<Life.Contracts.LifePolicyMigrated, LifePolicyBilling, BillingDbContext>(schema, "LifePolicyMigrated");
