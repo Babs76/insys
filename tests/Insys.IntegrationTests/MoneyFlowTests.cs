@@ -384,7 +384,7 @@ public sealed class MoneyFlowTests(DatabaseFixture fixture) : IClassFixture<Data
         (await _maker.Send(HttpMethod.Post, "/api/v1/payments/bank-statements",
             new { accountRef = "BANK-1", lines = new[] { new { date = Today, amount = 77.70m, currency = "ZAR", reference } } }, idempotent: true)).StatusCode
             .ShouldBe(HttpStatusCode.OK);
-        var listed = (await (await _maker.GetAsync("/api/v1/payments/reconciliation-exceptions?status=Open&limit=200")).Json()).EnumerateArray()
+        var listed = (await (await _maker.GetAsync("/api/v1/payments/reconciliation-exceptions?status=Open&limit=200")).Json()).GetProperty("items").EnumerateArray()
             .Single(e => e.GetProperty("statementLine").ValueKind == JsonValueKind.Object && e.GetProperty("statementLine").GetProperty("reference").GetString() == reference);
         var exceptionId = listed.GetProperty("id").GetGuid();
         var exception = await (await _maker.GetAsync($"/api/v1/payments/reconciliation-exceptions/{exceptionId}")).Json();

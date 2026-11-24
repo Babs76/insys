@@ -81,7 +81,14 @@ public interface IPaymentRepository
 
     Task<ReconciliationException?> Exception(Guid id, CancellationToken cancellationToken);
 
-    Task<IReadOnlyList<ReconciliationException>> Exceptions(string? status, int limit, CancellationToken cancellationToken);
+    /// <summary>DE-031: in the order raised, after <paramref name="afterId"/> (a cursor), so every exception can be reached.</summary>
+    Task<IReadOnlyList<ReconciliationException>> Exceptions(string? status, Guid? afterId, int limit, CancellationToken cancellationToken);
+
+    /// <summary>DE-008: the PAYMENT_FAILED exception of a payment, if one was raised.</summary>
+    Task<ReconciliationException?> FailedPayoutException(Guid paymentId, CancellationToken cancellationToken);
+
+    /// <summary>DE-008: the unresolved PAYMENT_FAILED exceptions of the payments made for a record.</summary>
+    Task<IReadOnlyList<ReconciliationException>> OpenFailedPayoutExceptions(string businessRefType, Guid businessRefId, CancellationToken cancellationToken);
 
     void Add(Payment payment);
 
@@ -191,17 +198,23 @@ public sealed record StatementLineView(Guid Id, string AccountRef, DateOnly Stat
 /// <param name="ExceptionType">UNKNOWN_OUTCOME: a payment whose outcome is unknown; UNMATCHED_LINE: a bank statement line no payment matches.</param>
 /// <param name="Currency">The statement line's currency, else the payment's (BR-052).</param>
 /// <param name="StatementLine">The bank statement line, for an unmatched line (BR-052).</param>
-public sealed record ExceptionView(Guid Id, [property: OneOf(ReconciliationException.UnknownOutcome, ReconciliationException.UnmatchedLine)] string ExceptionType,
+/// <param name="PaymentRef">The payment's reference, when the exception is about a payment (DE-008: a failed payout is retried by typing it).</param>
+/// <param name="BusinessRefType">The record the payment was for, so the exception leads to it (DE-008, DE-030); with <paramref name="BusinessRefId"/>.</param>
+/// <param name="Resolution">DE-008: why INSYS resolved it itself (paid by a later attempt, or the payout given up); null when a person did.</param>
+public sealed record ExceptionView(Guid Id,
+    [property: OneOf(ReconciliationException.UnknownOutcome, ReconciliationException.UnmatchedLine, ReconciliationException.PaymentFailed)] string ExceptionType,
     Guid? PaymentId, Guid? StatementLineId, decimal Amount, ExceptionStatus Status, Guid? AssignedTo, string? Currency, StatementLineView? StatementLine,
-    DateTimeOffset RaisedAt, DateTimeOffset? ResolvedAt, long RowVersion)
+    DateTimeOffset RaisedAt, DateTimeOffset? ResolvedAt, long RowVersion, string? PaymentRef = null, string? BusinessRefType = null, Guid? BusinessRefId = null,
+    string? Resolution = null)
 {
     public static async Task<ExceptionView> Of(ReconciliationException e, IPaymentRepository payments, CancellationToken cancellationToken)
     {
         var line = e.StatementLineId is { } lineId ? await payments.StatementLine(lineId, cancellationToken) : null;
-        var currency = line?.Currency ?? (e.PaymentId is { } paymentId ? (await payments.Get(paymentId, cancellationToken))?.Currency : null);
+        var payment = e.PaymentId is { } paymentId ? await payments.Get(paymentId, cancellationToken) : null;
+        var currency = line?.Currency ?? payment?.Currency;
         return new(e.Id, e.ExceptionType, e.PaymentId, e.StatementLineId, e.Amount, e.Status, e.AssignedTo, currency,
             line is null ? null : new StatementLineView(line.Id, line.AccountRef, line.StatementDate, line.Amount, line.Currency, line.Reference, line.MatchStatus),
-            e.RaisedAt, e.ResolvedAt, e.RowVersion);
+            e.RaisedAt, e.ResolvedAt, e.RowVersion, payment?.PaymentRef, payment?.BusinessRefType, payment?.BusinessRefId, e.Resolution);
     }
 }
 
@@ -255,7 +268,7 @@ public sealed record GetException(Guid ExceptionId) : IQuery<ExceptionView>;
 /// <summary>GAP-036: the payments in a payout batch.</summary>
 public sealed record ListBatchPayments(Guid BatchId) : IQuery<IReadOnlyList<PaymentView>>;
 
-public sealed record ListExceptions(string? Status, int Limit) : IQuery<IReadOnlyList<ExceptionView>>;
+public sealed record ListExceptions(string? Status, Guid? AfterId, int Limit) : IQuery<IReadOnlyList<ExceptionView>>;
 
 public sealed record PendingPayments(DateTimeOffset Before) : IQuery<IReadOnlyList<Guid>>;
 
@@ -941,7 +954,7 @@ internal sealed class ListExceptionsHandler(IPaymentRepository payments) : IQuer
     public async Task<Result<IReadOnlyList<ExceptionView>>> Handle(ListExceptions query, CancellationToken cancellationToken)
     {
         var views = new List<ExceptionView>();
-        foreach (var exception in await payments.Exceptions(query.Status, query.Limit, cancellationToken))
+        foreach (var exception in await payments.Exceptions(query.Status, query.AfterId, query.Limit, cancellationToken))
         {
             views.Add(await ExceptionView.Of(exception, payments, cancellationToken));
         }
@@ -1000,6 +1013,8 @@ public sealed class PaymentPolicies(IPaymentRepository payments, PaymentStarter 
     IIntegrationEventHandler<PaymentSucceeded>,
     IIntegrationEventHandler<Contracts.PaymentFailed>,
     IIntegrationEventHandler<Contracts.PaymentOutcomeUnknown>,
+    IIntegrationEventHandler<PayoutRequested>,
+    IIntegrationEventHandler<PayoutAbandoned>,
     IIntegrationEventHandler<Party.Contracts.DueDiligenceChanged>
 {
     public async Task Handle(InvoiceIssued issued, EventEnvelope envelope, CancellationToken cancellationToken)
@@ -1168,9 +1183,55 @@ public sealed class PaymentPolicies(IPaymentRepository payments, PaymentStarter 
         }
     }
 
-    public Task Handle(PaymentSucceeded succeeded, EventEnvelope envelope, CancellationToken cancellationToken) => Settle(succeeded.PaymentId, cancellationToken);
+    public async Task Handle(PaymentSucceeded succeeded, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        await Settle(succeeded.PaymentId, cancellationToken);
+        // DE-008: a later attempt paid the record, so the earlier failure is resolved.
+        if (succeeded.BusinessRefType is { } type && succeeded.BusinessRefId is { } id)
+        {
+            await ResolveFailedPayouts(type, id, $"Paid by a later attempt, payment {succeeded.PaymentRef}.", cancellationToken);
+        }
+    }
 
-    public Task Handle(Contracts.PaymentFailed failed, EventEnvelope envelope, CancellationToken cancellationToken) => Settle(failed.PaymentId, cancellationToken);
+    /// <summary>
+    /// DE-008, PAY-005: a failed outbound payment goes to a controlled exception, listed and resolved, never only left on the payment. The record it
+    /// paid (a refund, redress, statement, remittance or claim payment) is retried in its own module, with the payment's reference typed and a
+    /// second person's approval. Raised once per payment, so a redelivery changes nothing.
+    /// </summary>
+    public async Task Handle(Contracts.PaymentFailed failed, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        await Settle(failed.PaymentId, cancellationToken);
+        if (failed.Direction == "OUT" && await payments.FailedPayoutException(failed.PaymentId, cancellationToken) is null)
+        {
+            payments.Add(ReconciliationException.RaiseException(Guid.CreateVersion7(), ReconciliationException.PaymentFailed, failed.PaymentId, null, failed.Amount,
+                clock.UtcNow));
+        }
+    }
+
+    /// <summary>
+    /// DE-008: a record whose payout failed is paid again once its PAYOUT_RETRY approval was granted. The attempt makes the idempotency key new, and
+    /// the payout waits for a payout batch like any other: money leaves only in a released batch.
+    /// </summary>
+    public Task Handle(PayoutRequested requested, EventEnvelope envelope, CancellationToken cancellationToken) =>
+        Payout($"{requested.BusinessRefType}:{requested.BusinessRefId:N}:{requested.Attempt}", requested.Purpose, requested.Amount, requested.Currency,
+            requested.PayeePartyId, requested.BusinessRefType, requested.BusinessRefId, requested.BankAccountId, cancellationToken, gated: requested.Gated);
+
+    /// <summary>DE-008: the record's module gave its payout up; its failure is resolved with that reason.</summary>
+    public Task Handle(PayoutAbandoned abandoned, EventEnvelope envelope, CancellationToken cancellationToken) =>
+        ResolveFailedPayouts(abandoned.BusinessRefType, abandoned.BusinessRefId, $"Payout given up: {abandoned.Reason}", cancellationToken);
+
+    private async Task ResolveFailedPayouts(string businessRefType, Guid businessRefId, string resolution, CancellationToken cancellationToken)
+    {
+        var text = resolution.Length <= 300 ? resolution : resolution[..300];
+        foreach (var exception in await payments.OpenFailedPayoutExceptions(businessRefType, businessRefId, cancellationToken))
+        {
+            var resolved = exception.ResolveByOutcome(text, clock.UtcNow);
+            if (resolved.IsFailure)
+            {
+                throw new InvalidOperationException($"Reconciliation exception {exception.Id} could not be resolved: {resolved.Error.Code}.");
+            }
+        }
+    }
 
     public Task Handle(Contracts.PaymentOutcomeUnknown unknown, EventEnvelope envelope, CancellationToken cancellationToken)
     {

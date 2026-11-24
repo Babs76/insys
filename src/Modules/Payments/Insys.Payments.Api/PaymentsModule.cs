@@ -230,11 +230,24 @@ public sealed class PaymentsModule : IModule
             .RequirePermission(PaymentPermissions.ReconciliationUpdate)
             .RequireIdempotencyKey();
 
-        payments.MapGet("/reconciliation-exceptions", async (string? status, int? limit, IDispatcher dispatcher, CancellationToken ct) =>
-                (await dispatcher.Query(new ListExceptions(status, Cursor.ClampLimit(limit)), ct)).ToHttp(Results.Ok))
-            .Produces<IReadOnlyList<ExceptionView>>(StatusCodes.Status200OK)
+        payments.MapGet("/reconciliation-exceptions", async (string? status, string? cursor, int? limit, IDispatcher dispatcher, CancellationToken ct) =>
+            {
+                if (!Cursor.TryDecode(cursor, out var afterId))
+                {
+                    return Problems.For(BuildingBlocks.Domain.ErrorCodes.ValidationFailed, "The cursor is not valid.", StatusCodes.Status422UnprocessableEntity);
+                }
+
+                var pageSize = Cursor.ClampLimit(limit);
+                return (await dispatcher.Query(new ListExceptions(status, afterId, pageSize), ct))
+                    .ToHttp(items => Results.Ok(new CursorPage<ExceptionView>(items, items.Count == pageSize ? Cursor.Encode(items[^1].Id) : null)));
+            })
+            .Produces<CursorPage<ExceptionView>>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
             .WithName("PaymentsListExceptions")
-            .WithSummary("Unmatched and ambiguous items waiting for a person (PAY-005)")
+            .WithSummary("Unmatched, ambiguous and failed items waiting for a person (PAY-005), in the order raised, a page at a time")
+            .WithDescription("DE-031: a cursor page (pass nextCursor back as cursor), so every exception is reachable. DE-008: a failed outbound payment raises "
+                + "PAYMENT_FAILED, with the payment's reference and the record it paid; INSYS resolves it itself when a later attempt pays the record or its module "
+                + "gives the payout up (resolution says which).")
             .RequirePermission(PaymentPermissions.ReconciliationRead);
 
         payments.MapGet("/reconciliation-exceptions/{id:guid}", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>

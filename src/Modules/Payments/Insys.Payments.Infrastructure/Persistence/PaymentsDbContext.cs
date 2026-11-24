@@ -135,6 +135,7 @@ public sealed class PaymentsDbContext(DbContextOptions<PaymentsDbContext> option
             exception.Property(e => e.ExceptionType).HasMaxLength(15);
             exception.Property(e => e.Amount).HasPrecision(18, 2);
             exception.Property(e => e.Status).HasConversion(new UpperCaseEnumConverter<ExceptionStatus>()).HasMaxLength(30);
+            exception.Property(e => e.Resolution).HasMaxLength(300);
         });
 
         modelBuilder.Entity<BankStatementLine>(line =>

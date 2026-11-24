@@ -229,6 +229,9 @@ public enum ExceptionTrigger
 {
     AssignException,
     ResolveException,
+
+    /// <summary>DE-008: the record a failed payout was for was paid by a later attempt, or its module gave the payout up.</summary>
+    ResolvedByOutcome,
 }
 
 public sealed record ReconciliationExceptionRaised(Guid ExceptionId, string ExceptionType, Guid? PaymentId, Guid? StatementLineId, decimal Amount, DateTimeOffset OccurredAt)
@@ -243,9 +246,14 @@ public sealed class ReconciliationException : AggregateRoot<Guid>
     public const string UnknownOutcome = "UNKNOWN_OUTCOME";
     public const string UnmatchedLine = "UNMATCHED_LINE";
 
+    /// <summary>DE-008, PAY-005: an outbound payment failed; the record it paid waits for a retry or for its module to give the payout up.</summary>
+    public const string PaymentFailed = "PAYMENT_FAILED";
+
     public static readonly StateMachine<ExceptionStatus, ExceptionTrigger> Lifecycle = new StateMachine<ExceptionStatus, ExceptionTrigger>()
         .Allow(ExceptionStatus.Open, ExceptionTrigger.AssignException, ExceptionStatus.Investigating)
-        .Allow(ExceptionStatus.Investigating, ExceptionTrigger.ResolveException, ExceptionStatus.Resolved);
+        .Allow(ExceptionStatus.Investigating, ExceptionTrigger.ResolveException, ExceptionStatus.Resolved)
+        .Allow(ExceptionStatus.Open, ExceptionTrigger.ResolvedByOutcome, ExceptionStatus.Resolved)
+        .Allow(ExceptionStatus.Investigating, ExceptionTrigger.ResolvedByOutcome, ExceptionStatus.Resolved);
 
     private ReconciliationException()
     {
@@ -267,6 +275,9 @@ public sealed class ReconciliationException : AggregateRoot<Guid>
     public DateTimeOffset RaisedAt { get; private set; }
 
     public DateTimeOffset? ResolvedAt { get; private set; }
+
+    /// <summary>DE-008: why INSYS resolved it itself; null when a person resolved it.</summary>
+    public string? Resolution { get; private set; }
 
     public static ReconciliationException RaiseException(Guid id, string type, Guid? paymentId, Guid? statementLineId, decimal amount, DateTimeOffset now)
     {
@@ -290,6 +301,30 @@ public sealed class ReconciliationException : AggregateRoot<Guid>
 
         Status = next.Value;
         AssignedTo = assignee;
+        MarkChanged();
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// DE-008: a PAYMENT_FAILED exception whose record was paid by a later attempt, or whose payout its module gave up, is resolved by INSYS with
+    /// the reason. An exception already resolved is left alone, so a redelivered event changes nothing.
+    /// </summary>
+    public Result ResolveByOutcome(string resolution, DateTimeOffset now)
+    {
+        if (Status == ExceptionStatus.Resolved)
+        {
+            return Result.Success();
+        }
+
+        var next = Lifecycle.Fire(Status, ExceptionTrigger.ResolvedByOutcome);
+        if (next.IsFailure)
+        {
+            return next.Error;
+        }
+
+        Status = next.Value;
+        ResolvedAt = now;
+        Resolution = Guard.MaxLength(Guard.NotNullOrWhiteSpace(resolution), 300);
         MarkChanged();
         return Result.Success();
     }

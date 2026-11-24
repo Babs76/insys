@@ -144,7 +144,7 @@ internal sealed class PaymentRepository(PaymentsDbContext db) : IPaymentReposito
 
     public Task<ReconciliationException?> Exception(Guid id, CancellationToken cancellationToken) => db.Exceptions.SingleOrDefaultAsync(e => e.Id == id, cancellationToken);
 
-    public async Task<IReadOnlyList<ReconciliationException>> Exceptions(string? status, int limit, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<ReconciliationException>> Exceptions(string? status, Guid? afterId, int limit, CancellationToken cancellationToken)
     {
         var query = db.Exceptions.AsNoTracking();
         if (status is not null && Enum.TryParse<ExceptionStatus>(status, ignoreCase: true, out var parsed))
@@ -152,7 +152,23 @@ internal sealed class PaymentRepository(PaymentsDbContext db) : IPaymentReposito
             query = query.Where(e => e.Status == parsed);
         }
 
+        if (afterId is { } after)
+        {
+            query = query.Where(e => e.Id.CompareTo(after) > 0);
+        }
+
         return await query.OrderBy(e => e.Id).Take(limit).ToListAsync(cancellationToken);
+    }
+
+    public Task<ReconciliationException?> FailedPayoutException(Guid paymentId, CancellationToken cancellationToken) =>
+        db.Exceptions.SingleOrDefaultAsync(e => e.PaymentId == paymentId && e.ExceptionType == ReconciliationException.PaymentFailed, cancellationToken);
+
+    public async Task<IReadOnlyList<ReconciliationException>> OpenFailedPayoutExceptions(string businessRefType, Guid businessRefId, CancellationToken cancellationToken)
+    {
+        var paymentIds = db.Payments.Where(p => p.BusinessRefType == businessRefType && p.BusinessRefId == businessRefId).Select(p => (Guid?)p.Id);
+        return await db.Exceptions.Where(e => e.ExceptionType == ReconciliationException.PaymentFailed && e.Status != ExceptionStatus.Resolved
+                && paymentIds.Contains(e.PaymentId))
+            .OrderBy(e => e.Id).ToListAsync(cancellationToken);
     }
 
     public void Add(Payment payment) => db.Payments.Add(payment);

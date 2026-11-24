@@ -292,4 +292,20 @@ public sealed class PaymentTests
         payment.LeaveBatch(batch.Id).ShouldBeFalse();
         payment.PayoutBatchId.ShouldBe(batch.Id);
     }
+
+    [Fact]
+    public void AFailedPayoutException_IsResolvedByOutcome_FromOpenOrInvestigating_OnceAndWithItsReason_DE008()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var open = ReconciliationException.RaiseException(Guid.CreateVersion7(), ReconciliationException.PaymentFailed, Guid.CreateVersion7(), null, 41.50m, now);
+        open.ResolveByOutcome("Paid by a later attempt, payment PAY-2.", now).IsSuccess.ShouldBeTrue();
+        (open.Status, open.Resolution, open.ResolvedAt).ShouldBe((ExceptionStatus.Resolved, "Paid by a later attempt, payment PAY-2.", now));
+        open.ResolveByOutcome("A redelivery.", now.AddMinutes(1)).IsSuccess.ShouldBeTrue();
+        open.Resolution.ShouldBe("Paid by a later attempt, payment PAY-2.");
+
+        var investigating = ReconciliationException.RaiseException(Guid.CreateVersion7(), ReconciliationException.PaymentFailed, Guid.CreateVersion7(), null, 10m, now);
+        investigating.AssignException(Guid.CreateVersion7()).IsSuccess.ShouldBeTrue();
+        investigating.ResolveByOutcome("Payout given up: cancelled.", now).IsSuccess.ShouldBeTrue();
+        investigating.Status.ShouldBe(ExceptionStatus.Resolved);
+    }
 }
