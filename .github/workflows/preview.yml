@@ -61,7 +61,7 @@ jobs:
   preview:
     runs-on: ubuntu-latest
     environment: preview
-    timeout-minutes: 240   # rotate-passwords runs the whole seed against the relay; a cut-off run is recoverable (it resumes, and sets all 51 passwords at the end)
+    timeout-minutes: 330   # Ade, 24 November 2026: a reset took 3 h 23 min (the seed 3 h 0 min, its accounts stage 53 min); GitHub-hosted jobs stop at 6 h. rotate-passwords runs the whole seed too; a cut-off run is recoverable (it resumes, and sets all 51 passwords at the end)
     env:
       HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
       PREVIEW_SSH_KEY: ${{ secrets.PREVIEW_SSH_KEY }}

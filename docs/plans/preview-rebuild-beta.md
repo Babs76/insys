@@ -128,7 +128,7 @@ From the uninstall (1.2) until the seed finishes (1.8):
 - **measured on the Preview (run 45347144659, 24 November 2026): about 3 h 0 min for the seed alone (10,834 s), against the 2-hour estimate.** The chart went in at 07:56:40 UTC and the accounts stage ended about 3 h 4 min after that. The stages, cumulative: roles 852 s, loaders, locale and configuration 2,354 s, personas 2,570 s, products 3,492 s, parties, line configuration and readiness 6,668 s, activation 6,718 s, business 7,681 s, accounts 10,834 s. Up to business, that is about 9% slower than the runner's 7,018 s. The accounts stage, which run 44699166104 didn't time, took 3,153 s (about 53 minutes) by itself. No call was refused with 429;
 - plus the wait for Ade's approval before it starts.
 
-**The job's time limit.** `preview.yml` allows 240 minutes. The whole reset took 3 h 23 min (07:52:34 to 11:15:46), including about 10 minutes the certificate check spent retrying, and the post-reset checks never ran, so a reset that passes would be closer still. **Proposed (not changed; Ade's decision): 330 minutes.** That leaves about 1 h 40 min over the measured run for the checks and a slower day. GitHub-hosted runners stop any job at 6 hours (360 minutes), so the limit can't usefully go much higher; past that, the accounts stage is the one to make faster.
+**The job's time limit.** `preview.yml` allows 240 minutes. The whole reset took 3 h 23 min (07:52:34 to 11:15:46), including about 10 minutes the certificate check spent retrying, and the post-reset checks never ran, so a reset that passes would be closer still. **Set to 330 minutes (Ade, 24 November 2026), on this branch and on `main`.** That leaves about 1 h 40 min over the measured run for the checks and a slower day. GitHub-hosted runners stop any job at 6 hours (360 minutes), so the limit can't usefully go much higher; past that, the accounts stage is the one to make faster.
 
 The console answers again after 1.5, but has no users or data until the seed ends. The rehearsal (2.4) takes it down again for the restore, for a time not yet measured.
 
@@ -179,5 +179,7 @@ Two `preview.yml` actions, each run approved by Ade with its name typed in confi
 - **staging:** the issuer's organisation must be `(STAGING) Let's Encrypt`;
 - the issuer is read in RFC 2253 form;
 - tested in CI by `deploy/helm/tests/preview-tls.sh` against local test CAs.
+
+After beta (Ade, 24 November 2026): a proposal to speed up the accounts stage, with where its 53 minutes go.
 
 A new action, `post-reset-checks`, runs the certificate check and (i) to (vi) against the Preview as it is, without resetting.
