@@ -7620,6 +7620,158 @@
         "x-eventual-effects": "the withdrawal reaches the record that asked for it, which is put back as for a rejection; read that record again."
       }
     },
+    "/api/v1/workflow/approvals/mine": {
+      "get": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "My requests for approval, newest first",
+        "description": "DE-044: the approvals the signed-in user asked for, with their status and decision (checkerId, decisionReason, decidedAt). status is one of Requested, Approved, NotApplied, Rejected, Expired, Withdrawn (any case). The requester is told of each decision by a task in my tasks: APPROVAL_OUTCOME when approved or rejected (informational), APPROVAL_FOLLOW_UP when it expired, was withdrawn for them or was not applied.",
+        "operationId": "WorkflowListMyApprovals",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfWorkflowApprovalView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "own_approval.read",
+        "x-function": [
+          "WORKFLOW_MY_REQUESTS"
+        ]
+      }
+    },
+    "/api/v1/workflow/approvals/mine/{id}/withdraw": {
+      "post": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "Withdraw one of my requests for approval, with a reason",
+        "description": "DE-044: as WorkflowWithdraw, from my requests, without the approvals screen. If-Match is the approval\u0027s rowVersion from my requests. Only while it waits, and only my own (403 APPROVAL_NOT_REQUESTER otherwise). Completes asynchronously (GAP-027): the withdrawal reaches the record that asked for it, which is put back as for a rejection; read that record again.",
+        "operationId": "WorkflowWithdrawMyRequest",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowRejectApprovalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "own_approval.withdraw",
+        "x-function": [
+          "WORKFLOW_WITHDRAW_MY_REQUEST"
+        ],
+        "x-eventual-effects": "the withdrawal reaches the record that asked for it, which is put back as for a rejection; read that record again."
+      }
+    },
     "/api/v1/workflow/processes": {
       "post": {
         "tags": [
@@ -8435,6 +8587,228 @@
         "x-permission": "process.read",
         "x-function": [
           "WORKFLOW_TASKS"
+        ]
+      }
+    },
+    "/api/v1/workflow/tasks/mine": {
+      "get": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "My open tasks, earliest due first",
+        "description": "DE-025: the open tasks assigned to the signed-in user, and the unassigned ones they serve: in a queue that is one of their roles in effect, or of a process a function of theirs does (a held claim payment for whoever releases instructions, a parked delivery for whoever retries them, a party match review for whoever resolves matches, and the step after an approval: docs/specs/addenda/my-work.md). An unassigned task is listed only within the user\u0027s scope (F103) and never to the person its process excludes (the maker of a release, SRS-002). Each item names its record (businessRefType, businessRefId and the screen that opens it) and the moves completing it may make. Never the full task list: that is WorkflowListOpenTasks.",
+        "operationId": "WorkflowListMyTasks",
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfWorkflowMyTaskView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "own_task.read",
+        "x-function": [
+          "WORKFLOW_MY_TASKS"
+        ]
+      }
+    },
+    "/api/v1/workflow/tasks/mine/{taskId}/claim": {
+      "post": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "Take one of my tasks: assign an unassigned task I serve to me",
+        "description": "If-Match is the task\u0027s rowVersion from my tasks (its process\u0027s). Claiming a task already mine changes nothing; one someone else took is refused (409 TASK_CLAIMED_BY_ANOTHER), as is one I don\u0027t serve (403 TASK_NOT_YOURS) or whose process excludes me (403 MAKER_CHECKER_SAME_PERSON).",
+        "operationId": "WorkflowClaimMyTask",
+        "parameters": [
+          {
+            "name": "taskId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "own_task.update",
+        "x-function": [
+          "WORKFLOW_CLAIM_MY_TASK"
+        ]
+      }
+    },
+    "/api/v1/workflow/tasks/mine/{taskId}/complete": {
+      "post": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "Complete one of my tasks",
+        "description": "toState is one of the task\u0027s allowedTransitions; with only one (most tasks, and every informational one) the body may be left out: \u0022done\u0022. An unassigned task I serve is taken by me as it completes. The transition guard and the owning module\u0027s validation apply, as on WorkflowCompleteTask. A task its record closes (the step after an approval, a parked delivery) also closes by itself when the record moves on.",
+        "operationId": "WorkflowCompleteMyTask",
+        "parameters": [
+          {
+            "name": "taskId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/WorkflowCompleteMyTaskRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "own_task.update",
+        "x-function": [
+          "WORKFLOW_COMPLETE_MY_TASK"
         ]
       }
     },
@@ -57907,6 +58281,27 @@
           }
         }
       },
+      "CursorPageOfWorkflowMyTaskView": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowMyTaskView"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "CursorPageOfWorkflowOpenTaskView": {
         "required": [
           "items",
@@ -82592,6 +82987,32 @@
           }
         }
       },
+      "WorkflowCompleteMyTaskRequest": {
+        "required": [
+          "toState",
+          "variables"
+        ],
+        "type": "object",
+        "properties": {
+          "toState": {
+            "maxLength": 20,
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "variables": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          }
+        }
+      },
       "WorkflowCompleteTaskRequest": {
         "required": [
           "toState",
@@ -82772,6 +83193,163 @@
           },
           "reason": {
             "type": "string"
+          }
+        }
+      },
+      "WorkflowMyTaskView": {
+        "required": [
+          "id",
+          "processId",
+          "processCode",
+          "taskType",
+          "businessRefType",
+          "businessRefId",
+          "screen",
+          "queueCode",
+          "assigneeId",
+          "assignedToMe",
+          "dueAt",
+          "slaCode",
+          "informational",
+          "approvalId",
+          "approvalStatus",
+          "payoutPurpose",
+          "payoutCurrency",
+          "allowedTransitions",
+          "rowVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "processId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "processCode": {
+            "type": "string"
+          },
+          "taskType": {
+            "type": "string"
+          },
+          "businessRefType": {
+            "enum": [
+              "ACCOUNTING_PERIOD",
+              "BANK_ACCOUNT",
+              "CASE_REDRESS",
+              "CLAIM_PAYMENT",
+              "COMMISSION_STATEMENT",
+              "CREDIT_NOTE_REQUEST",
+              "DEAD_LETTER",
+              "DOCUMENT_LEGAL_HOLD",
+              "DUE_DILIGENCE",
+              "DUE_DILIGENCE_RISK_OVERRIDE",
+              "DUE_DILIGENCE_UNBLOCK",
+              "GENERAL_CLAIM",
+              "GENERAL_ENDORSEMENT",
+              "GENERAL_RENEWAL",
+              "GOVERNANCE_SETTING",
+              "HEALTH_CREDIT_NOTE",
+              "HEALTH_PAYMENT_RUN",
+              "HEALTH_RECOVERY",
+              "HEALTH_REMITTANCE",
+              "LIFE_CLAIM",
+              "LIFE_UNDERWRITING_CASE",
+              "PARTY_MATCH",
+              "PAYMENT",
+              "PAYOUT_BATCH",
+              "PRODUCT_VERSION",
+              "RECORD_LEGAL_HOLD",
+              "REFUND_REQUEST",
+              "ROLE_ASSIGNMENT",
+              "SEARCH_LOG_HOLD",
+              "STATIC_DATA_CHANGE",
+              "STATIC_DATA_SETUP",
+              "SUBJECT_LINK",
+              "TENANT_ADMIN_REQUEST"
+            ],
+            "type": "string"
+          },
+          "businessRefId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "screen": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "queueCode": {
+            "type": "string"
+          },
+          "assigneeId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "assignedToMe": {
+            "type": "boolean"
+          },
+          "dueAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "slaCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "informational": {
+            "type": "boolean"
+          },
+          "approvalId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "approvalStatus": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WorkflowApprovalStatus"
+              }
+            ]
+          },
+          "payoutPurpose": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "payoutCurrency": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "allowedTransitions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowProcessTransitionView"
+            }
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
           }
         }
       },
