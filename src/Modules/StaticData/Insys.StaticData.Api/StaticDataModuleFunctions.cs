@@ -43,8 +43,9 @@ internal static class StaticDataModuleFunctions
             .Action("STATIC_DATA_SETUP_ABANDON", "STATIC_DATA_CHANGE_REQUESTS", ["RequestSetupAbandon", "ApproveSetupAbandon", "DeclineSetupAbandon"], privileged: true)
             .Screen("STATIC_DATA_GOVERNANCE", "STATIC_DATA", "Three maintenance tiers", "static-data/settings", "GetGovernanceSettings")
             .Action("STATIC_DATA_CHANGE_TIER2_MAKER_CHECKER", "STATIC_DATA_GOVERNANCE", "ChangeTier2MakerChecker", privileged: true)
-            // DE-016, OQ-204: shortening it lets others discard a maker's draft sooner, so it is privileged as the Tier 2 switch is. TODO(spec): confirm (OQ-204).
-            .Action("STATIC_DATA_CHANGE_STALE_DRAFT_DAYS", "STATIC_DATA_GOVERNANCE", "ChangeStaleDraftDiscardDays", privileged: true)
+            // DE-016, OQ-204 (Ade, 25 November 2026, option (c)): not privileged, so every template holding the governance settings screen that may act
+            // (not a read-only one) holds it. The change is audited and needs If-Match.
+            .Action("STATIC_DATA_CHANGE_STALE_DRAFT_DAYS", "STATIC_DATA_GOVERNANCE", "ChangeStaleDraftDiscardDays")
             .Functions,
     ];
 }
