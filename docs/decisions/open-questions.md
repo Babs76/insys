@@ -1655,7 +1655,7 @@ Raised by the read-scope sweep (`docs/reviews/read-scope-sweep.md`, at `06ecae1`
 - **Credit note approved with nothing outstanding:** the request lapses and nothing is credited (money owed back is a refund's job).
 - **Dead letters made by the ledger** (`ledger:<consumer>`): judged money or not by their event type's module prefix (a `payment.*` event is money).
 
-### OQ-201 Dead-end groups D, F and C: approval subject reads, discards and refusals at their edges (25 November 2026)
+### OQ-203 Dead-end groups D, F and C: approval subject reads, discards and refusals at their edges (25 November 2026)
 - **Status:** open, for Ade. Built as stated below; the first is marked `TODO(spec)` in the code. (The number may need renumbering at merge.)
 - **Discarding a draft a rejection returned (DE-016):** refused (409 INVALID_STATE_TRANSITION). Only a draft never submitted is discarded; a draft that was submitted and rejected has a change request and stays for its maker to edit and submit again. A maker who has left still blocks the code: should a steward discard it, or the maker discard a rejected draft too?
 - **Discarding a line of an import (DE-016):** refused; the import's lines stay together (BR-016). An import never submitted has no discard of its own: should one be added?
