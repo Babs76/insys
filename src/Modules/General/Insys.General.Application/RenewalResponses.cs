@@ -167,7 +167,7 @@ internal sealed class RenewalResponseHandlers(IGeneralRepository general, IGener
         }
 
         var outstanding = await disclosures.Outstanding(tenant.RequireTenantId(), policy.PolicyholderPartyId, Integration.Contracts.DisclosurePoints.Renewal, Contracts.GeneralDocuments.RenewalRefType, renewal.Id, businessDate.Today, cancellationToken);
-        return outstanding.Count > 0 ? DisclosureRefusal.For(Integration.Contracts.DisclosurePoints.Renewal, outstanding) : null;
+        return outstanding.Count > 0 ? BuildingBlocks.Application.DisclosureRefusal.For(Integration.Contracts.DisclosurePoints.Renewal, outstanding, policy.PolicyholderPartyId, Contracts.GeneralDocuments.RenewalRefType, renewal.Id) : null;
     }
 
     private async Task<Result<RenewalView>> Staff(Guid renewalId, string action, Func<Renewal, Guid, Result> respond, CancellationToken cancellationToken)

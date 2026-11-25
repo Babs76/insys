@@ -138,7 +138,7 @@ internal sealed class IssueLifePolicyHandler(ILifeRepository life, ILifeCodes co
         if (await disclosures.Outstanding(tenant.RequireTenantId(), proposal.ApplicantPartyId, Integration.Contracts.DisclosurePoints.Inception, "LIFE_PROPOSAL", proposal.Id, businessDate.Today, cancellationToken)
             is { Count: > 0 } outstanding)
         {
-            return DisclosureRefusal.For(Integration.Contracts.DisclosurePoints.Inception, outstanding);
+            return BuildingBlocks.Application.DisclosureRefusal.For(Integration.Contracts.DisclosurePoints.Inception, outstanding, proposal.ApplicantPartyId, "LIFE_PROPOSAL", proposal.Id);
         }
 
         // Issued on the approved product version (LIF-003), still on sale when the policy is issued.

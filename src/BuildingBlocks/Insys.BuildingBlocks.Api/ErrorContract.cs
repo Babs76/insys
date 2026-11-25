@@ -219,6 +219,66 @@ public static class ErrorContract
                 },
             },
         };
+        // DE-039: DISCLOSURE_REQUIRED names what the console needs to open each notice already filled in.
+        const string Disclosure = "Only with DISCLOSURE_REQUIRED (409, F060, DE-039): ";
+        schema.Properties["displayPoint"] = Enum(Disclosure + "the display point whose disclosures aren't acknowledged.", nullable: true, "QUOTE", "ISSUE", "RENEWAL");
+        schema.Properties["noticeTypes"] = new OpenApiSchema
+        {
+            Type = JsonSchemaType.Array | JsonSchemaType.Null,
+            Description = Disclosure + "the notice types outstanding, by code. The same as the notice types in `notices`.",
+            Items = new OpenApiSchema { Type = JsonSchemaType.String },
+        };
+        schema.Properties["notices"] = new OpenApiSchema
+        {
+            Type = JsonSchemaType.Array | JsonSchemaType.Null,
+            Description = Disclosure + "each notice outstanding, by notice type then jurisdiction. Open its text with GET /integration/disclosures (staff) or /portal/disclosures "
+                + "(the member) with `displayPoint` and these values, and acknowledge it with the same values plus `partyId`, `businessRefType` and `businessRefId`. "
+                + "The acknowledgement answers with what is still outstanding, empty when the step can be tried again.",
+            Items = new OpenApiSchema
+            {
+                Type = JsonSchemaType.Object,
+                Required = new HashSet<string> { "noticeType", "jurisdiction", "language", "textVersion", "availableLanguages" },
+                Properties = new Dictionary<string, IOpenApiSchema>
+                {
+                    ["noticeType"] = new OpenApiSchema { Type = JsonSchemaType.String },
+                    ["jurisdiction"] = new OpenApiSchema { Type = JsonSchemaType.String, Description = "The party's country (address, else nationality), else the tenant's." },
+                    ["language"] = new OpenApiSchema
+                    {
+                        Type = JsonSchemaType.String | JsonSchemaType.Null,
+                        Description = "The party's preferred language if a text is in force in it, else the tenant's default language if one is, else the only language the notice is in force in. "
+                            + "Null when it is in force in several and none of those: the person chooses one of availableLanguages.",
+                    },
+                    ["textVersion"] = new OpenApiSchema
+                    {
+                        Type = JsonSchemaType.Integer | JsonSchemaType.Null,
+                        Description = "The version in force today of the text in that language, the one an acknowledgement records; null when no language is chosen.",
+                    },
+                    ["availableLanguages"] = new OpenApiSchema
+                    {
+                        Type = JsonSchemaType.Array,
+                        Description = "The languages the notice is in force in, by code. Acknowledging it in any one of them, in its version in force, acknowledges the notice.",
+                        Items = new OpenApiSchema { Type = JsonSchemaType.String },
+                    },
+                },
+            },
+        };
+        schema.Properties["partyId"] = new OpenApiSchema
+        {
+            Type = JsonSchemaType.String | JsonSchemaType.Null,
+            Format = "uuid",
+            Description = Disclosure + "the party who acknowledges: the proposer, policyholder or principal member.",
+        };
+        schema.Properties["businessRefType"] = new OpenApiSchema
+        {
+            Type = JsonSchemaType.String | JsonSchemaType.Null,
+            Description = Disclosure + "the kind of record the step acts on (GENERAL_QUOTE, GENERAL_RENEWAL, LIFE_PROPOSAL); null for a Health enrolment, which has no record yet.",
+        };
+        schema.Properties["businessRefId"] = new OpenApiSchema
+        {
+            Type = JsonSchemaType.String | JsonSchemaType.Null,
+            Format = "uuid",
+            Description = Disclosure + "the record the step acts on; null for a Health enrolment.",
+        };
         schema.Properties["correlationId"] = new OpenApiSchema
         {
             Type = JsonSchemaType.String,

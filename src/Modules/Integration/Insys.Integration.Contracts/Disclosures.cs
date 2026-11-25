@@ -37,9 +37,9 @@ public static class DisclosurePoints
 
 /// <summary>
 /// Public query interface (F060): which disclosures in force at a display point the party hasn't acknowledged, for this business record if one is named. With no text in force at the point, none:
-/// the tenant hasn't adopted it, and the step runs as before.
+/// the tenant hasn't adopted it, and the step runs as before. Each is named with the jurisdiction, language and text version to open (DE-039), by notice type then jurisdiction.
 /// </summary>
 public interface IDisclosureGate
 {
-    Task<IReadOnlyList<string>> Outstanding(Guid tenantId, Guid partyId, string displayPoint, string? businessRefType, Guid? businessRefId, DateOnly day, CancellationToken cancellationToken);
+    Task<IReadOnlyList<BuildingBlocks.Contracts.DisclosureNotice>> Outstanding(Guid tenantId, Guid partyId, string displayPoint, string? businessRefType, Guid? businessRefId, DateOnly day, CancellationToken cancellationToken);
 }

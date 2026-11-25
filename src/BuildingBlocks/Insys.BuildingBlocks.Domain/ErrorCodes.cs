@@ -262,13 +262,3 @@ public static class ErrorCodes
             .OrderBy(e => e.Code, StringComparer.Ordinal)
             .ToList();
 }
-
-/// <summary>The refusal when a step's mandatory disclosures aren't acknowledged (F060): it names the point and the notices.</summary>
-public static class DisclosureRefusal
-{
-    public static Error For(string displayPoint, IReadOnlyList<string> noticeTypes) =>
-        new(ErrorCodes.DisclosureRequired, $"The {displayPoint} disclosures aren't acknowledged yet.", ErrorKind.Conflict)
-        {
-            Extensions = new Dictionary<string, object?> { ["displayPoint"] = displayPoint, ["noticeTypes"] = noticeTypes },
-        };
-}
