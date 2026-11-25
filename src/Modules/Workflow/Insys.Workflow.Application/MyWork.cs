@@ -48,7 +48,7 @@ namespace Insys.Workflow.Application;
 //     - its queue is one of their roles in effect, or
 //     - their roles grant a function that serves the task's process (WorkServers below: the function that does what the task asks).
 // TODO(spec): a queue the tenant configures (cfg_task_types_and_work_queues) names no role or function; its tasks reach a person only
-// through a role-coded queue, an assignment, or WorkServers. Recorded in docs/decisions/open-questions.md (OQ-201).
+// through a role-coded queue, an assignment, or WorkServers. Recorded in docs/decisions/open-questions.md (OQ-202).
 
 /// <summary>
 /// DE-025, DE-028, DE-029, DE-032, DE-004: the functions whose holders serve a built-in process's unassigned tasks, whatever queue they

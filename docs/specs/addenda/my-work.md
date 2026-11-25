@@ -25,7 +25,7 @@ A task is **the caller's** when:
 | PAYOUT_BATCH_RELEASE / PAYMENT_RUN_RELEASE / PAYOUT_BATCH_BUILD | PAYMENTS_RELEASE_BATCH / HEALTH_RELEASE_RUN / PAYMENTS_BUILD_BATCH |
 | POLICY_ISSUE | LIFE_ISSUE_POLICY, GENERAL_ISSUE_POLICY |
 
-Referrals, renewal reviews, aggregation and configuration reviews are served by their role-coded queue only: they go to the role whose authority covers them. A queue a tenant configures reaches nobody unless its code is a role code (OQ-201).
+Referrals, renewal reviews, aggregation and configuration reviews are served by their role-coded queue only: they go to the role whose authority covers them. A queue a tenant configures reaches nobody unless its code is a role code (OQ-202).
 
 ## 2. The operations
 | Operation | Function | Permission |

@@ -143,6 +143,30 @@ public static class RoleTemplates
 
     private static readonly string[] DueDiligenceAll = ["PARTY_DUE_DILIGENCE", "PARTY_RUN_DUE_DILIGENCE_CHECK", .. DueDiligenceCompliance];
 
+    /// <summary>
+    /// Data-subject requests (POPIA s23-25): the data protection officer's alone (DE-058, Ade, 24 November 2026), so the operational templates that cover
+    /// PARTIES exclude them.
+    /// </summary>
+    public static readonly string[] DataSubjectRequests =
+    [
+        "PARTY_DATA_SUBJECT_REQUESTS", "PARTY_RECEIVE_DATA_SUBJECT_REQUEST", "PARTY_CONFIRM_DATA_SUBJECT_IDENTITY", "PARTY_APPROVE_DATA_SUBJECT_REQUEST",
+        "PARTY_REFUSE_DATA_SUBJECT_REQUEST", "PARTY_EXPORT_DATA_SUBJECT_REQUEST", "PARTY_COMPLETE_DATA_SUBJECT_CORRECTION", "PARTY_EXECUTE_DATA_SUBJECT_DELETION",
+    ];
+
+    /// <summary>
+    /// Functions only their named templates hold, though in sub-domains the operational templates cover (PARTIES, DOCUMENTS), so those exclude them:
+    /// data-subject requests and deciding a party match (the data protection officer's, DE-058, DE-002), and reading record legal holds (the compliance
+    /// officer's and the data protection officer's, DE-019; Ade, 25 November 2026).
+    /// </summary>
+    public static readonly string[] NamedHoldersOnly = [.. DataSubjectRequests, "PARTY_DECIDE_MATCH", "DOCUMENTS_RECORD_HOLDS"];
+
+    /// <summary>The screen listing static data change requests: every template that maintains or approves static data holds it (DE-015, Ade, 24 November 2026).</summary>
+    public const string ChangeRequestsScreen = "STATIC_DATA_CHANGE_REQUESTS";
+
+    /// <summary>Whether a function maintains or approves a table of static data (SD_*_MAINTAIN, SD_*_APPROVE).</summary>
+    public static bool ChangesStaticData(string code) =>
+        code.StartsWith("SD_", StringComparison.Ordinal) && (code.EndsWith("_MAINTAIN", StringComparison.Ordinal) || code.EndsWith("_APPROVE", StringComparison.Ordinal));
+
     private static readonly string[] Configuration =
     [
         "CONFIG_ANALYTICS", "CONFIG_AUDIT", "CONFIG_BILLING", "CONFIG_CLAIMS_FRAMEWORK", "CONFIG_COMMUNICATIONS", "CONFIG_COMPLIANCE", "CONFIG_DISTRIBUTION",
@@ -153,61 +177,75 @@ public static class RoleTemplates
     public static readonly IReadOnlyList<RoleTemplate> All =
     [
         new("TENANT_ADMIN", "Tenant administrator", "STAFF", "Users, roles and their grants, access reviews, the tenant's static data governance and identity and tenant configuration",
-            ["IDENTITY_ACCESS", "STATIC_DATA", "CONFIG_IDENTITY", "CONFIG_TENANCY", "CONFIG_STATIC_DATA", "CONFIG_WORKFLOW", "AUDIT"], Extra: Approving,
+            ["IDENTITY_ACCESS", "STATIC_DATA", "CONFIG_IDENTITY", "CONFIG_TENANCY", "CONFIG_STATIC_DATA", "CONFIG_WORKFLOW", "AUDIT",
+                "CONFIG_COMMUNICATIONS", "CONFIG_DOCUMENTS", "CONFIG_ANALYTICS"], // DE-005 (Ade, 24 November 2026)
+            // OQ-072: the second escalation of parked deliveries is its, so it lists them, read only (Ade, 25 November 2026).
+            Extra: [.. Approving, "INTEGRATION_PARKED_DELIVERIES"],
             PrivilegedGrants: ["ASSIGN_ROLE", "REVOKE_ROLE", "SD_IDENTITY_AND_ACCESS_MANAGEMENT_MAINTAIN", "SD_IDENTITY_AND_ACCESS_MANAGEMENT_APPROVE"],
             Approves: ["PRIVILEGED_ROLE", "EXTERNAL_SUBJECT_LINK", "STATIC_DATA_T1", "STATIC_DATA_T2"]),
         new("PRODUCT_MANAGER", "Product manager", "STAFF", "Products, rating and rules, and their configuration",
-            ["PRODUCT_FACTORY", "RATING", "RULES", "CONFIG_PRODUCT_FACTORY", "CONFIG_RATING", "CONFIG_RULES"],
+            ["PRODUCT_FACTORY", "RATING", "RULES", "CONFIG_PRODUCT_FACTORY", "CONFIG_RATING", "CONFIG_RULES"], Extra: Approving, // DE-001
             Approves: ["PRODUCT_PUBLICATION", "STATIC_DATA_T1", "STATIC_DATA_T2"]),
         new("GENERAL_UNDERWRITER", "General underwriter", "STAFF", "Risk objects, quotes, policies, endorsements and renewals for General",
-            ["GENERAL_RISK_OBJECTS", "GENERAL_QUOTATION", "GENERAL_POLICY_ADMIN", "PARTIES", "CONSENT_PREFERENCES", "DOCUMENTS"],
-            Excluded: ["PARTY_BANK_ACCOUNT_VERIFY", .. DueDiligenceCompliance], Extra: Quoting, Approves: ["ENDORSEMENT"]),
+            ["GENERAL_RISK_OBJECTS", "GENERAL_QUOTATION", "GENERAL_POLICY_ADMIN", "GENERAL_RENEWALS", "PARTIES", "CONSENT_PREFERENCES", "DOCUMENTS"], // DE-003
+            Excluded: ["PARTY_BANK_ACCOUNT_VERIFY", .. DueDiligenceCompliance, .. NamedHoldersOnly], Extra: [.. Quoting, .. Approving], // DE-001, DE-058
+            Approves: ["ENDORSEMENT", "GENERAL_NON_RENEWAL"]), // DE-002
         new("LIFE_UNDERWRITER", "Life underwriter", "STAFF", "Proposals, underwriting cases, policies, values and group schemes for Life",
             ["LIFE_NEW_BUSINESS", "LIFE_UNDERWRITING", "LIFE_POLICY_ADMIN", "LIFE_POLICY_VALUES", "LIFE_GROUP_SCHEMES", "PARTIES", "CONSENT_PREFERENCES", "DOCUMENTS"],
-            Excluded: ["PARTY_BANK_ACCOUNT_VERIFY", .. DueDiligenceCompliance], Extra: Quoting, Approves: ["LIFE_UNDERWRITING"]),
+            Excluded: ["PARTY_BANK_ACCOUNT_VERIFY", .. DueDiligenceCompliance, .. NamedHoldersOnly], Extra: [.. Quoting, .. Approving], Approves: ["LIFE_UNDERWRITING"]),
         new("CLAIMS_HANDLER", "Claims handler", "STAFF", "Registers, assesses and reserves General and Life claims and recoveries, and drafts payment instructions (the maker)",
             ["CLAIM_REGISTER", "CLAIM_FINANCIALS", "GENERAL_CLAIMS", "GENERAL_RECOVERIES", "LIFE_CLAIMS", "PARTIES", "DOCUMENTS", "DISPUTES_APPEALS"],
-            Excluded: ["CLAIMS_RELEASE_INSTRUCTION", "PARTY_BANK_ACCOUNT_VERIFY", .. DueDiligenceAll]),
+            Excluded: ["CLAIMS_RELEASE_INSTRUCTION", "PARTY_BANK_ACCOUNT_VERIFY", .. DueDiligenceAll, .. NamedHoldersOnly]),
         new("CLAIMS_MANAGER", "Claims manager", "STAFF", "Releases payment instructions and approves settlements and Life claims within authority; does not draft instructions",
-            ["CLAIM_REGISTER", "CLAIM_FINANCIALS", "GENERAL_CLAIMS", "GENERAL_RECOVERIES", "LIFE_CLAIMS", "PARTIES", "DOCUMENTS", "DISPUTES_APPEALS"], Extra: Approving,
-            Excluded: ["CLAIMS_DRAFT_INSTRUCTION", "PARTY_BANK_ACCOUNT_VERIFY", .. DueDiligenceAll], Approves: ["CLAIM_SETTLEMENT", "LIFE_CLAIM", "CLAIM_PAYMENT"]),
-        new("HEALTH_CLAIMS_ASSESSOR", "Health claims assessor", "STAFF", "Medical claims, preauthorisations, fraud and utilisation cases",
-            ["HEALTH_MEDICAL_CLAIMS", "HEALTH_ACCESS_TO_CARE", "HEALTH_FRAUD_UTILISATION", "PARTIES", "DOCUMENTS"], Excluded: ["PARTY_BANK_ACCOUNT_VERIFY", .. DueDiligenceAll]),
+            ["CLAIM_REGISTER", "CLAIM_FINANCIALS", "GENERAL_CLAIMS", "GENERAL_RECOVERIES", "LIFE_CLAIMS", "PARTIES", "DOCUMENTS", "DISPUTES_APPEALS", "CONFIG_CLAIMS_FRAMEWORK"],
+            Extra: Approving, Excluded: ["CLAIMS_DRAFT_INSTRUCTION", "PARTY_BANK_ACCOUNT_VERIFY", .. DueDiligenceAll, .. NamedHoldersOnly],
+            Approves: ["CLAIM_SETTLEMENT", "LIFE_CLAIM", "CLAIM_PAYMENT", "STATIC_DATA_T1", "STATIC_DATA_T2"]), // DE-005
+        new("HEALTH_CLAIMS_ASSESSOR", "Health claims assessor", "STAFF", "Medical claims, preauthorisations, fraud and utilisation cases; providers' quality reviews, and approves overpayment findings",
+            ["HEALTH_MEDICAL_CLAIMS", "HEALTH_ACCESS_TO_CARE", "HEALTH_FRAUD_UTILISATION", "PARTIES", "DOCUMENTS"], Excluded: ["PARTY_BANK_ACCOUNT_VERIFY", .. DueDiligenceAll, .. NamedHoldersOnly],
+            // DE-004: the provider quality review and its screen; DE-002: the overpayment finding, decided in the inbox and opened on the recoveries screen.
+            Extra: ["HEALTH_RECORD_PROVIDER_QUALITY_REVIEW", "HEALTH_PROVIDER_PERFORMANCE", "HEALTH_RECOVERIES", .. Approving], Approves: ["PROVIDER_RECOVERY_FINDING"]),
         new("HEALTH_MEMBERSHIP_ADMINISTRATOR", "Health membership administrator", "STAFF", "Schemes, plans and memberships",
-            ["HEALTH_SCHEMES_PLANS", "HEALTH_MEMBERSHIP", "PARTIES", "CONSENT_PREFERENCES", "DOCUMENTS"], Excluded: ["PARTY_BANK_ACCOUNT_VERIFY", .. DueDiligenceCompliance], Extra: Acknowledging),
+            ["HEALTH_SCHEMES_PLANS", "HEALTH_MEMBERSHIP", "PARTIES", "CONSENT_PREFERENCES", "DOCUMENTS"], Excluded: ["PARTY_BANK_ACCOUNT_VERIFY", .. DueDiligenceCompliance, .. NamedHoldersOnly], Extra: Acknowledging),
         new("LINE_CONFIGURATION_MANAGER", "Line configuration manager", "STAFF",
             "Life, General and Health configuration: each line's rules, codes and parameters, under maker-checker; decides another person's change, never their own",
             ["CONFIG_LIFE", "CONFIG_GENERAL", "CONFIG_HEALTH"], Extra: Approving, Approves: ["STATIC_DATA_T1", "STATIC_DATA_T2"]),
         new("FINANCE_OFFICER", "Finance officer", "STAFF", "Billing, journals and provider payment runs, and builds payout batches (the maker)",
             ["BILLING", "PAYMENTS", "FINANCE", "HEALTH_PROVIDER_PAYMENTS", "CONFIG_BILLING", "CONFIG_PAYMENTS", "CONFIG_FINANCE"],
-            Excluded: ["PAYMENTS_RELEASE_BATCH", .. CallbackScreens], Approves: ["STATIC_DATA_T1", "STATIC_DATA_T2"]),
+            Excluded: ["PAYMENTS_RELEASE_BATCH", .. CallbackScreens], Extra: Approving, Approves: ["STATIC_DATA_T1", "STATIC_DATA_T2"]), // DE-001
         new("FINANCE_MANAGER", "Finance manager", "STAFF", "Releases payout batches, verifies payee accounts and approves money movements within authority; does not build batches",
             ["BILLING", "PAYMENTS", "FINANCE", "HEALTH_PROVIDER_PAYMENTS", "CONFIG_BILLING", "CONFIG_PAYMENTS", "CONFIG_FINANCE"],
-            Excluded: ["PAYMENTS_BUILD_BATCH", .. CallbackScreens], Extra: [.. Approving, "PARTY_BANK_ACCOUNTS", "PARTY_BANK_ACCOUNT_VERIFY"],
+            Excluded: ["PAYMENTS_BUILD_BATCH", .. CallbackScreens],
+            // DE-021: the screens the records it approves open on (commission statements, claim payment instructions, a redress's case), read only.
+            Extra: [.. Approving, "PARTY_BANK_ACCOUNTS", "PARTY_BANK_ACCOUNT_VERIFY", "COMMISSION_STATEMENTS", "CLAIM_PAYMENT_INSTRUCTIONS", "SERVICE_COMPLAINTS"],
             PrivilegedGrants: ["TENANT_SWITCH_OFF_MONEY_JOBS", "PAYMENTS_REVERSE"],
             Approves: ["STATIC_DATA_T1", "STATIC_DATA_T2", "REFUND", "CLAIM_PAYMENT", "PAYOUT_RELEASE", "PERIOD_REOPEN", "PROVIDER_PAYMENT_RUN", "COMMISSION_STATEMENT", "BANK_ACCOUNT_VERIFICATION", "CASE_REDRESS",
-                "UNKNOWN_PAYMENT_RESOLUTION", "PAYOUT_RETRY", "COMMISSION_CLAWBACK_INVOICE", "CREDIT_NOTE", "DEAD_LETTER_DISCARD"]), // DE-008, OQ-062 (Ade, 24 November 2026)
+                "UNKNOWN_PAYMENT_RESOLUTION", "PAYOUT_RETRY", "COMMISSION_CLAWBACK_INVOICE", "CREDIT_NOTE", "DEAD_LETTER_DISCARD", // DE-008, OQ-062 (Ade, 24 November 2026)
+                "PROVIDER_CREDIT_NOTE", "PROVIDER_RECOVERY_WRITE_OFF"]), // DE-002 (Ade, 24 November 2026)
         new("DISTRIBUTION_ADMINISTRATOR", "Distribution administrator", "STAFF", "Intermediaries, commission and their configuration",
-            ["INTERMEDIARIES", "COMMISSION", "CONFIG_DISTRIBUTION"], Approves: ["STATIC_DATA_T1", "STATIC_DATA_T2"]),
+            ["INTERMEDIARIES", "COMMISSION", "CONFIG_DISTRIBUTION"], Extra: Approving, Approves: ["STATIC_DATA_T1", "STATIC_DATA_T2"]), // DE-001
         new("REINSURANCE_OFFICER", "Reinsurance officer", "STAFF", "Treaties, cessions and bordereaux", ["REINSURANCE", "CONFIG_REINSURANCE"],
-            Approves: ["STATIC_DATA_T1", "STATIC_DATA_T2"]),
+            Extra: Approving, Approves: ["STATIC_DATA_T1", "STATIC_DATA_T2"]), // DE-001
         new("COMPLIANCE_OFFICER", "Compliance officer", "STAFF",
             "Regulatory returns, risk limits, consent, the audit trail and the party search log; complaints, and the impartial review of appeals (PPR 18.6); customer due diligence: screening hits, risk class overrides, FIC reports and unblocking",
-            ["REGULATORY_REPORTING", "RISK_LIMITS", "CONSENT_PREFERENCES", "AUDIT", "CONFIG_COMPLIANCE", "CUSTOMER_SERVICE"],
-            Extra: ["PARTY_SEARCH_LOG", .. DueDiligenceAll, .. Approving, AiDraftProvenance],
+            ["REGULATORY_REPORTING", "RISK_LIMITS", "CONSENT_PREFERENCES", "AUDIT", "CONFIG_COMPLIANCE", "CUSTOMER_SERVICE", "CONFIG_PARTY", "CONFIG_AUDIT"], // DE-005
+            // DE-019: the documents screen, read only, where a document's legal holds show and a hold's release approval opens, and the record holds screen.
+            Extra: ["PARTY_SEARCH_LOG", .. DueDiligenceAll, .. Approving, AiDraftProvenance, "DOCUMENTS", "DOCUMENTS_RECORD_HOLDS"], // DE-019: record holds, read only
             PrivilegedGrants: ["CASE_DECIDE_APPEAL", "PARTY_UNBLOCK_DUE_DILIGENCE"], Approves: ["STATIC_DATA_T1", "STATIC_DATA_T2", "LEGAL_HOLD_RELEASE", "DUE_DILIGENCE_RISK_OVERRIDE", "DUE_DILIGENCE_UNBLOCK"]),
         new("DATA_PROTECTION_OFFICER", "Data protection officer", "STAFF",
-            "Finds parties, anonymises and merges them, disposes of documents, and places and releases legal holds on documents and the party search log",
-            ["CONSENT_PREFERENCES", "AUDIT"], Extra: ["PARTY_SEARCH_LOG", "PARTY_SEARCH_PARTIES"],
+            "Finds parties, anonymises and merges them, handles data-subject requests, decides portal registrations' party matches, disposes of documents, and places and releases legal holds on documents and the party search log",
+            ["CONSENT_PREFERENCES", "AUDIT"],
+            // DE-058: data-subject requests are its alone. DE-002: deciding a party match needs party.resolve_match (PARTY_DECIDE_MATCH), no party editing.
+            // DE-019: it places and releases record holds, so it reads them (DOCUMENTS_RECORD_HOLDS).
+            Extra: ["PARTY_SEARCH_LOG", "PARTY_SEARCH_PARTIES", .. DataSubjectRequests, "PARTY_DECIDE_MATCH", "DOCUMENTS_RECORD_HOLDS", .. Approving],
             PrivilegedGrants: ["PARTY_ANONYMISE", "PARTY_MERGE_PARTIES", "DOCUMENTS_DISPOSE", "DOCUMENTS_PLACE_LEGAL_HOLD", "DOCUMENTS_RELEASE_LEGAL_HOLD",
-                "PARTY_PLACE_SEARCH_LOG_HOLD", "PARTY_RELEASE_SEARCH_LOG_HOLD"]),
+                "PARTY_PLACE_SEARCH_LOG_HOLD", "PARTY_RELEASE_SEARCH_LOG_HOLD"], Approves: ["PARTY_MATCH_RESOLUTION"]),
         new("CUSTOMER_SERVICE_AGENT", "Customer service agent", "STAFF", "Looks up parties, policies and claims, and their notices and documents; handles enquiries and complaints",
-            ["PARTIES", "CONSENT_PREFERENCES", "NOTIFICATIONS", "DOCUMENTS", "CUSTOMER_SERVICE"], Excluded: ["PARTY_BANK_ACCOUNT_VERIFY", .. CallbackScreens, .. DueDiligenceAll]),
+            ["PARTIES", "CONSENT_PREFERENCES", "NOTIFICATIONS", "DOCUMENTS", "CUSTOMER_SERVICE"], Excluded: ["PARTY_BANK_ACCOUNT_VERIFY", .. CallbackScreens, .. DueDiligenceAll, .. NamedHoldersOnly]),
         new("OPERATIONS_ANALYST", "Operations analyst", "STAFF", "Dashboards, parked deliveries and dead letters (retry and replay), webhooks and work queues; decides no approvals and discards nothing",
             ["ANALYTICS", "INTEGRATION_OPERATIONS", "WORKFLOW"], Excluded: ["WORKFLOW_APPROVE", "WORKFLOW_REJECT"]),
         new("INTEGRATION_ADMINISTRATOR", "Integration administrator", "STAFF",
             "Payment and messaging providers' callback endpoints and their secrets, parking settings, and discarding deliveries and messages",
-            ["INTEGRATION_OPERATIONS", "CONFIG_INTEGRATION"], Extra: CallbackScreens,
+            ["INTEGRATION_OPERATIONS", "CONFIG_INTEGRATION"], Extra: [.. CallbackScreens, .. Approving], // DE-001
             PrivilegedGrants: ["PAYMENTS_ISSUE_CALLBACK_ENDPOINT", "PAYMENTS_REVOKE_CALLBACK_ENDPOINT", "COMMUNICATIONS_ISSUE_CALLBACK_ENDPOINT",
                 "COMMUNICATIONS_REVOKE_CALLBACK_ENDPOINT", "DISCARD_PARKED_DELIVERY", "DISCARD_MESSAGE"], Approves: ["STATIC_DATA_T1", "STATIC_DATA_T2"]),
         new("AUDITOR", "Auditor (read only)", "STAFF", "Every staff screen except medical information and the party search log; no actions, except reading an AI-1 draft's provenance report", ["*"],
@@ -247,6 +285,12 @@ public static class RoleTemplates
             .Select(f => f.Code)
             .Concat(template.Extra ?? []).Concat(template.PrivilegedGrants ?? [])
             .ToHashSet(StringComparer.Ordinal);
+
+        // DE-015 (Ade, 24 November 2026): who maintains or approves static data sees the change requests.
+        if (codes.Any(ChangesStaticData))
+        {
+            codes.Add(ChangeRequestsScreen);
+        }
 
         // An action brings the screen it acts on.
         foreach (var code in codes.ToList())

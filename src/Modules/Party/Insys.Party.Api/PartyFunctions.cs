@@ -66,6 +66,7 @@ internal static class PartyFunctions
         .Action("PARTY_ASSIGN_ROLE", "PARTIES", "PartyAssignRole")
         .Action("PARTY_RECORD_DEATH", "PARTIES", "PartyRecordDeath")
         .Action("PARTY_RESOLVE_MATCH", "PARTIES", "PartyResolveMatch")
+        .Permission("PARTY_DECIDE_MATCH", "PARTIES", PartyPermissions.MatchResolve) // DE-002: the checker's of PARTY_MATCH_RESOLUTION, in the Workflow inbox
         .Action("PARTY_ANONYMISE", "PARTIES", "PartyAnonymise", privileged: true)
         .Screen("PARTY_SEARCH_LOG", "PARTIES", "Search with access log", "party/search-log", "PartyListSearchLogHolds", "PartyListSearches")
         .Action("PARTY_PLACE_SEARCH_LOG_HOLD", "PARTY_SEARCH_LOG", "PartyPlaceSearchLogHold", privileged: true)
