@@ -1661,7 +1661,7 @@ Raised by the read-scope sweep (`docs/reviews/read-scope-sweep.md`, at `06ecae1`
 - **Proposed:** refuse a hit's review by the person whose check raised it (the screening's `checked_by`; a screening run by the platform or a job has no person and stays open to any reviewer), with its own error code, audited. A new rule in the Party domain, no migration.
 
 ### OQ-200 Money group: what failed payouts, credited recoveries and discarded dead letters do at their edges (24 November 2026)
-- **Status:** open, for Ade. Built as stated below and marked `TODO(spec)` in the code; each is a small change once decided.
+- **Status:** accepted for beta as built (Ade, 25 November 2026). Each stays marked `TODO(spec)` in the code. The Finance posting of clawback invoices is must-fix before go-live (go-live register row 41, FIN-001, FIN-005).
 - **Health recovery, invoice fully credited (DE-009):** treated as the invoice being withdrawn, not the debt forgiven. What the invoice had collected is settled; the credited amount stays owed; the recovery returns to Open for review (write-off with a second person, or reverse, as before). Alternative: a full credit forgives the debt.
 - **Health recovery, partial credit:** the balance falls by the credit and stays credited, with no Health write-off. Confirm the credited part is forgiven.
 - **Health recovery, re-invoicing:** an Open recovery whose invoice was fully credited can't be invoiced again (409): Billing schedules one invoice per recovery.
