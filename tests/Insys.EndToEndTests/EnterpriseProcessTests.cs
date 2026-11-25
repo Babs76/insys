@@ -381,7 +381,9 @@ public sealed class EnterpriseProcessTests(PostgresServer server) : IAsyncLifeti
         var webhookDeadLetter = await _db.ScalarAsOwner<Guid>("SELECT id FROM integration.dead_letter_message WHERE source = 'webhook:WH-2'");
         var replay = await _maker.Send(HttpMethod.Post, $"/api/v1/integration/dead-letters/{webhookDeadLetter}/replay", ifMatch: "\"1\"");
         (await replay.Code()).ShouldBe("INVALID_STATE_TRANSITION");
-        var discard = await _maker.Send(HttpMethod.Post, $"/api/v1/integration/dead-letters/{webhookDeadLetter}/discard", ifMatch: "\"1\"");
+        var messageRef = await _db.ScalarAsOwner<string>("SELECT message_id FROM integration.dead_letter_message WHERE id = @id", ("id", webhookDeadLetter));
+        var discard = await _maker.Send(HttpMethod.Post, $"/api/v1/integration/dead-letters/{webhookDeadLetter}/discard",
+            new { messageRef, reason = "A failed webhook can't be replayed (OQ-066)." }, ifMatch: "\"1\"");
         discard.StatusCode.ShouldBe(HttpStatusCode.NoContent, await discard.Content.ReadAsStringAsync());
 
         // PrepareBordereau for the month (one per treaty and period), sent through the reinsurer adapter, then agreed.
