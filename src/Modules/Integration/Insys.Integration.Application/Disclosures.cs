@@ -28,7 +28,9 @@ using FluentValidation;
 using Insys.BuildingBlocks.Application.Auditing;
 using Insys.BuildingBlocks.Application.Context;
 using Insys.BuildingBlocks.Application.Messaging;
+using Insys.BuildingBlocks.Contracts;
 using Insys.BuildingBlocks.Domain;
+using Insys.Integration.Contracts;
 
 namespace Insys.Integration.Application;
 
@@ -41,7 +43,29 @@ public sealed record GetDisclosureText(string DisplayPoint, string NoticeType, s
 /// <param name="PartyId">Staff name the party; on the portal it is the caller, whatever is sent.</param>
 public sealed record AcknowledgeDisclosure(Guid? PartyId, string DisplayPoint, string NoticeType, string Jurisdiction, string Language, string? BusinessRefType, Guid? BusinessRefId) : ICommand<DisclosureAcknowledgementView>;
 
-public sealed record DisclosureAcknowledgementView(Guid Id, Guid PartyId, string NoticeType, string DisplayPoint, int TextVersion, DateTimeOffset AcknowledgedAt);
+/// <param name="Outstanding">DE-039: what is still outstanding at the display point for the party and record after this acknowledgement, as DISCLOSURE_REQUIRED names it; empty when the step can be retried.</param>
+public sealed record DisclosureAcknowledgementView(Guid Id, Guid PartyId, string NoticeType, string DisplayPoint, int TextVersion, DateTimeOffset AcknowledgedAt, IReadOnlyList<DisclosureNotice> Outstanding);
+
+/// <summary>
+/// DE-039 (Ade, 25 November 2026): the language an outstanding notice is opened in. The party's preferred language if a text is in force in it, else the tenant's
+/// default language if one is, else the first language the notice exists in by code (ordinal), which is the only one when there is one.
+/// </summary>
+public static class DisclosureLanguage
+{
+    public static string Choose(IReadOnlyCollection<string> available, string? preferred, string? tenantDefault)
+    {
+        ArgumentOutOfRangeException.ThrowIfZero(available.Count);
+        foreach (var candidate in new[] { preferred?.Trim(), tenantDefault?.Trim() })
+        {
+            if (!string.IsNullOrEmpty(candidate) && available.FirstOrDefault(a => string.Equals(a, candidate, StringComparison.OrdinalIgnoreCase)) is { } found)
+            {
+                return found;
+            }
+        }
+
+        return available.Order(StringComparer.Ordinal).First();
+    }
+}
 
 public interface IDisclosures
 {
@@ -60,7 +84,7 @@ public sealed class AcknowledgeDisclosureValidator : AbstractValidator<Acknowled
     }
 }
 
-internal sealed class DisclosureHandlers(IDisclosures disclosures, IExecutionContext execution, ITenantContext tenant, IBusinessDate businessDate, IClock clock, IAuditTrail audit) :
+internal sealed class DisclosureHandlers(IDisclosures disclosures, IDisclosureGate gate, IExecutionContext execution, ITenantContext tenant, IBusinessDate businessDate, IClock clock, IAuditTrail audit) :
     IQueryHandler<GetDisclosureText, DisclosureTextView>,
     ICommandHandler<AcknowledgeDisclosure, DisclosureAcknowledgementView>
 {
@@ -87,6 +111,7 @@ internal sealed class DisclosureHandlers(IDisclosures disclosures, IExecutionCon
         var at = clock.UtcNow;
         await disclosures.Record(tenantId, id, partyId, text, command.BusinessRefType, command.BusinessRefId, at, execution.External?.Kind, execution.ActorId, cancellationToken);
         audit.Record(new AuditEntry("CHANNEL", "AcknowledgeDisclosure", "DisclosureAcknowledgement", id.ToString(), new Dictionary<string, string?> { ["point"] = text.DisplayPoint, ["version"] = text.TextVersion.ToString(System.Globalization.CultureInfo.InvariantCulture) }));
-        return new DisclosureAcknowledgementView(id, partyId, text.NoticeType, text.DisplayPoint, text.TextVersion, at);
+        var outstanding = await gate.Outstanding(tenantId, partyId, text.DisplayPoint, command.BusinessRefType, command.BusinessRefId, businessDate.Today, cancellationToken);
+        return new DisclosureAcknowledgementView(id, partyId, text.NoticeType, text.DisplayPoint, text.TextVersion, at, outstanding);
     }
 }

@@ -471,7 +471,7 @@ internal sealed class ChangeQuoteHandler(IGeneralRepository general, IGeneralCod
                 if (await disclosures.Outstanding(tenant.RequireTenantId(), quote.ProposerPartyId, Integration.Contracts.DisclosurePoints.Quote, Contracts.GeneralDocuments.QuoteRefType, quote.Id, businessDate.Today, cancellationToken)
                     is { Count: > 0 } outstanding)
                 {
-                    return DisclosureRefusal.For(Integration.Contracts.DisclosurePoints.Quote, outstanding);
+                    return BuildingBlocks.Application.DisclosureRefusal.For(Integration.Contracts.DisclosurePoints.Quote, outstanding, quote.ProposerPartyId, Contracts.GeneralDocuments.QuoteRefType, quote.Id);
                 }
 
                 result = quote.AcceptQuote(businessDate.Today, clock.UtcNow);

@@ -2288,24 +2288,47 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         // Ade, 1 November 2026: another country's text doesn't hold this party, but holds one who lives there.
         await Seed("channel.cfg_disclosure_and_notice_texts", "EFFECTIVE", "DISC-NA", ("notice_type", "NA_TERMS"), ("jurisdiction", "NA"), ("language", "en"), ("text", "Namibian terms."), ("text_version", 1), ("display_point", "ISSUE"));
         var gate = _factory.Services.GetRequiredService<Insys.Integration.Contracts.IDisclosureGate>();
-        (await gate.Outstanding(Tenant, proposer, "ISSUE", null, null, Today, CancellationToken.None)).ShouldBe(["POLICY_TERMS"]);
+        (await gate.Outstanding(Tenant, proposer, "ISSUE", null, null, Today, CancellationToken.None)).ShouldBe([new Insys.BuildingBlocks.Contracts.DisclosureNotice("POLICY_TERMS", "ZA", "en", 3)]);
         var namibian = await _maker.RegisterPerson("Namibian");
         await _db.ExecuteAsOwner("""
             INSERT INTO party.address (tenant_id, id, row_version, created_at, created_by, updated_at, updated_by, party_id, address_type, line1, city, country, valid_from)
             VALUES (@t, gen_random_uuid(), 1, now(), 'seed', now(), 'seed', @p, 'RESIDENTIAL', '1 Main', 'Windhoek', 'NA', @f)
             """, ("t", Tenant), ("p", namibian), ("f", Today.AddYears(-1)));
-        (await gate.Outstanding(Tenant, namibian, "ISSUE", null, null, Today, CancellationToken.None)).ShouldBe(["NA_TERMS"]);
+        (await gate.Outstanding(Tenant, namibian, "ISSUE", null, null, Today, CancellationToken.None)).ShouldBe([new Insys.BuildingBlocks.Contracts.DisclosureNotice("NA_TERMS", "NA", "en", 1)]);
+
+        // DE-039: a second notice, in Afrikaans as well as English. The proposer prefers Afrikaans, so it is named in Afrikaans; the first exists only in English.
+        await Seed("channel.cfg_disclosure_and_notice_texts", "EFFECTIVE", "DISC-COOL-EN", ("notice_type", "COOLING_OFF"), ("jurisdiction", "ZA"), ("language", "en"), ("text", "You may cancel within 30 days."),
+            ("text_version", 2), ("display_point", "ISSUE"));
+        await Seed("channel.cfg_disclosure_and_notice_texts", "EFFECTIVE", "DISC-COOL-AF", ("notice_type", "COOLING_OFF"), ("jurisdiction", "ZA"), ("language", "af"), ("text", "U kan binne 30 dae kanselleer."),
+            ("text_version", 1), ("display_point", "ISSUE"));
+        await _db.ExecuteAsOwner("UPDATE party.individual SET preferred_language = 'af' WHERE tenant_id = @t AND party_id = @p", ("t", Tenant), ("p", proposer));
 
         await IssuedPolicy(proposer: proposer, beforeIssue: async (quoted, body) =>
         {
-            (await (await _maker.Send(HttpMethod.Post, "/api/v1/general/policies", body, idempotent: true)).Code()).ShouldBe("DISCLOSURE_REQUIRED");
+            // The refusal names what the console needs to open each notice already filled in, and the record it gates.
+            var refused = await (await _maker.Send(HttpMethod.Post, "/api/v1/general/policies", body, idempotent: true)).Json();
+            refused.GetProperty("code").GetString().ShouldBe("DISCLOSURE_REQUIRED");
+            refused.GetProperty("displayPoint").GetString().ShouldBe("ISSUE");
+            refused.GetProperty("noticeTypes").EnumerateArray().Select(n => n.GetString()).ShouldBe(["COOLING_OFF", "POLICY_TERMS"]);
+            Notices(refused.GetProperty("notices")).ShouldBe([("COOLING_OFF", "ZA", "af", 1), ("POLICY_TERMS", "ZA", "en", 3)]);
+            (refused.GetProperty("partyId").GetGuid(), refused.GetProperty("businessRefType").GetString(), refused.GetProperty("businessRefId").GetGuid())
+                .ShouldBe((proposer, GeneralDocuments.QuoteRefType, quoted));
+
             var text = await (await clerk.GetAsync("/api/v1/integration/disclosures?displayPoint=ISSUE&noticeType=POLICY_TERMS&jurisdiction=ZA&language=en")).Json();
             text.GetProperty("textVersion").GetInt32().ShouldBe(3);
-            var acknowledged = await clerk.Send(HttpMethod.Post, "/api/v1/integration/disclosure-acknowledgements", new
+            async Task<JsonElement> Acknowledge(string noticeType, string language)
             {
-                partyId = proposer, displayPoint = "ISSUE", noticeType = "POLICY_TERMS", jurisdiction = "ZA", language = "en", businessRefType = GeneralDocuments.QuoteRefType, businessRefId = quoted,
-            }, idempotent: true);
-            acknowledged.StatusCode.ShouldBe(HttpStatusCode.Created, await acknowledged.Content.ReadAsStringAsync());
+                var acknowledged = await clerk.Send(HttpMethod.Post, "/api/v1/integration/disclosure-acknowledgements", new
+                {
+                    partyId = proposer, displayPoint = "ISSUE", noticeType, jurisdiction = "ZA", language, businessRefType = GeneralDocuments.QuoteRefType, businessRefId = quoted,
+                }, idempotent: true);
+                acknowledged.StatusCode.ShouldBe(HttpStatusCode.Created, await acknowledged.Content.ReadAsStringAsync());
+                return await acknowledged.Json();
+            }
+
+            // Each acknowledgement answers with what is still outstanding for the party and record; empty, the step can be tried again.
+            Notices((await Acknowledge("POLICY_TERMS", "en")).GetProperty("outstanding")).ShouldBe([("COOLING_OFF", "ZA", "af", 1)]);
+            (await Acknowledge("COOLING_OFF", "af")).GetProperty("outstanding").GetArrayLength().ShouldBe(0);
         });
 
         // A deletion while a policy is open: a person confirms, a second approves, and the check refuses it with its reason.
@@ -2715,4 +2738,8 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
 
     private Task Seed(string table, string status, string code, params (string Column, object Value)[] fields) =>
         _db.SeedStatic(Tenant, table, status, code, Today.AddDays(-30), fields);
+
+    /// <summary>DE-039: a DISCLOSURE_REQUIRED or acknowledgement notice list, as (noticeType, jurisdiction, language, textVersion).</summary>
+    private static List<(string?, string?, string?, int)> Notices(JsonElement notices) =>
+        [.. notices.EnumerateArray().Select(n => (n.GetProperty("noticeType").GetString(), n.GetProperty("jurisdiction").GetString(), n.GetProperty("language").GetString(), n.GetProperty("textVersion").GetInt32()))];
 }
