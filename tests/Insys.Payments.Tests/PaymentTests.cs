@@ -239,7 +239,7 @@ public sealed class PaymentTests
         var other = Payout(50m);
         var batch = PayoutBatch.BuildBatch(Guid.CreateVersion7(), "REFUND", "ZAR", [waiting, other], Guid.CreateVersion7(), Now).Value;
         var moved = Payout(25m);
-        moved.AssignToBatch(Guid.CreateVersion7());
+        moved.AssignToBatch(Guid.CreateVersion7(), Now);
 
         var released = batch.RejectBatch([waiting, other, moved]);
 

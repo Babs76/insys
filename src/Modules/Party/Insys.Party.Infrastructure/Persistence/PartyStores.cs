@@ -254,7 +254,7 @@ internal sealed class PartyEventMapper : IDomainEventMapper
         PartyMatchResolutionProposed e => new BuildingBlocks.Contracts.Approvals.ApprovalRequested(Contracts.PartyApprovals.MatchBusinessRefType, e.PartyId,
             Contracts.PartyApprovals.MatchResolutionType, e.RequestedBy, null, null,
             e.Resolution == "LINK" ? $"Link portal registration {e.PartyId} to party {e.ExistingPartyId}" : $"Confirm portal registration {e.PartyId} as a new party",
-            null, Contracts.PartyPermissions.PartyUpdate),
+            null, Contracts.PartyPermissions.MatchResolve), // DE-002: deciding gives no party editing
         SearchLogHoldReleaseRequested e => new BuildingBlocks.Contracts.Approvals.ApprovalRequested(Contracts.PartyApprovals.SearchLogHoldBusinessRefType, e.HoldId,
             Contracts.PartyApprovals.LegalHoldReleaseType, e.RequestedBy, null, null,
             $"Release legal hold on the party search log ({(e.SearchedBy is null ? "whole log" : "one searcher's entries")}): {e.Reason}"),

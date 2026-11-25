@@ -218,7 +218,7 @@ public sealed class GeneralPolicies(IGeneralRepository general, IGeneralCodes co
 
         if (await general.Policy(issued.PolicyId, cancellationToken) is { QuoteId: { } quoteId } && await general.ProposalForQuote(quoteId, cancellationToken) is { } proposal)
         {
-            proposal.Convert();
+            proposal.Convert(issued.PolicyId, clock.UtcNow);
         }
     }
 

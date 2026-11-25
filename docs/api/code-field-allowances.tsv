@@ -270,6 +270,10 @@ core	WorkflowCaseView.orgNodeCode	to declare
 core	WorkflowCaseView.productCode	to declare
 core	WorkflowCaseView.raisedByIntermediaryCode	to declare
 core	WorkflowComplaintCategoryFigures.categoryCode	to declare
+core	WorkflowMyTaskView.processCode	to declare
+core	WorkflowMyTaskView.queueCode	to declare
+core	WorkflowMyTaskView.slaCode	to declare
+core	WorkflowMyTaskView.taskType	to declare
 core	WorkflowOmbudReferralRequest.schemeCode	to declare
 core	WorkflowOpenCaseRequest.caseTypeCode	to declare
 core	WorkflowOpenCaseRequest.categoryCode	to declare

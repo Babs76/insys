@@ -91,6 +91,46 @@ public abstract class ApprovalEndings(DatabaseFixture fixture) : IClassFixture<D
     /// <summary>Every approval type in the table.</summary>
     public static IReadOnlyCollection<string> AllTypes => Cases.Keys;
 
+    /// <summary>
+    /// DE-002 (Ade, 25 November 2026): a user holding the data protection officer's template decides a portal registration's match (it needs
+    /// party.resolve_match, which PARTY_DECIDE_MATCH grants) and is refused editing a party: deciding gives no party.update.
+    /// </summary>
+    protected async Task TheDataProtectionOfficer_DecidesAPartyMatch_ButCannotEditAParty()
+    {
+        var @case = Cases[PartyApprovals.MatchResolutionType];
+        var world = await World.Create(fixture, _factory, @case);
+        var waiting = await @case.Setup(world);
+        await _factory.DrainOutbox();
+        var approval = await fixture.Database.ScalarAsOwner<Guid>("""
+            SELECT id FROM workflow.approval WHERE tenant_id = @t AND business_ref_type = @r AND business_ref_id = @i AND status = 'REQUESTED'
+            """, ("t", world.Tenant), ("r", waiting.BusinessRefType), ("i", waiting.BusinessRefId));
+        (await fixture.Database.ScalarAsOwner<string>("SELECT required_permission FROM workflow.approval WHERE id = @a", ("a", approval))).ShouldBe(PartyPermissions.MatchResolve);
+
+        var template = Insys.Identity.Api.RoleTemplates.All.Single(t => t.Code == "DATA_PROTECTION_OFFICER");
+        string[] functions = [.. Insys.Identity.Api.RoleTemplates.Expand(template, Insys.BuildingBlocks.Api.Functions.FunctionRegistry.All()).Select(f => f.Code)];
+        functions.ShouldNotContain("PARTY_RESOLVE_MATCH");
+        var subject = $"dpo-{world.Suffix}";
+        var dpoId = await world.Db.UserWithPermissions(world.Tenant, subject);
+        var role = await world.Db.RoleWithFunctions(world.Tenant, functions);
+        await world.Db.AssignRole(world.Tenant, dpoId, role);
+        await world.Seed("workflow.cfg_delegation_and_approval_authority", "EFFECTIVE", $"AUTH-MATCH-DPO-{world.Suffix}", ("role_code", role),
+            ("transaction_type", PartyApprovals.MatchResolutionType), ("limit_value", 0m), ("delegation_allowed", false));
+        var dpo = world.Factory.ClientFor(world.Tenant, subject);
+
+        // No party editing: the registration's details, or recording a death (both party.update).
+        var party = await world.Get($"/api/v1/party/parties/{waiting.BusinessRefId}");
+        var version = $"\"{party.GetProperty("rowVersion").GetInt64()}\"";
+        (await dpo.Send(HttpMethod.Put, $"/api/v1/party/parties/{waiting.BusinessRefId}/individual",
+            new { firstNames = "Changed", surname = "Known", birthDate = "1985-06-15", nationality = "ZA" }, ifMatch: version)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await dpo.Send(HttpMethod.Post, $"/api/v1/party/parties/{waiting.BusinessRefId}/death", new { deceasedDate = Today.ToString("yyyy-MM-dd") }, ifMatch: version))
+            .StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+
+        // It decides the match: the registration is linked.
+        await world.Ok(await dpo.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval}/approve", ifMatch: "\"1\""), HttpStatusCode.NoContent);
+        await _factory.DrainOutbox();
+        (await waiting.State()).ShouldBe("LINKED");
+    }
+
     /// <summary>The family an approval type's rows run in; a type in no family fails the guard test.</summary>
     public static Family? FamilyOf(string approvalType) => approvalType.Split('/')[0] switch
     {
@@ -413,7 +453,7 @@ public abstract class ApprovalEndings(DatabaseFixture fixture) : IClassFixture<D
             [TenancyPermissions.Read, TenancyPermissions.Create, TenancyPermissions.Update, IdentityPermissions.UserRead, IdentityPermissions.UserCreate, .. Approving],
             [IdentityApprovals.TenantAdministratorApprovalType], TenantAdministrator, "PendingApproval", ["Provisioned"], "Rejected", Operator: true,
             Refuse: RefuseTenantAdministrator, WhenRefused: "NotApplied"),
-        [PartyApprovals.MatchResolutionType] = new([PartyPermissions.PartyCreate, PartyPermissions.PartyRead, PartyPermissions.PartyUpdate, .. Approving],
+        [PartyApprovals.MatchResolutionType] = new([PartyPermissions.PartyCreate, PartyPermissions.PartyRead, PartyPermissions.PartyUpdate, PartyPermissions.MatchResolve, .. Approving],
             [PartyApprovals.MatchResolutionType], PartyMatch, "PROPOSED", ["LINKED"], "PENDING_REVIEW", Refuse: RefusePartyMatch, WhenRefused: "PROPOSED"),
         ["BANK_ACCOUNT_VERIFICATION"] = new(
             [PartyPermissions.PartyCreate, PartyPermissions.PartyRead, PartyPermissions.BankAccountCreate, PartyPermissions.BankAccountRead, PartyPermissions.BankAccountVerify,
@@ -431,7 +471,7 @@ public abstract class ApprovalEndings(DatabaseFixture fixture) : IClassFixture<D
             [DocumentApprovals.LegalHoldReleaseType], DocumentLegalHold, "held|release pending", ["released"], "held", Refuse: RefuseLegalHoldRelease,
             WhenRefused: "held", ApprovalType: DocumentApprovals.LegalHoldReleaseType),
         [$"{DocumentApprovals.LegalHoldReleaseType}/{DocumentApprovals.RecordHoldBusinessRefType}"] = new(
-            [DocumentPermissions.LegalHoldManage, .. Approving],
+            [DocumentPermissions.LegalHoldManage, DocumentPermissions.LegalHoldRead, .. Approving],
             [DocumentApprovals.LegalHoldReleaseType], RecordLegalHold, "held|release pending", ["released"], "held", Refuse: RefuseLegalHoldRelease,
             WhenRefused: "held", ApprovalType: DocumentApprovals.LegalHoldReleaseType),
         [$"{PartyApprovals.LegalHoldReleaseType}/{PartyApprovals.SearchLogHoldBusinessRefType}"] = new(
@@ -1752,6 +1792,9 @@ public sealed class ApprovalEndingsAccessTests(DatabaseFixture fixture) : Approv
     [Theory]
     [MemberData(nameof(Types))]
     public Task AGrantTheRecordWillNotTake_Parks_IsMarkedNotApplied_AndTellsTheRequester_D5(string approvalType) => AGrantTheRecordWillNotTake(approvalType);
+
+    [Fact]
+    public Task TheDataProtectionOfficer_DecidesAPartyMatch_ButCannotEditAParty_DE002() => TheDataProtectionOfficer_DecidesAPartyMatch_ButCannotEditAParty();
 }
 
 /// <summary>Approval endings (OQ-113) and refused grants (D-5) of legal hold releases; and the guard that splits the table.</summary>

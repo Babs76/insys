@@ -127,6 +127,28 @@ internal sealed class ApprovalQueries(WorkflowDbContext db, IExecutionContext ex
         return await query.OrderBy(a => a.Id).Take(limit).ToListAsync(cancellationToken);
     }
 
+    /// <summary>DE-044: the requester's own approvals, newest first; not filtered by scope, as they asked for each.</summary>
+    public async Task<IReadOnlyList<ApprovalView>> Mine(Guid makerId, string? status, Guid? beforeId, int limit, CancellationToken cancellationToken, Guid? id = null)
+    {
+        var query = db.Approvals.AsNoTracking().Where(a => a.MakerId == makerId);
+        if (id is not null)
+        {
+            query = query.Where(a => a.Id == id.Value);
+        }
+
+        if (status is not null && Enum.TryParse<ApprovalStatus>(status, ignoreCase: true, out var parsed))
+        {
+            query = query.Where(a => a.Status == parsed);
+        }
+
+        if (beforeId is not null)
+        {
+            query = query.Where(a => a.Id.CompareTo(beforeId.Value) < 0);
+        }
+
+        return (await query.OrderByDescending(a => a.Id).Take(limit).ToListAsync(cancellationToken)).Select(View).ToList();
+    }
+
     private static ApprovalView View(Approval a) => ApprovalView.Of(a);
 }
 
@@ -139,6 +161,11 @@ internal sealed class ProcessRepository(WorkflowDbContext db, IEnumerable<Contra
     public async Task<IReadOnlyList<Guid>> WithDueTimers(DateTimeOffset now, int limit, CancellationToken cancellationToken) =>
         await db.Set<ProcessTimer>().Where(t => t.FiredAt == null && t.FireAt <= now).Select(t => t.ProcessInstanceId).Distinct().Take(limit)
             .ToListAsync(cancellationToken);
+
+    public async Task<ProcessInstance?> ByTask(Guid taskId, CancellationToken cancellationToken) =>
+        await db.Set<ProcessTask>().AsNoTracking().Where(t => t.Id == taskId).Select(t => (Guid?)t.ProcessInstanceId).SingleOrDefaultAsync(cancellationToken) is { } id
+            ? await Get(id, cancellationToken)
+            : null;
 
     /// <summary>
     /// F103 (scope batch 4, OQ-169): the process follows its record. A type declared unscoped stays tenant-wide. Otherwise its record's scope comes from the
@@ -250,6 +277,43 @@ internal sealed class ProcessQueries(WorkflowDbContext db, BuildingBlocks.Applic
 
         return (await query.OrderBy(t => t.DueAt).ThenBy(t => t.Id).Take(limit).ToListAsync(cancellationToken))
             .Select(t => new OpenTaskView(t.ProcessInstanceId, View(t))).ToList();
+    }
+
+    /// <summary>
+    /// DE-025: the open tasks assigned to the user, whatever their scope (they are theirs), and the unassigned ones in scope (F103) that the
+    /// user serves by a queue (a role in effect) or a function (the processes listed), unless the process excludes them (SRS-002).
+    /// </summary>
+    public async Task<IReadOnlyList<MyTaskRow>> MyTasks(MyTasksFilter filter, OpenTaskCursor? after, int limit, CancellationToken cancellationToken, Guid? taskId = null)
+    {
+        var user = filter.UserId;
+        var queues = filter.Queues.ToArray();
+        var served = filter.ServedProcesses.ToArray();
+        var visible = InScope(db.Processes.AsNoTracking()).Select(p => p.Id);
+        var query = from t in db.Set<ProcessTask>().AsNoTracking()
+                    join p in db.Processes.AsNoTracking() on t.ProcessInstanceId equals p.Id
+                    where t.Status == Domain.Processes.TaskStatus.Open
+                          && (t.AssigneeId == user
+                              || (t.AssigneeId == null && (p.ExcludedUserId == null || p.ExcludedUserId != user) && visible.Contains(p.Id)
+                                  && (queues.Contains(t.QueueCode) || served.Contains(p.ProcessCode))))
+                    select new { Task = t, Process = p };
+        if (after is { } cursor)
+        {
+            query = query.Where(x => x.Task.DueAt > cursor.DueAt || (x.Task.DueAt == cursor.DueAt && x.Task.Id.CompareTo(cursor.Id) > 0));
+        }
+
+        if (taskId is { } one)
+        {
+            query = query.Where(x => x.Task.Id == one);
+        }
+
+        var rows = await query.OrderBy(x => x.Task.DueAt).ThenBy(x => x.Task.Id).Take(limit).ToListAsync(cancellationToken);
+        var approvalIds = rows.Select(r => r.Process.ApprovalId).OfType<Guid>().Distinct().ToArray();
+        var statuses = approvalIds.Length == 0
+            ? new Dictionary<Guid, ApprovalStatus>()
+            : await db.Approvals.AsNoTracking().Where(a => approvalIds.Contains(a.Id)).ToDictionaryAsync(a => a.Id, a => a.Status, cancellationToken);
+        return rows.Select(r => new MyTaskRow(r.Task.Id, r.Process.Id, r.Process.ProcessCode, r.Process.ProcessVersion, r.Process.DefinitionState, r.Process.RowVersion,
+            r.Process.BusinessRefType, r.Process.BusinessRefId, r.Task.TaskType, r.Task.QueueCode, r.Task.AssigneeId, r.Task.SlaCode, r.Task.DueAt, r.Process.ApprovalId,
+            r.Process.ApprovalId is { } a && statuses.TryGetValue(a, out var status) ? status : null, r.Process.PayoutPurpose, r.Process.PayoutCurrency)).ToList();
     }
 
     private static ProcessView View(ProcessInstance p, IReadOnlyList<CaseNoteView> notes) =>

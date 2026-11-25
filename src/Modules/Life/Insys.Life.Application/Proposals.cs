@@ -173,7 +173,8 @@ internal sealed class CaptureProposalHandler(ILifeRepository life, ILifeCodes co
     }
 }
 
-internal sealed class SubmitLifeProposalHandler(ILifeRepository life, IClock clock, IAuditTrail audit) : ICommandHandler<SubmitLifeProposal, ProposalView>
+internal sealed class SubmitLifeProposalHandler(ILifeRepository life, IExecutionContext execution, IClock clock, IAuditTrail audit)
+    : ICommandHandler<SubmitLifeProposal, ProposalView>
 {
     public async Task<Result<ProposalView>> Handle(SubmitLifeProposal command, CancellationToken cancellationToken)
     {
@@ -190,7 +191,7 @@ internal sealed class SubmitLifeProposalHandler(ILifeRepository life, IClock clo
         }
 
         audit.Record(new AuditEntry("LIFE", "SubmitProposal", nameof(LifeProposal), proposal.Id.ToString()));
-        var result = proposal.SubmitProposal(clock.UtcNow);
+        var result = proposal.SubmitProposal(clock.UtcNow, StaffSubmitter.Of(execution));
         return result.IsFailure ? result.Error : ProposalView.From(proposal);
     }
 }
@@ -216,4 +217,11 @@ internal sealed class GetLifeProposalHandler(ILifeRepository life) : IQueryHandl
         await life.Proposal(query.ProposalId, cancellationToken) is { } proposal
             ? ProposalView.From(proposal) with { PolicyId = await life.PolicyIdForProposal(proposal.Id, cancellationToken) }
             : Error.NotFound(ErrorCodes.NotFound, "The proposal was not found.");
+}
+
+/// <summary>DE-045: the staff user submitting a proposal, who issues its policy once accepted; null for a portal user, a service or the platform.</summary>
+internal static class StaffSubmitter
+{
+    public static Guid? Of(IExecutionContext execution) =>
+        execution.ActorType == ActorType.User && execution.External is null && Guid.TryParse(execution.ActorId, out var id) ? id : null;
 }

@@ -2170,12 +2170,28 @@
       "remedy": "Make the link first."
     },
     {
+      "code": "TASK_CLAIMED_BY_ANOTHER",
+      "httpStatus": 409,
+      "messageKey": "error.workflow.task_claimed_by_another",
+      "retryable": false,
+      "means": "Someone else has already taken this task.",
+      "remedy": "Refresh your tasks; ask the person who took it, or a supervisor, to reassign it if it should be yours."
+    },
+    {
       "code": "TASK_CLOSED_BY_ITS_RECORD",
       "httpStatus": 409,
       "messageKey": "error.workflow.task_closed_by_its_record",
       "retryable": false,
       "means": "This task closes by itself when its record does what the task asks; it can't be closed by hand.",
       "remedy": "Complete the work on the record; the task then closes."
+    },
+    {
+      "code": "TASK_NOT_YOURS",
+      "httpStatus": 403,
+      "messageKey": "error.workflow.task_not_yours",
+      "retryable": false,
+      "means": "This task isn't assigned to you, and isn't in a queue your roles serve.",
+      "remedy": "Open your tasks to see the ones you can work, or ask whoever assigns the queue's work."
     },
     {
       "code": "TENANT_CODE_TAKEN",

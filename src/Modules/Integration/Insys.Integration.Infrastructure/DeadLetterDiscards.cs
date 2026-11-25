@@ -30,7 +30,9 @@ using Insys.BuildingBlocks.Contracts;
 using Insys.BuildingBlocks.Domain;
 using Insys.Integration.Application.DeadLetters;
 using Insys.Integration.Domain.DeadLetters;
+using Insys.Integration.Infrastructure.Parking;
 using Insys.Integration.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore.Storage;
 using Insys.Workflow.Contracts;
 using Microsoft.EntityFrameworkCore;
 
@@ -43,7 +45,7 @@ namespace Insys.Integration.Infrastructure;
 /// </summary>
 internal sealed class DeadLetterReleases(IntegrationDbContext db, ITenantContext tenant, IClock clock) : IDeadLetterReleases
 {
-    public Task<int> DiscardDeliveries(Guid eventId, string source, string discardedBy, string reason, CancellationToken cancellationToken)
+    public async Task<int> DiscardDeliveries(Guid eventId, string source, string discardedBy, string reason, CancellationToken cancellationToken)
     {
         var tenantId = tenant.RequireTenantId();
         var now = clock.UtcNow;
@@ -52,13 +54,42 @@ internal sealed class DeadLetterReleases(IntegrationDbContext db, ITenantContext
         // A ledger-made dead letter is one consumer's ("ledger:<consumer>", cut to the source's 60 characters); an outbox's covers every consumer
         // the outbox gave up on.
         string? ledgerSource = source.StartsWith("ledger:", StringComparison.Ordinal) ? source : null;
-        return db.Database.ExecuteSqlInterpolatedAsync($"""
+        var discarded = await db.Database.SqlQuery<DiscardedDelivery>($"""
             UPDATE integration.parked_delivery
             SET status = 'DISCARDED', discarded_by = {by}, discard_reason = {reason}, resolved_at = {now},
                 row_version = row_version + 1, updated_at = {now}, updated_by = {by}
             WHERE tenant_id = {tenantId} AND event_id = {eventId} AND status = 'DEAD_LETTERED'
               AND ({ledgerSource}::text IS NULL OR left('ledger:' || consumer, 60) = {ledgerSource})
-            """, cancellationToken);
+            RETURNING id AS "Id", consumer AS "Consumer", prerequisite_code AS "Code", prerequisite_item AS "Item", event_type AS "EventType", event_id AS "EventId"
+            """).ToListAsync(cancellationToken);
+
+        // DE-028: Workflow closes each discarded delivery's tasks, in the same transaction.
+        // Written by SQL in the same transaction, as the ledger's events are, so a version the command returns stays its record's (BR-116).
+        var connection = (Npgsql.NpgsqlConnection)db.Database.GetDbConnection();
+        var transaction = (Npgsql.NpgsqlTransaction?)db.Database.CurrentTransaction?.GetDbTransaction()
+            ?? throw new InvalidOperationException("A dead letter's discard runs inside its command's or policy's transaction.");
+        foreach (var d in discarded)
+        {
+            await ParkedRows.Publish(connection, transaction, tenantId, d.Id, new Contracts.ParkedDeliveryDiscarded(d.Id, d.Consumer, d.Code, d.Item, d.EventType, d.EventId),
+                now, by, Guid.CreateVersion7(), cancellationToken);
+        }
+
+        return discarded.Count;
+    }
+
+    private sealed class DiscardedDelivery
+    {
+        public Guid Id { get; set; }
+
+        public string Consumer { get; set; } = "";
+
+        public string? Code { get; set; }
+
+        public string? Item { get; set; }
+
+        public string EventType { get; set; } = "";
+
+        public Guid EventId { get; set; }
     }
 }
 

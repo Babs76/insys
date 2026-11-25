@@ -57,6 +57,16 @@ public static class Audiences
     public static readonly IReadOnlyList<string> StaffAndPlatform = [Staff, Platform];
 }
 
+/// <summary>Process areas with a meaning beyond the menu.</summary>
+public static class ProcessAreas
+{
+    /// <summary>
+    /// DE-025, DE-044: the caller's own tasks and requests. Every staff role template holds the staff functions of this area (RoleTemplates.Expand),
+    /// so they are never privileged and never another person's work.
+    /// </summary>
+    public const string MyWork = "My work";
+}
+
 /// <summary>The features a tenant is entitled to (OQ-091); a function with none is base platform.</summary>
 public static class Features
 {

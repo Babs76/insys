@@ -419,4 +419,14 @@ public static class WorkflowErrorCodes
     [ErrorCode(409, "error.workflow.task_closed_by_its_record", Means = "This task closes by itself when its record does what the task asks; it can't be closed by hand.",
         Remedy = "Complete the work on the record; the task then closes.")]
     public const string TaskClosedByItsRecord = "TASK_CLOSED_BY_ITS_RECORD";
+
+    /// <summary>DE-025: a task the caller may work is assigned to them, or unassigned in a queue or for a function their roles in effect serve.</summary>
+    [ErrorCode(403, "error.workflow.task_not_yours", Means = "This task isn't assigned to you, and isn't in a queue your roles serve.",
+        Remedy = "Open your tasks to see the ones you can work, or ask whoever assigns the queue's work.")]
+    public const string TaskNotYours = "TASK_NOT_YOURS";
+
+    /// <summary>DE-025: an unassigned task is claimed once; one someone else claimed is theirs until it is reassigned.</summary>
+    [ErrorCode(409, "error.workflow.task_claimed_by_another", Means = "Someone else has already taken this task.",
+        Remedy = "Refresh your tasks; ask the person who took it, or a supervisor, to reassign it if it should be yours.")]
+    public const string TaskClaimedByAnother = "TASK_CLAIMED_BY_ANOTHER";
 }

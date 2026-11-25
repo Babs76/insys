@@ -537,6 +537,8 @@ internal sealed class GeneralEventMapper : IDomainEventMapper
         GeneralRiskObjectRegistered e => new Contracts.GeneralRiskObjectRegistered(e.RiskObjectId, e.ObjectType),
         GeneralQuoteIssued e => new Contracts.GeneralQuoteIssued(e.QuoteId, e.QuoteNumber, e.QuoteVersion, e.ProductCode, e.ProductVersion, e.Premium, e.Currency, e.ValidUntil),
         GeneralQuoteAccepted e => new Contracts.GeneralQuoteAccepted(e.QuoteId, e.QuoteNumber, e.QuoteVersion, e.ProposerPartyId),
+        GeneralProposalAccepted e => new Contracts.GeneralProposalAccepted(e.ProposalId, e.QuoteId, e.SubmittedBy),
+        GeneralProposalConverted e => new Contracts.GeneralProposalConverted(e.ProposalId, e.QuoteId, e.PolicyId),
         GeneralQuoteExpired e => new Contracts.GeneralQuoteExpired(e.QuoteId, e.QuoteNumber, e.QuoteVersion),
         GeneralQuoteDeclined e => new Contracts.GeneralQuoteDeclined(e.QuoteId, e.QuoteNumber, e.QuoteVersion, e.DecisionCode),
         GeneralQuoteReferred e => new Contracts.GeneralQuoteReferred(e.QuoteId, e.QuoteNumber, e.QuoteVersion, e.ProductCode, e.ReasonCode, e.SumInsured, e.Currency),
