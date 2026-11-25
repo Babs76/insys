@@ -49,7 +49,7 @@ internal sealed class Disclosures([FromKeyedServices(IntegrationDbContext.Schema
 
     /// <summary>
     /// The texts of the party's country: its address's, else its nationality's, else the tenant's. With none of those, every country's. A notice type in a jurisdiction is
-    /// acknowledged when one of its texts in force is, in the same version and language; otherwise it is outstanding, named in the language DisclosureLanguage chooses (DE-039).
+    /// acknowledged when its text in force in one of its languages is, in that version; otherwise it is outstanding, named in the language DisclosureLanguage chooses, if any (DE-039).
     /// </summary>
     public async Task<IReadOnlyList<DisclosureNotice>> Outstanding(Guid tenantId, Guid partyId, string displayPoint, string? businessRefType, Guid? businessRefId, DateOnly day, CancellationToken cancellationToken)
     {
@@ -82,8 +82,11 @@ internal sealed class Disclosures([FromKeyedServices(IntegrationDbContext.Schema
             return rows;
         }, cancellationToken);
 
-        var open = texts.GroupBy(r => (r.Notice, r.Jurisdiction)).Where(g => !g.Any(r => r.Acknowledged)).OrderBy(g => g.Key.Notice, StringComparer.Ordinal)
-            .ThenBy(g => g.Key.Jurisdiction, StringComparer.Ordinal).ToList();
+        // Ade, 25 November 2026: a notice counts as acknowledged once its text in force in any of its languages is acknowledged, in that version; a new version in force
+        // needs a new acknowledgement. Per language, the text in force is the tenant's own over a global one, then the highest version, as Text reads it.
+        var open = texts.GroupBy(r => (r.Notice, r.Jurisdiction))
+            .Select(g => (g.Key, InForce: g.GroupBy(r => r.Language, StringComparer.Ordinal).Select(l => l.OrderBy(r => r.Global).ThenByDescending(r => r.Version).First()).ToList()))
+            .Where(g => !g.InForce.Any(r => r.Acknowledged)).OrderBy(g => g.Key.Notice, StringComparer.Ordinal).ThenBy(g => g.Key.Jurisdiction, StringComparer.Ordinal).ToList();
         if (open.Count == 0)
         {
             return [];
@@ -93,10 +96,10 @@ internal sealed class Disclosures([FromKeyedServices(IntegrationDbContext.Schema
         var tenantDefault = (await languages.For(tenantId, cancellationToken)).Default;
         return open.Select(g =>
         {
-            var language = DisclosureLanguage.Choose(g.Select(r => r.Language).Distinct(StringComparer.Ordinal).ToList(), preferred, tenantDefault);
-            // The tenant's own text over the global one, as Text reads it.
-            var text = g.Where(r => r.Language == language).OrderBy(r => r.Global).First();
-            return new DisclosureNotice(g.Key.Notice, g.Key.Jurisdiction, language, text.Version);
+            var available = g.InForce.Select(r => r.Language).Order(StringComparer.Ordinal).ToList();
+            var language = DisclosureLanguage.Choose(available, preferred, tenantDefault);
+            int? version = language is null ? null : g.InForce.Single(r => r.Language == language).Version;
+            return new DisclosureNotice(g.Key.Notice, g.Key.Jurisdiction, language, version, available);
         }).ToList();
     }
 

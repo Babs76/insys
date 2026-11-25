@@ -58611,7 +58611,8 @@
           "noticeType",
           "jurisdiction",
           "language",
-          "textVersion"
+          "textVersion",
+          "availableLanguages"
         ],
         "type": "object",
         "properties": {
@@ -58622,15 +58623,25 @@
             "type": "string"
           },
           "language": {
-            "type": "string"
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "textVersion": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": [
+              "null",
               "integer",
               "string"
             ],
             "format": "int32"
+          },
+          "availableLanguages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -80267,7 +80278,8 @@
                 "noticeType",
                 "jurisdiction",
                 "language",
-                "textVersion"
+                "textVersion",
+                "availableLanguages"
               ],
               "type": "object",
               "properties": {
@@ -80279,12 +80291,25 @@
                   "description": "The party\u0027s country (address, else nationality), else the tenant\u0027s."
                 },
                 "language": {
-                  "type": "string",
-                  "description": "The party\u0027s preferred language if a text is in force in it, else the tenant\u0027s default language if one is, else the first language the notice exists in by code."
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "The party\u0027s preferred language if a text is in force in it, else the tenant\u0027s default language if one is, else the only language the notice is in force in. Null when it is in force in several and none of those: the person chooses one of availableLanguages."
                 },
                 "textVersion": {
-                  "type": "integer",
-                  "description": "The version of that text in force today, the one an acknowledgement records."
+                  "type": [
+                    "null",
+                    "integer"
+                  ],
+                  "description": "The version in force today of the text in that language, the one an acknowledgement records; null when no language is chosen."
+                },
+                "availableLanguages": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "The languages the notice is in force in, by code. Acknowledging it in any one of them, in its version in force, acknowledges the notice."
                 }
               }
             },

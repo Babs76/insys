@@ -28,8 +28,10 @@ namespace Insys.BuildingBlocks.Contracts;
 
 /// <summary>
 /// One mandatory notice not yet acknowledged at a display point (F060, DE-039): what the console needs to open its text already filled in
-/// (GET /integration/disclosures or /portal/disclosures with the display point, these four and nothing typed). The jurisdiction is the
-/// party's country, else the tenant's; the language is the party's preferred one where a text is in force in it, else the tenant's
-/// default, else the first the notice exists in by code. TextVersion is the version of that text in force today.
+/// (GET /integration/disclosures or /portal/disclosures with the display point and these values, nothing typed). The jurisdiction is the
+/// party's country, else the tenant's. The language (Ade, 25 November 2026) is the party's preferred one if a text is in force in it, else the
+/// tenant's default if one is, else the only language the notice is in force in; with several and none of those, none is chosen (Language and
+/// TextVersion null) and the person picks one of AvailableLanguages. TextVersion is the version in force of the text in the chosen language.
 /// </summary>
-public sealed record DisclosureNotice(string NoticeType, string Jurisdiction, string Language, int TextVersion);
+/// <param name="AvailableLanguages">The languages the notice is in force in, by code; always present.</param>
+public sealed record DisclosureNotice(string NoticeType, string Jurisdiction, string? Language, int? TextVersion, IReadOnlyList<string> AvailableLanguages);
