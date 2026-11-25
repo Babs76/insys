@@ -51,11 +51,14 @@ public static class GeneralInfrastructure
     {
         // Its approval kinds and the screens that open their records (BR-005).
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.General.Contracts.GeneralApprovals.EndorsementBusinessRefType, "GENERAL_ENDORSEMENTS", Insys.General.Contracts.GeneralApprovals.EndorsementApprovalType);
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.OpensWith(Insys.General.Contracts.GeneralApprovals.EndorsementBusinessRefType, "GeneralGetEndorsement", "/api/v1/general/endorsements/{id}"); // DE-020
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.General.Contracts.GeneralApprovals.SettlementBusinessRefType, "GENERAL_CLAIMS", Insys.General.Contracts.GeneralApprovals.SettlementApprovalType);
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.OpensWith(Insys.General.Contracts.GeneralApprovals.SettlementBusinessRefType, "GeneralGetClaim", "/api/v1/general/claims/{id}"); // DE-020
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.General.Contracts.GeneralApprovals.NonRenewalBusinessRefType, "GENERAL_RENEWALS",
             Insys.General.Contracts.GeneralApprovals.NonRenewalApprovalType); // Wave 4 §4.3, F025
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.RaisedWith("GENERAL", Insys.General.Contracts.GeneralApprovals.EndorsementApprovalType,
             Insys.General.Contracts.GeneralApprovals.SettlementApprovalType, Insys.General.Contracts.GeneralApprovals.NonRenewalApprovalType);
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.OpensWith(Insys.General.Contracts.GeneralApprovals.NonRenewalBusinessRefType, "GeneralGetRenewal", "/api/v1/general/renewals/{id}"); // DE-020
         // ADR-026 §2: this module's event consumers run under its JOB function.
         BuildingBlocks.Application.Context.JobFunctions.ForConsumers(Persistence.GeneralDbContext.SchemaName, "GENERAL_EVENT_PROCESSING");
         const string schema = GeneralDbContext.SchemaName;

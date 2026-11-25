@@ -42,8 +42,10 @@ public static class DocumentsInfrastructure
         // Its approval kind and the screen that opens its record (BR-005): releasing a legal hold needs a second person (OQ-111).
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Contracts.DocumentApprovals.LegalHoldBusinessRefType, "DOCUMENTS",
             Contracts.DocumentApprovals.LegalHoldReleaseType);
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.OpensWith(Contracts.DocumentApprovals.LegalHoldBusinessRefType, "DocumentsGetDocumentHold", "/api/v1/documents/document-legal-holds/{id}"); // DE-020
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Contracts.DocumentApprovals.RecordHoldBusinessRefType, "DOCUMENTS",
             Contracts.DocumentApprovals.LegalHoldReleaseType);
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.OpensWith(Contracts.DocumentApprovals.RecordHoldBusinessRefType, "DocumentsGetRecordHold", "/api/v1/documents/legal-holds/{id}"); // DE-020
         services.AddModuleDbContext<DocumentsDbContext>(DocumentsDbContext.SchemaName, "Documents");
         services.AddStaticData<DocumentsDbContext>(DocumentsDbContext.SchemaName, DocumentsStaticData.Descriptors);
         services.AddModuleHandlers<DocumentsDbContext>(typeof(GenerateDocument).Assembly);

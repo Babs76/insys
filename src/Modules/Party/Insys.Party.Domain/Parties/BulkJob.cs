@@ -34,6 +34,12 @@ public static class BulkJobStatus
     public const string Rejected = "REJECTED";
     public const string ToApprove = "TO_APPROVE";
     public const string Approved = "APPROVED";
+
+    /// <summary>DE-059: the approver refused the export; nothing leaves.</summary>
+    public const string Refused = "REFUSED";
+
+    /// <summary>DE-059: who asked for the export withdrew it before it was approved; nothing leaves.</summary>
+    public const string Cancelled = "CANCELLED";
 }
 
 /// <summary>The BulkJob aggregate (F076): an import, all or nothing, with every rejected line kept; or an export of personal data, which a second person approves before it leaves.</summary>
@@ -71,6 +77,12 @@ public sealed class BulkJob : AggregateRoot<Guid>
     public Guid RunBy { get; private set; }
 
     public Guid? ApprovedBy { get; private set; }
+
+    /// <summary>DE-059: who refused the export (the approver), or null.</summary>
+    public Guid? RefusedBy { get; private set; }
+
+    /// <summary>DE-059: why the export was refused, in the approver's words.</summary>
+    public string? RefusalReason { get; private set; }
 
     public static BulkJob Imported(Guid id, int total, string? rejectedLines, int rejected, Guid runBy)
     {
@@ -112,6 +124,52 @@ public sealed class BulkJob : AggregateRoot<Guid>
 
         Status = BulkJobStatus.Approved;
         ApprovedBy = by;
+        MarkChanged();
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// DE-059: the approver refuses an export waiting for approval (TO_APPROVE → REFUSED), with a reason; nothing leaves. As
+    /// for approval, a second person decides (SRS-002): who asked withdraws it with <see cref="CancelExport"/> instead.
+    /// </summary>
+    public Result RefuseExport(Guid by, string reason)
+    {
+        if (JobType is not (Export or PolicyExport) || Status != BulkJobStatus.ToApprove)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, $"This job is {Status}; only an export waiting for approval is refused.");
+        }
+
+        if (by == RunBy)
+        {
+            return Error.Conflict(ErrorCodes.MakerCheckerSamePerson, "A second person refuses an export (SRS-002); who asked for it cancels it instead.");
+        }
+
+        if (string.IsNullOrWhiteSpace(reason) || reason.Trim().Length > 500)
+        {
+            return Error.Validation(ErrorCodes.ValidationFailed, "A refusal gives its reason, of at most 500 characters.");
+        }
+
+        Status = BulkJobStatus.Refused;
+        RefusedBy = by;
+        RefusalReason = reason.Trim();
+        MarkChanged();
+        return Result.Success();
+    }
+
+    /// <summary>DE-059: who asked for an export withdraws it while it waits for approval (TO_APPROVE → CANCELLED); nothing leaves.</summary>
+    public Result CancelExport(Guid by)
+    {
+        if (JobType is not (Export or PolicyExport) || Status != BulkJobStatus.ToApprove)
+        {
+            return Error.Conflict(ErrorCodes.InvalidStateTransition, $"This job is {Status}; only an export waiting for approval is cancelled.");
+        }
+
+        if (by != RunBy)
+        {
+            return Error.Forbidden(ErrorCodes.Forbidden, "Only who asked for the export cancels it; the approver refuses it instead.");
+        }
+
+        Status = BulkJobStatus.Cancelled;
         MarkChanged();
         return Result.Success();
     }

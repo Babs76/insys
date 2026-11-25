@@ -43,6 +43,7 @@ public static class ClaimsFrameworkInfrastructure
     {
         // Its approval kinds and the screens that open their records (BR-005).
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.ClaimsFramework.Contracts.ClaimsApprovals.InstructionBusinessRefType, "CLAIM_PAYMENT_INSTRUCTIONS", Insys.ClaimsFramework.Contracts.ClaimsApprovals.InstructionApprovalType);
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.OpensWith(Insys.ClaimsFramework.Contracts.ClaimsApprovals.InstructionBusinessRefType, "ClaimsGetInstruction", "/api/v1/claims/payment-instructions/{id}"); // DE-020
         const string schema = ClaimsFrameworkDbContext.SchemaName;
         services.AddModuleDbContext<ClaimsFrameworkDbContext>(schema, "ClaimsFramework");
         services.AddStaticData<ClaimsFrameworkDbContext>(schema, ClaimsFrameworkStaticData.Descriptors);

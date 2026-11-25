@@ -93,6 +93,7 @@ internal static class CaseEndpoints
     {
         var cases = api.MapGroup("/workflow/cases").WithTags(tag).RefuseOperatorTenant();
         MapReads(cases);
+        MapRedress(api.MapGroup("/workflow/case-redress").WithTags(tag).RefuseOperatorTenant());
         MapScreenReads(cases);
         MapChanges(cases);
         MapPortal(api.MapGroup("/portal/cases").WithTags(tag).RefuseOperatorTenant());
@@ -178,6 +179,24 @@ internal static class CaseEndpoints
             .Produces<CaseRedressView>(StatusCodes.Status200OK)
             .WithName("WorkflowGetCaseRedress")
             .WithSummary("A redress on a case, with how its approval last ended without being granted (latestRejection, OQ-113)")
+            .RequirePermission(CasePermissions.Read);
+    }
+
+    /// <summary>DE-022: a redress by its ID alone, the ID its approval carries; the case's access rules are the same.</summary>
+    private static void MapRedress(RouteGroupBuilder redress)
+    {
+        redress.MapGet("/{redressId:guid}", async (Guid redressId, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+                (await dispatcher.Query(new GetRedress(redressId), ct)).ToHttp(view =>
+                {
+                    Concurrency.SetETag(http, view.RowVersion);
+                    return Results.Ok(view);
+                }))
+            .Produces<CaseRedressView>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .WithName("WorkflowGetRedress")
+            .WithSummary("A redress by its ID, the businessRefId of its CASE_REDRESS approval, without its case's ID (DE-022)")
+            .WithDescription("The view names its case (caseId). As for the case: not found when the case is outside the caller's scope or Health-linked without health.claim.read.")
+            .AlsoChecks(Health.Contracts.HealthPermissions.ClaimRead, "the case is Health-linked: without it the redress is not found")
             .RequirePermission(CasePermissions.Read);
     }
 

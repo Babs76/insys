@@ -40,12 +40,15 @@ public static class StaticDataInfrastructure
     {
         // Its approval kinds and the screens that open their records (BR-005).
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.StaticData.Contracts.StaticDataApprovals.BusinessRefType, "STATIC_DATA_CHANGE_REQUESTS", Insys.StaticData.Contracts.StaticDataApprovals.ApprovalType(1), Insys.StaticData.Contracts.StaticDataApprovals.ApprovalType(2));
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.OpensWith(Insys.StaticData.Contracts.StaticDataApprovals.BusinessRefType, "GetChangeRequest", "/api/v1/static-data/change-requests/{id}"); // DE-020
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.StaticData.Contracts.StaticDataApprovals.GovernanceBusinessRefType, "STATIC_DATA_GOVERNANCE", Insys.StaticData.Contracts.StaticDataApprovals.ApprovalType(1));
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.OpensWith(Insys.StaticData.Contracts.StaticDataApprovals.GovernanceBusinessRefType, "GetGovernanceSettings", "/api/v1/static-data/settings"); // DE-020
         // F103 (access-scopes.md §1): static data isn't scoped.
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Unscoped(Insys.StaticData.Contracts.StaticDataApprovals.BusinessRefType, "static data: configuration, not a scoped record");
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Unscoped(Insys.StaticData.Contracts.StaticDataApprovals.GovernanceBusinessRefType, "static data governance: configuration");
         // AIA-086: a SETUP change set's one approval, of Tier 1; its records are its batches' change requests.
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.StaticData.Contracts.SetupChangeSets.BusinessRefType, "STATIC_DATA_CHANGE_REQUESTS", Insys.StaticData.Contracts.SetupChangeSets.ApprovalType);
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.OpensWith(Insys.StaticData.Contracts.SetupChangeSets.BusinessRefType, "GetSetupChangeSet", "/api/v1/static-data/setup-sets/{id}"); // DE-020
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Unscoped(Insys.StaticData.Contracts.SetupChangeSets.BusinessRefType, "a tenant's setup: static data configuration, not a scoped record");
         services.AddModuleDbContext<StaticDataDbContext>(StaticDataDbContext.SchemaName, "StaticData");
         services.AddStaticData<StaticDataDbContext>(StaticDataDbContext.SchemaName, StaticDataStaticData.Descriptors);

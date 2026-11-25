@@ -38,7 +38,7 @@ internal static class DocumentsFunctions
     public static readonly IReadOnlyList<FunctionDeclaration> All =
     [
         .. new FunctionMap([Audiences.Staff], null)
-        .Screen("DOCUMENTS", "DOCUMENTS", "Storage", "documents/documents", "DocumentsList", "DocumentsGet", "DocumentsReadContent")
+        .Screen("DOCUMENTS", "DOCUMENTS", "Storage", "documents/documents", "DocumentsList", "DocumentsGet", "DocumentsReadContent", "DocumentsGetDocumentHold")
         .Action("DOCUMENTS_GENERATE", "DOCUMENTS", "DocumentsGenerate")
         .Action("DOCUMENTS_STORE", "DOCUMENTS", "DocumentsStore")
         .Action("DOCUMENTS_DELIVER", "DOCUMENTS", "DocumentsDeliver")

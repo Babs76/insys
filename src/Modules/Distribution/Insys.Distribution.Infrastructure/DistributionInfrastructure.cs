@@ -47,6 +47,7 @@ public static class DistributionInfrastructure
         // Its approval kinds and the screens that open their records (BR-005).
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Distribution.Contracts.DistributionApprovals.StatementBusinessRefType, "COMMISSION_STATEMENTS", Insys.Distribution.Contracts.DistributionApprovals.StatementApprovalType,
             PaymentApprovals.PayoutRetryApprovalType, Insys.Distribution.Contracts.DistributionApprovals.ClawbackInvoiceApprovalType);
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.OpensWith(Insys.Distribution.Contracts.DistributionApprovals.StatementBusinessRefType, "DistributionGetStatement", "/api/v1/distribution/statements/{id}"); // DE-020
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Unscoped(Insys.Distribution.Contracts.DistributionApprovals.StatementBusinessRefType,
             "commission statements are payouts, outside branch scope (access-scopes.md, OQ-174)");
         // ADR-026 §2: this module's event consumers run under its JOB function.

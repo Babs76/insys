@@ -353,6 +353,116 @@ public sealed class StaticDataTests(DatabaseFixture fixture) : IClassFixture<Dat
         (await Leave("OQ190_ROLE:ASSIST_PRODUCT_DRAFT_REVIEW", "deprecate", review)).StatusCode.ShouldBe(HttpStatusCode.OK, "the run has gone, so the review may go");
     }
 
+    /// <summary>
+    /// DE-016: the maker discards their own draft that was never submitted (If-Match, audited), and the code is free for a new
+    /// draft; nobody else discards it, and nothing past a draft is discarded (SDM-007). The refusal of a second draft names the step.
+    /// </summary>
+    [Fact]
+    public async Task ADraftNeverSubmitted_IsDiscardedByItsMakerOnly_AndFreesItsCode_DE016_SDM007()
+    {
+        var maker = _factory.ClientFor(DatabaseFixture.TenantA, "maker-a");
+        var checker = _factory.ClientFor(DatabaseFixture.TenantA, "checker-a");
+        var created = await maker.Send(HttpMethod.Post, Policies, Policy("DISCARD_POLICY"), idempotent: true);
+        created.StatusCode.ShouldBe(HttpStatusCode.Created, await created.Content.ReadAsStringAsync());
+        var id = (await created.Json()).GetProperty("id").GetGuid();
+
+        var second = await maker.Send(HttpMethod.Post, Policies, Policy("DISCARD_POLICY"), idempotent: true);
+        second.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        (await second.Code()).ShouldBe("STATIC_DRAFT_EXISTS");
+        (await second.Content.ReadAsStringAsync()).ShouldContain("DISCARD_POLICY/versions/1/discard");
+
+        var url = $"{Policies}/DISCARD_POLICY/versions/1/discard";
+        var byOther = await checker.Send(HttpMethod.Post, url, ifMatch: created.ETag());
+        byOther.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await byOther.Code()).ShouldBe("STATIC_MAKER_ONLY");
+        (await maker.Send(HttpMethod.Post, url)).StatusCode.ShouldBe(HttpStatusCode.PreconditionRequired);
+        (await maker.Send(HttpMethod.Post, url, ifMatch: "\"99\"")).StatusCode.ShouldBe(HttpStatusCode.PreconditionFailed);
+
+        (await maker.Send(HttpMethod.Post, url, ifMatch: created.ETag())).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        (await (await maker.GetAsync($"{Policies}/DISCARD_POLICY/versions")).Json()).GetArrayLength().ShouldBe(0);
+        await _factory.DrainOutbox();
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM audit.audit_event WHERE operation = 'DiscardDraft' AND target_id = @id", ("id", id.ToString())))
+            .ShouldBe(1L);
+
+        var again = await maker.Send(HttpMethod.Post, Policies, Policy("DISCARD_POLICY"), idempotent: true);
+        again.StatusCode.ShouldBe(HttpStatusCode.Created, "the code is free for a new draft");
+        (await again.Json()).GetProperty("version").GetInt32().ShouldBe(1);
+        var submitted = await maker.Send(HttpMethod.Post, $"{Policies}/DISCARD_POLICY/versions/1/submit", ifMatch: again.ETag());
+        submitted.StatusCode.ShouldBe(HttpStatusCode.OK, await submitted.Content.ReadAsStringAsync());
+        var notDraft = await maker.Send(HttpMethod.Post, url, ifMatch: submitted.ETag());
+        notDraft.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        (await notDraft.Code()).ShouldBe("INVALID_STATE_TRANSITION");
+    }
+
+    /// <summary>DE-015: a table's versions not in force (draft, waiting for approval, approved), by status, with their maker and change request.</summary>
+    [Fact]
+    public async Task ATablesVersionsNotInForce_AreListedByStatus_WithTheirMakerAndChangeRequest_DE015()
+    {
+        var maker = _factory.ClientFor(DatabaseFixture.TenantA, "maker-a");
+        var makerId = await fixture.Database.ScalarAsOwner<Guid>("SELECT id FROM iam.user_account WHERE tenant_id = @t AND external_subject = 'maker-a'",
+            ("t", DatabaseFixture.TenantA));
+        var draft = await maker.Send(HttpMethod.Post, Policies, Policy("PEND_DRAFT"), idempotent: true);
+        draft.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var waiting = await maker.Send(HttpMethod.Post, Policies, Policy("PEND_SUBMIT"), idempotent: true);
+        waiting.StatusCode.ShouldBe(HttpStatusCode.Created, await waiting.Content.ReadAsStringAsync());
+        (await maker.Send(HttpMethod.Post, $"{Policies}/PEND_SUBMIT/versions/1/submit", ifMatch: waiting.ETag())).StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        async Task<List<JsonElement>> Listed(string? status)
+        {
+            var items = new List<JsonElement>();
+            string? cursor = null;
+            do
+            {
+                var page = await maker.GetAsync($"{Policies}/pending?limit=2{(status is null ? "" : $"&status={status}")}{(cursor is null ? "" : $"&cursor={cursor}")}");
+                page.StatusCode.ShouldBe(HttpStatusCode.OK, await page.Content.ReadAsStringAsync());
+                var body = await page.Json();
+                items.AddRange(body.GetProperty("items").EnumerateArray());
+                cursor = body.GetProperty("nextCursor").ValueKind == JsonValueKind.String ? body.GetProperty("nextCursor").GetString() : null;
+            }
+            while (cursor is not null);
+            return items;
+        }
+
+        var drafts = await Listed("DRAFT");
+        var mine = drafts.Single(v => v.GetProperty("code").GetString() == "PEND_DRAFT");
+        (mine.GetProperty("status").GetString(), mine.GetProperty("versionNumber").GetInt32(), mine.GetProperty("makerId").GetGuid()).ShouldBe(("DRAFT", 1, makerId));
+        mine.GetProperty("changeRequestId").ValueKind.ShouldBe(JsonValueKind.Null);
+        drafts.ShouldNotContain(v => v.GetProperty("code").GetString() == "PEND_SUBMIT");
+
+        var submitted = (await Listed("SUBMITTED")).Single(v => v.GetProperty("code").GetString() == "PEND_SUBMIT");
+        submitted.GetProperty("status").GetString().ShouldBe("SUBMITTED");
+        submitted.GetProperty("changeRequestId").GetGuid().ShouldNotBe(Guid.Empty);
+        (await Listed("APPROVED")).ShouldNotContain(v => v.GetProperty("code").GetString()!.StartsWith("PEND_", StringComparison.Ordinal));
+        (await Listed(null)).Select(v => v.GetProperty("code").GetString()).ShouldContain("PEND_DRAFT");
+        (await maker.GetAsync($"{Policies}/pending?status=ACTIVE")).StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+        (await (await maker.GetAsync(Policies)).Content.ReadAsStringAsync()).ShouldNotContain("PEND_DRAFT", Case.Sensitive, "the list in force leaves them out");
+    }
+
+    /// <summary>DE-017: the import batches list filters by status, and each batch's id is its import's batchId.</summary>
+    [Fact]
+    public async Task ImportBatches_AreFilteredByStatus_AndEachIdIsItsImportsBatchId_DE017()
+    {
+        var maker = _factory.ClientFor(DatabaseFixture.TenantA, "maker-a");
+        var committed = await maker.Send(HttpMethod.Post, $"{Policies}/imports", new { fileRef = "de017.csv", lines = new[] { Policy("DE017_ONE") } }, idempotent: true);
+        committed.StatusCode.ShouldBe(HttpStatusCode.OK, await committed.Content.ReadAsStringAsync());
+        var batch = (await committed.Json()).GetProperty("batchId").GetGuid();
+        await _factory.DrainOutbox();
+
+        async Task<List<JsonElement>> Listed(string status)
+        {
+            var page = await maker.GetAsync($"/api/v1/static-data/imports?status={status}&limit=200");
+            page.StatusCode.ShouldBe(HttpStatusCode.OK, await page.Content.ReadAsStringAsync());
+            return [.. (await page.Json()).GetProperty("items").EnumerateArray()];
+        }
+
+        var found = (await Listed("COMMITTED")).Single(b => b.GetProperty("id").GetGuid() == batch);
+        found.GetProperty("batchId").GetGuid().ShouldBe(batch);
+        found.GetProperty("status").GetString().ShouldBe("Committed", StringCompareShould.IgnoreCase);
+        (await Listed("REJECTED")).ShouldNotContain(b => b.GetProperty("id").GetGuid() == batch);
+        (await maker.GetAsync("/api/v1/static-data/imports?status=SUBMITTED_LATER")).StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+        (await (await maker.GetAsync($"{Policies}/imports/{batch}")).Json()).GetArrayLength().ShouldBe(1, "the id opens the import's lines");
+    }
+
     [Fact]
     public async Task Import_IsAllOrNothing_AndReportsEveryRejectedLine_SDM012()
     {
@@ -397,9 +507,10 @@ public sealed class StaticDataTests(DatabaseFixture fixture) : IClassFixture<Dat
         {
             var list = await reader.GetAsync($"/api/v1/{descriptor.ModuleRoute}/static/{descriptor.EntityRoute}");
             var versions = await reader.GetAsync($"/api/v1/{descriptor.ModuleRoute}/static/{descriptor.EntityRoute}/any/versions");
-            if (list.StatusCode != HttpStatusCode.OK || versions.StatusCode != HttpStatusCode.OK)
+            var pending = await reader.GetAsync($"/api/v1/{descriptor.ModuleRoute}/static/{descriptor.EntityRoute}/pending"); // DE-015
+            if (list.StatusCode != HttpStatusCode.OK || versions.StatusCode != HttpStatusCode.OK || pending.StatusCode != HttpStatusCode.OK)
             {
-                failures.Add($"{descriptor.Schema}.{descriptor.Table}: {(int)list.StatusCode}/{(int)versions.StatusCode}");
+                failures.Add($"{descriptor.Schema}.{descriptor.Table}: {(int)list.StatusCode}/{(int)versions.StatusCode}/{(int)pending.StatusCode}");
             }
         }
 

@@ -150,6 +150,35 @@ public sealed class MoneyRetryHealthAndRedressTests(DatabaseFixture fixture) : I
         (await _maker.Send(HttpMethod.Post, $"{url}/write-off", new { reason = "Provider closed" }, ifMatch: read.ETag())).StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
+    /// <summary>DE-022, DE-020: the checker opens a redress by the ID its approval carries, without the case's ID; the approval says where.</summary>
+    [Fact]
+    public async Task ARedress_IsReadByTheIdItsApprovalCarries_WithoutItsCase_AndTheApprovalNamesThatRead_DE022_DE020()
+    {
+        var opened = await _maker.Send(HttpMethod.Post, Cases,
+            new { caseTypeCode = "COMPLAINT_T", receivedChannel = "PHONE", complainantPartyId = Guid.CreateVersion7(), categoryCode = "SERVICE", summary = "S" }, idempotent: true);
+        opened.StatusCode.ShouldBe(HttpStatusCode.Created, await opened.Content.ReadAsStringAsync());
+        var id = (await opened.Json()).GetProperty("id").GetGuid();
+        var recorded = await _maker.Send(HttpMethod.Post, $"{Cases}/{id}/redress",
+            new { redressType = "GOODWILL", amount = 120m, currency = "ZAR", payeePartyId = Guid.CreateVersion7(), bankAccountId = Guid.CreateVersion7() }, idempotent: true);
+        recorded.StatusCode.ShouldBe(HttpStatusCode.Created, await recorded.Content.ReadAsStringAsync());
+        var redress = (await recorded.Json()).GetProperty("id").GetGuid();
+        await _factory.DrainOutbox();
+
+        var approval = await (await _checker.GetAsync($"/api/v1/workflow/approvals/{await Approval(CaseApprovals.RedressBusinessRefType, redress)}")).Json();
+        approval.GetProperty("subjectOperation").GetString().ShouldBe("WorkflowGetRedress");
+        var path = approval.GetProperty("subjectPath").GetString();
+        path.ShouldBe($"/api/v1/workflow/case-redress/{redress}");
+
+        var read = await _checker.GetAsync(path);
+        read.StatusCode.ShouldBe(HttpStatusCode.OK, await read.Content.ReadAsStringAsync());
+        var view = await read.Json();
+        (view.GetProperty("id").GetGuid(), view.GetProperty("caseId").GetGuid(), view.GetProperty("amount").GetDecimal()).ShouldBe((redress, id, 120m));
+        read.ETag().ShouldBe((await _checker.GetAsync($"{Cases}/{id}/redress/{redress}")).ETag());
+        (await _checker.GetAsync($"/api/v1/workflow/case-redress/{Guid.CreateVersion7()}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        await fixture.Database.UserWithPermissions(DatabaseFixture.TenantB, "redress-reader-b", CasePermissions.Read);
+        (await _factory.ClientFor(DatabaseFixture.TenantB, "redress-reader-b").GetAsync(path)).StatusCode.ShouldBe(HttpStatusCode.NotFound, "another tenant's redress");
+    }
+
     [Fact]
     public async Task AFailedRedressPayout_IsPaymentFailed_AndIsPaidAgainOnlyWithItsReferenceAndASecondPerson_DE008_OQ104()
     {

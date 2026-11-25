@@ -55,6 +55,7 @@ public static class IntegrationInfrastructure
         // DE-007: a money dead letter's discard is approved by a second person; dead letters are tenant-wide operations records, not scoped.
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Domain.DeadLetters.DiscardApproval.BusinessRefType, "INTEGRATION_DEAD_LETTERS",
             Domain.DeadLetters.DiscardApproval.ApprovalType);
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.OpensWith(Domain.DeadLetters.DiscardApproval.BusinessRefType, "GetDeadLetter", "/api/v1/integration/dead-letters/{id}"); // DE-020
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Unscoped(Domain.DeadLetters.DiscardApproval.BusinessRefType,
             "a dead letter is the tenant's operations queue for failed deliveries, not a product's or branch's record (ADR-022)");
         services.AddDomainEventMapper<IntegrationEventMapper>(IntegrationDbContext.SchemaName);

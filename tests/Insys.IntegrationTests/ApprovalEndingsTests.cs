@@ -138,6 +138,10 @@ public abstract class ApprovalEndings(DatabaseFixture fixture) : IClassFixture<D
 
         var problems = new List<string>();
         Expect(problems, "while waiting", await waiting.State(), @case.WhileWaiting);
+        if (ending == Approved)
+        {
+            problems.AddRange(await OpensItsRecord(world, approval.Value, waiting));
+        }
 
         var ended = await End(world, approval.Value, ending);
         if (ended is not null)
@@ -272,6 +276,38 @@ public abstract class ApprovalEndings(DatabaseFixture fixture) : IClassFixture<D
         (await fixture.Database.ScalarAsOwner<string>("SELECT status FROM workflow.approval WHERE id = @a", ("a", approval))).ShouldBe(Approved);
         (await fixture.Database.ScalarAsOwner<string?>("SELECT not_applied_by FROM workflow.approval WHERE id = @a", ("a", approval))).ShouldBeNull();
         (await waiting.State()).ShouldBe("Approved");
+    }
+
+    /// <summary>
+    /// DE-019, DE-020, DE-022: the waiting approval says how to open its record (subjectOperation, subjectPath), and that read,
+    /// by the ID the approval carries, opens it for the maker or the checker: a record that names that ID.
+    /// </summary>
+    private static async Task<IReadOnlyList<string>> OpensItsRecord(World world, Guid approval, Waiting waiting)
+    {
+        var view = await (await world.Checker.GetAsync($"/api/v1/workflow/approvals/{approval}")).Json();
+        var operation = view.GetProperty("subjectOperation");
+        var path = view.GetProperty("subjectPath");
+        if (operation.ValueKind != JsonValueKind.String || path.ValueKind != JsonValueKind.String)
+        {
+            return [$"the approval names no read of its record (subjectOperation {operation.ValueKind}, subjectPath {path.ValueKind})"];
+        }
+
+        var statuses = new List<string>();
+        foreach (var client in new[] { world.Maker, world.Checker })
+        {
+            var read = await client.GetAsync(path.GetString());
+            var body = await read.Content.ReadAsStringAsync();
+            if (read.StatusCode == HttpStatusCode.OK)
+            {
+                return body.Contains(waiting.BusinessRefId.ToString(), StringComparison.OrdinalIgnoreCase) || !path.GetString()!.Contains(waiting.BusinessRefId.ToString())
+                    ? []
+                    : [$"{operation.GetString()} at {path.GetString()} returned a record that does not name {waiting.BusinessRefId}"];
+            }
+
+            statuses.Add(read.StatusCode.ToString());
+        }
+
+        return [$"{operation.GetString()} at {path.GetString()} did not open the record for the maker or the checker ({string.Join(", ", statuses)})"];
     }
 
     private async Task<string?> End(World world, Guid approval, string ending)

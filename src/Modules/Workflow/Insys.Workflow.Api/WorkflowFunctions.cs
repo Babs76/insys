@@ -59,7 +59,7 @@ internal static class WorkflowFunctions
         // Cases (addenda/cases.md §9). An operation maps to one staff function, so the case operations sit under the
         // complaints screen; the other case screens are entries of the same case list, filtered by family or link.
         .. new FunctionMap([Audiences.Staff], null)
-        .Screen("SERVICE_COMPLAINTS", "CUSTOMER_SERVICE", "Complaints", "workflow/cases/complaints", "WorkflowListCases", "WorkflowGetCase", "WorkflowGetCaseRedress",
+        .Screen("SERVICE_COMPLAINTS", "CUSTOMER_SERVICE", "Complaints", "workflow/cases/complaints", "WorkflowListCases", "WorkflowGetCase", "WorkflowGetCaseRedress", "WorkflowGetRedress",
             "WorkflowCasesSummary")
         .Action("CASE_REGISTER", "SERVICE_COMPLAINTS", "WorkflowOpenCase")
         .Action("CASE_ACKNOWLEDGE", "SERVICE_COMPLAINTS", "WorkflowAcknowledgeCase")

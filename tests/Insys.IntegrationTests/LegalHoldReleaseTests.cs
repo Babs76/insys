@@ -77,6 +77,14 @@ public sealed class LegalHoldReleaseTests(DatabaseFixture fixture) : IClassFixtu
 
         // The requester cannot approve their own release (SRS-002); another person can.
         var approval = await Waiting(tenant, DocumentApprovals.LegalHoldBusinessRefType, hold);
+        // DE-020: the approval says how to open its hold, and that read gives the hold with the document it is on.
+        var subject = await (await checker.GetAsync($"/api/v1/workflow/approvals/{approval}")).Json();
+        (subject.GetProperty("subjectOperation").GetString(), subject.GetProperty("subjectPath").GetString())
+            .ShouldBe(("DocumentsGetDocumentHold", $"/api/v1/documents/document-legal-holds/{hold}"));
+        var held = await (await maker.GetAsync(subject.GetProperty("subjectPath").GetString())).Json();
+        (held.GetProperty("documentId").GetGuid(), held.GetProperty("hold").GetProperty("id").GetGuid(), held.GetProperty("hold").GetProperty("releaseReason").GetString())
+            .ShouldBe((document, hold, "Litigation settled"));
+        (await maker.GetAsync($"/api/v1/documents/document-legal-holds/{Guid.CreateVersion7()}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
         (await maker.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval}/approve", ifMatch: "\"1\"")).StatusCode.ShouldNotBe(HttpStatusCode.NoContent);
         (await checker.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval}/approve", ifMatch: "\"1\"")).StatusCode.ShouldBe(HttpStatusCode.NoContent);
         await factory.DrainOutbox();
@@ -109,6 +117,11 @@ public sealed class LegalHoldReleaseTests(DatabaseFixture fixture) : IClassFixtu
         (await Exists(entry)).ShouldBeTrue("the hold is in force while its release waits");
 
         var approval = await Waiting(tenant, PartyApprovals.SearchLogHoldBusinessRefType, hold);
+        // DE-020: the approval says how to open its hold.
+        var subject = await (await checker.GetAsync($"/api/v1/workflow/approvals/{approval}")).Json();
+        subject.GetProperty("subjectOperation").GetString().ShouldBe("PartyGetSearchLogHold");
+        var waiting = await (await maker.GetAsync(subject.GetProperty("subjectPath").GetString())).Json();
+        (waiting.GetProperty("id").GetGuid(), waiting.GetProperty("releaseReason").GetString()).ShouldBe((hold, "Investigation closed"));
         (await checker.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval}/approve", ifMatch: "\"1\"")).StatusCode.ShouldBe(HttpStatusCode.NoContent);
         await factory.DrainOutbox();
         var released = (await (await maker.GetAsync("/api/v1/party/search-log/holds")).Json()).EnumerateArray().Single(h => h.GetProperty("id").GetGuid() == hold);

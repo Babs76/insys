@@ -41,15 +41,21 @@ public static class PartyInfrastructure
     {
         // Its approval kinds and the screens that open their records (BR-005).
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Party.Contracts.PartyApprovals.BankAccountBusinessRefType, "PARTY_BANK_ACCOUNTS", Insys.Party.Contracts.PartyApprovals.BankAccountVerificationType);
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.OpensWith(Insys.Party.Contracts.PartyApprovals.BankAccountBusinessRefType, "PartyGetBankAccount", "/api/v1/party/bank-accounts/{id}"); // DE-020
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Party.Contracts.PartyApprovals.MatchBusinessRefType, "PARTIES", Insys.Party.Contracts.PartyApprovals.MatchResolutionType);
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.OpensWith(Insys.Party.Contracts.PartyApprovals.MatchBusinessRefType, "PartyGetParty", "/api/v1/party/parties/{id}"); // DE-020
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Party.Contracts.PartyApprovals.SearchLogHoldBusinessRefType, "PARTY_SEARCH_LOG", Insys.Party.Contracts.PartyApprovals.LegalHoldReleaseType);
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.OpensWith(Insys.Party.Contracts.PartyApprovals.SearchLogHoldBusinessRefType, "PartyGetSearchLogHold", "/api/v1/party/search-log/holds/{id}"); // DE-020
         // Due diligence (addenda/due-diligence.md §4.3, §4.4, OQ-126): enhanced clearance, risk class overrides and unblocking.
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Party.Contracts.PartyApprovals.DueDiligenceBusinessRefType, "PARTY_DUE_DILIGENCE",
             Insys.Party.Contracts.PartyApprovals.EnhancedDueDiligenceType);
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.OpensWith(Insys.Party.Contracts.PartyApprovals.DueDiligenceBusinessRefType, "PartyGetDueDiligence", "/api/v1/party/parties/{id}/due-diligence"); // DE-020
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Party.Contracts.PartyApprovals.RiskOverrideBusinessRefType, "PARTY_DUE_DILIGENCE",
             Insys.Party.Contracts.PartyApprovals.RiskClassOverrideType);
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.OpensWith(Insys.Party.Contracts.PartyApprovals.RiskOverrideBusinessRefType, "PartyGetDueDiligence", "/api/v1/party/parties/{id}/due-diligence"); // DE-020
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Party.Contracts.PartyApprovals.UnblockBusinessRefType, "PARTY_DUE_DILIGENCE",
             Insys.Party.Contracts.PartyApprovals.UnblockType);
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.OpensWith(Insys.Party.Contracts.PartyApprovals.UnblockBusinessRefType, "PartyGetDueDiligence", "/api/v1/party/parties/{id}/due-diligence"); // DE-020
         // F103 (access-scopes.md §1, OQ-176): parties are shared across products (PTY-003), so their approvals aren't scoped.
         foreach (var type in new[]
                  {

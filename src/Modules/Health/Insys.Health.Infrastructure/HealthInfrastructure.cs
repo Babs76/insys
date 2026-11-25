@@ -48,10 +48,14 @@ public static class HealthInfrastructure
     {
         // Its approval kinds and the screens that open their records (BR-005).
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Health.Contracts.HealthApprovals.RunBusinessRefType, "HEALTH_PAYMENT_RUNS", Insys.Health.Contracts.HealthApprovals.RunApprovalType);
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.OpensWith(Insys.Health.Contracts.HealthApprovals.RunBusinessRefType, "HealthGetRun", "/api/v1/health/payment-runs/{id}"); // DE-020
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Health.Contracts.HealthApprovals.RecoveryBusinessRefType, "HEALTH_RECOVERIES", Insys.Health.Contracts.HealthApprovals.RecoveryWriteOffApprovalType, Insys.Health.Contracts.HealthApprovals.RecoveryFindingApprovalType);
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.OpensWith(Insys.Health.Contracts.HealthApprovals.RecoveryBusinessRefType, "HealthGetRecovery", "/api/v1/health/provider-recoveries/{id}"); // DE-020
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Health.Contracts.HealthApprovals.CreditNoteBusinessRefType, "HEALTH_CREDIT_NOTES", Insys.Health.Contracts.HealthApprovals.CreditNoteApprovalType);
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.OpensWith(Insys.Health.Contracts.HealthApprovals.CreditNoteBusinessRefType, "HealthGetCreditNote", "/api/v1/health/provider-credit-notes/{id}"); // DE-020
         // DE-008: paying a failed remittance again is approved on the remittance, opened from its run's screen.
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Health.Contracts.HealthReferences.RemittanceRefType, "HEALTH_PAYMENT_RUNS", Insys.Payments.Contracts.PaymentApprovals.PayoutRetryApprovalType);
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.OpensWith(Insys.Health.Contracts.HealthReferences.RemittanceRefType, "HealthGetRemittance", "/api/v1/health/remittances/{id}"); // DE-020
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.RaisedWith("HEALTH", Insys.Health.Contracts.HealthApprovals.RunApprovalType, Insys.Health.Contracts.HealthApprovals.RecoveryWriteOffApprovalType,
             Insys.Health.Contracts.HealthApprovals.RecoveryFindingApprovalType, Insys.Health.Contracts.HealthApprovals.CreditNoteApprovalType);
         // ADR-026 §2: this module's event consumers run under its JOB function.

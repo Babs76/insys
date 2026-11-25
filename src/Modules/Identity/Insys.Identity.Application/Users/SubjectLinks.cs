@@ -46,10 +46,15 @@ public sealed record EndSubjectLink(Guid UserId, long ExpectedVersion) : IComman
 
 public sealed record GetSubjectLink(Guid UserId) : IQuery<SubjectLinkView>;
 
+/// <summary>DE-020: a subject link by its own ID, the ID its EXTERNAL_SUBJECT_LINK approval carries, pending, in effect or ended.</summary>
+public sealed record GetSubjectLinkById(Guid LinkId) : IQuery<SubjectLinkView>;
+
+/// <param name="UserId">The external user the link is for (DE-020): GET /identity/users/{userId} opens them.</param>
 public sealed record SubjectLinkView(Guid Id, SubjectKind Kind, Guid? PartyId, string? IntermediaryCode, string? ProviderId, SubjectLinkStatus Status, Guid RequestedBy,
-    Guid? DecidedBy, DateTimeOffset? DecidedAt, Workflow.Contracts.LatestRejection? LatestRejection = null)
+    Guid? DecidedBy, DateTimeOffset? DecidedAt, Workflow.Contracts.LatestRejection? LatestRejection = null, Guid? UserId = null)
 {
-    public static SubjectLinkView From(SubjectLink l) => new(l.Id, l.Kind, l.PartyId, l.IntermediaryCode, l.ProviderId, l.Status, l.RequestedBy, l.DecidedBy, l.DecidedAt);
+    public static SubjectLinkView From(SubjectLink l, Guid? userId = null) =>
+        new(l.Id, l.Kind, l.PartyId, l.IntermediaryCode, l.ProviderId, l.Status, l.RequestedBy, l.DecidedBy, l.DecidedAt, UserId: userId);
 }
 
 public sealed class LinkSubjectValidator : AbstractValidator<LinkSubject>
@@ -123,11 +128,20 @@ internal sealed class EndSubjectLinkHandler(IUserRepository users, IExecutionCon
     }
 }
 
-internal sealed class GetSubjectLinkHandler(IUserRepository users, Workflow.Contracts.IApprovalHistory history) : IQueryHandler<GetSubjectLink, SubjectLinkView>
+internal sealed class GetSubjectLinkHandler(IUserRepository users, Workflow.Contracts.IApprovalHistory history)
+    : IQueryHandler<GetSubjectLink, SubjectLinkView>, IQueryHandler<GetSubjectLinkById, SubjectLinkView>
 {
+    public async Task<Result<SubjectLinkView>> Handle(GetSubjectLinkById query, CancellationToken cancellationToken) =>
+        await users.ByLink(query.LinkId, cancellationToken) is { } user && user.SubjectLinks.SingleOrDefault(l => l.Id == query.LinkId) is { } link
+            ? SubjectLinkView.From(link, user.Id) with
+            {
+                LatestRejection = await history.Latest(Contracts.IdentityApprovals.SubjectLinkBusinessRefType, link.Id, cancellationToken),
+            }
+            : Error.NotFound(IdentityErrorCodes.SubjectLinkNotFound, "The subject link was not found.");
+
     public async Task<Result<SubjectLinkView>> Handle(GetSubjectLink query, CancellationToken cancellationToken) =>
         await users.Get(query.UserId, cancellationToken) is { CurrentLink: { } link }
-            ? SubjectLinkView.From(link) with
+            ? SubjectLinkView.From(link, query.UserId) with
             {
                 LatestRejection = await history.Latest(Contracts.IdentityApprovals.SubjectLinkBusinessRefType, link.Id, cancellationToken),
             }

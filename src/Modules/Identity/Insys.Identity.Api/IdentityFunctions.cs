@@ -54,7 +54,7 @@ internal static class IdentityFunctions
         .Action("PROVISION_TENANT_ADMINISTRATOR", "IDENTITY_TENANT_ADMINISTRATORS", "ProvisionTenantAdministrator")
         .Action("REQUEST_ADDITIONAL_ADMINISTRATOR", "IDENTITY_TENANT_ADMINISTRATORS", "RequestAdditionalAdministrator")
         .Action("RETRY_ADMINISTRATOR_IDENTITY", "IDENTITY_TENANT_ADMINISTRATORS", "RetryAdministratorIdentity")
-        .Screen("IDENTITY_USERS", "IDENTITY_ACCESS", "Users", "identity/users", "ListUsers", "GetUser", "IdentityGetSubjectLink")
+        .Screen("IDENTITY_USERS", "IDENTITY_ACCESS", "Users", "identity/users", "ListUsers", "GetUser", "IdentityGetSubjectLink", "IdentityGetSubjectLinkById")
         .Action("PROVISION_USER", "IDENTITY_USERS", ["ProvisionUser", "ProvisionServiceAccount"])
         .Action("RESEND_INVITATION", "IDENTITY_USERS", "ResendInvitation")
         .Action("IDENTITY_LINK_SUBJECT", "IDENTITY_USERS", "IdentityLinkSubject")
@@ -64,7 +64,7 @@ internal static class IdentityFunctions
         .Action("LOCK_USER", "IDENTITY_USERS", "LockUser")
         .Action("UNLOCK_USER", "IDENTITY_USERS", "UnlockUser")
         .Action("DISABLE_USER", "IDENTITY_USERS", "DisableUser")
-        .Screen("IDENTITY_ROLE_ASSIGNMENTS", "IDENTITY_ACCESS", "Roles", "identity/role-assignments", "IdentityListScopedAssignments")
+        .Screen("IDENTITY_ROLE_ASSIGNMENTS", "IDENTITY_ACCESS", "Roles", "identity/role-assignments", "IdentityListScopedAssignments", "IdentityGetRoleAssignment")
             .Functions,
     ];
 }

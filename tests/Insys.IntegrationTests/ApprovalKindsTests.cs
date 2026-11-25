@@ -26,6 +26,7 @@
  */
 using Insys.BuildingBlocks.Api.Functions;
 using Insys.BuildingBlocks.Contracts.Approvals;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Insys.IntegrationTests;
 
@@ -45,6 +46,48 @@ public sealed class ApprovalKindsTests(DatabaseFixture fixture) : IClassFixture<
         ApprovalKinds.ApprovalTypes.Count.ShouldBe(32); // + PAYOUT_RETRY (DE-008, declared by several modules, counted once), COMMISSION_CLAWBACK_INVOICE (OQ-062), CREDIT_NOTE (DE-010) and DEAD_LETTER_DISCARD (DE-007; Ade, 24 November 2026)
         ApprovalKinds.BusinessRefTypes.Where(r => !screens.Contains(ApprovalKinds.ScreenFor(r)!)).ShouldBeEmpty();
     }
+
+    /// <summary>
+    /// DE-019, DE-020, DE-022: an approval says how to open its record, by the ID it carries: each declared reference type names a
+    /// GET operation of this build, by its operationId (the endpoint name), whose route is the declared path with {id} as its only
+    /// parameter (none for a record the tenant has one of). Its view gives subjectOperation and subjectPath.
+    /// </summary>
+    [Fact]
+    public async Task EveryReferenceType_OpensItsRecordWithAReadOperationThatExists_DE020()
+    {
+        var host = await fixture.Host();
+        _ = host.CreateClient();
+        var gets = host.Services.GetServices<Microsoft.AspNetCore.Routing.EndpointDataSource>().SelectMany(s => s.Endpoints)
+            .OfType<Microsoft.AspNetCore.Routing.RouteEndpoint>()
+            .Where(e => e.Metadata.GetMetadata<Microsoft.AspNetCore.Routing.IHttpMethodMetadata>()?.HttpMethods.Contains("GET") == true
+                && e.Metadata.GetMetadata<Microsoft.AspNetCore.Routing.IEndpointNameMetadata>() is not null)
+            .ToDictionary(e => e.Metadata.GetMetadata<Microsoft.AspNetCore.Routing.IEndpointNameMetadata>()!.EndpointName, e => Normalise(e.RoutePattern.RawText!),
+                StringComparer.Ordinal);
+        var problems = new List<string>();
+        foreach (var type in ApprovalKinds.BusinessRefTypes)
+        {
+            if (ApprovalKinds.ReadFor(type) is not { } read)
+            {
+                problems.Add($"{type}: no read operation declared (ApprovalKinds.OpensWith)");
+            }
+            else if (!gets.TryGetValue(read.OperationId, out var route))
+            {
+                problems.Add($"{type}: {read.OperationId} is not a GET operation of this build");
+            }
+            else if (route != Normalise(read.PathTemplate) || System.Text.RegularExpressions.Regex.Matches(read.PathTemplate, "{[^}]*}").Any(m => m.Value != SubjectRead.IdPlaceholder))
+            {
+                problems.Add($"{type}: {read.OperationId} is {route}, not {read.PathTemplate} with {{id}} its only parameter");
+            }
+        }
+
+        problems.ShouldBeEmpty();
+        var id = Guid.CreateVersion7();
+        ApprovalKinds.ReadFor("BANK_ACCOUNT")!.PathFor(id).ShouldBe($"/api/v1/party/bank-accounts/{id}");
+    }
+
+    /// <summary>A route's path with each parameter's name and constraints dropped: {id:guid} and {redressId:guid} are both {}.</summary>
+    private static string Normalise(string route) =>
+        System.Text.RegularExpressions.Regex.Replace(System.Text.RegularExpressions.Regex.Replace(route, "^/api/v{[^}]*}/", "/api/v1/"), "{[^}]*}", "{}").TrimEnd('/');
 
     [Fact]
     public async Task TheContract_ListsTheDeclaredTypes_AndAnApprovalNamesItsScreen_BR005()

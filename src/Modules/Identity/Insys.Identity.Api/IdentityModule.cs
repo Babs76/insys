@@ -221,6 +221,26 @@ public sealed class IdentityModule : IModule
             .WithDescription("Each gives its role's permissions only for the records of its products and organisation nodes (with the nodes below them).")
             .RequirePermission(IdentityPermissions.UserRead);
 
+        // DE-020: a role assignment and a subject link by the IDs their approvals carry.
+        api.MapGet("/identity/role-assignments/{id:guid}", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Query(new GetRoleAssignment(id), ct)).ToHttp(Results.Ok))
+            .WithTags(Name)
+            .Produces<UserRoleAssignmentView>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .WithName("IdentityGetRoleAssignment")
+            .WithSummary("A role assignment by its ID, the businessRefId of its PRIVILEGED_ROLE approval, with the user who holds it (DE-020)")
+            .RequirePermission(IdentityPermissions.UserRead);
+
+        api.MapGet("/identity/subject-links/{id:guid}", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Query(new GetSubjectLinkById(id), ct)).ToHttp(Results.Ok))
+            .WithTags(Name)
+            .Produces<SubjectLinkView>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .WithName("IdentityGetSubjectLinkById")
+            .WithSummary("An external user's subject link by its ID, the businessRefId of its EXTERNAL_SUBJECT_LINK approval, pending, in effect or ended (DE-020)")
+            .WithDescription("userId names the user it is for; its changes are made on the user, with the user's ETag (GET /identity/users/{userId}).")
+            .RequirePermission(IdentityPermissions.UserRead);
+
         var users = api.MapGroup("/identity/users").WithTags(Name);
 
         users.MapPost("/service-accounts", async (ProvisionServiceAccount request, IDispatcher dispatcher, CancellationToken ct) =>

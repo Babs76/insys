@@ -84,6 +84,30 @@ public static class ApprovalKinds
 
     /// <summary>The screen that opens a record of the reference type, or null when none was declared.</summary>
     public static string? ScreenFor(string businessRefType) => Screens.GetValueOrDefault(businessRefType);
+
+    private static readonly ConcurrentDictionary<string, SubjectRead> SubjectReads = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// DE-019, DE-020: the read operation that opens the record an approval of the reference type is about, by the approval's
+    /// business ref ID. <paramref name="pathTemplate"/> is the operation's path as the OpenAPI document gives it (from /api/v1/), with {id} where the business ref
+    /// ID goes (none when the record is the tenant's only one, as its governance settings are). Every declared type has one,
+    /// which ApprovalKindsTests checks against the host's routes.
+    /// </summary>
+    /// <param name="operationId">The operation's ID in the OpenAPI document (its endpoint name), for example PartyGetBankAccount.</param>
+    public static void OpensWith(string businessRefType, string operationId, string pathTemplate) =>
+        SubjectReads[businessRefType] = new SubjectRead(operationId, pathTemplate);
+
+    /// <summary>The read operation that opens a record of the reference type, or null when none was declared.</summary>
+    public static SubjectRead? ReadFor(string businessRefType) => SubjectReads.GetValueOrDefault(businessRefType);
+}
+
+/// <summary>The read operation that opens an approval's record (DE-020): its operation ID and its path, with {id} for the business ref ID.</summary>
+public sealed record SubjectRead(string OperationId, string PathTemplate)
+{
+    public const string IdPlaceholder = "{id}";
+
+    /// <summary>The path with the business ref ID filled in.</summary>
+    public string PathFor(Guid businessRefId) => PathTemplate.Replace(IdPlaceholder, businessRefId.ToString(), StringComparison.Ordinal);
 }
 
 /// <summary>The field holds an approval type: the OpenAPI documents give it the enum of declared types (BR-005).</summary>

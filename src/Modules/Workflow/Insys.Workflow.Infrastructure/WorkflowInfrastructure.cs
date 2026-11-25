@@ -145,6 +145,10 @@ public static class WorkflowInfrastructure
         // DE-008: paying a redress whose payout failed again, approved the same way.
         ApprovalKinds.Declare(Contracts.CaseApprovals.RedressBusinessRefType, "SERVICE_COMPLAINTS", Contracts.CaseApprovals.RedressApprovalType,
             Payments.Contracts.PaymentApprovals.PayoutRetryApprovalType);
+        ApprovalKinds.OpensWith(Contracts.CaseApprovals.RedressBusinessRefType, "WorkflowGetRedress", "/api/v1/workflow/case-redress/{id}"); // DE-020
+        // DE-020: the Payments module's two reference types, declared here because that module is outside this change (move them beside its Declare).
+        ApprovalKinds.OpensWith(Payments.Contracts.PaymentApprovals.PayoutBusinessRefType, "PaymentsGetBatch", "/api/v1/payments/payout-batches/{id}");
+        ApprovalKinds.OpensWith(Payments.Contracts.PaymentApprovals.PaymentBusinessRefType, "PaymentsGet", "/api/v1/payments/payments/{id}");
         // Scope batch 4 (F103, OQ-169): the record types Workflow's processes are about that aren't scoped, with the reason. Every other type is scoped
         // through its module's source, or fails closed.
         ApprovalKinds.Unscoped("PARTY", "a party's record: parties are shared across products (PTY-003)");

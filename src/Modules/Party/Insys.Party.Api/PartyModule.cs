@@ -66,6 +66,9 @@ public sealed record MatchResolutionRequest([property: BuildingBlocks.Domain.One
 
 public sealed record DeathRequest(DateOnly DeceasedDate);
 
+/// <param name="Reason">Why the export is refused (DE-059), at most 500 characters; kept on the job.</param>
+public sealed record RefuseExportRequest(string Reason);
+
 public sealed record MergePartiesRequest(Guid SurvivorId, Guid MergedId, string Reason);
 
 /// <param name="CheckType">SCREENING (sanctions, PEP and, where switched on, adverse media, through the provider); IDENTITY (an identifier, through the provider); or ADDRESS, BENEFICIAL_OWNERSHIP or SOURCE_OF_FUNDS, verified by the caller against a document filed against the party.</param>
@@ -243,6 +246,33 @@ public sealed class PartyModule : IModule
             .Produces<IReadOnlyList<BankAccountView>>(StatusCodes.Status200OK)
             .WithName("PartyListBankAccounts")
             .WithSummary("List a party's bank accounts, current and superseded, without their numbers")
+            .RequirePermission(PartyPermissions.BankAccountRead);
+
+        // DE-020: a bank account by the ID its verification approval carries, and the accounts waiting for a verifier, tenant-wide.
+        var accounts = api.MapGroup("/party/bank-accounts").WithTags(Name);
+        accounts.MapGet("/pending-verification", async (string? cursor, int? limit, IDispatcher dispatcher, CancellationToken ct) =>
+            {
+                if (!Cursor.TryDecode(cursor, out var afterId))
+                {
+                    return Problems.For(BuildingBlocks.Domain.ErrorCodes.ValidationFailed, "The cursor is not valid.", StatusCodes.Status422UnprocessableEntity);
+                }
+
+                var pageSize = Cursor.ClampLimit(limit);
+                return (await dispatcher.Query(new ListBankAccountsPendingVerification(afterId, pageSize), ct))
+                    .ToHttp(items => Results.Ok(new CursorPage<BankAccountView>(items, items.Count == pageSize ? Cursor.Encode(items[^1].Id) : null)));
+            })
+            .Produces<CursorPage<BankAccountView>>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithName("PartyListBankAccountsPendingVerification")
+            .WithSummary("The tenant's bank accounts waiting for a second person's verification (PENDING_VERIFICATION), oldest first, without their numbers")
+            .WithDescription("For the verifier (DE-020): each account names its party (partyId); its BANK_ACCOUNT_VERIFICATION approval carries the account's id.")
+            .RequirePermission(PartyPermissions.BankAccountRead);
+        accounts.MapGet("/{id:guid}", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Query(new GetBankAccount(id), ct)).ToHttp(Results.Ok))
+            .Produces<BankAccountView>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .WithName("PartyGetBankAccount")
+            .WithSummary("A bank account by its ID, the businessRefId of its verification approval, without its number (DE-020)")
             .RequirePermission(PartyPermissions.BankAccountRead);
 
         parties.MapPost("/{id:guid}/identifiers", async (Guid id, IdentifierRequest r, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
@@ -443,7 +473,7 @@ public sealed class PartyModule : IModule
                     }
 
                     if (type is not (null or BulkJob.Import or BulkJob.Export or BulkJob.PolicyExport) || direction is not (null or "IMPORT" or "EXPORT")
-                        || status is not (null or BulkJobStatus.Done or BulkJobStatus.Rejected or BulkJobStatus.ToApprove or BulkJobStatus.Approved) || (from is not null && to is not null && from > to))
+                        || status is not (null or BulkJobStatus.Done or BulkJobStatus.Rejected or BulkJobStatus.ToApprove or BulkJobStatus.Approved or BulkJobStatus.Refused or BulkJobStatus.Cancelled) || (from is not null && to is not null && from > to))
                     {
                         return Problems.For(BuildingBlocks.Domain.ErrorCodes.ValidationFailed, "A filter is not valid.", StatusCodes.Status422UnprocessableEntity);
                     }
@@ -459,6 +489,19 @@ public sealed class PartyModule : IModule
         bulk.MapPost("/{id:guid}/approve", async (Guid id, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Send(new ApprovePartyExport(id), ct)).ToHttp(Results.Ok))
             .Produces<BulkJobView>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status409Conflict).TakesIfMatch()
             .WithName("PartyApproveExport").WithSummary("Approve an export; not for who asked").RequirePermission(PartyPermissions.BulkJobApprove);
+        bulk.MapPost("/{id:guid}/refuse", async (Guid id, RefuseExportRequest r, IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Send(new RefusePartyExport(id, r.Reason), ct)).ToHttp(Results.Ok))
+            .Produces<BulkJobView>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status409Conflict).ProducesProblem(StatusCodes.Status422UnprocessableEntity).TakesIfMatch()
+            .WithName("PartyRefuseExport").WithSummary("Refuse an export waiting for approval, with a reason; not for who asked, who cancels it instead (DE-059)")
+            .WithDescription("TO_APPROVE → REFUSED; nothing leaves, and the job keeps who refused it and why. Audited. 409 MAKER_CHECKER_SAME_PERSON for who asked; "
+                + "409 INVALID_STATE_TRANSITION when the job is not an export waiting for approval.")
+            .RequirePermission(PartyPermissions.BulkJobApprove);
+        bulk.MapPost("/{id:guid}/cancel", async (Guid id, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Send(new CancelPartyExport(id), ct)).ToHttp(Results.Ok))
+            .Produces<BulkJobView>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status403Forbidden).ProducesProblem(StatusCodes.Status409Conflict).TakesIfMatch()
+            .WithName("PartyCancelExport").WithSummary("Cancel your own export while it waits for approval (DE-059)")
+            .WithDescription("TO_APPROVE → CANCELLED; nothing leaves. Audited. Only who asked for the export (runBy) cancels it: 403 FORBIDDEN for anyone else; "
+                + "409 INVALID_STATE_TRANSITION when the job is not an export waiting for approval.")
+            .RequirePermission(PartyPermissions.BulkJobCreate);
         bulk.MapGet("/{id:guid}/content", async (Guid id, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Send(new DownloadPartyExport(id), ct)).ToHttp(csv => Results.Text(csv, "text/csv")))
             .Produces<string>(StatusCodes.Status200OK, "text/csv").ProducesProblem(StatusCodes.Status409Conflict)
             .WithName("PartyDownloadExport").WithSummary("The approved export as CSV; audited with its filter and row count").RequirePermission(PartyPermissions.BulkJobRead);
@@ -645,6 +688,13 @@ public sealed class PartyModule : IModule
             .Produces<IReadOnlyList<SearchLogHoldView>>(StatusCodes.Status200OK)
             .WithName("PartyListSearchLogHolds")
             .WithSummary("The legal holds on the party search log, active and released")
+            .RequirePermission(Audit.Contracts.AuditPermissions.Read);
+
+        holds.MapGet("/{id:guid}", async (Guid id, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Query(new GetSearchLogHold(id), ct)).ToHttp(Results.Ok))
+            .Produces<SearchLogHoldView>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .WithName("PartyGetSearchLogHold")
+            .WithSummary("A legal hold on the party search log, by the ID its release approval carries (DE-020)")
             .RequirePermission(Audit.Contracts.AuditPermissions.Read);
 
         holds.MapPost("/{id:guid}/release", async (Guid id, SearchLogHoldReleaseRequest r, IDispatcher dispatcher, CancellationToken ct) =>

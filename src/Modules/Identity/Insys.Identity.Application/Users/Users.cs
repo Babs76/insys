@@ -191,6 +191,12 @@ public sealed record ListUsers(Guid? AfterId, int Limit) : IQuery<IReadOnlyList<
 
 public sealed record GetUser(Guid UserId) : IQuery<UserView>;
 
+/// <summary>DE-020: a role assignment by its own ID, the ID its PRIVILEGED_ROLE approval carries, with the user who holds it.</summary>
+public sealed record GetRoleAssignment(Guid AssignmentId) : IQuery<UserRoleAssignmentView>;
+
+/// <summary>A role assignment with its user (DE-020): GET /identity/users/{userId} opens the user, whose ETag its changes take.</summary>
+public sealed record UserRoleAssignmentView(Guid UserId, string Username, string DisplayName, RoleAssignmentView Assignment);
+
 /// <summary>B-011: registers a client-credentials identity already made in the identity provider, for one tenant and provider. Roles are assigned as for anyone.</summary>
 /// <param name="ExternalSubject">The service account's subject, the sub of its tokens.</param>
 public sealed record ProvisionServiceAccount(string Username, string DisplayName, string IdpCode, string ExternalSubject) : ICommand<Guid>;
@@ -429,8 +435,21 @@ internal sealed class ListRolesHandler(IRolePolicyReader roles, IBusinessDate bu
             .ToList());
 }
 
-internal sealed class GetUserHandler(IUserQueries queries, IApprovalHistory history) : IQueryHandler<GetUser, UserView>
+internal sealed class GetUserHandler(IUserQueries queries, IUserRepository users, IApprovalHistory history)
+    : IQueryHandler<GetUser, UserView>, IQueryHandler<GetRoleAssignment, UserRoleAssignmentView>
 {
+    public async Task<Result<UserRoleAssignmentView>> Handle(GetRoleAssignment query, CancellationToken cancellationToken)
+    {
+        var holder = await users.ByAssignment(query.AssignmentId, cancellationToken);
+        if (holder is null || await Handle(new GetUser(holder.Id), cancellationToken) is not { IsSuccess: true } user
+            || user.Value.RoleAssignments.SingleOrDefault(a => a.Id == query.AssignmentId) is not { } assignment)
+        {
+            return Error.NotFound(ErrorCodes.NotFound, "The role assignment was not found.");
+        }
+
+        return new UserRoleAssignmentView(user.Value.Id, user.Value.Username, user.Value.DisplayName, assignment);
+    }
+
     public async Task<Result<UserView>> Handle(GetUser query, CancellationToken cancellationToken)
     {
         if (await queries.Get(query.UserId, cancellationToken) is not { } user)

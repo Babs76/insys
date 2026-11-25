@@ -169,6 +169,9 @@ public sealed record ListPeriods : IQuery<IReadOnlyList<PeriodView>>;
 /// <summary>BR-045: one period, acted on or (Future) only in the calendar.</summary>
 public sealed record GetPeriod(string PeriodCode) : IQuery<PeriodView>;
 
+/// <summary>DE-020: a period by its ID, the ID its PERIOD_REOPEN approval carries (GetPeriod takes its code).</summary>
+public sealed record GetPeriodById(Guid PeriodId) : IQuery<PeriodView>;
+
 public sealed record ListPostingExceptions(string? Status, int Limit, Guid? AfterId = null) : IQuery<IReadOnlyList<PostingExceptionView>>;
 
 /// <summary>BR-044: one posting exception.</summary>
@@ -459,7 +462,7 @@ internal sealed class ListJournalsHandler(IJournalRepository journals, ITenantBa
 /// period has no view of its own, so the list carries it; a tenant has few periods.
 /// </summary>
 internal sealed class ListPeriodsHandler(IAccountingPeriods periods, IPostingConfiguration configuration, Workflow.Contracts.IApprovalHistory approvals,
-    IBusinessDate businessDate) : IQueryHandler<ListPeriods, IReadOnlyList<PeriodView>>, IQueryHandler<GetPeriod, PeriodView>
+    IBusinessDate businessDate) : IQueryHandler<ListPeriods, IReadOnlyList<PeriodView>>, IQueryHandler<GetPeriod, PeriodView>, IQueryHandler<GetPeriodById, PeriodView>
 {
     /// <summary>The periods acted on, then the calendar's periods no one has opened yet, as Future (BR-045), in start date order.</summary>
     public async Task<Result<IReadOnlyList<PeriodView>>> Handle(ListPeriods query, CancellationToken cancellationToken)
@@ -476,6 +479,11 @@ internal sealed class ListPeriodsHandler(IAccountingPeriods periods, IPostingCon
             .Select(c => PeriodView.Future(c.PeriodCode, c.Start, c.End)));
         return views.OrderBy(v => v.StartDate).ThenBy(v => v.PeriodCode, StringComparer.Ordinal).ToList();
     }
+
+    public async Task<Result<PeriodView>> Handle(GetPeriodById query, CancellationToken cancellationToken) =>
+        await periods.Get(query.PeriodId, cancellationToken) is { } period
+            ? await View(period, cancellationToken)
+            : Error.NotFound(ErrorCodes.NotFound, "The accounting period was not found.");
 
     public async Task<Result<PeriodView>> Handle(GetPeriod query, CancellationToken cancellationToken)
     {

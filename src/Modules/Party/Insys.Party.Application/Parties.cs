@@ -48,6 +48,9 @@ public interface IPartyRepository
     /// <summary>The party that holds the bank account.</summary>
     Task<Domain.Parties.Party?> WithBankAccount(Guid bankAccountId, CancellationToken cancellationToken);
 
+    /// <summary>DE-020: the tenant's bank accounts waiting for verification, by ID after <paramref name="afterId"/>.</summary>
+    Task<IReadOnlyList<BankAccount>> PendingBankAccounts(Guid? afterId, int limit, CancellationToken cancellationToken);
+
     Task<bool> IdentifierExists(string docType, string country, string hash, CancellationToken cancellationToken);
 
     /// <summary>An existing party the person may be: by identity document, or by a close name match with the same birth date (external-user access §6).</summary>
@@ -173,6 +176,12 @@ public sealed record AddBankAccount(Guid PartyId, string AccountNumber, string B
 
 public sealed record ListBankAccounts(Guid PartyId) : IQuery<IReadOnlyList<BankAccountView>>;
 
+/// <summary>DE-020: one bank account by its ID, the ID its BANK_ACCOUNT_VERIFICATION approval carries.</summary>
+public sealed record GetBankAccount(Guid BankAccountId) : IQuery<BankAccountView>;
+
+/// <summary>DE-020: the tenant's bank accounts waiting for a second person's verification, oldest first, for the verifier.</summary>
+public sealed record ListBankAccountsPendingVerification(Guid? AfterId, int Limit) : IQuery<IReadOnlyList<BankAccountView>>;
+
 /// <summary>A bank account without its number: the last four digits only.</summary>
 public sealed record BankAccountView(Guid Id, Guid PartyId, string Last4, string BankCode, string? BranchCode, string AccountType, string Currency, [property: OneOf("PENDING_VERIFICATION", "ACTIVE", "SUPERSEDED", "REJECTED")] string Status,
     DateTimeOffset? VerifiedAt, Guid? SupersededById, Workflow.Contracts.LatestRejection? LatestRejection = null)
@@ -278,8 +287,26 @@ public sealed class BankAccountVerificationPolicy(IPartyRepository parties, IClo
 }
 
 internal sealed class ListBankAccountsHandler(IPartyRepository parties, Workflow.Contracts.IApprovalHistory history)
-    : IQueryHandler<ListBankAccounts, IReadOnlyList<BankAccountView>>
+    : IQueryHandler<ListBankAccounts, IReadOnlyList<BankAccountView>>,
+      IQueryHandler<GetBankAccount, BankAccountView>,
+      IQueryHandler<ListBankAccountsPendingVerification, IReadOnlyList<BankAccountView>>
 {
+    public async Task<Result<BankAccountView>> Handle(GetBankAccount query, CancellationToken cancellationToken) =>
+        await parties.WithBankAccount(query.BankAccountId, cancellationToken) is { } party && party.BankAccounts.SingleOrDefault(a => a.Id == query.BankAccountId) is { } account
+            ? BankAccountView.From(account, await history.Latest(PartyApprovals.BankAccountBusinessRefType, account.Id, cancellationToken))
+            : Error.NotFound(ErrorCodes.NotFound, "The bank account was not found.");
+
+    public async Task<Result<IReadOnlyList<BankAccountView>>> Handle(ListBankAccountsPendingVerification query, CancellationToken cancellationToken)
+    {
+        var views = new List<BankAccountView>();
+        foreach (var account in await parties.PendingBankAccounts(query.AfterId, query.Limit, cancellationToken))
+        {
+            views.Add(BankAccountView.From(account, await history.Latest(PartyApprovals.BankAccountBusinessRefType, account.Id, cancellationToken)));
+        }
+
+        return views;
+    }
+
     public async Task<Result<IReadOnlyList<BankAccountView>>> Handle(ListBankAccounts query, CancellationToken cancellationToken)
     {
         if (await parties.Get(query.PartyId, cancellationToken) is not { } party)

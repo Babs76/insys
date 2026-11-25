@@ -172,8 +172,18 @@ public static class ChangeRequestLinks
     }
 }
 
+/// <summary>A static data import (SDM-012), as its owning module reported it.</summary>
+/// <param name="Id">
+/// The import's batchId (DE-017): the batchId its import returned, its lines' importBatchId and the {batchId} of the table's
+/// …/imports/{batchId} routes (read its lines, submit, activate).
+/// </param>
+/// <param name="Status">COMMITTED: its lines were saved as drafts, to be submitted and activated as one change; REJECTED: nothing was saved, see errors.</param>
 public sealed record ImportBatchView(Guid Id, string BatchNumber, string EntityCode, string FileRef, int RowCount, int RejectedCount, ImportStatus Status,
-    Guid SubmittedBy, IReadOnlyList<ImportLineError> Errors);
+    Guid SubmittedBy, IReadOnlyList<ImportLineError> Errors)
+{
+    /// <summary>DE-017: the same ID as <see cref="Id"/>, named as the table's import routes and the lines name it.</summary>
+    public Guid BatchId => Id;
+}
 
 public interface IChangeRequestQueries
 {
@@ -181,14 +191,15 @@ public interface IChangeRequestQueries
 
     Task<ChangeRequestView?> Get(Guid id, CancellationToken cancellationToken);
 
-    Task<IReadOnlyList<ImportBatchView>> Imports(Guid? afterId, int limit, CancellationToken cancellationToken);
+    Task<IReadOnlyList<ImportBatchView>> Imports(ImportStatus? status, Guid? afterId, int limit, CancellationToken cancellationToken);
 }
 
 public sealed record ListChangeRequests(string? Status, string? EntityCode, Guid? AfterId, int Limit) : IQuery<IReadOnlyList<ChangeRequestView>>;
 
 public sealed record GetChangeRequest(Guid Id) : IQuery<ChangeRequestView>;
 
-public sealed record ListImportBatches(Guid? AfterId, int Limit) : IQuery<IReadOnlyList<ImportBatchView>>;
+/// <param name="Status">DE-017: only imports with this status; null for all.</param>
+public sealed record ListImportBatches(Guid? AfterId, int Limit, ImportStatus? Status = null) : IQuery<IReadOnlyList<ImportBatchView>>;
 
 internal static class Checker
 {
@@ -215,7 +226,7 @@ internal sealed class GetChangeRequestHandler(IChangeRequestQueries queries, IAp
 internal sealed class ListImportBatchesHandler(IChangeRequestQueries queries) : IQueryHandler<ListImportBatches, IReadOnlyList<ImportBatchView>>
 {
     public async Task<Result<IReadOnlyList<ImportBatchView>>> Handle(ListImportBatches query, CancellationToken cancellationToken) =>
-        Result.Success(await queries.Imports(query.AfterId, query.Limit, cancellationToken));
+        Result.Success(await queries.Imports(query.Status, query.AfterId, query.Limit, cancellationToken));
 }
 
 /// <summary>
