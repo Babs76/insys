@@ -124,7 +124,7 @@ public sealed class PayoutBatch : AggregateRoot<Guid>
         };
         foreach (var payment in payments)
         {
-            payment.AssignToBatch(id);
+            payment.AssignToBatch(id, now);
         }
 
         batch.SubjectHash = Subject(id, purpose, currency, payments);

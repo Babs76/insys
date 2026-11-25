@@ -264,6 +264,7 @@ internal sealed class PaymentsEventMapper : IDomainEventMapper
         Domain.Payments.PaymentInitiated e => new Contracts.PaymentInitiated(e.PaymentId, e.PaymentRef, Upper(e.Direction), e.Purpose, e.Amount, e.Currency,
             e.BusinessRefType, e.BusinessRefId),
         Domain.Payments.PaymentAllocated e => new Contracts.PaymentAllocated(e.PaymentId, e.AllocationId, e.InvoiceId, e.Amount, e.Currency),
+        Domain.Payments.PaymentBatched e => new Contracts.PaymentBatched(e.PaymentId, e.BatchId, e.Purpose, e.Currency, e.BusinessRefType, e.BusinessRefId),
         Domain.Payments.PaymentReversed e => new Contracts.PaymentReversed(e.PaymentId, e.PaymentRef, Upper(e.Direction), e.Purpose, e.Amount, e.Currency, e.ReversedOn,
             e.Allocations.Select(a => new Contracts.ReversedAllocation(a.AllocationId, a.InvoiceId, a.Amount)).ToList(), e.Reason),
         Domain.Payments.PayoutReleased e => new Contracts.PayoutReleased(e.BatchId, e.BatchRef, e.Purpose, e.PaymentCount, e.TotalAmount, e.Currency),

@@ -57,6 +57,13 @@ public sealed record DeliveryParked(Guid ParkedDeliveryId, string Consumer, stri
 public sealed record ParkedDeliveryResolved(Guid ParkedDeliveryId, string Consumer, string Code, string? Item, string EventType, Guid EventId) : IIntegrationEvent;
 
 /// <summary>
+/// DE-028: a person discarded a parked delivery (ADR-022 decision 6): the consumer will never apply it. Workflow closes the delivery's tasks.
+/// <paramref name="Code"/> is null for a delivery that failed without a prerequisite code.
+/// </summary>
+[IntegrationEvent("integration.ParkedDeliveryDiscarded")]
+public sealed record ParkedDeliveryDiscarded(Guid ParkedDeliveryId, string Consumer, string? Code, string? Item, string EventType, Guid EventId) : IIntegrationEvent;
+
+/// <summary>
 /// Public query interface: the tenant's configuration owner role, from its parking setting (ADR-022 decision 6), or the
 /// default. Other alerts about missing or unusable configuration go to the same role (F009).
 /// </summary>

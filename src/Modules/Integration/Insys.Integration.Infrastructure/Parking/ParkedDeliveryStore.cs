@@ -157,8 +157,20 @@ internal sealed class ParkedDeliveryStore(
             SET status = 'DISCARDED', discarded_by = @by, discard_reason = @reason, resolved_at = @now,
                 row_version = row_version + 1, updated_at = @now, updated_by = @by
             WHERE tenant_id = @tenant_id AND id = @id AND row_version = @version AND status IN ('PARKED', 'WAITING', 'FAILING', 'DEAD_LETTERED')
+            RETURNING consumer, prerequisite_code, prerequisite_item, event_type, event_id
             """, ("id", id), ("version", expectedVersion), ("by", Truncate(by, 80)), ("reason", reason), ("now", clock.UtcNow));
-        return await command.ExecuteNonQueryAsync(cancellationToken) == 1;
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken))
+        {
+            return false;
+        }
+
+        // DE-028: Workflow closes the delivery's tasks; saved with the command, in its transaction.
+        var discarded = new Contracts.ParkedDeliveryDiscarded(id, reader.GetString(0), reader.IsDBNull(1) ? null : reader.GetString(1),
+            reader.IsDBNull(2) ? null : reader.GetString(2), reader.GetString(3), reader.GetGuid(4));
+        await reader.CloseAsync();
+        db.Publish(discarded, "ParkedDelivery", id, clock.UtcNow);
+        return true;
     }
 
     public Task<ParkingSettingView> Setting(CancellationToken cancellationToken) =>

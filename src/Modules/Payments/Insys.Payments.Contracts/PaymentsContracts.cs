@@ -154,6 +154,10 @@ public sealed record ReversedAllocation(Guid AllocationId, Guid InvoiceId, decim
 public sealed record PaymentReversed(Guid PaymentId, string PaymentRef, string Direction, string Purpose, decimal Amount, string Currency, DateOnly ReversedOn,
     IReadOnlyList<ReversedAllocation> ReversedAllocations, string Reason) : IIntegrationEvent;
 
+/// <summary>DE-045: a payout waiting for a batch was put in one (BuildBatch). Workflow closes the "build a payout batch" task of the record it pays.</summary>
+[IntegrationEvent("payment.PaymentBatched")]
+public sealed record PaymentBatched(Guid PaymentId, Guid BatchId, string Purpose, string Currency, string? BusinessRefType, Guid? BusinessRefId) : IIntegrationEvent;
+
 [IntegrationEvent("payment.PayoutReleased")]
 public sealed record PayoutReleased(Guid BatchId, string BatchRef, string Purpose, int PaymentCount, decimal TotalAmount, string Currency) : IIntegrationEvent;
 
