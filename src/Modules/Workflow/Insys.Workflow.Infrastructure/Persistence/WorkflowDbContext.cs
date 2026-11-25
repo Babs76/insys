@@ -125,6 +125,8 @@ public sealed class WorkflowDbContext(DbContextOptions<WorkflowDbContext> option
             process.Property(p => p.ProcessCode).HasMaxLength(30);
             process.Property(p => p.BusinessRefType).HasMaxLength(30);
             process.Property(p => p.State).HasMaxLength(30);
+            process.Property(p => p.PayoutPurpose).HasMaxLength(20);
+            process.Property(p => p.PayoutCurrency).HasColumnType("char(3)");
             process.HasMany(p => p.Tasks).WithOne().HasForeignKey(t => new { t.TenantId, t.ProcessInstanceId });
             process.Navigation(p => p.Tasks).UsePropertyAccessMode(PropertyAccessMode.Field);
             process.HasMany(p => p.Timers).WithOne().HasForeignKey(t => new { t.TenantId, t.ProcessInstanceId });

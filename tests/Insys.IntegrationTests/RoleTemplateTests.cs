@@ -106,6 +106,34 @@ public sealed class RoleTemplateTests(DatabaseFixture fixture) : IClassFixture<D
         Holders("TERMINATE_TENANT").ShouldBe(["PLATFORM_ADMIN"]);
     }
 
+    /// <summary>
+    /// DE-025, DE-044: every staff template holds the caller's own work (process area My work): my tasks, claiming and completing them, my requests
+    /// and withdrawing them; the read-only auditors their screens only; no portal or platform template; and none of them is privileged.
+    /// </summary>
+    [Fact]
+    public async Task EveryStaffTemplate_HoldsMyWork_ByTheOneRule_DE025_DE044()
+    {
+        var catalogue = await Catalogue();
+        var myWork = catalogue.Select(f => f.Function).Where(f => f.ProcessArea == ProcessAreas.MyWork).ToList();
+        myWork.Select(f => f.Code).ShouldBe(["WORKFLOW_CLAIM_MY_TASK", "WORKFLOW_COMPLETE_MY_TASK", "WORKFLOW_MY_REQUESTS", "WORKFLOW_MY_TASKS",
+            "WORKFLOW_WITHDRAW_MY_REQUEST"], ignoreOrder: true);
+        myWork.ShouldAllBe(f => !f.Privileged && f.Audiences.SequenceEqual(new[] { Audiences.Staff }));
+        RoleTemplates.PrivilegedCodes(catalogue).Intersect(myWork.Select(f => f.Code)).ShouldBeEmpty();
+
+        foreach (var template in RoleTemplates.All)
+        {
+            var codes = RoleTemplates.Expand(template, catalogue).Select(f => f.Code).ToHashSet(StringComparer.Ordinal);
+            var expected = template.ActorType != Audiences.Staff ? []
+                : template.ScreensOnly ? myWork.Where(f => f.Kind == FunctionKind.Screen).Select(f => f.Code).ToArray()
+                : myWork.Select(f => f.Code).ToArray();
+            myWork.Select(f => f.Code).Where(codes.Contains).ShouldBe(expected, ignoreOrder: true, template.Code);
+        }
+
+        // The permission that shows one's own tasks is not the one that lists every task.
+        catalogue.Single(f => f.Function.Code == "WORKFLOW_MY_TASKS").Permissions.ShouldBe([Insys.Workflow.Contracts.WorkflowPermissions.OwnTaskRead]);
+        catalogue.Single(f => f.Function.Code == "WORKFLOW_TASKS").Permissions.ShouldNotContain(Insys.Workflow.Contracts.WorkflowPermissions.OwnTaskRead);
+    }
+
     /// <summary>The data protection officer finds the party to anonymise or merge (Ade, 20 November 2026): the party search, and the screen it sits under.</summary>
     [Fact]
     public async Task DataProtectionOfficer_SearchesParties_ToFindThoseItAnonymisesOrMerges_OQ111()
@@ -267,7 +295,9 @@ public sealed class RoleTemplateTests(DatabaseFixture fixture) : IClassFixture<D
         var catalogue = await Catalogue();
         var functions = RoleTemplates.Expand(RoleTemplates.All.Single(t => t.Code == "LINE_CONFIGURATION_MANAGER"), catalogue);
         functions.Select(f => f.SubDomain).Distinct().Order(StringComparer.Ordinal).ShouldBe(["CONFIG_GENERAL", "CONFIG_HEALTH", "CONFIG_LIFE", "WORKFLOW"]);
-        functions.Where(f => f.SubDomain == "WORKFLOW").Select(f => f.Code).ShouldBe(["WORKFLOW_APPROVALS", "WORKFLOW_APPROVE", "WORKFLOW_REJECT"], ignoreOrder: true);
+        // Besides every staff template's own work (DE-025, DE-044).
+        functions.Where(f => f.SubDomain == "WORKFLOW" && f.ProcessArea != ProcessAreas.MyWork).Select(f => f.Code)
+            .ShouldBe(["WORKFLOW_APPROVALS", "WORKFLOW_APPROVE", "WORKFLOW_REJECT"], ignoreOrder: true);
         foreach (var line in new[] { "CONFIG_LIFE", "CONFIG_GENERAL", "CONFIG_HEALTH" })
         {
             var inLine = catalogue.Where(f => f.Function.SubDomain == line && f.Function.Kind != FunctionKind.Job && f.Function.Audiences.Contains("STAFF") && !f.Function.Privileged).Select(f => f.Function.Code);

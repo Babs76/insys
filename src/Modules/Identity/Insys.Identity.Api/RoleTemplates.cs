@@ -237,7 +237,10 @@ public static class RoleTemplates
         var auditRole = AuditRoles.Contains(template.Code);
         var codes = catalogue.Where(f => auditRole || !f.Permissions.Contains(AuditRead)).Select(f => f.Function)
             .Where(f => f.Kind != FunctionKind.Job && f.Audiences.Contains(template.ActorType)
-                && (template.SubDomains.Contains("*") || template.SubDomains.Contains(f.SubDomain))
+                && (template.SubDomains.Contains("*") || template.SubDomains.Contains(f.SubDomain)
+                    // DE-025, DE-044 (Ade, 25 November 2026): THE ONE "EVERY STAFF TEMPLATE" RULE. The caller's own tasks and requests
+                    // (process area My work) are in every staff template, whatever its sub-domains; screens only for a read-only template.
+                    || (template.ActorType == Audiences.Staff && f.ProcessArea == ProcessAreas.MyWork))
                 && f.SubDomain != "AI_ASSIST" // In no template: a tenant grants AI Assist's functions itself (addendum §5).
                 && (!template.ScreensOnly || f.Kind == FunctionKind.Screen)
                 && !privileged.Contains(f.Code) && !excluded.Contains(f.Code))

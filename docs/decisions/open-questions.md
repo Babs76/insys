@@ -1654,3 +1654,11 @@ Raised by the read-scope sweep (`docs/reviews/read-scope-sweep.md`, at `06ecae1`
 - **Clawback invoice to an intermediary with no billing account:** parks (CollectionMethodNotInForce): no setting names an intermediary's collection method. The `invoiceDue` list filter lists by age only, not a terminated intermediary's statements early.
 - **Credit note approved with nothing outstanding:** the request lapses and nothing is credited (money owed back is a refund's job).
 - **Dead letters made by the ledger** (`ledger:<consumer>`): judged money or not by their event type's module prefix (a `payment.*` event is money).
+
+### OQ-201 My work: which queues a person serves, and the step after an approval (25 November 2026)
+- **Status:** open, for Ade. Built as stated in `docs/specs/addenda/my-work.md` (DE-025, DE-044, DE-045); the number may move at merge.
+- **Configured queues name no role.** A queue from `workflow.cfg_task_types_and_work_queues` (and `DEFAULT`) reaches a person only when its code is a role code, or the process is in the `WorkServers` table (a function that does what the task asks). Proposed: a `serving_role` (or function) column on the queue row, a static data change.
+- **Queue codes of the new steps** are the role templates' names (CLAIMS_MANAGER, FINANCE_MANAGER, FINANCE_OFFICER, LIFE_UNDERWRITER, GENERAL_UNDERWRITER); a tenant's own roles see them through the serving function instead.
+- **Closing a "build a payout batch" task** happens when a batch takes the payout; if that batch's release is later rejected and the payout returns to waiting, no new task opens.
+- **Ordering:** a next step whose record moves on by itself before Workflow processes the grant (a redirected claim payment released at once) can leave its task open; a person completes it ("done").
+- **Informational outcome:** "closes when opened" is the console calling complete when the requester opens it; no read endpoint changes state.

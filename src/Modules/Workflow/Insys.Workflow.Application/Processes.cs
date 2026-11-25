@@ -56,6 +56,9 @@ public interface IProcessRepository
 
     Task<IReadOnlyList<Guid>> WithDueTimers(DateTimeOffset now, int limit, CancellationToken cancellationToken);
 
+    /// <summary>The process a task belongs to, with its tasks and timers, or null.</summary>
+    Task<ProcessInstance?> ByTask(Guid taskId, CancellationToken cancellationToken);
+
     /// <summary>Adds a started process with its record's scope (F103, scope batch 4): from the record's module, as an approval's is, or failing closed.</summary>
     Task Add(ProcessInstance process, CancellationToken cancellationToken);
 }
@@ -114,6 +117,9 @@ public interface IProcessQueries
     Task<ProcessView?> Get(Guid id, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<OpenTaskView>> OpenTasks(string? queueCode, Guid? assigneeId, OpenTaskCursor? after, int limit, CancellationToken cancellationToken);
+
+    /// <summary>DE-025: the open tasks the filter's user may work, earliest due first (MyWork describes which).</summary>
+    Task<IReadOnlyList<MyTaskRow>> MyTasks(MyTasksFilter filter, OpenTaskCursor? after, int limit, CancellationToken cancellationToken);
 }
 
 public sealed record StartProcess(string ProcessCode, string BusinessRefType, Guid BusinessRefId) : ICommand<Guid>;
@@ -231,8 +237,7 @@ internal sealed class AssignTaskHandler(IProcessRepository processes, IExecution
 }
 
 /// <summary>CompleteTask, after the owning domain's validation of the transition (WFL-002).</summary>
-internal sealed class CompleteTaskHandler(IProcessRepository processes, IWorkflowConfiguration configuration, IEnumerable<IWorkflowTransitionValidator> validators,
-    IBusinessDate businessDate, IClock clock, IAuditTrail audit) : ICommandHandler<CompleteTask, long>
+internal sealed class CompleteTaskHandler(IProcessRepository processes, TaskCompletion completion) : ICommandHandler<CompleteTask, long>
 {
     public async Task<Result<long>> Handle(CompleteTask command, CancellationToken cancellationToken)
     {
@@ -242,20 +247,35 @@ internal sealed class CompleteTaskHandler(IProcessRepository processes, IWorkflo
             return process.Error;
         }
 
+        var result = await completion.Complete(process.Value, command.TaskId, command.ToState, command.Variables, cancellationToken);
+        return result.IsFailure ? result.Error : process.Value.RowVersion;
+    }
+}
+
+/// <summary>
+/// Completing a task (WFL-002): the transition must be one of the process's definition version, its guard holds on the
+/// variables, and the owning module's validation (by DomainValidation code) passes. Shared by the process route and the
+/// caller's own tasks (DE-025).
+/// </summary>
+public sealed class TaskCompletion(IWorkflowConfiguration configuration, IEnumerable<IWorkflowTransitionValidator> validators, IBusinessDate businessDate,
+    IClock clock, IAuditTrail audit)
+{
+    public async Task<Result> Complete(ProcessInstance process, Guid taskId, string toState, JsonElement? json, CancellationToken cancellationToken)
+    {
         // OQ-138: a periodic due diligence review is completed through Party (POST /party/parties/{id}/due-diligence/review); its task closes then.
-        if (process.Value.ProcessCode == BuiltInProcesses.DueDiligenceReview.ProcessCode)
+        if (process.ProcessCode == BuiltInProcesses.DueDiligenceReview.ProcessCode)
         {
             return Error.Conflict(WorkflowErrorCodes.TaskClosedByItsRecord,
                 "This review is completed on the party's due diligence; the task closes when the party clears.");
         }
 
-        var definition = await configuration.Definition(process.Value.ProcessCode, process.Value.ProcessVersion, businessDate.Today, cancellationToken);
+        var definition = await Definition(process, cancellationToken);
         if (definition.IsFailure)
         {
             return definition.Error;
         }
 
-        var variables = Variables(command.Variables);
+        var variables = Variables(json);
         if (definition.Value.DomainValidation is { Length: > 0 } service)
         {
             var validator = validators.FirstOrDefault(v => v.ServiceCode == service);
@@ -265,20 +285,22 @@ internal sealed class CompleteTaskHandler(IProcessRepository processes, IWorkflo
                     $"The definition requires domain validation '{service}', which no module provides; the transition is refused (WFL-002).");
             }
 
-            var valid = await validator.Validate(process.Value.BusinessRefType, process.Value.BusinessRefId, process.Value.DefinitionState, command.ToState, variables,
-                cancellationToken);
+            var valid = await validator.Validate(process.BusinessRefType, process.BusinessRefId, process.DefinitionState, toState, variables, cancellationToken);
             if (valid.IsFailure)
             {
                 return valid.Error;
             }
         }
 
-        audit.Record(new AuditEntry("WORKFLOW", "CompleteTask", nameof(ProcessInstance), command.ProcessId.ToString(),
-            new Dictionary<string, string?> { ["from"] = process.Value.DefinitionState, ["to"] = command.ToState }));
+        audit.Record(new AuditEntry("WORKFLOW", "CompleteTask", nameof(ProcessInstance), process.Id.ToString(),
+            new Dictionary<string, string?> { ["from"] = process.DefinitionState, ["to"] = toState }));
         var route = await configuration.Routing(businessDate.Today, clock.UtcNow, cancellationToken);
-        var result = process.Value.CompleteTask(command.TaskId, command.ToState, definition.Value, variables, route, clock.UtcNow);
-        return result.IsFailure ? result.Error : process.Value.RowVersion;
+        return process.CompleteTask(taskId, toState, definition.Value, variables, route, clock.UtcNow);
     }
+
+    /// <summary>The definition version the process started on (WFL-001).</summary>
+    public Task<Result<ProcessDefinition>> Definition(ProcessInstance process, CancellationToken cancellationToken) =>
+        configuration.Definition(process.ProcessCode, process.ProcessVersion, businessDate.Today, cancellationToken);
 
     private static Dictionary<string, object?> Variables(JsonElement? json) =>
         json is { ValueKind: JsonValueKind.Object } value
