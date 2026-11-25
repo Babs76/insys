@@ -148,16 +148,21 @@ jobs:
       - name: The Preview's certificate check
         run: deploy/helm/tests/preview-tls.sh
 
+      # Ade, 25 November 2026: the Preview's console-image action sets only deploy/insys-console's image, to the chart's pinned digest; it
+      # stops before any change if the pin doesn't resolve, and sets the previous image back if check (vi) fails. Against a stubbed server.
+      - name: The Preview's console-image action
+        run: deploy/helm/tests/preview-console-image.sh
+
       - name: The vendored Keycloak theme is exactly the approved files
         run: tools/sync-keycloak-theme.sh --check
 
       - name: The Keycloak theme scripts parse
         run: |
           for f in tools/sync-keycloak-theme.sh deploy/keycloak/realm-login-theme.sh deploy/keycloak/theme-check-user.sh deploy/keycloak/theme-mount.sh \
-            deploy/helm/tests/keycloak-theme.sh deploy/helm/tests/preview-tls.sh deploy/preview/preview.sh; do bash -n "$f"; done
+            deploy/helm/tests/keycloak-theme.sh deploy/helm/tests/preview-tls.sh deploy/helm/tests/preview-console-image.sh deploy/preview/preview.sh; do bash -n "$f"; done
           node --check deploy/keycloak/theme-check.cjs
           shellcheck tools/sync-keycloak-theme.sh deploy/keycloak/realm-login-theme.sh deploy/keycloak/theme-check-user.sh deploy/keycloak/theme-mount.sh \
-            deploy/helm/tests/keycloak-theme.sh deploy/helm/tests/preview-tls.sh
+            deploy/helm/tests/keycloak-theme.sh deploy/helm/tests/preview-tls.sh deploy/helm/tests/preview-console-image.sh
 
       - name: The images build
         run: |

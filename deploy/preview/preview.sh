@@ -46,6 +46,9 @@
 #                     console on its pinned digest), which report and undo nothing; it stops first, before anything is removed, if the
 #                     console's pinned image doesn't resolve with the pull credentials
 #   rotate-passwords  new passwords for the accounts
+#   console-image     the console's image only (Ade, 25 November 2026): deploy/insys-console set to the digest pinned in the chart's values,
+#                     with no Helm upgrade and no back-end image, chart, migration, seed, data, Keycloak or OpenBao change; it stops first if
+#                     the pinned image doesn't resolve with the pull credentials; then check (vi), and if that fails the previous image is set back
 #   destroy           the server and its firewall; the address is kept, so the DNS records stay right
 #
 # Secrets: Hetzner's token and the SSH key come from the environment, set by Ade in GitHub. The server's own secrets are generated on the
@@ -1493,6 +1496,45 @@ post_reset_checks() {
   echo "Every post-reset check passed."
 }
 
+# console-image (Ade, 25 November 2026): only the console's image changes, to the digest pinned in deploy/helm/insys/values.yaml. Nothing else on
+# the server is touched: no Helm upgrade, no back-end image, chart, migration, seed, data, Keycloak, OpenBao or secret. A later upgrade or reset
+# from this ref renders the same image, so it changes nothing there. It stops before any change if the pinned image doesn't resolve with the
+# Preview's pull credentials, or if deploy/insys-console can't be read. Then post-reset check (vi): every console pod ready on the pinned digest,
+# and the back office (/) and the member portal (/member/) answering, with their config.json. If (vi) fails, the previous image is set back.
+console_image() {
+  local want previous pull why
+  want=$(sed -n 's/^  image: \(ghcr.io\/[^ ]*@sha256:[0-9a-f]*\).*/\1/p' "$here/../helm/insys/values.yaml")
+  [ -n "$want" ] || fail "Stopped before any change: the chart has no console image pinned by digest."
+  exec 3>&1   # the step's output, for check_pull's mask
+  pull=$(check_pull 2>&1) || fail "Stopped before any change: the console's pinned image doesn't resolve with the Preview's pull credentials (${pull:-no detail})."
+  echo "Console image to set: $pull"
+  ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh
+  previous=$(on_server "kubectl get deploy insys-console -o jsonpath='{.spec.template.spec.containers[0].image}'") \
+    || fail "Stopped before any change: deploy/insys-console couldn't be read."
+  [ -n "$previous" ] || fail "Stopped before any change: deploy/insys-console has no image."
+  echo "Console image before: $previous"
+  if [ "$previous" = "$want" ]; then
+    echo "The console already runs the pinned image: nothing to change; the check runs all the same."
+  else
+    on_server "kubectl set image deploy/insys-console console='$want' >/dev/null" || fail "kubectl set image failed; the console's image is as before: $previous."
+    echo "Console image set to $want."
+  fi
+  rm -f "$RUNNER_TEMP/post-check.why"
+  echo "== Check (vi): the console on its pinned digest, the back office and the member portal answer"
+  if ( post_console ); then
+    echo "PASS  (vi) the console"
+    summary "**The console's image is ${want#*@}** (before: \`${previous#*@}\`). Check (vi) passed: every console pod ready on that digest; /, /member/ and their config.json answer 200. Nothing else on the Preview changed."
+    return 0
+  fi
+  why=$(cat "$RUNNER_TEMP/post-check.why" 2>/dev/null || true)
+  echo "FAIL  (vi) the console: ${why:-see above}"
+  [ "$previous" != "$want" ] || fail "Check (vi) failed (${why:-see above}), on the image the console already ran; nothing was changed."
+  on_server "kubectl set image deploy/insys-console console='$previous' >/dev/null && kubectl rollout status deploy/insys-console --timeout=180s >/dev/null" \
+    || fail "Check (vi) failed (${why:-see above}), and setting the previous image $previous back failed too: see deploy/insys-console now."
+  summary "**The console check failed** (${why:-see the job log}), so the previous image \`${previous#*@}\` is set back and rolled out. Nothing else on the Preview changed."
+  fail "Check (vi) failed (${why:-see above}); the previous image $previous is set back and rolled out."
+}
+
 if [ "$action" = check ]; then
   check
   exit 0
@@ -1579,6 +1621,9 @@ case "$action" in
     ;;
   rotate-passwords)
     ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; seed; encrypt
+    ;;
+  console-image)   # the console's image only: no Helm upgrade, back-end image, chart, migration, seed, data, Keycloak or OpenBao
+    console_image
     ;;
   keycloak-theme)   # Keycloak only: no images, chart, migrations, seed, OpenBao or encrypt
     theme_in_checkout
