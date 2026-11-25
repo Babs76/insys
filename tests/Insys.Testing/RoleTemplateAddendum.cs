@@ -79,14 +79,17 @@ public static class RoleTemplateAddendum
         s.AppendLine("- **Dead ends closed (Ade, 24 November 2026; the console's dead-end register):** the Workflow inbox (approvals screen, approve and reject) for "
             + "the underwriters, the product manager, the finance officer, the distribution administrator, the reinsurance officer, the integration administrator, the "
             + "Health claims assessor and the data protection officer (DE-001, DE-006, DE-044); the change requests screen by rule (DE-015); approval types no template "
-            + "could approve: `GENERAL_NON_RENEWAL` (General underwriter), `PARTY_MATCH_RESOLUTION` (data protection officer, with `PARTY_RESOLVE_MATCH` for the "
-            + "`party.update` its checker needs), `PROVIDER_CREDIT_NOTE` and `PROVIDER_RECOVERY_WRITE_OFF` (finance manager), `PROVIDER_RECOVERY_FINDING` (Health "
+            + "could approve: `GENERAL_NON_RENEWAL` (General underwriter), `PARTY_MATCH_RESOLUTION` (data protection officer, with `PARTY_DECIDE_MATCH` for the "
+            + "`party.resolve_match` its checker needs, and no party editing), `PROVIDER_CREDIT_NOTE` and `PROVIDER_RECOVERY_WRITE_OFF` (finance manager), `PROVIDER_RECOVERY_FINDING` (Health "
             + "claims assessor, with the recoveries screen it opens on); `DUE_DILIGENCE_ENHANCED` stays in no template, and onboarding readiness (`APPROVAL_AUTHORITY`) "
             + "requires a role with authority and its permission for it while the gates are on (DE-002); General renewals and retention for the General underwriter "
             + "(DE-003); the provider quality review for the Health claims assessor (DE-004); the static data of Party and Audit for the compliance officer, of the "
             + "Claims Framework for the claims manager, and of Communications, Documents and Analytics for the tenant administrator (DE-005); the screens a checker's "
             + "records open on for the finance manager (commission statements, claim payment instructions, complaints) and the documents screen for the compliance "
-            + "officer (DE-021, DE-019); data-subject requests for the data protection officer only (DE-058).").AppendLine();
+            + "officer (DE-021, DE-019); data-subject requests for the data protection officer only (DE-058).");
+        s.AppendLine("- **Then (Ade, 25 November 2026):** record legal holds are read on `DOCUMENTS_RECORD_HOLDS` (`legal_hold.read`), held by the compliance "
+            + "officer and the data protection officer; the tenant administrator, the second escalation's role (OQ-072), lists parked deliveries "
+            + "(`INTEGRATION_PARKED_DELIVERIES`, no actions).").AppendLine();
 
         s.AppendLine("## Templates").AppendLine();
         s.AppendLine("| Template | For | Sub-domains | Screens | Actions | Privileged it holds | Approves (authority rows) |");

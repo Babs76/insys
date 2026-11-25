@@ -929,7 +929,9 @@ public sealed partial class OftzaSeed(SeedContext context)
             await Static("finance/static/posting-rules", $"PR-{++rule}", new { ruleCode = $"PR-{rule}", transactionType = type, debitAccount = debit, creditAccount = credit });
         }
 
-        foreach (var (type, role, limit) in new[] { ("CLAIM_SETTLEMENT", "CLAIMS_MANAGER", 250_000m), ("LIFE_CLAIM", "CLAIMS_MANAGER", 500_000m), ("CLAIM_PAYMENT", "FINANCE_OFFICER", 100_000m), ("REFUND", "FINANCE_OFFICER", 25_000m), ("PAYOUT_RELEASE", "FINANCE_MANAGER", 5_000_000m), ("COMMISSION_STATEMENT", "FINANCE_MANAGER", 5_000_000m),
+        // The rows follow the templates' Approves (Ade, 25 November 2026): claim payments are the claims manager's and the finance manager's, not the finance
+        // officer's, and refunds the finance manager's (ClaimConfiguration).
+        foreach (var (type, role, limit) in new[] { ("CLAIM_SETTLEMENT", "CLAIMS_MANAGER", 250_000m), ("LIFE_CLAIM", "CLAIMS_MANAGER", 500_000m), ("CLAIM_PAYMENT", "CLAIMS_MANAGER", 100_000m), ("CLAIM_PAYMENT", "FINANCE_MANAGER", 100_000m), ("PAYOUT_RELEASE", "FINANCE_MANAGER", 5_000_000m), ("COMMISSION_STATEMENT", "FINANCE_MANAGER", 5_000_000m),
                      ("PAYOUT_RETRY", "FINANCE_MANAGER", 5_000_000m), ("COMMISSION_CLAWBACK_INVOICE", "FINANCE_MANAGER", 5_000_000m),
                      ("CREDIT_NOTE", "FINANCE_MANAGER", 250_000m), ("DEAD_LETTER_DISCARD", "FINANCE_MANAGER", 1m), // DE-008, OQ-062 (Ade, 24 November 2026)
                      // DE-002 (Ade, 24 November 2026): the Health approvals no template could approve, at the credit note's and the settlement's sample limits.

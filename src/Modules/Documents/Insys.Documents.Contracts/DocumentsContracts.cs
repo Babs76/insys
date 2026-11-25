@@ -35,6 +35,9 @@ public static class DocumentPermissions
     public const string DocumentDeliver = "document.deliver";
     public const string DocumentDispose = "document.dispose";
     public const string LegalHoldManage = "legal_hold.manage";
+
+    /// <summary>Reading the legal holds on records, and nothing else (DE-019, Ade, 25 November 2026): the record holds screen's.</summary>
+    public const string LegalHoldRead = "legal_hold.read";
 }
 
 /// <summary>Approvals the Documents module asks Workflow for (ADR-009).</summary>

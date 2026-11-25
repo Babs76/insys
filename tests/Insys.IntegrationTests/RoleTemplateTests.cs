@@ -338,12 +338,14 @@ public sealed class RoleTemplateTests(DatabaseFixture fixture) : IClassFixture<D
         Approvers("PROVIDER_RECOVERY_FINDING").ShouldBe(["HEALTH_CLAIMS_ASSESSOR"]);
         Approvers("DUE_DILIGENCE_ENHANCED").ShouldBeEmpty();
 
-        // The checker of a non-renewal needs general_policy.non_renew, and of a party match party.update (the approval's RequiredPermission).
+        // The checker of a non-renewal needs general_policy.non_renew, and of a party match party.resolve_match (the approval's RequiredPermission); deciding a
+        // match gives the data protection officer no party editing (Ade, 25 November 2026).
         bool Grants(string template, string permission) =>
             Codes(template, catalogue).Any(c => catalogue.Single(f => f.Function.Code == c).Permissions.Contains(permission));
         Grants("GENERAL_UNDERWRITER", "general_policy.non_renew").ShouldBeTrue();
-        Grants("DATA_PROTECTION_OFFICER", "party.update").ShouldBeTrue();
-        Codes("DATA_PROTECTION_OFFICER", catalogue).ShouldContain("PARTY_RESOLVE_MATCH");
+        Grants("DATA_PROTECTION_OFFICER", Insys.Party.Contracts.PartyPermissions.MatchResolve).ShouldBeTrue();
+        Grants("DATA_PROTECTION_OFFICER", Insys.Party.Contracts.PartyPermissions.PartyUpdate).ShouldBeFalse();
+        RoleTemplates.All.Where(t => Codes(t.Code, catalogue).Contains("PARTY_DECIDE_MATCH")).Select(t => t.Code).ShouldBe(["DATA_PROTECTION_OFFICER"]);
         Codes("HEALTH_CLAIMS_ASSESSOR", catalogue).ShouldContain("HEALTH_RECOVERIES");
     }
 
@@ -372,6 +374,27 @@ public sealed class RoleTemplateTests(DatabaseFixture fixture) : IClassFixture<D
             .Where(f => f.Kind == FunctionKind.Action && f.SubDomain is "COMMISSION" or "CLAIM_FINANCIALS" or "CUSTOMER_SERVICE").Select(f => f.Code).ShouldBeEmpty();
         Codes("COMPLIANCE_OFFICER", catalogue).Where(c => catalogue.Single(f => f.Function.Code == c).Function is { SubDomain: "DOCUMENTS", Kind: FunctionKind.Action })
             .ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// DE-019 and OQ-072 (Ade, 25 November 2026): record legal holds are read on their own screen, held by the compliance officer and the data protection
+    /// officer (and the read-only auditor); the tenant administrator lists parked deliveries, read only, with no retry or discard.
+    /// </summary>
+    [Fact]
+    public async Task RecordHolds_AreReadByComplianceAndDataProtection_AndTheTenantAdministratorListsParkedDeliveries_ReadOnly_DE019_OQ072()
+    {
+        var catalogue = await Catalogue();
+        var screen = catalogue.Single(f => f.Function.Code == "DOCUMENTS_RECORD_HOLDS");
+        (screen.Function.Kind, screen.Function.Privileged).ShouldBe((FunctionKind.Screen, false));
+        screen.Permissions.ShouldBe([Insys.Documents.Contracts.DocumentPermissions.LegalHoldRead]);
+        RoleTemplates.All.Where(t => !t.ScreensOnly && Codes(t.Code, catalogue).Contains("DOCUMENTS_RECORD_HOLDS")).Select(t => t.Code)
+            .ShouldBe(["COMPLIANCE_OFFICER", "DATA_PROTECTION_OFFICER"], ignoreOrder: true);
+        Codes("COMPLIANCE_OFFICER", catalogue).ShouldNotContain("DOCUMENTS_PLACE_LEGAL_HOLD");
+
+        var admin = Codes("TENANT_ADMIN", catalogue);
+        admin.ShouldContain("INTEGRATION_PARKED_DELIVERIES");
+        catalogue.Where(f => f.Function.Parent == "INTEGRATION_PARKED_DELIVERIES" && admin.Contains(f.Function.Code)).Select(f => f.Function.Code).ShouldBeEmpty();
+        catalogue.Single(f => f.Function.Code == "INTEGRATION_PARKED_DELIVERIES").Permissions.ShouldBe(["dead_letter.read"]);
     }
 
     /// <summary>DE-058 (Ade, 24 November 2026): data-subject requests are the data protection officer's alone; the read-only auditor may see the screen.</summary>

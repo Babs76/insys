@@ -7408,7 +7408,7 @@
             "when": "the approval is a bank account verification (businessRefType BANK_ACCOUNT; requiredPermission names it)"
           },
           {
-            "permission": "party.update",
+            "permission": "party.resolve_match",
             "when": "the approval is a portal registration match resolution (businessRefType PARTY_MATCH; requiredPermission names it)"
           },
           {
@@ -7517,7 +7517,7 @@
             "when": "the approval is a bank account verification (businessRefType BANK_ACCOUNT; requiredPermission names it)"
           },
           {
-            "permission": "party.update",
+            "permission": "party.resolve_match",
             "when": "the approval is a portal registration match resolution (businessRefType PARTY_MATCH; requiredPermission names it)"
           },
           {
@@ -12856,9 +12856,9 @@
             "$ref": "#/components/responses/Problem503"
           }
         },
-        "x-permission": "legal_hold.manage",
+        "x-permission": "legal_hold.read",
         "x-function": [
-          "DOCUMENTS_PLACE_LEGAL_HOLD"
+          "DOCUMENTS_RECORD_HOLDS"
         ]
       }
     },
@@ -12913,9 +12913,9 @@
             "$ref": "#/components/responses/Problem404"
           }
         },
-        "x-permission": "legal_hold.manage",
+        "x-permission": "legal_hold.read",
         "x-function": [
-          "DOCUMENTS_PLACE_LEGAL_HOLD"
+          "DOCUMENTS_RECORD_HOLDS"
         ]
       }
     },

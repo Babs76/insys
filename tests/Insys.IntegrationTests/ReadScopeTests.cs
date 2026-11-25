@@ -120,7 +120,7 @@ public sealed class ReadScopeTests(DatabaseFixture fixture) : IClassFixture<Data
         // Renewals are listed newest first and holds oldest first: the reader's renewal is the oldest, and its hold the newest.
         var myHold = await _rows.Insert(T, "document.record_hold", ("scope_type", "GENERAL_POLICY"), ("scope_id", mine));
 
-        var reader = await Scoped("rs-pager", "RS-RN", Insys.General.Contracts.GeneralPermissions.PolicyRead, Insys.Documents.Contracts.DocumentPermissions.LegalHoldManage);
+        var reader = await Scoped("rs-pager", "RS-RN", Insys.General.Contracts.GeneralPermissions.PolicyRead, Insys.Documents.Contracts.DocumentPermissions.LegalHoldRead);
         (await (await reader.GetAsync("/api/v1/general/renewals?limit=2")).Content.ReadAsStringAsync()).ShouldContain(myRenewal.ToString(), Case.Insensitive);
         (await (await reader.GetAsync("/api/v1/documents/legal-holds?scopeType=GENERAL_POLICY&limit=2")).Content.ReadAsStringAsync())
             .ShouldContain(myHold.ToString(), Case.Insensitive);
