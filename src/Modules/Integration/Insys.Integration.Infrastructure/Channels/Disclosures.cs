@@ -119,13 +119,15 @@ internal sealed class Disclosures([FromKeyedServices(IntegrationDbContext.Schema
                 : null;
         }, cancellationToken);
 
-    public Task Record(Guid tenantId, Guid id, Guid partyId, DisclosureTextView text, string? businessRefType, Guid? businessRefId, DateTimeOffset at, string? channelCode, string recordedBy, CancellationToken cancellationToken) =>
+    public Task Record(Guid tenantId, Guid id, Guid partyId, DisclosureTextView text, string? businessRefType, Guid? businessRefId, DateTimeOffset at, AcknowledgementRecorder recorder,
+        CancellationToken cancellationToken) =>
         ReadinessSql.InTenant(dataSource, tenantId, async (connection, transaction) =>
         {
             await using var command = new NpgsqlCommand(
                 """
-                INSERT INTO channel.disclosure_acknowledgement (tenant_id, id, party_id, notice_type, display_point, text_version, language, jurisdiction, business_ref_type, business_ref_id, acknowledged_at, channel_code, recorded_by)
-                VALUES (@t, @id, @party, @notice, @point, @version, @language, @jurisdiction, @refType, @refId, @at, @channel, @by)
+                INSERT INTO channel.disclosure_acknowledgement (tenant_id, id, party_id, notice_type, display_point, text_version, language, jurisdiction, business_ref_type, business_ref_id, acknowledged_at, channel_code, recorded_by,
+                  intermediary_code, presentation_method, presentation_detail)
+                VALUES (@t, @id, @party, @notice, @point, @version, @language, @jurisdiction, @refType, @refId, @at, @channel, @by, @broker, @method, @detail)
                 """, connection, transaction);
             command.Parameters.AddWithValue("t", tenantId);
             command.Parameters.AddWithValue("id", id);
@@ -138,10 +140,77 @@ internal sealed class Disclosures([FromKeyedServices(IntegrationDbContext.Schema
             command.Parameters.AddWithValue("refType", (object?)businessRefType ?? DBNull.Value);
             command.Parameters.AddWithValue("refId", (object?)businessRefId ?? DBNull.Value);
             command.Parameters.AddWithValue("at", at);
-            command.Parameters.AddWithValue("channel", (object?)channelCode ?? DBNull.Value);
-            command.Parameters.AddWithValue("by", recordedBy);
+            command.Parameters.AddWithValue("channel", (object?)recorder.ChannelCode ?? DBNull.Value);
+            command.Parameters.AddWithValue("by", recorder.RecordedBy);
+            command.Parameters.AddWithValue("broker", (object?)recorder.IntermediaryCode ?? DBNull.Value);
+            command.Parameters.AddWithValue("method", (object?)recorder.PresentationMethod ?? DBNull.Value);
+            command.Parameters.AddWithValue("detail", (object?)recorder.PresentationDetail ?? DBNull.Value);
             await command.ExecuteNonQueryAsync(cancellationToken);
             return true;
+        }, cancellationToken);
+
+    /// <summary>DE-039: a broker's has its code; the customer's own came through the member portal (channel PARTY); any other, staff.</summary>
+    public Task<IReadOnlyList<PortalDisclosureAcknowledgementView>> Acknowledgements(Guid tenantId, Guid partyId, CancellationToken cancellationToken) =>
+        ReadinessSql.InTenant<IReadOnlyList<PortalDisclosureAcknowledgementView>>(dataSource, tenantId, async (connection, transaction) =>
+        {
+            await using var command = new NpgsqlCommand(
+                """
+                SELECT id, notice_type, display_point, jurisdiction, language, text_version, business_ref_type, business_ref_id, acknowledged_at, channel_code, intermediary_code,
+                  presentation_method, presentation_detail
+                FROM channel.disclosure_acknowledgement WHERE tenant_id = @t AND party_id = @party ORDER BY acknowledged_at DESC, id DESC
+                """, connection, transaction);
+            command.Parameters.AddWithValue("t", tenantId);
+            command.Parameters.AddWithValue("party", partyId);
+            var rows = new List<PortalDisclosureAcknowledgementView>();
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                string? Opt(int i) => reader.IsDBNull(i) ? null : reader.GetString(i);
+                var broker = Opt(10);
+                var recordedBy = broker is not null ? DisclosureRecorders.Broker : Opt(9) == ExternalSubject.Party ? DisclosureRecorders.Self : DisclosureRecorders.Staff;
+                rows.Add(new PortalDisclosureAcknowledgementView(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), Opt(3), reader.GetString(4), reader.GetInt32(5), Opt(6),
+                    reader.IsDBNull(7) ? null : reader.GetGuid(7), reader.GetFieldValue<DateTimeOffset>(8), recordedBy, broker, Opt(11), Opt(12)));
+            }
+
+            return rows;
+        }, cancellationToken);
+
+    public async Task<string?> ChannelOf(Guid tenantId, string? clientId, DateOnly day, CancellationToken cancellationToken) =>
+        clientId is null
+            ? null
+            : (await ReadinessSql.InTenant(dataSource, tenantId, (connection, transaction) => ReadinessSql.Strings(connection, transaction,
+                $"SELECT channel_code FROM channel.cfg_channel_definitions WHERE tenant_id = @t AND {ReadinessSql.InForce} AND @client = ANY(client_ids) ORDER BY channel_code",
+                cancellationToken, ("t", tenantId), ("inForce", StaticLifecycle.Configuration.InForce), ("day", day), ("client", clientId)), cancellationToken)).FirstOrDefault();
+
+    /// <summary>OQ-201: with no row, brokers may record (Ade's beta default).</summary>
+    public Task<DisclosureSettingView> Setting(Guid tenantId, CancellationToken cancellationToken) =>
+        ReadinessSql.InTenant(dataSource, tenantId, async (connection, transaction) =>
+        {
+            await using var command = new NpgsqlCommand("SELECT broker_acknowledgement_allowed, row_version FROM channel.disclosure_setting WHERE tenant_id = @t", connection, transaction);
+            command.Parameters.AddWithValue("t", tenantId);
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            return await reader.ReadAsync(cancellationToken) ? new DisclosureSettingView(reader.GetBoolean(0), false, reader.GetInt64(1)) : new DisclosureSettingView(true, true, 0);
+        }, cancellationToken);
+
+    public Task<long?> SaveSetting(Guid tenantId, bool brokerAcknowledgementAllowed, long? expectedVersion, string by, DateTimeOffset at, CancellationToken cancellationToken) =>
+        ReadinessSql.InTenant(dataSource, tenantId, async (connection, transaction) =>
+        {
+            await using var command = new NpgsqlCommand(expectedVersion is null
+                ? """
+                  INSERT INTO channel.disclosure_setting (tenant_id, id, row_version, created_at, created_by, updated_at, updated_by, broker_acknowledgement_allowed)
+                  VALUES (@t, @id, 1, @at, @by, @at, @by, @allowed) ON CONFLICT (tenant_id) DO NOTHING RETURNING row_version
+                  """
+                : """
+                  UPDATE channel.disclosure_setting SET broker_acknowledgement_allowed = @allowed, row_version = row_version + 1, updated_at = @at, updated_by = @by
+                  WHERE tenant_id = @t AND row_version = @version RETURNING row_version
+                  """, connection, transaction);
+            command.Parameters.AddWithValue("t", tenantId);
+            command.Parameters.AddWithValue("id", Guid.CreateVersion7());
+            command.Parameters.AddWithValue("at", at);
+            command.Parameters.AddWithValue("by", by.Length > 80 ? by[..80] : by);
+            command.Parameters.AddWithValue("allowed", brokerAcknowledgementAllowed);
+            command.Parameters.AddWithValue("version", expectedVersion ?? 0L);
+            return await command.ExecuteScalarAsync(cancellationToken) as long?;
         }, cancellationToken);
 }
 

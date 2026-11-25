@@ -224,6 +224,16 @@ public interface IPartyDirectory
     Task<string?> DisplayName(Guid tenantId, Guid partyId, CancellationToken cancellationToken);
 }
 
+/// <summary>
+/// Public query interface (BR-091; external-user access §2, §3): whether a party is one of a broker's clients, by the same rule as the broker portal's client list
+/// (PortalPartyListClients): a party the broker or a sub-broker registered, or one that holds, or is quoted or proposed for, a policy under its codes, a merged
+/// party as its survivor, never an anonymised one. The codes are the broker's own and its sub-brokers' (ExternalSubject.IntermediaryCodes).
+/// </summary>
+public interface IBrokerClients
+{
+    Task<bool> IsClient(Guid tenantId, IReadOnlyCollection<string> intermediaryCodes, Guid partyId, CancellationToken cancellationToken);
+}
+
 public interface IPersonFacts
 {
     Task<DateOnly?> BirthDate(Guid tenantId, Guid partyId, CancellationToken cancellationToken);

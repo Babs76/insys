@@ -46,6 +46,24 @@ public sealed record ListPortalClients(Guid? AfterId, int Limit) : IQuery<IReadO
 
 public sealed record GetPortalClient(Guid PartyId) : IQuery<PortalClientView>;
 
+/// <summary>Whether a party is a client of the broker with these codes (its own and its sub-brokers'), by the client list's rule; for IBrokerClients.</summary>
+public sealed record IsBrokerClient(IReadOnlyCollection<string> IntermediaryCodes, Guid PartyId) : IQuery<bool>;
+
+/// <summary>BR-091 for other modules (DE-039: a broker's disclosure acknowledgement): run as a Party query, so it reads in Party's own tenant transaction.</summary>
+public sealed class BrokerClients(IDispatcher dispatcher, ITenantContext tenant) : Contracts.IBrokerClients
+{
+    public async Task<bool> IsClient(Guid tenantId, IReadOnlyCollection<string> intermediaryCodes, Guid partyId, CancellationToken cancellationToken)
+    {
+        if (tenant.RequireTenantId() != tenantId)
+        {
+            throw new InvalidOperationException("A broker's clients are read in the caller's own tenant.");
+        }
+
+        var answer = await dispatcher.Query(new IsBrokerClient(intermediaryCodes, partyId), cancellationToken);
+        return answer.IsSuccess ? answer.Value : throw new InvalidOperationException($"The broker's clients could not be read: {answer.Error.Code}.");
+    }
+}
+
 public interface IPartyPortalQueries
 {
     /// <summary>
@@ -58,7 +76,8 @@ public interface IPartyPortalQueries
 
 internal sealed class PortalClientHandlers(IPartyPortalQueries queries, IEnumerable<IBrokeredClients> domains, IExecutionContext execution, ITenantContext tenant) :
     IQueryHandler<ListPortalClients, IReadOnlyList<PortalClientView>>,
-    IQueryHandler<GetPortalClient, PortalClientView>
+    IQueryHandler<GetPortalClient, PortalClientView>,
+    IQueryHandler<IsBrokerClient, bool>
 {
     public async Task<Result<IReadOnlyList<PortalClientView>>> Handle(ListPortalClients query, CancellationToken cancellationToken) =>
         Result.Success<IReadOnlyList<PortalClientView>>((await Clients(null, query.AfterId, query.Limit, cancellationToken)).Select(PortalClientView.From).ToList());
@@ -68,10 +87,18 @@ internal sealed class PortalClientHandlers(IPartyPortalQueries queries, IEnumera
             ? PortalClientView.From(client)
             : Error.NotFound(ErrorCodes.NotFound, "The client was not found.");
 
+    public async Task<Result<bool>> Handle(IsBrokerClient query, CancellationToken cancellationToken) =>
+        (await Clients(query.IntermediaryCodes, query.PartyId, null, 1, cancellationToken)).Count == 1;
+
     private async Task<IReadOnlyList<Domain.Parties.Party>> Clients(Guid? only, Guid? afterId, int limit, CancellationToken cancellationToken)
     {
         var broker = execution.External ?? throw new InvalidOperationException("A portal endpoint is used by external users only.");
-        if (broker.Kind != ExternalSubject.Intermediary || broker.IntermediaryCodes.Count == 0)
+        return broker.Kind != ExternalSubject.Intermediary ? [] : await Clients(broker.IntermediaryCodes, only, afterId, limit, cancellationToken);
+    }
+
+    private async Task<IReadOnlyList<Domain.Parties.Party>> Clients(IReadOnlyCollection<string> codes, Guid? only, Guid? afterId, int limit, CancellationToken cancellationToken)
+    {
+        if (codes.Count == 0)
         {
             return [];
         }
@@ -79,10 +106,10 @@ internal sealed class PortalClientHandlers(IPartyPortalQueries queries, IEnumera
         var ids = new HashSet<Guid>();
         foreach (var domain in domains)
         {
-            ids.UnionWith(await domain.PartyIds(tenant.RequireTenantId(), broker.IntermediaryCodes, cancellationToken));
+            ids.UnionWith(await domain.PartyIds(tenant.RequireTenantId(), codes, cancellationToken));
         }
 
-        var registeredBy = broker.IntermediaryCodes.Select(code => $"{ExternalSubject.Intermediary}:{code}").ToList();
+        var registeredBy = codes.Select(code => $"{ExternalSubject.Intermediary}:{code}").ToList();
         return await queries.Clients(ids, registeredBy, only, afterId, limit, cancellationToken);
     }
 }

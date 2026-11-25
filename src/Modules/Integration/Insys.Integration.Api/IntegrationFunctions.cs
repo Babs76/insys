@@ -38,12 +38,19 @@ internal static class IntegrationFunctions
     public static readonly IReadOnlyList<FunctionDeclaration> All =
     [
         .. new FunctionMap([Audiences.Customer], Features.CustomerPortal)
-        .Screen("CUSTOMER_PORTAL_DISCLOSURES", "CUSTOMER_PORTAL", "Disclosures", "portal/disclosures", "PortalGetDisclosureText")
+        .Screen("CUSTOMER_PORTAL_DISCLOSURES", "CUSTOMER_PORTAL", "Disclosures", "portal/disclosures", "PortalGetDisclosureText", "PortalListDisclosureAcknowledgements")
         .Action("CUSTOMER_PORTAL_ACKNOWLEDGE_DISCLOSURE", "CUSTOMER_PORTAL_DISCLOSURES", "PortalAcknowledgeDisclosure")
+            .Functions,
+        // DE-039, OQ-201: a broker reads a notice and records its client's acknowledgement (its own clients only, BR-091), unless the tenant made it customer-only.
+        .. new FunctionMap([Audiences.Broker], Features.BrokerPortal)
+        .Screen("BROKER_PORTAL_DISCLOSURES", "BROKER_PORTAL", "Disclosures", "portal/broker/disclosures", "PortalBrokerGetDisclosureText")
+        .Action("BROKER_PORTAL_ACKNOWLEDGE_DISCLOSURE", "BROKER_PORTAL_DISCLOSURES", "PortalBrokerAcknowledgeDisclosure")
             .Functions,
         .. new FunctionMap([Audiences.Staff], null)
         .Screen("INTEGRATION_DISCLOSURES", "INTEGRATION_OPERATIONS", "Disclosures", "integration/disclosures", "IntegrationGetDisclosureText")
         .Action("INTEGRATION_ACKNOWLEDGE_DISCLOSURE", "INTEGRATION_DISCLOSURES", "IntegrationAcknowledgeDisclosure")
+        .Screen("INTEGRATION_DISCLOSURE_SETTING", "INTEGRATION_OPERATIONS", "Disclosures", "integration/disclosure-setting", "IntegrationGetDisclosureSetting")
+        .Action("CHANGE_DISCLOSURE_SETTING", "INTEGRATION_DISCLOSURE_SETTING", "IntegrationChangeDisclosureSetting")
         .Screen("INTEGRATION_MIGRATION", "INTEGRATION_OPERATIONS", "Migration reconciliation", "integration/migration-batches", "IntegrationReconcileMigrationBatch")
         .Screen("INTEGRATION_DEAD_LETTERS", "INTEGRATION_OPERATIONS", "Dead letters", "integration/dead-letters", "ListDeadLetters", "GetDeadLetter")
         .Action("REPLAY_MESSAGE", "INTEGRATION_DEAD_LETTERS", "ReplayMessage")

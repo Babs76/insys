@@ -51,6 +51,9 @@ public sealed record ParkedDiscardRequest(string Reason);
 /// <summary>DE-007: discarding a dead letter. MessageRef is typed by the operator and must be the dead letter's messageRef exactly; Reason is required (max 300).</summary>
 public sealed record DeadLetterDiscardRequest(string MessageRef, string Reason);
 
+/// <summary>DE-039, OQ-201: the tenant's disclosure setting.</summary>
+public sealed record DisclosureSettingRequest(bool? BrokerAcknowledgementAllowed);
+
 public sealed record ParkingSettingRequest(string ConfigurationOwnerRole, string? CalendarCode, string MoneyFirst, string MoneySecond, string OtherFirst, string OtherSecond);
 
 public sealed class IntegrationModule : IModule
@@ -89,6 +92,7 @@ public sealed class IntegrationModule : IModule
         api.MapPost("/portal/disclosure-acknowledgements", async (Application.AcknowledgeDisclosure r, IDispatcher dispatcher, CancellationToken ct) => (await dispatcher.Send(r, ct)).ToHttp(v => Results.Created($"/api/v1/portal/disclosure-acknowledgements/{v.Id}", v)))
             .Produces<Application.DisclosureAcknowledgementView>(StatusCodes.Status201Created).ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status422UnprocessableEntity).WithTags(Name)
             .WithName("PortalAcknowledgeDisclosure").WithSummary("Acknowledge a disclosure as yourself").RequirePermission(IntegrationPermissions.DisclosureCreate).ForPortal(member).RequireIdempotencyKey();
+        MapBrokerDisclosures(api);
 
         var deadLetters = api.MapGroup("/integration/dead-letters").WithTags(Name);
 
@@ -287,6 +291,85 @@ public sealed class IntegrationModule : IModule
             .ProducesProblem(StatusCodes.Status409Conflict)
             .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
             .RequirePermission(IntegrationPermissions.DeadLetterUpdate);
+    }
+
+    /// <summary>
+    /// DE-039 part 2 (Ade, 25 November 2026; OQ-201): the member's acknowledgements, including those their broker recorded; the broker's Disclosures screen and
+    /// acknowledgement; and the tenant's switch that makes acknowledgement customer-only.
+    /// </summary>
+    private static void MapBrokerDisclosures(IEndpointRouteBuilder api)
+    {
+        const string member = BuildingBlocks.Application.Context.ExternalSubject.Party;
+        const string broker = BuildingBlocks.Application.Context.ExternalSubject.Intermediary;
+        AuditTargetTypes.Register("DisclosureSetting");
+
+        api.MapGet("/portal/disclosure-acknowledgements", async (IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Query(new Application.ListPortalDisclosureAcknowledgements(), ct)).ToHttp(Results.Ok))
+            .Produces<IReadOnlyList<Application.PortalDisclosureAcknowledgementView>>(StatusCodes.Status200OK).WithTags("Integration")
+            .WithName("PortalListDisclosureAcknowledgements").WithSummary("Your acknowledgements of disclosures, newest first, including those your broker recorded")
+            .WithDescription("recordedBy is SELF (you, in this portal), BROKER (your broker: its intermediaryCode, how the notice was presented and, with OTHER, the detail) or STAFF.")
+            .RequirePermission(IntegrationPermissions.DisclosureRead).ForPortal(member);
+
+        api.MapGet("/portal/broker/disclosures", async (string displayPoint, string noticeType, string jurisdiction, string language, IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Query(new Application.GetBrokerDisclosureText(displayPoint, noticeType, jurisdiction, language), ct)).ToHttp(Results.Ok))
+            .Produces<Application.BrokerDisclosureTextView>(StatusCodes.Status200OK).ProducesProblem(StatusCodes.Status404NotFound).WithTags("Integration")
+            .WithName("PortalBrokerGetDisclosureText").WithSummary("A disclosure for a broker to read with its client (F060, DE-039)")
+            .WithDescription("Opened with the values DISCLOSURE_REQUIRED names (displayPoint and a notice's noticeType, jurisdiction and language). brokerAcknowledgementAllowed "
+                + "false: the tenant made acknowledgement customer-only, so show the notice read-only.")
+            .RequirePermission(IntegrationPermissions.DisclosureRead).ForPortal(broker);
+
+        api.MapPost("/portal/broker/disclosure-acknowledgements", async (Application.BrokerAcknowledgeDisclosure r, IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Send(r, ct)).ToHttp(v => Results.Created($"/api/v1/portal/broker/disclosure-acknowledgements/{v.Id}", v)))
+            .Produces<Application.DisclosureAcknowledgementView>(StatusCodes.Status201Created).ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status422UnprocessableEntity).WithTags("Integration")
+            .WithName("PortalBrokerAcknowledgeDisclosure").WithSummary("Record your client's acknowledgement of a disclosure (DE-039, OQ-201)")
+            .WithDescription("For the broker's own clients only (BR-091): another party is not found. presentationMethod is required: IN_PERSON, PHONE, EMAIL or OTHER, "
+                + "with presentationDetail (at most 200 characters) required for OTHER. Records the text version and language, the broker's channel and code, and the "
+                + "recording user; audited. Answers with what is still outstanding at the display point for the client and record. Refused with "
+                + "DISCLOSURE_BROKER_NOT_ALLOWED (403) when the tenant made acknowledgement customer-only.")
+            .RequirePermission(IntegrationPermissions.DisclosureCreate).ForPortal(broker).RequireIdempotencyKey();
+
+        var setting = api.MapGroup("/integration/disclosure-setting").WithTags("Integration");
+        setting.MapGet("/", async (IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+                (await dispatcher.Query(new Application.GetDisclosureSetting(), ct)).ToHttp(view =>
+                {
+                    Concurrency.SetETag(http, view.RowVersion);
+                    return Results.Ok(view);
+                }))
+            .WithName("IntegrationGetDisclosureSetting")
+            .WithSummary("Get whether brokers may record their clients' disclosure acknowledgements (OQ-201)")
+            .WithDescription("The default (isDefault true, brokerAcknowledgementAllowed true) until the tenant sets its own.")
+            .Produces<Application.DisclosureSettingView>(StatusCodes.Status200OK)
+            .RequirePermission(IntegrationPermissions.DisclosureRead);
+
+        setting.MapPut("/", async (DisclosureSettingRequest r, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+            {
+                long? expected = null;
+                if (http.Request.Headers.IfMatch.Count > 0)
+                {
+                    var version = Concurrency.ExpectedVersion(http.Request);
+                    if (version.IsFailure)
+                    {
+                        return Problems.For(version.Error);
+                    }
+
+                    expected = version.Value;
+                }
+
+                return (await dispatcher.Send(new Application.ChangeDisclosureSetting(r.BrokerAcknowledgementAllowed, expected), ct)).ToHttp(version =>
+                {
+                    Concurrency.SetETag(http, version);
+                    return Results.NoContent();
+                });
+            })
+            .WithName("IntegrationChangeDisclosureSetting")
+            .WithSummary("Set whether brokers may record their clients' disclosure acknowledgements (OQ-201)")
+            .WithDescription("false makes acknowledgement customer-only: a broker's is refused with DISCLOSURE_BROKER_NOT_ALLOWED, and staff can still record one. "
+                + "Audited. If-Match is required once the tenant has its own setting.")
+            .Produces(StatusCodes.Status204NoContent)
+            .ProducesProblem(StatusCodes.Status412PreconditionFailed)
+            .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .RequirePermission(IntegrationPermissions.DisclosureSettingUpdate);
     }
 
     /// <summary>ADR-022 decision 6: the tenant's escalation of parked deliveries.</summary>

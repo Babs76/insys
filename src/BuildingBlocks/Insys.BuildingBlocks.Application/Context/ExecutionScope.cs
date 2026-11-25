@@ -71,6 +71,9 @@ public interface IExecutionContext
     /// <summary>The channel the request came through (F005), when the tenant has channels and the command is channel-scoped.</summary>
     string? ChannelCode { get; }
 
+    /// <summary>The token's OAuth client (azp), which names the request's channel (F005 §1); null outside a request.</summary>
+    string? ClientId => null;
+
     /// <summary>Why the request's channel refuses a product for this command (F005), or null when it allows it or does not apply.</summary>
     (string Code, string Message)? ChannelRefusal(string? product);
 
