@@ -136,7 +136,7 @@ internal sealed class IssuePolicyHandler(IGeneralRepository general, IGeneralCod
         if (await disclosures.Outstanding(tenant.RequireTenantId(), quote.ProposerPartyId, Integration.Contracts.DisclosurePoints.Inception, Contracts.GeneralDocuments.QuoteRefType, quote.Id, businessDate.Today, cancellationToken)
             is { Count: > 0 } outstanding)
         {
-            return DisclosureRefusal.For(Integration.Contracts.DisclosurePoints.Inception, outstanding);
+            return BuildingBlocks.Application.DisclosureRefusal.For(Integration.Contracts.DisclosurePoints.Inception, outstanding, quote.ProposerPartyId, Contracts.GeneralDocuments.QuoteRefType, quote.Id);
         }
 
         // The product version is still on sale when the policy is issued.

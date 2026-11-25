@@ -305939,6 +305939,98 @@
             },
             "description": "Only with PARTY_ANONYMISATION_BLOCKED (409, D-34): each thing that still keeps the party\u0027s data. Anonymise again once none is left."
           },
+          "displayPoint": {
+            "enum": [
+              "QUOTE",
+              "ISSUE",
+              "RENEWAL"
+            ],
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Only with DISCLOSURE_REQUIRED (409, F060, DE-039): the display point whose disclosures aren\u0027t acknowledged."
+          },
+          "noticeTypes": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Only with DISCLOSURE_REQUIRED (409, F060, DE-039): the notice types outstanding, by code. The same as the notice types in \u0060notices\u0060."
+          },
+          "notices": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "required": [
+                "noticeType",
+                "jurisdiction",
+                "language",
+                "textVersion",
+                "availableLanguages"
+              ],
+              "type": "object",
+              "properties": {
+                "noticeType": {
+                  "type": "string"
+                },
+                "jurisdiction": {
+                  "type": "string",
+                  "description": "The party\u0027s country (address, else nationality), else the tenant\u0027s."
+                },
+                "language": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "The party\u0027s preferred language if a text is in force in it, else the tenant\u0027s default language if one is, else the only language the notice is in force in. Null when it is in force in several and none of those: the person chooses one of availableLanguages."
+                },
+                "textVersion": {
+                  "type": [
+                    "null",
+                    "integer"
+                  ],
+                  "description": "The version in force today of the text in that language, the one an acknowledgement records; null when no language is chosen."
+                },
+                "availableLanguages": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "The languages the notice is in force in, by code. Acknowledging it in any one of them, in its version in force, acknowledges the notice."
+                }
+              }
+            },
+            "description": "Only with DISCLOSURE_REQUIRED (409, F060, DE-039): each notice outstanding, by notice type then jurisdiction. Open its text with GET /integration/disclosures (staff) or /portal/disclosures (the member) with \u0060displayPoint\u0060 and these values, and acknowledge it with the same values plus \u0060partyId\u0060, \u0060businessRefType\u0060 and \u0060businessRefId\u0060. The acknowledgement answers with what is still outstanding, empty when the step can be tried again."
+          },
+          "partyId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Only with DISCLOSURE_REQUIRED (409, F060, DE-039): the party who acknowledges: the proposer, policyholder or principal member.",
+            "format": "uuid"
+          },
+          "businessRefType": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Only with DISCLOSURE_REQUIRED (409, F060, DE-039): the kind of record the step acts on (GENERAL_QUOTE, GENERAL_RENEWAL, LIFE_PROPOSAL); null for a Health enrolment, which has no record yet."
+          },
+          "businessRefId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Only with DISCLOSURE_REQUIRED (409, F060, DE-039): the record the step acts on; null for a Health enrolment.",
+            "format": "uuid"
+          },
           "correlationId": {
             "type": "string",
             "description": "The same value as the X-Correlation-Id response header, on every error (GAP-007).",

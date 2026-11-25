@@ -1327,6 +1327,7 @@ Each is built as shown and marked `TODO(spec)` in code; none changes an amount t
 - **OQ-155:** payables stop at payouts and a report of what is due. F054 stays partial on purpose.
 - **OQ-156:** VAT per product through the tax rate records; finance to confirm each.
 - **OQ-157:** quote, inception, renewal and claim decision; compliance to confirm wording and points.  A missing text at one of these blocks readiness for each country a product is sold in; other points warn (Ade, 31 October 2026).
+  - **Decided (Ade, 25 November 2026; DE-039):** a notice (its type and jurisdiction) counts as acknowledged once its text in force in any one of its languages is acknowledged, in that text's version; a new version in force needs a new acknowledgement. The language acknowledged is recorded. A refusal and an acknowledgement's `outstanding` name each notice in the party's preferred language if a text is in force in it, else the tenant's default if one is, else the only language it is in force in; with several and none of those, no language is chosen (`language` and `textVersion` null) and `availableLanguages` lists those in force, so the person chooses.
 - **OQ-158:** parties and policies. **Addition:** open claims and outstanding premiums later (B-013).
 - **OQ-159:** 30 days by default; compliance to confirm.
 - **OQ-160:** investigators and holders of a fraud function only, every read audited.
