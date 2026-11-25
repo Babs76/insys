@@ -153,10 +153,16 @@ public sealed class StaticDataService<TDbContext>(
             }
 
             var existing = await Scoped(db.Set<TEntity>(), global).Where(r => r.Code == input.Code).ToListAsync(cancellationToken);
-            if (existing.Any(r => r.RecordStatus == descriptor.Lifecycle.Draft || descriptor.Lifecycle.Submitted.Contains(r.RecordStatus)
-                    || r.RecordStatus == descriptor.Lifecycle.Approved))
+            if (existing.FirstOrDefault(r => r.RecordStatus == descriptor.Lifecycle.Draft || descriptor.Lifecycle.Submitted.Contains(r.RecordStatus)
+                    || r.RecordStatus == descriptor.Lifecycle.Approved) is { } inProgress)
             {
-                return Error.Conflict(StaticDataErrorCodes.DraftExists, "This code already has a version in progress. Finish or discard it first.");
+                // DE-016: the refusal names the version in progress and the way out of each state.
+                return Error.Conflict(StaticDataErrorCodes.DraftExists, $"This code already has version {inProgress.Version} in progress ({inProgress.RecordStatus}). "
+                    + (inProgress.RecordStatus == descriptor.Lifecycle.Draft
+                        ? $"Submit it, or its maker discards it: POST …/{inProgress.Code}/versions/{inProgress.Version}/discard."
+                        : inProgress.RecordStatus == descriptor.Lifecycle.Approved
+                            ? $"Activate it first: POST …/{inProgress.Code}/versions/{inProgress.Version}/activate."
+                            : "Wait for its approval to be decided: a rejection returns it to draft."));
             }
 
             var current = existing.Where(r => descriptor.Lifecycle.IsInForce(r.RecordStatus)).MaxBy(r => r.Version);
@@ -217,6 +223,70 @@ public sealed class StaticDataService<TDbContext>(
             audit(entity, before);
             return entity;
         }, cancellationToken);
+
+    /// <summary>
+    /// DE-016: the maker discards their own draft that was never submitted, and the code is free for a new draft. Drafts are
+    /// the only static data rows that may be deleted (SDM-007; the V0144 guard refuses deleting any other status), so the
+    /// row is deleted; the audit entry keeps what it held. A line of an import goes with its import, and a draft a
+    /// rejection returned (it has a change request) stays for its maker to edit and submit again.
+    /// </summary>
+    public Task<Result<TEntity>> DiscardDraft<TEntity>(StaticDataDescriptor descriptor, string code, int version, long expectedRowVersion, bool global,
+        CancellationToken cancellationToken)
+        where TEntity : StaticRecord =>
+        Write<TEntity>(global, "DiscardDraft", descriptor, async (db, audit) =>
+        {
+            var loaded = await LoadForChange<TEntity>(db, code, version, expectedRowVersion, global, cancellationToken);
+            if (loaded.IsFailure)
+            {
+                return loaded.Error;
+            }
+
+            var entity = loaded.Value;
+            if (entity.RecordStatus != descriptor.Lifecycle.Draft)
+            {
+                return InvalidTransition($"Only a draft is discarded; this version is {entity.RecordStatus} (SDM-007: deprecate or retire instead).");
+            }
+
+            if (entity.ChangeRequestId is not null)
+            {
+                // TODO(spec): whether a draft returned by a rejection may be discarded too (DE-016 covers a draft never submitted).
+                return InvalidTransition("This draft was submitted and returned by a rejection; edit it and submit it again.");
+            }
+
+            if (entity.ImportBatchId is { } batch)
+            {
+                return InvalidTransition($"This draft is a line of import {batch}; the import's lines are kept together (BR-016).");
+            }
+
+            if (entity.CreatedBy != execution.ActorId)
+            {
+                return Error.Forbidden(StaticDataErrorCodes.MakerOnly, "Only the maker who created the draft discards it (SDM-003).");
+            }
+
+            var before = Snapshot(entity);
+            db.Set<TEntity>().Remove(entity);
+            audit(entity, before);
+            return entity;
+        }, cancellationToken);
+
+    /// <summary>
+    /// DE-015: the versions of a table not in force, waiting at one of <paramref name="statuses"/> (a draft, one submitted for
+    /// approval, or one approved and waiting to be activated), by ID after <paramref name="afterId"/>: the rows the list in force leaves out.
+    /// </summary>
+    public async Task<IReadOnlyList<TEntity>> NotInForce<TEntity>(IReadOnlyCollection<string> statuses, bool global, Guid? afterId, int limit,
+        CancellationToken cancellationToken)
+        where TEntity : StaticRecord
+    {
+        await using var lease = Lease(global);
+        await using var transaction = await ReadOnly(lease.Context, cancellationToken);
+        var query = Scoped(lease.Context.Set<TEntity>().AsNoTracking(), global).Where(r => statuses.Contains(r.RecordStatus));
+        if (afterId is { } after)
+        {
+            query = query.Where(r => r.Id.CompareTo(after) > 0);
+        }
+
+        return await query.OrderBy(r => r.Id).Take(limit).ToListAsync(cancellationToken);
+    }
 
     /// <summary>Draft → pending approval. Raises StaticDataChangeSubmitted; the Static Data module records the change request.</summary>
     public Task<Result<TEntity>> Submit<TEntity>(StaticDataDescriptor descriptor, string code, int version, long expectedRowVersion, bool global,
