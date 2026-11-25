@@ -9,6 +9,8 @@
 **Segregation of duties enforcement (Ade, 20 November 2026, OQ-197):** the release carrying `sod-baseline` refuses the release or verify side to any user holding both sides of a baseline rule, from the moment it is deployed, on every tenant. It reaches the Preview only through a reset (the `reset` action here; for the front end's demo stack, `demo:up`), never through an in-place upgrade (`upgrade` here, `demo:upgrade` in the front end). Any in-place upgrade of an existing tenant first reads `GET /identity/access-reviews/segregation-conflicts` on that tenant and stops if the list isn't empty.
 
 ## 0. Before approval (no change to the Preview)
+**Refresh the back end and the console together (Ade, 25 November 2026).** From `1c3b2aa` (the money group), the reconciliation exceptions list is a cursor page and a dead-letter discard needs a body (`docs/api/contract-changes.md`). A console built for the earlier contract breaks against the new back end, and the reverse. So the Preview's back end and console are always refreshed in the same run, at a back-end commit and the console digest built for it, never one alone.
+
 | # | Step | Who | Check |
 |---|---|---|---|
 | 0.1 | The front end's repin is proven on `main` (its live run green at the back end's pin) | Front end | Its run's pin and conclusion |
