@@ -9,7 +9,7 @@
 
 Generated from `src/Modules/Identity/Insys.Identity.Api/RoleTemplates.cs` (published at `GET /api/v1/identity/role-templates`, BR-088) from the function catalogue as built; `RoleTemplateTests` checks every template against every segregation-of-duties rule and the privileged list. Optional starting points a tenant copies and adjusts: copying a template creates the tenant's own role (`iam.cfg_roles_and_permission_sets`) and its function grants (`iam.cfg_role_function_assignments`), which go through approval like any Tier 1 change. INSYS never changes a tenant's copy when a template changes.
 
-- **Basis:** ADR-026 (a role holds functions), the function catalogue as built (736 functions), `INSYS_NAVIGATION.md` (sub-domains), the approval types and authority (`frontend-integration-guide.md` §3).
+- **Basis:** ADR-026 (a role holds functions), the function catalogue as built (737 functions), `INSYS_NAVIGATION.md` (sub-domains), the approval types and authority (`frontend-integration-guide.md` §3).
 - **How a template is made:** the sub-domains it covers, every screen and action in them for its actor type, less JOB functions, privileged functions and named exclusions; then further functions, and the privileged functions it is meant to hold, named one by one. An action brings its screen. A checker template adds the Workflow approvals screen with approve and reject; what it may approve, and up to what amount, is its authority rows. A template that maintains or approves any static data (an `SD_*_MAINTAIN` or `SD_*_APPROVE` function) also holds `STATIC_DATA_CHANGE_REQUESTS`, the list of change requests (a rule, tested).
 - **Separation of duties:** makers and checkers are separate templates, and no template holds both functions of any rule below (tested).
 - **Audit read:** only the audit roles (`AUDITOR`, `COMPLIANCE_OFFICER`, `DATA_PROTECTION_OFFICER`, `HEALTH_AUDITOR`) hold a function that needs `audit_event.read`: the audit trail, a record's audit history and the party search log (tested). The tenant and platform administrators no longer read the audit trail.
@@ -69,6 +69,7 @@ Assigning a role that holds a privileged function is itself an approval (`PRIVIL
 | `ASSIST_OVERLAY_MANAGE` | Flagged | Loads a starter pack version for every tenant and records the partner's review; never approves (AI Assist addendum §5.3, Ade 15 November) | granted one by one |
 | `ASSIST_OVERLAY_APPROVE_TENANT` | Flagged | Approves the tenant's own overlay for its use only, the fallback (AI Assist addendum D-19) | granted one by one |
 | `STATIC_DATA_CHANGE_TIER2_MAKER_CHECKER` | Flagged | Changes which static data changes need a second person | granted one by one |
+| `STATIC_DATA_CHANGE_STALE_DRAFT_DAYS` | Flagged | Changes how soon others may discard a maker's untouched static data draft (DE-016, OQ-204) | granted one by one |
 | `STATIC_DATA_SETUP_ABANDON` | Flagged | Asks, approves or declines abandoning an approved SETUP change set: what is in force stays, the rest is discarded (OQ-180, Ade 17 November) | granted one by one |
 | `TERMINATE_TENANT` | Flagged | Ends a tenant for good: its users lose access and its data enters retention | `PLATFORM_ADMIN` |
 | `CASE_DECIDE_APPEAL` | Flagged | Decides an appeal against a case's decision (OQ-109) | `COMPLIANCE_OFFICER` |

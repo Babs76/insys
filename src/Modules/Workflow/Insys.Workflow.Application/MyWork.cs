@@ -190,7 +190,7 @@ public sealed class StepTasks(IProcessRepository processes, IProcessQueries quer
     /// <summary>Opens the task unless one of the process is already running for the record. Returns the process, or null when none was opened.</summary>
     public async Task<ProcessInstance?> Open(ProcessDefinition definition, string businessRefType, Guid businessRefId, string queue, Guid? assignee,
         CancellationToken cancellationToken, Guid? approvalId = null, Guid? excludedUserId = null, string? payoutPurpose = null, string? payoutCurrency = null,
-        IReadOnlyDictionary<string, string?>? detail = null)
+        IReadOnlyDictionary<string, string?>? detail = null, string? notice = null)
     {
         if (await Running(definition, businessRefType, businessRefId, cancellationToken) is not [])
         {
@@ -201,6 +201,11 @@ public sealed class StepTasks(IProcessRepository processes, IProcessQueries quer
         var due = await businessTime.Add(tenant.RequireTenantId(), null, now, "P1D", cancellationToken);
         var process = ProcessInstance.StartProcess(Guid.CreateVersion7(), definition, businessRefType, businessRefId, _ => new TaskRouting(queue, null, due), now).Value;
         process.Follow(approvalId, excludedUserId, payoutPurpose, payoutCurrency);
+        if (notice is not null)
+        {
+            process.Tell(notice);
+        }
+
         if (assignee is { } user)
         {
             process.AssignTask(process.OpenTask!.Id, user);
@@ -363,6 +368,42 @@ public sealed class NextStepClosing(StepTasks steps) :
 }
 
 /// <summary>
+/// DE-016, OQ-204 (Ade, 25 November 2026): someone other than its maker discarded a static data draft left untouched for the tenant's days. The maker is
+/// told by an informational STATIC_DRAFT_DISCARDED task assigned to them, whose notice names the table, code and version, who discarded it, when and why
+/// (as APPROVAL_OUTCOME tells a requester, DE-044). A maker's own discard raises no event, so tells nobody.
+/// </summary>
+public sealed class StaticDraftDiscardNotices(StepTasks steps) : IIntegrationEventHandler<BuildingBlocks.Contracts.StaticData.StaticDataDraftDiscarded>
+{
+    /// <summary>What the task is about: the discarded version (its ID; the version no longer exists).</summary>
+    public const string BusinessRefType = StaticData.Contracts.StaticDataApprovals.DiscardedVersionRefType;
+
+    public Task Handle(BuildingBlocks.Contracts.StaticData.StaticDataDraftDiscarded discarded, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        var record = discarded.Record;
+        var notice = new StaticDraftDiscardNotice(record.EntityCode, $"{record.ModuleRoute}/static/{record.EntityRoute}{(record.Global ? "/global" : "")}", record.Code,
+            record.Version, record.Global, discarded.DiscardedBy, discarded.DiscardedAt, discarded.Reason);
+        return steps.Open(BuiltInProcesses.StaticDraftDiscarded, BusinessRefType, record.RecordId, RequesterFollowUp.QueueCode, discarded.MakerId, cancellationToken,
+            detail: new Dictionary<string, string?> { ["discardedBy"] = discarded.DiscardedBy.ToString() },
+            notice: JsonSerializer.Serialize(notice, StaticDraftDiscardNotice.Json));
+    }
+}
+
+/// <summary>
+/// DE-016, OQ-204: what a STATIC_DRAFT_DISCARDED task tells its maker: the draft someone else discarded, who, when and why. Only IDs, no other personal data.
+/// </summary>
+/// <param name="EntityCode">The table's entity code (as a change request's).</param>
+/// <param name="EntityRoute">The table's API route under /api/v1, ending "/global" for a platform-global row (as a change request's).</param>
+/// <param name="Code">The draft's code: the code is free for a new draft.</param>
+/// <param name="VersionNumber">The version that was discarded.</param>
+/// <param name="DiscardedBy">The user who discarded it, holding the table's maintain function.</param>
+/// <param name="Reason">Why they discarded it, as they gave it.</param>
+public sealed record StaticDraftDiscardNotice(string EntityCode, string EntityRoute, string Code, int VersionNumber, bool Global, Guid DiscardedBy,
+    DateTimeOffset DiscardedAt, string Reason)
+{
+    public static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
+}
+
+/// <summary>
 /// DE-045: an accepted Life or General proposal waits for its policy: a POLICY_ISSUE task about the proposal, assigned to the staff user who
 /// submitted it, or else in the underwriters' queue (served by the issue function). It closes when the policy is issued.
 /// </summary>
@@ -395,7 +436,7 @@ public sealed record MyTasksFilter(Guid UserId, IReadOnlyCollection<string> Queu
 /// <summary>An open task with its process, as the store reads it.</summary>
 public sealed record MyTaskRow(Guid TaskId, Guid ProcessId, string ProcessCode, int ProcessVersion, string State, long ProcessRowVersion, string BusinessRefType,
     Guid BusinessRefId, string TaskType, string QueueCode, Guid? AssigneeId, string? SlaCode, DateTimeOffset DueAt, Guid? ApprovalId, ApprovalStatus? ApprovalStatus,
-    string? PayoutPurpose, string? PayoutCurrency);
+    string? PayoutPurpose, string? PayoutCurrency, string? Notice = null);
 
 /// <summary>One of the caller's open tasks (DE-025): what it asks, what it is about, and how to complete it.</summary>
 /// <param name="Id">The task's ID, for claiming and completing it.</param>
@@ -404,17 +445,18 @@ public sealed record MyTaskRow(Guid TaskId, Guid ProcessId, string ProcessCode, 
 /// <param name="Screen">The SCREEN function that opens that record (BR-005), or null when none is declared.</param>
 /// <param name="QueueCode">The queue it is in: a role code, or a named queue (REQUESTER for the requester's own).</param>
 /// <param name="AssignedToMe">True when it is assigned to the caller; false when it waits unassigned in a queue they serve.</param>
-/// <param name="Informational">It only tells the caller something (APPROVAL_OUTCOME): completing it is "done".</param>
+/// <param name="Informational">It only tells the caller something (APPROVAL_OUTCOME, STATIC_DRAFT_DISCARDED): completing it is "done".</param>
 /// <param name="ApprovalId">The approval the task follows or tells about; null for a task that follows none.</param>
 /// <param name="ApprovalStatus">That approval's status now (Approved, Rejected ...).</param>
 /// <param name="PayoutPurpose">For a "build a payout batch" task (PAYOUT_BATCH_BUILD): the purpose of the batch to build.</param>
 /// <param name="PayoutCurrency">And its currency.</param>
 /// <param name="AllowedTransitions">The states completing the task may move the process to; one means "done" needs no choice.</param>
+/// <param name="DraftDiscarded">For a STATIC_DRAFT_DISCARDED task (OQ-204): the draft someone else discarded, who, when and why; null for any other task.</param>
 public sealed record MyTaskView(Guid Id, Guid ProcessId, string ProcessCode, string TaskType, [property: BusinessRefTypeField] string BusinessRefType,
     Guid BusinessRefId, [property: AlwaysPresent] string? Screen, string QueueCode, [property: AlwaysPresent] Guid? AssigneeId, bool AssignedToMe, DateTimeOffset DueAt,
     [property: AlwaysPresent] string? SlaCode, bool Informational, [property: AlwaysPresent] Guid? ApprovalId,
     [property: AlwaysPresent] ApprovalStatus? ApprovalStatus, [property: AlwaysPresent] string? PayoutPurpose, [property: AlwaysPresent] string? PayoutCurrency,
-    IReadOnlyList<ProcessTransitionView> AllowedTransitions, long RowVersion);
+    IReadOnlyList<ProcessTransitionView> AllowedTransitions, long RowVersion, [property: AlwaysPresent] StaticDraftDiscardNotice? DraftDiscarded = null);
 
 public sealed record ListMyTasks(int Limit, OpenTaskCursor? After = null) : IQuery<IReadOnlyList<MyTaskView>>;
 
@@ -528,8 +570,11 @@ internal sealed class ListMyTasksHandler(IProcessQueries queries, IWorkflowConfi
                     .ToList();
             views.Add(new MyTaskView(row.TaskId, row.ProcessId, row.ProcessCode, row.TaskType, row.BusinessRefType, row.BusinessRefId,
                 WorkServers.ScreenFor(row.BusinessRefType), row.QueueCode, row.AssigneeId, row.AssigneeId == userId, row.DueAt, row.SlaCode,
-                row.ProcessCode == BuiltInProcesses.ApprovalOutcome.ProcessCode, row.ApprovalId, row.ApprovalStatus, row.PayoutPurpose, row.PayoutCurrency, transitions,
-                row.ProcessRowVersion));
+                row.ProcessCode == BuiltInProcesses.ApprovalOutcome.ProcessCode || row.ProcessCode == BuiltInProcesses.StaticDraftDiscarded.ProcessCode, row.ApprovalId,
+                row.ApprovalStatus, row.PayoutPurpose, row.PayoutCurrency, transitions, row.ProcessRowVersion,
+                row.ProcessCode == BuiltInProcesses.StaticDraftDiscarded.ProcessCode && row.Notice is { } notice
+                    ? JsonSerializer.Deserialize<StaticDraftDiscardNotice>(notice, StaticDraftDiscardNotice.Json)
+                    : null));
         }
 
         return views;

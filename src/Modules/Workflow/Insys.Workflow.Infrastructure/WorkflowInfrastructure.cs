@@ -142,6 +142,8 @@ public static class WorkflowInfrastructure
         services.AddIntegrationEventHandler<Payments.Contracts.PayoutReleased, NextStepClosing, WorkflowDbContext>(schema, "StepPayoutReleased");
         services.AddIntegrationEventHandler<Health.Contracts.ProviderPaymentRunReleased, NextStepClosing, WorkflowDbContext>(schema, "StepRunReleased");
         services.AddIntegrationEventHandler<Payments.Contracts.PaymentBatched, NextStepClosing, WorkflowDbContext>(schema, "StepBatched");
+        services.AddIntegrationEventHandler<BuildingBlocks.Contracts.StaticData.StaticDataDraftDiscarded, StaticDraftDiscardNotices, WorkflowDbContext>(schema,
+            "StaticDraftDiscarded"); // DE-016, OQ-204: the maker is told
         services.AddIntegrationEventHandler<Life.Contracts.LifeProposalAccepted, PolicyIssueTasks, WorkflowDbContext>(schema, "LifeProposalAccepted");
         services.AddIntegrationEventHandler<Life.Contracts.LifePolicyIssued, PolicyIssueTasks, WorkflowDbContext>(schema, "LifePolicyIssued");
         services.AddIntegrationEventHandler<General.Contracts.GeneralProposalAccepted, PolicyIssueTasks, WorkflowDbContext>(schema, "GeneralProposalAccepted");

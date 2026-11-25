@@ -274,6 +274,7 @@ core	WorkflowMyTaskView.processCode	to declare
 core	WorkflowMyTaskView.queueCode	to declare
 core	WorkflowMyTaskView.slaCode	to declare
 core	WorkflowMyTaskView.taskType	to declare
+core	WorkflowStaticDraftDiscardNotice.entityCode	a static data table's entity code (any module's table, as a change request's entityCode): the discarded draft's table (DE-016, OQ-204)
 core	WorkflowOmbudReferralRequest.schemeCode	to declare
 core	WorkflowOpenCaseRequest.caseTypeCode	to declare
 core	WorkflowOpenCaseRequest.categoryCode	to declare

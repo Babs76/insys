@@ -61,5 +61,6 @@ Not approvals: an accepted **Life** proposal (`life.LifeProposalAccepted`) and a
 - **Withdrawn by them:** nobody is told.
 - APPROVAL_FOLLOW_UP and APPROVAL_OUTCOME close themselves when the requester asks again for the record (a new approval). A not-applied approval's follow-up also closes when a retry of its parked delivery applies it.
 - PARKED_DELIVERY tasks close when the delivery resolves or a person discards it (`integration.ParkedDeliveryDiscarded`, new).
+- **A draft discarded by someone else (DE-016, OQ-204; Ade, 25 November 2026):** an informational STATIC_DRAFT_DISCARDED task assigned to the draft's maker, from `sdm.StaticDataDraftDiscarded`; its `draftDiscarded` names the table, code, version, who discarded it, when and why. None for the maker's own discard.
 
 No in-app notification mechanism exists, so the task is the mechanism.

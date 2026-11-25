@@ -64,7 +64,13 @@ public interface IChangeRequestRepository
 }
 
 /// <param name="PendingTier2MakerChecker">False while a switch-off waits for a second person's approval; otherwise null.</param>
-public sealed record GovernanceSettingsView(bool Tier2MakerChecker, bool Tier1MakerChecker, bool? PendingTier2MakerChecker, Guid? PendingRequestedBy, long RowVersion);
+/// <param name="StaleDraftDiscardDays">
+/// DE-016, OQ-204: a static data draft untouched (created or last edited) for this many days, 24-hour periods, may be discarded by anyone
+/// holding its table's maintain function, with a reason. 7 unless changed; at least 1. It applies to the tenant's own tables, and the
+/// platform operator's applies to the global tables.
+/// </param>
+public sealed record GovernanceSettingsView(bool Tier2MakerChecker, bool Tier1MakerChecker, bool? PendingTier2MakerChecker, Guid? PendingRequestedBy,
+    int StaleDraftDiscardDays, long RowVersion);
 
 /// <summary>Reads the tenant's static data governance settings (defaults when never changed).</summary>
 public sealed record GetGovernanceSettings : IQuery<GovernanceSettingsView>;
@@ -75,12 +81,19 @@ public sealed record GetGovernanceSettings : IQuery<GovernanceSettingsView>;
 /// </summary>
 public sealed record ChangeTier2MakerChecker(bool Enabled, long ExpectedVersion) : ICommand<long>, IVersionedCommand;
 
+/// <summary>
+/// DE-016, OQ-204: sets the tenant's number of days after which anyone holding a static data table's maintain function may discard a draft
+/// left untouched. Takes effect at once and is audited, as switching Tier 2 maker-checker on.
+/// </summary>
+public sealed record ChangeStaleDraftDiscardDays(int Days, long ExpectedVersion) : ICommand<long>, IVersionedCommand;
+
 internal sealed class GetGovernanceSettingsHandler(IChangeRequestRepository repository) : IQueryHandler<GetGovernanceSettings, GovernanceSettingsView>
 {
     public async Task<Result<GovernanceSettingsView>> Handle(GetGovernanceSettings query, CancellationToken cancellationToken) =>
         await repository.Settings(cancellationToken) is { } settings
-            ? new GovernanceSettingsView(settings.Tier2MakerChecker, true, settings.PendingTier2MakerChecker, settings.PendingRequestedBy, settings.RowVersion)
-            : new GovernanceSettingsView(true, true, null, null, 0);
+            ? new GovernanceSettingsView(settings.Tier2MakerChecker, true, settings.PendingTier2MakerChecker, settings.PendingRequestedBy, settings.StaleDraftDiscardDays,
+                settings.RowVersion)
+            : new GovernanceSettingsView(true, true, null, null, TenantGovernanceSettings.DefaultStaleDraftDiscardDays, 0);
 }
 
 internal sealed class ChangeTier2MakerCheckerHandler(IChangeRequestRepository repository, IExecutionContext execution, IClock clock, IAuditTrail audit)
@@ -131,6 +144,51 @@ internal sealed class ChangeTier2MakerCheckerHandler(IChangeRequestRepository re
         audit.Record(new AuditEntry("STATIC_DATA_GOVERNANCE", command.Enabled ? "ChangeTier2MakerChecker" : "RequestTier2MakerCheckerOff",
             nameof(TenantGovernanceSettings), settings.Id.ToString(),
             new Dictionary<string, string?> { ["before"] = before.ToString(), ["after"] = command.Enabled.ToString(), ["pending"] = (!command.Enabled).ToString() }));
+        return settings.RowVersion;
+    }
+}
+
+internal sealed class ChangeStaleDraftDiscardDaysHandler(IChangeRequestRepository repository, IExecutionContext execution, IAuditTrail audit)
+    : ICommandHandler<ChangeStaleDraftDiscardDays, long>
+{
+    public async Task<Result<long>> Handle(ChangeStaleDraftDiscardDays command, CancellationToken cancellationToken)
+    {
+        var actor = Checker.Require(execution);
+        if (actor.IsFailure)
+        {
+            return actor.Error;
+        }
+
+        var settings = await repository.Settings(cancellationToken);
+        if ((settings?.RowVersion ?? 0) != command.ExpectedVersion)
+        {
+            return Error.PreconditionFailed(ErrorCodes.PreconditionFailed, "The settings have changed since they were read.");
+        }
+
+        if (settings is null)
+        {
+            settings = TenantGovernanceSettings.Defaults(Guid.CreateVersion7());
+            repository.Add(settings);
+        }
+
+        var before = settings.StaleDraftDiscardDays;
+        var changed = settings.ChangeStaleDraftDiscardDays(command.Days);
+        if (changed.IsFailure)
+        {
+            return changed.Error;
+        }
+
+        if (!changed.Value && settings.RowVersion > 0)
+        {
+            return settings.RowVersion;
+        }
+
+        audit.Record(new AuditEntry("STATIC_DATA_GOVERNANCE", "ChangeStaleDraftDiscardDays", nameof(TenantGovernanceSettings), settings.Id.ToString(),
+            new Dictionary<string, string?>
+            {
+                ["before"] = before.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["after"] = command.Days.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            }));
         return settings.RowVersion;
     }
 }

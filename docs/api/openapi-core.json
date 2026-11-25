@@ -81759,6 +81759,7 @@
               "SEARCH_LOG_HOLD",
               "STATIC_DATA_CHANGE",
               "STATIC_DATA_SETUP",
+              "STATIC_DATA_VERSION",
               "SUBJECT_LINK",
               "TENANT_ADMIN_REQUEST"
             ],
@@ -83332,7 +83333,8 @@
           "payoutPurpose",
           "payoutCurrency",
           "allowedTransitions",
-          "rowVersion"
+          "rowVersion",
+          "draftDiscarded"
         ],
         "type": "object",
         "properties": {
@@ -83383,6 +83385,7 @@
               "SEARCH_LOG_HOLD",
               "STATIC_DATA_CHANGE",
               "STATIC_DATA_SETUP",
+              "STATIC_DATA_VERSION",
               "SUBJECT_LINK",
               "TENANT_ADMIN_REQUEST"
             ],
@@ -83466,6 +83469,16 @@
               "string"
             ],
             "format": "int64"
+          },
+          "draftDiscarded": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WorkflowStaticDraftDiscardNotice"
+              }
+            ]
           }
         }
       },
@@ -84207,6 +84220,52 @@
           "businessRefId": {
             "type": "string",
             "format": "uuid"
+          }
+        }
+      },
+      "WorkflowStaticDraftDiscardNotice": {
+        "required": [
+          "entityCode",
+          "entityRoute",
+          "code",
+          "versionNumber",
+          "global",
+          "discardedBy",
+          "discardedAt",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "entityCode": {
+            "type": "string"
+          },
+          "entityRoute": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "versionNumber": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "global": {
+            "type": "boolean"
+          },
+          "discardedBy": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "discardedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reason": {
+            "type": "string"
           }
         }
       },

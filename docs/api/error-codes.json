@@ -2114,6 +2114,14 @@
       "remedy": "Finish or discard that version first."
     },
     {
+      "code": "STATIC_DRAFT_NOT_STALE",
+      "httpStatus": 409,
+      "messageKey": "error.static_data.draft_not_stale",
+      "retryable": false,
+      "means": "Someone else's draft can be discarded only once it has been left untouched for the organisation's number of days, and this one was changed more recently.",
+      "remedy": "Ask its maker to finish or discard it, or discard it from the time given (discardableFrom), 7 days after its last change unless the static data settings say otherwise."
+    },
+    {
       "code": "STATIC_IMPORT_REJECTED",
       "httpStatus": 422,
       "messageKey": "error.static_data.import_rejected",

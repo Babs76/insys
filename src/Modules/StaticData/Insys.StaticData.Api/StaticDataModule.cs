@@ -42,6 +42,9 @@ namespace Insys.StaticData.Api;
 
 public sealed record Tier2MakerCheckerRequest(bool Tier2MakerChecker);
 
+/// <param name="StaleDraftDiscardDays">DE-016, OQ-204: the number of days, at least 1, after which a draft left untouched may be discarded by others.</param>
+public sealed record StaleDraftDiscardDaysRequest(int StaleDraftDiscardDays);
+
 /// <summary>
 /// The Static Data module: its own reference data (sdm, refdata and ops schemas) and the governance of every static
 /// data change in the platform. Approve and reject are decided in Workflow (ADR-009), which maps them on the same paths
@@ -131,6 +134,32 @@ public sealed class StaticDataModule : IModule
             .WithSummary("Switch Tier 2 maker-checker on or off for the tenant")
             .WithDescription("Audited. If-Match is the ETag from GET: the settings' rowVersion in double quotes, for example If-Match: \"3\"; it is \"0\" "
                 + "until the settings are first changed. Missing gives 428; stale gives 412. The response's ETag is the new rowVersion (BR-014).")
+            .RequirePermission(StaticDataGovernancePermissions.SettingUpdate);
+
+        // DE-016, OQ-204: the days after which anyone holding a table's maintain function may discard someone else's untouched draft.
+        settings.MapPut("/stale-draft-discard-days", async (StaleDraftDiscardDaysRequest request, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+            {
+                var expected = Concurrency.ExpectedVersion(http.Request);
+                if (expected.IsFailure)
+                {
+                    return Problems.For(expected.Error);
+                }
+
+                return (await dispatcher.Send(new ChangeStaleDraftDiscardDays(request.StaleDraftDiscardDays, expected.Value), ct)).ToHttp(version =>
+                {
+                    Concurrency.SetETag(http, version);
+                    return Results.NoContent();
+                });
+            })
+            .Produces(StatusCodes.Status204NoContent)
+            .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .RequireIfMatch()
+            .WithName("ChangeStaleDraftDiscardDays")
+            .WithSummary("Set the days after which anyone maintaining a static data table may discard someone else's untouched draft")
+            .WithDescription("DE-016, OQ-204: staleDraftDiscardDays, at least 1 (422 VALIDATION_FAILED below), 7 until changed. It takes effect at once, opens no "
+                + "approval and is audited (ChangeStaleDraftDiscardDays, with before and after). The platform operator's setting applies to the global tables. "
+                + "If-Match is the ETag from GET: the settings' rowVersion in double quotes, \"0\" until the settings are first changed. Missing gives 428; "
+                + "stale gives 412. The response's ETag is the new rowVersion (BR-014).")
             .RequirePermission(StaticDataGovernancePermissions.SettingUpdate);
 
         governance.MapGroup("/static-data/imports").WithTags(tag).MapGet("/", async (string? cursor, int? limit, IDispatcher dispatcher, CancellationToken ct) =>

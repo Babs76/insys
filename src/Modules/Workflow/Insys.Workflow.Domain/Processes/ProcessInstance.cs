@@ -167,6 +167,13 @@ public static class BuiltInProcesses
     public static readonly ProcessDefinition ApprovalOutcome = new("APPROVAL_OUTCOME", 1, ["READ_OUTCOME", "READ"],
         [new TransitionDefinition("READ_OUTCOME", "READ", null)], null);
 
+    /// <summary>
+    /// DE-016, OQ-204 (Ade, 25 November 2026): someone else discarded the maker's static data draft, left untouched for the tenant's days. Informational:
+    /// it tells the maker who, when and why (the process's notice), and closes when they open or complete it.
+    /// </summary>
+    public static readonly ProcessDefinition StaticDraftDiscarded = new("STATIC_DRAFT_DISCARDED", 1, ["READ_NOTICE", "READ"],
+        [new TransitionDefinition("READ_NOTICE", "READ", null)], null);
+
     /// <summary>DE-015: an approved static data version or import waits for its maker to activate it; it closes when the version is in force.</summary>
     public static readonly ProcessDefinition StaticDataActivation = new("STATIC_DATA_ACTIVATE", 1, ["ACTIVATE_VERSION", "ACTIVATED"],
         [new TransitionDefinition("ACTIVATE_VERSION", "ACTIVATED", null)], null);
@@ -196,7 +203,7 @@ public static class BuiltInProcesses
         ParkedDelivery, ConfigurationReview, HeldClaimPayment, PartyMatchReview, AggregationReview, ApprovalFollowUp, GeneralReferral, DueDiligenceHitReview,
         DueDiligenceSanctionsMatch, DueDiligenceReview, HealthArrearsTermination, GeneralRenewalReview, GeneralRetention, ProviderMeasureReview, CareActivityFollowUp,
         RecoveryReview, ProgrammeReview, DataSubjectRequest, PartyRetentionReview, ApprovalOutcome, StaticDataActivation, ClaimPaymentRelease, PayoutBatchRelease,
-        PaymentRunRelease, PayoutBatchBuild, PolicyIssue,
+        PaymentRunRelease, PayoutBatchBuild, PolicyIssue, StaticDraftDiscarded,
     ];
 
     public static ProcessDefinition? Find(string processCode, int? version) =>
@@ -380,6 +387,19 @@ public sealed class ProcessInstance : AggregateRoot<Guid>
     public string? PayoutPurpose { get; private set; }
 
     public string? PayoutCurrency { get; private set; }
+
+    /// <summary>
+    /// What an informational task tells its assignee, as JSON (OQ-204: a discarded draft's table, code, version, who discarded it, when and why); null for
+    /// any other process. Never holds medical or identity data.
+    /// </summary>
+    public string? Notice { get; private set; }
+
+    /// <summary>The process tells its assignee something (OQ-204).</summary>
+    public void Tell(string notice)
+    {
+        Notice = notice;
+        MarkChanged();
+    }
 
     /// <summary>The process follows an approval (DE-045, DE-044): the approval, who may not work it, and a payout batch's purpose and currency.</summary>
     public void Follow(Guid? approvalId, Guid? excludedUserId = null, string? payoutPurpose = null, string? payoutCurrency = null)

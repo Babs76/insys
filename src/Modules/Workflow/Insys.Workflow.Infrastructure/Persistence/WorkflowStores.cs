@@ -313,7 +313,8 @@ internal sealed class ProcessQueries(WorkflowDbContext db, BuildingBlocks.Applic
             : await db.Approvals.AsNoTracking().Where(a => approvalIds.Contains(a.Id)).ToDictionaryAsync(a => a.Id, a => a.Status, cancellationToken);
         return rows.Select(r => new MyTaskRow(r.Task.Id, r.Process.Id, r.Process.ProcessCode, r.Process.ProcessVersion, r.Process.DefinitionState, r.Process.RowVersion,
             r.Process.BusinessRefType, r.Process.BusinessRefId, r.Task.TaskType, r.Task.QueueCode, r.Task.AssigneeId, r.Task.SlaCode, r.Task.DueAt, r.Process.ApprovalId,
-            r.Process.ApprovalId is { } a && statuses.TryGetValue(a, out var status) ? status : null, r.Process.PayoutPurpose, r.Process.PayoutCurrency)).ToList();
+            r.Process.ApprovalId is { } a && statuses.TryGetValue(a, out var status) ? status : null, r.Process.PayoutPurpose, r.Process.PayoutCurrency,
+            r.Process.Notice)).ToList();
     }
 
     private static ProcessView View(ProcessInstance p, IReadOnlyList<CaseNoteView> notes) =>
