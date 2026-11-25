@@ -2,6 +2,11 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
+## Disclosures: the refusal names each notice to open; an acknowledgement says what is left (DE-039 part 1; Ade, 25 November 2026; branch `disclosures-gate`)
+- **`DISCLOSURE_REQUIRED`** (409; wording unchanged) adds extensions `notices` (each `{noticeType, jurisdiction, language, textVersion}`, the text to open, in the party's preferred language when one is in force, else the tenant's default, else the first by code), `partyId`, `businessRefType` and `businessRefId` (null for a Health enrolment, which has no record yet). `displayPoint` and `noticeTypes` stay.
+- **Acknowledging** (`POST /integration/disclosure-acknowledgements`, `POST /portal/disclosure-acknowledgements`) answers with `outstanding`: what is still to acknowledge at that point for that party and record; empty means the refused step can be retried.
+- **A notice counts as acknowledged** when one of its texts in force (its type and jurisdiction) is acknowledged in that text's version and language; before, each language's text was checked separately by version.
+
 ## Money group: failed payouts, nil and negative commission statements, credit notes needing approval, discarding dead letters (DE-007, DE-008, DE-009, DE-010, DE-011, DE-031; Ade, 24 November 2026; branch `money-group`, V0150 to V0154)
 - **Typed reference:** every new step that moves money, or discards what would have, takes the reference of what it acts on in its body; a mismatch is 422 `TYPED_REFERENCE_MISMATCH` (new code) and changes nothing. A failed payout's reference is its payment's `paymentRef`.
 - **Payments:** `GET /payments/reconciliation-exceptions` is now a cursor page (`items`, `nextCursor`; pass `cursor`), not an array (DE-031). Exception type `PAYMENT_FAILED` is new: a failed outbound payment, with `paymentRef`, `businessRefType`, `businessRefId`; INSYS resolves it itself (`resolution`) when a later attempt pays the record or its module gives the payout up.
