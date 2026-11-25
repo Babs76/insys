@@ -30,7 +30,9 @@ using Insys.BuildingBlocks.Contracts;
 using Insys.BuildingBlocks.Domain;
 using Insys.Integration.Application.DeadLetters;
 using Insys.Integration.Domain.DeadLetters;
+using Insys.Integration.Infrastructure.Parking;
 using Insys.Integration.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore.Storage;
 using Insys.Workflow.Contracts;
 using Microsoft.EntityFrameworkCore;
 
@@ -62,9 +64,14 @@ internal sealed class DeadLetterReleases(IntegrationDbContext db, ITenantContext
             """).ToListAsync(cancellationToken);
 
         // DE-028: Workflow closes each discarded delivery's tasks, in the same transaction.
+        // Written by SQL in the same transaction, as the ledger's events are, so a version the command returns stays its record's (BR-116).
+        var connection = (Npgsql.NpgsqlConnection)db.Database.GetDbConnection();
+        var transaction = (Npgsql.NpgsqlTransaction?)db.Database.CurrentTransaction?.GetDbTransaction()
+            ?? throw new InvalidOperationException("A dead letter's discard runs inside its command's or policy's transaction.");
         foreach (var d in discarded)
         {
-            db.Publish(new Contracts.ParkedDeliveryDiscarded(d.Id, d.Consumer, d.Code, d.Item, d.EventType, d.EventId), "ParkedDelivery", d.Id, now);
+            await ParkedRows.Publish(connection, transaction, tenantId, d.Id, new Contracts.ParkedDeliveryDiscarded(d.Id, d.Consumer, d.Code, d.Item, d.EventType, d.EventId),
+                now, by, Guid.CreateVersion7(), cancellationToken);
         }
 
         return discarded.Count;

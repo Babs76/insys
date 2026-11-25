@@ -386,6 +386,18 @@ public sealed class WorkflowModule : IModule
                 + "Never the full task list: that is WorkflowListOpenTasks.")
             .RequirePermission(WorkflowPermissions.OwnTaskRead);
 
+        mine.MapGet("/{taskId:guid}", async (Guid taskId, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+                (await dispatcher.Query(new GetMyTask(taskId), ct)).ToHttp(task =>
+                {
+                    Concurrency.SetETag(http, task.RowVersion);
+                    return Results.Ok(task);
+                }))
+            .Produces<MyTaskView>(StatusCodes.Status200OK)
+            .WithName("WorkflowGetMyTask")
+            .WithSummary("One of my open tasks")
+            .WithDescription("As my tasks lists it, with its ETag (the process's version) for claiming and completing it. 404 when it isn't one of my open tasks.")
+            .RequirePermission(WorkflowPermissions.OwnTaskRead);
+
         mine.MapPost("/{taskId:guid}/claim", (Guid taskId, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
                 Versioned(http, version => dispatcher.Send(new ClaimMyTask(taskId, version), ct)))
             .Produces(StatusCodes.Status204NoContent)
@@ -426,6 +438,18 @@ public sealed class WorkflowModule : IModule
                 + "is one of Requested, Approved, NotApplied, Rejected, Expired, Withdrawn (any case). The requester is told of each decision by a task in my "
                 + "tasks: APPROVAL_OUTCOME when approved or rejected (informational), APPROVAL_FOLLOW_UP when it expired, was withdrawn for them or was "
                 + "not applied.")
+            .RequirePermission(WorkflowPermissions.OwnApprovalRead);
+
+        approvals.MapGet("/mine/{id:guid}", async (Guid id, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+                (await dispatcher.Query(new GetMyApproval(id), ct)).ToHttp(approval =>
+                {
+                    Concurrency.SetETag(http, approval.RowVersion);
+                    return Results.Ok(approval);
+                }))
+            .Produces<ApprovalView>(StatusCodes.Status200OK)
+            .WithName("WorkflowGetMyApproval")
+            .WithSummary("One of my requests for approval")
+            .WithDescription("With its status, decision and ETag, for withdrawing it. 404 when someone else asked for it.")
             .RequirePermission(WorkflowPermissions.OwnApprovalRead);
 
         approvals.MapPost("/mine/{id:guid}/withdraw", (Guid id, RejectApprovalRequest request, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>

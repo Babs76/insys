@@ -119,7 +119,7 @@ public interface IProcessQueries
     Task<IReadOnlyList<OpenTaskView>> OpenTasks(string? queueCode, Guid? assigneeId, OpenTaskCursor? after, int limit, CancellationToken cancellationToken);
 
     /// <summary>DE-025: the open tasks the filter's user may work, earliest due first (MyWork describes which).</summary>
-    Task<IReadOnlyList<MyTaskRow>> MyTasks(MyTasksFilter filter, OpenTaskCursor? after, int limit, CancellationToken cancellationToken);
+    Task<IReadOnlyList<MyTaskRow>> MyTasks(MyTasksFilter filter, OpenTaskCursor? after, int limit, CancellationToken cancellationToken, Guid? taskId = null);
 }
 
 public sealed record StartProcess(string ProcessCode, string BusinessRefType, Guid BusinessRefId) : ICommand<Guid>;

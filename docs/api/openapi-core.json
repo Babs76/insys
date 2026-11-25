@@ -7689,6 +7689,64 @@
         ]
       }
     },
+    "/api/v1/workflow/approvals/mine/{id}": {
+      "get": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "One of my requests for approval",
+        "description": "With its status, decision and ETag, for withdrawing it. 404 when someone else asked for it.",
+        "operationId": "WorkflowGetMyApproval",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowApprovalView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "own_approval.read",
+        "x-function": [
+          "WORKFLOW_MY_REQUESTS"
+        ]
+      }
+    },
     "/api/v1/workflow/approvals/mine/{id}/withdraw": {
       "post": {
         "tags": [
@@ -8644,6 +8702,64 @@
           },
           "503": {
             "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "own_task.read",
+        "x-function": [
+          "WORKFLOW_MY_TASKS"
+        ]
+      }
+    },
+    "/api/v1/workflow/tasks/mine/{taskId}": {
+      "get": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "One of my open tasks",
+        "description": "As my tasks lists it, with its ETag (the process\u0027s version) for claiming and completing it. 404 when it isn\u0027t one of my open tasks.",
+        "operationId": "WorkflowGetMyTask",
+        "parameters": [
+          {
+            "name": "taskId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowMyTaskView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
           }
         },
         "x-permission": "own_task.read",

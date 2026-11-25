@@ -128,9 +128,14 @@ internal sealed class ApprovalQueries(WorkflowDbContext db, IExecutionContext ex
     }
 
     /// <summary>DE-044: the requester's own approvals, newest first; not filtered by scope, as they asked for each.</summary>
-    public async Task<IReadOnlyList<ApprovalView>> Mine(Guid makerId, string? status, Guid? beforeId, int limit, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<ApprovalView>> Mine(Guid makerId, string? status, Guid? beforeId, int limit, CancellationToken cancellationToken, Guid? id = null)
     {
         var query = db.Approvals.AsNoTracking().Where(a => a.MakerId == makerId);
+        if (id is not null)
+        {
+            query = query.Where(a => a.Id == id.Value);
+        }
+
         if (status is not null && Enum.TryParse<ApprovalStatus>(status, ignoreCase: true, out var parsed))
         {
             query = query.Where(a => a.Status == parsed);
@@ -278,7 +283,7 @@ internal sealed class ProcessQueries(WorkflowDbContext db, BuildingBlocks.Applic
     /// DE-025: the open tasks assigned to the user, whatever their scope (they are theirs), and the unassigned ones in scope (F103) that the
     /// user serves by a queue (a role in effect) or a function (the processes listed), unless the process excludes them (SRS-002).
     /// </summary>
-    public async Task<IReadOnlyList<MyTaskRow>> MyTasks(MyTasksFilter filter, OpenTaskCursor? after, int limit, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<MyTaskRow>> MyTasks(MyTasksFilter filter, OpenTaskCursor? after, int limit, CancellationToken cancellationToken, Guid? taskId = null)
     {
         var user = filter.UserId;
         var queues = filter.Queues.ToArray();
@@ -294,6 +299,11 @@ internal sealed class ProcessQueries(WorkflowDbContext db, BuildingBlocks.Applic
         if (after is { } cursor)
         {
             query = query.Where(x => x.Task.DueAt > cursor.DueAt || (x.Task.DueAt == cursor.DueAt && x.Task.Id.CompareTo(cursor.Id) > 0));
+        }
+
+        if (taskId is { } one)
+        {
+            query = query.Where(x => x.Task.Id == one);
         }
 
         var rows = await query.OrderBy(x => x.Task.DueAt).ThenBy(x => x.Task.Id).Take(limit).ToListAsync(cancellationToken);

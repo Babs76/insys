@@ -60,10 +60,10 @@ internal static class WorkflowFunctions
 
         // DE-025, DE-044: the caller's own work. Not privileged; RoleTemplates.Expand gives every staff template the "My work" process area.
         .. new FunctionMap([Audiences.Staff], null)
-        .Screen("WORKFLOW_MY_TASKS", "WORKFLOW", MyWork, "workflow/my-tasks", "WorkflowListMyTasks")
+        .Screen("WORKFLOW_MY_TASKS", "WORKFLOW", MyWork, "workflow/my-tasks", "WorkflowListMyTasks", "WorkflowGetMyTask")
         .Action("WORKFLOW_CLAIM_MY_TASK", "WORKFLOW_MY_TASKS", "WorkflowClaimMyTask")
         .Action("WORKFLOW_COMPLETE_MY_TASK", "WORKFLOW_MY_TASKS", "WorkflowCompleteMyTask")
-        .Screen("WORKFLOW_MY_REQUESTS", "WORKFLOW", MyWork, "workflow/my-requests", "WorkflowListMyApprovals")
+        .Screen("WORKFLOW_MY_REQUESTS", "WORKFLOW", MyWork, "workflow/my-requests", "WorkflowListMyApprovals", "WorkflowGetMyApproval")
         .Action("WORKFLOW_WITHDRAW_MY_REQUEST", "WORKFLOW_MY_REQUESTS", "WorkflowWithdrawMyRequest")
             .Functions,
 

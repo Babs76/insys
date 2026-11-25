@@ -258,6 +258,12 @@ public sealed class MyWorkTests(DatabaseFixture fixture) : IClassFixture<Databas
         var taskId = task.GetProperty("id").GetGuid();
         var version = $"\"{task.GetProperty("rowVersion").GetInt64()}\"";
 
+        // BR-116: the caller's own read of the task gives its version; someone it isn't theirs doesn't find it.
+        var one1 = await one.GetAsync($"/api/v1/workflow/tasks/mine/{taskId}");
+        one1.StatusCode.ShouldBe(HttpStatusCode.OK, await one1.Content.ReadAsStringAsync());
+        one1.Headers.ETag!.Tag.ShouldBe(version);
+        (await nobody.GetAsync($"/api/v1/workflow/tasks/mine/{taskId}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+
         var refused = await nobody.Send(HttpMethod.Post, $"/api/v1/workflow/tasks/mine/{taskId}/claim", ifMatch: version);
         refused.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         (await refused.Json()).GetProperty("code").GetString().ShouldBe("TASK_NOT_YOURS");
@@ -338,6 +344,10 @@ public sealed class MyWorkTests(DatabaseFixture fixture) : IClassFixture<Databas
             .GetProperty("id").GetGuid().ShouldBe(firstApproval);
 
         var version = $"\"{items[1].GetProperty("rowVersion").GetInt64()}\"";
+        var own = await world.Maker.GetAsync($"/api/v1/workflow/approvals/mine/{firstApproval}");
+        own.StatusCode.ShouldBe(HttpStatusCode.OK, await own.Content.ReadAsStringAsync());
+        own.Headers.ETag!.Tag.ShouldBe(version);
+        (await other.GetAsync($"/api/v1/workflow/approvals/mine/{firstApproval}")).StatusCode.ShouldBe(HttpStatusCode.NotFound, "another person's request");
         var notMine = await other.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/mine/{firstApproval}/withdraw", new { reason = "not mine" }, ifMatch: version);
         notMine.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         (await notMine.Json()).GetProperty("code").GetString().ShouldBe("APPROVAL_NOT_REQUESTER");

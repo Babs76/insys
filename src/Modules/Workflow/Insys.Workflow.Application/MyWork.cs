@@ -418,6 +418,12 @@ public sealed record MyTaskView(Guid Id, Guid ProcessId, string ProcessCode, str
 
 public sealed record ListMyTasks(int Limit, OpenTaskCursor? After = null) : IQuery<IReadOnlyList<MyTaskView>>;
 
+/// <summary>One of the caller's open tasks, as my tasks lists it (BR-116: its version for If-Match); not found when it isn't theirs.</summary>
+public sealed record GetMyTask(Guid TaskId) : IQuery<MyTaskView>;
+
+/// <summary>One of the caller's own requests (BR-116: its version for If-Match); not found when another person asked for it.</summary>
+public sealed record GetMyApproval(Guid ApprovalId) : IQuery<ApprovalView>;
+
 /// <summary>Claim one of the caller's tasks: assign an unassigned task in a queue they serve to themselves.</summary>
 public sealed record ClaimMyTask(Guid TaskId, long ExpectedVersion) : ICommand<long>, IVersionedCommand;
 
@@ -482,9 +488,15 @@ public sealed class MyWorkAccess(IExecutionContext execution, ExecutionScope sco
 }
 
 internal sealed class ListMyTasksHandler(IProcessQueries queries, IWorkflowConfiguration configuration, IBusinessDate businessDate, MyWorkAccess access)
-    : IQueryHandler<ListMyTasks, IReadOnlyList<MyTaskView>>
+    : IQueryHandler<ListMyTasks, IReadOnlyList<MyTaskView>>, IQueryHandler<GetMyTask, MyTaskView>
 {
     public async Task<Result<IReadOnlyList<MyTaskView>>> Handle(ListMyTasks query, CancellationToken cancellationToken)
+    {
+        var user = access.User();
+        return user.IsFailure ? user.Error : Result.Success(await Views(user.Value, query.After, query.Limit, null, cancellationToken));
+    }
+
+    public async Task<Result<MyTaskView>> Handle(GetMyTask query, CancellationToken cancellationToken)
     {
         var user = access.User();
         if (user.IsFailure)
@@ -492,9 +504,16 @@ internal sealed class ListMyTasksHandler(IProcessQueries queries, IWorkflowConfi
             return user.Error;
         }
 
+        return (await Views(user.Value, null, 1, query.TaskId, cancellationToken)) is [var view]
+            ? view
+            : Error.NotFound(ErrorCodes.NotFound, "The task was not found among your open tasks.");
+    }
+
+    private async Task<IReadOnlyList<MyTaskView>> Views(Guid userId, OpenTaskCursor? after, int limit, Guid? taskId, CancellationToken cancellationToken)
+    {
         var definitions = new Dictionary<(string, int), ProcessDefinition?>();
         var views = new List<MyTaskView>();
-        foreach (var row in await queries.MyTasks(access.Filter(user.Value), query.After, query.Limit, cancellationToken))
+        foreach (var row in await queries.MyTasks(access.Filter(userId), after, limit, cancellationToken, taskId))
         {
             var key = (row.ProcessCode, row.ProcessVersion);
             if (!definitions.TryGetValue(key, out var definition))
@@ -508,7 +527,7 @@ internal sealed class ListMyTasksHandler(IProcessQueries queries, IWorkflowConfi
                 : definition.Transitions.Where(t => t.From == row.State).GroupBy(t => t.To).Select(g => new ProcessTransitionView(g.Key, g.All(t => t.Guard is not null)))
                     .ToList();
             views.Add(new MyTaskView(row.TaskId, row.ProcessId, row.ProcessCode, row.TaskType, row.BusinessRefType, row.BusinessRefId,
-                WorkServers.ScreenFor(row.BusinessRefType), row.QueueCode, row.AssigneeId, row.AssigneeId == user.Value, row.DueAt, row.SlaCode,
+                WorkServers.ScreenFor(row.BusinessRefType), row.QueueCode, row.AssigneeId, row.AssigneeId == userId, row.DueAt, row.SlaCode,
                 row.ProcessCode == BuiltInProcesses.ApprovalOutcome.ProcessCode, row.ApprovalId, row.ApprovalStatus, row.PayoutPurpose, row.PayoutCurrency, transitions,
                 row.ProcessRowVersion));
         }
@@ -606,8 +625,22 @@ internal sealed class CompleteMyTaskHandler(IProcessRepository processes, MyWork
 /// <summary>The caller's own requests for approval, newest first, with their status and decision; optionally of one status.</summary>
 public sealed record ListMyApprovals(string? Status, Guid? BeforeId, int Limit) : IQuery<IReadOnlyList<ApprovalView>>;
 
-internal sealed class ListMyApprovalsHandler(IApprovalQueries queries, IExecutionContext execution) : IQueryHandler<ListMyApprovals, IReadOnlyList<ApprovalView>>
+internal sealed class ListMyApprovalsHandler(IApprovalQueries queries, IExecutionContext execution)
+    : IQueryHandler<ListMyApprovals, IReadOnlyList<ApprovalView>>, IQueryHandler<GetMyApproval, ApprovalView>
 {
+    public async Task<Result<ApprovalView>> Handle(GetMyApproval query, CancellationToken cancellationToken)
+    {
+        var user = Checker.Require(execution);
+        if (user.IsFailure)
+        {
+            return user.Error;
+        }
+
+        return await queries.Mine(user.Value, null, null, 1, cancellationToken, query.ApprovalId) is [var view]
+            ? view
+            : Error.NotFound(ErrorCodes.NotFound, "The approval was not found among your requests.");
+    }
+
     public async Task<Result<IReadOnlyList<ApprovalView>>> Handle(ListMyApprovals query, CancellationToken cancellationToken)
     {
         var user = Checker.Require(execution);

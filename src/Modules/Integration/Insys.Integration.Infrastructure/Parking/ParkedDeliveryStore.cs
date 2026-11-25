@@ -169,7 +169,10 @@ internal sealed class ParkedDeliveryStore(
         var discarded = new Contracts.ParkedDeliveryDiscarded(id, reader.GetString(0), reader.IsDBNull(1) ? null : reader.GetString(1),
             reader.IsDBNull(2) ? null : reader.GetString(2), reader.GetString(3), reader.GetGuid(4));
         await reader.CloseAsync();
-        db.Publish(discarded, "ParkedDelivery", id, clock.UtcNow);
+
+        // Written by SQL in the same transaction, as the ledger's events are, so the command's saved version stays the delivery's (BR-116).
+        await ParkedRows.Publish(command.Connection!, command.Transaction!, tenant.RequireTenantId(), id, discarded, clock.UtcNow, Truncate(by, 80),
+            Guid.CreateVersion7(), cancellationToken);
         return true;
     }
 
