@@ -68,7 +68,7 @@ public sealed class GeneralProcessTests(PostgresServer server) : IAsyncLifetime
         PaymentPermissions.CallbackEndpointUpdate, ClaimsPermissions.ClaimRead, ClaimsPermissions.FinancialsRead, ClaimsPermissions.FinancialsUpdate,
         ClaimsPermissions.InstructionRead, ClaimsPermissions.InstructionRelease, ClaimsPermissions.InstructionCreate, FinancePermissions.JournalRead, FinancePermissions.PeriodUpdate,
         WorkflowPermissions.ApprovalRead, WorkflowPermissions.ApprovalApprove, IntegrationPermissions.DeadLetterRead, IntegrationPermissions.DeadLetterUpdate,
-        DocumentPermissions.DocumentRead, DocumentPermissions.DocumentCreate, Insys.Party.Contracts.PartyPermissions.PartyCreate, Insys.Party.Contracts.PartyPermissions.PartyUpdate,
+        DocumentPermissions.DocumentRead, DocumentPermissions.DocumentCreate, Insys.Party.Contracts.PartyPermissions.PartyCreate, Insys.Party.Contracts.PartyPermissions.PartyUpdate, Insys.Party.Contracts.PartyPermissions.MatchResolve,
         Insys.Party.Contracts.PartyPermissions.PartyRead, Insys.Party.Contracts.PartyPermissions.BankAccountCreate,
         Insys.Party.Contracts.PartyPermissions.BankAccountRead, Insys.Party.Contracts.PartyPermissions.BankAccountVerify,
         Insys.Party.Contracts.PartyPermissions.DueDiligenceRead, Insys.Party.Contracts.PartyPermissions.DueDiligenceReviewHit,
