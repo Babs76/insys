@@ -67,6 +67,9 @@ public static class WorkflowInfrastructure
         services.AddSingleton<BuildingBlocks.Infrastructure.StaticData.IStaticRecordValidator, ApprovalExpiryValidator>();
         services.AddScoped<ApprovalDecision>();
         services.AddScoped<TaskEscalation>();
+        services.AddScoped<TaskCompletion>();
+        services.AddScoped<StepTasks>();
+        services.AddScoped<MyWorkAccess>();
         services.AddScoped<Contracts.IBusinessTime, BusinessTime>();
         AddCases(services);
 
@@ -103,6 +106,7 @@ public static class WorkflowInfrastructure
         services.AddIntegrationEventHandler<Health.Contracts.CareActivityOverdue, CareActivityFollowUpTasks, WorkflowDbContext>(schema); // F037
         services.AddIntegrationEventHandler<Health.Contracts.ProviderRecoveryReviewDue, RecoveryReviewTasks, WorkflowDbContext>(schema); // F049
         services.AddSingleton<Contracts.IProviderCaseCounts, Persistence.ProviderCaseCounts>(); // F029
+        AddMyWork(services);
 
         services.AddSingleton<WorkflowJobs>();
         services.AddSingleton<CaseTimelineJobs>();
@@ -118,6 +122,32 @@ public static class WorkflowInfrastructure
             new BuildingBlocks.Infrastructure.Readiness.StaticCheck("SHARED_OPERATIONAL_SETUP", "WORK_QUEUES", "workflow.cfg_task_types_and_work_queues", "Task types and work queues"));
         services.AddSingleton<BuildingBlocks.Application.IReadinessCheck, ApprovalAuthorityReadiness>(); // every approval type the tenant can raise is decidable
         return services;
+    }
+
+    /// <summary>
+    /// "My work" (DE-025, DE-044) and the step after an approval (DE-045): the next step's task when an approval is granted, the requester told
+    /// of the decision, and each task closed by its record's event (docs/specs/addenda/my-work.md).
+    /// </summary>
+    private static void AddMyWork(IServiceCollection services)
+    {
+        const string schema = WorkflowDbContext.SchemaName;
+        services.AddIntegrationEventHandler<Contracts.ApprovalGranted, ApprovalStepPolicies, WorkflowDbContext>(schema, "NextStepGranted");
+        services.AddIntegrationEventHandler<Contracts.ApprovalRejected, ApprovalStepPolicies, WorkflowDbContext>(schema, "NextStepRejected");
+        services.AddIntegrationEventHandler<ApprovalRequested, RequesterTaskClosing, WorkflowDbContext>(schema, "RequesterAskedAgain");
+        services.AddIntegrationEventHandler<Integration.Contracts.ParkedDeliveryResolved, RequesterTaskClosing, WorkflowDbContext>(schema, "RequesterApplied");
+        services.AddIntegrationEventHandler<Integration.Contracts.ParkedDeliveryResolved, ParkedDeliveryTaskClosing, WorkflowDbContext>(schema, "ParkedResolved");
+        services.AddIntegrationEventHandler<Integration.Contracts.ParkedDeliveryDiscarded, ParkedDeliveryTaskClosing, WorkflowDbContext>(schema, "ParkedDiscarded");
+        services.AddIntegrationEventHandler<BuildingBlocks.Contracts.StaticData.StaticDataVersionActivated, NextStepClosing, WorkflowDbContext>(schema, "StepActivated");
+        services.AddIntegrationEventHandler<ClaimsFramework.Contracts.ClaimPaymentInstructed, NextStepClosing, WorkflowDbContext>(schema, "StepInstructed");
+        services.AddIntegrationEventHandler<Payments.Contracts.PayoutReleased, NextStepClosing, WorkflowDbContext>(schema, "StepPayoutReleased");
+        services.AddIntegrationEventHandler<Health.Contracts.ProviderPaymentRunReleased, NextStepClosing, WorkflowDbContext>(schema, "StepRunReleased");
+        services.AddIntegrationEventHandler<Payments.Contracts.PaymentBatched, NextStepClosing, WorkflowDbContext>(schema, "StepBatched");
+        services.AddIntegrationEventHandler<BuildingBlocks.Contracts.StaticData.StaticDataDraftDiscarded, StaticDraftDiscardNotices, WorkflowDbContext>(schema,
+            "StaticDraftDiscarded"); // DE-016, OQ-204: the maker is told
+        services.AddIntegrationEventHandler<Life.Contracts.LifeProposalAccepted, PolicyIssueTasks, WorkflowDbContext>(schema, "LifeProposalAccepted");
+        services.AddIntegrationEventHandler<Life.Contracts.LifePolicyIssued, PolicyIssueTasks, WorkflowDbContext>(schema, "LifePolicyIssued");
+        services.AddIntegrationEventHandler<General.Contracts.GeneralProposalAccepted, PolicyIssueTasks, WorkflowDbContext>(schema, "GeneralProposalAccepted");
+        services.AddIntegrationEventHandler<General.Contracts.GeneralProposalConverted, PolicyIssueTasks, WorkflowDbContext>(schema, "GeneralProposalConverted");
     }
 
     /// <summary>Cases (docs/specs/addenda/cases.md): stores, configuration, redress approvals and payments, notices, figures and readiness.</summary>
@@ -146,9 +176,6 @@ public static class WorkflowInfrastructure
         ApprovalKinds.Declare(Contracts.CaseApprovals.RedressBusinessRefType, "SERVICE_COMPLAINTS", Contracts.CaseApprovals.RedressApprovalType,
             Payments.Contracts.PaymentApprovals.PayoutRetryApprovalType);
         ApprovalKinds.OpensWith(Contracts.CaseApprovals.RedressBusinessRefType, "WorkflowGetRedress", "/api/v1/workflow/case-redress/{id}"); // DE-020
-        // DE-020: the Payments module's two reference types, declared here because that module is outside this change (move them beside its Declare).
-        ApprovalKinds.OpensWith(Payments.Contracts.PaymentApprovals.PayoutBusinessRefType, "PaymentsGetBatch", "/api/v1/payments/payout-batches/{id}");
-        ApprovalKinds.OpensWith(Payments.Contracts.PaymentApprovals.PaymentBusinessRefType, "PaymentsGet", "/api/v1/payments/payments/{id}");
         // Scope batch 4 (F103, OQ-169): the record types Workflow's processes are about that aren't scoped, with the reason. Every other type is scoped
         // through its module's source, or fails closed.
         ApprovalKinds.Unscoped("PARTY", "a party's record: parties are shared across products (PTY-003)");
