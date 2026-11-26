@@ -32,6 +32,7 @@ using Insys.Seed;
 
 // Usage: dotnet run --project tools/Insys.Seed -- --api http://localhost:5000 --signing-key <Authentication:DevelopmentSigningKey> --issuer <issuer> --operator-tenant <id> --platform-1 <subject> --platform-2 <subject>
 // It signs its personas' tokens with the development key, which the API accepts only in Development and Testing, so it can't run against production.
+// --upgrade-check true (with --platform-1 only, no --platform-2): the upgrade check, read only (UpgradeCheck.cs).
 // --accounts true also makes the INSYS Preview's generic accounts; with Keycloak, their new passwords go to stdout as JSON, and nothing else does.
 // Or, where the API takes only Keycloak's tokens: --api <url> --keycloak-url <url> [--keycloak-realm insys] --keycloak-admin <master realm admin> --operator-tenant <id>
 // --platform-1 <Keycloak username> --platform-2 <Keycloak username>, with the admin's password in INSYS_SEED_KEYCLOAK_ADMIN_PASSWORD (never on the command line).
@@ -45,7 +46,11 @@ var keycloak = options.TryGetValue("keycloak-url", out var keycloakUrl)
     ? new KeycloakSignIn(new HttpClient { BaseAddress = new Uri(keycloakUrl.TrimEnd('/') + "/") }, options.GetValueOrDefault("keycloak-realm", "insys"), options["keycloak-admin"],
         Environment.GetEnvironmentVariable("INSYS_SEED_KEYCLOAK_ADMIN_PASSWORD") ?? throw new InvalidOperationException("Set INSYS_SEED_KEYCLOAK_ADMIN_PASSWORD."))
     : null;
-foreach (var required in keycloak is null ? new[] { "api", "signing-key", "issuer", "operator-tenant", "platform-1", "platform-2" } : ["api", "keycloak-admin", "operator-tenant", "platform-1", "platform-2"])
+// --upgrade-check true: the upgrade check (UpgradeCheck, Ade, 26 November 2026), read only through the API as --platform-1, and nothing else. Its report
+// goes to stdout; it exits 0 when every tenant checked can decide each approval type it can raise, 1 when some can't, 3 when the API couldn't be read.
+var upgradeCheck = options.GetValueOrDefault("upgrade-check") == "true";
+foreach (var required in (keycloak is null ? new[] { "api", "signing-key", "issuer", "operator-tenant", "platform-1", "platform-2" } : ["api", "keycloak-admin", "operator-tenant", "platform-1", "platform-2"])
+             .Where(r => !upgradeCheck || r != "platform-2"))
 {
     if (!options.ContainsKey(required))
     {
@@ -111,6 +116,32 @@ async Task Settle()
 
     // Counts and an outbox's name only: why a step waited its whole 30 s (batch 6: the seed against a deployed API was slow).
     Console.Error.WriteLine($"seed: settle {settles} waited 30s: {last}");
+}
+
+if (upgradeCheck)
+{
+    try
+    {
+        if (keycloak is not null)
+        {
+            await keycloak.Start();
+        }
+
+        var operatorId = Guid.Parse(options["operator-tenant"]);
+        return await UpgradeCheck.RunAndReport(As(operatorId, options["platform-1"]), operatorId, Console.Out, Console.Error);
+    }
+    catch (Exception e) when (e is SeedRefusedException or HttpRequestException)
+    {
+        Console.Error.WriteLine($"upgrade-check: unread: {e.Message}");   // Keycloak's answer, never the request
+        return UpgradeCheck.Unread;
+    }
+    finally
+    {
+        if (keycloak is not null)
+        {
+            await keycloak.Stop();
+        }
+    }
 }
 
 // --only administrators: the tenant and its two first administrators, each signed in and reading /identity/me, and nothing after (the deployment

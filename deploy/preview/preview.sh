@@ -28,7 +28,9 @@
 #                     checked without creating anything; once the server exists, also whether OpenBao is sealed, over SSH opened for
 #                     the runner only and closed at the end with any other SSH rule
 #   provision         the server, its firewall and address, k3s, the images, the chart, OpenBao, the seed and the accounts
-#   upgrade           the images and the chart at this ref; data and passwords stay
+#   upgrade           the images and the chart at this ref; data and passwords stay. Then the upgrade check: the run fails if any existing tenant
+#                     has an approval type no role holding the authority and the function can decide (Ade, 26 November 2026)
+#   upgrade-check     read only: that check alone, against the version serving now
 #   open-ssh <ip>     SSH from that address, until the next run closes it (for Ade to unseal OpenBao); check closes it soonest
 #   diagnose          read only: what rebooted the server or restarted k3s (boots, package runs, needrestart, the journal, Hetzner's actions)
 #   os-update         the server's packages updated, nothing restarted or rebooted; says what would need a restart or reboot
@@ -336,12 +338,7 @@ seed() {
   mask "$admin"
   user_admin
   storage_check
-  forwards
-  ssh -i "$key" -o UserKnownHostsFile="$RUNNER_TEMP/known_hosts" -fN -L 18080:127.0.0.1:18080 -L 18081:127.0.0.1:18081 "root@$(address)"
-  for url in http://127.0.0.1:18080/health/ready http://127.0.0.1:18081/realms/insys; do   # the runner's end of the tunnel too
-    for _ in $(seq 1 30); do code=$(curl -s -o /dev/null -w '%{http_code}' "$url"); [ "$code" = 200 ] && continue 2; sleep 1; done
-    fail "through the runner's tunnel, $url answered HTTP $code, not 200"
-  done
+  tunnel
   clients "$admin"
   dotnet build tools/Insys.Seed -c Release -v q >/dev/null
   ACCOUNTS=$(INSYS_SEED_KEYCLOAK_ADMIN_PASSWORD="$admin" dotnet tools/Insys.Seed/bin/Release/net10.0/Insys.Seed.dll --api http://127.0.0.1:18080 \
@@ -354,6 +351,47 @@ seed() {
   }
   while read -r password; do mask "$password"; done < <(jq -r '.accounts[].password' <<<"$ACCOUNTS")
   on_server "pkill -f '^kubectl port-forward svc/insys-' || true"
+}
+
+# The API and Keycloak on the runner's 18080 and 18081: port-forwards on the server, and an SSH tunnel to them, each answering 200.
+tunnel() {
+  local code
+  forwards
+  ssh -i "$key" -o UserKnownHostsFile="$RUNNER_TEMP/known_hosts" -fN -L 18080:127.0.0.1:18080 -L 18081:127.0.0.1:18081 "root@$(address)"
+  for url in http://127.0.0.1:18080/health/ready http://127.0.0.1:18081/realms/insys; do   # the runner's end of the tunnel too
+    for _ in $(seq 1 30); do code=$(curl -s -o /dev/null -w '%{http_code}' "$url"); [ "$code" = 200 ] && continue 2; sleep 1; done
+    fail "through the runner's tunnel, $url answered HTTP $code, not 200"
+  done
+}
+
+# The upgrade check (Ade, 26 November 2026): on each existing tenant, every approval type with no role holding both the authority and the function to
+# decide it, from the tenant's readiness (APPROVAL_AUTHORITY), as the API now serving computes it: tools/Insys.Seed --upgrade-check, as the bootstrap's
+# platform administrator, which reads only (it sets a generated password on that Keycloak account and enables the seed's client for its run, as the
+# seed does). In upgrade it runs after chart, so the new version, which knows the new approval types, answers: by then that version is serving, so
+# "the upgrade stops" means this run fails with the list, and the plan's next steps wait until it is empty (docs/plans/preview-rebuild-beta.md).
+upgrade_check() {
+  local admin report code=0 listed
+  admin=$(on_server "kubectl get secret insys-secrets -o jsonpath='{.data.keycloakAdminPassword}' | base64 -d")
+  mask "$admin"
+  tunnel
+  dotnet build tools/Insys.Seed -c Release -v q >/dev/null || fail "building the upgrade check (tools/Insys.Seed)"
+  report=$(INSYS_SEED_KEYCLOAK_ADMIN_PASSWORD="$admin" dotnet tools/Insys.Seed/bin/Release/net10.0/Insys.Seed.dll --upgrade-check true --api http://127.0.0.1:18080 \
+    --keycloak-url http://127.0.0.1:18081 --keycloak-admin admin --operator-tenant "$operator_tenant" --platform-1 insys-admin) || code=$?
+  on_server "pkill -f '^kubectl port-forward svc/insys-' || true"
+  printf '%s\n' "$report"
+  case $code in
+    0)
+      summary "**Upgrade check:** clear. Every tenant checked has, for each approval type it can raise, a role holding the authority and the function to decide it."
+      ;;
+    1)
+      listed=$(grep -E ': [A-Z0-9_]+(, [A-Z0-9_]+)*$' <<<"$report" | grep -v ': none$' || true)
+      summary "**Upgrade check: not clear.** Approval types no role can decide, by tenant (enter their authority and check again; the plan's next steps wait until this is empty):" "$(printf '\n    %s' "$listed")"
+      fail "the upgrade check lists approval types no role can decide: $(tr '\n' ';' <<<"$listed")"
+      ;;
+    *)
+      fail "the upgrade check couldn't read every tenant's readiness (exit $code, see above): an unread list isn't an empty one"
+      ;;
+  esac
 }
 
 # Whether the API's outbox relay and its consumers are working, for a seed that failed waiting on a checker's step: per schema, events not
@@ -1093,7 +1131,10 @@ case "$action" in
     ssh_key; infrastructure; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; os_policy; cluster; images; server_secrets; pull_secret; chart; openbao; encrypt; seed; encrypt; check_tls
     ;;
   upgrade)
-    ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; os_policy; cluster; images; pull_secret; chart; check_tls
+    ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; os_policy; cluster; images; pull_secret; chart; upgrade_check; check_tls
+    ;;
+  upgrade-check)    # read only: the upgrade check against the version serving now, nothing deployed
+    ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; upgrade_check
     ;;
   open-ssh)
     trap - EXIT
