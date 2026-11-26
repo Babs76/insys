@@ -84,6 +84,44 @@ public static class ApprovalKinds
 
     /// <summary>The screen that opens a record of the reference type, or null when none was declared.</summary>
     public static string? ScreenFor(string businessRefType) => Screens.GetValueOrDefault(businessRefType);
+
+    private static readonly ConcurrentDictionary<string, SubjectRead> SubjectReads = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// DE-019, DE-020: the read operation that opens the record an approval of the reference type is about, by the approval's
+    /// business ref ID. <paramref name="pathTemplate"/> is the operation's path as the OpenAPI document gives it (from /api/v1/), with {id} where the business ref
+    /// ID goes (none when the record is the tenant's only one, as its governance settings are). Every declared type has one,
+    /// which ApprovalKindsTests checks against the host's routes.
+    /// </summary>
+    /// <param name="operationId">The operation's ID in the OpenAPI document (its endpoint name), for example PartyGetBankAccount.</param>
+    public static void OpensWith(string businessRefType, string operationId, string pathTemplate) =>
+        SubjectReads[businessRefType] = new SubjectRead(operationId, pathTemplate);
+
+    /// <summary>The read operation that opens a record of the reference type, or null when none was declared.</summary>
+    public static SubjectRead? ReadFor(string businessRefType) => SubjectReads.GetValueOrDefault(businessRefType);
+
+    private static readonly ConcurrentDictionary<string, string> ReadsByRecord = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// OQ-203 (Ade, 26 November 2026): the record of the reference type is opened by a read that depends on the record itself, not on its ID alone, so no one
+    /// operation is declared with <see cref="OpensWith"/>: a discarded static data draft or import links to its own table's page of versions not in force
+    /// (each table has its own operation), which the record's task carries (subjectOperation and subjectPath of the task). <paramref name="how"/> says which
+    /// read. Only informational tasks, never an approval, carry these types, so an approval's subjectOperation and subjectPath are null for them.
+    /// ApprovalKindsTests accepts this in place of <see cref="OpensWith"/>.
+    /// </summary>
+    public static void OpensByRecord(string businessRefType, string how) => ReadsByRecord[businessRefType] = how;
+
+    /// <summary>The types whose read depends on the record (<see cref="OpensByRecord"/>), with which read.</summary>
+    public static IReadOnlyDictionary<string, string> TypesOpenedByRecord => ReadsByRecord;
+}
+
+/// <summary>The read operation that opens an approval's record (DE-020): its operation ID and its path, with {id} for the business ref ID.</summary>
+public sealed record SubjectRead(string OperationId, string PathTemplate)
+{
+    public const string IdPlaceholder = "{id}";
+
+    /// <summary>The path with the business ref ID filled in.</summary>
+    public string PathFor(Guid businessRefId) => PathTemplate.Replace(IdPlaceholder, businessRefId.ToString(), StringComparison.Ordinal);
 }
 
 /// <summary>

@@ -60,6 +60,12 @@ public static class StaticDataApprovals
     /// </summary>
     public const string DiscardedVersionRefType = "STATIC_DATA_VERSION";
 
+    /// <summary>
+    /// OQ-203 (Ade, 26 November 2026): a static data import never submitted that someone other than its maker discarded, by its batchId: the record of the
+    /// maker's informational task (STATIC_DRAFT_DISCARDED). Its lines no longer exist; the import reads DISCARDED in GET /static-data/imports.
+    /// </summary>
+    public const string DiscardedImportRefType = "STATIC_DATA_IMPORT";
+
     public const string ApprovalTypePrefix = "STATIC_DATA_T";
 
     public static string ApprovalType(int tier) => ApprovalTypePrefix + tier;

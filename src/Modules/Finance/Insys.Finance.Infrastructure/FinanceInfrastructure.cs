@@ -44,6 +44,7 @@ public static class FinanceInfrastructure
     {
         // Its approval kinds and the screens that open their records (BR-005).
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Finance.Contracts.FinanceApprovals.PeriodBusinessRefType, "FINANCE_PERIODS", Insys.Finance.Contracts.FinanceApprovals.ReopenApprovalType);
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.OpensWith(Insys.Finance.Contracts.FinanceApprovals.PeriodBusinessRefType, "FinanceGetPeriodById", "/api/v1/finance/accounting-periods/{id}"); // DE-020
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Unscoped(Insys.Finance.Contracts.FinanceApprovals.PeriodBusinessRefType,
             "an accounting period is the tenant's whole ledger; journals aren't scoped (OQ-170)");
         const string schema = FinanceDbContext.SchemaName;

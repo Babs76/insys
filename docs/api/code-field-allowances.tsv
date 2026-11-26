@@ -56,6 +56,7 @@ core	DistributionPrepareStatement.intermediaryCode	to declare
 core	DistributionPrepareStatement.periodCode	to declare
 core	DistributionStatementView.intermediaryCode	to declare
 core	DistributionStatementView.periodCode	to declare
+core	DocumentsDocumentHoldView.businessRefType	to declare (DE-020: the held document's reference type, as on DocumentsDocumentView)
 core	DocumentsDocumentView.businessRefType	to declare
 core	DocumentsDocumentView.mimeType	a media type (RFC 6838) of the stored file, not static data
 core	DocumentsDocumentView.templateCode	to declare

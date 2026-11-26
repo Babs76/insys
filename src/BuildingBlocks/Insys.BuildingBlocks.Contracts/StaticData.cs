@@ -67,8 +67,25 @@ public sealed record StaticDataCodeDeprecated(Guid? ChangeRequestId, StaticRecor
 /// (Workflow opens an informational task assigned to them): the table, code and version, who discarded it, when, and the reason. Never raised
 /// for a maker's own discard. The draft is deleted, so <see cref="StaticRecordRef.RecordId"/> names a version that no longer exists.
 /// </summary>
+/// <param name="TableOperation">
+/// OQ-203 (Ade, 26 November 2026): the operationId of the table's page the maker's task links to, its versions not in force (List{Table}Pending, Global for a
+/// platform row), at /api/v1/{moduleRoute}/static/{entityRoute}[/global]/pending; null in an event raised before it was added.
+/// </param>
 [IntegrationEvent("sdm.StaticDataDraftDiscarded")]
-public sealed record StaticDataDraftDiscarded(StaticRecordRef Record, Guid MakerId, Guid DiscardedBy, DateTimeOffset DiscardedAt, string Reason) : IIntegrationEvent;
+public sealed record StaticDataDraftDiscarded(StaticRecordRef Record, Guid MakerId, Guid DiscardedBy, DateTimeOffset DiscardedAt, string Reason, string? TableOperation = null)
+    : IIntegrationEvent;
+
+/// <summary>
+/// OQ-203 (Ade, 26 November 2026): an import never submitted was discarded as a whole, every line deleted, by its maker or, once untouched for the tenant's
+/// days, by someone else holding the table's maintain function, with a reason. Static Data marks the import DISCARDED; when someone else discarded it,
+/// Workflow tells the maker (an informational task), as for a draft (OQ-204).
+/// </summary>
+/// <param name="Record">The table, and its first line in code order (that line no longer exists).</param>
+/// <param name="Reason">Why someone else discarded it; null when its maker did.</param>
+/// <param name="TableOperation">The operationId of the table's page of versions not in force (List{Table}Pending), as on <see cref="StaticDataDraftDiscarded"/>.</param>
+[IntegrationEvent("sdm.StaticDataImportDiscarded")]
+public sealed record StaticDataImportDiscarded(Guid BatchId, StaticRecordRef Record, int LineCount, Guid MakerId, Guid DiscardedBy, DateTimeOffset DiscardedAt,
+    string? Reason, string TableOperation) : IIntegrationEvent;
 
 public sealed record ImportLineError(int Line, string Field, string Message);
 

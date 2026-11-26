@@ -143,6 +143,9 @@ public sealed record MakeVersionEffective(Guid VersionId) : ICommand<long>, IRet
 
 public sealed record GetProductVersion(string ProductCode, int Version) : IQuery<ProductVersionView>;
 
+/// <summary>DE-020: a product version by its ID, the ID its PRODUCT_PUBLICATION approval carries.</summary>
+public sealed record GetProductVersionById(Guid VersionId) : IQuery<ProductVersionView>;
+
 public sealed record ListProductVersions(string ProductCode) : IQuery<IReadOnlyList<ProductVersionView>>;
 
 /// <summary>The coverage and benefit codes of a domain in force today, for AI-1's field list (AIA-012).</summary>
@@ -454,15 +457,24 @@ internal sealed class MakeVersionEffectiveHandler(IProductVersionRepository vers
     }
 }
 
-internal sealed class GetProductVersionHandler(IProductVersionRepository versions, IApprovalHistory history) : IQueryHandler<GetProductVersion, ProductVersionView>
+internal sealed class GetProductVersionHandler(IProductVersionRepository versions, IApprovalHistory history)
+    : IQueryHandler<GetProductVersion, ProductVersionView>, IQueryHandler<GetProductVersionById, ProductVersionView>
 {
     public async Task<Result<ProductVersionView>> Handle(GetProductVersion query, CancellationToken cancellationToken) =>
         await versions.Get(query.ProductCode, query.Version, cancellationToken) is { } version
-            ? await ProductViews.Of(version, history, cancellationToken) with
-            {
-                LatestRejection = await history.Latest(ProductApprovals.BusinessRefType, version.Id, cancellationToken),
-            }
+            ? await View(version, cancellationToken)
             : Error.NotFound(ErrorCodes.NotFound, $"Product {query.ProductCode} has no version {query.Version}.");
+
+    public async Task<Result<ProductVersionView>> Handle(GetProductVersionById query, CancellationToken cancellationToken) =>
+        await versions.Get(query.VersionId, cancellationToken) is { } version
+            ? await View(version, cancellationToken)
+            : Error.NotFound(ErrorCodes.NotFound, "The product version was not found.");
+
+    private async Task<ProductVersionView> View(ProductVersion version, CancellationToken cancellationToken) =>
+        await ProductViews.Of(version, history, cancellationToken) with
+        {
+            LatestRejection = await history.Latest(ProductApprovals.BusinessRefType, version.Id, cancellationToken),
+        };
 }
 
 internal sealed class ListProductVersionsHandler(IProductVersionRepository versions, IApprovalHistory history)

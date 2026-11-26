@@ -348,38 +348,83 @@ public sealed class NextStepClosing(StepTasks steps) :
 
 /// <summary>
 /// DE-016, OQ-204 (Ade, 25 November 2026): someone other than its maker discarded a static data draft left untouched for the tenant's days. The maker is
-/// told by an informational STATIC_DRAFT_DISCARDED task assigned to them, whose notice names the table, code and version, who discarded it, when and why
-/// (as APPROVAL_OUTCOME tells a requester, DE-044). A maker's own discard raises no event, so tells nobody.
+/// told by an informational STATIC_DRAFT_DISCARDED task assigned to them, whose notice names the table, the draft's record key, who discarded it, when and
+/// why (as APPROVAL_OUTCOME tells a requester, DE-044). A maker's own discard tells nobody. OQ-203 (Ade, 26 November 2026): an import never submitted,
+/// discarded as a whole by someone else, tells its maker the same way, by one task about the import (STATIC_DATA_IMPORT, its batchId); and the task links
+/// to the table's page of versions not in force (subjectOperation, subjectPath).
 /// </summary>
-public sealed class StaticDraftDiscardNotices(StepTasks steps) : IIntegrationEventHandler<BuildingBlocks.Contracts.StaticData.StaticDataDraftDiscarded>
+public sealed class StaticDraftDiscardNotices(StepTasks steps) :
+    IIntegrationEventHandler<BuildingBlocks.Contracts.StaticData.StaticDataDraftDiscarded>,
+    IIntegrationEventHandler<BuildingBlocks.Contracts.StaticData.StaticDataImportDiscarded>
 {
     /// <summary>What the task is about: the discarded version (its ID; the version no longer exists).</summary>
     public const string BusinessRefType = StaticData.Contracts.StaticDataApprovals.DiscardedVersionRefType;
 
+    /// <summary>OQ-203: or the discarded import (its batchId; its lines no longer exist).</summary>
+    public const string ImportBusinessRefType = StaticData.Contracts.StaticDataApprovals.DiscardedImportRefType;
+
     public Task Handle(BuildingBlocks.Contracts.StaticData.StaticDataDraftDiscarded discarded, EventEnvelope envelope, CancellationToken cancellationToken)
     {
         var record = discarded.Record;
-        var notice = new StaticDraftDiscardNotice(record.EntityCode, $"{record.ModuleRoute}/static/{record.EntityRoute}{(record.Global ? "/global" : "")}", record.Code,
-            record.Version, record.Global, discarded.DiscardedBy, discarded.DiscardedAt, discarded.Reason);
+        var notice = StaticDraftDiscardNotice.For(record, $"{(record.Global ? "G:" : "")}{record.Code}@{record.Version}", discarded.DiscardedBy, discarded.DiscardedAt,
+            discarded.Reason, discarded.TableOperation);
         return steps.Open(BuiltInProcesses.StaticDraftDiscarded, BusinessRefType, record.RecordId, RequesterFollowUp.QueueCode, discarded.MakerId, cancellationToken,
+            detail: new Dictionary<string, string?> { ["discardedBy"] = discarded.DiscardedBy.ToString() },
+            notice: JsonSerializer.Serialize(notice, StaticDraftDiscardNotice.Json));
+    }
+
+    /// <summary>OQ-203: someone else discarded the maker's import never submitted; its maker's own discard tells nobody.</summary>
+    public Task Handle(BuildingBlocks.Contracts.StaticData.StaticDataImportDiscarded discarded, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (discarded.DiscardedBy == discarded.MakerId || discarded.Reason is not { } reason)
+        {
+            return Task.CompletedTask;
+        }
+
+        var notice = StaticDraftDiscardNotice.For(discarded.Record, References.Of("IB-", discarded.BatchId, 19), discarded.DiscardedBy, discarded.DiscardedAt, reason,
+            discarded.TableOperation) with { ImportBatchId = discarded.BatchId, Lines = discarded.LineCount };
+        return steps.Open(BuiltInProcesses.StaticDraftDiscarded, ImportBusinessRefType, discarded.BatchId, RequesterFollowUp.QueueCode, discarded.MakerId, cancellationToken,
             detail: new Dictionary<string, string?> { ["discardedBy"] = discarded.DiscardedBy.ToString() },
             notice: JsonSerializer.Serialize(notice, StaticDraftDiscardNotice.Json));
     }
 }
 
 /// <summary>
-/// DE-016, OQ-204: what a STATIC_DRAFT_DISCARDED task tells its maker: the draft someone else discarded, who, when and why. Only IDs, no other personal data.
+/// DE-016, OQ-204, OQ-203: what a STATIC_DRAFT_DISCARDED task tells its maker: the draft (or import) someone else discarded, who, when and why. Only IDs and
+/// the table's and record's own codes, no other personal data.
 /// </summary>
 /// <param name="EntityCode">The table's entity code (as a change request's).</param>
 /// <param name="EntityRoute">The table's API route under /api/v1, ending "/global" for a platform-global row (as a change request's).</param>
-/// <param name="Code">The draft's code: the code is free for a new draft.</param>
-/// <param name="VersionNumber">The version that was discarded.</param>
+/// <param name="Code">The draft's code: the code is free for a new draft. For an import, its first line's code.</param>
+/// <param name="VersionNumber">The version that was discarded. For an import, its first line's.</param>
 /// <param name="DiscardedBy">The user who discarded it, holding the table's maintain function.</param>
 /// <param name="Reason">Why they discarded it, as they gave it.</param>
+/// <param name="Table">OQ-203: the table's name in its schema, for example iam.cfg_authentication_and_session_policies.</param>
+/// <param name="RecordKey">
+/// OQ-203: what was discarded, as a change request names it: {code}@{version} for a draft ("G:" first for a platform-global row), the import's batchNumber
+/// (IB-…) for an import. Null on a task opened before it was added.
+/// </param>
+/// <param name="TableOperation">OQ-203: the operationId of the table's page of versions not in force (List{Table}Pending), the task's subjectOperation.</param>
+/// <param name="TablePath">OQ-203: that page's path, /api/v1/{entityRoute}/pending, the task's subjectPath.</param>
+/// <param name="ImportBatchId">OQ-203: for a discarded import, its batchId (the task's businessRefId); null for a draft.</param>
+/// <param name="Lines">OQ-203: for a discarded import, how many lines it had; null for a draft.</param>
 public sealed record StaticDraftDiscardNotice(string EntityCode, string EntityRoute, string Code, int VersionNumber, bool Global, Guid DiscardedBy,
-    DateTimeOffset DiscardedAt, string Reason)
+    DateTimeOffset DiscardedAt, string Reason, [property: AlwaysPresent] string? Table = null, [property: AlwaysPresent] string? RecordKey = null,
+    [property: AlwaysPresent] string? TableOperation = null, [property: AlwaysPresent] string? TablePath = null, [property: AlwaysPresent] Guid? ImportBatchId = null,
+    [property: AlwaysPresent] int? Lines = null)
 {
     public static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
+
+    public static StaticDraftDiscardNotice For(BuildingBlocks.Contracts.StaticData.StaticRecordRef record, string recordKey, Guid discardedBy, DateTimeOffset discardedAt,
+        string reason, string? tableOperation)
+    {
+        var route = $"{record.ModuleRoute}/static/{record.EntityRoute}{(record.Global ? "/global" : "")}";
+        return new StaticDraftDiscardNotice(record.EntityCode, route, record.Code, record.Version, record.Global, discardedBy, discardedAt, reason,
+            $"{record.Schema}.{record.Table}", recordKey, tableOperation, PathOf(route));
+    }
+
+    /// <summary>The table's page of versions not in force, from its route: also for a task opened before the notice carried it.</summary>
+    public static string PathOf(string entityRoute) => $"/api/v1/{entityRoute}/pending";
 }
 
 /// <summary>
@@ -435,12 +480,18 @@ public sealed record MyTaskRow(Guid TaskId, Guid ProcessId, string ProcessCode, 
 /// ignoring letter case, else its declared equivalent, else UNDECLARED (no screen) (Ade, 26 November 2026).
 /// </param>
 /// <param name="StoredBusinessRefType">The process's stored record type when <paramref name="BusinessRefType"/> shows another; null otherwise.</param>
-/// <param name="DraftDiscarded">For a STATIC_DRAFT_DISCARDED task (OQ-204): the draft someone else discarded, who, when and why; null for any other task.</param>
+/// <param name="DraftDiscarded">For a STATIC_DRAFT_DISCARDED task (OQ-204, OQ-203): the draft or import someone else discarded, who, when and why; null for any other task.</param>
+/// <param name="SubjectOperation">
+/// OQ-203, DE-020: the operationId of the read that opens the task's record, as an approval's: the declared read by the businessRefId
+/// (ApprovalKinds.OpensWith), or for a discarded static data draft or import its table's page of versions not in force (List{Table}Pending); null when none is declared.
+/// </param>
+/// <param name="SubjectPath">That read's path, for example /api/v1/identity/static/authentication-and-session-policies/pending.</param>
 public sealed record MyTaskView(Guid Id, Guid ProcessId, string ProcessCode, string TaskType, [property: TaskRecordTypeField] string BusinessRefType,
     Guid BusinessRefId, [property: AlwaysPresent] string? StoredBusinessRefType, [property: AlwaysPresent] string? Screen, string QueueCode, [property: AlwaysPresent] Guid? AssigneeId, bool AssignedToMe, DateTimeOffset DueAt,
     [property: AlwaysPresent] string? SlaCode, bool Informational, [property: AlwaysPresent] Guid? ApprovalId,
     [property: AlwaysPresent] ApprovalStatus? ApprovalStatus, [property: AlwaysPresent] string? PayoutPurpose, [property: AlwaysPresent] string? PayoutCurrency,
-    IReadOnlyList<ProcessTransitionView> AllowedTransitions, long RowVersion, [property: AlwaysPresent] StaticDraftDiscardNotice? DraftDiscarded = null);
+    IReadOnlyList<ProcessTransitionView> AllowedTransitions, long RowVersion, [property: AlwaysPresent] StaticDraftDiscardNotice? DraftDiscarded = null,
+    [property: AlwaysPresent] string? SubjectOperation = null, [property: AlwaysPresent] string? SubjectPath = null);
 
 public sealed record ListMyTasks(int Limit, OpenTaskCursor? After = null) : IQuery<IReadOnlyList<MyTaskView>>;
 
@@ -553,13 +604,17 @@ internal sealed class ListMyTasksHandler(IProcessQueries queries, IWorkflowConfi
                 : definition.Transitions.Where(t => t.From == row.State).GroupBy(t => t.To).Select(g => new ProcessTransitionView(g.Key, g.All(t => t.Guard is not null)))
                     .ToList();
             var (shown, stored) = ProcessRecordTypes.Shown(row.BusinessRefType);
+            var discarded = row.ProcessCode == BuiltInProcesses.StaticDraftDiscarded.ProcessCode && row.Notice is { } notice
+                ? JsonSerializer.Deserialize<StaticDraftDiscardNotice>(notice, StaticDraftDiscardNotice.Json)
+                : null;
+            // BR-170 (Ade, 26 November 2026): the subject read follows the type shown; UNDECLARED opens nothing, so both are null.
+            var subject = shown == TaskRecordTypes.Undeclared ? null : ApprovalKinds.ReadFor(shown);
             views.Add(new MyTaskView(row.TaskId, row.ProcessId, row.ProcessCode, row.TaskType, shown, row.BusinessRefId, stored,
                 WorkServers.ScreenFor(shown), row.QueueCode, row.AssigneeId, row.AssigneeId == userId, row.DueAt, row.SlaCode,
                 row.ProcessCode == BuiltInProcesses.ApprovalOutcome.ProcessCode || row.ProcessCode == BuiltInProcesses.StaticDraftDiscarded.ProcessCode, row.ApprovalId,
                 row.ApprovalStatus, row.PayoutPurpose, row.PayoutCurrency, transitions, row.ProcessRowVersion,
-                row.ProcessCode == BuiltInProcesses.StaticDraftDiscarded.ProcessCode && row.Notice is { } notice
-                    ? JsonSerializer.Deserialize<StaticDraftDiscardNotice>(notice, StaticDraftDiscardNotice.Json)
-                    : null));
+                discarded, discarded is null ? subject?.OperationId : discarded.TableOperation,
+                discarded is null ? subject?.PathFor(row.BusinessRefId) : discarded.TablePath ?? StaticDraftDiscardNotice.PathOf(discarded.EntityRoute)));
         }
 
         return views;

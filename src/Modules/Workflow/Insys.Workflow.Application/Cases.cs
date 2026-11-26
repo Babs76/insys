@@ -338,6 +338,9 @@ public sealed record GetCase(Guid CaseId, CaseScreenFilter? Screen = null) : IQu
 
 public sealed record GetCaseRedress(Guid CaseId, Guid RedressId) : IQuery<CaseRedressView>;
 
+/// <summary>DE-022: a redress by its ID alone, the ID its CASE_REDRESS approval carries; the view names its case. The case's access rules apply.</summary>
+public sealed record GetRedress(Guid RedressId) : IQuery<CaseRedressView>;
+
 public sealed record CasesSummary : IQuery<BuildingBlocks.Application.DashboardSummary>;
 
 public sealed record GetComplaintsReport(DateOnly From, DateOnly To) : IQuery<ComplaintsReport>;
@@ -971,6 +974,7 @@ internal sealed class CaseQueryHandlers(ICaseQueries queries, ICaseRepository ca
     IQueryHandler<ListCases, IReadOnlyList<CaseSummaryView>>,
     IQueryHandler<GetCase, CaseView>,
     IQueryHandler<GetCaseRedress, CaseRedressView>,
+    IQueryHandler<GetRedress, CaseRedressView>,
     IQueryHandler<CasesSummary, BuildingBlocks.Application.DashboardSummary>,
     IQueryHandler<GetComplaintsReport, ComplaintsReport>,
     IQueryHandler<CasesDue, CasesDueView>,
@@ -999,6 +1003,11 @@ internal sealed class CaseQueryHandlers(ICaseQueries queries, ICaseRepository ca
 
         return CaseRedressView.Of(redress, await approvals.Latest(CaseApprovals.RedressBusinessRefType, redress.Id, cancellationToken));
     }
+
+    public async Task<Result<CaseRedressView>> Handle(GetRedress query, CancellationToken cancellationToken) =>
+        await cases.Redress(query.RedressId, cancellationToken) is { } redress
+            ? await Handle(new GetCaseRedress(redress.CaseId, redress.Id), cancellationToken)
+            : Error.NotFound(ErrorCodes.NotFound, "The redress was not found.");
 
     public async Task<Result<BuildingBlocks.Application.DashboardSummary>> Handle(CasesSummary query, CancellationToken cancellationToken) =>
         await queries.Summary(cancellationToken);

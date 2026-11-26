@@ -162,20 +162,34 @@ public sealed class StaticDataModule : IModule
                 + "stale gives 412. The response's ETag is the new rowVersion (BR-014).")
             .RequirePermission(StaticDataGovernancePermissions.SettingUpdate);
 
-        governance.MapGroup("/static-data/imports").WithTags(tag).MapGet("/", async (string? cursor, int? limit, IDispatcher dispatcher, CancellationToken ct) =>
+        governance.MapGroup("/static-data/imports").WithTags(tag).MapGet("/", async ([System.ComponentModel.Description("COMMITTED (the lines were saved as drafts), REJECTED or DISCARDED (never submitted, then discarded as a whole, OQ-203); every import when omitted")] string? status,
+                string? cursor, int? limit, IDispatcher dispatcher, CancellationToken ct) =>
             {
+                Domain.Changes.ImportStatus? only = null;
+                if (status is { Length: > 0 })
+                {
+                    if (!Enum.TryParse<Domain.Changes.ImportStatus>(status, ignoreCase: true, out var parsed) || int.TryParse(status, out _))
+                    {
+                        return Problems.For(BuildingBlocks.Domain.ErrorCodes.ValidationFailed, "status is COMMITTED, REJECTED or DISCARDED.", StatusCodes.Status422UnprocessableEntity);
+                    }
+
+                    only = parsed;
+                }
+
                 if (!Cursor.TryDecode(cursor, out var afterId))
                 {
                     return Problems.For(BuildingBlocks.Domain.ErrorCodes.ValidationFailed, "The cursor is not valid.", StatusCodes.Status422UnprocessableEntity);
                 }
 
                 var pageSize = Cursor.ClampLimit(limit);
-                return (await dispatcher.Query(new ListImportBatches(afterId, pageSize), ct))
+                return (await dispatcher.Query(new ListImportBatches(afterId, pageSize, only), ct))
                     .ToHttp(items => Results.Ok(new CursorPage<ImportBatchView>(items, items.Count == pageSize ? Cursor.Encode(items[^1].Id) : null)));
             })
             .Produces<CursorPage<ImportBatchView>>(StatusCodes.Status200OK)
             .WithName("ListImportBatches")
             .WithSummary("List static data import batches and their rejected lines (SDM-012)")
+            .WithDescription("Filter by status (DE-017): COMMITTED for the imports whose lines were saved as drafts, REJECTED for those refused, DISCARDED for those discarded before they were submitted (OQ-203: …/imports/{batchId}/discard). Each import's "
+                + "id is its batchId, the {batchId} of its table's …/imports/{batchId} routes.")
             .RequirePermission(StaticDataGovernancePermissions.ChangeRequestRead);
 
         // AIA-086, OQ-180: a tenant's SETUP change set, and abandoning one approved that can't finish applying.

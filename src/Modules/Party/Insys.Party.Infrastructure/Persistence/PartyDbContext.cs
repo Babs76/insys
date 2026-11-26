@@ -68,6 +68,7 @@ public sealed class PartyDbContext(DbContextOptions<PartyDbContext> options, Mod
             job.Property(j => j.Status).HasMaxLength(15);
             job.Property(j => j.Filter).HasMaxLength(200);
             job.Property(j => j.RejectedLines).HasColumnType("jsonb");
+            job.Property(j => j.RefusalReason).HasMaxLength(500); // V0162, DE-059
             job.Property(j => j.RowVersion).IsConcurrencyToken();
         });
 

@@ -88,9 +88,15 @@ public static class Features
 /// One function. A SCREEN has a route; an ACTION has a SCREEN parent; a JOB is SYSTEM and has neither. Required
 /// permissions are those of the operations it covers (x-permission and x-additional-permissions), plus any given.
 /// </summary>
+/// <param name="SharedEndpoints">
+/// Of <paramref name="Endpoints"/>, the operations this function deliberately shares with other functions of the same audience, each of which declares it
+/// shared too: the caller needs any one of them (OQ-203: cancelling an export belongs to whoever asked for it, by whichever export function). Empty for most.
+/// </param>
 public sealed record FunctionDeclaration(string Code, FunctionKind Kind, string SubDomain, string ProcessArea, string? Parent, IReadOnlyList<string> Audiences,
-    string? RouteKey, string? Feature, bool Privileged, IReadOnlyList<string> Endpoints, IReadOnlyList<string> Permissions)
+    string? RouteKey, string? Feature, bool Privileged, IReadOnlyList<string> Endpoints, IReadOnlyList<string> Permissions, IReadOnlyList<string>? SharedEndpoints = null)
 {
+    public IReadOnlyList<string> Shared => SharedEndpoints ?? [];
+
     public string InteractionType => Kind == FunctionKind.Job ? "SYSTEM" : "HUMAN";
 }
 
@@ -114,6 +120,16 @@ public sealed class FunctionMap(IReadOnlyList<string> audiences, string? feature
     public FunctionMap Action(string code, string parent, string[] endpoints, bool privileged = false) =>
         Add(new FunctionDeclaration(code, FunctionKind.Action, Parent(parent).SubDomain, Parent(parent).ProcessArea, parent, audiences, null, feature, privileged,
             endpoints, []));
+
+    /// <summary>
+    /// An action whose operations include some it shares, on purpose, with other actions of the same audience that declare them shared too
+    /// (<paramref name="shared"/>, a subset of <paramref name="endpoints"/>): the caller needs any one of the functions.
+    /// </summary>
+    public FunctionMap Action(string code, string parent, string[] endpoints, string[] shared, bool privileged = false) =>
+        shared.Except(endpoints, StringComparer.Ordinal).FirstOrDefault() is { } stray
+            ? throw new InvalidOperationException($"{code} shares {stray}, which is not one of its operations.")
+            : Add(new FunctionDeclaration(code, FunctionKind.Action, Parent(parent).SubDomain, Parent(parent).ProcessArea, parent, audiences, null, feature, privileged,
+                endpoints, [], shared));
 
     /// <summary>An action a handler checks with a permission of its own, beside an operation (x-additional-permissions).</summary>
     public FunctionMap Permission(string code, string parent, string permission, bool privileged = false) =>
@@ -172,9 +188,11 @@ public static class FunctionRegistry
             DeclarationOrder.TryAdd(function.Code, DeclarationOrder.Count + 1);
             foreach (var endpoint in function.Endpoints)
             {
-                // Only portal functions share an operation, one per audience (sign-off decision 3).
+                // Only portal functions share an operation, one per audience (sign-off decision 3), unless every function of the audience that has it
+                // declares it shared (OQ-203).
                 var codes = EndpointFunctions.GetValueOrDefault(endpoint, []);
-                if (codes.Where(c => c != function.Code).Select(c => Declared[c]).Any(other => other.Audiences.Intersect(function.Audiences).Any()))
+                if (codes.Where(c => c != function.Code).Select(c => Declared[c]).Any(other => other.Audiences.Intersect(function.Audiences).Any()
+                        && !(other.Shared.Contains(endpoint) && function.Shared.Contains(endpoint))))
                 {
                     throw new InvalidOperationException($"Endpoint {endpoint} is mapped to {function.Code} and to another function for the same audience.");
                 }

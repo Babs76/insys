@@ -198,11 +198,15 @@ public sealed class WorkflowTests(DatabaseFixture fixture) : IClassFixture<Datab
         task.GetProperty("businessRefType").GetString().ShouldBe("UNDECLARED");
         task.GetProperty("storedBusinessRefType").GetString().ShouldBe(stored);
         task.GetProperty("screen").ValueKind.ShouldBe(JsonValueKind.Null, "UNDECLARED opens no screen");
+        task.GetProperty("subjectOperation").ValueKind.ShouldBe(JsonValueKind.Null, "UNDECLARED opens no read");
+        task.GetProperty("subjectPath").ValueKind.ShouldBe(JsonValueKind.Null);
         var mine = (await (await client.GetAsync("/api/v1/workflow/tasks/mine?limit=200")).Json()).GetProperty("items").EnumerateArray()
             .Single(t => t.GetProperty("id").GetGuid() == taskId);
         mine.GetProperty("businessRefType").GetString().ShouldBe("UNDECLARED");
         mine.GetProperty("storedBusinessRefType").GetString().ShouldBe(stored);
         mine.GetProperty("screen").ValueKind.ShouldBe(JsonValueKind.Null);
+        mine.GetProperty("subjectOperation").ValueKind.ShouldBe(JsonValueKind.Null);
+        mine.GetProperty("subjectPath").ValueKind.ShouldBe(JsonValueKind.Null);
 
         (await db.ScalarAsOwner<string>("SELECT business_ref_type FROM workflow.process_instance WHERE id = @p", ("p", processId))).ShouldBe(stored,
             "the stored value is unchanged");
@@ -222,8 +226,11 @@ public sealed class WorkflowTests(DatabaseFixture fixture) : IClassFixture<Datab
         var (url, taskId) = await Start(client, "CLAIM");
         var processId = Guid.Parse(url[(url.LastIndexOf('/') + 1)..]);
         await db.ExecuteAsOwner("UPDATE workflow.task SET assignee_id = @u WHERE id = @t", ("u", worker), ("t", taskId));
-        var screen = (await (await client.GetAsync($"/api/v1/workflow/tasks/mine/{taskId}")).Json()).GetProperty("screen").GetString();
+        var before = await (await client.GetAsync($"/api/v1/workflow/tasks/mine/{taskId}")).Json();
+        var screen = before.GetProperty("screen").GetString();
         screen.ShouldNotBeNull();
+        var subjectOperation = before.GetProperty("subjectOperation").GetString();
+        var subjectPath = before.GetProperty("subjectPath").GetString();
 
         const string stored = " LIFE_claim ";
         await db.ExecuteAsOwner("UPDATE workflow.process_instance SET business_ref_type = @s WHERE id = @p", ("s", stored), ("p", processId));
@@ -252,6 +259,8 @@ public sealed class WorkflowTests(DatabaseFixture fixture) : IClassFixture<Datab
         task.GetProperty("businessRefType").GetString().ShouldBe("LIFE_CLAIM");
         task.GetProperty("storedBusinessRefType").GetString().ShouldBe(stored);
         task.GetProperty("screen").GetString().ShouldBe(screen, "the declared type's screen");
+        task.GetProperty("subjectOperation").GetString().ShouldBe(subjectOperation, "the declared type's read, as before the stored value changed");
+        task.GetProperty("subjectPath").GetString().ShouldBe(subjectPath);
         var mine = (await (await client.GetAsync("/api/v1/workflow/tasks/mine?limit=200")).Json()).GetProperty("items").EnumerateArray()
             .Single(t => t.GetProperty("id").GetGuid() == taskId);
         mine.GetProperty("businessRefType").GetString().ShouldBe("LIFE_CLAIM");

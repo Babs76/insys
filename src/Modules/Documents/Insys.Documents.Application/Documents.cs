@@ -247,6 +247,13 @@ public sealed record ReadDocumentContent(Guid DocumentId, string? Purpose) : ICo
 
 public sealed record GetDocument(Guid DocumentId) : IQuery<DocumentView>;
 
+/// <summary>DE-020: a legal hold on a document by its ID, the ID its LEGAL_HOLD_RELEASE approval carries, with the document it is on.</summary>
+public sealed record GetDocumentHold(Guid HoldId) : IQuery<DocumentHoldView>;
+
+/// <summary>A legal hold on a document (DE-020), with the document it is on: GET /documents/documents/{documentId} opens it.</summary>
+public sealed record DocumentHoldView(Guid DocumentId, [property: CodeList("document.ref_document_categories", "category_code")] string CategoryCode, string BusinessRefType,
+    Guid BusinessRefId, LegalHoldView Hold);
+
 public sealed record ListDocuments(string BusinessRefType, Guid BusinessRefId) : IQuery<IReadOnlyList<DocumentView>>;
 
 /// <summary>
@@ -650,8 +657,15 @@ internal sealed class ReadDocumentContentHandler(IDocumentRepository documents, 
     }
 }
 
-internal sealed class GetDocumentHandler(IDocumentRepository documents, Workflow.Contracts.IApprovalHistory history) : IQueryHandler<GetDocument, DocumentView>
+internal sealed class GetDocumentHandler(IDocumentRepository documents, Workflow.Contracts.IApprovalHistory history)
+    : IQueryHandler<GetDocument, DocumentView>, IQueryHandler<GetDocumentHold, DocumentHoldView>
 {
+    public async Task<Result<DocumentHoldView>> Handle(GetDocumentHold query, CancellationToken cancellationToken) =>
+        await documents.WithHold(query.HoldId, cancellationToken) is { } document && document.Holds.SingleOrDefault(h => h.Id == query.HoldId) is { } hold
+            ? new DocumentHoldView(document.Id, document.CategoryCode, document.BusinessRefType, document.BusinessRefId,
+                LegalHoldView.From(hold, await history.Latest(Contracts.DocumentApprovals.LegalHoldBusinessRefType, hold.Id, cancellationToken)))
+            : Error.NotFound(ErrorCodes.NotFound, "The legal hold was not found.");
+
     public async Task<Result<DocumentView>> Handle(GetDocument query, CancellationToken cancellationToken) =>
         await documents.Get(query.DocumentId, cancellationToken) is { } document
             ? await DocumentView.With(document, history, cancellationToken)

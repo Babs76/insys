@@ -51,4 +51,32 @@ public sealed class BulkJobTests
         job.Status.ShouldBe(BulkJobStatus.Approved);
         job.ApproveExport(Guid.CreateVersion7()).Error!.Code.ShouldBe(ErrorCodes.InvalidStateTransition);
     }
+
+    [Fact]
+    public void AnExportWaitingForApproval_IsRefusedByASecondPersonWithAReason_AndThenNeitherApprovedNorCancelled_DE059()
+    {
+        var job = BulkJob.PolicyExportRequested(Guid.CreateVersion7(), "LIFE", 4, First);
+        var checker = Guid.CreateVersion7();
+        job.RefuseExport(First, "Mine").Error!.Code.ShouldBe(ErrorCodes.MakerCheckerSamePerson);
+        job.RefuseExport(checker, "  ").Error!.Code.ShouldBe(ErrorCodes.ValidationFailed);
+        job.RefuseExport(checker, new string('x', 501)).Error!.Code.ShouldBe(ErrorCodes.ValidationFailed);
+        job.Status.ShouldBe(BulkJobStatus.ToApprove);
+
+        job.RefuseExport(checker, " No purpose given ").IsSuccess.ShouldBeTrue();
+        (job.Status, job.RefusedBy, job.RefusalReason).ShouldBe((BulkJobStatus.Refused, (Guid?)checker, "No purpose given"));
+        job.ApproveExport(checker).Error!.Code.ShouldBe(ErrorCodes.InvalidStateTransition);
+        job.CancelExport(First).Error!.Code.ShouldBe(ErrorCodes.InvalidStateTransition);
+        job.RefuseExport(checker, "Again").Error!.Code.ShouldBe(ErrorCodes.InvalidStateTransition);
+    }
+
+    [Fact]
+    public void AnExportWaitingForApproval_IsCancelledByItsRequesterOnly_DE059()
+    {
+        var job = BulkJob.ExportRequested(Guid.CreateVersion7(), null, 2, First);
+        job.CancelExport(Guid.CreateVersion7()).Error!.Code.ShouldBe(ErrorCodes.Forbidden);
+        job.CancelExport(First).IsSuccess.ShouldBeTrue();
+        job.Status.ShouldBe(BulkJobStatus.Cancelled);
+        job.ApproveExport(Guid.CreateVersion7()).Error!.Code.ShouldBe(ErrorCodes.InvalidStateTransition);
+        BulkJob.Imported(Guid.CreateVersion7(), 1, null, 0, First).CancelExport(First).Error!.Code.ShouldBe(ErrorCodes.InvalidStateTransition, "an import is not cancelled");
+    }
 }

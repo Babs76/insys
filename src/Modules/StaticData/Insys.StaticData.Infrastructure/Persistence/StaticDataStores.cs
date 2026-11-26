@@ -52,6 +52,8 @@ internal sealed class ChangeRequestRepository(StaticDataDbContext db) : IChangeR
 
     public Task<bool> BatchExists(Guid id, CancellationToken cancellationToken) => db.ImportBatches.AnyAsync(b => b.Id == id, cancellationToken);
 
+    public Task<ImportBatch?> GetBatch(Guid id, CancellationToken cancellationToken) => db.ImportBatches.SingleOrDefaultAsync(b => b.Id == id, cancellationToken);
+
     public Task<TenantGovernanceSettings?> Settings(CancellationToken cancellationToken) => db.Settings.SingleOrDefaultAsync(cancellationToken);
 
     public void Add(TenantGovernanceSettings settings) => db.Settings.Add(settings);
@@ -90,9 +92,14 @@ internal sealed class ChangeRequestQueries(StaticDataDbContext db) : IChangeRequ
     public async Task<ChangeRequestView?> Get(Guid id, CancellationToken cancellationToken) =>
         await db.Changes.AsNoTracking().SingleOrDefaultAsync(c => c.Id == id, cancellationToken) is { } change ? View(change) : null;
 
-    public async Task<IReadOnlyList<ImportBatchView>> Imports(Guid? afterId, int limit, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<ImportBatchView>> Imports(ImportStatus? status, Guid? afterId, int limit, CancellationToken cancellationToken)
     {
         var query = db.ImportBatches.AsNoTracking().Include(b => b.Errors).AsQueryable();
+        if (status is { } only)
+        {
+            query = query.Where(b => b.Status == only);
+        }
+
         if (afterId is not null)
         {
             query = query.Where(b => b.Id.CompareTo(afterId.Value) > 0);

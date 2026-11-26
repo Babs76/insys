@@ -130,6 +130,17 @@ internal sealed class PartyRepository(PartyDbContext db) : IPartyRepository
             ? await Get(id, cancellationToken)
             : null;
 
+    public async Task<IReadOnlyList<BankAccount>> PendingBankAccounts(Guid? afterId, int limit, CancellationToken cancellationToken)
+    {
+        var query = db.Set<BankAccount>().AsNoTracking().Where(a => a.Status == BankAccountStatus.PendingVerification);
+        if (afterId is { } after)
+        {
+            query = query.Where(a => a.Id.CompareTo(after) > 0);
+        }
+
+        return await query.OrderBy(a => a.Id).Take(limit).ToListAsync(cancellationToken);
+    }
+
     public async Task<Guid?> Match(IndividualData person, (string DocType, string Country, string Hash)? identifier, CancellationToken cancellationToken)
     {
         if (identifier is { } i && await db.Set<PartyIdentifier>().Where(x => x.DocType == i.DocType && x.Country == i.Country && x.NumberHash == i.Hash)

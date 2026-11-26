@@ -82,6 +82,12 @@ public sealed class ExternalUserLinkTests(DatabaseFixture fixture) : IClassFixtu
         await _factory.DrainOutbox();
         var approval = (await (await admin.GetAsync($"/api/v1/workflow/approvals?status=Requested&businessRefType={IdentityApprovals.SubjectLinkBusinessRefType}"
             + $"&businessRefId={link.GetProperty("id").GetGuid()}")).Json()).GetProperty("items").EnumerateArray().Single().GetProperty("id").GetGuid();
+        // DE-020: the approval opens its link by the link's own ID, which names the user.
+        var subject = await (await admin.GetAsync($"/api/v1/workflow/approvals/{approval}")).Json();
+        subject.GetProperty("subjectPath").GetString().ShouldBe($"/api/v1/identity/subject-links/{link.GetProperty("id").GetGuid()}");
+        var byId = await (await admin.GetAsync(subject.GetProperty("subjectPath").GetString())).Json();
+        (byId.GetProperty("userId").GetGuid(), byId.GetProperty("status").GetString(), byId.GetProperty("partyId").GetGuid()).ShouldBe((user, "Pending", party));
+        (await admin.GetAsync($"/api/v1/identity/subject-links/{Guid.CreateVersion7()}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
         // BR-010: the user's own view shows the link, with the approval it waits for.
         var shown = (await (await admin.GetAsync($"/api/v1/identity/users/{user}")).Json()).GetProperty("externalSubjectLink");
         (shown.GetProperty("kind").GetString(), shown.GetProperty("key").GetString(), shown.GetProperty("status").GetString(), shown.GetProperty("approvalId").GetGuid())
