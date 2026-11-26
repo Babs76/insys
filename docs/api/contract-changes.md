@@ -2,6 +2,20 @@
 
 What changed in the API contract, newest first, so the front end can sync. The OpenAPI documents in this folder are the contract; this list says what moved.
 
+## Approvals open their records by the ID they carry; exports refused or cancelled; imports filtered (DE-017, DE-019, DE-020, DE-022, DE-059, OQ-203; branch `group-dfc`)
+- **`WorkflowApprovalView`** has `subjectOperation` and `subjectPath` (always present): the GET operation (operationId) that opens the record the approval is about, and its path with the `businessRefId` filled in, for example `/api/v1/party/bank-accounts/{businessRefId}`. Both are null only for a reference type with nothing to open (`STATIC_DATA_VERSION`, a discarded draft, which no approval carries). **Front end: open an approval's record through `subjectPath`**, under the screen the view already names (`screen`).
+- **New reads by ID**, each under its record's existing screen function and read permission:
+  - `GET /party/bank-accounts/{id}` (`PartyGetBankAccount`, without the number) and `GET /party/bank-accounts/pending-verification` (`PartyListBankAccountsPendingVerification`, a cursor page, oldest first, each naming its `partyId`), screen `PARTY_BANK_ACCOUNTS`.
+  - `GET /party/search-log/holds/{id}` (`PartyGetSearchLogHold`, `PARTY_SEARCH_LOG`).
+  - `GET /product-factory/product-versions/{id}` (`ProductGetVersionById`, `PRODUCTS`).
+  - `GET /identity/role-assignments/{id}` (`IdentityGetRoleAssignment`, `IDENTITY_ROLE_ASSIGNMENTS`) and `GET /identity/subject-links/{id}` (`IdentityGetSubjectLinkById`, `IDENTITY_USERS`); `IdentitySubjectLinkView` has `userId`.
+  - `GET /documents/document-legal-holds/{id}` (`DocumentsGetDocumentHold`, `DOCUMENTS`): `DocumentsDocumentHoldView`, the hold with the document it is on.
+  - `GET /workflow/case-redress/{redressId}` (`WorkflowGetRedress`, `SERVICE_COMPLAINTS`): a redress by its ID alone, its case's access rules applying (DE-022).
+  - `GET /finance/accounting-periods/{id}` (`FinanceGetPeriodById`, `FINANCE_PERIODS`).
+- **Exports waiting for approval (DE-059):** `POST /party/bulk-jobs/{id}/refuse` (`PartyRefuseExport`, function `PARTY_APPROVE_EXPORT`, body `{reason}`, at most 500 characters; If-Match taken when sent, as for approve) by a second person, not the requester (SRS-002); `POST /party/bulk-jobs/{id}/cancel` (`PartyCancelExport`, function `PARTY_REQUEST_EXPORT`, If-Match taken when sent) by the requester only. Both audited; nothing leaves. The job's status can now be `REFUSED` or `CANCELLED`; `PartyBulkJobView` has `refusedBy`, `refusalReason` and `runBy`. V0162.
+- **`GET /static-data/imports`** (`ListImportBatches`) takes `status` (`COMMITTED` or `REJECTED`; anything else is `422 VALIDATION_FAILED`). `StaticDataImportBatchView` has `batchId`, the same as its `id` and the `{batchId}` of the table's import routes (DE-017).
+- No error code, function or permission changed. `docs/api/openapi-core.json` and `openapi-static-data.json` regenerated.
+
 ## Disclosures: merged parties, `isDefault` and a request for the value in force (DE-039, OQ-201; Ade, 26 November 2026; branch `disclosures-fixes`)
 - **`POST /portal/broker/disclosure-acknowledgements`:** a record naming a party that was merged into the client now counts as the client's (along a chain of merges), and is accepted. One naming a party merged into another party is still `404 NOT_FOUND`. No field changed.
 - **`GET /integration/disclosure-setting`: `isDefault` changes only when a change is granted, never at the request.** It stays true while the tenant's first request waits, and after one that is rejected, expires or is withdrawn; the view is then as before, except that `rowVersion` (and the ETag) is the setting's row version, which a request moves. **Front end:** don't read `isDefault` false as "a request was made"; show `pendingChange` for that. If-Match stays optional while `isDefault` is true (send the ETag anyway) and required once it is false (412 without it).

@@ -15748,8 +15748,17 @@
           "StaticData governance"
         ],
         "summary": "List static data import batches and their rejected lines (SDM-012)",
+        "description": "Filter by status (DE-017): COMMITTED for the imports whose lines were saved as drafts, REJECTED for those refused. Each import\u0027s id is its batchId, the {batchId} of its table\u0027s \u2026/imports/{batchId} routes.",
         "operationId": "ListImportBatches",
         "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "description": "COMMITTED (the lines were saved as drafts) or REJECTED; every import when omitted",
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "name": "cursor",
             "in": "query",
@@ -326643,6 +326652,10 @@
             "items": {
               "$ref": "#/components/schemas/ImportLineError"
             }
+          },
+          "batchId": {
+            "type": "string",
+            "format": "uuid"
           }
         }
       },
