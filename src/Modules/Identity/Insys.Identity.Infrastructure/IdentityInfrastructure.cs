@@ -41,7 +41,7 @@ public static class IdentityInfrastructure
     public static IServiceCollection AddIdentityInfrastructure(this IServiceCollection services)
     {
         // Its approval kinds and the screens that open their records (BR-005).
-        BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Identity.Contracts.IdentityApprovals.BusinessRefType, "IDENTITY_ROLE_ASSIGNMENTS", Insys.Identity.Contracts.IdentityApprovals.ApprovalType);
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Identity.Contracts.IdentityApprovals.BusinessRefType, "IDENTITY_USERS", Insys.Identity.Contracts.IdentityApprovals.ApprovalType);
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.OpensWith(Insys.Identity.Contracts.IdentityApprovals.BusinessRefType, "IdentityGetRoleAssignment", "/api/v1/identity/role-assignments/{id}"); // DE-020
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Identity.Contracts.IdentityApprovals.TenantAdministratorBusinessRefType, "IDENTITY_TENANT_ADMINISTRATORS", Insys.Identity.Contracts.IdentityApprovals.TenantAdministratorApprovalType);
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.OpensWith(Insys.Identity.Contracts.IdentityApprovals.TenantAdministratorBusinessRefType, "GetTenantAdministratorRequest", "/api/v1/identity/tenant-administrators/{id}"); // DE-020
