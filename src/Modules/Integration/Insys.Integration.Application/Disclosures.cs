@@ -115,8 +115,9 @@ public static class DisclosureSettingApproval
 public sealed record DisclosureSettingChangeView(bool BrokerAcknowledgementAllowed, Guid RequestedBy, DateTimeOffset RequestedAt);
 
 /// <summary>
-/// DE-039, OQ-201: the tenant's disclosure setting. IsDefault while the tenant has no setting of its own (brokers may record); a first request for a change
-/// gives it one. PendingChange is the change waiting for approval, if there is one; BrokerAcknowledgementAllowed stays the value in effect until it is granted.
+/// DE-039, OQ-201: the tenant's disclosure setting. IsDefault while the tenant has no setting of its own (brokers may record); a change granted gives it one,
+/// never the request (Ade, 26 November 2026): a first request rejected, expired or withdrawn leaves it the default. PendingChange is the change waiting for
+/// approval, if there is one; BrokerAcknowledgementAllowed stays the value in effect until it is granted.
 /// </summary>
 public sealed record DisclosureSettingView(bool BrokerAcknowledgementAllowed, bool IsDefault, long RowVersion, DisclosureSettingChangeView? PendingChange);
 
@@ -135,7 +136,7 @@ public sealed class ChangeDisclosureSettingValidator : AbstractValidator<ChangeD
 public interface IDisclosureSettingRequests
 {
     /// <summary>
-    /// Records the pending change (creating the tenant's setting, allowed, when expectedVersion is null) and raises the approval through the outbox, in the
+    /// Records the pending change (creating the tenant's setting, allowed and still the default, when expectedVersion is null) and raises the approval through the outbox, in the
     /// command's transaction. Null when the setting changed meanwhile, or a change already waits.
     /// </summary>
     Task<DisclosureSettingView?> Request(Guid tenantId, long? expectedVersion, bool brokerAcknowledgementAllowed, Guid requestedBy, DateTimeOffset at, CancellationToken cancellationToken);
@@ -216,7 +217,8 @@ public sealed class BrokerAcknowledgeDisclosureValidator : AbstractValidator<Bro
     }
 }
 
-internal sealed class DisclosureHandlers(IDisclosures disclosures, IDisclosureGate gate, Party.Contracts.IBrokerClients brokerClients, IEnumerable<IDisclosureRecordParties> recordParties,
+internal sealed class DisclosureHandlers(IDisclosures disclosures, IDisclosureGate gate, Party.Contracts.IBrokerClients brokerClients, Party.Contracts.IPartyDirectory parties,
+    IEnumerable<IDisclosureRecordParties> recordParties,
     IDisclosureSettingRequests settingRequests, IExecutionContext execution, ITenantContext tenant, IBusinessDate businessDate, IClock clock, IAuditTrail audit) :
     IQueryHandler<GetDisclosureText, DisclosureTextView>,
     ICommandHandler<AcknowledgeDisclosure, DisclosureAcknowledgementView>,
@@ -320,7 +322,8 @@ internal sealed class DisclosureHandlers(IDisclosures disclosures, IDisclosureGa
     /// <summary>
     /// OQ-201 (Ade, 26 November 2026): a broker may name only the records the disclosure gate names, each checked by its owning module (IDisclosureRecordParties):
     /// GENERAL_QUOTE (its proposer), GENERAL_RENEWAL (its policy's holder) and LIFE_PROPOSAL (its applicant); or none, as a Health enrolment's gate names none.
-    /// A record of another party is NOT_FOUND (404), the same as one that does not exist. A type no module can check is refused.
+    /// A record naming a party merged into the client is the client's (Ade, 26 November 2026). A record of another party is NOT_FOUND (404), the same as one that
+    /// does not exist. A type no module can check is refused.
     /// </summary>
     private async Task<Error?> RecordRefused(Guid tenantId, BrokerAcknowledgeDisclosure command, CancellationToken cancellationToken)
     {
@@ -341,7 +344,27 @@ internal sealed class DisclosureHandlers(IDisclosures disclosures, IDisclosureGa
             return Error.Validation(ErrorCodes.ValidationFailed, $"A broker can't name a record of type {refType} for an acknowledgement.");
         }
 
-        return await owner.BelongsTo(tenantId, command.PartyId, refType, refId, cancellationToken) ? null : Error.NotFound(ErrorCodes.NotFound, "The record was not found.");
+        return await owner.PartyOf(tenantId, refType, refId, cancellationToken) is { } named && await IsOrMergedInto(tenantId, named, command.PartyId, cancellationToken)
+            ? null
+            : Error.NotFound(ErrorCodes.NotFound, "The record was not found.");
+    }
+
+    /// <summary>
+    /// OQ-201 (Ade, 26 November 2026): a record naming a party that was merged into the client is the client's. Merges chain (a survivor can itself be merged,
+    /// PTY-004), so the chain is followed to the end; a party merged into another party is not the client's.
+    /// </summary>
+    private async Task<bool> IsOrMergedInto(Guid tenantId, Guid named, Guid client, CancellationToken cancellationToken)
+    {
+        var seen = new HashSet<Guid>();
+        for (Guid? party = named; party is { } current && seen.Add(current); party = await parties.MergedInto(tenantId, current, cancellationToken))
+        {
+            if (current == client)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public async Task<Result<IReadOnlyList<PortalDisclosureAcknowledgementView>>> Handle(ListPortalDisclosureAcknowledgements query, CancellationToken cancellationToken) =>
@@ -354,7 +377,8 @@ internal sealed class DisclosureHandlers(IDisclosures disclosures, IDisclosureGa
 
     /// <summary>
     /// OQ-201 (Ade, 26 November 2026): the change waits for a second person. It is recorded as pending and a DISCLOSURE_SETTING_CHANGE approval is raised; the
-    /// value stays as it was until the grant (DisclosureSettingPolicies). While one waits, another is refused.
+    /// value stays as it was until the grant (DisclosureSettingPolicies). While one waits, another is refused. A request for the value already in force is refused
+    /// with VALIDATION_FAILED (422) and changes nothing (Ade, 26 November 2026): no pending change, no approval, no audit.
     /// </summary>
     public async Task<Result<DisclosureSettingView>> Handle(ChangeDisclosureSetting command, CancellationToken cancellationToken)
     {
@@ -376,7 +400,15 @@ internal sealed class DisclosureHandlers(IDisclosures disclosures, IDisclosureGa
         }
 
         var allowed = command.BrokerAcknowledgementAllowed!.Value;
-        if (await settingRequests.Request(tenantId, current.IsDefault ? null : current.RowVersion, allowed, requester, clock.UtcNow, cancellationToken) is not { } view)
+        if (allowed == current.BrokerAcknowledgementAllowed)
+        {
+            return Error.Validation(ErrorCodes.ValidationFailed, allowed
+                ? "Brokers may already record their clients' disclosure acknowledgements; there is nothing to change."
+                : "Disclosure acknowledgement is already customer-only; there is nothing to change.");
+        }
+
+        // No row yet (row version 0): the request creates it. A row a first request created stays the default until a grant, and is updated by its version.
+        if (await settingRequests.Request(tenantId, current.RowVersion == 0 ? null : current.RowVersion, allowed, requester, clock.UtcNow, cancellationToken) is not { } view)
         {
             return Error.PreconditionFailed(ErrorCodes.PreconditionFailed, "The disclosure setting has changed since it was read.");
         }
