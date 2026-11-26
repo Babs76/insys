@@ -141,6 +141,11 @@ jobs:
       - name: The chart's Keycloak login theme
         run: deploy/helm/tests/keycloak-theme.sh
 
+      # Ade, 26 November 2026: the Preview's upgrade check (preview.sh upgrade_check), against a stubbed server and tool: a clear report passes,
+      # listed approval types fail the run with them by tenant, and an API error fails it too.
+      - name: The Preview's upgrade check
+        run: deploy/helm/tests/preview-upgrade-check.sh
+
       # Ade, 22 November 2026: the vendored theme is exactly the approved files, with their sha256 (files/keycloak-theme/insys.sha256), and
       # insys.commit their source commit. Any other file, another theme type than login/ included, fails.
       - name: The vendored Keycloak theme is exactly the approved files
@@ -149,10 +154,10 @@ jobs:
       - name: The Keycloak theme scripts parse
         run: |
           for f in tools/sync-keycloak-theme.sh deploy/keycloak/realm-login-theme.sh deploy/keycloak/theme-check-user.sh deploy/keycloak/theme-mount.sh \
-            deploy/helm/tests/keycloak-theme.sh deploy/preview/preview.sh; do bash -n "$f"; done
+            deploy/helm/tests/keycloak-theme.sh deploy/helm/tests/preview-upgrade-check.sh deploy/preview/preview.sh; do bash -n "$f"; done
           node --check deploy/keycloak/theme-check.cjs
           shellcheck tools/sync-keycloak-theme.sh deploy/keycloak/realm-login-theme.sh deploy/keycloak/theme-check-user.sh deploy/keycloak/theme-mount.sh \
-            deploy/helm/tests/keycloak-theme.sh
+            deploy/helm/tests/keycloak-theme.sh deploy/helm/tests/preview-upgrade-check.sh deploy/preview/preview.sh
 
       - name: The images build
         run: |
