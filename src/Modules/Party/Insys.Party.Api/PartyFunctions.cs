@@ -41,9 +41,11 @@ internal static class PartyFunctions
         .. new FunctionMap([Audiences.Staff], null)
         .Screen("PARTY_BULK_JOBS", "PARTIES", "Bulk jobs", "party/bulk-jobs", "PartyListBulkJobs", "PartyGetBulkJob", "PartyDownloadExport")
         .Action("PARTY_IMPORT_PARTIES", "PARTY_BULK_JOBS", "PartyImportParties")
-        // DE-059: who asks for an export cancels it under the same function; the approver refuses it under theirs.
-        .Action("PARTY_REQUEST_EXPORT", "PARTY_BULK_JOBS", ["PartyRequestExport", "PartyCancelExport"])
-        .Action("PARTY_REQUEST_POLICY_EXPORT", "PARTY_BULK_JOBS", "PartyRequestPolicyExport")
+        // DE-059, OQ-203 (Ade, 26 November 2026): cancelling an export belongs to who asked for it, whichever export function they used, so the cancel
+        // operation is shared by both export functions (the caller needs either; the handler refuses anyone but the requester). No function of its own.
+        // The approver refuses it under theirs.
+        .Action("PARTY_REQUEST_EXPORT", "PARTY_BULK_JOBS", ["PartyRequestExport", "PartyCancelExport"], shared: ["PartyCancelExport"])
+        .Action("PARTY_REQUEST_POLICY_EXPORT", "PARTY_BULK_JOBS", ["PartyRequestPolicyExport", "PartyCancelExport"], shared: ["PartyCancelExport"])
         .Action("PARTY_APPROVE_EXPORT", "PARTY_BULK_JOBS", ["PartyApproveExport", "PartyRefuseExport"])
         .Screen("PARTY_DATA_SUBJECT_REQUESTS", "PARTIES", "Data-subject requests", "party/data-subject-requests", "PartyListDataSubjectRequests", "PartyGetDataSubjectRequest")
         .Action("PARTY_RECEIVE_DATA_SUBJECT_REQUEST", "PARTY_DATA_SUBJECT_REQUESTS", "PartyReceiveDataSubjectRequest")
