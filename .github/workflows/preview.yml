@@ -35,9 +35,9 @@ on:
       action:
         description: What to do
         type: choice
-        options: [check, diagnose, provision, upgrade, upgrade-check, open-ssh, backup, restore, os-update, reboot, keycloak-theme, keycloak-theme-revert, rotate-ssh-key, reset, rotate-passwords, destroy]
+        options: [check, diagnose, provision, upgrade, upgrade-check, read-authority, open-ssh, backup, restore, os-update, reboot, keycloak-theme, keycloak-theme-revert, rotate-ssh-key, reset, rotate-passwords, destroy]
       confirm:
-        description: For upgrade-check, restore, os-update, reboot, keycloak-theme, keycloak-theme-revert, rotate-ssh-key, reset, rotate-passwords and destroy, type the action's name
+        description: For upgrade-check, read-authority, restore, os-update, reboot, keycloak-theme, keycloak-theme-revert, rotate-ssh-key, reset, rotate-passwords and destroy, type the action's name
         default: ""
       ssh_from:
         description: For open-ssh and restore, the address to allow (your own IP)
@@ -78,7 +78,7 @@ jobs:
       PREVIEW_BACKUP_DAY: ${{ inputs.backup_day }}
     steps:
       - name: Confirmation
-        if: contains(fromJSON('["upgrade-check", "restore", "os-update", "reboot", "keycloak-theme", "keycloak-theme-revert", "rotate-ssh-key", "reset", "rotate-passwords", "destroy"]'), inputs.action) && inputs.confirm != inputs.action
+        if: contains(fromJSON('["upgrade-check", "read-authority", "restore", "os-update", "reboot", "keycloak-theme", "keycloak-theme-revert", "rotate-ssh-key", "reset", "rotate-passwords", "destroy"]'), inputs.action) && inputs.confirm != inputs.action
         run: |
           echo "::error::Type the action's name in confirm to ${{ inputs.action }}."
           exit 1

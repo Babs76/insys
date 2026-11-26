@@ -146,6 +146,11 @@ jobs:
       - name: The Preview's upgrade check
         run: deploy/helm/tests/preview-upgrade-check.sh
 
+      # Ade, 26 November 2026: the Preview's read-authority action (preview.sh read_authority), against a stubbed server: it only opens SSH and
+      # reads, its SQL has no statement that writes, carries the read-only guards and rolls back, and psql connects read only.
+      - name: The Preview's read-authority action
+        run: deploy/helm/tests/preview-read-authority.sh
+
       # Ade, 22 November 2026: the vendored theme is exactly the approved files, with their sha256 (files/keycloak-theme/insys.sha256), and
       # insys.commit their source commit. Any other file, another theme type than login/ included, fails.
       - name: The vendored Keycloak theme is exactly the approved files
@@ -154,10 +159,10 @@ jobs:
       - name: The Keycloak theme scripts parse
         run: |
           for f in tools/sync-keycloak-theme.sh deploy/keycloak/realm-login-theme.sh deploy/keycloak/theme-check-user.sh deploy/keycloak/theme-mount.sh \
-            deploy/helm/tests/keycloak-theme.sh deploy/helm/tests/preview-upgrade-check.sh deploy/preview/preview.sh; do bash -n "$f"; done
+            deploy/helm/tests/keycloak-theme.sh deploy/helm/tests/preview-upgrade-check.sh deploy/helm/tests/preview-read-authority.sh deploy/preview/preview.sh; do bash -n "$f"; done
           node --check deploy/keycloak/theme-check.cjs
           shellcheck tools/sync-keycloak-theme.sh deploy/keycloak/realm-login-theme.sh deploy/keycloak/theme-check-user.sh deploy/keycloak/theme-mount.sh \
-            deploy/helm/tests/keycloak-theme.sh deploy/helm/tests/preview-upgrade-check.sh deploy/preview/preview.sh
+            deploy/helm/tests/keycloak-theme.sh deploy/helm/tests/preview-upgrade-check.sh deploy/helm/tests/preview-read-authority.sh deploy/preview/preview.sh
 
       - name: The images build
         run: |

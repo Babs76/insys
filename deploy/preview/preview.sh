@@ -31,6 +31,8 @@
 #   upgrade           the images and the chart at this ref; data and passwords stay. Then the upgrade check: the run fails if any existing tenant
 #                     has an approval type no role holding the authority and the function can decide (Ade, 26 November 2026)
 #   upgrade-check     read only: that check alone, against the version serving now
+#   read-authority    read only: OFTZA's STATIC_DATA_T1 authority rows, DEMO_CHECKER's authority for the five new types and STATIC_DATA_T1,
+#                     and the demo users' roles with the delegation table's functions, in a read-only session (Ade, 26 November 2026)
 #   open-ssh <ip>     SSH from that address, until the next run closes it (for Ade to unseal OpenBao); check closes it soonest
 #   diagnose          read only: what rebooted the server or restarted k3s (boots, package runs, needrestart, the journal, Hetzner's actions)
 #   os-update         the server's packages updated, nothing restarted or rebooted; says what would need a restart or reboot
@@ -497,6 +499,37 @@ counts() { # rows in a few tables, to compare before and after a restore
     || ', Life policies ' || (SELECT count(*) FROM life.policy) || ', Health memberships ' || (SELECT count(*) FROM health.membership)
     || ', approvals ' || (SELECT count(*) FROM workflow.approval) || ', data keys ' || (SELECT count(*) FROM integration.field_data_key)" \
     | on_server "kubectl exec -i insys-postgres-0 -- psql -U insys_owner -d insys -At"
+}
+
+# read-authority (Ade approved one read-only run, 26 November 2026): OFTZA's approval authority for STATIC_DATA_T1, read only. It prints, for the
+# tenant OFTZA only: (a) each workflow.cfg_delegation_and_approval_authority row for STATIC_DATA_T1 (role, limit, currency, status, dates);
+# (b) whether DEMO_CHECKER holds authority in force today for each of the five approval types new since ca1bf2b and for STATIC_DATA_T1;
+# (c) the roles assigned to demouser01 and demouser02 (assignment status and dates), and whether each role holds, in force today, the
+# delegation table's functions: SD_WORKFLOW_AND_CASE_MANAGEMENT_VIEW, _MAINTAIN (enter, submit, activate: static_data.create and .update) and
+# _APPROVE (static_data.approve; the table's catalogue module is Workflow and Case Management, StaticDataFunctions). Codes, counts, dates and
+# yes/no only: no name, email or other personal data. The session can't write: default_transaction_read_only at connection (PGOPTIONS), again
+# by SET, and BEGIN READ ONLY ... ROLLBACK. In force: record_status PUBLISHED or EFFECTIVE (the configuration lifecycle), effective today
+# (the database's current_date, UTC on the Preview, not the tenant's business date).
+read_authority_sql() {
+  cat <<'SQL'
+SET default_transaction_read_only = on;
+BEGIN READ ONLY;
+SELECT 'tenant OFTZA: ' || CASE WHEN set_config('app.tenant_id', coalesce((SELECT id::text FROM tenant.tenant WHERE tenant_code = 'OFTZA'), '00000000-0000-0000-0000-000000000000'), true) <> '00000000-0000-0000-0000-000000000000' THEN 'found' ELSE 'not found' END;
+SELECT 'transaction read only: ' || current_setting('transaction_read_only');
+SELECT '(a) STATIC_DATA_T1 authority rows: ' || count(*) FROM workflow.cfg_delegation_and_approval_authority a WHERE a.tenant_id = (SELECT id FROM tenant.tenant WHERE tenant_code = 'OFTZA') AND a.transaction_type = 'STATIC_DATA_T1';
+SELECT '(a) ' || a.role_code || ' limit ' || a.limit_value || ' ' || coalesce(a.currency, 'base') || ' ' || a.record_status || ' v' || a.version || ' from ' || a.effective_from || ' to ' || coalesce(a.effective_to::text, 'open') FROM workflow.cfg_delegation_and_approval_authority a WHERE a.tenant_id = (SELECT id FROM tenant.tenant WHERE tenant_code = 'OFTZA') AND a.transaction_type = 'STATIC_DATA_T1' ORDER BY a.role_code, a.effective_from, a.version;
+SELECT '(b) DEMO_CHECKER holds authority in force today for ' || x.ty || ': ' || CASE WHEN EXISTS (SELECT 1 FROM workflow.cfg_delegation_and_approval_authority a WHERE a.tenant_id = (SELECT id FROM tenant.tenant WHERE tenant_code = 'OFTZA') AND a.role_code = 'DEMO_CHECKER' AND a.transaction_type = x.ty AND a.record_status IN ('PUBLISHED', 'EFFECTIVE') AND a.effective_from <= current_date AND (a.effective_to IS NULL OR a.effective_to > current_date)) THEN 'yes' ELSE 'no' END FROM unnest(ARRAY['COMMISSION_CLAWBACK_INVOICE', 'CREDIT_NOTE', 'DEAD_LETTER_DISCARD', 'DISCLOSURE_SETTING_CHANGE', 'PAYOUT_RETRY', 'STATIC_DATA_T1']) WITH ORDINALITY AS x(ty, n) ORDER BY x.n;
+SELECT '(c) users found: ' || count(*) || ' of 2' FROM iam.user_account u WHERE u.tenant_id = (SELECT id FROM tenant.tenant WHERE tenant_code = 'OFTZA') AND lower(u.username) IN ('demouser01', 'demouser02', 'oftza.demouser01', 'oftza.demouser02');
+SELECT '(c) ' || lower(u.username) || ' ' || u.status || ': ' || coalesce(r.role_code || ' ' || r.status || ' from ' || r.valid_from || ' to ' || coalesce(r.valid_to::text, 'open'), 'no role assignment') FROM iam.user_account u LEFT JOIN iam.user_role_assignment r ON r.tenant_id = u.tenant_id AND r.user_id = u.id WHERE u.tenant_id = (SELECT id FROM tenant.tenant WHERE tenant_code = 'OFTZA') AND lower(u.username) IN ('demouser01', 'demouser02', 'oftza.demouser01', 'oftza.demouser02') ORDER BY 1;
+SELECT '(c) role ' || ro.role_code || ' holds ' || f.fn || ' in force today: ' || CASE WHEN EXISTS (SELECT 1 FROM iam.cfg_role_function_assignments g WHERE g.tenant_id = (SELECT id FROM tenant.tenant WHERE tenant_code = 'OFTZA') AND g.role_code = ro.role_code AND g.function_code = f.fn AND g.record_status IN ('PUBLISHED', 'EFFECTIVE') AND g.effective_from <= current_date AND (g.effective_to IS NULL OR g.effective_to > current_date)) THEN 'yes' ELSE 'no' END FROM (SELECT DISTINCT r.role_code FROM iam.user_role_assignment r JOIN iam.user_account u ON u.tenant_id = r.tenant_id AND u.id = r.user_id WHERE u.tenant_id = (SELECT id FROM tenant.tenant WHERE tenant_code = 'OFTZA') AND lower(u.username) IN ('demouser01', 'demouser02', 'oftza.demouser01', 'oftza.demouser02')) ro CROSS JOIN (VALUES (1, 'SD_WORKFLOW_AND_CASE_MANAGEMENT_VIEW'), (2, 'SD_WORKFLOW_AND_CASE_MANAGEMENT_MAINTAIN'), (3, 'SD_WORKFLOW_AND_CASE_MANAGEMENT_APPROVE')) AS f(n, fn) ORDER BY ro.role_code, f.n;
+ROLLBACK;
+SQL
+}
+
+read_authority() {
+  echo "OFTZA's approval authority, read only (codes, counts, dates and yes/no):"
+  read_authority_sql | on_server "kubectl exec -i insys-postgres-0 -- env PGOPTIONS='-c default_transaction_read_only=on' psql -U insys_owner -d insys -At -v ON_ERROR_STOP=1" \
+    || fail "reading OFTZA's approval authority (read only; nothing was changed)"
 }
 
 # OpenBao unsealed, and a data key the database holds unwrapped by Transit with the API's own token: so what was encrypted before reads
@@ -1136,6 +1169,9 @@ case "$action" in
     ;;
   upgrade-check)    # read only: the upgrade check against the version serving now, nothing deployed
     ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; upgrade_check
+    ;;
+  read-authority)   # read only: OFTZA's STATIC_DATA_T1 authority and the demo users' roles, in a read-only database session
+    ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; read_authority
     ;;
   open-ssh)
     trap - EXIT
