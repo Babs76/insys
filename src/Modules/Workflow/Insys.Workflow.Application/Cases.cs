@@ -657,7 +657,7 @@ public sealed class CaseOpening(ICaseRepository cases, ICaseConfiguration config
         if (definition.IsSuccess)
         {
             var route = await workflow.Routing(businessDate.Today, now, cancellationToken);
-            var process = ProcessInstance.StartProcess(Guid.CreateVersion7(), definition.Value, BusinessRefType, serviceCase.Id,
+            var process = ProcessRecordTypes.Start(Guid.CreateVersion7(), definition.Value, BusinessRefType, serviceCase.Id,
                 taskType => route(taskType) is var r && r.QueueCode == UnroutedQueue && type.DefaultQueueCode is { } queue ? r with { QueueCode = queue } : r, now);
             if (process.IsSuccess)
             {

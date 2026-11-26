@@ -93,29 +93,8 @@ public static class WorkServers
     public static IReadOnlyList<string> ServedBy(IReadOnlySet<string> functions) =>
         [.. Served.Where(s => s.Value.Any(functions.Contains)).Select(s => s.Key).Order(StringComparer.Ordinal)];
 
-    /// <summary>
-    /// The screen that opens the record a task is about, for the reference types processes use that no approval declares (BR-005 for the
-    /// rest, through ApprovalKinds).
-    /// </summary>
-    public static string? ScreenFor(string businessRefType) => ApprovalKinds.ScreenFor(businessRefType) ?? businessRefType switch
-    {
-        "PARKED_DELIVERY" => "INTEGRATION_PARKED_DELIVERIES",
-        "PARTY" => "PARTIES",
-        "DATA_SUBJECT_REQUEST" => "PARTY_DATA_SUBJECT_REQUESTS",
-        "PARTY_RETENTION" => "PARTIES",
-        "LIFE_PROPOSAL" => "LIFE_PROPOSALS",
-        "GENERAL_PROPOSAL" => "GENERAL_PROPOSALS",
-        "GENERAL_QUOTE" => "GENERAL_QUOTES",
-        "GENERAL_RENEWAL" => "GENERAL_RENEWALS",
-        "GENERAL_RETENTION_CASE" => "GENERAL_RETENTION_CASES",
-        "AGGREGATION_ZONE" => "GENERAL_AGGREGATION_ALERTS",
-        "HEALTH_MEMBERSHIP" => "HEALTH_MEMBERSHIPS",
-        "HEALTH_PROVIDER_MEASURE" => "HEALTH_PROVIDER_PERFORMANCE",
-        "HEALTH_PROGRAMME_REVIEW" => "HEALTH_PROGRAMME_ENROLMENTS",
-        "HEALTH_CARE_ACTIVITY" => "HEALTH_COMPLEX_CASES",
-        "HEALTH_RECOVERY_REVIEW" => "HEALTH_RECOVERIES",
-        _ => null,
-    };
+    /// <summary>The screen that opens the record a task is about (BR-005): from the declared record types (ProcessRecordTypes, BR-170).</summary>
+    public static string? ScreenFor(string businessRefType) => ProcessRecordTypes.ScreenFor(businessRefType);
 }
 
 /// <summary>Who works a next step: the approval's maker (assigned to them) or a queue.</summary>
@@ -199,7 +178,7 @@ public sealed class StepTasks(IProcessRepository processes, IProcessQueries quer
 
         var now = clock.UtcNow;
         var due = await businessTime.Add(tenant.RequireTenantId(), null, now, "P1D", cancellationToken);
-        var process = ProcessInstance.StartProcess(Guid.CreateVersion7(), definition, businessRefType, businessRefId, _ => new TaskRouting(queue, null, due), now).Value;
+        var process = ProcessRecordTypes.Start(Guid.CreateVersion7(), definition, businessRefType, businessRefId, _ => new TaskRouting(queue, null, due), now).Value;
         process.Follow(approvalId, excludedUserId, payoutPurpose, payoutCurrency);
         if (notice is not null)
         {
@@ -452,7 +431,7 @@ public sealed record MyTaskRow(Guid TaskId, Guid ProcessId, string ProcessCode, 
 /// <param name="PayoutCurrency">And its currency.</param>
 /// <param name="AllowedTransitions">The states completing the task may move the process to; one means "done" needs no choice.</param>
 /// <param name="DraftDiscarded">For a STATIC_DRAFT_DISCARDED task (OQ-204): the draft someone else discarded, who, when and why; null for any other task.</param>
-public sealed record MyTaskView(Guid Id, Guid ProcessId, string ProcessCode, string TaskType, [property: BusinessRefTypeField] string BusinessRefType,
+public sealed record MyTaskView(Guid Id, Guid ProcessId, string ProcessCode, string TaskType, [property: TaskRecordTypeField] string BusinessRefType,
     Guid BusinessRefId, [property: AlwaysPresent] string? Screen, string QueueCode, [property: AlwaysPresent] Guid? AssigneeId, bool AssignedToMe, DateTimeOffset DueAt,
     [property: AlwaysPresent] string? SlaCode, bool Informational, [property: AlwaysPresent] Guid? ApprovalId,
     [property: AlwaysPresent] ApprovalStatus? ApprovalStatus, [property: AlwaysPresent] string? PayoutPurpose, [property: AlwaysPresent] string? PayoutCurrency,

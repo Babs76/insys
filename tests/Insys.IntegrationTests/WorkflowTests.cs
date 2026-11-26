@@ -142,6 +142,19 @@ public sealed class WorkflowTests(DatabaseFixture fixture) : IClassFixture<Datab
         (await Transitions(client, url)).ShouldBeEmpty("a completed process offers none");
     }
 
+    /// <summary>BR-170: a process is about a record type the contract lists (ProcessRecordTypes); any other is refused before it starts.</summary>
+    [Fact]
+    public async Task StartingAProcess_AboutAnUndeclaredRecordType_IsRefused_BR170()
+    {
+        var client = _factory.ClientFor(DatabaseFixture.TenantA, "wf-maker");
+        var refused = await client.Send(HttpMethod.Post, Processes, new { processCode = "CLAIM", businessRefType = "CLAIM", businessRefId = Guid.CreateVersion7() },
+            idempotent: true);
+        refused.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+        var problem = await refused.Json();
+        problem.GetProperty("code").GetString().ShouldBe("VALIDATION_FAILED");
+        problem.GetProperty("errors").TryGetProperty("businessRefType", out _).ShouldBeTrue(problem.ToString());
+    }
+
     /// <summary>BR-028: open tasks page with a cursor, earliest due first, every task once.</summary>
     [Fact]
     public async Task OpenTasks_PageEarliestDueFirst_EveryTaskOnce_BR028()
@@ -421,7 +434,7 @@ public sealed class WorkflowTests(DatabaseFixture fixture) : IClassFixture<Datab
 
     private async Task<(string Url, Guid TaskId)> Start(HttpClient client, string processCode)
     {
-        var started = await client.Send(HttpMethod.Post, Processes, new { processCode, businessRefType = "CLAIM", businessRefId = Guid.CreateVersion7() }, idempotent: true);
+        var started = await client.Send(HttpMethod.Post, Processes, new { processCode, businessRefType = "LIFE_CLAIM", businessRefId = Guid.CreateVersion7() }, idempotent: true);
         started.StatusCode.ShouldBe(HttpStatusCode.Created);
         var url = $"{Processes}/{(await started.Json()).GetProperty("id").GetGuid()}";
         var process = await (await client.GetAsync(url)).Json();

@@ -284,9 +284,7 @@ core	WorkflowPortalCaseSummaryView.caseTypeCode	to declare
 core	WorkflowPortalCaseView.caseTypeCode	to declare
 core	WorkflowPortalCaseView.categoryCode	to declare
 core	WorkflowPortalCaseView.ombudSchemeCode	to declare
-core	WorkflowProcessView.businessRefType	to declare
 core	WorkflowProcessView.processCode	to declare
-core	WorkflowStartProcessRequest.businessRefType	to declare
 core	WorkflowStartProcessRequest.processCode	to declare
 core	WorkflowTaskView.queueCode	to declare
 core	WorkflowTaskView.slaCode	to declare

@@ -199,7 +199,7 @@ public sealed class RequesterFollowUp(IProcessRepository processes, Contracts.IB
 
         var now = clock.UtcNow;
         var due = await businessTime.Add(tenant.RequireTenantId(), null, now, "P1D", cancellationToken);
-        var process = ProcessInstance.StartProcess(Guid.CreateVersion7(), BuiltInProcesses.ApprovalFollowUp, approval.BusinessRefType, approval.BusinessRefId,
+        var process = ProcessRecordTypes.Start(Guid.CreateVersion7(), BuiltInProcesses.ApprovalFollowUp, approval.BusinessRefType, approval.BusinessRefId,
             _ => new TaskRouting(QueueCode, null, due), now).Value;
         process.AssignTask(process.OpenTask!.Id, approval.MakerId);
         await processes.Add(process, cancellationToken);

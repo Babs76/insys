@@ -173,6 +173,8 @@ public static class WorkflowInfrastructure
 
         // OQ-104: redress is approved by a second person, from the case's screen.
         // DE-008: paying a redress whose payout failed again, approved the same way.
+        // BR-170: the record types only processes are about, for the contract (the one list is ProcessRecordTypes).
+        Application.ProcessRecordTypes.Declare();
         ApprovalKinds.Declare(Contracts.CaseApprovals.RedressBusinessRefType, "SERVICE_COMPLAINTS", Contracts.CaseApprovals.RedressApprovalType,
             Payments.Contracts.PaymentApprovals.PayoutRetryApprovalType);
         // Scope batch 4 (F103, OQ-169): the record types Workflow's processes are about that aren't scoped, with the reason. Every other type is scoped

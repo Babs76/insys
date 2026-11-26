@@ -50,7 +50,7 @@ public sealed record RejectApprovalRequest(string Reason);
 /// <param name="Reason">Optional: why the checker approved (BR-001), kept on the approval as its decisionReason, at most 2000 characters.</param>
 public sealed record ApproveApprovalRequest([property: System.ComponentModel.DataAnnotations.MaxLength(2000)] string? Reason);
 
-public sealed record StartProcessRequest(string ProcessCode, string BusinessRefType, Guid BusinessRefId);
+public sealed record StartProcessRequest(string ProcessCode, [property: BuildingBlocks.Contracts.Approvals.TaskRecordTypeField] string BusinessRefType, Guid BusinessRefId);
 
 public sealed record AssignTaskRequest(Guid? AssigneeId);
 

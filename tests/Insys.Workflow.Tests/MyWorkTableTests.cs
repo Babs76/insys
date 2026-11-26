@@ -112,9 +112,21 @@ public sealed class MyWorkTableTests
     [Fact]
     public void ARecordTypeTheProcessesUse_HasAScreen_BR005()
     {
-        foreach (var type in new[] { "PARKED_DELIVERY", "PARTY", "LIFE_PROPOSAL", "GENERAL_PROPOSAL", "HEALTH_MEMBERSHIP" })
+        foreach (var type in new[] { "PARKED_DELIVERY", "PARTY", "LIFE_PROPOSAL", "GENERAL_PROPOSAL", "HEALTH_MEMBERSHIP", "CASE", "FRAUD_INDICATOR" })
         {
             WorkServers.ScreenFor(type).ShouldNotBeNull(type);
         }
+
+        ProcessRecordTypes.ProcessOnly.Values.ShouldAllBe(screen => screen.Length > 0);
+    }
+
+    [Fact]
+    public void AProcessAboutAnUndeclaredRecordType_FailsWhereItIsStarted_BR170()
+    {
+        var started = () => ProcessRecordTypes.Start(Guid.CreateVersion7(), BuiltInProcesses.ParkedDelivery, "NOT_A_RECORD_TYPE", Guid.CreateVersion7(),
+            _ => new TaskRouting("TENANT_ADMIN", null, Now), Now);
+        started.ShouldThrow<InvalidOperationException>().Message.ShouldContain("NOT_A_RECORD_TYPE");
+        ProcessRecordTypes.Start(Guid.CreateVersion7(), BuiltInProcesses.ParkedDelivery, "PARKED_DELIVERY", Guid.CreateVersion7(),
+            _ => new TaskRouting("TENANT_ADMIN", null, Now), Now).IsSuccess.ShouldBeTrue();
     }
 }
