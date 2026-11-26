@@ -41,11 +41,14 @@ public static class IdentityInfrastructure
     public static IServiceCollection AddIdentityInfrastructure(this IServiceCollection services)
     {
         // Its approval kinds and the screens that open their records (BR-005).
-        BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Identity.Contracts.IdentityApprovals.BusinessRefType, "IDENTITY_ROLE_ASSIGNMENTS", Insys.Identity.Contracts.IdentityApprovals.ApprovalType);
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Identity.Contracts.IdentityApprovals.BusinessRefType, "IDENTITY_USERS", Insys.Identity.Contracts.IdentityApprovals.ApprovalType);
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.OpensWith(Insys.Identity.Contracts.IdentityApprovals.BusinessRefType, "IdentityGetRoleAssignment", "/api/v1/identity/role-assignments/{id}"); // DE-020
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Identity.Contracts.IdentityApprovals.TenantAdministratorBusinessRefType, "IDENTITY_TENANT_ADMINISTRATORS", Insys.Identity.Contracts.IdentityApprovals.TenantAdministratorApprovalType);
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.OpensWith(Insys.Identity.Contracts.IdentityApprovals.TenantAdministratorBusinessRefType, "GetTenantAdministratorRequest", "/api/v1/identity/tenant-administrators/{id}"); // DE-020
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.RaisedWith(BuildingBlocks.Contracts.Approvals.ApprovalKinds.PlatformOperator,
             Insys.Identity.Contracts.IdentityApprovals.TenantAdministratorApprovalType);
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Identity.Contracts.IdentityApprovals.SubjectLinkBusinessRefType, "IDENTITY_USERS", Insys.Identity.Contracts.IdentityApprovals.SubjectLinkApprovalType);
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.OpensWith(Insys.Identity.Contracts.IdentityApprovals.SubjectLinkBusinessRefType, "IdentityGetSubjectLinkById", "/api/v1/identity/subject-links/{id}"); // DE-020
         // F103 (OQ-176): a user's access is no product's or branch's record.
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Unscoped(Insys.Identity.Contracts.IdentityApprovals.BusinessRefType, "a user's role assignment: identity, not a scoped record");
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Unscoped(Insys.Identity.Contracts.IdentityApprovals.TenantAdministratorBusinessRefType, "a tenant's first administrators, in the operator tenant");

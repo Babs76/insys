@@ -2,7 +2,9 @@
 # documents that do not yet declare their values (enum, reference, x-known-values) or their code list (x-code-list with
 # x-code-list-column). Reviewed list: document<TAB>Schema.property<TAB>reason. "to declare" means a later wave declares it
 # when it touches the field; OpenApiContractTests fails on a field missing from the list and on an entry that is declared
-# or gone. The list must be empty by the hardening phase.
+# or gone. The "to declare" entries must be gone by the hardening phase. Permanent exception (Ade, 26 November 2026, BR-170):
+# WorkflowMyTaskView.storedBusinessRefType and WorkflowProcessView.storedBusinessRefType, which hold stored values outside the
+# declared list by definition, so they can have no enum.
 core	AnalyticsClaimsIncurredRow.branchCode	to declare
 core	AnalyticsClaimsIncurredRow.causeCode	to declare
 core	AnalyticsClaimsIncurredRow.productCode	to declare
@@ -54,6 +56,7 @@ core	DistributionPrepareStatement.intermediaryCode	to declare
 core	DistributionPrepareStatement.periodCode	to declare
 core	DistributionStatementView.intermediaryCode	to declare
 core	DistributionStatementView.periodCode	to declare
+core	DocumentsDocumentHoldView.businessRefType	to declare (DE-020: the held document's reference type, as on DocumentsDocumentView)
 core	DocumentsDocumentView.businessRefType	to declare
 core	DocumentsDocumentView.mimeType	a media type (RFC 6838) of the stored file, not static data
 core	DocumentsDocumentView.templateCode	to declare
@@ -273,6 +276,7 @@ core	WorkflowComplaintCategoryFigures.categoryCode	to declare
 core	WorkflowMyTaskView.processCode	to declare
 core	WorkflowMyTaskView.queueCode	to declare
 core	WorkflowMyTaskView.slaCode	to declare
+core	WorkflowMyTaskView.storedBusinessRefType	permanent (Ade, 26 November 2026, BR-170): the stored record type of a process, shown only when businessRefType shows another (the declared type it folds to, an equivalent, or UNDECLARED); the field holds stored values outside the declared list by definition, so it has no enum
 core	WorkflowMyTaskView.taskType	to declare
 core	WorkflowStaticDraftDiscardNotice.entityCode	a static data table's entity code (any module's table, as a change request's entityCode): the discarded draft's table (DE-016, OQ-204)
 core	WorkflowOmbudReferralRequest.schemeCode	to declare
@@ -284,9 +288,8 @@ core	WorkflowPortalCaseSummaryView.caseTypeCode	to declare
 core	WorkflowPortalCaseView.caseTypeCode	to declare
 core	WorkflowPortalCaseView.categoryCode	to declare
 core	WorkflowPortalCaseView.ombudSchemeCode	to declare
-core	WorkflowProcessView.businessRefType	to declare
 core	WorkflowProcessView.processCode	to declare
-core	WorkflowStartProcessRequest.businessRefType	to declare
+core	WorkflowProcessView.storedBusinessRefType	permanent (Ade, 26 November 2026, BR-170): the stored record type of a process, shown only when businessRefType shows another (the declared type it folds to, an equivalent, or UNDECLARED); the field holds stored values outside the declared list by definition, so it has no enum
 core	WorkflowStartProcessRequest.processCode	to declare
 core	WorkflowTaskView.queueCode	to declare
 core	WorkflowTaskView.slaCode	to declare

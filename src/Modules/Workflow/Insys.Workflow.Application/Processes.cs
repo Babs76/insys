@@ -74,10 +74,16 @@ public sealed record CaseNoteView(Guid AuthorId, string Note, DateTimeOffset Cre
 /// <param name="Conditional">The transition has a guard, evaluated on the variables sent with the completion; it may still be refused.</param>
 public sealed record ProcessTransitionView(string ToState, bool Conditional);
 
+/// <param name="BusinessRefType">
+/// The record type (BR-170): a declared type; for a process stored with another value, the declared type it matches once trimmed and ignoring letter
+/// case, else its declared equivalent, else UNDECLARED (Ade, 26 November 2026).
+/// </param>
+/// <param name="StoredBusinessRefType">The stored record type when <paramref name="BusinessRefType"/> shows another; null otherwise.</param>
 /// <param name="AllowedTransitions">
 /// From the current state, in the definition version the process started on (BR-028); empty unless the process is running.
 /// </param>
-public sealed record ProcessView(Guid Id, string ProcessCode, int ProcessVersion, string BusinessRefType, Guid BusinessRefId, ProcessStatus Status, string State,
+public sealed record ProcessView(Guid Id, string ProcessCode, int ProcessVersion, [property: BuildingBlocks.Contracts.Approvals.TaskRecordTypeField] string BusinessRefType, Guid BusinessRefId,
+    [property: AlwaysPresent] string? StoredBusinessRefType, ProcessStatus Status, string State,
     DateTimeOffset StartedAt, DateTimeOffset? EndedAt, IReadOnlyList<TaskView> Tasks, IReadOnlyList<CaseNoteView> Notes, long RowVersion,
     IReadOnlyList<ProcessTransitionView>? AllowedTransitions = null)
 {
@@ -159,7 +165,9 @@ public sealed class StartProcessValidator : AbstractValidator<StartProcess>
     public StartProcessValidator()
     {
         RuleFor(c => c.ProcessCode).NotEmpty().MaximumLength(20);
-        RuleFor(c => c.BusinessRefType).NotEmpty().MaximumLength(30);
+        // BR-170: a process is about a declared record type, which has a screen (BR-005) and is in the contract's enum.
+        RuleFor(c => c.BusinessRefType).NotEmpty().MaximumLength(30)
+            .Must(ProcessRecordTypes.IsDeclared).WithMessage("businessRefType is not a record type a process can be about.");
         RuleFor(c => c.BusinessRefId).NotEmpty();
     }
 }
@@ -199,7 +207,7 @@ internal sealed class StartProcessHandler(IProcessRepository processes, IWorkflo
         }
 
         var route = await configuration.Routing(businessDate.Today, clock.UtcNow, cancellationToken);
-        var process = ProcessInstance.StartProcess(Guid.CreateVersion7(), definition.Value, command.BusinessRefType, command.BusinessRefId, route, clock.UtcNow);
+        var process = ProcessRecordTypes.Start(Guid.CreateVersion7(), definition.Value, command.BusinessRefType, command.BusinessRefId, route, clock.UtcNow);
         if (process.IsFailure)
         {
             return process.Error;
@@ -456,7 +464,7 @@ public sealed class OpenParkedDeliveryTask(IProcessRepository processes, IClock 
 {
     public async Task Handle(Integration.Contracts.ParkedDeliveryEscalated escalated, EventEnvelope envelope, CancellationToken cancellationToken)
     {
-        var process = ProcessInstance.StartProcess(Guid.CreateVersion7(), BuiltInProcesses.ParkedDelivery, Integration.Contracts.ParkedDeliveryEscalated.BusinessRefType,
+        var process = ProcessRecordTypes.Start(Guid.CreateVersion7(), BuiltInProcesses.ParkedDelivery, Integration.Contracts.ParkedDeliveryEscalated.BusinessRefType,
             escalated.ParkedDeliveryId, _ => new TaskRouting(escalated.TargetRole, null, escalated.DueAt), clock.UtcNow);
         await processes.Add(process.Value, cancellationToken);
         audit.Record(new AuditEntry("WORKFLOW", "StartProcess", nameof(ProcessInstance), process.Value.Id.ToString(),
@@ -495,7 +503,7 @@ public sealed class OpenConfigurationReviewTask(IProcessRepository processes, IP
             }
 
             var due = await businessTime.Add(tenantId, null, now, "P1D", cancellationToken);
-            var process = ProcessInstance.StartProcess(Guid.CreateVersion7(), BuiltInProcesses.ConfigurationReview, FraudIndicatorRefType, reference,
+            var process = ProcessRecordTypes.Start(Guid.CreateVersion7(), BuiltInProcesses.ConfigurationReview, FraudIndicatorRefType, reference,
                 _ => new TaskRouting(role, null, due), now);
             await processes.Add(process.Value, cancellationToken);
             audit.Record(new AuditEntry("WORKFLOW", "StartProcess", nameof(ProcessInstance), process.Value.Id.ToString(),
@@ -534,7 +542,7 @@ public sealed class OpenHeldClaimPaymentTask(IProcessRepository processes, IProc
 
         var now = clock.UtcNow;
         var due = await businessTime.Add(tenant.RequireTenantId(), null, now, "P1D", cancellationToken);
-        var process = ProcessInstance.StartProcess(Guid.CreateVersion7(), BuiltInProcesses.HeldClaimPayment, ClaimsFramework.Contracts.ClaimsApprovals.InstructionBusinessRefType,
+        var process = ProcessRecordTypes.Start(Guid.CreateVersion7(), BuiltInProcesses.HeldClaimPayment, ClaimsFramework.Contracts.ClaimsApprovals.InstructionBusinessRefType,
             held.InstructionId, _ => new TaskRouting(held.TargetRole, null, due), now);
         await processes.Add(process.Value, cancellationToken);
         audit.Record(new AuditEntry("WORKFLOW", "StartProcess", nameof(ProcessInstance), process.Value.Id.ToString(),
@@ -570,7 +578,7 @@ public sealed class OpenPartyMatchReviewTask(IProcessRepository processes, IProc
 
         var now = clock.UtcNow;
         var due = await businessTime.Add(tenant.RequireTenantId(), null, now, "P1D", cancellationToken);
-        var process = ProcessInstance.StartProcess(Guid.CreateVersion7(), BuiltInProcesses.PartyMatchReview, BusinessRefType, requested.PartyId,
+        var process = ProcessRecordTypes.Start(Guid.CreateVersion7(), BuiltInProcesses.PartyMatchReview, BusinessRefType, requested.PartyId,
             _ => new TaskRouting(Queue, null, due), now);
         await processes.Add(process.Value, cancellationToken);
         audit.Record(new AuditEntry("WORKFLOW", "StartProcess", nameof(ProcessInstance), process.Value.Id.ToString(),
@@ -668,7 +676,7 @@ public sealed class DueDiligenceTasks(IProcessRepository processes, IProcessQuer
 
         var now = clock.UtcNow;
         var due = await businessTime.Add(tenant.RequireTenantId(), null, now, "P1D", cancellationToken);
-        var process = ProcessInstance.StartProcess(Guid.CreateVersion7(), definition, OpenPartyMatchReviewTask.BusinessRefType, partyId,
+        var process = ProcessRecordTypes.Start(Guid.CreateVersion7(), definition, OpenPartyMatchReviewTask.BusinessRefType, partyId,
             _ => new TaskRouting(Queue, null, due), now);
         await processes.Add(process.Value, cancellationToken);
         audit.Record(new AuditEntry("WORKFLOW", "StartProcess", nameof(ProcessInstance), process.Value.Id.ToString(),
@@ -719,7 +727,7 @@ public sealed class HealthArrearsTerminationTasks(IProcessRepository processes, 
 
         var now = clock.UtcNow;
         var deadline = await businessTime.Add(tenant.RequireTenantId(), null, now, "P1D", cancellationToken);
-        var process = ProcessInstance.StartProcess(Guid.CreateVersion7(), BuiltInProcesses.HealthArrearsTermination, Health.Contracts.HealthMembershipTasks.BusinessRefType,
+        var process = ProcessRecordTypes.Start(Guid.CreateVersion7(), BuiltInProcesses.HealthArrearsTermination, Health.Contracts.HealthMembershipTasks.BusinessRefType,
             due.MembershipId, _ => new TaskRouting(Queue, null, deadline), now);
         await processes.Add(process.Value, cancellationToken);
         audit.Record(new AuditEntry("WORKFLOW", "StartProcess", nameof(ProcessInstance), process.Value.Id.ToString(),
@@ -781,7 +789,7 @@ public sealed class OpenAggregationReviewTask(IProcessRepository processes, IPro
 
         var now = clock.UtcNow;
         var due = await businessTime.Add(tenant.RequireTenantId(), null, now, "P1D", cancellationToken);
-        var process = ProcessInstance.StartProcess(Guid.CreateVersion7(), BuiltInProcesses.AggregationReview, General.Contracts.AggregationZones.BusinessRefType,
+        var process = ProcessRecordTypes.Start(Guid.CreateVersion7(), BuiltInProcesses.AggregationReview, General.Contracts.AggregationZones.BusinessRefType,
             reference, _ => new TaskRouting(role, null, due), now);
         await processes.Add(process.Value, cancellationToken);
         audit.Record(new AuditEntry("WORKFLOW", "StartProcess", nameof(ProcessInstance), process.Value.Id.ToString(),
@@ -821,7 +829,7 @@ public sealed class OpenGeneralReferralTask(IProcessRepository processes, IProce
             referred.SumInsured);
         var due = await businessTime.Add(tenantId, null, now, "P1D", cancellationToken);
         var routing = role is null ? await configuration.Routing(businessDate.Today, now, cancellationToken) : null;
-        var process = ProcessInstance.StartProcess(Guid.CreateVersion7(), BuiltInProcesses.GeneralReferral, General.Contracts.GeneralReferrals.BusinessRefType,
+        var process = ProcessRecordTypes.Start(Guid.CreateVersion7(), BuiltInProcesses.GeneralReferral, General.Contracts.GeneralReferrals.BusinessRefType,
             referred.QuoteId, taskType => role is null ? routing!(taskType) : new TaskRouting(role, null, due), now);
         await processes.Add(process.Value, cancellationToken);
         audit.Record(new AuditEntry("WORKFLOW", "StartProcess", nameof(ProcessInstance), process.Value.Id.ToString(),
@@ -888,7 +896,7 @@ public sealed class GeneralRenewalReviewTasks(IProcessRepository processes, IPro
         var role = Rules.Contracts.ReferralRouting.RouteTo(await authorities.ForProduct(tenantId, productCode, businessDate.Today, cancellationToken), sumInsured);
         var due = await businessTime.Add(tenantId, null, now, "P1D", cancellationToken);
         var routing = role is null ? await configuration.Routing(businessDate.Today, now, cancellationToken) : null;
-        var process = ProcessInstance.StartProcess(Guid.CreateVersion7(), BuiltInProcesses.GeneralRenewalReview, General.Contracts.GeneralRenewals.BusinessRefType, renewalId,
+        var process = ProcessRecordTypes.Start(Guid.CreateVersion7(), BuiltInProcesses.GeneralRenewalReview, General.Contracts.GeneralRenewals.BusinessRefType, renewalId,
             taskType => role is null ? routing!(taskType) : new TaskRouting(role, null, due), now);
         await processes.Add(process.Value, cancellationToken);
         audit.Record(new AuditEntry("WORKFLOW", "StartProcess", nameof(ProcessInstance), process.Value.Id.ToString(),
@@ -927,7 +935,7 @@ public sealed class GeneralRetentionTasks(IProcessRepository processes, IProcess
 
         var now = clock.UtcNow;
         var routing = await configuration.Routing(businessDate.Today, now, cancellationToken);
-        var process = ProcessInstance.StartProcess(Guid.CreateVersion7(), BuiltInProcesses.GeneralRetention, BusinessRefType, opened.CaseId, routing, now);
+        var process = ProcessRecordTypes.Start(Guid.CreateVersion7(), BuiltInProcesses.GeneralRetention, BusinessRefType, opened.CaseId, routing, now);
         await processes.Add(process.Value, cancellationToken);
         audit.Record(new AuditEntry("WORKFLOW", "StartProcess", nameof(ProcessInstance), process.Value.Id.ToString(), new Dictionary<string, string?>
         {
@@ -978,7 +986,7 @@ public sealed class CareActivityFollowUpTasks(IProcessRepository processes, IPro
 
         var now = clock.UtcNow;
         var routing = await configuration.Routing(businessDate.Today, now, cancellationToken);
-        var process = ProcessInstance.StartProcess(Guid.CreateVersion7(), BuiltInProcesses.CareActivityFollowUp, BusinessRefType, overdue.ActivityId, routing, now);
+        var process = ProcessRecordTypes.Start(Guid.CreateVersion7(), BuiltInProcesses.CareActivityFollowUp, BusinessRefType, overdue.ActivityId, routing, now);
         if (overdue.CaseManagerId is { } manager && process.Value.OpenTask is { } task)
         {
             process.Value.AssignTask(task.Id, manager);
@@ -1014,7 +1022,7 @@ public sealed class PartyComplianceTasks(IProcessRepository processes, IProcessQ
 
         var now = clock.UtcNow;
         var routing = await configuration.Routing(businessDate.Today, now, cancellationToken);
-        var process = ProcessInstance.StartProcess(Guid.CreateVersion7(), definition, refType, refId, routing, now);
+        var process = ProcessRecordTypes.Start(Guid.CreateVersion7(), definition, refType, refId, routing, now);
         await processes.Add(process.Value, cancellationToken);
         audit.Record(new AuditEntry("WORKFLOW", "StartProcess", nameof(ProcessInstance), process.Value.Id.ToString(), new Dictionary<string, string?> { ["process"] = $"{definition.ProcessCode}@{definition.Version}" }));
     }
@@ -1035,7 +1043,7 @@ public sealed class ProgrammeReviewTasks(IProcessRepository processes, IProcessQ
 
         var now = clock.UtcNow;
         var routing = await configuration.Routing(businessDate.Today, now, cancellationToken);
-        var process = ProcessInstance.StartProcess(Guid.CreateVersion7(), BuiltInProcesses.ProgrammeReview, BusinessRefType, due.ReviewId, routing, now);
+        var process = ProcessRecordTypes.Start(Guid.CreateVersion7(), BuiltInProcesses.ProgrammeReview, BusinessRefType, due.ReviewId, routing, now);
         await processes.Add(process.Value, cancellationToken);
         audit.Record(new AuditEntry("WORKFLOW", "StartProcess", nameof(ProcessInstance), process.Value.Id.ToString(), new Dictionary<string, string?>
         {
@@ -1059,7 +1067,7 @@ public sealed class ProviderMeasureReviewTasks(IProcessRepository processes, IPr
 
         var now = clock.UtcNow;
         var routing = await configuration.Routing(businessDate.Today, now, cancellationToken);
-        var process = ProcessInstance.StartProcess(Guid.CreateVersion7(), BuiltInProcesses.ProviderMeasureReview, BusinessRefType, breached.ResultId, routing, now);
+        var process = ProcessRecordTypes.Start(Guid.CreateVersion7(), BuiltInProcesses.ProviderMeasureReview, BusinessRefType, breached.ResultId, routing, now);
         await processes.Add(process.Value, cancellationToken);
         audit.Record(new AuditEntry("WORKFLOW", "StartProcess", nameof(ProcessInstance), process.Value.Id.ToString(), new Dictionary<string, string?>
         {
@@ -1084,7 +1092,7 @@ public sealed class RecoveryReviewTasks(IProcessRepository processes, IProcessQu
 
         var now = clock.UtcNow;
         var routing = await configuration.Routing(businessDate.Today, now, cancellationToken);
-        var process = ProcessInstance.StartProcess(Guid.CreateVersion7(), BuiltInProcesses.RecoveryReview, BusinessRefType, due.RecoveryId, routing, now);
+        var process = ProcessRecordTypes.Start(Guid.CreateVersion7(), BuiltInProcesses.RecoveryReview, BusinessRefType, due.RecoveryId, routing, now);
         await processes.Add(process.Value, cancellationToken);
         audit.Record(new AuditEntry("WORKFLOW", "StartProcess", nameof(ProcessInstance), process.Value.Id.ToString(), new Dictionary<string, string?>
         {

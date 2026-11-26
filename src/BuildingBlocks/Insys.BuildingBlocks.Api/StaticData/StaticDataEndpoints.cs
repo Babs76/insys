@@ -292,7 +292,7 @@ public static class StaticDataEndpoints
                     + "changed), 24-hour periods: the body's reason is then required, at most 500 characters (422 VALIDATION_FAILED), and the discard is audited as "
                     + "DiscardStaleDraft with the reason, the maker and the days untouched. Sooner, 409 STATIC_DRAFT_NOT_STALE with discardableFrom; the pending "
                     + "list and GET …/{code}/versions give discardableByOthersFrom. 409 INVALID_STATE_TRANSITION for any other status, for a draft a rejection "
-                    + "returned (edit and submit it again) and for a line of an import (BR-016).")
+                    + "returned (edit and submit it again) and for a line of an import (BR-016: discard the import as a whole, …/imports/{batchId}/discard, OQ-203).")
                 .Secure(global, StaticDataPermissions.Update);
 
             scope.MapPost("/imports", async (StaticDataImport<TInput> import, StaticDataService<TDbContext> service, CancellationToken ct) =>
@@ -328,6 +328,27 @@ public static class StaticDataEndpoints
                     + "approved, every line is put in force together.")
                 .WithEventualEffects("after submit, the change request and its Workflow approval appear; after the approval, every line reads APPROVED.")
                 .Secure(global, StaticDataPermissions.Update);
+
+            // OQ-203 (Ade, 26 November 2026): an import never submitted is discarded as a whole, under a draft's rules (OQ-204).
+            scope.MapPost("/imports/{batchId:guid}/discard", async (Guid batchId, StaticDraftDiscard? body, StaticDataService<TDbContext> service, CancellationToken ct) =>
+                    (await service.DiscardImport<TEntity>(d, batchId, body?.Reason, global, ct)).ToHttp(_ => Results.NoContent()))
+                .Produces(StatusCodes.Status204NoContent)
+                .ProducesProblem(StatusCodes.Status403Forbidden)
+                .ProducesProblem(StatusCodes.Status404NotFound)
+                .ProducesProblem(StatusCodes.Status409Conflict)
+                .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+                .WithName($"Discard{Pascal(d)}Import{suffix}")
+                .WithSummary($"Discard a {owner} {entityName} import that was never submitted, as a whole: your own, or someone else's left untouched for the tenant's number of days")
+                .WithDescription("OQ-203 (Ade, 26 November 2026), under a draft's rules (DE-016, OQ-204): never submitted means every line is still a draft with no "
+                    + "change request. Every line is deleted in one transaction and audited with what it held; the import reads DISCARDED in GET "
+                    + "/api/v1/static-data/imports, and the codes are free for new drafts. Its maker discards it at any time, with no body needed (DiscardImport). "
+                    + "Anyone else holding the table's maintain function may discard it once no line has been touched (created or last edited) for the tenant's "
+                    + "staleDraftDiscardDays, 24-hour periods: the body's reason is then required, at most 500 characters (422 VALIDATION_FAILED), the discard is "
+                    + "audited as DiscardStaleImport with the reason, the maker and the days untouched, and the maker is told by an informational task. Sooner, "
+                    + "409 STATIC_DRAFT_NOT_STALE with discardableFrom. 409 INVALID_STATE_TRANSITION once it was submitted, and for an import a rejection returned "
+                    + "(edit its lines and submit it again). 404 for an import with no lines (unknown, rejected or already discarded).")
+                .WithEventualEffects("the import reads DISCARDED in GET /api/v1/static-data/imports, and the maker's task appears, once the event is delivered.")
+                .Secure(global, StaticDataPermissions.Update);
         }
     }
 
@@ -353,7 +374,7 @@ public static class StaticDataEndpoints
         http.RequestServices.GetService<RequestLanguage>()?.Chain ?? [TenantLanguages.English];
 
     /// <summary>Endpoint names are global, and table names repeat across modules (for example AllocationRules), so the module is part of the name.</summary>
-    private static string Pascal(StaticDataDescriptor descriptor) => descriptor.EntityType.Namespace!.Split('.')[1] + descriptor.EntityType.Name;
+    private static string Pascal(StaticDataDescriptor descriptor) => descriptor.OperationName;
 
     private static string EncodeCode(string code) => System.Buffers.Text.Base64Url.EncodeToString(Encoding.UTF8.GetBytes(code));
 

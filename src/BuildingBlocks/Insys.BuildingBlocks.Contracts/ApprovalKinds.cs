@@ -84,6 +84,85 @@ public static class ApprovalKinds
 
     /// <summary>The screen that opens a record of the reference type, or null when none was declared.</summary>
     public static string? ScreenFor(string businessRefType) => Screens.GetValueOrDefault(businessRefType);
+
+    private static readonly ConcurrentDictionary<string, SubjectRead> SubjectReads = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// DE-019, DE-020: the read operation that opens the record an approval of the reference type is about, by the approval's
+    /// business ref ID. <paramref name="pathTemplate"/> is the operation's path as the OpenAPI document gives it (from /api/v1/), with {id} where the business ref
+    /// ID goes (none when the record is the tenant's only one, as its governance settings are). Every declared type has one,
+    /// which ApprovalKindsTests checks against the host's routes.
+    /// </summary>
+    /// <param name="operationId">The operation's ID in the OpenAPI document (its endpoint name), for example PartyGetBankAccount.</param>
+    public static void OpensWith(string businessRefType, string operationId, string pathTemplate) =>
+        SubjectReads[businessRefType] = new SubjectRead(operationId, pathTemplate);
+
+    /// <summary>The read operation that opens a record of the reference type, or null when none was declared.</summary>
+    public static SubjectRead? ReadFor(string businessRefType) => SubjectReads.GetValueOrDefault(businessRefType);
+
+    private static readonly ConcurrentDictionary<string, string> ReadsByRecord = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// OQ-203 (Ade, 26 November 2026): the record of the reference type is opened by a read that depends on the record itself, not on its ID alone, so no one
+    /// operation is declared with <see cref="OpensWith"/>: a discarded static data draft or import links to its own table's page of versions not in force
+    /// (each table has its own operation), which the record's task carries (subjectOperation and subjectPath of the task). <paramref name="how"/> says which
+    /// read. Only informational tasks, never an approval, carry these types, so an approval's subjectOperation and subjectPath are null for them.
+    /// ApprovalKindsTests accepts this in place of <see cref="OpensWith"/>.
+    /// </summary>
+    public static void OpensByRecord(string businessRefType, string how) => ReadsByRecord[businessRefType] = how;
+
+    /// <summary>The types whose read depends on the record (<see cref="OpensByRecord"/>), with which read.</summary>
+    public static IReadOnlyDictionary<string, string> TypesOpenedByRecord => ReadsByRecord;
+}
+
+/// <summary>The read operation that opens an approval's record (DE-020): its operation ID and its path, with {id} for the business ref ID.</summary>
+public sealed record SubjectRead(string OperationId, string PathTemplate)
+{
+    public const string IdPlaceholder = "{id}";
+
+    /// <summary>The path with the business ref ID filled in.</summary>
+    public string PathFor(Guid businessRefId) => PathTemplate.Replace(IdPlaceholder, businessRefId.ToString(), StringComparison.Ordinal);
+}
+
+/// <summary>
+/// The record types a process and its tasks can be about (BR-170, GAP-179): every approval reference type (<see cref="ApprovalKinds"/>), and the
+/// types only processes use, each with the screen that opens its record (BR-005). Workflow declares the process-only types at start-up from its one
+/// list and refuses to open a process about an undeclared type; the OpenAPI documents list the union as the enum of a task's and a process's record type,
+/// with <see cref="Undeclared"/> in the views.
+/// </summary>
+public static class TaskRecordTypes
+{
+    /// <summary>
+    /// What a view shows for a stored record type that is neither declared nor has a declared equivalent (Ade, 26 November 2026): a process started
+    /// through the API before BR-170 narrowed the start request. It opens no screen, and no process can be started about it; the view keeps the stored
+    /// value in <c>storedBusinessRefType</c>, and the stored row is unchanged.
+    /// </summary>
+    public const string Undeclared = "UNDECLARED";
+
+    private static readonly ConcurrentDictionary<string, string> Screens = new(StringComparer.Ordinal);
+
+    /// <param name="screenFunction">The SCREEN function that opens the record (ADR-026).</param>
+    public static void Declare(string businessRefType, string screenFunction)
+    {
+        if (businessRefType == Undeclared)
+        {
+            throw new InvalidOperationException($"{Undeclared} is what a view shows for an undeclared type; it can't be declared as a record type.");
+        }
+
+        Screens[businessRefType] = screenFunction;
+    }
+
+    /// <summary>The types declared for processes only, which no approval names.</summary>
+    public static IReadOnlyList<string> ProcessOnly => [.. Screens.Keys.Except(ApprovalKinds.BusinessRefTypes, StringComparer.Ordinal).Order(StringComparer.Ordinal)];
+
+    /// <summary>Every record type a process can be started about: the approval reference types and the process-only types (the start request's enum).</summary>
+    public static IReadOnlyList<string> Startable => [.. ApprovalKinds.BusinessRefTypes.Union(Screens.Keys, StringComparer.Ordinal).Order(StringComparer.Ordinal)];
+
+    /// <summary>Every record type a process or task view can show: <see cref="Startable"/> and <see cref="Undeclared"/>.</summary>
+    public static IReadOnlyList<string> All => [.. Startable.Append(Undeclared).Order(StringComparer.Ordinal)];
+
+    /// <summary>The screen that opens a record of the type, or null when the type is not declared (and for <see cref="Undeclared"/>).</summary>
+    public static string? ScreenFor(string businessRefType) => ApprovalKinds.ScreenFor(businessRefType) ?? Screens.GetValueOrDefault(businessRefType);
 }
 
 /// <summary>The field holds an approval type: the OpenAPI documents give it the enum of declared types (BR-005).</summary>
@@ -93,3 +172,15 @@ public sealed class ApprovalTypeFieldAttribute : Attribute;
 /// <summary>The field holds an approval's business reference type: the OpenAPI documents give it the enum of declared types (BR-005).</summary>
 [AttributeUsage(AttributeTargets.Property)]
 public sealed class BusinessRefTypeFieldAttribute : Attribute;
+
+/// <summary>
+/// The field holds a process's or task's record type: the OpenAPI documents give it the enum of <see cref="TaskRecordTypes.All"/> (BR-170), or of
+/// <see cref="TaskRecordTypes.Startable"/> when <see cref="Startable"/> is set (a request that starts a process). Approval views keep
+/// <see cref="BusinessRefTypeFieldAttribute"/>, as an approval is only ever about an approval reference type.
+/// </summary>
+[AttributeUsage(AttributeTargets.Property)]
+public sealed class TaskRecordTypeFieldAttribute : Attribute
+{
+    /// <summary>The field names the type to start a process about: <see cref="TaskRecordTypes.Undeclared"/> is not offered.</summary>
+    public bool Startable { get; init; }
+}

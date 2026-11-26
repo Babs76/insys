@@ -45,8 +45,10 @@ public static class BillingInfrastructure
         // Its approval kinds and the screens that open their records (BR-005).
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Billing.Contracts.BillingApprovals.RefundBusinessRefType, "BILLING_REFUNDS", Insys.Billing.Contracts.BillingApprovals.RefundApprovalType,
             PaymentApprovals.PayoutRetryApprovalType);
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.OpensWith(Insys.Billing.Contracts.BillingApprovals.RefundBusinessRefType, "BillingGetRefund", "/api/v1/billing/refunds/{id}"); // DE-020
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.Billing.Contracts.BillingApprovals.CreditNoteBusinessRefType, "BILLING_INVOICES",
             Insys.Billing.Contracts.BillingApprovals.CreditNoteApprovalType);
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.OpensWith(Insys.Billing.Contracts.BillingApprovals.CreditNoteBusinessRefType, "BillingGetCreditNoteRequest", "/api/v1/billing/credit-note-requests/{id}"); // DE-020
         // Its dashboard figure codes, for the OpenAPI enum of DashboardFigure.code.
         BuildingBlocks.Application.DashboardFigureCodes.Declare(Insys.Billing.Application.BillingFigures.OpenArrears);
         const string schema = BillingDbContext.SchemaName;

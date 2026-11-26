@@ -51,6 +51,17 @@ public sealed record RequestPolicyExport([property: OneOf("GENERAL", "LIFE", "HE
 
 public sealed record ApprovePartyExport(Guid Id) : ICommand<BulkJobView>;
 
+/// <summary>DE-059: the approver refuses an export waiting for approval, with a reason; nothing leaves. Audited.</summary>
+public sealed record RefusePartyExport(Guid Id, string Reason) : ICommand<BulkJobView>;
+
+/// <summary>DE-059: who asked for an export withdraws it while it waits for approval; nothing leaves. Audited.</summary>
+public sealed record CancelPartyExport(Guid Id) : ICommand<BulkJobView>;
+
+public sealed class RefusePartyExportValidator : AbstractValidator<RefusePartyExport>
+{
+    public RefusePartyExportValidator() => RuleFor(c => c.Reason).NotEmpty().MaximumLength(500);
+}
+
 /// <summary>The approved export as CSV: IDs, numbers, names and status; no identifier numbers. Audited with its filter and row count.</summary>
 public sealed record DownloadPartyExport(Guid Id) : ICommand<string>;
 
@@ -64,7 +75,7 @@ public sealed record GetBulkJob(Guid Id) : IQuery<BulkJobView>;
 public sealed record ListBulkJobs(string? JobType, string? Direction, string? Status, DateOnly? From, DateOnly? To, Guid? BeforeId, int Limit) : IQuery<IReadOnlyList<BulkJobSummary>>;
 
 /// <summary>BR-122: what a list row shows; the rejected lines and the export's filter stay on the job itself.</summary>
-public sealed record BulkJobSummary(Guid Id, [property: OneOf(BulkJob.Import, BulkJob.Export, BulkJob.PolicyExport)] string JobType, [property: OneOf("IMPORT", "EXPORT")] string Direction, [property: OneOf(BulkJobStatus.Done, BulkJobStatus.Rejected, BulkJobStatus.ToApprove, BulkJobStatus.Approved)] string Status,
+public sealed record BulkJobSummary(Guid Id, [property: OneOf(BulkJob.Import, BulkJob.Export, BulkJob.PolicyExport)] string JobType, [property: OneOf("IMPORT", "EXPORT")] string Direction, [property: OneOf(BulkJobStatus.Done, BulkJobStatus.Rejected, BulkJobStatus.ToApprove, BulkJobStatus.Approved, BulkJobStatus.Refused, BulkJobStatus.Cancelled)] string Status,
     int TotalCount, int AcceptedCount, Guid RunBy, DateTimeOffset CreatedAt)
 {
     public string JobTypeLabel => BulkJob.Label(JobType);
@@ -72,13 +83,18 @@ public sealed record BulkJobSummary(Guid Id, [property: OneOf(BulkJob.Import, Bu
 
 public sealed record RejectedLine(int Line, string Reason);
 
-public sealed record BulkJobView(Guid Id, string JobType, [property: OneOf(BulkJobStatus.Done, BulkJobStatus.Rejected, BulkJobStatus.ToApprove, BulkJobStatus.Approved)] string Status, string? Filter, int TotalCount, int AcceptedCount,
-    IReadOnlyList<RejectedLine> RejectedLines, long RowVersion)
+/// <param name="RunBy">Who ran the import or asked for the export: they cancel an export waiting for approval, and someone else approves or refuses it (DE-059).</param>
+/// <param name="RefusedBy">Who refused the export (REFUSED), or null.</param>
+/// <param name="RefusalReason">Why the export was refused, in the approver's words, or null.</param>
+public sealed record BulkJobView(Guid Id, string JobType, [property: OneOf(BulkJobStatus.Done, BulkJobStatus.Rejected, BulkJobStatus.ToApprove, BulkJobStatus.Approved, BulkJobStatus.Refused, BulkJobStatus.Cancelled)] string Status, string? Filter, int TotalCount, int AcceptedCount,
+    IReadOnlyList<RejectedLine> RejectedLines, long RowVersion, Guid? RunBy = null, [property: BuildingBlocks.Contracts.AlwaysPresent] Guid? RefusedBy = null,
+    [property: BuildingBlocks.Contracts.AlwaysPresent] string? RefusalReason = null)
 {
     public string JobTypeLabel => BulkJob.Label(JobType);
 
     public static BulkJobView From(BulkJob j) => new(j.Id, j.JobType, j.Status, j.Filter, j.TotalCount, j.AcceptedCount,
-        j.RejectedLines is { } lines ? JsonSerializer.Deserialize<List<RejectedLine>>(lines, JsonSerializerOptions.Web) ?? [] : [], j.RowVersion);
+        j.RejectedLines is { } lines ? JsonSerializer.Deserialize<List<RejectedLine>>(lines, JsonSerializerOptions.Web) ?? [] : [], j.RowVersion, j.RunBy, j.RefusedBy,
+        j.RefusalReason);
 }
 
 public sealed record PartyExportRow(Guid Id, string PartyNumber, string DisplayName, string Status);
@@ -106,6 +122,8 @@ internal sealed class BulkJobHandlers(IEnumerable<BuildingBlocks.Application.Con
     ICommandHandler<RequestPartyExport, BulkJobView>,
     ICommandHandler<RequestPolicyExport, BulkJobView>,
     ICommandHandler<ApprovePartyExport, BulkJobView>,
+    ICommandHandler<RefusePartyExport, BulkJobView>,
+    ICommandHandler<CancelPartyExport, BulkJobView>,
     ICommandHandler<DownloadPartyExport, string>,
     IQueryHandler<GetBulkJob, BulkJobView>,
     IQueryHandler<ListBulkJobs, IReadOnlyList<BulkJobSummary>>
@@ -251,6 +269,53 @@ internal sealed class BulkJobHandlers(IEnumerable<BuildingBlocks.Application.Con
         }
 
         audit.Record(new AuditEntry("PARTY", "ApprovePartyExport", nameof(BulkJob), job.Id.ToString()));
+        return BulkJobView.From(job);
+    }
+
+    public async Task<Result<BulkJobView>> Handle(RefusePartyExport command, CancellationToken cancellationToken)
+    {
+        var user = Parties.User(execution);
+        if (user.IsFailure)
+        {
+            return user.Error;
+        }
+
+        if (await jobs.Get(command.Id, cancellationToken) is not { } job)
+        {
+            return NotFound;
+        }
+
+        var refused = job.RefuseExport(user.Value, command.Reason);
+        if (refused.IsFailure)
+        {
+            return refused.Error;
+        }
+
+        audit.Record(new AuditEntry("PARTY", "RefusePartyExport", nameof(BulkJob), job.Id.ToString(),
+            new Dictionary<string, string?> { ["reason"] = job.RefusalReason }));
+        return BulkJobView.From(job);
+    }
+
+    public async Task<Result<BulkJobView>> Handle(CancelPartyExport command, CancellationToken cancellationToken)
+    {
+        var user = Parties.User(execution);
+        if (user.IsFailure)
+        {
+            return user.Error;
+        }
+
+        if (await jobs.Get(command.Id, cancellationToken) is not { } job)
+        {
+            return NotFound;
+        }
+
+        var cancelled = job.CancelExport(user.Value);
+        if (cancelled.IsFailure)
+        {
+            return cancelled.Error;
+        }
+
+        audit.Record(new AuditEntry("PARTY", "CancelPartyExport", nameof(BulkJob), job.Id.ToString()));
         return BulkJobView.From(job);
     }
 

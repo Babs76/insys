@@ -48,7 +48,7 @@ internal static class FinanceFunctions
         .Action("FINANCE_PREPARE_TAX_RETURN", "FINANCE_TAX_RETURNS", "FinancePrepareTaxReturn")
         .Action("FINANCE_APPROVE_TAX_RETURN", "FINANCE_TAX_RETURNS", "FinanceApproveTaxReturn")
         .Action("FINANCE_REJECT_TAX_RETURN", "FINANCE_TAX_RETURNS", "FinanceRejectTaxReturn")
-        .Screen("FINANCE_PERIODS", "FINANCE", "Periods & close", "finance/periods", "FinanceListPeriods", "FinanceGetPeriod")
+        .Screen("FINANCE_PERIODS", "FINANCE", "Periods & close", "finance/periods", "FinanceListPeriods", "FinanceGetPeriod", "FinanceGetPeriodById")
         .Action("FINANCE_PERIOD_OPEN", "FINANCE_PERIODS", "FinancePeriodOpen")
         .Action("FINANCE_PERIOD_SOFT_CLOSE", "FINANCE_PERIODS", "FinancePeriodSoftClose")
         .Action("FINANCE_PERIOD_CLOSE", "FINANCE_PERIODS", "FinancePeriodClose")

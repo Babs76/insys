@@ -72,7 +72,8 @@ public sealed class OperatorTenantTests(DatabaseFixture fixture) : IClassFixture
         // Cases (Wave 2) are business records hosted in the Workflow module: the operator tenant has no complaints or disputes, so
         // their routes refuse it, as a business module's do.
         static bool IsCase((string Route, List<string> Tags, bool Refused) e) =>
-            e.Route.Contains("/workflow/cases", StringComparison.Ordinal) || e.Route.Contains("/portal/cases", StringComparison.Ordinal);
+            e.Route.Contains("/workflow/cases", StringComparison.Ordinal) || e.Route.Contains("/workflow/case-redress", StringComparison.Ordinal) // a redress by its own ID (DE-022)
+            || e.Route.Contains("/portal/cases", StringComparison.Ordinal);
         endpoints.Where(IsCase).Where(e => !e.Refused).Select(e => e.Route).ShouldBeEmpty("case endpoints that do not refuse the operator tenant");
         endpoints = [.. endpoints.Where(e => !IsCase(e))];
         endpoints.Where(e => !e.Refused && !IsPlatform(e)).Select(e => e.Route).ShouldBeEmpty("business module endpoints that do not refuse the operator tenant");

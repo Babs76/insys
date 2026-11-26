@@ -40,15 +40,25 @@ public static class StaticDataInfrastructure
     {
         // Its approval kinds and the screens that open their records (BR-005).
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.StaticData.Contracts.StaticDataApprovals.BusinessRefType, "STATIC_DATA_CHANGE_REQUESTS", Insys.StaticData.Contracts.StaticDataApprovals.ApprovalType(1), Insys.StaticData.Contracts.StaticDataApprovals.ApprovalType(2));
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.OpensWith(Insys.StaticData.Contracts.StaticDataApprovals.BusinessRefType, "GetChangeRequest", "/api/v1/static-data/change-requests/{id}"); // DE-020
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.StaticData.Contracts.StaticDataApprovals.GovernanceBusinessRefType, "STATIC_DATA_GOVERNANCE", Insys.StaticData.Contracts.StaticDataApprovals.ApprovalType(1));
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.OpensWith(Insys.StaticData.Contracts.StaticDataApprovals.GovernanceBusinessRefType, "GetGovernanceSettings", "/api/v1/static-data/settings"); // DE-020
         // F103 (access-scopes.md §1): static data isn't scoped.
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Unscoped(Insys.StaticData.Contracts.StaticDataApprovals.BusinessRefType, "static data: configuration, not a scoped record");
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Unscoped(Insys.StaticData.Contracts.StaticDataApprovals.GovernanceBusinessRefType, "static data governance: configuration");
         // DE-016, OQ-204: the record of the maker's task when someone else discarded their draft; no approval is raised on it.
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.StaticData.Contracts.StaticDataApprovals.DiscardedVersionRefType, "STATIC_DATA_CHANGE_REQUESTS");
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.OpensByRecord(Insys.StaticData.Contracts.StaticDataApprovals.DiscardedVersionRefType,
+            "the draft's own table: its versions not in force (List{Table}Pending), named by the maker's task (subjectOperation, subjectPath)"); // OQ-203
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Unscoped(Insys.StaticData.Contracts.StaticDataApprovals.DiscardedVersionRefType, "a discarded static data draft: configuration, not a scoped record");
+        // OQ-203 (Ade, 26 November 2026): the record of the maker's task when someone else discarded their import never submitted; no approval is raised on it.
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.StaticData.Contracts.StaticDataApprovals.DiscardedImportRefType, "STATIC_DATA_CHANGE_REQUESTS");
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.OpensByRecord(Insys.StaticData.Contracts.StaticDataApprovals.DiscardedImportRefType,
+            "the import's own table: its versions not in force (List{Table}Pending), named by the maker's task (subjectOperation, subjectPath)");
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.Unscoped(Insys.StaticData.Contracts.StaticDataApprovals.DiscardedImportRefType, "a discarded static data import: configuration, not a scoped record");
         // AIA-086: a SETUP change set's one approval, of Tier 1; its records are its batches' change requests.
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.StaticData.Contracts.SetupChangeSets.BusinessRefType, "STATIC_DATA_CHANGE_REQUESTS", Insys.StaticData.Contracts.SetupChangeSets.ApprovalType);
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.OpensWith(Insys.StaticData.Contracts.SetupChangeSets.BusinessRefType, "GetSetupChangeSet", "/api/v1/static-data/setup-sets/{id}"); // DE-020
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Unscoped(Insys.StaticData.Contracts.SetupChangeSets.BusinessRefType, "a tenant's setup: static data configuration, not a scoped record");
         services.AddModuleDbContext<StaticDataDbContext>(StaticDataDbContext.SchemaName, "StaticData");
         services.AddStaticData<StaticDataDbContext>(StaticDataDbContext.SchemaName, StaticDataStaticData.Descriptors);
@@ -69,6 +79,7 @@ public static class StaticDataInfrastructure
         services.AddIntegrationEventHandler<StaticDataCodeDeprecated, StaticDataGovernancePolicies, StaticDataDbContext>(schema, "Deprecated");
         services.AddIntegrationEventHandler<StaticDataImportCompleted, StaticDataGovernancePolicies, StaticDataDbContext>(schema, "ImportCompleted");
         services.AddIntegrationEventHandler<StaticDataImportRejected, StaticDataGovernancePolicies, StaticDataDbContext>(schema, "ImportRejected");
+        services.AddIntegrationEventHandler<StaticDataImportDiscarded, StaticDataGovernancePolicies, StaticDataDbContext>(schema, "ImportDiscarded"); // OQ-203
         services.AddIntegrationEventHandler<Contracts.SetupChangeSetRequested, StaticDataGovernancePolicies, StaticDataDbContext>(schema, "SetupRequested");
         services.AddIntegrationEventHandler<Contracts.SetupChangeSetWithdrawn, StaticDataGovernancePolicies, StaticDataDbContext>(schema, "SetupWithdrawn");
         services.AddIntegrationEventHandler<Contracts.SetupChangeSetAbandoned, StaticDataGovernancePolicies, StaticDataDbContext>(schema, "SetupAbandoned");

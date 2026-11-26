@@ -108,6 +108,7 @@ public sealed partial class StateEnumTests
         [("RefundRequest", "PaymentFailed", "extra")] = "DE-008 (Ade, 24 November 2026): a refund whose payout failed waits for a PAYOUT_RETRY or to be cancelled; domain-model.json has no failure.",
         [("RefundRequest", "Cancelled", "extra")] = "DE-008 (Ade, 24 November 2026): a refund cancelled after its payout failed, its money kept as credit; domain-model.json has no such state.",
         [("DeadLetter", "DiscardRequested", "extra")] = "DE-007 (Ade, 24 November 2026): a money message's discard waits for a second person's approval (DEAD_LETTER_DISCARD); derived, not stored.",
+        [("ImportBatch", "Discarded", "extra")] = "OQ-203 (Ade, 26 November 2026): a committed import never submitted, discarded as a whole; domain-model.json has no discard.",
         [("UserAccount", "PendingIdentity", "extra")] = "keycloak-user-provisioning (signed off 24 October 2026) §4: a user of INSYS's own realm waits for its Keycloak user.",
     };
 

@@ -38,7 +38,7 @@ internal static class ProductFactoryFunctions
     public static readonly IReadOnlyList<FunctionDeclaration> All =
     [
         .. new FunctionMap([Audiences.Staff], null)
-        .Screen("PRODUCTS", "PRODUCT_FACTORY", "Definitions & versions", "product-factory/products", "ProductListProducts", "ProductGetProduct", "ProductListVersions", "ProductGetVersion", "ProductListSimulations")
+        .Screen("PRODUCTS", "PRODUCT_FACTORY", "Definitions & versions", "product-factory/products", "ProductListProducts", "ProductGetProduct", "ProductListVersions", "ProductGetVersion", "ProductListSimulations", "ProductGetVersionById")
         .Action("PRODUCT_REGISTER_PRODUCT", "PRODUCTS", "ProductRegisterProduct")
         .Action("PRODUCT_CREATE_DRAFT_VERSION", "PRODUCTS", "ProductCreateDraftVersion")
         .Action("PRODUCT_EDIT_CONFIGURATION", "PRODUCTS", "ProductEditConfiguration")

@@ -83,6 +83,9 @@ public sealed class RequestSearchLogHoldReleaseValidator : AbstractValidator<Req
 
 public sealed record ListSearchLogHolds : IQuery<IReadOnlyList<SearchLogHoldView>>;
 
+/// <summary>DE-020: one search log hold by its ID, the ID its LEGAL_HOLD_RELEASE approval carries.</summary>
+public sealed record GetSearchLogHold(Guid HoldId) : IQuery<SearchLogHoldView>;
+
 public sealed class PlaceSearchLogHoldValidator : AbstractValidator<PlaceSearchLogHold>
 {
     public PlaceSearchLogHoldValidator()
@@ -110,7 +113,8 @@ internal sealed class SearchLogRetentionHandlers(ISearchLogRetention log, IAudit
     ICommandHandler<ApplySearchLogRetention, SearchLogRetentionRun>,
     ICommandHandler<PlaceSearchLogHold, Guid>,
     ICommandHandler<RequestSearchLogHoldRelease, SearchLogHoldView>,
-    IQueryHandler<ListSearchLogHolds, IReadOnlyList<SearchLogHoldView>>
+    IQueryHandler<ListSearchLogHolds, IReadOnlyList<SearchLogHoldView>>,
+    IQueryHandler<GetSearchLogHold, SearchLogHoldView>
 {
     public async Task<Result<SearchLogRetentionRun>> Handle(ApplySearchLogRetention command, CancellationToken cancellationToken)
     {
@@ -174,6 +178,11 @@ internal sealed class SearchLogRetentionHandlers(ISearchLogRetention log, IAudit
 
         return views;
     }
+
+    public async Task<Result<SearchLogHoldView>> Handle(GetSearchLogHold query, CancellationToken cancellationToken) =>
+        await log.Hold(query.HoldId, cancellationToken) is { } hold
+            ? SearchLogHoldView.From(hold, await history.Latest(Contracts.PartyApprovals.SearchLogHoldBusinessRefType, hold.Id, cancellationToken))
+            : Error.NotFound(ErrorCodes.NotFound, "The hold was not found.");
 }
 
 /// <summary>

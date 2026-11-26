@@ -452,7 +452,9 @@ public sealed partial class OpenApiContractTests(DatabaseFixture fixture) : ICla
     /// BR-105 (Ade, 29 October 2026): a code-named string field (…Code, …Type and their plurals) in the core and
     /// platform-operator documents declares its values (an enum, a reference, x-known-values) or its code list, or is on
     /// the reviewed list docs/api/code-field-allowances.tsv with its reason ("to declare" until a wave declares it). An
-    /// entry that is declared, or gone, comes off the list; the list is empty by the hardening phase.
+    /// entry that is declared, or gone, comes off the list; the "to declare" entries are gone by the hardening phase. Permanent
+    /// exception: storedBusinessRefType on WorkflowMyTaskView and WorkflowProcessView (BR-170), which holds stored values outside
+    /// the declared list by definition (Ade, 26 November 2026).
     /// </summary>
     [Fact]
     public async Task UndeclaredCodeFields_AreOnTheReviewedAllowanceList_BR105()

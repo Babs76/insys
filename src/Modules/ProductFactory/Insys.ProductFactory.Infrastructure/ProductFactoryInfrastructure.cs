@@ -42,6 +42,7 @@ public static class ProductFactoryInfrastructure
     {
         // Its approval kinds and the screens that open their records (BR-005).
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.ProductFactory.Contracts.ProductApprovals.BusinessRefType, "PRODUCTS", Insys.ProductFactory.Contracts.ProductApprovals.ApprovalType);
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.OpensWith(Insys.ProductFactory.Contracts.ProductApprovals.BusinessRefType, "ProductGetVersionById", "/api/v1/product-factory/product-versions/{id}"); // DE-020
         const string schema = ProductFactoryDbContext.SchemaName;
         services.AddModuleDbContext<ProductFactoryDbContext>(schema, "ProductFactory");
         services.AddStaticData<ProductFactoryDbContext>(schema, ProductFactoryStaticData.Descriptors);

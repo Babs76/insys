@@ -25,6 +25,7 @@
  * ============================================================================
  */
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Insys.BuildingBlocks.Application.Messaging;
 using Insys.BuildingBlocks.Contracts;
 using Insys.BuildingBlocks.Domain;
@@ -225,7 +226,18 @@ internal sealed class ProcessQueries(WorkflowDbContext db, BuildingBlocks.Applic
         var query = InScope(db.Processes.AsNoTracking().Include(p => p.Tasks).AsQueryable());
         if (businessRefType is not null)
         {
-            query = query.Where(p => p.BusinessRefType == businessRefType);
+            // Ade, 26 November 2026 (BR-170): a filter finds a process by its stored type or by the type its view shows. A declared type also finds the
+            // stored values that fold to it (trimmed, any letter case), matched in the query by a locale-free regular expression that folds exactly
+            // what ProcessRecordTypes.Folded folds; UNDECLARED finds the values that neither are known nor fold; any other value matches exactly.
+            var filter = ProcessRecordTypes.FilterFor(businessRefType);
+            var exact = filter.Exact;
+            query = filter switch
+            {
+                { Excluding: true, Folding: { } folding } => query.Where(p => !exact.Contains(p.BusinessRefType) && !Regex.IsMatch(p.BusinessRefType, folding)),
+                { Excluding: true } => query.Where(p => !exact.Contains(p.BusinessRefType)),
+                { Folding: { } folding } => query.Where(p => exact.Contains(p.BusinessRefType) || Regex.IsMatch(p.BusinessRefType, folding)),
+                _ => query.Where(p => exact.Contains(p.BusinessRefType)),
+            };
         }
 
         if (businessRefId is not null)
@@ -317,9 +329,12 @@ internal sealed class ProcessQueries(WorkflowDbContext db, BuildingBlocks.Applic
             r.Process.Notice)).ToList();
     }
 
-    private static ProcessView View(ProcessInstance p, IReadOnlyList<CaseNoteView> notes) =>
-        new(p.Id, p.ProcessCode, p.ProcessVersion, p.BusinessRefType, p.BusinessRefId, p.Status, p.DefinitionState, p.StartedAt, p.EndedAt,
+    private static ProcessView View(ProcessInstance p, IReadOnlyList<CaseNoteView> notes)
+    {
+        var (shown, stored) = ProcessRecordTypes.Shown(p.BusinessRefType);
+        return new(p.Id, p.ProcessCode, p.ProcessVersion, shown, p.BusinessRefId, stored, p.Status, p.DefinitionState, p.StartedAt, p.EndedAt,
             p.Tasks.OrderBy(t => t.Id).Select(View).ToList(), notes, p.RowVersion);
+    }
 
     private static TaskView View(ProcessTask t) =>
         new(t.Id, t.TaskType, t.QueueCode, t.AssigneeId, t.Status, t.SlaCode, t.DueAt, t.CompletedAt, t.Outcome);

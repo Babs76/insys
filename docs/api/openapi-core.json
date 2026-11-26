@@ -1729,6 +1729,63 @@
         ]
       }
     },
+    "/api/v1/party/search-log/holds/{id}": {
+      "get": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "A legal hold on the party search log, by the ID its release approval carries (DE-020)",
+        "operationId": "PartyGetSearchLogHold",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartySearchLogHoldView"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          }
+        },
+        "x-permission": "audit_event.read",
+        "x-function": [
+          "PARTY_SEARCH_LOG"
+        ]
+      }
+    },
     "/api/v1/party/search-log/holds/{id}/release": {
       "post": {
         "tags": [
@@ -4371,6 +4428,128 @@
         ]
       }
     },
+    "/api/v1/party/bank-accounts/pending-verification": {
+      "get": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "The tenant\u0027s bank accounts waiting for a second person\u0027s verification (PENDING_VERIFICATION), oldest first, without their numbers",
+        "description": "For the verifier (DE-020): each account names its party (partyId); its BANK_ACCOUNT_VERIFICATION approval carries the account\u0027s id.",
+        "operationId": "PartyListBankAccountsPendingVerification",
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorPageOfPartyBankAccountView"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "bank_account.read",
+        "x-function": [
+          "PARTY_BANK_ACCOUNTS"
+        ]
+      }
+    },
+    "/api/v1/party/bank-accounts/{id}": {
+      "get": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "A bank account by its ID, the businessRefId of its verification approval, without its number (DE-020)",
+        "operationId": "PartyGetBankAccount",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyBankAccountView"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          }
+        },
+        "x-permission": "bank_account.read",
+        "x-function": [
+          "PARTY_BANK_ACCOUNTS"
+        ]
+      }
+    },
     "/api/v1/party/merges": {
       "post": {
         "tags": [
@@ -5555,6 +5734,191 @@
         "x-permission": "party_bulk_job.approve",
         "x-function": [
           "PARTY_APPROVE_EXPORT"
+        ]
+      }
+    },
+    "/api/v1/party/bulk-jobs/{id}/refuse": {
+      "post": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "Refuse an export waiting for approval, with a reason; not for who asked, who cancels it instead (DE-059)",
+        "description": "TO_APPROVE \u2192 REFUSED; nothing leaves, and the job keeps who refused it and why. Audited. 409 MAKER_CHECKER_SAME_PERSON for who asked; 409 INVALID_STATE_TRANSITION when the job is not an export waiting for approval.",
+        "operationId": "PartyRefuseExport",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartyRefuseExportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyBulkJobView"
+                }
+              }
+            }
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        },
+        "x-permission": "party_bulk_job.approve",
+        "x-function": [
+          "PARTY_APPROVE_EXPORT"
+        ]
+      }
+    },
+    "/api/v1/party/bulk-jobs/{id}/cancel": {
+      "post": {
+        "tags": [
+          "Party"
+        ],
+        "summary": "Cancel your own export while it waits for approval (DE-059)",
+        "description": "TO_APPROVE \u2192 CANCELLED; nothing leaves. Audited. Only who asked for the export (runBy) cancels it: 403 FORBIDDEN for anyone else; 409 INVALID_STATE_TRANSITION when the job is not an export waiting for approval.",
+        "operationId": "PartyCancelExport",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag from the last GET (row_version, DBA-011). Missing gives 428; stale gives 412.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The record\u0027s version (rowVersion, quoted): send it as If-Match on its next change.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyBulkJobView"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem428"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        },
+        "x-permission": "party_bulk_job.create",
+        "x-function": [
+          "PARTY_REQUEST_EXPORT",
+          "PARTY_REQUEST_POLICY_EXPORT"
         ]
       }
     },
@@ -6909,6 +7273,64 @@
         ]
       }
     },
+    "/api/v1/product-factory/product-versions/{id}": {
+      "get": {
+        "tags": [
+          "ProductFactory"
+        ],
+        "summary": "Get a product version by its ID, the businessRefId of its PRODUCT_PUBLICATION approval (DE-020)",
+        "description": "The same view as GET \u2026/products/{productCode}/versions/{versionNumber}, which takes its changes with this ETag as If-Match.",
+        "operationId": "ProductGetVersionById",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductFactoryProductVersionView"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          }
+        },
+        "x-permission": "product.read",
+        "x-function": [
+          "PRODUCTS"
+        ]
+      }
+    },
     "/api/v1/rating/calculations": {
       "post": {
         "tags": [
@@ -8202,6 +8624,7 @@
           "Workflow"
         ],
         "summary": "List process instances",
+        "description": "BR-170: a process stored with a record type that is not declared shows the declared type it matches once trimmed and ignoring letter case, else its declared equivalent, else UNDECLARED (no screen), with the stored value in storedBusinessRefType (null when the stored value is declared as it is). The businessRefType filter finds a process by the type its view shows: a declared type also finds the stored values that match it trimmed and ignoring letter case, and UNDECLARED finds every process shown so; any other value matches the stored value exactly.",
         "operationId": "WorkflowListProcesses",
         "parameters": [
           {
@@ -8951,7 +9374,7 @@
           "Workflow"
         ],
         "summary": "My open tasks, earliest due first",
-        "description": "DE-025: the open tasks assigned to the signed-in user, and the unassigned ones they serve: in a queue that is one of their roles in effect, or of a process a function of theirs does (a held claim payment for whoever releases instructions, a parked delivery for whoever retries them, a party match review for whoever resolves matches, and the step after an approval: docs/specs/addenda/my-work.md). An unassigned task is listed only within the user\u0027s scope (F103) and never to the person its process excludes (the maker of a release, SRS-002). Each item names its record (businessRefType, businessRefId and the screen that opens it) and the moves completing it may make. Never the full task list: that is WorkflowListOpenTasks.",
+        "description": "DE-025: the open tasks assigned to the signed-in user, and the unassigned ones they serve: in a queue that is one of their roles in effect, or of a process a function of theirs does (a held claim payment for whoever releases instructions, a parked delivery for whoever retries them, a party match review for whoever resolves matches, and the step after an approval: docs/specs/addenda/my-work.md). An unassigned task is listed only within the user\u0027s scope (F103) and never to the person its process excludes (the maker of a release, SRS-002). Each item names its record (businessRefType, businessRefId and the screen that opens it) and the moves completing it may make; a process stored with a record type no longer declared shows its equivalent, or UNDECLARED with no screen, and the stored value in storedBusinessRefType (BR-170). Never the full task list: that is WorkflowListOpenTasks.",
         "operationId": "WorkflowListMyTasks",
         "parameters": [
           {
@@ -12460,6 +12883,70 @@
         "x-eventual-effects": "the PAYOUT_RETRY approval appears in Workflow\u0027s approvals; once someone other than the requester grants it the redress reads APPROVED with its attempt raised, and payment.PayoutRequested reaches Payments, whose payout waits for a payout batch; rejected, expired or withdrawn it stays PAYMENT_FAILED. Read the redress again for its status."
       }
     },
+    "/api/v1/workflow/case-redress/{redressId}": {
+      "get": {
+        "tags": [
+          "Workflow"
+        ],
+        "summary": "A redress by its ID, the businessRefId of its CASE_REDRESS approval, without its case\u0027s ID (DE-022)",
+        "description": "The view names its case (caseId). As for the case: not found when the case is outside the caller\u0027s scope or Health-linked without health.claim.read.",
+        "operationId": "WorkflowGetRedress",
+        "parameters": [
+          {
+            "name": "redressId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowCaseRedressView"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          }
+        },
+        "x-permission": "case.read",
+        "x-function": [
+          "SERVICE_COMPLAINTS"
+        ],
+        "x-additional-permissions": [
+          {
+            "permission": "medical_claim.read",
+            "when": "the case is Health-linked: without it the redress is not found"
+          }
+        ]
+      }
+    },
     "/api/v1/portal/cases": {
       "get": {
         "tags": [
@@ -13489,6 +13976,64 @@
         "x-permission": "document.dispose",
         "x-function": [
           "DOCUMENTS_DISPOSE"
+        ]
+      }
+    },
+    "/api/v1/documents/document-legal-holds/{id}": {
+      "get": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "A legal hold on a document, by the businessRefId of its LEGAL_HOLD_RELEASE approval, with the document it is on (DE-020)",
+        "description": "Its release is asked for on the document: POST /documents/documents/{documentId}/legal-holds/{id}/release.",
+        "operationId": "DocumentsGetDocumentHold",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentsDocumentHoldView"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          }
+        },
+        "x-permission": "document.read",
+        "x-function": [
+          "DOCUMENTS"
         ]
       }
     },
@@ -41156,6 +41701,63 @@
         ]
       }
     },
+    "/api/v1/finance/accounting-periods/{id}": {
+      "get": {
+        "tags": [
+          "Finance"
+        ],
+        "summary": "An opened accounting period by its ID, the businessRefId of its PERIOD_REOPEN approval (DE-020); GET \u2026/periods/{periodCode} reads it by code",
+        "operationId": "FinanceGetPeriodById",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FinancePeriodView"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          }
+        },
+        "x-permission": "accounting_period.read",
+        "x-function": [
+          "FINANCE_PERIODS"
+        ]
+      }
+    },
     "/api/v1/finance/periods/{periodCode}/open": {
       "post": {
         "tags": [
@@ -47580,6 +48182,122 @@
         "x-permission": "user.read",
         "x-function": [
           "IDENTITY_ROLE_ASSIGNMENTS"
+        ]
+      }
+    },
+    "/api/v1/identity/role-assignments/{id}": {
+      "get": {
+        "tags": [
+          "Identity"
+        ],
+        "summary": "A role assignment by its ID, the businessRefId of its PRIVILEGED_ROLE approval, with the user who holds it (DE-020)",
+        "description": "Under the users screen (IDENTITY_USERS) and user.read, as GET /identity/users/{userId}, which shows the same assignment (OQ-203).",
+        "operationId": "IdentityGetRoleAssignment",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentityUserRoleAssignmentView"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          }
+        },
+        "x-permission": "user.read",
+        "x-function": [
+          "IDENTITY_USERS"
+        ]
+      }
+    },
+    "/api/v1/identity/subject-links/{id}": {
+      "get": {
+        "tags": [
+          "Identity"
+        ],
+        "summary": "An external user\u0027s subject link by its ID, the businessRefId of its EXTERNAL_SUBJECT_LINK approval, pending, in effect or ended (DE-020)",
+        "description": "userId names the user it is for; its changes are made on the user, with the user\u0027s ETag (GET /identity/users/{userId}). As the user\u0027s own reads (OQ-203): the link pending or in effect, else the user\u0027s latest; an earlier link is not found (404 SUBJECT_LINK_NOT_FOUND).",
+        "operationId": "IdentityGetSubjectLinkById",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentitySubjectLinkView"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          }
+        },
+        "x-permission": "user.read",
+        "x-function": [
+          "IDENTITY_USERS"
         ]
       }
     },
@@ -58339,6 +59057,27 @@
           }
         }
       },
+      "CursorPageOfPartyBankAccountView": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PartyBankAccountView"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "CursorPageOfPartyBulkJobSummary": {
         "required": [
           "items",
@@ -59671,6 +60410,37 @@
               "string"
             ],
             "format": "date-time"
+          }
+        }
+      },
+      "DocumentsDocumentHoldView": {
+        "required": [
+          "documentId",
+          "categoryCode",
+          "businessRefType",
+          "businessRefId",
+          "hold"
+        ],
+        "type": "object",
+        "properties": {
+          "documentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "categoryCode": {
+            "type": "string",
+            "x-code-list": "document.ref_document_categories",
+            "x-code-list-column": "category_code"
+          },
+          "businessRefType": {
+            "type": "string"
+          },
+          "businessRefId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "hold": {
+            "$ref": "#/components/schemas/DocumentsLegalHoldView"
           }
         }
       },
@@ -73075,6 +73845,37 @@
                 "$ref": "#/components/schemas/WorkflowLatestRejection"
               }
             ]
+          },
+          "userId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
+      "IdentityUserRoleAssignmentView": {
+        "required": [
+          "userId",
+          "username",
+          "displayName",
+          "assignment"
+        ],
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "username": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "assignment": {
+            "$ref": "#/components/schemas/IdentityRoleAssignmentView"
           }
         }
       },
@@ -77621,7 +78422,9 @@
               "DONE",
               "REJECTED",
               "TO_APPROVE",
-              "APPROVED"
+              "APPROVED",
+              "REFUSED",
+              "CANCELLED"
             ],
             "type": "string"
           },
@@ -77666,7 +78469,9 @@
           "totalCount",
           "acceptedCount",
           "rejectedLines",
-          "rowVersion"
+          "rowVersion",
+          "refusedBy",
+          "refusalReason"
         ],
         "type": "object",
         "properties": {
@@ -77682,7 +78487,9 @@
               "DONE",
               "REJECTED",
               "TO_APPROVE",
-              "APPROVED"
+              "APPROVED",
+              "REFUSED",
+              "CANCELLED"
             ],
             "type": "string"
           },
@@ -77721,6 +78528,26 @@
               "string"
             ],
             "format": "int64"
+          },
+          "runBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "refusedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "refusalReason": {
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "jobTypeLabel": {
             "type": [
@@ -78848,6 +79675,17 @@
         }
       },
       "PartyRefuseDataSubjectRequestBody": {
+        "required": [
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "PartyRefuseExportRequest": {
         "required": [
           "reason"
         ],
@@ -82408,7 +83246,9 @@
           "rowVersion",
           "notAppliedBy",
           "notAppliedAt",
-          "screen"
+          "screen",
+          "subjectOperation",
+          "subjectPath"
         ],
         "type": "object",
         "properties": {
@@ -82449,6 +83289,7 @@
               "ROLE_ASSIGNMENT",
               "SEARCH_LOG_HOLD",
               "STATIC_DATA_CHANGE",
+              "STATIC_DATA_IMPORT",
               "STATIC_DATA_SETUP",
               "STATIC_DATA_VERSION",
               "SUBJECT_LINK",
@@ -82596,6 +83437,18 @@
               "string"
             ],
             "description": "The SCREEN function (its code) that opens the record the approval is about, for example PAYMENT_PAYOUT_BATCHES (BR-005); the console maps it to its route."
+          },
+          "subjectOperation": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "subjectPath": {
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "raisedBySystem": {
             "type": "boolean"
@@ -84015,6 +84868,7 @@
           "taskType",
           "businessRefType",
           "businessRefId",
+          "storedBusinessRefType",
           "screen",
           "queueCode",
           "assigneeId",
@@ -84028,7 +84882,9 @@
           "payoutCurrency",
           "allowedTransitions",
           "rowVersion",
-          "draftDiscarded"
+          "draftDiscarded",
+          "subjectOperation",
+          "subjectPath"
         ],
         "type": "object",
         "properties": {
@@ -84049,28 +84905,44 @@
           "businessRefType": {
             "enum": [
               "ACCOUNTING_PERIOD",
+              "AGGREGATION_ZONE",
               "BANK_ACCOUNT",
+              "CASE",
               "CASE_REDRESS",
               "CLAIM_PAYMENT",
               "COMMISSION_STATEMENT",
               "CREDIT_NOTE_REQUEST",
+              "DATA_SUBJECT_REQUEST",
               "DEAD_LETTER",
               "DISCLOSURE_SETTING",
               "DOCUMENT_LEGAL_HOLD",
               "DUE_DILIGENCE",
               "DUE_DILIGENCE_RISK_OVERRIDE",
               "DUE_DILIGENCE_UNBLOCK",
+              "FRAUD_INDICATOR",
               "GENERAL_CLAIM",
               "GENERAL_ENDORSEMENT",
+              "GENERAL_PROPOSAL",
+              "GENERAL_QUOTE",
               "GENERAL_RENEWAL",
+              "GENERAL_RETENTION_CASE",
               "GOVERNANCE_SETTING",
+              "HEALTH_CARE_ACTIVITY",
               "HEALTH_CREDIT_NOTE",
+              "HEALTH_MEMBERSHIP",
               "HEALTH_PAYMENT_RUN",
+              "HEALTH_PROGRAMME_REVIEW",
+              "HEALTH_PROVIDER_MEASURE",
               "HEALTH_RECOVERY",
+              "HEALTH_RECOVERY_REVIEW",
               "HEALTH_REMITTANCE",
               "LIFE_CLAIM",
+              "LIFE_PROPOSAL",
               "LIFE_UNDERWRITING_CASE",
+              "PARKED_DELIVERY",
+              "PARTY",
               "PARTY_MATCH",
+              "PARTY_RETENTION",
               "PAYMENT",
               "PAYOUT_BATCH",
               "PRODUCT_VERSION",
@@ -84079,16 +84951,24 @@
               "ROLE_ASSIGNMENT",
               "SEARCH_LOG_HOLD",
               "STATIC_DATA_CHANGE",
+              "STATIC_DATA_IMPORT",
               "STATIC_DATA_SETUP",
               "STATIC_DATA_VERSION",
               "SUBJECT_LINK",
-              "TENANT_ADMIN_REQUEST"
+              "TENANT_ADMIN_REQUEST",
+              "UNDECLARED"
             ],
             "type": "string"
           },
           "businessRefId": {
             "type": "string",
             "format": "uuid"
+          },
+          "storedBusinessRefType": {
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "screen": {
             "type": [
@@ -84173,6 +85053,18 @@
               {
                 "$ref": "#/components/schemas/WorkflowStaticDraftDiscardNotice"
               }
+            ]
+          },
+          "subjectOperation": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "subjectPath": {
+            "type": [
+              "null",
+              "string"
             ]
           }
         }
@@ -84776,6 +85668,7 @@
           "processVersion",
           "businessRefType",
           "businessRefId",
+          "storedBusinessRefType",
           "status",
           "state",
           "startedAt",
@@ -84802,11 +85695,72 @@
             "format": "int32"
           },
           "businessRefType": {
+            "enum": [
+              "ACCOUNTING_PERIOD",
+              "AGGREGATION_ZONE",
+              "BANK_ACCOUNT",
+              "CASE",
+              "CASE_REDRESS",
+              "CLAIM_PAYMENT",
+              "COMMISSION_STATEMENT",
+              "CREDIT_NOTE_REQUEST",
+              "DATA_SUBJECT_REQUEST",
+              "DEAD_LETTER",
+              "DISCLOSURE_SETTING",
+              "DOCUMENT_LEGAL_HOLD",
+              "DUE_DILIGENCE",
+              "DUE_DILIGENCE_RISK_OVERRIDE",
+              "DUE_DILIGENCE_UNBLOCK",
+              "FRAUD_INDICATOR",
+              "GENERAL_CLAIM",
+              "GENERAL_ENDORSEMENT",
+              "GENERAL_PROPOSAL",
+              "GENERAL_QUOTE",
+              "GENERAL_RENEWAL",
+              "GENERAL_RETENTION_CASE",
+              "GOVERNANCE_SETTING",
+              "HEALTH_CARE_ACTIVITY",
+              "HEALTH_CREDIT_NOTE",
+              "HEALTH_MEMBERSHIP",
+              "HEALTH_PAYMENT_RUN",
+              "HEALTH_PROGRAMME_REVIEW",
+              "HEALTH_PROVIDER_MEASURE",
+              "HEALTH_RECOVERY",
+              "HEALTH_RECOVERY_REVIEW",
+              "HEALTH_REMITTANCE",
+              "LIFE_CLAIM",
+              "LIFE_PROPOSAL",
+              "LIFE_UNDERWRITING_CASE",
+              "PARKED_DELIVERY",
+              "PARTY",
+              "PARTY_MATCH",
+              "PARTY_RETENTION",
+              "PAYMENT",
+              "PAYOUT_BATCH",
+              "PRODUCT_VERSION",
+              "RECORD_LEGAL_HOLD",
+              "REFUND_REQUEST",
+              "ROLE_ASSIGNMENT",
+              "SEARCH_LOG_HOLD",
+              "STATIC_DATA_CHANGE",
+              "STATIC_DATA_IMPORT",
+              "STATIC_DATA_SETUP",
+              "STATIC_DATA_VERSION",
+              "SUBJECT_LINK",
+              "TENANT_ADMIN_REQUEST",
+              "UNDECLARED"
+            ],
             "type": "string"
           },
           "businessRefId": {
             "type": "string",
             "format": "uuid"
+          },
+          "storedBusinessRefType": {
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "status": {
             "$ref": "#/components/schemas/WorkflowProcessStatus"
@@ -84910,6 +85864,60 @@
             "type": "string"
           },
           "businessRefType": {
+            "enum": [
+              "ACCOUNTING_PERIOD",
+              "AGGREGATION_ZONE",
+              "BANK_ACCOUNT",
+              "CASE",
+              "CASE_REDRESS",
+              "CLAIM_PAYMENT",
+              "COMMISSION_STATEMENT",
+              "CREDIT_NOTE_REQUEST",
+              "DATA_SUBJECT_REQUEST",
+              "DEAD_LETTER",
+              "DISCLOSURE_SETTING",
+              "DOCUMENT_LEGAL_HOLD",
+              "DUE_DILIGENCE",
+              "DUE_DILIGENCE_RISK_OVERRIDE",
+              "DUE_DILIGENCE_UNBLOCK",
+              "FRAUD_INDICATOR",
+              "GENERAL_CLAIM",
+              "GENERAL_ENDORSEMENT",
+              "GENERAL_PROPOSAL",
+              "GENERAL_QUOTE",
+              "GENERAL_RENEWAL",
+              "GENERAL_RETENTION_CASE",
+              "GOVERNANCE_SETTING",
+              "HEALTH_CARE_ACTIVITY",
+              "HEALTH_CREDIT_NOTE",
+              "HEALTH_MEMBERSHIP",
+              "HEALTH_PAYMENT_RUN",
+              "HEALTH_PROGRAMME_REVIEW",
+              "HEALTH_PROVIDER_MEASURE",
+              "HEALTH_RECOVERY",
+              "HEALTH_RECOVERY_REVIEW",
+              "HEALTH_REMITTANCE",
+              "LIFE_CLAIM",
+              "LIFE_PROPOSAL",
+              "LIFE_UNDERWRITING_CASE",
+              "PARKED_DELIVERY",
+              "PARTY",
+              "PARTY_MATCH",
+              "PARTY_RETENTION",
+              "PAYMENT",
+              "PAYOUT_BATCH",
+              "PRODUCT_VERSION",
+              "RECORD_LEGAL_HOLD",
+              "REFUND_REQUEST",
+              "ROLE_ASSIGNMENT",
+              "SEARCH_LOG_HOLD",
+              "STATIC_DATA_CHANGE",
+              "STATIC_DATA_IMPORT",
+              "STATIC_DATA_SETUP",
+              "STATIC_DATA_VERSION",
+              "SUBJECT_LINK",
+              "TENANT_ADMIN_REQUEST"
+            ],
             "type": "string"
           },
           "businessRefId": {
@@ -84927,7 +85935,13 @@
           "global",
           "discardedBy",
           "discardedAt",
-          "reason"
+          "reason",
+          "table",
+          "recordKey",
+          "tableOperation",
+          "tablePath",
+          "importBatchId",
+          "lines"
         ],
         "type": "object",
         "properties": {
@@ -84961,6 +85975,46 @@
           },
           "reason": {
             "type": "string"
+          },
+          "table": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordKey": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "tableOperation": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "tablePath": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "importBatchId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "lines": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         }
       },

@@ -144,6 +144,8 @@ public static class WorkflowInfrastructure
         services.AddIntegrationEventHandler<Payments.Contracts.PaymentBatched, NextStepClosing, WorkflowDbContext>(schema, "StepBatched");
         services.AddIntegrationEventHandler<BuildingBlocks.Contracts.StaticData.StaticDataDraftDiscarded, StaticDraftDiscardNotices, WorkflowDbContext>(schema,
             "StaticDraftDiscarded"); // DE-016, OQ-204: the maker is told
+        services.AddIntegrationEventHandler<BuildingBlocks.Contracts.StaticData.StaticDataImportDiscarded, StaticDraftDiscardNotices, WorkflowDbContext>(schema,
+            "StaticImportDiscarded"); // OQ-203: and when someone else discards their import never submitted
         services.AddIntegrationEventHandler<Life.Contracts.LifeProposalAccepted, PolicyIssueTasks, WorkflowDbContext>(schema, "LifeProposalAccepted");
         services.AddIntegrationEventHandler<Life.Contracts.LifePolicyIssued, PolicyIssueTasks, WorkflowDbContext>(schema, "LifePolicyIssued");
         services.AddIntegrationEventHandler<General.Contracts.GeneralProposalAccepted, PolicyIssueTasks, WorkflowDbContext>(schema, "GeneralProposalAccepted");
@@ -173,8 +175,11 @@ public static class WorkflowInfrastructure
 
         // OQ-104: redress is approved by a second person, from the case's screen.
         // DE-008: paying a redress whose payout failed again, approved the same way.
+        // BR-170: the record types only processes are about, for the contract (the one list is ProcessRecordTypes).
+        Application.ProcessRecordTypes.Declare();
         ApprovalKinds.Declare(Contracts.CaseApprovals.RedressBusinessRefType, "SERVICE_COMPLAINTS", Contracts.CaseApprovals.RedressApprovalType,
             Payments.Contracts.PaymentApprovals.PayoutRetryApprovalType);
+        ApprovalKinds.OpensWith(Contracts.CaseApprovals.RedressBusinessRefType, "WorkflowGetRedress", "/api/v1/workflow/case-redress/{id}"); // DE-020
         // Scope batch 4 (F103, OQ-169): the record types Workflow's processes are about that aren't scoped, with the reason. Every other type is scoped
         // through its module's source, or fails closed.
         ApprovalKinds.Unscoped("PARTY", "a party's record: parties are shared across products (PTY-003)");

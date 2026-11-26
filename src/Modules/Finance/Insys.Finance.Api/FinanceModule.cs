@@ -128,6 +128,14 @@ public sealed class FinanceModule : IModule
             .WithSummary("An accounting period (yyyy-MM), or Future when only the calendar has it (BR-045)")
             .RequirePermission(FinancePermissions.PeriodRead);
 
+        finance.MapGet("/accounting-periods/{id:guid}", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Query(new GetPeriodById(id), ct)).ToHttp(Results.Ok))
+            .Produces<PeriodView>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .WithName("FinanceGetPeriodById")
+            .WithSummary("An opened accounting period by its ID, the businessRefId of its PERIOD_REOPEN approval (DE-020); GET …/periods/{periodCode} reads it by code")
+            .RequirePermission(FinancePermissions.PeriodRead);
+
         foreach (var (action, route) in new[] { (PeriodAction.Open, "open"), (PeriodAction.SoftClose, "soft-close"), (PeriodAction.Close, "close"), (PeriodAction.RequestReopen, "reopen") })
         {
             finance.MapPost($"/periods/{{periodCode}}/{route}", async (string periodCode, IDispatcher dispatcher, CancellationToken ct) =>

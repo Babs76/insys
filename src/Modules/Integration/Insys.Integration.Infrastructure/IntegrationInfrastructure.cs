@@ -55,6 +55,7 @@ public static class IntegrationInfrastructure
         // DE-007: a money dead letter's discard is approved by a second person; dead letters are tenant-wide operations records, not scoped.
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Domain.DeadLetters.DiscardApproval.BusinessRefType, "INTEGRATION_DEAD_LETTERS",
             Domain.DeadLetters.DiscardApproval.ApprovalType);
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.OpensWith(Domain.DeadLetters.DiscardApproval.BusinessRefType, "GetDeadLetter", "/api/v1/integration/dead-letters/{id}"); // DE-020
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Unscoped(Domain.DeadLetters.DiscardApproval.BusinessRefType,
             "a dead letter is the tenant's operations queue for failed deliveries, not a product's or branch's record (ADR-022)");
         services.AddDomainEventMapper<IntegrationEventMapper>(IntegrationDbContext.SchemaName);
@@ -64,6 +65,8 @@ public static class IntegrationInfrastructure
         // OQ-201 (Ade, 26 November 2026): a change of the disclosure setting is approved by a second person; the setting is the tenant's, not scoped.
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Application.DisclosureSettingApproval.BusinessRefType, "INTEGRATION_DISCLOSURE_SETTING",
             Application.DisclosureSettingApproval.ApprovalType);
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.OpensWith(Application.DisclosureSettingApproval.BusinessRefType, "IntegrationGetDisclosureSetting",
+            "/api/v1/integration/disclosure-setting"); // DE-020: the tenant's one setting
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Unscoped(Application.DisclosureSettingApproval.BusinessRefType,
             "the disclosure setting is one tenant-wide switch, not a product's or branch's record (OQ-201)");
         services.AddScoped<Application.IDisclosureSettingRequests, Channels.DisclosureSettingRequests>();

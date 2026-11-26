@@ -133,6 +133,17 @@ public sealed class DocumentsModule : IModule
             .WithSummary("Get a document's record (not its content)")
             .RequirePermission(DocumentPermissions.DocumentRead);
 
+        // DE-020: a document's legal hold by the ID its release approval carries.
+        api.MapGet("/documents/document-legal-holds/{id:guid}", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
+                (await dispatcher.Query(new GetDocumentHold(id), ct)).ToHttp(Results.Ok))
+            .WithTags(Name)
+            .Produces<DocumentHoldView>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .WithName("DocumentsGetDocumentHold")
+            .WithSummary("A legal hold on a document, by the businessRefId of its LEGAL_HOLD_RELEASE approval, with the document it is on (DE-020)")
+            .WithDescription("Its release is asked for on the document: POST /documents/documents/{documentId}/legal-holds/{id}/release.")
+            .RequirePermission(DocumentPermissions.DocumentRead);
+
         documents.MapGet("/{id:guid}/content", async (Guid id,
                 [System.ComponentModel.Description("Why the content is read. Required for a CONFIDENTIAL, PERSONAL or HIGHLY_SENSITIVE document (the view's purposeRequired); recorded in its access log (DOC-003)")]
                 string? purpose, IDispatcher dispatcher, CancellationToken ct) =>

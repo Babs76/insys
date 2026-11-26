@@ -109,6 +109,21 @@ public sealed class ProductFactoryModule : IModule
             .WithDescription("The product's name, domain, family and class are its latest version's; each version says who last submitted it and when.")
             .RequirePermission(ProductPermissions.ProductRead);
 
+        // DE-020: a version by the ID its publication approval carries; the product code and version number are in the view.
+        api.MapGet("/product-factory/product-versions/{id:guid}", async (Guid id, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+                (await dispatcher.Query(new GetProductVersionById(id), ct)).ToHttp(view =>
+                {
+                    Concurrency.SetETag(http, view.RowVersion);
+                    return Results.Ok(view);
+                }))
+            .WithTags(Name)
+            .Produces<ProductVersionView>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .WithName("ProductGetVersionById")
+            .WithSummary("Get a product version by its ID, the businessRefId of its PRODUCT_PUBLICATION approval (DE-020)")
+            .WithDescription("The same view as GET …/products/{productCode}/versions/{versionNumber}, which takes its changes with this ETag as If-Match.")
+            .RequirePermission(ProductPermissions.ProductRead);
+
         var versions = products.MapGroup("/{productCode}/versions");
         versions.MapPost("/", async (string productCode, CreateDraftVersionRequest r, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
                 (await dispatcher.Send(new CreateDraftVersion(productCode, r.EffectiveFrom), ct)).ToHttp(view =>

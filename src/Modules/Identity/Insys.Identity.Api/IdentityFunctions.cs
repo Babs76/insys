@@ -54,7 +54,10 @@ internal static class IdentityFunctions
         .Action("PROVISION_TENANT_ADMINISTRATOR", "IDENTITY_TENANT_ADMINISTRATORS", "ProvisionTenantAdministrator")
         .Action("REQUEST_ADDITIONAL_ADMINISTRATOR", "IDENTITY_TENANT_ADMINISTRATORS", "RequestAdditionalAdministrator")
         .Action("RETRY_ADMINISTRATOR_IDENTITY", "IDENTITY_TENANT_ADMINISTRATORS", "RetryAdministratorIdentity")
-        .Screen("IDENTITY_USERS", "IDENTITY_ACCESS", "Users", "identity/users", "ListUsers", "GetUser", "IdentityGetSubjectLink")
+        // OQ-203 (Ade, 26 November 2026): a role assignment by its ID shows what GetUser shows of it (the user's name and the whole assignment), so it is
+        // read under GetUser's screen, not IDENTITY_ROLE_ASSIGNMENTS, whose list shows only scoped assignments.
+        .Screen("IDENTITY_USERS", "IDENTITY_ACCESS", "Users", "identity/users", "ListUsers", "GetUser", "IdentityGetSubjectLink", "IdentityGetSubjectLinkById",
+            "IdentityGetRoleAssignment")
         .Action("PROVISION_USER", "IDENTITY_USERS", ["ProvisionUser", "ProvisionServiceAccount"])
         .Action("RESEND_INVITATION", "IDENTITY_USERS", "ResendInvitation")
         .Action("IDENTITY_LINK_SUBJECT", "IDENTITY_USERS", "IdentityLinkSubject")
