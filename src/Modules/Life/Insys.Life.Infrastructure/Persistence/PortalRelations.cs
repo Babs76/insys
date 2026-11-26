@@ -44,11 +44,11 @@ internal sealed class LifePortalRelations([FromKeyedServices(LifeDbContext.Schem
     /// <summary>DE-039, OQ-201: the record a broker's disclosure acknowledgement names, as the disclosure gate names it at issue (the proposal's applicant).</summary>
     public IReadOnlyCollection<string> BusinessRefTypes { get; } = [LifeProposalTasks.BusinessRefType];
 
-    public Task<bool> BelongsTo(Guid tenantId, Guid partyId, string businessRefType, Guid businessRefId, CancellationToken cancellationToken) =>
+    public async Task<Guid?> PartyOf(Guid tenantId, string businessRefType, Guid businessRefId, CancellationToken cancellationToken) =>
         businessRefType == LifeProposalTasks.BusinessRefType
-            ? PortalRelationReader.Exists(dataSource, tenantId, "SELECT 1 FROM life.proposal WHERE id = @id AND applicant_party_id = @party", businessRefId,
-                new ExternalSubject(ExternalSubject.Party, partyId, null, new HashSet<string>(), null), cancellationToken)
-            : Task.FromResult(false);
+            ? (await PortalRelationReader.Ids(dataSource, tenantId, "SELECT applicant_party_id FROM life.proposal WHERE id = @id", [], businessRefId, cancellationToken))
+                .Cast<Guid?>().FirstOrDefault()
+            : null;
 
     public bool Covers(string businessRefType) => businessRefType == LifeDocuments.PolicyRefType;
 

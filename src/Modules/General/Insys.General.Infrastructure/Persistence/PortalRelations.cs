@@ -66,17 +66,15 @@ internal sealed class GeneralPortalRelations([FromKeyedServices(GeneralDbContext
     /// </summary>
     public IReadOnlyCollection<string> BusinessRefTypes { get; } = [GeneralDocuments.QuoteRefType, GeneralDocuments.RenewalRefType];
 
-    public Task<bool> BelongsTo(Guid tenantId, Guid partyId, string businessRefType, Guid businessRefId, CancellationToken cancellationToken)
+    public async Task<Guid?> PartyOf(Guid tenantId, string businessRefType, Guid businessRefId, CancellationToken cancellationToken)
     {
         var sql = businessRefType switch
         {
-            GeneralDocuments.QuoteRefType => "SELECT 1 FROM general.quote q WHERE q.id = @id AND q.proposer_party_id = @party",
-            GeneralDocuments.RenewalRefType => "SELECT 1 FROM general.renewal r JOIN general.policy p ON p.tenant_id = r.tenant_id AND p.id = r.policy_id WHERE r.id = @id AND p.policyholder_party_id = @party",
+            GeneralDocuments.QuoteRefType => "SELECT q.proposer_party_id FROM general.quote q WHERE q.id = @id",
+            GeneralDocuments.RenewalRefType => "SELECT p.policyholder_party_id FROM general.renewal r JOIN general.policy p ON p.tenant_id = r.tenant_id AND p.id = r.policy_id WHERE r.id = @id",
             _ => null,
         };
-        return sql is null
-            ? Task.FromResult(false)
-            : PortalRelationReader.Exists(dataSource, tenantId, sql, businessRefId, new ExternalSubject(ExternalSubject.Party, partyId, null, new HashSet<string>(), null), cancellationToken);
+        return sql is null ? null : (await PortalRelationReader.Ids(dataSource, tenantId, sql, [], businessRefId, cancellationToken)).Cast<Guid?>().FirstOrDefault();
     }
 
     private static string? Sql(string businessRefType) => businessRefType switch

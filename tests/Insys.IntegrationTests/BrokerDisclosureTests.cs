@@ -201,6 +201,37 @@ public sealed class BrokerDisclosureTests(DatabaseFixture fixture) : IClassFixtu
     }
 
     /// <summary>
+    /// OQ-201 (Ade, 26 November 2026): merged parties follow the merge. A record naming a party merged into the client is the client's, along a chain of merges
+    /// (PTY-004: a survivor can itself be merged); one naming a party merged into another party is still not found.
+    /// </summary>
+    [Fact]
+    public async Task ARecordNamingAPartyMergedIntoTheClient_IsTheClients_AlongAChain_AndOneMergedIntoAnotherIsNotFound_OQ201_PTY004()
+    {
+        var client = await Party(A, "Merge survivor");
+        await _rows.Insert(A, "general.policy", ("policyholder_party_id", client), ("intermediary_code", "P39"), ("currency", "ZAR"));
+        var middle = await Merged(A, "Merged into the survivor", client);
+        var first = await Merged(A, "Merged into the merged one", middle);
+        var elsewhere = await Party(A, "Another survivor");
+        var mergedElsewhere = await Merged(A, "Merged into another party", elsewhere);
+        var broker = await Broker(A, "broker-39p-6", "P39");
+
+        var othersQuote = await _rows.Insert(A, "general.quote", ("status", "DRAFT"), ("proposer_party_id", mergedElsewhere), ("intermediary_code", "P39"));
+        var refused = await broker.Send(HttpMethod.Post, Acknowledge, Body(client, "IN_PERSON", reference: (GeneralDocuments.QuoteRefType, othersQuote)), idempotent: true);
+        refused.StatusCode.ShouldBe(HttpStatusCode.NotFound, "a party merged into another party is not the client's");
+        (await refused.Code()).ShouldBe("NOT_FOUND");
+        (await Count(A, client)).ShouldBe(0);
+
+        foreach (var (named, why) in new[] { (middle, "merged into the client"), (first, "merged into a party merged into the client") })
+        {
+            var quote = await _rows.Insert(A, "general.quote", ("status", "DRAFT"), ("proposer_party_id", named), ("intermediary_code", "P39"));
+            var accepted = await broker.Send(HttpMethod.Post, Acknowledge, Body(client, "PHONE", reference: (GeneralDocuments.QuoteRefType, quote)), idempotent: true);
+            accepted.StatusCode.ShouldBe(HttpStatusCode.Created, $"{why}: {await accepted.Content.ReadAsStringAsync()}");
+        }
+
+        (await Count(A, client)).ShouldBe(2, "both recorded for the client");
+    }
+
+    /// <summary>
     /// OQ-201 (Ade, 26 November 2026): switching broker acknowledgement off goes through a second person. The PUT answers 202 with the pending change; the value
     /// is unchanged until the grant; a second request waits; the requester can't approve it. Once granted, the broker is refused and the notice still reads.
     /// Tenant B is switched, so tenant A's other tests are untouched.
@@ -234,8 +265,6 @@ public sealed class BrokerDisclosureTests(DatabaseFixture fixture) : IClassFixtu
         var second = await people.Requester.Send(HttpMethod.Put, SettingPath, new { brokerAcknowledgementAllowed = false }, ifMatch: read.ETag());
         second.StatusCode.ShouldBe(HttpStatusCode.Conflict);
         (await second.Code()).ShouldBe("INVALID_STATE_TRANSITION");
-        (await people.Requester.Send(HttpMethod.Put, SettingPath, new { brokerAcknowledgementAllowed = true })).StatusCode
-            .ShouldBe(HttpStatusCode.PreconditionFailed, "once the tenant has its own setting, a change needs If-Match");
 
         var approval = await Approval(B, people.RequesterId);
         (await Decide(people.Requester, approval, "approve")).ShouldBe("MAKER_CHECKER_SAME_PERSON");
@@ -247,6 +276,8 @@ public sealed class BrokerDisclosureTests(DatabaseFixture fixture) : IClassFixtu
         var after = await (await people.Requester.GetAsync(SettingPath)).Json();
         (after.GetProperty("brokerAcknowledgementAllowed").GetBoolean(), after.GetProperty("isDefault").GetBoolean()).ShouldBe((false, false));
         after.GetProperty("pendingChange").ValueKind.ShouldBe(JsonValueKind.Null);
+        (await people.Requester.Send(HttpMethod.Put, SettingPath, new { brokerAcknowledgementAllowed = true })).StatusCode
+            .ShouldBe(HttpStatusCode.PreconditionFailed, "once the tenant has its own setting, a change needs If-Match");
         (await AuditDetails(B, "RequestChangeDisclosureSetting")).ShouldBe("false|");
         (await AuditDetails(B, "ChangeDisclosureSetting")).ShouldBe("false|GRANTED");
 
@@ -289,6 +320,74 @@ public sealed class BrokerDisclosureTests(DatabaseFixture fixture) : IClassFixtu
 
         (await people.Requester.Send(HttpMethod.Put, SettingPath, new { brokerAcknowledgementAllowed = false }, ifMatch: read.ETag())).StatusCode
             .ShouldBe(HttpStatusCode.Accepted, "a new request, once the first ended");
+    }
+
+    /// <summary>
+    /// OQ-201 (Ade, 26 November 2026): isDefault changes only when a change is granted, never at the request. A first request rejected leaves the setting the
+    /// default, and the GET as before but for its row version; a later request granted makes it the tenant's own.
+    /// </summary>
+    [Fact]
+    public async Task IsDefault_StaysTrueWhenTheFirstRequestIsRejected_AndTurnsFalseOnlyWhenAChangeIsGranted_OQ201()
+    {
+        var tenant = Guid.CreateVersion7();
+        await fixture.Database.SeedTenant(tenant, "DD" + Guid.NewGuid().ToString("N")[..8].ToUpperInvariant());
+        var people = await SettingPeople(tenant, "d");
+
+        var asked = await people.Requester.Send(HttpMethod.Put, SettingPath, new { brokerAcknowledgementAllowed = false });
+        asked.StatusCode.ShouldBe(HttpStatusCode.Accepted, await asked.Content.ReadAsStringAsync());
+        (await asked.Json()).GetProperty("isDefault").GetBoolean().ShouldBeTrue("a request alone leaves it the default");
+        (await (await people.Requester.GetAsync(SettingPath)).Json()).GetProperty("isDefault").GetBoolean().ShouldBeTrue("while the request waits");
+        (await Decide(people.Checker, await Approval(tenant, people.RequesterId), "reject")).ShouldBeNull();
+        await _factory.DrainOutbox();
+
+        var rejected = await (await people.Requester.GetAsync(SettingPath)).Json();
+        (rejected.GetProperty("brokerAcknowledgementAllowed").GetBoolean(), rejected.GetProperty("isDefault").GetBoolean()).ShouldBe((true, true), "rejected, still the default");
+        rejected.GetProperty("pendingChange").ValueKind.ShouldBe(JsonValueKind.Null);
+
+        // Still the default, a request needs no If-Match; granted, the tenant has its own setting.
+        (await people.Requester.Send(HttpMethod.Put, SettingPath, new { brokerAcknowledgementAllowed = false })).StatusCode.ShouldBe(HttpStatusCode.Accepted);
+        (await Decide(people.Checker, await Approval(tenant, people.RequesterId), "approve")).ShouldBeNull();
+        await _factory.DrainOutbox();
+        var granted = await (await people.Requester.GetAsync(SettingPath)).Json();
+        (granted.GetProperty("brokerAcknowledgementAllowed").GetBoolean(), granted.GetProperty("isDefault").GetBoolean()).ShouldBe((false, false), "granted, the tenant's own");
+    }
+
+    /// <summary>
+    /// OQ-201 (Ade, 26 November 2026): a request for the value already in force is refused with VALIDATION_FAILED (422) and changes nothing: no pending change,
+    /// no approval, no audit of a request, and the row version doesn't move.
+    /// </summary>
+    [Fact]
+    public async Task ARequestForTheValueAlreadyInForce_IsRefused422_AndChangesNothing_OQ201()
+    {
+        var tenant = Guid.CreateVersion7();
+        await fixture.Database.SeedTenant(tenant, "DV" + Guid.NewGuid().ToString("N")[..8].ToUpperInvariant());
+        var people = await SettingPeople(tenant, "v");
+
+        var refused = await people.Requester.Send(HttpMethod.Put, SettingPath, new { brokerAcknowledgementAllowed = true });
+        refused.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity, await refused.Content.ReadAsStringAsync());
+        (await refused.Code()).ShouldBe("VALIDATION_FAILED");
+        await _factory.DrainOutbox();
+        var read = await people.Requester.GetAsync(SettingPath);
+        var view = await read.Json();
+        (view.GetProperty("isDefault").GetBoolean(), view.GetProperty("rowVersion").GetInt64()).ShouldBe((true, 0L), "no setting was created");
+        view.GetProperty("pendingChange").ValueKind.ShouldBe(JsonValueKind.Null);
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM workflow.approval WHERE tenant_id = @t AND approval_type = 'DISCLOSURE_SETTING_CHANGE'", ("t", tenant)))
+            .ShouldBe(0L, "no approval was raised");
+        (await AuditDetails(tenant, "RequestChangeDisclosureSetting")).ShouldBeNull("no request was audited");
+
+        // Once switched off (granted), asking for off again is refused the same way, with If-Match.
+        (await people.Requester.Send(HttpMethod.Put, SettingPath, new { brokerAcknowledgementAllowed = false })).StatusCode.ShouldBe(HttpStatusCode.Accepted);
+        (await Decide(people.Checker, await Approval(tenant, people.RequesterId), "approve")).ShouldBeNull();
+        await _factory.DrainOutbox();
+        var off = await people.Requester.GetAsync(SettingPath);
+        var version = (await off.Json()).GetProperty("rowVersion").GetInt64();
+        var again = await people.Requester.Send(HttpMethod.Put, SettingPath, new { brokerAcknowledgementAllowed = false }, ifMatch: off.ETag());
+        again.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+        (await again.Code()).ShouldBe("VALIDATION_FAILED");
+        await _factory.DrainOutbox();
+        var after = await (await people.Requester.GetAsync(SettingPath)).Json();
+        (after.GetProperty("rowVersion").GetInt64(), after.GetProperty("pendingChange").ValueKind).ShouldBe((version, JsonValueKind.Null));
+        (await AuditDetails(tenant, "RequestChangeDisclosureSetting")).ShouldBe("false|", "only the granted request");
     }
 
     private const string SettingPath = "/api/v1/integration/disclosure-setting";
@@ -355,6 +454,9 @@ public sealed class BrokerDisclosureTests(DatabaseFixture fixture) : IClassFixtu
 
     private Task<Guid> Party(Guid tenant, string name) =>
         _rows.Insert(tenant, "party.party", ("party_kind", "INDIVIDUAL"), ("status_code", "ACTIVE"), ("display_name", name));
+
+    private Task<Guid> Merged(Guid tenant, string name, Guid into) =>
+        _rows.Insert(tenant, "party.party", ("party_kind", "INDIVIDUAL"), ("status_code", "MERGED"), ("display_name", name), ("merged_into_id", into));
 
     private async Task<HttpClient> Member(Guid tenant, string subject, Guid party)
     {

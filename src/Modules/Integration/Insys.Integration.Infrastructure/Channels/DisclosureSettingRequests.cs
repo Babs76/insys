@@ -45,7 +45,7 @@ internal sealed class DisclosureSettingRequests(IntegrationDbContext db) : IDisc
 {
     private const string Returning = """
         RETURNING id AS "Id", row_version AS "RowVersion", broker_acknowledgement_allowed AS "Allowed", pending_broker_acknowledgement_allowed AS "PendingAllowed",
-          pending_requested_by AS "RequestedBy", pending_requested_at AS "RequestedAt"
+          pending_requested_by AS "RequestedBy", pending_requested_at AS "RequestedAt", is_default AS "IsDefault"
         """;
 
     public async Task<DisclosureSettingView?> Request(Guid tenantId, long? expectedVersion, bool brokerAcknowledgementAllowed, Guid requestedBy, DateTimeOffset at,
@@ -83,13 +83,13 @@ internal sealed class DisclosureSettingRequests(IntegrationDbContext db) : IDisc
 
     public async Task<(bool Allowed, Guid RequestedBy)?> Grant(Guid tenantId, Guid settingId, string? subjectHash, Guid checkerId, DateTimeOffset at, CancellationToken cancellationToken)
     {
-        // Captures the pending value before it is cleared: a CTE reads the row as it was.
+        // Captures the pending value before it is cleared: a CTE reads the row as it was. The grant gives the tenant a setting of its own (is_default false).
         var rows = await db.Database.SqlQueryRaw<Ended>("""
             WITH before AS (
               SELECT id, pending_broker_acknowledgement_allowed AS allowed, pending_requested_by AS requested_by FROM channel.disclosure_setting
               WHERE tenant_id = @p0 AND id = @p1 AND pending_subject_hash = @p2 AND pending_requested_by <> @p3 FOR UPDATE)
             UPDATE channel.disclosure_setting s
-            SET broker_acknowledgement_allowed = b.allowed, pending_broker_acknowledgement_allowed = NULL, pending_requested_by = NULL, pending_requested_at = NULL,
+            SET broker_acknowledgement_allowed = b.allowed, is_default = false, pending_broker_acknowledgement_allowed = NULL, pending_requested_by = NULL, pending_requested_at = NULL,
                 pending_subject_hash = NULL, row_version = s.row_version + 1, updated_at = @p4, updated_by = @p5
             FROM before b WHERE s.tenant_id = @p0 AND s.id = b.id
             RETURNING b.allowed AS "Allowed", b.requested_by AS "RequestedBy"
@@ -129,7 +129,9 @@ internal sealed class DisclosureSettingRequests(IntegrationDbContext db) : IDisc
 
         public DateTimeOffset? RequestedAt { get; set; }
 
-        public DisclosureSettingView View() => new(Allowed, false, RowVersion,
+        public bool IsDefault { get; set; }
+
+        public DisclosureSettingView View() => new(Allowed, IsDefault, RowVersion,
             PendingAllowed is { } pending ? new DisclosureSettingChangeView(pending, RequestedBy!.Value, RequestedAt!.Value) : null);
     }
 
