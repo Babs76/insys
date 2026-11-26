@@ -185,12 +185,15 @@ internal sealed class Disclosures([FromKeyedServices(IntegrationDbContext.Schema
                 $"SELECT channel_code FROM channel.cfg_channel_definitions WHERE tenant_id = @t AND {ReadinessSql.InForce} AND @client = ANY(client_ids) ORDER BY channel_code",
                 cancellationToken, ("t", tenantId), ("inForce", StaticLifecycle.Configuration.InForce), ("day", day), ("client", clientId)), cancellationToken)).FirstOrDefault();
 
-    /// <summary>OQ-201: with no row, brokers may record (Ade's beta default). A change waiting for approval is read with it.</summary>
+    /// <summary>
+    /// OQ-201: with no row, brokers may record (Ade's beta default). A change waiting for approval is read with it. The setting is the default until a change is
+    /// granted (Ade, 26 November 2026): a row a first request created, rejected or still waiting, is still the default, with its own row version.
+    /// </summary>
     public Task<DisclosureSettingView> Setting(Guid tenantId, CancellationToken cancellationToken) =>
         ReadinessSql.InTenant(dataSource, tenantId, async (connection, transaction) =>
         {
             await using var command = new NpgsqlCommand("""
-                SELECT broker_acknowledgement_allowed, row_version, pending_broker_acknowledgement_allowed, pending_requested_by, pending_requested_at
+                SELECT broker_acknowledgement_allowed, row_version, pending_broker_acknowledgement_allowed, pending_requested_by, pending_requested_at, is_default
                 FROM channel.disclosure_setting WHERE tenant_id = @t
                 """, connection, transaction);
             command.Parameters.AddWithValue("t", tenantId);
@@ -201,7 +204,7 @@ internal sealed class Disclosures([FromKeyedServices(IntegrationDbContext.Schema
             }
 
             var pending = reader.IsDBNull(2) ? null : new DisclosureSettingChangeView(reader.GetBoolean(2), reader.GetGuid(3), reader.GetFieldValue<DateTimeOffset>(4));
-            return new DisclosureSettingView(reader.GetBoolean(0), false, reader.GetInt64(1), pending);
+            return new DisclosureSettingView(reader.GetBoolean(0), reader.GetBoolean(5), reader.GetInt64(1), pending);
         }, cancellationToken);
 }
 

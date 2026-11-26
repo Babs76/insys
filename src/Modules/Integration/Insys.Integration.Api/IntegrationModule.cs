@@ -338,8 +338,9 @@ public sealed class IntegrationModule : IModule
                 }))
             .WithName("IntegrationGetDisclosureSetting")
             .WithSummary("Get whether brokers may record their clients' disclosure acknowledgements (OQ-201)")
-            .WithDescription("The default (isDefault true, brokerAcknowledgementAllowed true) until the tenant first asks for a change. pendingChange is the change waiting "
-                + "for a second person's approval, if there is one; brokerAcknowledgementAllowed is the value in effect until it is granted.")
+            .WithDescription("The default (isDefault true, brokerAcknowledgementAllowed true) until a change is granted: a request alone, or one rejected, expired or "
+                + "withdrawn, leaves it the default. pendingChange is the change waiting for a second person's approval, if there is one; brokerAcknowledgementAllowed is "
+                + "the value in effect until it is granted. The ETag is the setting's row version, which a request moves even while it stays the default.")
             .Produces<Application.DisclosureSettingView>(StatusCodes.Status200OK)
             .RequirePermission(IntegrationPermissions.DisclosureRead);
 
@@ -368,7 +369,8 @@ public sealed class IntegrationModule : IModule
             .WithDescription("Answers 202 with the setting and its pendingChange: the change waits for a DISCLOSURE_SETTING_CHANGE approval in Workflow, and applies once "
                 + "a second person, never the requester, grants it. Rejected, expired or withdrawn, the setting stays as it was. While a change waits, another is refused "
                 + "with INVALID_STATE_TRANSITION (409). false makes acknowledgement customer-only: a broker's is refused with DISCLOSURE_BROKER_NOT_ALLOWED, and staff can "
-                + "still record one. The request and its outcome are audited. If-Match is required once the tenant has its own setting.")
+                + "still record one. A request for the value already in force is refused with VALIDATION_FAILED (422) and changes nothing. The request and its outcome are "
+                + "audited. If-Match is required once the tenant has its own setting (isDefault false).")
             .Produces<Application.DisclosureSettingView>(StatusCodes.Status202Accepted)
             .ProducesProblem(StatusCodes.Status409Conflict)
             .ProducesProblem(StatusCodes.Status412PreconditionFailed)

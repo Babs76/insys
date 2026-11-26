@@ -74,7 +74,7 @@ A manually triggered workflow, `preview.yml`, on `Babs76/insys`, in a GitHub Env
 
 **Images:** the API and migrator are built in the run and imported directly to the server. The console's image comes from the front end's pipeline.
 
-**Actions, chosen when triggering:** `check` (creates and changes nothing; PASS or FAIL for each thing a first provision needs), `provision`, `upgrade`, `open-ssh`, `reset`, `rotate-passwords`, `destroy`. `reset`, `rotate-passwords` and `destroy` need the word typed as confirmation.
+**Actions, chosen when triggering:** `check` (creates and changes nothing; PASS or FAIL for each thing a first provision needs), `provision`, `upgrade`, `upgrade-check`, `open-ssh`, `reset`, `rotate-passwords`, `destroy`. `upgrade-check`, `reset`, `rotate-passwords` and `destroy` need the word typed as confirmation. `upgrade` ends with the upgrade check, and `upgrade-check` runs it alone (Ade, 26 November 2026; `docs/handover-backend.md`).
 
 ## Upgrades and resets
 - **Upgrade:** pick a git ref. The run builds it, runs `helm upgrade --atomic`, runs migrations as the chart's job, and then the smoke checks. Data and passwords stay. Migrations only go forward, so a bad one means restoring a backup or resetting.
@@ -124,7 +124,7 @@ That's 51 accounts, with `LINECFG01/02` for `LINE_CONFIGURATION_MANAGER` (role t
 **Passwords, and OpenBao's unseal key and root token:**
 - Generated in the run, one per account, and encrypted with `age` to Ade's public key before upload. **Only the encrypted file goes in the artifact,** since anyone able to read the repository can download artifacts, and this repository is public today. Retention is one day.
 - Never committed, and never printed: they're masked in logs and not passed on command lines.
-- Only `provision`, `reset` and `rotate-passwords` change passwords, and `upgrade` doesn't. OpenBao's keys change only with a new OpenBao, on `provision` and `reset`.
+- Only `provision`, `reset` and `rotate-passwords` change the accounts' passwords, and `upgrade` doesn't. `upgrade` and `upgrade-check` set a generated password, kept in memory only, on the bootstrap's `insys-admin` in Keycloak to sign in as it, as every seed run does; nobody holds that account's password. OpenBao's keys change only with a new OpenBao, on `provision` and `reset`.
 
 **MFA:** broker and provider portal accounts must use it (`external-user-access.md`), and any role in a policy's `mfa_required_roles` too. These accounts will be shared, and a code set up on one person's phone locks out the others. So the run generates each TOTP secret and puts it in the same encrypted file, if Keycloak's admin API lets us set it; otherwise the first person to sign in enrols, and shares it. To be proven in the build.
 

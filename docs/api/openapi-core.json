@@ -584,7 +584,7 @@
           "Integration"
         ],
         "summary": "Get whether brokers may record their clients\u0027 disclosure acknowledgements (OQ-201)",
-        "description": "The default (isDefault true, brokerAcknowledgementAllowed true) until the tenant first asks for a change. pendingChange is the change waiting for a second person\u0027s approval, if there is one; brokerAcknowledgementAllowed is the value in effect until it is granted.",
+        "description": "The default (isDefault true, brokerAcknowledgementAllowed true) until a change is granted: a request alone, or one rejected, expired or withdrawn, leaves it the default. pendingChange is the change waiting for a second person\u0027s approval, if there is one; brokerAcknowledgementAllowed is the value in effect until it is granted. The ETag is the setting\u0027s row version, which a request moves even while it stays the default.",
         "operationId": "IntegrationGetDisclosureSetting",
         "responses": {
           "200": {
@@ -623,7 +623,7 @@
           "Integration"
         ],
         "summary": "Ask to set whether brokers may record their clients\u0027 disclosure acknowledgements; a second person approves it (OQ-201)",
-        "description": "Answers 202 with the setting and its pendingChange: the change waits for a DISCLOSURE_SETTING_CHANGE approval in Workflow, and applies once a second person, never the requester, grants it. Rejected, expired or withdrawn, the setting stays as it was. While a change waits, another is refused with INVALID_STATE_TRANSITION (409). false makes acknowledgement customer-only: a broker\u0027s is refused with DISCLOSURE_BROKER_NOT_ALLOWED, and staff can still record one. The request and its outcome are audited. If-Match is required once the tenant has its own setting.",
+        "description": "Answers 202 with the setting and its pendingChange: the change waits for a DISCLOSURE_SETTING_CHANGE approval in Workflow, and applies once a second person, never the requester, grants it. Rejected, expired or withdrawn, the setting stays as it was. While a change waits, another is refused with INVALID_STATE_TRANSITION (409). false makes acknowledgement customer-only: a broker\u0027s is refused with DISCLOSURE_BROKER_NOT_ALLOWED, and staff can still record one. A request for the value already in force is refused with VALIDATION_FAILED (422) and changes nothing. The request and its outcome are audited. If-Match is required once the tenant has its own setting (isDefault false).",
         "operationId": "IntegrationChangeDisclosureSetting",
         "requestBody": {
           "content": {
