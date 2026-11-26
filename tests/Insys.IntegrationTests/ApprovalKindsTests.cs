@@ -42,7 +42,7 @@ public sealed class ApprovalKindsTests(DatabaseFixture fixture) : IClassFixture<
     {
         await fixture.Host();
         var screens = FunctionRegistry.All().Where(f => f.Function.Kind == FunctionKind.Screen).Select(f => f.Function.Code).ToHashSet(StringComparer.Ordinal);
-        ApprovalKinds.BusinessRefTypes.Count.ShouldBe(35); // + the three due diligence references (Wave 3 batch 2), General's renewal (Wave 4 §4.3), the SETUP change set (AIA-086), the Health remittance, the credit note request and the dead letter (DE-007, DE-008, DE-010), the static data version a discarded draft's notice names (DE-016, OQ-204), and the disclosure setting (DISCLOSURE_SETTING, OQ-201)
+        ApprovalKinds.BusinessRefTypes.Count.ShouldBe(36); // + the static data import a discarded import's notice names (STATIC_DATA_IMPORT, OQ-203), + the three due diligence references (Wave 3 batch 2), General's renewal (Wave 4 §4.3), the SETUP change set (AIA-086), the Health remittance, the credit note request and the dead letter (DE-007, DE-008, DE-010), the static data version a discarded draft's notice names (DE-016, OQ-204), and the disclosure setting (DISCLOSURE_SETTING, OQ-201)
         ApprovalKinds.ApprovalTypes.Count.ShouldBe(33); // + PAYOUT_RETRY (DE-008, declared by several modules, counted once), COMMISSION_CLAWBACK_INVOICE (OQ-062), CREDIT_NOTE (DE-010), DEAD_LETTER_DISCARD (DE-007; Ade, 24 November 2026) and DISCLOSURE_SETTING_CHANGE (OQ-201; Ade, 26 November 2026)
         ApprovalKinds.BusinessRefTypes.Where(r => !screens.Contains(ApprovalKinds.ScreenFor(r)!)).ShouldBeEmpty();
     }
@@ -68,14 +68,14 @@ public sealed class ApprovalKindsTests(DatabaseFixture fixture) : IClassFixture<
         {
             if (ApprovalKinds.ReadFor(type) is not { } read)
             {
-                if (!ApprovalKinds.TypesOpeningNothing.TryGetValue(type, out var reason) || string.IsNullOrWhiteSpace(reason))
+                if (!ApprovalKinds.TypesOpenedByRecord.TryGetValue(type, out var how) || string.IsNullOrWhiteSpace(how))
                 {
-                    problems.Add($"{type}: no read operation declared (ApprovalKinds.OpensWith), nor why none (ApprovalKinds.OpensNothing)");
+                    problems.Add($"{type}: no read operation declared (ApprovalKinds.OpensWith), nor a read by the record (ApprovalKinds.OpensByRecord)");
                 }
             }
-            else if (ApprovalKinds.TypesOpeningNothing.ContainsKey(type))
+            else if (ApprovalKinds.TypesOpenedByRecord.ContainsKey(type))
             {
-                problems.Add($"{type}: declared both with a read operation and with none");
+                problems.Add($"{type}: declared both with a read operation and with a read by the record");
             }
             else if (!gets.TryGetValue(read.OperationId, out var route))
             {
@@ -88,6 +88,8 @@ public sealed class ApprovalKindsTests(DatabaseFixture fixture) : IClassFixture<
         }
 
         problems.ShouldBeEmpty();
+        // OQ-203: only the discarded static data draft and import are opened by their record (their task's subjectPath), tested in StaticDataTests.
+        ApprovalKinds.TypesOpenedByRecord.Keys.Order(StringComparer.Ordinal).ShouldBe(["STATIC_DATA_IMPORT", "STATIC_DATA_VERSION"]);
         var id = Guid.CreateVersion7();
         ApprovalKinds.ReadFor("BANK_ACCOUNT")!.PathFor(id).ShouldBe($"/api/v1/party/bank-accounts/{id}");
     }

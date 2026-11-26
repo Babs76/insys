@@ -308,6 +308,9 @@ public enum ImportStatus
     Validating,
     Committed,
     Rejected,
+
+    /// <summary>OQ-203 (Ade, 26 November 2026): committed, never submitted, then discarded as a whole; its lines no longer exist.</summary>
+    Discarded,
 }
 
 /// <summary>Entity ImportError (sdm.import_error): one rejected line.</summary>
@@ -375,6 +378,16 @@ public sealed class ImportBatch : AggregateRoot<Guid>
 
         batch.RejectedCount = batch._errors.Select(e => e.LineNo).Distinct().Count();
         return batch;
+    }
+
+    /// <summary>OQ-203: Committed → Discarded, when the owning module discarded the import's lines (never submitted). Idempotent.</summary>
+    public void Discard()
+    {
+        if (Status == ImportStatus.Committed)
+        {
+            Status = ImportStatus.Discarded;
+            MarkChanged();
+        }
     }
 
     private static ImportBatch Create(Guid id, string entityCode, string fileRef, int rowCount, Guid submittedBy, ImportStatus status)

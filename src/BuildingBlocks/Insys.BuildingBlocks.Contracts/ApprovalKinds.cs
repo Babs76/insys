@@ -100,17 +100,19 @@ public static class ApprovalKinds
     /// <summary>The read operation that opens a record of the reference type, or null when none was declared.</summary>
     public static SubjectRead? ReadFor(string businessRefType) => SubjectReads.GetValueOrDefault(businessRefType);
 
-    private static readonly ConcurrentDictionary<string, string> NoSubjectReasons = new(StringComparer.Ordinal);
+    private static readonly ConcurrentDictionary<string, string> ReadsByRecord = new(StringComparer.Ordinal);
 
     /// <summary>
-    /// DE-020: the reference type deliberately has no read that opens its record, and why (a discarded static data draft: nothing is left,
-    /// and only an informational task, never an approval, carries the type). Its approvals' subjectOperation and subjectPath are null.
+    /// OQ-203 (Ade, 26 November 2026): the record of the reference type is opened by a read that depends on the record itself, not on its ID alone, so no one
+    /// operation is declared with <see cref="OpensWith"/>: a discarded static data draft or import links to its own table's page of versions not in force
+    /// (each table has its own operation), which the record's task carries (subjectOperation and subjectPath of the task). <paramref name="how"/> says which
+    /// read. Only informational tasks, never an approval, carry these types, so an approval's subjectOperation and subjectPath are null for them.
     /// ApprovalKindsTests accepts this in place of <see cref="OpensWith"/>.
     /// </summary>
-    public static void OpensNothing(string businessRefType, string reason) => NoSubjectReasons[businessRefType] = reason;
+    public static void OpensByRecord(string businessRefType, string how) => ReadsByRecord[businessRefType] = how;
 
-    /// <summary>The types declared with no read that opens their record, with their reasons.</summary>
-    public static IReadOnlyDictionary<string, string> TypesOpeningNothing => NoSubjectReasons;
+    /// <summary>The types whose read depends on the record (<see cref="OpensByRecord"/>), with which read.</summary>
+    public static IReadOnlyDictionary<string, string> TypesOpenedByRecord => ReadsByRecord;
 }
 
 /// <summary>The read operation that opens an approval's record (DE-020): its operation ID and its path, with {id} for the business ref ID.</summary>

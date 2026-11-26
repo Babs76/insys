@@ -5917,7 +5917,8 @@
         },
         "x-permission": "party_bulk_job.create",
         "x-function": [
-          "PARTY_REQUEST_EXPORT"
+          "PARTY_REQUEST_EXPORT",
+          "PARTY_REQUEST_POLICY_EXPORT"
         ]
       }
     },
@@ -48189,6 +48190,7 @@
           "Identity"
         ],
         "summary": "A role assignment by its ID, the businessRefId of its PRIVILEGED_ROLE approval, with the user who holds it (DE-020)",
+        "description": "Under the users screen (IDENTITY_USERS) and user.read, as GET /identity/users/{userId}, which shows the same assignment (OQ-203).",
         "operationId": "IdentityGetRoleAssignment",
         "parameters": [
           {
@@ -48236,7 +48238,7 @@
         },
         "x-permission": "user.read",
         "x-function": [
-          "IDENTITY_ROLE_ASSIGNMENTS"
+          "IDENTITY_USERS"
         ]
       }
     },
@@ -48246,7 +48248,7 @@
           "Identity"
         ],
         "summary": "An external user\u0027s subject link by its ID, the businessRefId of its EXTERNAL_SUBJECT_LINK approval, pending, in effect or ended (DE-020)",
-        "description": "userId names the user it is for; its changes are made on the user, with the user\u0027s ETag (GET /identity/users/{userId}).",
+        "description": "userId names the user it is for; its changes are made on the user, with the user\u0027s ETag (GET /identity/users/{userId}). As the user\u0027s own reads (OQ-203): the link pending or in effect, else the user\u0027s latest; an earlier link is not found (404 SUBJECT_LINK_NOT_FOUND).",
         "operationId": "IdentityGetSubjectLinkById",
         "parameters": [
           {
@@ -83286,6 +83288,7 @@
               "ROLE_ASSIGNMENT",
               "SEARCH_LOG_HOLD",
               "STATIC_DATA_CHANGE",
+              "STATIC_DATA_IMPORT",
               "STATIC_DATA_SETUP",
               "STATIC_DATA_VERSION",
               "SUBJECT_LINK",
@@ -84877,7 +84880,9 @@
           "payoutCurrency",
           "allowedTransitions",
           "rowVersion",
-          "draftDiscarded"
+          "draftDiscarded",
+          "subjectOperation",
+          "subjectPath"
         ],
         "type": "object",
         "properties": {
@@ -84928,6 +84933,7 @@
               "ROLE_ASSIGNMENT",
               "SEARCH_LOG_HOLD",
               "STATIC_DATA_CHANGE",
+              "STATIC_DATA_IMPORT",
               "STATIC_DATA_SETUP",
               "STATIC_DATA_VERSION",
               "SUBJECT_LINK",
@@ -85022,6 +85028,18 @@
               {
                 "$ref": "#/components/schemas/WorkflowStaticDraftDiscardNotice"
               }
+            ]
+          },
+          "subjectOperation": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "subjectPath": {
+            "type": [
+              "null",
+              "string"
             ]
           }
         }
@@ -85776,7 +85794,13 @@
           "global",
           "discardedBy",
           "discardedAt",
-          "reason"
+          "reason",
+          "table",
+          "recordKey",
+          "tableOperation",
+          "tablePath",
+          "importBatchId",
+          "lines"
         ],
         "type": "object",
         "properties": {
@@ -85810,6 +85834,46 @@
           },
           "reason": {
             "type": "string"
+          },
+          "table": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recordKey": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "tableOperation": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "tablePath": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "importBatchId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "lines": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         }
       },

@@ -83,7 +83,7 @@ public sealed record ApprovalView(Guid Id, [property: BusinessRefTypeField] stri
     [BuildingBlocks.Contracts.AlwaysPresent]
     public string? Screen => ApprovalKinds.ScreenFor(BusinessRefType);
 
-    /// <summary>DE-020: the operationId of the read that opens the record the approval is about, by its businessRefId; null only for an undeclared type or one declared as opening nothing (ApprovalKinds.OpensNothing).</summary>
+    /// <summary>DE-020: the operationId of the read that opens the record the approval is about, by its businessRefId; null only for an undeclared type or one whose read depends on the record (ApprovalKinds.OpensByRecord), which no approval carries.</summary>
     [BuildingBlocks.Contracts.AlwaysPresent]
     public string? SubjectOperation => ApprovalKinds.ReadFor(BusinessRefType)?.OperationId;
 

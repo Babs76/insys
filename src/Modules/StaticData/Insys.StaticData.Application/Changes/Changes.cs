@@ -50,6 +50,8 @@ public interface IChangeRequestRepository
 
     Task<bool> BatchExists(Guid id, CancellationToken cancellationToken);
 
+    Task<ImportBatch?> GetBatch(Guid id, CancellationToken cancellationToken);
+
     /// <summary>The tenant's settings, or null before anyone has changed them (defaults apply).</summary>
     Task<TenantGovernanceSettings?> Settings(CancellationToken cancellationToken);
 
@@ -235,7 +237,7 @@ public static class ChangeRequestLinks
 /// The import's batchId (DE-017): the batchId its import returned, its lines' importBatchId and the {batchId} of the table's
 /// …/imports/{batchId} routes (read its lines, submit, activate).
 /// </param>
-/// <param name="Status">COMMITTED: its lines were saved as drafts, to be submitted and activated as one change; REJECTED: nothing was saved, see errors.</param>
+/// <param name="Status">COMMITTED: its lines were saved as drafts, to be submitted and activated as one change; REJECTED: nothing was saved, see errors; DISCARDED: never submitted, then discarded as a whole and its lines deleted (OQ-203).</param>
 public sealed record ImportBatchView(Guid Id, string BatchNumber, string EntityCode, string FileRef, int RowCount, int RejectedCount, ImportStatus Status,
     Guid SubmittedBy, IReadOnlyList<ImportLineError> Errors)
 {
@@ -301,6 +303,7 @@ public sealed class StaticDataGovernancePolicies(IChangeRequestRepository change
     IIntegrationEventHandler<StaticDataCodeDeprecated>,
     IIntegrationEventHandler<StaticDataImportCompleted>,
     IIntegrationEventHandler<StaticDataImportRejected>,
+    IIntegrationEventHandler<StaticDataImportDiscarded>,
     IIntegrationEventHandler<SetupChangeSetRequested>,
     IIntegrationEventHandler<SetupChangeSetWithdrawn>,
     IIntegrationEventHandler<SetupChangeSetAbandoned>,
@@ -596,6 +599,15 @@ public sealed class StaticDataGovernancePolicies(IChangeRequestRepository change
         if (!await changes.BatchExists(completed.BatchId, cancellationToken))
         {
             changes.Add(ImportBatch.CommitImport(completed.BatchId, completed.EntityCode, completed.FileRef, completed.RowCount, completed.SubmittedBy));
+        }
+    }
+
+    /// <summary>OQ-203: the owning module discarded an import never submitted, every line deleted; the import stays on record as DISCARDED.</summary>
+    public async Task Handle(StaticDataImportDiscarded discarded, EventEnvelope envelope, CancellationToken cancellationToken)
+    {
+        if (await changes.GetBatch(discarded.BatchId, cancellationToken) is { } batch)
+        {
+            batch.Discard();
         }
     }
 

@@ -52,6 +52,8 @@ internal sealed class ChangeRequestRepository(StaticDataDbContext db) : IChangeR
 
     public Task<bool> BatchExists(Guid id, CancellationToken cancellationToken) => db.ImportBatches.AnyAsync(b => b.Id == id, cancellationToken);
 
+    public Task<ImportBatch?> GetBatch(Guid id, CancellationToken cancellationToken) => db.ImportBatches.SingleOrDefaultAsync(b => b.Id == id, cancellationToken);
+
     public Task<TenantGovernanceSettings?> Settings(CancellationToken cancellationToken) => db.Settings.SingleOrDefaultAsync(cancellationToken);
 
     public void Add(TenantGovernanceSettings settings) => db.Settings.Add(settings);

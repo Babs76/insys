@@ -77,6 +77,9 @@ public sealed record StaticDataDescriptor(
     Type InputType,
     string CatalogueModule = "")
 {
+    /// <summary>The name the API's operations for the table are built from (List{OperationName}, Get{OperationName}Import ...): the module and the entity type.</summary>
+    public string OperationName => EntityType.Namespace!.Split('.')[1] + EntityType.Name;
+
     public bool AllowsTenantRows => Scope != StaticScope.G;
 
     public bool AllowsGlobalRows => Scope != StaticScope.T;

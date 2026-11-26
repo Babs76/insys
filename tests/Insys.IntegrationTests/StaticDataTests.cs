@@ -483,6 +483,29 @@ public sealed class StaticDataTests(DatabaseFixture fixture) : IClassFixture<Dat
         notice.GetProperty("discardedBy").GetGuid().ShouldBe(otherId);
         notice.GetProperty("reason").GetString().ShouldBe("Maker has left the team");
         notice.GetProperty("discardedAt").GetDateTimeOffset().ShouldBeGreaterThan(editedAt);
+        // OQ-203 (Ade, 26 November 2026): the task names the draft (its table and record key) and links to the table's page of versions not in force.
+        (notice.GetProperty("table").GetString(), notice.GetProperty("recordKey").GetString()).ShouldBe(("iam.cfg_authentication_and_session_policies", "STALE_POLICY@1"));
+        await TheTaskLinksToTheTablesPage(maker, told, "/api/v1/identity/static/authentication-and-session-policies/pending");
+    }
+
+    /// <summary>
+    /// OQ-203 (Ade, 26 November 2026): a discarded draft's or import's task links to its table's page of versions not in force: subjectOperation is that
+    /// GET operation of the host (List{Table}Pending), subjectPath its path, and the maker reads it.
+    /// </summary>
+    private async Task TheTaskLinksToTheTablesPage(HttpClient maker, JsonElement task, string path)
+    {
+        var operation = task.GetProperty("subjectOperation").GetString();
+        task.GetProperty("subjectPath").GetString().ShouldBe(path);
+        task.GetProperty("draftDiscarded").GetProperty("tableOperation").GetString().ShouldBe(operation);
+        var gets = _factory.Services.GetServices<Microsoft.AspNetCore.Routing.EndpointDataSource>().SelectMany(e => e.Endpoints)
+            .OfType<Microsoft.AspNetCore.Routing.RouteEndpoint>()
+            .Where(e => e.Metadata.GetMetadata<Microsoft.AspNetCore.Routing.IHttpMethodMetadata>()?.HttpMethods.Contains("GET") == true)
+            .Select(e => (Name: e.Metadata.GetMetadata<Microsoft.AspNetCore.Routing.IEndpointNameMetadata>()?.EndpointName, Route: e.RoutePattern.RawText))
+            .Where(e => e.Name == operation).ToList();
+        gets.Count.ShouldBe(1, $"{operation} is one GET operation of the host");
+        System.Text.RegularExpressions.Regex.Replace(gets[0].Route!, "^/api/v{[^}]*}/", "/api/v1/").TrimEnd('/').ShouldBe(path);
+        var page = await maker.GetAsync(path);
+        page.StatusCode.ShouldBe(HttpStatusCode.OK, await page.Content.ReadAsStringAsync());
     }
 
     /// <summary>
@@ -665,6 +688,137 @@ public sealed class StaticDataTests(DatabaseFixture fixture) : IClassFixture<Dat
         (await maker.GetAsync("/api/v1/static-data/imports?status=SUBMITTED_LATER")).StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
         (await (await maker.GetAsync($"{Policies}/imports/{batch}")).Json()).GetArrayLength().ShouldBe(1, "the id opens the import's lines");
     }
+
+    /// <summary>
+    /// OQ-203 item 1 (Ade, 26 November 2026): an import never submitted (every line a draft with no change request) is discarded as a whole by its maker at
+    /// any time, with no body: every line goes in one transaction, audited (DiscardImport, with what each held), the codes are free, the import reads
+    /// DISCARDED, and nobody is told. A second discard finds nothing. Its lines are never discarded one by one.
+    /// </summary>
+    [Fact]
+    public async Task AnImportNeverSubmitted_IsDiscardedAsAWholeByItsMaker_AndFreesItsCodes_OQ203_SDM007()
+    {
+        var maker = _factory.ClientFor(DatabaseFixture.TenantA, "maker-a");
+        var batch = await Imported(maker, "OQ203_OWN_A", "OQ203_OWN_B");
+        var line = await maker.GetAsync($"{Policies}/OQ203_OWN_A/versions");
+        var lineDiscard = await maker.Send(HttpMethod.Post, $"{Policies}/OQ203_OWN_A/versions/1/discard",
+            ifMatch: $"\"{(await line.Json())[0].GetProperty("rowVersion").GetInt64()}\"");
+        (await lineDiscard.Code()).ShouldBe("INVALID_STATE_TRANSITION");
+        (await lineDiscard.Content.ReadAsStringAsync()).ShouldContain($"imports/{batch}/discard");
+
+        var discarded = await maker.Send(HttpMethod.Post, $"{Policies}/imports/{batch}/discard");
+        discarded.StatusCode.ShouldBe(HttpStatusCode.NoContent, await discarded.Content.ReadAsStringAsync());
+        (await maker.GetAsync($"{Policies}/imports/{batch}")).StatusCode.ShouldBe(HttpStatusCode.NotFound, "its lines are gone");
+        (await maker.Send(HttpMethod.Post, $"{Policies}/imports/{batch}/discard")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        await _factory.DrainOutbox();
+        (await fixture.Database.ScalarAsOwner<long>("""
+            SELECT count(*) FROM audit.audit_event WHERE tenant_id = @t AND operation = 'DiscardImport' AND details->>'importBatchId' = @b AND details->>'lines' = '2'
+              AND details->>'before' IS NOT NULL
+            """, ("t", DatabaseFixture.TenantA), ("b", batch.ToString()))).ShouldBe(2L, "one entry per line, with what it held");
+        (await ImportStatus(maker, batch)).ShouldBe("DISCARDED");
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM workflow.process_instance WHERE process_code = 'STATIC_DRAFT_DISCARDED' AND business_ref_id = @b",
+            ("b", batch))).ShouldBe(0L, "its maker's own discard tells nobody");
+        (await maker.Send(HttpMethod.Post, Policies, Policy("OQ203_OWN_A"), idempotent: true)).StatusCode.ShouldBe(HttpStatusCode.Created, "the code is free");
+    }
+
+    /// <summary>
+    /// OQ-203 item 1 (Ade, 26 November 2026): another holder of the table's maintain function discards someone else's import never submitted only once no
+    /// line has been touched for the tenant's days (OQ-204's setting and clock: an edit to any line counts), with a reason, audited (DiscardStaleImport);
+    /// sooner 409 STATIC_DRAFT_NOT_STALE with discardableFrom. The maker is told by an informational task about the import, which names the table, the
+    /// import (its batchNumber), who discarded it and why, and links to the table's page.
+    /// </summary>
+    [Fact]
+    public async Task AnotherMaintainer_DiscardsAnImportNeverSubmitted_OnlyOnceUntouchedForTheTenantsDays_AndTheMakerIsTold_OQ203_OQ204()
+    {
+        var maker = _factory.ClientFor(DatabaseFixture.TenantA, "maker-a");
+        var other = _factory.ClientFor(DatabaseFixture.TenantA, "checker-a");
+        var batch = await Imported(maker, "OQ203_STALE_A", "OQ203_STALE_B");
+        var url = $"{Policies}/imports/{batch}/discard";
+
+        var fresh = await other.Send(HttpMethod.Post, url, new { reason = "Abandoned import" });
+        fresh.StatusCode.ShouldBe(HttpStatusCode.Conflict, await fresh.Content.ReadAsStringAsync());
+        var refusal = await fresh.Json();
+        refusal.GetProperty("code").GetString().ShouldBe("STATIC_DRAFT_NOT_STALE");
+        refusal.GetProperty("staleDraftDiscardDays").GetInt32().ShouldBe(7);
+
+        // An edit to one line touches the import: the days count from it.
+        var line = await maker.GetAsync($"{Policies}/OQ203_STALE_B/versions");
+        var edited = await maker.Send(HttpMethod.Put, $"{Policies}/OQ203_STALE_B/versions/1", Policy("OQ203_STALE_B", lockoutAttempts: 4),
+            ifMatch: $"\"{(await line.Json())[0].GetProperty("rowVersion").GetInt64()}\"");
+        edited.StatusCode.ShouldBe(HttpStatusCode.OK, await edited.Content.ReadAsStringAsync());
+        await Age("OQ203_STALE_A", created: TimeSpan.FromDays(30));
+        await Age("OQ203_STALE_B", created: TimeSpan.FromDays(30), edited: TimeSpan.FromDays(7) - TimeSpan.FromMinutes(5));
+        (await (await other.Send(HttpMethod.Post, url, new { reason = "Abandoned import" })).Code()).ShouldBe("STATIC_DRAFT_NOT_STALE", "a line was edited less than 7 days ago");
+
+        await Age("OQ203_STALE_B", created: TimeSpan.Zero, edited: TimeSpan.FromMinutes(10));
+        var noReason = await other.Send(HttpMethod.Post, url);
+        noReason.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity, await noReason.Content.ReadAsStringAsync());
+        (await noReason.Json()).GetProperty("errors").TryGetProperty("reason", out _).ShouldBeTrue();
+
+        var discarded = await other.Send(HttpMethod.Post, url, new { reason = "Abandoned import" });
+        discarded.StatusCode.ShouldBe(HttpStatusCode.NoContent, await discarded.Content.ReadAsStringAsync());
+        (await maker.GetAsync($"{Policies}/imports/{batch}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        await _factory.DrainOutbox();
+        var makerId = await fixture.Database.ScalarAsOwner<Guid>("SELECT id FROM iam.user_account WHERE tenant_id = @t AND external_subject = 'maker-a'",
+            ("t", DatabaseFixture.TenantA));
+        var otherId = await fixture.Database.ScalarAsOwner<Guid>("SELECT id FROM iam.user_account WHERE tenant_id = @t AND external_subject = 'checker-a'",
+            ("t", DatabaseFixture.TenantA));
+        (await fixture.Database.ScalarAsOwner<long>("""
+            SELECT count(*) FROM audit.audit_event
+            WHERE tenant_id = @t AND operation = 'DiscardStaleImport' AND actor_id = @actor AND details->>'importBatchId' = @b AND details->>'reason' = 'Abandoned import'
+              AND details->>'makerId' = @maker AND details->>'daysUntouched' = '7' AND details->>'staleDraftDiscardDays' = '7'
+            """, ("t", DatabaseFixture.TenantA), ("actor", otherId.ToString()), ("b", batch.ToString()), ("maker", makerId.ToString()))).ShouldBe(2L);
+        (await ImportStatus(maker, batch)).ShouldBe("DISCARDED");
+
+        var told = (await (await maker.GetAsync("/api/v1/workflow/tasks/mine?limit=100")).Json()).GetProperty("items").EnumerateArray()
+            .Single(t => t.GetProperty("processCode").GetString() == "STATIC_DRAFT_DISCARDED" && t.GetProperty("businessRefId").GetGuid() == batch);
+        (told.GetProperty("businessRefType").GetString(), told.GetProperty("informational").GetBoolean(), told.GetProperty("assignedToMe").GetBoolean())
+            .ShouldBe(("STATIC_DATA_IMPORT", true, true));
+        var notice = told.GetProperty("draftDiscarded");
+        var batchNumber = (await ImportOf(maker, batch)).GetProperty("batchNumber").GetString();
+        (notice.GetProperty("table").GetString(), notice.GetProperty("recordKey").GetString(), notice.GetProperty("importBatchId").GetGuid(), notice.GetProperty("lines").GetInt32())
+            .ShouldBe(("iam.cfg_authentication_and_session_policies", batchNumber, batch, 2));
+        (notice.GetProperty("discardedBy").GetGuid(), notice.GetProperty("reason").GetString()).ShouldBe((otherId, "Abandoned import"));
+        await TheTaskLinksToTheTablesPage(maker, told, "/api/v1/identity/static/authentication-and-session-policies/pending");
+    }
+
+    /// <summary>OQ-203 item 1: once submitted, an import is not discarded (409 INVALID_STATE_TRANSITION); its approval decides it.</summary>
+    [Fact]
+    public async Task AnImportSubmitted_IsNotDiscarded_OQ203()
+    {
+        var maker = _factory.ClientFor(DatabaseFixture.TenantA, "maker-a");
+        var batch = await Imported(maker, "OQ203_SUB_A");
+        (await maker.Send(HttpMethod.Post, $"{Policies}/imports/{batch}/submit")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        var refused = await maker.Send(HttpMethod.Post, $"{Policies}/imports/{batch}/discard");
+        refused.StatusCode.ShouldBe(HttpStatusCode.Conflict, await refused.Content.ReadAsStringAsync());
+        (await refused.Code()).ShouldBe("INVALID_STATE_TRANSITION");
+        (await (await maker.GetAsync($"{Policies}/imports/{batch}")).Json()).GetArrayLength().ShouldBe(1);
+    }
+
+    private static async Task<Guid> Imported(HttpClient maker, params string[] codes)
+    {
+        var imported = await maker.Send(HttpMethod.Post, $"{Policies}/imports", new { fileRef = "oq203.csv", lines = codes.Select(c => Policy(c)).ToArray() }, idempotent: true);
+        imported.StatusCode.ShouldBe(HttpStatusCode.OK, await imported.Content.ReadAsStringAsync());
+        return (await imported.Json()).GetProperty("batchId").GetGuid();
+    }
+
+    private static async Task<JsonElement> ImportOf(HttpClient reader, Guid batch)
+    {
+        string? cursor = null;
+        do
+        {
+            var page = await (await reader.GetAsync($"/api/v1/static-data/imports?limit=200{(cursor is null ? "" : $"&cursor={cursor}")}")).Json();
+            foreach (var item in page.GetProperty("items").EnumerateArray().Where(b => b.GetProperty("id").GetGuid() == batch))
+            {
+                return item;
+            }
+
+            cursor = page.GetProperty("nextCursor").ValueKind == JsonValueKind.String ? page.GetProperty("nextCursor").GetString() : null;
+        }
+        while (cursor is not null);
+        throw new InvalidOperationException($"import {batch} is not listed");
+    }
+
+    private static async Task<string> ImportStatus(HttpClient reader, Guid batch) => (await ImportOf(reader, batch)).GetProperty("status").GetString()!.ToUpperInvariant();
 
     [Fact]
     public async Task Import_IsAllOrNothing_AndReportsEveryRejectedLine_SDM012()

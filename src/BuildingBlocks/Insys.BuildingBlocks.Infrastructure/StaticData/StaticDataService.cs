@@ -307,7 +307,7 @@ public sealed class StaticDataService<TDbContext>(
 
             if (entity.ImportBatchId is { } batch)
             {
-                return InvalidTransition($"This draft is a line of import {batch}; the import's lines are kept together (BR-016).");
+                return InvalidTransition($"This draft is a line of import {batch}; the import's lines are kept together (BR-016): discard the import as a whole, POST …/imports/{batch}/discard (OQ-203).");
             }
 
             var before = Snapshot(entity);
@@ -342,7 +342,8 @@ public sealed class StaticDataService<TDbContext>(
             if (makerId is { } told && Guid.TryParse(execution.ActorId, out var discardedBy))
             {
                 // Ade, 25 November 2026 (OQ-204): the maker is told who discarded it, when and why; a seeded draft has no maker to tell.
-                db.Publish(new StaticDataDraftDiscarded(Ref(descriptor, entity), told, discardedBy, now, reason.Trim()), descriptor.EntityName, entity.Id, now);
+                db.Publish(new StaticDataDraftDiscarded(Ref(descriptor, entity), told, discardedBy, now, reason.Trim(), ListPendingOperation(descriptor, global)),
+                    descriptor.EntityName, entity.Id, now);
             }
 
             audit(entity, before, "DiscardStaleDraft", new Dictionary<string, string?>
@@ -935,6 +936,131 @@ public sealed class StaticDataService<TDbContext>(
         await transaction.CommitAsync(cancellationToken);
         return lines.Count;
     }
+
+    /// <summary>
+    /// OQ-203 (Ade, 26 November 2026): an import never submitted is discarded as a whole, under the rules of a draft (DE-016, OQ-204). "Never
+    /// submitted" is every line still a draft with no change request: an import whose lines went to approval, or that a rejection returned
+    /// (its lines carry the change request), is not discarded (409 INVALID_STATE_TRANSITION), as a draft a rejection returned is not. Its
+    /// maker discards it at any time (DiscardImport); anyone else reaching this holds the table's maintain function and discards it, with a
+    /// reason, once no line has been touched for the tenant's stale_draft_discard_days (DiscardStaleImport); sooner, 409
+    /// STATIC_DRAFT_NOT_STALE with discardableFrom. Every line is deleted in one transaction and audited with what it held, and
+    /// sdm.StaticDataImportDiscarded tells Static Data (the import reads DISCARDED) and, when someone else discarded it, the maker.
+    /// </summary>
+    public async Task<Result<int>> DiscardImport<TEntity>(StaticDataDescriptor descriptor, Guid batchId, string? reason, bool global, CancellationToken cancellationToken)
+        where TEntity : StaticRecord
+    {
+        if (RequireUser() is { } userError)
+        {
+            return userError;
+        }
+
+        if (CheckScope(descriptor, global) is { } scopeError)
+        {
+            return scopeError;
+        }
+
+        await using var lease = Lease(global);
+        var context = lease.Context;
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        var lines = await Scoped(context.Set<TEntity>(), global).Where(r => r.ImportBatchId == batchId).OrderBy(r => r.Code).ThenBy(r => r.Version)
+            .ToListAsync(cancellationToken);
+        if (lines.Count == 0)
+        {
+            return Error.NotFound(ErrorCodes.NotFound, "The import was not found.");
+        }
+
+        if (lines.FirstOrDefault(l => l.RecordStatus != descriptor.Lifecycle.Draft) is { } notDraft)
+        {
+            return InvalidTransition($"Line {notDraft.Code} is {notDraft.RecordStatus}: only an import never submitted is discarded, while every line is a draft (SDM-007).");
+        }
+
+        if (lines.Any(l => l.ChangeRequestId is not null))
+        {
+            // TODO(spec): OQ-204, as a draft a rejection returned: whether an import a rejection returned may be discarded too.
+            return InvalidTransition("This import was submitted and returned by a rejection; edit its lines and submit it again.");
+        }
+
+        var maker = lines[0].CreatedBy;
+        var makerId = Guid.TryParse(maker, out var parsedMaker) ? parsedMaker : (Guid?)null;
+        var ownImport = lines.All(l => l.CreatedBy == execution.ActorId);
+        var now = clock.UtcNow;
+        var touched = lines.Max(LastTouched);
+        Dictionary<string, string?> extra;
+        string operation;
+        if (ownImport)
+        {
+            operation = "DiscardImport";
+            extra = new Dictionary<string, string?>();
+        }
+        else
+        {
+            // OQ-204's rule for someone else's draft, counted from the last change to any line.
+            var days = await StaleDraftDiscardDays(cancellationToken);
+            var from = StaleFrom(touched, days);
+            if (now < from)
+            {
+                return Error.Conflict(StaticDataErrorCodes.DraftNotStale,
+                    $"Only its maker discards this import until no line has been touched for {days} days: anyone holding the table's maintain function may discard it "
+                    + $"from {from.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", System.Globalization.CultureInfo.InvariantCulture)} (discardableFrom).")
+                    with { Extensions = new Dictionary<string, object?> { ["discardableFrom"] = from, ["staleDraftDiscardDays"] = days } };
+            }
+
+            if (string.IsNullOrWhiteSpace(reason) || reason.Trim().Length > DiscardReasonMaxLength)
+            {
+                return Error.Validation(ErrorCodes.ValidationFailed, "A reason is required to discard someone else's import.",
+                    new Dictionary<string, string[]> { ["reason"] = [$"reason is required, at most {DiscardReasonMaxLength} characters: why the import is discarded."] });
+            }
+
+            operation = "DiscardStaleImport";
+            extra = new Dictionary<string, string?>
+            {
+                ["reason"] = reason.Trim(),
+                ["makerId"] = makerId?.ToString(),
+                ["daysUntouched"] = ((int)Math.Floor((now - touched).TotalDays)).ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["staleDraftDiscardDays"] = days.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            };
+        }
+
+        extra["importBatchId"] = batchId.ToString();
+        extra["lines"] = lines.Count.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        var entries = new List<AuditEntry>();
+        foreach (var line in lines)
+        {
+            var details = AuditDetails(descriptor, line, Snapshot(line), global);
+            foreach (var (key, value) in extra)
+            {
+                details[key] = value;
+            }
+
+            entries.Add(new AuditEntry("STATIC_DATA", operation, descriptor.EntityCode, line.Id.ToString(), details));
+            context.Set<TEntity>().Remove(line);
+        }
+
+        if (makerId is { } told && Guid.TryParse(execution.ActorId, out var discardedBy))
+        {
+            context.Publish(new StaticDataImportDiscarded(batchId, Ref(descriptor, lines[0]), lines.Count, told, discardedBy, now, ownImport ? null : reason!.Trim(),
+                ListPendingOperation(descriptor, global)), "ImportBatch", batchId, now);
+        }
+
+        context.PublishAudit(entries, AuditOutcome.Success);
+        try
+        {
+            await context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Error.Conflict(ErrorCodes.ConcurrencyConflict, "A line was changed by another request. Read the import again and retry.");
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+        return lines.Count;
+    }
+
+    /// <summary>
+    /// OQ-203 (Ade, 26 November 2026): the operationId of the table's list of versions not in force (List{Table}Pending, Global for the platform rows), the
+    /// table's page a discarded draft or import links to. The API names its operations from <see cref="StaticDataDescriptor.OperationName"/>.
+    /// </summary>
+    public static string ListPendingOperation(StaticDataDescriptor descriptor, bool global) => $"List{descriptor.OperationName}Pending{(global ? "Global" : "")}";
 
     /// <summary>
     /// The hash an import's approval is bound to: SHA-256 over every line in code order, each its full record without the
