@@ -277,9 +277,11 @@ public sealed class WorkflowModule : IModule
             .Produces<CursorPage<ProcessView>>(StatusCodes.Status200OK)
             .WithName("WorkflowListProcesses")
             .WithSummary("List process instances")
-            .WithDescription("BR-170: a process stored with a record type that is no longer declared shows its declared equivalent, or UNDECLARED (no "
-                + "screen) when it has none, with the stored value in storedBusinessRefType (null otherwise). The businessRefType filter finds a process by "
-                + "its stored type or by the type its view shows; UNDECLARED finds every process shown so.")
+            .WithDescription("BR-170: a process stored with a record type that is not declared shows the declared type it matches once trimmed and "
+                + "ignoring letter case, else its declared equivalent, else UNDECLARED (no screen), with the stored value in storedBusinessRefType (null "
+                + "when the stored value is declared as it is). The businessRefType filter finds a process by the type its view shows: a declared type "
+                + "also finds the stored values that match it trimmed and ignoring letter case, and UNDECLARED finds every process shown so; any other "
+                + "value matches the stored value exactly.")
             .RequirePermission(WorkflowPermissions.ProcessRead);
 
         processes.MapGet("/{id:guid}", async (Guid id, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>

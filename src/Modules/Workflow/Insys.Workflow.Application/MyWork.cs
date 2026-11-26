@@ -431,8 +431,8 @@ public sealed record MyTaskRow(Guid TaskId, Guid ProcessId, string ProcessCode, 
 /// <param name="PayoutCurrency">And its currency.</param>
 /// <param name="AllowedTransitions">The states completing the task may move the process to; one means "done" needs no choice.</param>
 /// <param name="BusinessRefType">
-/// The record type (BR-170): a declared type; for a task whose process was stored with an older type, its declared equivalent, or UNDECLARED (no
-/// screen) when it has none (Ade, 26 November 2026).
+/// The record type (BR-170): a declared type; for a task whose process was stored with another value, the declared type it matches once trimmed and
+/// ignoring letter case, else its declared equivalent, else UNDECLARED (no screen) (Ade, 26 November 2026).
 /// </param>
 /// <param name="StoredBusinessRefType">The process's stored record type when <paramref name="BusinessRefType"/> shows another; null otherwise.</param>
 /// <param name="DraftDiscarded">For a STATIC_DRAFT_DISCARDED task (OQ-204): the draft someone else discarded, who, when and why; null for any other task.</param>

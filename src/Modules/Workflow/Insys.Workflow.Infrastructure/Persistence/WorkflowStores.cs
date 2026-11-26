@@ -25,6 +25,7 @@
  * ============================================================================
  */
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Insys.BuildingBlocks.Application.Messaging;
 using Insys.BuildingBlocks.Contracts;
 using Insys.BuildingBlocks.Domain;
@@ -225,16 +226,18 @@ internal sealed class ProcessQueries(WorkflowDbContext db, BuildingBlocks.Applic
         var query = InScope(db.Processes.AsNoTracking().Include(p => p.Tasks).AsQueryable());
         if (businessRefType is not null)
         {
-            // Ade, 26 November 2026: a filter finds a process by its stored type or by the type its view shows (an older type's equivalent, or UNDECLARED).
-            if (ProcessRecordTypes.StoredFor(businessRefType) is { } stored)
+            // Ade, 26 November 2026 (BR-170): a filter finds a process by its stored type or by the type its view shows. A declared type also finds the
+            // stored values that fold to it (trimmed, any letter case), matched in the query by a locale-free regular expression that folds exactly
+            // what ProcessRecordTypes.Folded folds; UNDECLARED finds the values that neither are known nor fold; any other value matches exactly.
+            var filter = ProcessRecordTypes.FilterFor(businessRefType);
+            var exact = filter.Exact;
+            query = filter switch
             {
-                query = query.Where(p => stored.Contains(p.BusinessRefType));
-            }
-            else
-            {
-                var known = ProcessRecordTypes.Known;
-                query = query.Where(p => !known.Contains(p.BusinessRefType));
-            }
+                { Excluding: true, Folding: { } folding } => query.Where(p => !exact.Contains(p.BusinessRefType) && !Regex.IsMatch(p.BusinessRefType, folding)),
+                { Excluding: true } => query.Where(p => !exact.Contains(p.BusinessRefType)),
+                { Folding: { } folding } => query.Where(p => exact.Contains(p.BusinessRefType) || Regex.IsMatch(p.BusinessRefType, folding)),
+                _ => query.Where(p => exact.Contains(p.BusinessRefType)),
+            };
         }
 
         if (businessRefId is not null)

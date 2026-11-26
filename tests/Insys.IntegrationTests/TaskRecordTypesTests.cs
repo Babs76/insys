@@ -115,10 +115,15 @@ public sealed class TaskRecordTypesTests(DatabaseFixture fixture) : IClassFixtur
         ProcessRecordTypes.Shown(TaskRecordTypes.Undeclared, equivalents).ShouldBe((TaskRecordTypes.Undeclared, (string?)TaskRecordTypes.Undeclared),
             "a stored UNDECLARED (typed before the narrowing) is undeclared too");
 
-        ProcessRecordTypes.StoredFor("LIFE_CLAIM", equivalents).ShouldBe(["LIFE_CLAIM", "OLD_LIFE_CLAIM"], "a filter by the shown type finds the older value");
-        ProcessRecordTypes.StoredFor("OLD_LIFE_CLAIM", equivalents).ShouldBe(["OLD_LIFE_CLAIM"], "a filter by the stored value finds it");
-        ProcessRecordTypes.StoredFor("CLAIM", equivalents).ShouldBe(["CLAIM"]);
-        ProcessRecordTypes.StoredFor(TaskRecordTypes.Undeclared, equivalents).ShouldBeNull("UNDECLARED matches every stored value not shown otherwise");
+        ProcessRecordTypes.FilterFor("LIFE_CLAIM", equivalents).Exact.ShouldBe(["LIFE_CLAIM", "OLD_LIFE_CLAIM"], "a filter by the shown type finds the older value");
+        ProcessRecordTypes.FilterFor("OLD_LIFE_CLAIM", equivalents).ShouldSatisfyAllConditions(
+            f => f.Exact.ShouldBe(["OLD_LIFE_CLAIM"], "a filter by the stored value finds it"), f => f.Folding.ShouldBeNull(), f => f.Excluding.ShouldBeFalse());
+        ProcessRecordTypes.FilterFor("CLAIM", equivalents).ShouldSatisfyAllConditions(f => f.Exact.ShouldBe(["CLAIM"]), f => f.Folding.ShouldBeNull());
+        ProcessRecordTypes.FilterFor("NO_SUCH_TYPE", equivalents).Exact.ShouldBe(["NO_SUCH_TYPE"], "OLD_GONE is shown as UNDECLARED, not as NO_SUCH_TYPE");
+        ProcessRecordTypes.FilterFor(TaskRecordTypes.Undeclared, equivalents).ShouldSatisfyAllConditions(
+            f => f.Excluding.ShouldBeTrue("UNDECLARED matches every stored value not shown otherwise"),
+            f => f.Exact.ShouldBe([.. ProcessRecordTypes.All.Append("OLD_LIFE_CLAIM").Order(StringComparer.Ordinal)]),
+            f => f.Folding.ShouldNotBeNull());
     }
 
     /// <summary>Ade, 26 November 2026: each older type's equivalent is declared, and the older type itself is not (or it would show as itself).</summary>
@@ -130,5 +135,38 @@ public sealed class TaskRecordTypesTests(DatabaseFixture fixture) : IClassFixtur
         ProcessRecordTypes.Equivalents.Keys.Where(ProcessRecordTypes.IsDeclared).ShouldBeEmpty("a declared type is shown as itself");
         ProcessRecordTypes.Equivalents.Keys.ShouldNotContain(TaskRecordTypes.Undeclared);
         ProcessRecordTypes.Known.ShouldBe([.. ProcessRecordTypes.All, .. ProcessRecordTypes.Equivalents.Keys], ignoreOrder: true);
+    }
+
+    /// <summary>
+    /// Ade, 26 November 2026 (BR-170 decision 2): a stored value matching a declared type once trimmed and ignoring letter case is shown as that type,
+    /// keeping the stored value, before the equivalents and the UNDECLARED fallback; a value folding to UNDECLARED itself stays UNDECLARED.
+    /// </summary>
+    [Fact]
+    public async Task AStoredValue_MatchingADeclaredTypeTrimmedAndIgnoringCase_IsShownAsThatType_BR170()
+    {
+        await fixture.Host();
+        var equivalents = new Dictionary<string, string>(StringComparer.Ordinal) { [" life_claim "] = "GENERAL_CLAIM" };
+        ProcessRecordTypes.Shown(" general_claim ").ShouldBe(("GENERAL_CLAIM", (string?)" general_claim "));
+        ProcessRecordTypes.Shown(" LIFE_claim ").ShouldBe(("LIFE_CLAIM", (string?)" LIFE_claim "));
+        ProcessRecordTypes.Shown("\tLife_Claim\r\n").ShouldBe(("LIFE_CLAIM", (string?)"\tLife_Claim\r\n"));
+        ProcessRecordTypes.Shown(" life_claim ", equivalents).ShouldBe(("LIFE_CLAIM", (string?)" life_claim "), "folding comes before the equivalents");
+        ProcessRecordTypes.Shown(" undeclared ").ShouldBe((TaskRecordTypes.Undeclared, (string?)" undeclared "), "UNDECLARED is not a declared type");
+        ProcessRecordTypes.Shown("LIFE_CLAIMS").ShouldBe((TaskRecordTypes.Undeclared, (string?)"LIFE_CLAIMS"), "only case and surrounding whitespace fold");
+        ProcessRecordTypes.Shown("LIFE CLAIM").ShouldBe((TaskRecordTypes.Undeclared, (string?)"LIFE CLAIM"));
+        ProcessRecordTypes.Shown("L\u0131FE_CLAIM").ShouldBe((TaskRecordTypes.Undeclared, (string?)"L\u0131FE_CLAIM"), "ordinal ignore-case folds no non-ASCII letter");
+        ProcessRecordTypes.Folded(TaskRecordTypes.Undeclared).ShouldBeNull();
+
+        var pattern = new System.Text.RegularExpressions.Regex(ProcessRecordTypes.FoldingPattern(ProcessRecordTypes.All));
+        foreach (var value in new[] { " general_claim ", " LIFE_claim ", "\tLife_Claim\r\n", "LIFE_CLAIM", " undeclared ", "LIFE_CLAIMS", "LIFE CLAIM", "L\u0131FE_CLAIM", "XLIFE_CLAIM" })
+        {
+            pattern.IsMatch(value).ShouldBe(ProcessRecordTypes.Folded(value) is not null, $"the filter's pattern folds what the view folds: [{value}]");
+        }
+
+        ProcessRecordTypes.FilterFor("LIFE_CLAIM", equivalents).ShouldSatisfyAllConditions(
+            f => f.Exact.ShouldBe(["LIFE_CLAIM"], "an equivalent key that folds is shown as its folded type, so it is found through the pattern"),
+            f => f.Folding.ShouldBe(ProcessRecordTypes.FoldingPattern(["LIFE_CLAIM"])), f => f.Excluding.ShouldBeFalse());
+        ProcessRecordTypes.FilterFor("GENERAL_CLAIM", equivalents).Exact.ShouldBe(["GENERAL_CLAIM"]);
+        ProcessRecordTypes.FilterFor(" life_claim ", equivalents).ShouldSatisfyAllConditions(
+            f => f.Exact.ShouldBe([" life_claim "], "a filter by a stored undeclared value matches it exactly"), f => f.Folding.ShouldBeNull());
     }
 }

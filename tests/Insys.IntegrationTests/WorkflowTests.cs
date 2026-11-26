@@ -208,6 +208,89 @@ public sealed class WorkflowTests(DatabaseFixture fixture) : IClassFixture<Datab
             "the stored value is unchanged");
     }
 
+    /// <summary>
+    /// Ade, 26 November 2026 (BR-170 decision 2): a process stored with a value matching a declared type once trimmed and ignoring letter case
+    /// (" LIFE_claim ") shows that declared type, with its screen, and the stored value in storedBusinessRefType, in the process view, the process list
+    /// and the my-task view; the list filter by the declared type finds it, a filter by the stored value matches exactly, and the stored row is unchanged.
+    /// </summary>
+    [Fact]
+    public async Task AProcessStoredWithAFoldedDeclaredType_IsShownAsThatType_WithItsScreen_AndFoundByIt_BR170()
+    {
+        var db = fixture.Database;
+        var worker = await db.UserWithPermissions(DatabaseFixture.TenantA, "wf-fold", [.. All, WorkflowPermissions.OwnTaskRead]);
+        var client = _factory.ClientFor(DatabaseFixture.TenantA, "wf-fold");
+        var (url, taskId) = await Start(client, "CLAIM");
+        var processId = Guid.Parse(url[(url.LastIndexOf('/') + 1)..]);
+        await db.ExecuteAsOwner("UPDATE workflow.task SET assignee_id = @u WHERE id = @t", ("u", worker), ("t", taskId));
+        var screen = (await (await client.GetAsync($"/api/v1/workflow/tasks/mine/{taskId}")).Json()).GetProperty("screen").GetString();
+        screen.ShouldNotBeNull();
+
+        const string stored = " LIFE_claim ";
+        await db.ExecuteAsOwner("UPDATE workflow.process_instance SET business_ref_type = @s WHERE id = @p", ("s", stored), ("p", processId));
+
+        var process = await (await client.GetAsync(url)).Json();
+        process.GetProperty("businessRefType").GetString().ShouldBe("LIFE_CLAIM");
+        process.GetProperty("storedBusinessRefType").GetString().ShouldBe(stored);
+        var businessRefId = process.GetProperty("businessRefId").GetGuid();
+
+        var byDeclared = (await (await client.GetAsync($"{Processes}?businessRefType=LIFE_CLAIM&businessRefId={businessRefId}")).Json())
+            .GetProperty("items").EnumerateArray().ToList();
+        byDeclared.Select(p => p.GetProperty("id").GetGuid()).ShouldBe([processId], "a filter by the declared type finds the values that fold to it");
+        byDeclared[0].GetProperty("businessRefType").GetString().ShouldBe("LIFE_CLAIM");
+        byDeclared[0].GetProperty("storedBusinessRefType").GetString().ShouldBe(stored);
+        var byStored = (await (await client.GetAsync($"{Processes}?businessRefType={Uri.EscapeDataString(stored)}&businessRefId={businessRefId}")).Json())
+            .GetProperty("items").EnumerateArray().ToList();
+        byStored.Select(p => p.GetProperty("id").GetGuid()).ShouldBe([processId], "a filter by the stored value finds it exactly");
+        (await (await client.GetAsync($"{Processes}?businessRefType=life_claim&businessRefId={businessRefId}")).Json())
+            .GetProperty("items").GetArrayLength().ShouldBe(0, "a filter by an undeclared value matches exactly: life_claim is not the stored value");
+        (await (await client.GetAsync($"{Processes}?businessRefType=UNDECLARED&businessRefId={businessRefId}")).Json())
+            .GetProperty("items").GetArrayLength().ShouldBe(0, "a folded value is not shown as UNDECLARED");
+        (await (await client.GetAsync($"{Processes}?businessRefType=GENERAL_CLAIM&businessRefId={businessRefId}")).Json())
+            .GetProperty("items").GetArrayLength().ShouldBe(0, "it folds only to its own type");
+
+        var task = await (await client.GetAsync($"/api/v1/workflow/tasks/mine/{taskId}")).Json();
+        task.GetProperty("businessRefType").GetString().ShouldBe("LIFE_CLAIM");
+        task.GetProperty("storedBusinessRefType").GetString().ShouldBe(stored);
+        task.GetProperty("screen").GetString().ShouldBe(screen, "the declared type's screen");
+        var mine = (await (await client.GetAsync("/api/v1/workflow/tasks/mine?limit=200")).Json()).GetProperty("items").EnumerateArray()
+            .Single(t => t.GetProperty("id").GetGuid() == taskId);
+        mine.GetProperty("businessRefType").GetString().ShouldBe("LIFE_CLAIM");
+        mine.GetProperty("storedBusinessRefType").GetString().ShouldBe(stored);
+        mine.GetProperty("screen").GetString().ShouldBe(screen);
+
+        (await db.ScalarAsOwner<string>("SELECT business_ref_type FROM workflow.process_instance WHERE id = @p", ("p", processId))).ShouldBe(stored,
+            "the stored value is unchanged");
+    }
+
+    /// <summary>
+    /// Ade, 26 November 2026 (BR-170 decision 2): a stored value that folds to UNDECLARED itself (" undeclared ") stays UNDECLARED, with no screen, and
+    /// the list filter by UNDECLARED finds it.
+    /// </summary>
+    [Fact]
+    public async Task AProcessStoredWithAValueFoldingToUndeclared_StaysUndeclared_BR170()
+    {
+        var db = fixture.Database;
+        var worker = await db.UserWithPermissions(DatabaseFixture.TenantA, "wf-fold-undeclared", [.. All, WorkflowPermissions.OwnTaskRead]);
+        var client = _factory.ClientFor(DatabaseFixture.TenantA, "wf-fold-undeclared");
+        var (url, taskId) = await Start(client, "CLAIM");
+        var processId = Guid.Parse(url[(url.LastIndexOf('/') + 1)..]);
+        await db.ExecuteAsOwner("UPDATE workflow.task SET assignee_id = @u WHERE id = @t", ("u", worker), ("t", taskId));
+        const string stored = " undeclared ";
+        await db.ExecuteAsOwner("UPDATE workflow.process_instance SET business_ref_type = @s WHERE id = @p", ("s", stored), ("p", processId));
+
+        var process = await (await client.GetAsync(url)).Json();
+        process.GetProperty("businessRefType").GetString().ShouldBe("UNDECLARED");
+        process.GetProperty("storedBusinessRefType").GetString().ShouldBe(stored);
+        var businessRefId = process.GetProperty("businessRefId").GetGuid();
+        (await (await client.GetAsync($"{Processes}?businessRefType=UNDECLARED&businessRefId={businessRefId}")).Json())
+            .GetProperty("items").EnumerateArray().Select(p => p.GetProperty("id").GetGuid()).ShouldBe([processId]);
+
+        var task = await (await client.GetAsync($"/api/v1/workflow/tasks/mine/{taskId}")).Json();
+        task.GetProperty("businessRefType").GetString().ShouldBe("UNDECLARED");
+        task.GetProperty("storedBusinessRefType").GetString().ShouldBe(stored);
+        task.GetProperty("screen").ValueKind.ShouldBe(JsonValueKind.Null);
+    }
+
     /// <summary>Ade, 26 November 2026 (BR-170): UNDECLARED is only shown; starting a process about it is refused like any undeclared type.</summary>
     [Fact]
     public async Task StartingAProcess_AboutUndeclared_IsRefused_BR170()

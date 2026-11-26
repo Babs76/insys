@@ -75,8 +75,8 @@ public sealed record CaseNoteView(Guid AuthorId, string Note, DateTimeOffset Cre
 public sealed record ProcessTransitionView(string ToState, bool Conditional);
 
 /// <param name="BusinessRefType">
-/// The record type (BR-170): a declared type; for a process stored with an older type, its declared equivalent, or UNDECLARED when it has none (Ade,
-/// 26 November 2026).
+/// The record type (BR-170): a declared type; for a process stored with another value, the declared type it matches once trimmed and ignoring letter
+/// case, else its declared equivalent, else UNDECLARED (Ade, 26 November 2026).
 /// </param>
 /// <param name="StoredBusinessRefType">The stored record type when <paramref name="BusinessRefType"/> shows another; null otherwise.</param>
 /// <param name="AllowedTransitions">

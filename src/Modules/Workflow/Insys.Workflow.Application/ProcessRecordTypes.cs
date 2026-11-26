@@ -71,7 +71,9 @@ public static class ProcessRecordTypes
     /// Stored record types that are no longer declared, each with its declared equivalent: the same record, opened by the same read (Ade, 26 November
     /// 2026). A view shows the equivalent, its screen, and the stored value in <c>storedBusinessRefType</c>; the stored row is unchanged. A stored type
     /// that is neither declared nor here is shown as <see cref="TaskRecordTypes.Undeclared"/>. Empty: no start path in the code since process starts
-    /// existed stored a type that was later renamed or dropped (BR-170 contract note); a rename adds its old value here.
+    /// existed stored a type that was later renamed or dropped (BR-170 contract note); a rename adds its old value here. Decided (Ade, 26 November 2026,
+    /// BR-170 decision 1): the table is approved, no stored type has a current equivalent, so it stays empty. A key that folds to a declared type
+    /// (<see cref="Folded(string)"/>) is never reached: folding comes first.
     /// </summary>
     public static readonly IReadOnlyDictionary<string, string> Equivalents = new Dictionary<string, string>(StringComparer.Ordinal);
 
@@ -80,32 +82,87 @@ public static class ProcessRecordTypes
         [.. ApprovalKinds.BusinessRefTypes.Union(ProcessOnly.Keys, StringComparer.Ordinal).Order(StringComparer.Ordinal)];
 
     /// <summary>
-    /// The record type a view shows for a stored one, and the stored value when they differ (Ade, 26 November 2026): a declared type as it is; an older
-    /// one as its equivalent (<see cref="Equivalents"/>); any other as <see cref="TaskRecordTypes.Undeclared"/>.
+    /// The characters trimmed from a stored value before it is folded (<see cref="Folded(string)"/>): spaces, tabs and line breaks. The list filter
+    /// trims the same ones (<see cref="FoldingPattern"/>), so a view and a filter always agree on which declared type a stored value folds to.
+    /// </summary>
+    public static readonly char[] FoldedWhitespace = [' ', '\t', '\n', '\r'];
+
+    /// <summary>
+    /// The record type a view shows for a stored one, and the stored value when they differ (Ade, 26 November 2026, BR-170 decisions 1 and 2), in this
+    /// order: a declared type as it is; a value that matches a declared type after trimming and ignoring letter case (" general_claim ") as that
+    /// declared type (<see cref="Folded(string)"/>); an older one as its equivalent (<see cref="Equivalents"/>, empty: the table is approved and no
+    /// stored type has a current equivalent); any other as <see cref="TaskRecordTypes.Undeclared"/>. Stored rows are never changed. A value that folds
+    /// to UNDECLARED itself stays UNDECLARED, since UNDECLARED is not a declared type.
     /// </summary>
     public static (string Type, string? Stored) Shown(string stored) => Shown(stored, Equivalents);
 
     /// <summary><see cref="Shown(string)"/> with a given map of equivalents (tests).</summary>
     public static (string Type, string? Stored) Shown(string stored, IReadOnlyDictionary<string, string> equivalents) =>
         IsDeclared(stored) ? (stored, null)
+        : Folded(stored) is { } declared ? (declared, stored)
         : equivalents.TryGetValue(stored, out var equivalent) && IsDeclared(equivalent) ? (equivalent, stored)
         : (TaskRecordTypes.Undeclared, stored);
 
     /// <summary>
-    /// The stored values a list filter by record type matches, so a filter finds a process by its stored value or by the type its view shows: the value
-    /// itself and the older values whose equivalent it is. Null for <see cref="TaskRecordTypes.Undeclared"/>, which matches every stored value in
-    /// <see cref="Known"/>'s complement instead.
+    /// The declared type a stored value matches once trimmed of <see cref="FoldedWhitespace"/> and compared ordinally ignoring case (Ade, 26 November
+    /// 2026), or null. Never UNDECLARED, which is not declared.
     /// </summary>
-    public static string[]? StoredFor(string filter) => StoredFor(filter, Equivalents);
+    public static string? Folded(string stored)
+    {
+        var trimmed = stored.Trim(FoldedWhitespace);
+        return All.FirstOrDefault(d => string.Equals(d, trimmed, StringComparison.OrdinalIgnoreCase));
+    }
 
-    /// <summary><see cref="StoredFor(string)"/> with a given map of equivalents (tests).</summary>
-    public static string[]? StoredFor(string filter, IReadOnlyDictionary<string, string> equivalents) =>
-        filter == TaskRecordTypes.Undeclared
-            ? null
-            : [filter, .. equivalents.Where(e => e.Value == filter).Select(e => e.Key).Order(StringComparer.Ordinal)];
+    /// <summary>
+    /// What a process list filter by record type matches (Ade, 26 November 2026): the stored values in <see cref="RecordTypeFilter.Exact"/>, and, when
+    /// <see cref="RecordTypeFilter.Folding"/> is set, the stored values that match that PostgreSQL regular expression; with
+    /// <see cref="RecordTypeFilter.Excluding"/>, every stored value matching neither.
+    /// <list type="bullet">
+    /// <item>A declared type: the type itself, the stored values that fold to it (<see cref="Folded(string)"/>), and the older values whose equivalent
+    /// it is.</item>
+    /// <item><see cref="TaskRecordTypes.Undeclared"/>: every stored value a view shows as UNDECLARED, that is neither in <see cref="Known"/> nor folds
+    /// to a declared type.</item>
+    /// <item>Any other value (a stored undeclared one): exactly that value.</item>
+    /// </list>
+    /// </summary>
+    public static RecordTypeFilter FilterFor(string filter) => FilterFor(filter, Equivalents);
 
-    /// <summary>The stored values a view shows as something other than <see cref="TaskRecordTypes.Undeclared"/>: the declared types and their older equivalents.</summary>
-    public static string[] Known => [.. All, .. Equivalents.Keys.Where(k => IsDeclared(Equivalents[k]))];
+    /// <summary><see cref="FilterFor(string)"/> with a given map of equivalents (tests).</summary>
+    public static RecordTypeFilter FilterFor(string filter, IReadOnlyDictionary<string, string> equivalents)
+    {
+        if (filter == TaskRecordTypes.Undeclared)
+        {
+            return new([.. KnownWith(equivalents).Order(StringComparer.Ordinal)], FoldingPattern(All), Excluding: true);
+        }
+
+        return IsDeclared(filter)
+            ? new([filter, .. equivalents.Where(e => e.Value == filter && Folded(e.Key) is null).Select(e => e.Key).Order(StringComparer.Ordinal)],
+                FoldingPattern([filter]), Excluding: false)
+            : new([filter], null, Excluding: false);
+    }
+
+    /// <summary>
+    /// A PostgreSQL regular expression matching a value that equals one of the (ASCII) declared types once trimmed of <see cref="FoldedWhitespace"/>,
+    /// ignoring letter case: each letter is a bracket of its two cases, so it doesn't depend on the database's locale, and it folds exactly what
+    /// <see cref="Folded(string)"/> folds (ordinal ignore-case folds no non-ASCII letter to an ASCII one).
+    /// </summary>
+    public static string FoldingPattern(IEnumerable<string> declared)
+    {
+        var space = $"[{new string(FoldedWhitespace)}]*";
+        var types = declared.Select(d => string.Concat(d.Select(c =>
+            char.IsAsciiLetter(c) ? $"[{char.ToUpperInvariant(c)}{char.ToLowerInvariant(c)}]"
+            : char.IsAsciiDigit(c) || c == '_' ? c.ToString()
+            : throw new InvalidOperationException($"Record type {d} is not ASCII letters, digits and underscores (BR-170)."))));
+        return $"^{space}(?:{string.Join('|', types)}){space}$";
+    }
+
+    /// <summary>
+    /// The stored values a view shows exactly as something other than <see cref="TaskRecordTypes.Undeclared"/>: the declared types and their older
+    /// equivalents (a value that folds to a declared type is matched by <see cref="FoldingPattern"/> instead).
+    /// </summary>
+    public static string[] Known => KnownWith(Equivalents);
+
+    private static string[] KnownWith(IReadOnlyDictionary<string, string> equivalents) => [.. All, .. equivalents.Keys.Where(k => IsDeclared(equivalents[k]))];
 
     /// <summary>The screen that opens the record a process or task is about (BR-005), or null when the type is not declared.</summary>
     public static string? ScreenFor(string businessRefType) => ApprovalKinds.ScreenFor(businessRefType) ?? ProcessOnly.GetValueOrDefault(businessRefType);
@@ -133,3 +190,9 @@ public static class ProcessRecordTypes
             : throw new InvalidOperationException(
                 $"Process {definition.ProcessCode} was started about record type {businessRefType}, which is not declared (BR-170): add it to ProcessRecordTypes.ProcessOnly with its screen.");
 }
+
+/// <summary>What a process list filter by record type matches: see <see cref="ProcessRecordTypes.FilterFor(string)"/>.</summary>
+/// <param name="Exact">Stored values matched exactly.</param>
+/// <param name="Folding">A PostgreSQL regular expression for the stored values that fold to the filter's declared type(s); null for none.</param>
+/// <param name="Excluding">The filter matches every stored value matching neither (UNDECLARED).</param>
+public sealed record RecordTypeFilter(string[] Exact, string? Folding, bool Excluding);
