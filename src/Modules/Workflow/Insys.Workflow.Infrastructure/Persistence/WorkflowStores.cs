@@ -225,7 +225,16 @@ internal sealed class ProcessQueries(WorkflowDbContext db, BuildingBlocks.Applic
         var query = InScope(db.Processes.AsNoTracking().Include(p => p.Tasks).AsQueryable());
         if (businessRefType is not null)
         {
-            query = query.Where(p => p.BusinessRefType == businessRefType);
+            // Ade, 26 November 2026: a filter finds a process by its stored type or by the type its view shows (an older type's equivalent, or UNDECLARED).
+            if (ProcessRecordTypes.StoredFor(businessRefType) is { } stored)
+            {
+                query = query.Where(p => stored.Contains(p.BusinessRefType));
+            }
+            else
+            {
+                var known = ProcessRecordTypes.Known;
+                query = query.Where(p => !known.Contains(p.BusinessRefType));
+            }
         }
 
         if (businessRefId is not null)
@@ -317,9 +326,12 @@ internal sealed class ProcessQueries(WorkflowDbContext db, BuildingBlocks.Applic
             r.Process.Notice)).ToList();
     }
 
-    private static ProcessView View(ProcessInstance p, IReadOnlyList<CaseNoteView> notes) =>
-        new(p.Id, p.ProcessCode, p.ProcessVersion, p.BusinessRefType, p.BusinessRefId, p.Status, p.DefinitionState, p.StartedAt, p.EndedAt,
+    private static ProcessView View(ProcessInstance p, IReadOnlyList<CaseNoteView> notes)
+    {
+        var (shown, stored) = ProcessRecordTypes.Shown(p.BusinessRefType);
+        return new(p.Id, p.ProcessCode, p.ProcessVersion, shown, p.BusinessRefId, stored, p.Status, p.DefinitionState, p.StartedAt, p.EndedAt,
             p.Tasks.OrderBy(t => t.Id).Select(View).ToList(), notes, p.RowVersion);
+    }
 
     private static TaskView View(ProcessTask t) =>
         new(t.Id, t.TaskType, t.QueueCode, t.AssigneeId, t.Status, t.SlaCode, t.DueAt, t.CompletedAt, t.Outcome);

@@ -74,10 +74,16 @@ public sealed record CaseNoteView(Guid AuthorId, string Note, DateTimeOffset Cre
 /// <param name="Conditional">The transition has a guard, evaluated on the variables sent with the completion; it may still be refused.</param>
 public sealed record ProcessTransitionView(string ToState, bool Conditional);
 
+/// <param name="BusinessRefType">
+/// The record type (BR-170): a declared type; for a process stored with an older type, its declared equivalent, or UNDECLARED when it has none (Ade,
+/// 26 November 2026).
+/// </param>
+/// <param name="StoredBusinessRefType">The stored record type when <paramref name="BusinessRefType"/> shows another; null otherwise.</param>
 /// <param name="AllowedTransitions">
 /// From the current state, in the definition version the process started on (BR-028); empty unless the process is running.
 /// </param>
-public sealed record ProcessView(Guid Id, string ProcessCode, int ProcessVersion, [property: BuildingBlocks.Contracts.Approvals.TaskRecordTypeField] string BusinessRefType, Guid BusinessRefId, ProcessStatus Status, string State,
+public sealed record ProcessView(Guid Id, string ProcessCode, int ProcessVersion, [property: BuildingBlocks.Contracts.Approvals.TaskRecordTypeField] string BusinessRefType, Guid BusinessRefId,
+    [property: AlwaysPresent] string? StoredBusinessRefType, ProcessStatus Status, string State,
     DateTimeOffset StartedAt, DateTimeOffset? EndedAt, IReadOnlyList<TaskView> Tasks, IReadOnlyList<CaseNoteView> Notes, long RowVersion,
     IReadOnlyList<ProcessTransitionView>? AllowedTransitions = null)
 {

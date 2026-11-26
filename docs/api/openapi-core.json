@@ -8202,6 +8202,7 @@
           "Workflow"
         ],
         "summary": "List process instances",
+        "description": "BR-170: a process stored with a record type that is no longer declared shows its declared equivalent, or UNDECLARED (no screen) when it has none, with the stored value in storedBusinessRefType (null otherwise). The businessRefType filter finds a process by its stored type or by the type its view shows; UNDECLARED finds every process shown so.",
         "operationId": "WorkflowListProcesses",
         "parameters": [
           {
@@ -8951,7 +8952,7 @@
           "Workflow"
         ],
         "summary": "My open tasks, earliest due first",
-        "description": "DE-025: the open tasks assigned to the signed-in user, and the unassigned ones they serve: in a queue that is one of their roles in effect, or of a process a function of theirs does (a held claim payment for whoever releases instructions, a parked delivery for whoever retries them, a party match review for whoever resolves matches, and the step after an approval: docs/specs/addenda/my-work.md). An unassigned task is listed only within the user\u0027s scope (F103) and never to the person its process excludes (the maker of a release, SRS-002). Each item names its record (businessRefType, businessRefId and the screen that opens it) and the moves completing it may make. Never the full task list: that is WorkflowListOpenTasks.",
+        "description": "DE-025: the open tasks assigned to the signed-in user, and the unassigned ones they serve: in a queue that is one of their roles in effect, or of a process a function of theirs does (a held claim payment for whoever releases instructions, a parked delivery for whoever retries them, a party match review for whoever resolves matches, and the step after an approval: docs/specs/addenda/my-work.md). An unassigned task is listed only within the user\u0027s scope (F103) and never to the person its process excludes (the maker of a release, SRS-002). Each item names its record (businessRefType, businessRefId and the screen that opens it) and the moves completing it may make; a process stored with a record type no longer declared shows its equivalent, or UNDECLARED with no screen, and the stored value in storedBusinessRefType (BR-170). Never the full task list: that is WorkflowListOpenTasks.",
         "operationId": "WorkflowListMyTasks",
         "parameters": [
           {
@@ -84015,6 +84016,7 @@
           "taskType",
           "businessRefType",
           "businessRefId",
+          "storedBusinessRefType",
           "screen",
           "queueCode",
           "assigneeId",
@@ -84098,13 +84100,20 @@
               "STATIC_DATA_SETUP",
               "STATIC_DATA_VERSION",
               "SUBJECT_LINK",
-              "TENANT_ADMIN_REQUEST"
+              "TENANT_ADMIN_REQUEST",
+              "UNDECLARED"
             ],
             "type": "string"
           },
           "businessRefId": {
             "type": "string",
             "format": "uuid"
+          },
+          "storedBusinessRefType": {
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "screen": {
             "type": [
@@ -84792,6 +84801,7 @@
           "processVersion",
           "businessRefType",
           "businessRefId",
+          "storedBusinessRefType",
           "status",
           "state",
           "startedAt",
@@ -84869,13 +84879,20 @@
               "STATIC_DATA_SETUP",
               "STATIC_DATA_VERSION",
               "SUBJECT_LINK",
-              "TENANT_ADMIN_REQUEST"
+              "TENANT_ADMIN_REQUEST",
+              "UNDECLARED"
             ],
             "type": "string"
           },
           "businessRefId": {
             "type": "string",
             "format": "uuid"
+          },
+          "storedBusinessRefType": {
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "status": {
             "$ref": "#/components/schemas/WorkflowProcessStatus"

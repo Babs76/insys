@@ -98,11 +98,11 @@ public static class StateEnums
             {
                 SetEnum(schema, refTypes);
             }
-            else if (kindMember.GetCustomAttribute<Contracts.Approvals.TaskRecordTypeFieldAttribute>() is not null
-                     && Contracts.Approvals.TaskRecordTypes.All is { Count: > 0 } taskTypes)
+            else if (kindMember.GetCustomAttribute<Contracts.Approvals.TaskRecordTypeFieldAttribute>() is { } taskField
+                     && Contracts.Approvals.TaskRecordTypes.Startable is { Count: > 0 })
             {
-                // BR-170: a process's or task's record type, an approval reference type or a process-only one.
-                SetEnum(schema, taskTypes);
+                // BR-170: a process's or task's record type, an approval reference type or a process-only one; a view also shows UNDECLARED.
+                SetEnum(schema, taskField.Startable ? Contracts.Approvals.TaskRecordTypes.Startable : Contracts.Approvals.TaskRecordTypes.All);
             }
         }
 

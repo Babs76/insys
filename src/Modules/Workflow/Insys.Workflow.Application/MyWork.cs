@@ -430,9 +430,14 @@ public sealed record MyTaskRow(Guid TaskId, Guid ProcessId, string ProcessCode, 
 /// <param name="PayoutPurpose">For a "build a payout batch" task (PAYOUT_BATCH_BUILD): the purpose of the batch to build.</param>
 /// <param name="PayoutCurrency">And its currency.</param>
 /// <param name="AllowedTransitions">The states completing the task may move the process to; one means "done" needs no choice.</param>
+/// <param name="BusinessRefType">
+/// The record type (BR-170): a declared type; for a task whose process was stored with an older type, its declared equivalent, or UNDECLARED (no
+/// screen) when it has none (Ade, 26 November 2026).
+/// </param>
+/// <param name="StoredBusinessRefType">The process's stored record type when <paramref name="BusinessRefType"/> shows another; null otherwise.</param>
 /// <param name="DraftDiscarded">For a STATIC_DRAFT_DISCARDED task (OQ-204): the draft someone else discarded, who, when and why; null for any other task.</param>
 public sealed record MyTaskView(Guid Id, Guid ProcessId, string ProcessCode, string TaskType, [property: TaskRecordTypeField] string BusinessRefType,
-    Guid BusinessRefId, [property: AlwaysPresent] string? Screen, string QueueCode, [property: AlwaysPresent] Guid? AssigneeId, bool AssignedToMe, DateTimeOffset DueAt,
+    Guid BusinessRefId, [property: AlwaysPresent] string? StoredBusinessRefType, [property: AlwaysPresent] string? Screen, string QueueCode, [property: AlwaysPresent] Guid? AssigneeId, bool AssignedToMe, DateTimeOffset DueAt,
     [property: AlwaysPresent] string? SlaCode, bool Informational, [property: AlwaysPresent] Guid? ApprovalId,
     [property: AlwaysPresent] ApprovalStatus? ApprovalStatus, [property: AlwaysPresent] string? PayoutPurpose, [property: AlwaysPresent] string? PayoutCurrency,
     IReadOnlyList<ProcessTransitionView> AllowedTransitions, long RowVersion, [property: AlwaysPresent] StaticDraftDiscardNotice? DraftDiscarded = null);
@@ -547,8 +552,9 @@ internal sealed class ListMyTasksHandler(IProcessQueries queries, IWorkflowConfi
                 ? []
                 : definition.Transitions.Where(t => t.From == row.State).GroupBy(t => t.To).Select(g => new ProcessTransitionView(g.Key, g.All(t => t.Guard is not null)))
                     .ToList();
-            views.Add(new MyTaskView(row.TaskId, row.ProcessId, row.ProcessCode, row.TaskType, row.BusinessRefType, row.BusinessRefId,
-                WorkServers.ScreenFor(row.BusinessRefType), row.QueueCode, row.AssigneeId, row.AssigneeId == userId, row.DueAt, row.SlaCode,
+            var (shown, stored) = ProcessRecordTypes.Shown(row.BusinessRefType);
+            views.Add(new MyTaskView(row.TaskId, row.ProcessId, row.ProcessCode, row.TaskType, shown, row.BusinessRefId, stored,
+                WorkServers.ScreenFor(shown), row.QueueCode, row.AssigneeId, row.AssigneeId == userId, row.DueAt, row.SlaCode,
                 row.ProcessCode == BuiltInProcesses.ApprovalOutcome.ProcessCode || row.ProcessCode == BuiltInProcesses.StaticDraftDiscarded.ProcessCode, row.ApprovalId,
                 row.ApprovalStatus, row.PayoutPurpose, row.PayoutCurrency, transitions, row.ProcessRowVersion,
                 row.ProcessCode == BuiltInProcesses.StaticDraftDiscarded.ProcessCode && row.Notice is { } notice

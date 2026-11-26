@@ -273,6 +273,7 @@ core	WorkflowComplaintCategoryFigures.categoryCode	to declare
 core	WorkflowMyTaskView.processCode	to declare
 core	WorkflowMyTaskView.queueCode	to declare
 core	WorkflowMyTaskView.slaCode	to declare
+core	WorkflowMyTaskView.storedBusinessRefType	the stored record type of a process started before BR-170 narrowed the start request, shown only when businessRefType shows another (UNDECLARED or an equivalent): by definition outside the declared list, so it has no enum (Ade, 26 November 2026)
 core	WorkflowMyTaskView.taskType	to declare
 core	WorkflowStaticDraftDiscardNotice.entityCode	a static data table's entity code (any module's table, as a change request's entityCode): the discarded draft's table (DE-016, OQ-204)
 core	WorkflowOmbudReferralRequest.schemeCode	to declare
@@ -285,6 +286,7 @@ core	WorkflowPortalCaseView.caseTypeCode	to declare
 core	WorkflowPortalCaseView.categoryCode	to declare
 core	WorkflowPortalCaseView.ombudSchemeCode	to declare
 core	WorkflowProcessView.processCode	to declare
+core	WorkflowProcessView.storedBusinessRefType	the stored record type of a process started before BR-170 narrowed the start request, shown only when businessRefType shows another (UNDECLARED or an equivalent): by definition outside the declared list, so it has no enum (Ade, 26 November 2026)
 core	WorkflowStartProcessRequest.processCode	to declare
 core	WorkflowTaskView.queueCode	to declare
 core	WorkflowTaskView.slaCode	to declare

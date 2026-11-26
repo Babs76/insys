@@ -67,13 +67,50 @@ public static class ProcessRecordTypes
         [CaseOpening.BusinessRefType] = "SERVICE_COMPLAINTS",
     };
 
-    /// <summary>Every record type a process or task can carry: the approval reference types the modules declared and the process-only types.</summary>
+    /// <summary>
+    /// Stored record types that are no longer declared, each with its declared equivalent: the same record, opened by the same read (Ade, 26 November
+    /// 2026). A view shows the equivalent, its screen, and the stored value in <c>storedBusinessRefType</c>; the stored row is unchanged. A stored type
+    /// that is neither declared nor here is shown as <see cref="TaskRecordTypes.Undeclared"/>. Empty: no start path in the code since process starts
+    /// existed stored a type that was later renamed or dropped (BR-170 contract note); a rename adds its old value here.
+    /// </summary>
+    public static readonly IReadOnlyDictionary<string, string> Equivalents = new Dictionary<string, string>(StringComparer.Ordinal);
+
+    /// <summary>Every record type a process can be started about: the approval reference types the modules declared and the process-only types.</summary>
     public static IReadOnlyList<string> All =>
         [.. ApprovalKinds.BusinessRefTypes.Union(ProcessOnly.Keys, StringComparer.Ordinal).Order(StringComparer.Ordinal)];
+
+    /// <summary>
+    /// The record type a view shows for a stored one, and the stored value when they differ (Ade, 26 November 2026): a declared type as it is; an older
+    /// one as its equivalent (<see cref="Equivalents"/>); any other as <see cref="TaskRecordTypes.Undeclared"/>.
+    /// </summary>
+    public static (string Type, string? Stored) Shown(string stored) => Shown(stored, Equivalents);
+
+    /// <summary><see cref="Shown(string)"/> with a given map of equivalents (tests).</summary>
+    public static (string Type, string? Stored) Shown(string stored, IReadOnlyDictionary<string, string> equivalents) =>
+        IsDeclared(stored) ? (stored, null)
+        : equivalents.TryGetValue(stored, out var equivalent) && IsDeclared(equivalent) ? (equivalent, stored)
+        : (TaskRecordTypes.Undeclared, stored);
+
+    /// <summary>
+    /// The stored values a list filter by record type matches, so a filter finds a process by its stored value or by the type its view shows: the value
+    /// itself and the older values whose equivalent it is. Null for <see cref="TaskRecordTypes.Undeclared"/>, which matches every stored value in
+    /// <see cref="Known"/>'s complement instead.
+    /// </summary>
+    public static string[]? StoredFor(string filter) => StoredFor(filter, Equivalents);
+
+    /// <summary><see cref="StoredFor(string)"/> with a given map of equivalents (tests).</summary>
+    public static string[]? StoredFor(string filter, IReadOnlyDictionary<string, string> equivalents) =>
+        filter == TaskRecordTypes.Undeclared
+            ? null
+            : [filter, .. equivalents.Where(e => e.Value == filter).Select(e => e.Key).Order(StringComparer.Ordinal)];
+
+    /// <summary>The stored values a view shows as something other than <see cref="TaskRecordTypes.Undeclared"/>: the declared types and their older equivalents.</summary>
+    public static string[] Known => [.. All, .. Equivalents.Keys.Where(k => IsDeclared(Equivalents[k]))];
 
     /// <summary>The screen that opens the record a process or task is about (BR-005), or null when the type is not declared.</summary>
     public static string? ScreenFor(string businessRefType) => ApprovalKinds.ScreenFor(businessRefType) ?? ProcessOnly.GetValueOrDefault(businessRefType);
 
+    /// <summary>A process can be started about the type: it is declared, with a screen. <see cref="TaskRecordTypes.Undeclared"/> never is.</summary>
     public static bool IsDeclared(string businessRefType) => ScreenFor(businessRefType) is not null;
 
     /// <summary>Declares the process-only types for the OpenAPI documents (at start-up, beside the module's approval kinds).</summary>

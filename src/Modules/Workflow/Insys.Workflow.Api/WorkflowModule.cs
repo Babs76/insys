@@ -50,7 +50,7 @@ public sealed record RejectApprovalRequest(string Reason);
 /// <param name="Reason">Optional: why the checker approved (BR-001), kept on the approval as its decisionReason, at most 2000 characters.</param>
 public sealed record ApproveApprovalRequest([property: System.ComponentModel.DataAnnotations.MaxLength(2000)] string? Reason);
 
-public sealed record StartProcessRequest(string ProcessCode, [property: BuildingBlocks.Contracts.Approvals.TaskRecordTypeField] string BusinessRefType, Guid BusinessRefId);
+public sealed record StartProcessRequest(string ProcessCode, [property: BuildingBlocks.Contracts.Approvals.TaskRecordTypeField(Startable = true)] string BusinessRefType, Guid BusinessRefId);
 
 public sealed record AssignTaskRequest(Guid? AssigneeId);
 
@@ -277,6 +277,9 @@ public sealed class WorkflowModule : IModule
             .Produces<CursorPage<ProcessView>>(StatusCodes.Status200OK)
             .WithName("WorkflowListProcesses")
             .WithSummary("List process instances")
+            .WithDescription("BR-170: a process stored with a record type that is no longer declared shows its declared equivalent, or UNDECLARED (no "
+                + "screen) when it has none, with the stored value in storedBusinessRefType (null otherwise). The businessRefType filter finds a process by "
+                + "its stored type or by the type its view shows; UNDECLARED finds every process shown so.")
             .RequirePermission(WorkflowPermissions.ProcessRead);
 
         processes.MapGet("/{id:guid}", async (Guid id, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
@@ -382,7 +385,9 @@ public sealed class WorkflowModule : IModule
                 + "in effect, or of a process a function of theirs does (a held claim payment for whoever releases instructions, a parked delivery for "
                 + "whoever retries them, a party match review for whoever resolves matches, and the step after an approval: docs/specs/addenda/my-work.md). "
                 + "An unassigned task is listed only within the user's scope (F103) and never to the person its process excludes (the maker of a release, "
-                + "SRS-002). Each item names its record (businessRefType, businessRefId and the screen that opens it) and the moves completing it may make. "
+                + "SRS-002). Each item names its record (businessRefType, businessRefId and the screen that opens it) and the moves completing it may make; "
+                + "a process stored with a record type no longer declared shows its equivalent, or UNDECLARED with no screen, and the stored value in "
+                + "storedBusinessRefType (BR-170). "
                 + "Never the full task list: that is WorkflowListOpenTasks.")
             .RequirePermission(WorkflowPermissions.OwnTaskRead);
 
