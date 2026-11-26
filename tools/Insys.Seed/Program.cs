@@ -42,13 +42,15 @@ for (var i = 0; i < args.Length - 1; i += 2)
     options[args[i].TrimStart('-')] = args[i + 1];
 }
 
-var keycloak = options.TryGetValue("keycloak-url", out var keycloakUrl)
-    ? new KeycloakSignIn(new HttpClient { BaseAddress = new Uri(keycloakUrl.TrimEnd('/') + "/") }, options.GetValueOrDefault("keycloak-realm", "insys"), options["keycloak-admin"],
-        Environment.GetEnvironmentVariable("INSYS_SEED_KEYCLOAK_ADMIN_PASSWORD") ?? throw new InvalidOperationException("Set INSYS_SEED_KEYCLOAK_ADMIN_PASSWORD."))
-    : null;
 // --upgrade-check true: the upgrade check (UpgradeCheck, Ade, 26 November 2026), read only through the API as --platform-1, and nothing else. Its report
 // goes to stdout; it exits 0 when every tenant checked can decide each approval type it can raise, 1 when some can't, 3 when the API couldn't be read.
+// In Keycloak it signs in by impersonation: no password or other credential is changed on any account, and no client is enabled (Ade, 26 November 2026).
 var upgradeCheck = options.GetValueOrDefault("upgrade-check") == "true";
+var keycloak = options.TryGetValue("keycloak-url", out var keycloakUrl)
+    ? new KeycloakSignIn(new HttpClient { BaseAddress = new Uri(keycloakUrl.TrimEnd('/') + "/") }, options.GetValueOrDefault("keycloak-realm", "insys"), options["keycloak-admin"],
+        Environment.GetEnvironmentVariable("INSYS_SEED_KEYCLOAK_ADMIN_PASSWORD") ?? throw new InvalidOperationException("Set INSYS_SEED_KEYCLOAK_ADMIN_PASSWORD."),
+        KeycloakSignIn.ModeFor(upgradeCheck))
+    : null;
 foreach (var required in (keycloak is null ? new[] { "api", "signing-key", "issuer", "operator-tenant", "platform-1", "platform-2" } : ["api", "keycloak-admin", "operator-tenant", "platform-1", "platform-2"])
              .Where(r => !upgradeCheck || r != "platform-2"))
 {
@@ -122,11 +124,6 @@ if (upgradeCheck)
 {
     try
     {
-        if (keycloak is not null)
-        {
-            await keycloak.Start();
-        }
-
         var operatorId = Guid.Parse(options["operator-tenant"]);
         return await UpgradeCheck.RunAndReport(As(operatorId, options["platform-1"]), operatorId, Console.Out, Console.Error);
     }
@@ -139,7 +136,15 @@ if (upgradeCheck)
     {
         if (keycloak is not null)
         {
-            await keycloak.Stop();
+            // Only the sessions its impersonation opened; the user's own sign-ins are left alone. One not ended expires with the realm's session idle time.
+            try
+            {
+                await keycloak.EndImpersonations();
+            }
+            catch (Exception e) when (e is SeedRefusedException or HttpRequestException)
+            {
+                Console.Error.WriteLine($"upgrade-check: the impersonated session wasn't ended: {e.Message}");
+            }
         }
     }
 }

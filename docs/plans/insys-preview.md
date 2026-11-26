@@ -124,7 +124,7 @@ That's 51 accounts, with `LINECFG01/02` for `LINE_CONFIGURATION_MANAGER` (role t
 **Passwords, and OpenBao's unseal key and root token:**
 - Generated in the run, one per account, and encrypted with `age` to Ade's public key before upload. **Only the encrypted file goes in the artifact,** since anyone able to read the repository can download artifacts, and this repository is public today. Retention is one day.
 - Never committed, and never printed: they're masked in logs and not passed on command lines.
-- Only `provision`, `reset` and `rotate-passwords` change the accounts' passwords, and `upgrade` doesn't. `upgrade` and `upgrade-check` set a generated password, kept in memory only, on the bootstrap's `insys-admin` in Keycloak to sign in as it, as every seed run does; nobody holds that account's password. OpenBao's keys change only with a new OpenBao, on `provision` and `reset`.
+- Only `provision`, `reset` and `rotate-passwords` change the accounts' passwords, and `upgrade` doesn't. `upgrade` and `upgrade-check` change no password: their upgrade check signs in as the bootstrap's `insys-admin` by Keycloak's admin impersonation, changing no credential on any account (Ade, 26 November 2026). OpenBao's keys change only with a new OpenBao, on `provision` and `reset`.
 
 **MFA:** broker and provider portal accounts must use it (`external-user-access.md`), and any role in a policy's `mfa_required_roles` too. These accounts will be shared, and a code set up on one person's phone locks out the others. So the run generates each TOTP secret and puts it in the same encrypted file, if Keycloak's admin API lets us set it; otherwise the first person to sign in enrols, and shares it. To be proven in the build.
 

@@ -385,6 +385,73 @@ public sealed class KeycloakRealmTests(DatabaseFixture fixture, KeycloakRealmTes
             "disabled again once the seed has run");
     }
 
+    /// <summary>
+    /// The upgrade check signs in without changing any password on any account (Ade, 26 November 2026): the platform administrator's token comes from
+    /// Keycloak's admin impersonation through the back office's client, the API accepts it and the check runs; the user's credentials (each one's id and
+    /// creation time), required actions and the realm's other users' credentials are as they were, its own password still signs in, insys-seed stays
+    /// disabled, and the impersonated session is ended while the user's own session is kept.
+    /// </summary>
+    [Fact]
+    public async Task TheUpgradeCheck_SignsInByImpersonation_AndChangesNoCredentialOrClient()
+    {
+        await fixture.Database.UserWithPermissions(DatabaseFixture.Operator, AdminSubject, Insys.Tenancy.Contracts.TenancyPermissions.Read);
+        var factory = await fixture.Host(new Dictionary<string, string?>
+        {
+            ["Authentication:Authority"] = $"{Base}/realms/insys", ["Authentication:Issuer"] = null, ["Authentication:Audience"] = "insys-core-api",
+            ["Authentication:RequireHttpsMetadata"] = "false", ["Authentication:DevelopmentSigningKey"] = "",
+        });
+        var admin = await Token("master", "admin-cli", "admin", "admin");
+        var own = await Token("insys", "insys-test", "insys-admin", DevPassword);   // the user's own session, which the check must leave alone
+        var before = await Keycloak(admin);
+
+        var signIn = new Insys.Seed.KeycloakSignIn(new HttpClient { BaseAddress = new Uri(Base + "/") }, "insys", "admin", "admin",
+            Insys.Seed.KeycloakSignIn.ModeFor(upgradeCheck: true));
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await signIn.Token("insys-admin"));
+        var output = new StringWriter();
+        var error = new StringWriter();
+        var exit = await Insys.Seed.UpgradeCheck.RunAndReport(new Insys.Seed.Persona(client), DatabaseFixture.Operator, output, error);
+        exit.ShouldNotBe(Insys.Seed.UpgradeCheck.Unread, error.ToString());
+        output.ToString().ShouldContain("upgrade-check: ");
+
+        var claims = Payload(client.DefaultRequestHeaders.Authorization!.Parameter!);
+        claims.GetProperty("sub").GetString().ShouldBe(AdminSubject);
+        claims.GetProperty("tenant_id").GetString().ShouldBe(OperatorTenant);
+        claims.GetProperty("azp").GetString().ShouldBe(Insys.Seed.KeycloakSignIn.ImpersonationClientId);
+        var impersonated = signIn.Sessions.ShouldHaveSingleItem();
+        (await Get<JsonElement>($"{Base}/admin/realms/insys/users/{AdminSubject}/sessions", admin)).EnumerateArray().Select(x => x.GetProperty("id").GetString())
+            .ShouldContain(impersonated);
+
+        await signIn.EndImpersonations();
+
+        var after = await Keycloak(admin);
+        after.Credentials.ShouldBe(before.Credentials, "no user's credentials changed: the same ids and creation times");
+        after.RequiredActions.ShouldBe(before.RequiredActions);
+        after.SeedClientEnabled.ShouldBeFalse("insys-seed isn't enabled for the check");
+        var sessions = (await Get<JsonElement>($"{Base}/admin/realms/insys/users/{AdminSubject}/sessions", admin)).EnumerateArray()
+            .Select(x => x.GetProperty("id").GetString()).ToList();
+        sessions.ShouldNotContain(impersonated);
+        sessions.ShouldContain(Payload(own).GetProperty("sid").GetString(), "the user's own session is kept");
+        (await Token("insys", "insys-test", "insys-admin", DevPassword)).ShouldNotBeNullOrEmpty("its password is unchanged");
+    }
+
+    /// <summary>Every user's credentials (id, type and creation time), every user's required actions, and whether insys-seed is enabled.</summary>
+    private async Task<(string[] Credentials, string[] RequiredActions, bool SeedClientEnabled)> Keycloak(string admin)
+    {
+        var credentials = new List<string>();
+        var actions = new List<string>();
+        foreach (var user in (await Get<JsonElement>($"{Base}/admin/realms/insys/users?max=1000", admin)).EnumerateArray())
+        {
+            var id = user.GetProperty("id").GetString();
+            actions.Add($"{id}: {string.Join(",", user.TryGetProperty("requiredActions", out var required) ? required.EnumerateArray().Select(a => a.GetString()) : [])}");
+            credentials.AddRange((await Get<JsonElement>($"{Base}/admin/realms/insys/users/{id}/credentials", admin)).EnumerateArray()
+                .Select(c => $"{id} {c.GetProperty("id").GetString()} {c.GetProperty("type").GetString()} {c.GetProperty("createdDate").GetInt64()}"));
+        }
+
+        var seed = (await Get<JsonElement>($"{Base}/admin/realms/insys/clients?clientId={Insys.Seed.KeycloakSignIn.ClientId}", admin))[0];
+        return ([.. credentials.Order(StringComparer.Ordinal)], [.. actions.Order(StringComparer.Ordinal)], seed.GetProperty("enabled").GetBoolean());
+    }
+
     private static IEnumerable<string?> Audiences(JsonElement claims) =>
         claims.GetProperty("aud").ValueKind == JsonValueKind.Array ? claims.GetProperty("aud").EnumerateArray().Select(a => a.GetString()) : [claims.GetProperty("aud").GetString()];
 }

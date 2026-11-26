@@ -366,8 +366,9 @@ tunnel() {
 
 # The upgrade check (Ade, 26 November 2026): on each existing tenant, every approval type with no role holding both the authority and the function to
 # decide it, from the tenant's readiness (APPROVAL_AUTHORITY), as the API now serving computes it: tools/Insys.Seed --upgrade-check, as the bootstrap's
-# platform administrator, which reads only (it sets a generated password on that Keycloak account and enables the seed's client for its run, as the
-# seed does). In upgrade it runs after chart, so the new version, which knows the new approval types, answers: by then that version is serving, so
+# platform administrator, which reads only. It changes no password or other credential on any account and enables no client (Ade, 26 November 2026):
+# Keycloak's administrator (the existing keycloakAdminPassword, read, never changed) impersonates that user, the back office's own client takes the
+# session through its Authorization Code flow, and the check ends that session after. In upgrade it runs after chart, so the new version, which knows the new approval types, answers: by then that version is serving, so
 # "the upgrade stops" means this run fails with the list, and the plan's next steps wait until it is empty (docs/plans/preview-rebuild-beta.md).
 upgrade_check() {
   local admin report code=0 listed
