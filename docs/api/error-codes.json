@@ -634,12 +634,20 @@
       "remedy": null
     },
     {
+      "code": "DISCLOSURE_BROKER_NOT_ALLOWED",
+      "httpStatus": 403,
+      "messageKey": "error.disclosure.broker_not_allowed",
+      "retryable": false,
+      "means": "In this organisation only the customer can acknowledge a notice; a broker can't record it for them.",
+      "remedy": "Ask the customer to acknowledge the notice themselves, in the customer portal or with the insurer's staff."
+    },
+    {
       "code": "DISCLOSURE_REQUIRED",
       "httpStatus": 409,
       "messageKey": "error.disclosure.not_acknowledged",
       "retryable": false,
       "means": "A mandatory notice hasn't been acknowledged at this point of the process.",
-      "remedy": "Record the customer's acknowledgement of the notice, then try again."
+      "remedy": "Record the customer's acknowledgement of the notice, or have their broker record it, then try again."
     },
     {
       "code": "DOCUMENT_CODE_NOT_IN_FORCE",

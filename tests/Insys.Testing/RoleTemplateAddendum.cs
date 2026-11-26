@@ -89,7 +89,10 @@ public static class RoleTemplateAddendum
             + "officer (DE-021, DE-019); data-subject requests for the data protection officer only (DE-058).");
         s.AppendLine("- **Then (Ade, 25 November 2026):** record legal holds are read on `DOCUMENTS_RECORD_HOLDS` (`legal_hold.read`), held by the compliance "
             + "officer and the data protection officer; the tenant administrator, the second escalation's role (OQ-072), lists parked deliveries "
-            + "(`INTEGRATION_PARKED_DELIVERIES`, no actions).").AppendLine();
+            + "(`INTEGRATION_PARKED_DELIVERIES`, no actions).");
+        s.AppendLine($"- **Then (Ade, 26 November 2026, OQ-201):** turning broker disclosure acknowledgement on or off (`{RoleTemplates.ChangeDisclosureSetting}`) is the "
+            + "compliance officer's only, approved by a second person (`DISCLOSURE_SETTING_CHANGE`, also in its approvals); the templates covering "
+            + "`INTEGRATION_OPERATIONS` exclude it and keep the setting's screen, read only.").AppendLine();
 
         s.AppendLine("## Templates").AppendLine();
         s.AppendLine("| Template | For | Sub-domains | Screens | Actions | Privileged it holds | Approves (authority rows) |");

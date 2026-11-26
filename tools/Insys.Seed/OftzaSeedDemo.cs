@@ -43,13 +43,13 @@ public sealed partial class OftzaSeed
     /// <summary>
     /// The approval types OFTZA can raise: Workflow's list (the approvalType enum of docs/api/openapi-core.json), without
     /// TENANT_ADMINISTRATOR, which only the operator tenant raises, and without LEGAL_HOLD_RELEASE, which only the compliance officer approves
-    /// (Ade, 25 October 2026; kept so for the demo roles, Ade, 23 November 2026, option (a)): 30 types. The release branch's 26 (ca1bf2b) and
-    /// the money group's four (DE-007, DE-008, DE-010, DE-011). DemoRolesTests keeps the list equal to the enum less those two.
+    /// (Ade, 25 October 2026; kept so for the demo roles, Ade, 23 November 2026, option (a)): 31 types. The release branch's 26 (ca1bf2b),
+    /// the money group's four (DE-007, DE-008, DE-010, DE-011) and the disclosure setting's change (OQ-201). DemoRolesTests keeps the list equal to the enum less those two.
     /// </summary>
     public static readonly IReadOnlyList<string> DemoApprovalTypes =
     [
         "BANK_ACCOUNT_VERIFICATION", "CASE_REDRESS", "CLAIM_PAYMENT", "CLAIM_SETTLEMENT", "COMMISSION_CLAWBACK_INVOICE", "COMMISSION_STATEMENT", "CREDIT_NOTE",
-        "DEAD_LETTER_DISCARD", "DUE_DILIGENCE_ENHANCED", "DUE_DILIGENCE_RISK_OVERRIDE",
+        "DEAD_LETTER_DISCARD", "DISCLOSURE_SETTING_CHANGE", "DUE_DILIGENCE_ENHANCED", "DUE_DILIGENCE_RISK_OVERRIDE",
         "DUE_DILIGENCE_UNBLOCK", "ENDORSEMENT", "EXTERNAL_SUBJECT_LINK", "GENERAL_NON_RENEWAL", "LIFE_CLAIM", "LIFE_UNDERWRITING",
         "PARTY_MATCH_RESOLUTION", "PAYOUT_RELEASE", "PAYOUT_RETRY", "PERIOD_REOPEN", "PRIVILEGED_ROLE", "PRODUCT_PUBLICATION", "PROVIDER_CREDIT_NOTE", "PROVIDER_PAYMENT_RUN",
         "PROVIDER_RECOVERY_FINDING", "PROVIDER_RECOVERY_WRITE_OFF", "REFUND", "STATIC_DATA_T1", "STATIC_DATA_T2", "UNKNOWN_PAYMENT_RESOLUTION",

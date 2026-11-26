@@ -130,6 +130,12 @@ public static class RoleTemplates
     /// </summary>
     private const string AiDraftProvenance = "ASSIST_PRODUCT_DRAFT_PROVENANCE";
 
+    /// <summary>
+    /// OQ-201 (Ade, 26 November 2026): turning broker disclosure acknowledgement on or off is the compliance officer's only, with a second person's approval
+    /// (DISCLOSURE_SETTING_CHANGE). It sits in INTEGRATION_OPERATIONS, so the templates that cover that sub-domain exclude it. Its screen stays where it is.
+    /// </summary>
+    public const string ChangeDisclosureSetting = "CHANGE_DISCLOSURE_SETTING";
+
     private static readonly string[] CallbackScreens = ["PAYMENT_CALLBACK_ENDPOINTS", "COMMUNICATION_CALLBACK_ENDPOINTS"];
 
     /// <summary>
@@ -229,8 +235,10 @@ public static class RoleTemplates
             "Regulatory returns, risk limits, consent, the audit trail and the party search log; complaints, and the impartial review of appeals (PPR 18.6); customer due diligence: screening hits, risk class overrides, FIC reports and unblocking",
             ["REGULATORY_REPORTING", "RISK_LIMITS", "CONSENT_PREFERENCES", "AUDIT", "CONFIG_COMPLIANCE", "CUSTOMER_SERVICE", "CONFIG_PARTY", "CONFIG_AUDIT"], // DE-005
             // DE-019: the documents screen, read only, where a document's legal holds show and a hold's release approval opens, and the record holds screen.
-            Extra: ["PARTY_SEARCH_LOG", .. DueDiligenceAll, .. Approving, AiDraftProvenance, "DOCUMENTS", "DOCUMENTS_RECORD_HOLDS"], // DE-019: record holds, read only
-            PrivilegedGrants: ["CASE_DECIDE_APPEAL", "PARTY_UNBLOCK_DUE_DILIGENCE"], Approves: ["STATIC_DATA_T1", "STATIC_DATA_T2", "LEGAL_HOLD_RELEASE", "DUE_DILIGENCE_RISK_OVERRIDE", "DUE_DILIGENCE_UNBLOCK"]),
+            // OQ-201: the disclosure setting's switch, which brings its screen, and its approval.
+            Extra: ["PARTY_SEARCH_LOG", .. DueDiligenceAll, .. Approving, AiDraftProvenance, "DOCUMENTS", "DOCUMENTS_RECORD_HOLDS", ChangeDisclosureSetting], // DE-019: record holds, read only
+            PrivilegedGrants: ["CASE_DECIDE_APPEAL", "PARTY_UNBLOCK_DUE_DILIGENCE"],
+            Approves: ["STATIC_DATA_T1", "STATIC_DATA_T2", "LEGAL_HOLD_RELEASE", "DUE_DILIGENCE_RISK_OVERRIDE", "DUE_DILIGENCE_UNBLOCK", "DISCLOSURE_SETTING_CHANGE"]),
         new("DATA_PROTECTION_OFFICER", "Data protection officer", "STAFF",
             "Finds parties, anonymises and merges them, handles data-subject requests, decides portal registrations' party matches, disposes of documents, and places and releases legal holds on documents and the party search log",
             ["CONSENT_PREFERENCES", "AUDIT"],
@@ -242,10 +250,10 @@ public static class RoleTemplates
         new("CUSTOMER_SERVICE_AGENT", "Customer service agent", "STAFF", "Looks up parties, policies and claims, and their notices and documents; handles enquiries and complaints",
             ["PARTIES", "CONSENT_PREFERENCES", "NOTIFICATIONS", "DOCUMENTS", "CUSTOMER_SERVICE"], Excluded: ["PARTY_BANK_ACCOUNT_VERIFY", .. CallbackScreens, .. DueDiligenceAll, .. NamedHoldersOnly]),
         new("OPERATIONS_ANALYST", "Operations analyst", "STAFF", "Dashboards, parked deliveries and dead letters (retry and replay), webhooks and work queues; decides no approvals and discards nothing",
-            ["ANALYTICS", "INTEGRATION_OPERATIONS", "WORKFLOW"], Excluded: ["WORKFLOW_APPROVE", "WORKFLOW_REJECT"]),
+            ["ANALYTICS", "INTEGRATION_OPERATIONS", "WORKFLOW"], Excluded: ["WORKFLOW_APPROVE", "WORKFLOW_REJECT", ChangeDisclosureSetting]), // OQ-201
         new("INTEGRATION_ADMINISTRATOR", "Integration administrator", "STAFF",
             "Payment and messaging providers' callback endpoints and their secrets, parking settings, and discarding deliveries and messages",
-            ["INTEGRATION_OPERATIONS", "CONFIG_INTEGRATION"], Extra: [.. CallbackScreens, .. Approving], // DE-001
+            ["INTEGRATION_OPERATIONS", "CONFIG_INTEGRATION"], Excluded: [ChangeDisclosureSetting], Extra: [.. CallbackScreens, .. Approving], // DE-001, OQ-201
             PrivilegedGrants: ["PAYMENTS_ISSUE_CALLBACK_ENDPOINT", "PAYMENTS_REVOKE_CALLBACK_ENDPOINT", "COMMUNICATIONS_ISSUE_CALLBACK_ENDPOINT",
                 "COMMUNICATIONS_REVOKE_CALLBACK_ENDPOINT", "DISCARD_PARKED_DELIVERY", "DISCARD_MESSAGE"], Approves: ["STATIC_DATA_T1", "STATIC_DATA_T2"]),
         new("AUDITOR", "Auditor (read only)", "STAFF", "Every staff screen except medical information and the party search log; no actions, except reading an AI-1 draft's provenance report", ["*"],

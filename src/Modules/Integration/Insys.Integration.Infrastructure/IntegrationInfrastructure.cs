@@ -61,6 +61,16 @@ public static class IntegrationInfrastructure
         services.AddScoped<IDeadLetterReleases, DeadLetterReleases>();
         services.AddIntegrationEventHandler<Workflow.Contracts.ApprovalGranted, DeadLetterDiscardPolicies, IntegrationDbContext>(IntegrationDbContext.SchemaName, "ApprovalGranted");
         services.AddIntegrationEventHandler<Workflow.Contracts.ApprovalRejected, DeadLetterDiscardPolicies, IntegrationDbContext>(IntegrationDbContext.SchemaName, "ApprovalRejected");
+        // OQ-201 (Ade, 26 November 2026): a change of the disclosure setting is approved by a second person; the setting is the tenant's, not scoped.
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Application.DisclosureSettingApproval.BusinessRefType, "INTEGRATION_DISCLOSURE_SETTING",
+            Application.DisclosureSettingApproval.ApprovalType);
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.Unscoped(Application.DisclosureSettingApproval.BusinessRefType,
+            "the disclosure setting is one tenant-wide switch, not a product's or branch's record (OQ-201)");
+        services.AddScoped<Application.IDisclosureSettingRequests, Channels.DisclosureSettingRequests>();
+        services.AddIntegrationEventHandler<Workflow.Contracts.ApprovalGranted, Channels.DisclosureSettingPolicies, IntegrationDbContext>(IntegrationDbContext.SchemaName,
+            "ApprovalGranted");
+        services.AddIntegrationEventHandler<Workflow.Contracts.ApprovalRejected, Channels.DisclosureSettingPolicies, IntegrationDbContext>(IntegrationDbContext.SchemaName,
+            "ApprovalRejected");
         services.AddStaticData<IntegrationDbContext>(IntegrationDbContext.SchemaName, IntegrationStaticData.Descriptors);
         services.AddSingleton<IStaticRecordValidator, Channels.ChannelRowValidator>();
         services.AddModuleHandlers<IntegrationDbContext>(typeof(DeadLetterMessage).Assembly);

@@ -381,6 +381,303 @@
         "x-function": [
           "CUSTOMER_PORTAL_ACKNOWLEDGE_DISCLOSURE"
         ]
+      },
+      "get": {
+        "tags": [
+          "Integration"
+        ],
+        "summary": "Your acknowledgements of disclosures, newest first, including those your broker recorded",
+        "description": "recordedBy is SELF (you, in this portal), BROKER (your broker: its intermediaryCode, how the notice was presented and, with OTHER, the detail) or STAFF.",
+        "operationId": "PortalListDisclosureAcknowledgements",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IntegrationPortalDisclosureAcknowledgementView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "disclosure.read",
+        "x-function": [
+          "CUSTOMER_PORTAL_DISCLOSURES"
+        ]
+      }
+    },
+    "/api/v1/portal/broker/disclosures": {
+      "get": {
+        "tags": [
+          "Integration"
+        ],
+        "summary": "A disclosure for a broker to read with its client (F060, DE-039)",
+        "description": "Opened with the values DISCLOSURE_REQUIRED names (displayPoint and a notice\u0027s noticeType, jurisdiction and language). brokerAcknowledgementAllowed false: the tenant made acknowledgement customer-only, so show the notice read-only.",
+        "operationId": "PortalBrokerGetDisclosureText",
+        "parameters": [
+          {
+            "name": "displayPoint",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "noticeType",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "jurisdiction",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "language",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationBrokerDisclosureTextView"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "disclosure.read",
+        "x-function": [
+          "BROKER_PORTAL_DISCLOSURES"
+        ]
+      }
+    },
+    "/api/v1/portal/broker/disclosure-acknowledgements": {
+      "post": {
+        "tags": [
+          "Integration"
+        ],
+        "summary": "Record your client\u0027s acknowledgement of a disclosure (DE-039, OQ-201)",
+        "description": "For the broker\u0027s own clients only (BR-091): another party is not found. presentationMethod is required: IN_PERSON, PHONE, EMAIL or OTHER, with presentationDetail (at most 200 characters) required for OTHER. Records the text version and language, the broker\u0027s channel and code, and the recording user; audited. Answers with what is still outstanding at the display point for the client and record. Refused with DISCLOSURE_BROKER_NOT_ALLOWED (403) when the tenant made acknowledgement customer-only.",
+        "operationId": "PortalBrokerAcknowledgeDisclosure",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "A unique key for this operation. A retry with the same key returns the original response.",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IntegrationBrokerAcknowledgeDisclosure"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationDisclosureAcknowledgementView"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          }
+        },
+        "x-permission": "disclosure.create",
+        "x-function": [
+          "BROKER_PORTAL_ACKNOWLEDGE_DISCLOSURE"
+        ]
+      }
+    },
+    "/api/v1/integration/disclosure-setting": {
+      "get": {
+        "tags": [
+          "Integration"
+        ],
+        "summary": "Get whether brokers may record their clients\u0027 disclosure acknowledgements (OQ-201)",
+        "description": "The default (isDefault true, brokerAcknowledgementAllowed true) until the tenant first asks for a change. pendingChange is the change waiting for a second person\u0027s approval, if there is one; brokerAcknowledgementAllowed is the value in effect until it is granted.",
+        "operationId": "IntegrationGetDisclosureSetting",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationDisclosureSettingView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        },
+        "x-permission": "disclosure.read",
+        "x-function": [
+          "INTEGRATION_DISCLOSURE_SETTING"
+        ]
+      },
+      "put": {
+        "tags": [
+          "Integration"
+        ],
+        "summary": "Ask to set whether brokers may record their clients\u0027 disclosure acknowledgements; a second person approves it (OQ-201)",
+        "description": "Answers 202 with the setting and its pendingChange: the change waits for a DISCLOSURE_SETTING_CHANGE approval in Workflow, and applies once a second person, never the requester, grants it. Rejected, expired or withdrawn, the setting stays as it was. While a change waits, another is refused with INVALID_STATE_TRANSITION (409). false makes acknowledgement customer-only: a broker\u0027s is refused with DISCLOSURE_BROKER_NOT_ALLOWED, and staff can still record one. The request and its outcome are audited. If-Match is required once the tenant has its own setting.",
+        "operationId": "IntegrationChangeDisclosureSetting",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IntegrationDisclosureSettingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationDisclosureSettingView"
+                }
+              }
+            }
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem412"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          }
+        },
+        "x-permission": "disclosure_setting.update",
+        "x-function": [
+          "CHANGE_DISCLOSURE_SETTING"
+        ]
       }
     },
     "/api/v1/integration/dead-letters": {
@@ -49173,6 +49470,7 @@
                 "DeadLetter",
                 "DeviceRegistration",
                 "DisclosureAcknowledgement",
+                "DisclosureSetting",
                 "Document",
                 "DraftItem",
                 "DueDiligence",
@@ -49667,6 +49965,7 @@
                 "DeadLetter",
                 "DeviceRegistration",
                 "DisclosureAcknowledgement",
+                "DisclosureSetting",
                 "Document",
                 "DraftItem",
                 "DueDiligence",
@@ -72914,6 +73213,104 @@
           }
         }
       },
+      "IntegrationBrokerAcknowledgeDisclosure": {
+        "required": [
+          "partyId",
+          "displayPoint",
+          "noticeType",
+          "jurisdiction",
+          "language",
+          "businessRefType",
+          "businessRefId",
+          "presentationMethod",
+          "presentationDetail"
+        ],
+        "type": "object",
+        "properties": {
+          "partyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "displayPoint": {
+            "type": "string"
+          },
+          "noticeType": {
+            "type": "string"
+          },
+          "jurisdiction": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          },
+          "businessRefType": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "businessRefId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "presentationMethod": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "presentationDetail": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "How the notice was presented, in the broker\u0027s words: required with OTHER, at most 200 characters. The customer will see this text in the member portal, with the acknowledgement."
+          }
+        }
+      },
+      "IntegrationBrokerDisclosureTextView": {
+        "required": [
+          "noticeType",
+          "displayPoint",
+          "jurisdiction",
+          "language",
+          "textVersion",
+          "text",
+          "brokerAcknowledgementAllowed"
+        ],
+        "type": "object",
+        "properties": {
+          "noticeType": {
+            "type": "string"
+          },
+          "displayPoint": {
+            "type": "string"
+          },
+          "jurisdiction": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          },
+          "textVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "text": {
+            "type": "string"
+          },
+          "brokerAcknowledgementAllowed": {
+            "type": "boolean"
+          }
+        }
+      },
       "IntegrationDeadLetterDetail": {
         "required": [
           "id",
@@ -73128,6 +73525,76 @@
             "items": {
               "$ref": "#/components/schemas/DisclosureNotice"
             }
+          }
+        }
+      },
+      "IntegrationDisclosureSettingChangeView": {
+        "required": [
+          "brokerAcknowledgementAllowed",
+          "requestedBy",
+          "requestedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "brokerAcknowledgementAllowed": {
+            "type": "boolean"
+          },
+          "requestedBy": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "requestedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "IntegrationDisclosureSettingRequest": {
+        "required": [
+          "brokerAcknowledgementAllowed"
+        ],
+        "type": "object",
+        "properties": {
+          "brokerAcknowledgementAllowed": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          }
+        }
+      },
+      "IntegrationDisclosureSettingView": {
+        "required": [
+          "brokerAcknowledgementAllowed",
+          "isDefault",
+          "rowVersion",
+          "pendingChange"
+        ],
+        "type": "object",
+        "properties": {
+          "brokerAcknowledgementAllowed": {
+            "type": "boolean"
+          },
+          "isDefault": {
+            "type": "boolean"
+          },
+          "rowVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "pendingChange": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/IntegrationDisclosureSettingChangeView"
+              }
+            ]
           }
         }
       },
@@ -73443,6 +73910,91 @@
               "string"
             ],
             "format": "int64"
+          }
+        }
+      },
+      "IntegrationPortalDisclosureAcknowledgementView": {
+        "required": [
+          "id",
+          "noticeType",
+          "displayPoint",
+          "jurisdiction",
+          "language",
+          "textVersion",
+          "businessRefType",
+          "businessRefId",
+          "acknowledgedAt",
+          "recordedBy",
+          "intermediaryCode",
+          "presentationMethod",
+          "presentationDetail"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "noticeType": {
+            "type": "string"
+          },
+          "displayPoint": {
+            "type": "string"
+          },
+          "jurisdiction": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "language": {
+            "type": "string"
+          },
+          "textVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "businessRefType": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "businessRefId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "acknowledgedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "recordedBy": {
+            "type": "string"
+          },
+          "intermediaryCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "presentationMethod": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "presentationDetail": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -81873,6 +82425,7 @@
               "COMMISSION_STATEMENT",
               "CREDIT_NOTE_REQUEST",
               "DEAD_LETTER",
+              "DISCLOSURE_SETTING",
               "DOCUMENT_LEGAL_HOLD",
               "DUE_DILIGENCE",
               "DUE_DILIGENCE_RISK_OVERRIDE",
@@ -81917,6 +82470,7 @@
               "COMMISSION_STATEMENT",
               "CREDIT_NOTE",
               "DEAD_LETTER_DISCARD",
+              "DISCLOSURE_SETTING_CHANGE",
               "DUE_DILIGENCE_ENHANCED",
               "DUE_DILIGENCE_RISK_OVERRIDE",
               "DUE_DILIGENCE_UNBLOCK",
@@ -82098,6 +82652,7 @@
               "COMMISSION_STATEMENT",
               "CREDIT_NOTE",
               "DEAD_LETTER_DISCARD",
+              "DISCLOSURE_SETTING_CHANGE",
               "DUE_DILIGENCE_ENHANCED",
               "DUE_DILIGENCE_RISK_OVERRIDE",
               "DUE_DILIGENCE_UNBLOCK",
@@ -83408,6 +83963,7 @@
               "COMMISSION_STATEMENT",
               "CREDIT_NOTE",
               "DEAD_LETTER_DISCARD",
+              "DISCLOSURE_SETTING_CHANGE",
               "DUE_DILIGENCE_ENHANCED",
               "DUE_DILIGENCE_RISK_OVERRIDE",
               "DUE_DILIGENCE_UNBLOCK",
@@ -83499,6 +84055,7 @@
               "COMMISSION_STATEMENT",
               "CREDIT_NOTE_REQUEST",
               "DEAD_LETTER",
+              "DISCLOSURE_SETTING",
               "DOCUMENT_LEGAL_HOLD",
               "DUE_DILIGENCE",
               "DUE_DILIGENCE_RISK_OVERRIDE",

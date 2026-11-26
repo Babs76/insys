@@ -38,7 +38,7 @@ namespace Insys.General.Infrastructure.Persistence;
 /// A broker's clients are the holders and proposers of its policies and quotes.
 /// </summary>
 internal sealed class GeneralPortalRelations([FromKeyedServices(GeneralDbContext.SchemaName)] NpgsqlDataSource dataSource) : IPortalRecordRelations, IBrokeredPolicies,
-    IBrokeredClients
+    IBrokeredClients, Integration.Contracts.IDisclosureRecordParties
 {
     private const string Policy = "p.policyholder_party_id = @party OR p.intermediary_code = ANY(@codes)";
 
@@ -59,6 +59,25 @@ internal sealed class GeneralPortalRelations([FromKeyedServices(GeneralDbContext
             SELECT policyholder_party_id FROM general.policy WHERE intermediary_code = ANY(@codes)
             UNION SELECT proposer_party_id FROM general.quote WHERE intermediary_code = ANY(@codes)
             """, intermediaryCodes, null, cancellationToken);
+
+    /// <summary>
+    /// DE-039, OQ-201: the records a broker's disclosure acknowledgement names, as the disclosure gate names them: a quote (at QUOTE and ISSUE) is its proposer's,
+    /// a renewal (at RENEWAL) its policy's holder's.
+    /// </summary>
+    public IReadOnlyCollection<string> BusinessRefTypes { get; } = [GeneralDocuments.QuoteRefType, GeneralDocuments.RenewalRefType];
+
+    public Task<bool> BelongsTo(Guid tenantId, Guid partyId, string businessRefType, Guid businessRefId, CancellationToken cancellationToken)
+    {
+        var sql = businessRefType switch
+        {
+            GeneralDocuments.QuoteRefType => "SELECT 1 FROM general.quote q WHERE q.id = @id AND q.proposer_party_id = @party",
+            GeneralDocuments.RenewalRefType => "SELECT 1 FROM general.renewal r JOIN general.policy p ON p.tenant_id = r.tenant_id AND p.id = r.policy_id WHERE r.id = @id AND p.policyholder_party_id = @party",
+            _ => null,
+        };
+        return sql is null
+            ? Task.FromResult(false)
+            : PortalRelationReader.Exists(dataSource, tenantId, sql, businessRefId, new ExternalSubject(ExternalSubject.Party, partyId, null, new HashSet<string>(), null), cancellationToken);
+    }
 
     private static string? Sql(string businessRefType) => businessRefType switch
     {

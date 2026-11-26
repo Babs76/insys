@@ -185,35 +185,23 @@ internal sealed class Disclosures([FromKeyedServices(IntegrationDbContext.Schema
                 $"SELECT channel_code FROM channel.cfg_channel_definitions WHERE tenant_id = @t AND {ReadinessSql.InForce} AND @client = ANY(client_ids) ORDER BY channel_code",
                 cancellationToken, ("t", tenantId), ("inForce", StaticLifecycle.Configuration.InForce), ("day", day), ("client", clientId)), cancellationToken)).FirstOrDefault();
 
-    /// <summary>OQ-201: with no row, brokers may record (Ade's beta default).</summary>
+    /// <summary>OQ-201: with no row, brokers may record (Ade's beta default). A change waiting for approval is read with it.</summary>
     public Task<DisclosureSettingView> Setting(Guid tenantId, CancellationToken cancellationToken) =>
         ReadinessSql.InTenant(dataSource, tenantId, async (connection, transaction) =>
         {
-            await using var command = new NpgsqlCommand("SELECT broker_acknowledgement_allowed, row_version FROM channel.disclosure_setting WHERE tenant_id = @t", connection, transaction);
+            await using var command = new NpgsqlCommand("""
+                SELECT broker_acknowledgement_allowed, row_version, pending_broker_acknowledgement_allowed, pending_requested_by, pending_requested_at
+                FROM channel.disclosure_setting WHERE tenant_id = @t
+                """, connection, transaction);
             command.Parameters.AddWithValue("t", tenantId);
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-            return await reader.ReadAsync(cancellationToken) ? new DisclosureSettingView(reader.GetBoolean(0), false, reader.GetInt64(1)) : new DisclosureSettingView(true, true, 0);
-        }, cancellationToken);
+            if (!await reader.ReadAsync(cancellationToken))
+            {
+                return new DisclosureSettingView(true, true, 0, null);
+            }
 
-    public Task<long?> SaveSetting(Guid tenantId, bool brokerAcknowledgementAllowed, long? expectedVersion, string by, DateTimeOffset at, CancellationToken cancellationToken) =>
-        ReadinessSql.InTenant(dataSource, tenantId, async (connection, transaction) =>
-        {
-            await using var command = new NpgsqlCommand(expectedVersion is null
-                ? """
-                  INSERT INTO channel.disclosure_setting (tenant_id, id, row_version, created_at, created_by, updated_at, updated_by, broker_acknowledgement_allowed)
-                  VALUES (@t, @id, 1, @at, @by, @at, @by, @allowed) ON CONFLICT (tenant_id) DO NOTHING RETURNING row_version
-                  """
-                : """
-                  UPDATE channel.disclosure_setting SET broker_acknowledgement_allowed = @allowed, row_version = row_version + 1, updated_at = @at, updated_by = @by
-                  WHERE tenant_id = @t AND row_version = @version RETURNING row_version
-                  """, connection, transaction);
-            command.Parameters.AddWithValue("t", tenantId);
-            command.Parameters.AddWithValue("id", Guid.CreateVersion7());
-            command.Parameters.AddWithValue("at", at);
-            command.Parameters.AddWithValue("by", by.Length > 80 ? by[..80] : by);
-            command.Parameters.AddWithValue("allowed", brokerAcknowledgementAllowed);
-            command.Parameters.AddWithValue("version", expectedVersion ?? 0L);
-            return await command.ExecuteScalarAsync(cancellationToken) as long?;
+            var pending = reader.IsDBNull(2) ? null : new DisclosureSettingChangeView(reader.GetBoolean(2), reader.GetGuid(3), reader.GetFieldValue<DateTimeOffset>(4));
+            return new DisclosureSettingView(reader.GetBoolean(0), false, reader.GetInt64(1), pending);
         }, cancellationToken);
 }
 

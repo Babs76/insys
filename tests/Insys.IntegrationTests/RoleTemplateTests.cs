@@ -341,6 +341,20 @@ public sealed class RoleTemplateTests(DatabaseFixture fixture) : IClassFixture<D
         RoleTemplates.All.Where(t => (t.Approves ?? []).Contains("PAYOUT_RELEASE")).Select(t => t.Code).ShouldBe(["FINANCE_MANAGER"]);
     }
 
+    /// <summary>
+    /// OQ-201 (Ade, 26 November 2026): turning broker disclosure acknowledgement on or off is the compliance officer's only, and it approves the change's
+    /// DISCLOSURE_SETTING_CHANGE approval; the setting's screen stays with the templates that held it.
+    /// </summary>
+    [Fact]
+    public async Task OnlyTheComplianceOfficer_HoldsTheDisclosureSwitch_AndApprovesItsChange_OQ201()
+    {
+        var catalogue = await Catalogue();
+        RoleTemplates.All.Where(t => Codes(t.Code, catalogue).Contains(RoleTemplates.ChangeDisclosureSetting)).Select(t => t.Code).ShouldBe(["COMPLIANCE_OFFICER"]);
+        RoleTemplates.All.Where(t => (t.Approves ?? []).Contains("DISCLOSURE_SETTING_CHANGE")).Select(t => t.Code).ShouldBe(["COMPLIANCE_OFFICER"]);
+        RoleTemplates.All.Where(t => Codes(t.Code, catalogue).Contains("INTEGRATION_DISCLOSURE_SETTING")).Select(t => t.Code).Order(StringComparer.Ordinal)
+            .ToList().ShouldBe(["AUDITOR", "COMPLIANCE_OFFICER", "INTEGRATION_ADMINISTRATOR", "OPERATIONS_ANALYST"], "the screen stays where it was, and comes with the action");
+    }
+
     /// <summary>DE-015 (Ade, 24 November 2026): a rule, not a list: every template that maintains or approves any static data holds the change requests screen.</summary>
     [Fact]
     public async Task EveryTemplateThatMaintainsOrApprovesStaticData_HoldsTheChangeRequests_DE015()

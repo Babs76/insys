@@ -951,8 +951,10 @@ public sealed partial class OftzaSeed(SeedContext context)
             await Static("workflow/static/delegation-and-approval-authority", $"AUTH-{type}-{role}", new { roleCode = role, transactionType = type, limitValue = limit, delegationAllowed = false, currency = "ZAR" });
         }
 
-        // DE-002 (Ade, 24 November 2026): approvals with no amount, as the other such types (a limit of 0).
-        foreach (var (type, role) in new[] { ("GENERAL_NON_RENEWAL", "GENERAL_UNDERWRITER"), ("PARTY_MATCH_RESOLUTION", "DATA_PROTECTION_OFFICER") })
+        // DE-002 (Ade, 24 November 2026): approvals with no amount, as the other such types (a limit of 0). OQ-201 (Ade, 26 November 2026): the disclosure
+        // setting's change, raised on every tenant, is the compliance officer's to approve.
+        foreach (var (type, role) in new[] { ("GENERAL_NON_RENEWAL", "GENERAL_UNDERWRITER"), ("PARTY_MATCH_RESOLUTION", "DATA_PROTECTION_OFFICER"),
+                     ("DISCLOSURE_SETTING_CHANGE", "COMPLIANCE_OFFICER") })
         {
             await Static("workflow/static/delegation-and-approval-authority", $"AUTH-{type}-{role}", new { roleCode = role, transactionType = type, limitValue = 0m, delegationAllowed = false });
         }

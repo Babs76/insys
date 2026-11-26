@@ -93981,6 +93981,7 @@
               "COMMISSION_STATEMENT",
               "CREDIT_NOTE",
               "DEAD_LETTER_DISCARD",
+              "DISCLOSURE_SETTING_CHANGE",
               "DUE_DILIGENCE_ENHANCED",
               "DUE_DILIGENCE_RISK_OVERRIDE",
               "DUE_DILIGENCE_UNBLOCK",

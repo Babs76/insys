@@ -52,10 +52,21 @@ CREATE TABLE channel.disclosure_setting (
   updated_at                      timestamptz NOT NULL,
   updated_by                      varchar(80) NOT NULL,
   broker_acknowledgement_allowed  boolean NOT NULL DEFAULT true,
+  -- OQ-201 (Ade, 26 November 2026): a change waits for a second person's approval (DISCLOSURE_SETTING_CHANGE) before it applies. Null when none waits.
+  pending_broker_acknowledgement_allowed boolean,
+  pending_requested_by            uuid,
+  pending_requested_at            timestamptz,
+  pending_subject_hash            varchar(64),
   CONSTRAINT pk_disclosure_setting PRIMARY KEY (tenant_id, id),
-  CONSTRAINT uq_disclosure_setting_tenant UNIQUE (tenant_id)
+  CONSTRAINT uq_disclosure_setting_tenant UNIQUE (tenant_id),
+  CONSTRAINT ck_disclosure_setting_pending CHECK (
+    (pending_broker_acknowledgement_allowed IS NULL AND pending_requested_by IS NULL AND pending_requested_at IS NULL AND pending_subject_hash IS NULL)
+    OR (pending_broker_acknowledgement_allowed IS NOT NULL AND pending_requested_by IS NOT NULL AND pending_requested_at IS NOT NULL AND pending_subject_hash IS NOT NULL))
 );
 COMMENT ON TABLE channel.disclosure_setting IS 'DE-039, OQ-201: a tenant''s disclosure setting. broker_acknowledgement_allowed false makes acknowledgement customer-only (staff can still record one).';
+COMMENT ON COLUMN channel.disclosure_setting.pending_broker_acknowledgement_allowed IS 'OQ-201: the value a change waiting for approval asks for; applied when Workflow grants DISCLOSURE_SETTING_CHANGE';
+COMMENT ON COLUMN channel.disclosure_setting.pending_requested_by IS 'OQ-201: the user who asked for the pending change (never its checker)';
+COMMENT ON COLUMN channel.disclosure_setting.pending_subject_hash IS 'OQ-201: the approval subject of the pending change; a decision applies only to it';
 ALTER TABLE channel.disclosure_setting ENABLE ROW LEVEL SECURITY;
 ALTER TABLE channel.disclosure_setting FORCE ROW LEVEL SECURITY;
 CREATE POLICY tenant_isolation ON channel.disclosure_setting

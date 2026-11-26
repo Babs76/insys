@@ -150,32 +150,110 @@ public sealed class BrokerDisclosureTests(DatabaseFixture fixture) : IClassFixtu
         (await broker.Send(HttpMethod.Post, Acknowledge, Body(client, "EMAIL"), idempotent: true)).StatusCode.ShouldBe(HttpStatusCode.Created);
     }
 
-    /// <summary>Tenant B is switched to customer-only, so tenant A's other tests are untouched.</summary>
+    /// <summary>
+    /// OQ-201 (Ade, 26 November 2026): the record a broker names must exist and belong to that client. Another party's record is not found, as one that does not
+    /// exist (BR-091); a reference type no module can check is refused; the client's own quote, renewal or proposal is accepted.
+    /// </summary>
     [Fact]
-    public async Task SwitchedToCustomerOnly_TheBrokersAcknowledgementIsRefused_AndTheNoticeStillReads_OQ201_DE039()
+    public async Task TheRecordABrokerNames_MustExistAndBelongToTheClient_AnotherPartysIsNotFound_OQ201_BR091()
+    {
+        var client = await Party(A, "Client with records");
+        var other = await Party(A, "Another party of the same broker");
+        var broker = await Broker(A, "broker-39p-5", "P39");
+        await _rows.Insert(A, "general.quote", ("status", "DRAFT"), ("proposer_party_id", client), ("intermediary_code", "P39"));
+        var othersQuote = await _rows.Insert(A, "general.quote", ("status", "DRAFT"), ("proposer_party_id", other), ("intermediary_code", "P39"));
+        var othersPolicy = await _rows.Insert(A, "general.policy", ("policyholder_party_id", other), ("intermediary_code", "P39"), ("currency", "ZAR"));
+        var othersRenewal = await _rows.Insert(A, "general.renewal", ("policy_id", othersPolicy), ("status", "REVIEWING"));
+        var ownPolicy = await _rows.Insert(A, "general.policy", ("policyholder_party_id", client), ("intermediary_code", "P39"), ("currency", "ZAR"));
+        var ownRenewal = await _rows.Insert(A, "general.renewal", ("policy_id", ownPolicy), ("status", "REVIEWING"));
+        var ownProposal = await _rows.Insert(A, "life.proposal", ("applicant_party_id", client), ("intermediary_code", "P39"));
+
+        foreach (var (type, id, why) in new[]
+                 {
+                     (GeneralDocuments.QuoteRefType, othersQuote, "another party's quote"), (GeneralDocuments.RenewalRefType, othersRenewal, "another party's renewal"),
+                     (GeneralDocuments.QuoteRefType, Guid.CreateVersion7(), "a quote that doesn't exist"), ("LIFE_PROPOSAL", Guid.CreateVersion7(), "a proposal that doesn't exist"),
+                 })
+        {
+            var refused = await broker.Send(HttpMethod.Post, Acknowledge, Body(client, "IN_PERSON", reference: (type, id)), idempotent: true);
+            refused.StatusCode.ShouldBe(HttpStatusCode.NotFound, why);
+            (await refused.Code()).ShouldBe("NOT_FOUND", why);
+        }
+
+        foreach (var (type, id, why) in new (string?, Guid?, string)[]
+                 {
+                     (GeneralDocuments.PolicyRefType, ownPolicy, "a type no module checks for the client"), (GeneralDocuments.QuoteRefType, null, "a type without its record"),
+                     (null, ownPolicy, "a record without its type"),
+                 })
+        {
+            var refused = await broker.Send(HttpMethod.Post, Acknowledge, Body(client, "IN_PERSON", reference: (type, id)), idempotent: true);
+            refused.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity, why);
+            (await refused.Code()).ShouldBe("VALIDATION_FAILED", why);
+        }
+
+        (await Count(A, client)).ShouldBe(0, "nothing was recorded");
+        foreach (var (type, id) in new[] { (GeneralDocuments.RenewalRefType, ownRenewal), ("LIFE_PROPOSAL", ownProposal) })
+        {
+            var accepted = await broker.Send(HttpMethod.Post, Acknowledge, Body(client, "PHONE", reference: (type, id)), idempotent: true);
+            accepted.StatusCode.ShouldBe(HttpStatusCode.Created, $"{type}: {await accepted.Content.ReadAsStringAsync()}");
+        }
+
+        (await Count(A, client)).ShouldBe(2, "the client's own renewal and proposal");
+    }
+
+    /// <summary>
+    /// OQ-201 (Ade, 26 November 2026): switching broker acknowledgement off goes through a second person. The PUT answers 202 with the pending change; the value
+    /// is unchanged until the grant; a second request waits; the requester can't approve it. Once granted, the broker is refused and the notice still reads.
+    /// Tenant B is switched, so tenant A's other tests are untouched.
+    /// </summary>
+    [Fact]
+    public async Task SwitchingToCustomerOnly_WaitsForASecondPerson_NotTheRequester_AndOnceGrantedTheBrokerIsRefused_OQ201_SRS002()
     {
         var client = await Party(B, "Customer-only client");
         await _rows.Insert(B, "general.policy", ("policyholder_party_id", client), ("intermediary_code", "P39"), ("currency", "ZAR"));
         var broker = await Broker(B, "broker-39p-b", "P39");
-        await fixture.Database.UserWithPermissions(B, "disclosure-admin-b", IntegrationPermissions.DisclosureRead, IntegrationPermissions.DisclosureSettingUpdate);
-        var admin = _factory.ClientFor(B, "disclosure-admin-b");
+        var people = await SettingPeople(B, "b");
 
-        var setting = await admin.GetAsync("/api/v1/integration/disclosure-setting");
+        var setting = await people.Requester.GetAsync("/api/v1/integration/disclosure-setting");
         var current = await setting.Json();
         (current.GetProperty("brokerAcknowledgementAllowed").GetBoolean(), current.GetProperty("isDefault").GetBoolean()).ShouldBe((true, true));
-        (await admin.Send(HttpMethod.Put, "/api/v1/integration/disclosure-setting", new { })).StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity, "the switch is named");
-        var changed = await admin.Send(HttpMethod.Put, "/api/v1/integration/disclosure-setting", new { brokerAcknowledgementAllowed = false });
-        changed.StatusCode.ShouldBe(HttpStatusCode.NoContent, await changed.Content.ReadAsStringAsync());
-        (await admin.Send(HttpMethod.Put, "/api/v1/integration/disclosure-setting", new { brokerAcknowledgementAllowed = true })).StatusCode
-            .ShouldBe(HttpStatusCode.PreconditionFailed, "once set, a change needs If-Match");
-        await _factory.DrainOutbox();
-        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM audit.audit_event WHERE tenant_id = @t AND operation = 'ChangeDisclosureSetting' AND outcome = 'SUCCESS'",
-            ("t", B))).ShouldBe(1);
+        current.GetProperty("pendingChange").ValueKind.ShouldBe(JsonValueKind.Null);
+        (await people.Requester.Send(HttpMethod.Put, SettingPath, new { })).StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity, "the switch is named");
 
-        var refused = await broker.Send(HttpMethod.Post, Acknowledge, Body(client, "IN_PERSON"), idempotent: true);
+        var asked = await people.Requester.Send(HttpMethod.Put, SettingPath, new { brokerAcknowledgementAllowed = false });
+        asked.StatusCode.ShouldBe(HttpStatusCode.Accepted, await asked.Content.ReadAsStringAsync());
+        var pending = await asked.Json();
+        pending.GetProperty("brokerAcknowledgementAllowed").GetBoolean().ShouldBeTrue("unchanged until the grant");
+        (pending.GetProperty("pendingChange").GetProperty("brokerAcknowledgementAllowed").GetBoolean(), pending.GetProperty("pendingChange").GetProperty("requestedBy").GetGuid())
+            .ShouldBe((false, people.RequesterId));
+        asked.ETag().ShouldBe($"\"{pending.GetProperty("rowVersion").GetInt64()}\"");
+
+        // Until the grant: the GET shows the pending change, the broker still records, and a second request is refused.
+        var read = await people.Requester.GetAsync(SettingPath);
+        (await read.Json()).GetProperty("pendingChange").GetProperty("brokerAcknowledgementAllowed").GetBoolean().ShouldBeFalse();
+        (await broker.Send(HttpMethod.Post, Acknowledge, Body(client, "IN_PERSON"), idempotent: true)).StatusCode.ShouldBe(HttpStatusCode.Created, "the value is unchanged");
+        var second = await people.Requester.Send(HttpMethod.Put, SettingPath, new { brokerAcknowledgementAllowed = false }, ifMatch: read.ETag());
+        second.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        (await second.Code()).ShouldBe("INVALID_STATE_TRANSITION");
+        (await people.Requester.Send(HttpMethod.Put, SettingPath, new { brokerAcknowledgementAllowed = true })).StatusCode
+            .ShouldBe(HttpStatusCode.PreconditionFailed, "once the tenant has its own setting, a change needs If-Match");
+
+        var approval = await Approval(B, people.RequesterId);
+        (await Decide(people.Requester, approval, "approve")).ShouldBe("MAKER_CHECKER_SAME_PERSON");
+        await _factory.DrainOutbox();
+        (await (await people.Requester.GetAsync(SettingPath)).Json()).GetProperty("brokerAcknowledgementAllowed").GetBoolean().ShouldBeTrue("still unchanged");
+        (await Decide(people.Checker, approval, "approve")).ShouldBeNull();
+        await _factory.DrainOutbox();
+
+        var after = await (await people.Requester.GetAsync(SettingPath)).Json();
+        (after.GetProperty("brokerAcknowledgementAllowed").GetBoolean(), after.GetProperty("isDefault").GetBoolean()).ShouldBe((false, false));
+        after.GetProperty("pendingChange").ValueKind.ShouldBe(JsonValueKind.Null);
+        (await AuditDetails(B, "RequestChangeDisclosureSetting")).ShouldBe("false|");
+        (await AuditDetails(B, "ChangeDisclosureSetting")).ShouldBe("false|GRANTED");
+
+        var refused = await broker.Send(HttpMethod.Post, Acknowledge, Body(client, "PHONE"), idempotent: true);
         refused.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         (await refused.Code()).ShouldBe("DISCLOSURE_BROKER_NOT_ALLOWED");
-        (await Count(B, client)).ShouldBe(0);
+        (await Count(B, client)).ShouldBe(1, "only the one recorded before the grant");
         var text = await broker.GetAsync(Text);
         text.StatusCode.ShouldBe(HttpStatusCode.OK, "the screen still shows the notice");
         (await text.Json()).GetProperty("brokerAcknowledgementAllowed").GetBoolean().ShouldBeFalse();
@@ -186,10 +264,90 @@ public sealed class BrokerDisclosureTests(DatabaseFixture fixture) : IClassFixtu
         (await (await Broker(A, "broker-39p-4", "P39")).Send(HttpMethod.Post, Acknowledge, Body(clientA, "IN_PERSON"), idempotent: true)).StatusCode.ShouldBe(HttpStatusCode.Created);
     }
 
-    private static object Body(Guid partyId, string? presentationMethod, string? presentationDetail = null, Guid? quote = null) => new
+    /// <summary>OQ-201 (Ade, 26 November 2026): rejected, the setting stays as it was and the pending change is cleared, audited; a new request can then be made.</summary>
+    [Fact]
+    public async Task ARejectedChange_LeavesTheSettingAsItWas_AndClearsThePendingChange_OQ201()
+    {
+        var tenant = Guid.CreateVersion7();
+        await fixture.Database.SeedTenant(tenant, "DS" + Guid.NewGuid().ToString("N")[..8].ToUpperInvariant());
+        var people = await SettingPeople(tenant, "r");
+
+        (await people.Requester.Send(HttpMethod.Put, SettingPath, new { brokerAcknowledgementAllowed = false })).StatusCode.ShouldBe(HttpStatusCode.Accepted);
+        var approval = await Approval(tenant, people.RequesterId);
+        (await Decide(people.Checker, approval, "reject")).ShouldBeNull();
+        await _factory.DrainOutbox();
+
+        var read = await people.Requester.GetAsync(SettingPath);
+        var after = await read.Json();
+        after.GetProperty("brokerAcknowledgementAllowed").GetBoolean().ShouldBeTrue("as it was");
+        after.GetProperty("pendingChange").ValueKind.ShouldBe(JsonValueKind.Null);
+        (await AuditDetails(tenant, "ChangeDisclosureSettingNotApproved")).ShouldBe("false|REJECTED");
+        (await AuditDetails(tenant, "ChangeDisclosureSetting")).ShouldBeNull("nothing changed");
+        (await fixture.Database.ScalarAsOwner<long>(
+            "SELECT count(*) FROM integration.parked_delivery WHERE tenant_id = @t AND prerequisite_code IN ('APPROVAL_ENDING_NOT_APPLIED', 'APPROVAL_NOT_APPLIED')", ("t", tenant)))
+            .ShouldBe(0L);
+
+        (await people.Requester.Send(HttpMethod.Put, SettingPath, new { brokerAcknowledgementAllowed = false }, ifMatch: read.ETag())).StatusCode
+            .ShouldBe(HttpStatusCode.Accepted, "a new request, once the first ended");
+    }
+
+    private const string SettingPath = "/api/v1/integration/disclosure-setting";
+
+    private sealed record Approvers(HttpClient Requester, Guid RequesterId, HttpClient Checker);
+
+    /// <summary>A requester and a checker, both with authority for DISCLOSURE_SETTING_CHANGE, so only maker-checker refuses the requester.</summary>
+    private async Task<Approvers> SettingPeople(Guid tenant, string suffix)
+    {
+        string[] permissions =
+            [IntegrationPermissions.DisclosureRead, IntegrationPermissions.DisclosureSettingUpdate, Workflow.Contracts.WorkflowPermissions.ApprovalRead, Workflow.Contracts.WorkflowPermissions.ApprovalApprove];
+        var requester = await fixture.Database.UserWithPermissions(tenant, $"disclosure-requester-{suffix}", permissions);
+        var checker = await fixture.Database.UserWithPermissions(tenant, $"disclosure-checker-{suffix}", permissions);
+        var approver = await fixture.Database.RoleWithPermissions(tenant);
+        await fixture.Database.AssignRole(tenant, requester, approver);
+        await fixture.Database.AssignRole(tenant, checker, approver);
+        await fixture.Database.SeedStatic(tenant, "workflow.cfg_delegation_and_approval_authority", "EFFECTIVE", $"AUTH-DSC-{suffix}", From,
+            ("role_code", approver), ("transaction_type", "DISCLOSURE_SETTING_CHANGE"), ("limit_value", 0m), ("delegation_allowed", false));
+        return new Approvers(_factory.ClientFor(tenant, $"disclosure-requester-{suffix}"), requester, _factory.ClientFor(tenant, $"disclosure-checker-{suffix}"));
+    }
+
+    /// <summary>Workflow's DISCLOSURE_SETTING_CHANGE approval of the tenant's setting, once the request is relayed, with the requester as its maker.</summary>
+    private async Task<Guid> Approval(Guid tenant, Guid requester)
+    {
+        await _factory.DrainOutbox();
+        var approval = await fixture.Database.ScalarAsOwner<Guid?>("""
+            SELECT a.id FROM workflow.approval a JOIN channel.disclosure_setting s ON s.tenant_id = a.tenant_id AND s.id = a.business_ref_id
+            WHERE a.tenant_id = @t AND a.business_ref_type = 'DISCLOSURE_SETTING' AND a.approval_type = 'DISCLOSURE_SETTING_CHANGE' AND a.status = 'REQUESTED'
+            """, ("t", tenant));
+        approval.ShouldNotBeNull("no DISCLOSURE_SETTING_CHANGE approval waits for the setting");
+        (await fixture.Database.ScalarAsOwner<Guid>("SELECT maker_id FROM workflow.approval WHERE id = @a", ("a", approval.Value))).ShouldBe(requester);
+        return approval.Value;
+    }
+
+    /// <summary>Decides the approval; null when it was accepted, else the refusal's code.</summary>
+    private static async Task<string?> Decide(HttpClient client, Guid approval, string decision)
+    {
+        var read = await client.GetAsync($"/api/v1/workflow/approvals/{approval}");
+        read.StatusCode.ShouldBe(HttpStatusCode.OK, await read.Content.ReadAsStringAsync());
+        var ifMatch = $"\"{(await read.Json()).GetProperty("rowVersion").GetInt64()}\"";
+        var response = await client.Send(HttpMethod.Post, $"/api/v1/workflow/approvals/{approval}/{decision}", decision == "reject" ? new { reason = "Keep brokers recording" } : null,
+            ifMatch: ifMatch);
+        return response.StatusCode == HttpStatusCode.NoContent ? null : await response.Code() ?? response.StatusCode.ToString();
+    }
+
+    /// <summary>The tenant's audited operation's value and outcome, oldest first, once the outbox is drained.</summary>
+    private async Task<string?> AuditDetails(Guid tenant, string operation)
+    {
+        await _factory.DrainOutbox();
+        return await fixture.Database.ScalarAsOwner<string>("""
+            SELECT string_agg(concat_ws('|', details ->> 'brokerAcknowledgementAllowed', coalesce(details ->> 'outcome', '')), ',' ORDER BY occurred_at)
+            FROM audit.audit_event WHERE tenant_id = @t AND operation = @o AND outcome = 'SUCCESS'
+            """, ("t", tenant), ("o", operation));
+    }
+
+    private static object Body(Guid partyId, string? presentationMethod, string? presentationDetail = null, Guid? quote = null, (string? Type, Guid? Id)? reference = null) => new
     {
         partyId, displayPoint = "ISSUE", noticeType = "POLICY_TERMS", jurisdiction = "ZA", language = "en",
-        businessRefType = quote is null ? null : GeneralDocuments.QuoteRefType, businessRefId = quote, presentationMethod, presentationDetail,
+        businessRefType = reference is { } r ? r.Type : quote is null ? null : GeneralDocuments.QuoteRefType, businessRefId = reference is { } r2 ? r2.Id : quote, presentationMethod, presentationDetail,
     };
 
     private Task<long> Count(Guid tenant, Guid party) =>

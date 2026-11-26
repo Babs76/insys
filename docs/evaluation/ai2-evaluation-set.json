@@ -282,11 +282,19 @@
       "fieldsInError": 0
     },
     {
+      "id": "R-DISCLOSURE_BROKER_NOT_ALLOWED",
+      "code": "DISCLOSURE_BROKER_NOT_ALLOWED",
+      "retryable": false,
+      "means": "In this organisation only the customer can acknowledge a notice; a broker can\u0027t record it for them.",
+      "remedy": "Ask the customer to acknowledge the notice themselves, in the customer portal or with the insurer\u0027s staff.",
+      "fieldsInError": 0
+    },
+    {
       "id": "R-DISCLOSURE_REQUIRED",
       "code": "DISCLOSURE_REQUIRED",
       "retryable": false,
       "means": "A mandatory notice hasn\u0027t been acknowledged at this point of the process.",
-      "remedy": "Record the customer\u0027s acknowledgement of the notice, then try again.",
+      "remedy": "Record the customer\u0027s acknowledgement of the notice, or have their broker record it, then try again.",
       "fieldsInError": 0
     },
     {
