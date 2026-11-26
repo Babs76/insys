@@ -186,7 +186,7 @@ jobs:
           fi
 
       - name: Every integration class is in exactly one shard
-        run: python3 tools/integration-shards.py --check 4
+        run: python3 tools/integration-shards.py --check 6
 
       - uses: actions/upload-artifact@v4
         with:
@@ -202,8 +202,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
-    name: integration (${{ matrix.shard }} of 4)
+        # Six from 26 November 2026: with four, each took 38 to 40 minutes, past the 35-minute warning, and one ran out at 45 while
+        # four runs shared the runners (run 45839852644, a docs-only change). Six puts each near 28 minutes (Est).
+        shard: [1, 2, 3, 4, 5, 6]
+    name: integration (${{ matrix.shard }} of 6)
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
@@ -214,7 +216,7 @@ jobs:
           path: tests/Insys.IntegrationTests
 
       - name: Every integration class is in exactly one shard
-        run: python3 tools/integration-shards.py --check 4
+        run: python3 tools/integration-shards.py --check 6
 
       - uses: actions/setup-dotnet@v5
         with:
@@ -227,14 +229,14 @@ jobs:
         run: dotnet build Insys.slnx --no-restore --configuration Release -warnaserror
 
       - name: Every compiled integration class runs in a shard or the sweeps job
-        run: tests/Insys.IntegrationTests/bin/Release/net10.0/Insys.IntegrationTests -list classes | python3 tools/integration-shards.py --check-listed 4
+        run: tests/Insys.IntegrationTests/bin/Release/net10.0/Insys.IntegrationTests -list classes | python3 tools/integration-shards.py --check-listed 6
 
       # Testcontainers starts postgres:18 (Docker is available on ubuntu-latest). The endpoint sweeps run in their own job.
       # The xUnit report gives each class's measured time to the timings job.
       - name: Integration tests
         run: >-
           eval dotnet test --project tests/Insys.IntegrationTests --no-build --configuration Release --results-directory "$RUNNER_TEMP/results"
-          -- --report-xunit-xml --report-xunit-xml-filename shard-${{ matrix.shard }}.xml $(python3 tools/integration-shards.py ${{ matrix.shard }} 4)
+          -- --report-xunit-xml --report-xunit-xml-filename shard-${{ matrix.shard }}.xml $(python3 tools/integration-shards.py ${{ matrix.shard }} 6)
 
       - uses: actions/upload-artifact@v4
         if: always()
