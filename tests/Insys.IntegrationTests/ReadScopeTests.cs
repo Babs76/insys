@@ -263,6 +263,53 @@ public sealed class ReadScopeTests(DatabaseFixture fixture) : IClassFixture<Data
         listed.ShouldNotContain(theirs.ToString(), Case.Insensitive);
     }
 
+    /// <summary>
+    /// OQ-203 item 4 (Ade, 26 November 2026): a document's legal hold read by its ID (DE-020) has its document's read's scope, product scope included: a
+    /// hold on a document filed against a policy outside the caller's product is not found, as the document is; inside it, both are read.
+    /// </summary>
+    [Fact]
+    public async Task ADocumentsLegalHoldById_FollowsItsDocumentsScope_OutsideItIsNotFound_OQ203_F103()
+    {
+        var suffix = Random.Shared.Next(100_000, 999_999);
+        var inside = await _rows.Insert(T, "general.policy", ("product_code", "RS-HOLD"), ("policy_number", $"RH{suffix}"), ("status", "IN_FORCE"));
+        var outside = await _rows.Insert(T, "general.policy", ("product_code", "RS-HOLD-OTHER"), ("policy_number", $"RI{suffix}"), ("status", "IN_FORCE"));
+        await fixture.Database.SeedStatic(T, "document.ref_document_categories", "ACTIVE", "RS_HOLD_NOTE", TestClock.Today.AddDays(-1), ("category_code", "RS_HOLD_NOTE"),
+            ("label", "Note"), ("classification", "INTERNAL"), ("domain", "ALL"), ("allowed_roles", Array.Empty<string>()));
+        await fixture.Database.SeedStatic(T, "document.ref_legal_hold_reason_codes", "ACTIVE", "RS_LITIGATION", TestClock.Today.AddDays(-1), ("label", "Litigation"),
+            ("authority_role", "COMPLIANCE_OFFICER"));
+        await fixture.Database.UserWithPermissions(T, "rs-hold-maker", Insys.Documents.Contracts.DocumentPermissions.DocumentCreate,
+            Insys.Documents.Contracts.DocumentPermissions.DocumentRead, Insys.Documents.Contracts.DocumentPermissions.LegalHoldManage);
+        var maker = _factory.ClientFor(T, "rs-hold-maker");
+
+        async Task<(Guid Document, Guid Hold)> Held(Guid policy)
+        {
+            var stored = await maker.Send(HttpMethod.Post, "/api/v1/documents/documents", new
+            {
+                categoryCode = "RS_HOLD_NOTE", businessRefType = "GENERAL_POLICY", businessRefId = policy, mimeType = "text/plain",
+                contentBase64 = Convert.ToBase64String("held"u8.ToArray()),
+            }, idempotent: true);
+            stored.StatusCode.ShouldBe(HttpStatusCode.Created, await stored.Content.ReadAsStringAsync());
+            var document = (await stored.Json()).GetProperty("id").GetGuid();
+            var placed = await maker.Send(HttpMethod.Post, $"/api/v1/documents/documents/{document}/legal-holds", new { reasonCode = "RS_LITIGATION" });
+            placed.StatusCode.ShouldBe(HttpStatusCode.OK, await placed.Content.ReadAsStringAsync());
+            return (document, (await placed.Json()).GetProperty("id").GetGuid());
+        }
+
+        var (mine, mineHold) = await Held(inside);
+        var (theirs, theirsHold) = await Held(outside);
+        var reader = await Scoped("rs-hold-reader", "RS-HOLD", Insys.Documents.Contracts.DocumentPermissions.DocumentRead);
+        (await reader.GetAsync($"/api/v1/documents/documents/{mine}")).StatusCode.ShouldBe(HttpStatusCode.OK);
+        var read = await reader.GetAsync($"/api/v1/documents/document-legal-holds/{mineHold}");
+        read.StatusCode.ShouldBe(HttpStatusCode.OK, await read.Content.ReadAsStringAsync());
+        (await read.Json()).GetProperty("documentId").GetGuid().ShouldBe(mine);
+
+        (await reader.GetAsync($"/api/v1/documents/documents/{theirs}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        var hidden = await reader.GetAsync($"/api/v1/documents/document-legal-holds/{theirsHold}");
+        hidden.StatusCode.ShouldBe(HttpStatusCode.NotFound, "outside the scope, as its document");
+        (await hidden.Content.ReadAsStringAsync()).ShouldNotContain(theirs.ToString(), Case.Insensitive, "the refusal names nothing of the document");
+        (await maker.GetAsync($"/api/v1/documents/document-legal-holds/{theirsHold}")).StatusCode.ShouldBe(HttpStatusCode.OK, "an unscoped reader reads it");
+    }
+
     private async Task<HttpClient> Scoped(string subject, string product, params string[] permissions)
     {
         var user = await fixture.Database.UserWithPermissions(T, subject, permissions);

@@ -229,6 +229,7 @@ public sealed class IdentityModule : IModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithName("IdentityGetRoleAssignment")
             .WithSummary("A role assignment by its ID, the businessRefId of its PRIVILEGED_ROLE approval, with the user who holds it (DE-020)")
+            .WithDescription("Under the users screen (IDENTITY_USERS) and user.read, as GET /identity/users/{userId}, which shows the same assignment (OQ-203).")
             .RequirePermission(IdentityPermissions.UserRead);
 
         api.MapGet("/identity/subject-links/{id:guid}", async (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
@@ -238,7 +239,8 @@ public sealed class IdentityModule : IModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithName("IdentityGetSubjectLinkById")
             .WithSummary("An external user's subject link by its ID, the businessRefId of its EXTERNAL_SUBJECT_LINK approval, pending, in effect or ended (DE-020)")
-            .WithDescription("userId names the user it is for; its changes are made on the user, with the user's ETag (GET /identity/users/{userId}).")
+            .WithDescription("userId names the user it is for; its changes are made on the user, with the user's ETag (GET /identity/users/{userId}). As the user's "
+                + "own reads (OQ-203): the link pending or in effect, else the user's latest; an earlier link is not found (404 SUBJECT_LINK_NOT_FOUND).")
             .RequirePermission(IdentityPermissions.UserRead);
 
         var users = api.MapGroup("/identity/users").WithTags(Name);

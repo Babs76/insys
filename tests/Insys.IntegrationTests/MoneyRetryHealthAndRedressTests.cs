@@ -152,7 +152,59 @@ public sealed class MoneyRetryHealthAndRedressTests(DatabaseFixture fixture) : I
 
     /// <summary>DE-022, DE-020: the checker opens a redress by the ID its approval carries, without the case's ID; the approval says where.</summary>
     [Fact]
-    public async Task ARedress_IsReadByTheIdItsApprovalCarries_WithoutItsCase_AndTheApprovalNamesThatRead_DE022_DE020()
+    public Task ARedress_IsReadByTheIdItsApprovalCarries_WithoutItsCase_AndTheApprovalNamesThatRead_DE022_DE020() => RedressReadByItsId();
+
+    /// <summary>
+    /// OQ-203 item 4 (Ade, 26 November 2026): the redress read by its ID answers exactly as its case's redress read (GET …/cases/{id}/redress/{redressId})
+    /// for every caller without access: without the SERVICE_COMPLAINTS function, 403 FUNCTION_NOT_GRANTED for both; a Health-linked case without
+    /// health.claim.read, 404 for both (HLT-008); a case outside a product-scoped caller's scope, 404 for both (F103 §4).
+    /// </summary>
+    [Fact]
+    public async Task ARedressById_AnswersEveryCallerWithoutAccess_AsItsCasesRedressRead_OQ203_HLT008_F103()
+    {
+        var (caseId, redress) = await RedressWaiting();
+        var byId = $"/api/v1/workflow/case-redress/{redress}";
+        var byCase = $"{Cases}/{caseId}/redress/{redress}";
+
+        async Task<(HttpStatusCode, string?)> Answer(HttpClient client, string url)
+        {
+            var response = await client.GetAsync(url);
+            var body = await response.Content.ReadAsStringAsync();
+            return (response.StatusCode, response.StatusCode == HttpStatusCode.OK ? null : JsonDocument.Parse(body).RootElement.GetProperty("code").GetString());
+        }
+
+        await fixture.Database.UserWithPermissions(T, "redress-nobody");
+        var nobody = _factory.ClientFor(T, "redress-nobody");
+        (await Answer(nobody, byId)).ShouldBe((HttpStatusCode.Forbidden, "FUNCTION_NOT_GRANTED"));
+        (await Answer(nobody, byCase)).ShouldBe(await Answer(nobody, byId));
+
+        await fixture.Database.ExecuteAsOwner("UPDATE workflow.service_case SET product_code = 'OQ203-CASE' WHERE tenant_id = @t AND id = @c", ("t", T), ("c", caseId));
+        var scopedId = await fixture.Database.UserWithPermissions(T, "redress-scoped", CasePermissions.Read);
+        await fixture.Database.ExecuteAsOwner("UPDATE iam.user_role_assignment SET scope_products = ARRAY['OQ203-OTHER'] WHERE user_id = @u", ("u", scopedId));
+        var scoped = _factory.ClientFor(T, "redress-scoped");
+        (await Answer(scoped, byId)).ShouldBe(await Answer(scoped, byCase), "out of scope: as the case's redress read");
+        (await Answer(scoped, byId)).ShouldBe((HttpStatusCode.NotFound, "NOT_FOUND"), "out of scope is not found (F103 §4)");
+        (await Answer(_checker, byId)).Item1.ShouldBe(HttpStatusCode.OK, "an unscoped reader still reads it");
+
+        await fixture.Database.ExecuteAsOwner("UPDATE workflow.service_case SET product_code = NULL, raised_by_provider_id = 'PRV-OQ203' WHERE tenant_id = @t AND id = @c",
+            ("t", T), ("c", caseId));
+        (await Answer(_checker, byId)).ShouldBe((HttpStatusCode.NotFound, "NOT_FOUND"), "a Health-linked case without health.claim.read is not found (HLT-008)");
+        (await Answer(_checker, byCase)).ShouldBe(await Answer(_checker, byId));
+    }
+
+    private async Task<(Guid Case, Guid Redress)> RedressWaiting()
+    {
+        var opened = await _maker.Send(HttpMethod.Post, Cases,
+            new { caseTypeCode = "COMPLAINT_T", receivedChannel = "PHONE", complainantPartyId = Guid.CreateVersion7(), categoryCode = "SERVICE", summary = "S" }, idempotent: true);
+        opened.StatusCode.ShouldBe(HttpStatusCode.Created, await opened.Content.ReadAsStringAsync());
+        var id = (await opened.Json()).GetProperty("id").GetGuid();
+        var recorded = await _maker.Send(HttpMethod.Post, $"{Cases}/{id}/redress",
+            new { redressType = "GOODWILL", amount = 120m, currency = "ZAR", payeePartyId = Guid.CreateVersion7(), bankAccountId = Guid.CreateVersion7() }, idempotent: true);
+        recorded.StatusCode.ShouldBe(HttpStatusCode.Created, await recorded.Content.ReadAsStringAsync());
+        return (id, (await recorded.Json()).GetProperty("id").GetGuid());
+    }
+
+    private async Task RedressReadByItsId()
     {
         var opened = await _maker.Send(HttpMethod.Post, Cases,
             new { caseTypeCode = "COMPLAINT_T", receivedChannel = "PHONE", complainantPartyId = Guid.CreateVersion7(), categoryCode = "SERVICE", summary = "S" }, idempotent: true);

@@ -132,12 +132,20 @@ internal sealed class GetSubjectLinkHandler(IUserRepository users, Workflow.Cont
     : IQueryHandler<GetSubjectLink, SubjectLinkView>, IQueryHandler<GetSubjectLinkById, SubjectLinkView>
 {
     public async Task<Result<SubjectLinkView>> Handle(GetSubjectLinkById query, CancellationToken cancellationToken) =>
-        await users.ByLink(query.LinkId, cancellationToken) is { } user && user.SubjectLinks.SingleOrDefault(l => l.Id == query.LinkId) is { } link
+        await users.ByLink(query.LinkId, cancellationToken) is { } user && Shown(user) is { } link && link.Id == query.LinkId
             ? SubjectLinkView.From(link, user.Id) with
             {
                 LatestRejection = await history.Latest(Contracts.IdentityApprovals.SubjectLinkBusinessRefType, link.Id, cancellationToken),
             }
             : Error.NotFound(IdentityErrorCodes.SubjectLinkNotFound, "The subject link was not found.");
+
+    /// <summary>
+    /// OQ-203 (Ade, 26 November 2026): the link the user's own reads show (GetUser's externalSubjectLink): the one pending or in effect, else the latest. A link by
+    /// its ID is read under the same rule, so an earlier link the user's reads no longer show is not found.
+    /// </summary>
+    private static SubjectLink? Shown(UserAccount user) =>
+        user.SubjectLinks.OrderByDescending(l => l.Status is SubjectLinkStatus.Pending or SubjectLinkStatus.Active).ThenByDescending(l => l.Id)
+            .FirstOrDefault();
 
     public async Task<Result<SubjectLinkView>> Handle(GetSubjectLink query, CancellationToken cancellationToken) =>
         await users.Get(query.UserId, cancellationToken) is { CurrentLink: { } link }

@@ -322,6 +322,135 @@ public abstract class ApprovalEndings(DatabaseFixture fixture) : IClassFixture<D
     /// DE-019, DE-020, DE-022: the waiting approval says how to open its record (subjectOperation, subjectPath), and that read,
     /// by the ID the approval carries, opens it for the maker or the checker: a record that names that ID.
     /// </summary>
+    /// <summary>
+    /// OQ-203 (Ade, 26 November 2026): the existing read of each record a read by ID opens, from that read's view (or the business ref ID), and another
+    /// function that holds a like permission but not the record's screen, where there is one (HLT-008: the audit trail's reader is not the search log's).
+    /// </summary>
+    private static readonly Dictionary<string, (Func<Guid, JsonElement, string> Existing, string? OtherFunction)> ExistingReads = new(StringComparer.Ordinal)
+    {
+        ["BANK_ACCOUNT_VERIFICATION"] = ((_, v) => $"/api/v1/party/parties/{v.GetProperty("partyId").GetGuid()}/bank-accounts", "PARTIES"),
+        [IdentityApprovals.ApprovalType] = ((_, v) => $"/api/v1/identity/users/{v.GetProperty("userId").GetGuid()}", "IDENTITY_ROLE_ASSIGNMENTS"),
+        [IdentityApprovals.SubjectLinkApprovalType] = ((_, v) => $"/api/v1/identity/users/{v.GetProperty("userId").GetGuid()}/subject-link", null),
+        [FinanceApprovals.ReopenApprovalType] = ((_, v) => $"/api/v1/finance/periods/{v.GetProperty("periodCode").GetString()}", null),
+        [ProductApprovals.ApprovalType] = ((_, v) => $"/api/v1/product-factory/products/{v.GetProperty("productCode").GetString()}/versions", null),
+        [$"{DocumentApprovals.LegalHoldReleaseType}/{DocumentApprovals.LegalHoldBusinessRefType}"] =
+            ((_, v) => $"/api/v1/documents/documents/{v.GetProperty("documentId").GetGuid()}", null),
+        [$"{PartyApprovals.LegalHoldReleaseType}/{PartyApprovals.SearchLogHoldBusinessRefType}"] = ((_, _) => "/api/v1/party/search-log/holds", "AUDIT_TRAIL"),
+    };
+
+    /// <summary>
+    /// OQ-203 item 4 (Ade, 26 November 2026): a record's read by ID (the approval's subjectPath) has exactly the guard of its record's existing read. For
+    /// a caller in another tenant with the same permissions, it is 404 and the existing read doesn't show the record either; for a caller with a
+    /// product-scoped role, it answers as the existing read does (these records are not product-scoped: both show it); for a caller without the record's
+    /// screen function (none at all, or a function with a like permission), both are refused alike (403 FUNCTION_NOT_GRANTED, as the existing read is). No
+    /// refusal names anything the record holds.
+    /// </summary>
+    protected async Task ItsRecordById_IsGuardedAsItsExistingRead(string approvalType)
+    {
+        var @case = Cases[approvalType];
+        var world = await World.Create(fixture, _factory, @case);
+        var waiting = await @case.Setup(world);
+        await _factory.DrainOutbox();
+        var approval = await fixture.Database.ScalarAsOwner<Guid>("""
+            SELECT id FROM workflow.approval WHERE tenant_id = @t AND business_ref_type = @r AND business_ref_id = @i AND status = 'REQUESTED'
+            """, ("t", world.Tenant), ("r", waiting.BusinessRefType), ("i", waiting.BusinessRefId));
+        var path = (await (await world.Checker.GetAsync($"/api/v1/workflow/approvals/{approval}")).Json()).GetProperty("subjectPath").GetString()!;
+        var opened = await world.Maker.GetAsync(path);
+        opened.StatusCode.ShouldBe(HttpStatusCode.OK, $"{path}: {await opened.Content.ReadAsStringAsync()}");
+        var view = await opened.Json();
+        var (existingOf, otherFunction) = ExistingReads[approvalType];
+        var existing = existingOf(waiting.BusinessRefId, view);
+        var id = waiting.BusinessRefId.ToString();
+        var held = PersonalValues(view);
+
+        async Task<(HttpStatusCode Status, string? Code, bool Shows)> Read(HttpClient client, string url)
+        {
+            var response = await client.GetAsync(url);
+            var body = await response.Content.ReadAsStringAsync();
+            if (response.StatusCode != HttpStatusCode.OK)
+            {
+                held.Where(v => body.Contains(v, StringComparison.Ordinal)).ShouldBeEmpty($"{url} refused with what the record holds: {body}");
+            }
+
+            return (response.StatusCode, response.StatusCode == HttpStatusCode.OK ? null : JsonDocument.Parse(body).RootElement.TryGetProperty("code", out var c) ? c.GetString() : null,
+                response.StatusCode == HttpStatusCode.OK && body.Contains(id, StringComparison.OrdinalIgnoreCase));
+        }
+
+        (await Read(world.Maker, existing)).Shows.ShouldBeTrue($"the existing read {existing} shows the record to its maker");
+
+        // Another tenant, the same permissions: not found, and the existing read doesn't show it.
+        var otherTenant = Guid.CreateVersion7();
+        await fixture.Database.SeedTenant(otherTenant, "OQ" + world.Suffix.ToUpperInvariant());
+        await fixture.Database.UserWithPermissions(otherTenant, $"other-{world.Suffix}", @case.Permissions.CheckerSide());
+        var stranger = _factory.ClientFor(otherTenant, $"other-{world.Suffix}");
+        (await Read(stranger, path)).Status.ShouldBe(HttpStatusCode.NotFound, "another tenant's record is not found");
+        (await Read(stranger, existing)).Shows.ShouldBeFalse("nor does the existing read show it");
+
+        // A product-scoped role: as the existing read answers.
+        var scopedId = await fixture.Database.UserWithPermissions(world.Tenant, $"scoped-{world.Suffix}", @case.Permissions.CheckerSide());
+        await fixture.Database.ExecuteAsOwner("UPDATE iam.user_role_assignment SET scope_products = ARRAY['OQ203-NONE'] WHERE user_id = @u", ("u", scopedId));
+        var scoped = _factory.ClientFor(world.Tenant, $"scoped-{world.Suffix}");
+        var (scopedStatus, _, scopedShows) = await Read(scoped, path);
+        (scopedStatus == HttpStatusCode.OK).ShouldBe((await Read(scoped, existing)).Shows, $"a product-scoped caller: {path} answered {scopedStatus}");
+        if (scopedStatus != HttpStatusCode.OK)
+        {
+            scopedStatus.ShouldBe(HttpStatusCode.NotFound, "out of scope is not found");
+        }
+        else
+        {
+            scopedShows.ShouldBeTrue();
+        }
+
+        // Without the record's screen function: refused alike.
+        await fixture.Database.UserWithPermissions(world.Tenant, $"none-{world.Suffix}");
+        var nobody = _factory.ClientFor(world.Tenant, $"none-{world.Suffix}");
+        var refusedRead = await Read(nobody, path);
+        (refusedRead.Status, refusedRead.Code).ShouldBe(((await Read(nobody, existing)).Status, (await Read(nobody, existing)).Code), "no function: as the existing read");
+        (refusedRead.Status, refusedRead.Code).ShouldBe((HttpStatusCode.Forbidden, "FUNCTION_NOT_GRANTED"));
+        if (otherFunction is not null)
+        {
+            await fixture.Database.UserWithFunctions(world.Tenant, $"like-{world.Suffix}", otherFunction);
+            var like = _factory.ClientFor(world.Tenant, $"like-{world.Suffix}");
+            var likeRead = await Read(like, path);
+            var likeExisting = await Read(like, existing);
+            (likeRead.Status, likeRead.Code).ShouldBe((likeExisting.Status, likeExisting.Code), $"{otherFunction} alone: as the existing read");
+            (likeRead.Status, likeRead.Code).ShouldBe((HttpStatusCode.Forbidden, "FUNCTION_NOT_GRANTED"), $"{otherFunction} alone");
+        }
+    }
+
+    /// <summary>The record's own text values a refusal must never repeat (names, numbers, reasons); not its IDs, codes or statuses.</summary>
+    private static List<string> PersonalValues(JsonElement view)
+    {
+        var values = new List<string>();
+        void Walk(JsonElement e)
+        {
+            switch (e.ValueKind)
+            {
+                case JsonValueKind.Object:
+                    foreach (var p in e.EnumerateObject())
+                    {
+                        Walk(p.Value);
+                    }
+
+                    break;
+                case JsonValueKind.Array:
+                    foreach (var i in e.EnumerateArray())
+                    {
+                        Walk(i);
+                    }
+
+                    break;
+                case JsonValueKind.String when e.GetString() is { Length: >= 6 } s && !Guid.TryParse(s, out _) && !DateTimeOffset.TryParse(s, out _)
+                    && !System.Text.RegularExpressions.Regex.IsMatch(s, "^[A-Z0-9_\\-]+$"):
+                    values.Add(s);
+                    break;
+            }
+        }
+
+        Walk(view);
+        return values;
+    }
+
     private static async Task<IReadOnlyList<string>> OpensItsRecord(World world, Guid approval, Waiting waiting)
     {
         var view = await (await world.Checker.GetAsync($"/api/v1/workflow/approvals/{approval}")).Json();
@@ -1790,6 +1919,11 @@ public sealed class ApprovalEndingsMoneyTests(DatabaseFixture fixture) : Approva
     [MemberData(nameof(Rows))]
     public Task EveryEnding_LeavesTheRecordInItsDefinedState_NeverWaitingForGood_OQ113(string approvalType, string ending) => EveryEnding(approvalType, ending);
 
+    /// <summary>OQ-203 item 4 (Ade, 26 November 2026): each read by ID this family's approvals open has its record's existing guard; without access, 404.</summary>
+    [Theory]
+    [InlineData("PERIOD_REOPEN")]
+    public Task ItsRecordById_IsNotFoundWithoutAccess_AsItsExistingRead_OQ203_F103(string approvalType) => ItsRecordById_IsGuardedAsItsExistingRead(approvalType);
+
     [Theory]
     [MemberData(nameof(Types))]
     public Task AGrantTheRecordWillNotTake_Parks_IsMarkedNotApplied_AndTellsTheRequester_D5(string approvalType) => AGrantTheRecordWillNotTake(approvalType);
@@ -1809,6 +1943,11 @@ public sealed class ApprovalEndingsClaimsTests(DatabaseFixture fixture) : Approv
     [MemberData(nameof(Rows))]
     public Task EveryEnding_LeavesTheRecordInItsDefinedState_NeverWaitingForGood_OQ113(string approvalType, string ending) => EveryEnding(approvalType, ending);
 
+    /// <summary>OQ-203 item 4 (Ade, 26 November 2026): each read by ID this family's approvals open has its record's existing guard; without access, 404.</summary>
+    [Theory]
+    [InlineData("PRODUCT_PUBLICATION")]
+    public Task ItsRecordById_IsNotFoundWithoutAccess_AsItsExistingRead_OQ203_F103(string approvalType) => ItsRecordById_IsGuardedAsItsExistingRead(approvalType);
+
     [Theory]
     [MemberData(nameof(Types))]
     public Task AGrantTheRecordWillNotTake_Parks_IsMarkedNotApplied_AndTellsTheRequester_D5(string approvalType) => AGrantTheRecordWillNotTake(approvalType);
@@ -1824,6 +1963,13 @@ public sealed class ApprovalEndingsAccessTests(DatabaseFixture fixture) : Approv
     [Theory]
     [MemberData(nameof(Rows))]
     public Task EveryEnding_LeavesTheRecordInItsDefinedState_NeverWaitingForGood_OQ113(string approvalType, string ending) => EveryEnding(approvalType, ending);
+
+    /// <summary>OQ-203 item 4 (Ade, 26 November 2026): each read by ID this family's approvals open has its record's existing guard; without access, 404.</summary>
+    [Theory]
+    [InlineData("BANK_ACCOUNT_VERIFICATION")]
+    [InlineData("PRIVILEGED_ROLE")]
+    [InlineData("EXTERNAL_SUBJECT_LINK")]
+    public Task ItsRecordById_IsNotFoundWithoutAccess_AsItsExistingRead_OQ203_F103(string approvalType) => ItsRecordById_IsGuardedAsItsExistingRead(approvalType);
 
     [Theory]
     [MemberData(nameof(Types))]
@@ -1843,6 +1989,12 @@ public sealed class ApprovalEndingsHoldTests(DatabaseFixture fixture) : Approval
     [Theory]
     [MemberData(nameof(Rows))]
     public Task EveryEnding_LeavesTheRecordInItsDefinedState_NeverWaitingForGood_OQ113(string approvalType, string ending) => EveryEnding(approvalType, ending);
+
+    /// <summary>OQ-203 item 4 (Ade, 26 November 2026): each read by ID this family's approvals open has its record's existing guard; without access, 404.</summary>
+    [Theory]
+    [InlineData("LEGAL_HOLD_RELEASE/DOCUMENT_LEGAL_HOLD")]
+    [InlineData("LEGAL_HOLD_RELEASE/SEARCH_LOG_HOLD")]
+    public Task ItsRecordById_IsNotFoundWithoutAccess_AsItsExistingRead_OQ203_F103(string approvalType) => ItsRecordById_IsGuardedAsItsExistingRead(approvalType);
 
     [Theory]
     [MemberData(nameof(Types))]
