@@ -26,6 +26,8 @@
  */
 using Insys.BuildingBlocks.Application;
 using Insys.BuildingBlocks.Application.Context;
+using Insys.BuildingBlocks.Application.Localisation;
+using Insys.BuildingBlocks.Contracts;
 using Insys.BuildingBlocks.Infrastructure.Readiness;
 using Insys.BuildingBlocks.Infrastructure.StaticData;
 using Insys.Integration.Application;
@@ -40,22 +42,65 @@ using Insys.Tenancy.Contracts;
 namespace Insys.Integration.Infrastructure.Channels;
 
 /// <summary>F060: the texts in force (channel.cfg_disclosure_and_notice_texts) and who acknowledged them (channel.disclosure_acknowledgement). Runs on Integration's own connection.</summary>
-internal sealed class Disclosures([FromKeyedServices(IntegrationDbContext.SchemaName)] NpgsqlDataSource dataSource, Party.Contracts.IPartyDirectory parties, ITenantFormatting locale) : IDisclosureGate, IDisclosures
+internal sealed class Disclosures([FromKeyedServices(IntegrationDbContext.SchemaName)] NpgsqlDataSource dataSource, Party.Contracts.IPartyDirectory parties, Party.Contracts.IPartyLanguage partyLanguage,
+    ILanguageSettings languages, ITenantFormatting locale) : IDisclosureGate, IDisclosures
 {
     private const string InForce = "(tenant_id = @t OR tenant_id IS NULL) AND display_point = @point AND " + ReadinessSql.InForce;
 
-    /// <summary>The texts of the party's country: its address's, else its nationality's, else the tenant's. With none of those, every country's.</summary>
-    public async Task<IReadOnlyList<string>> Outstanding(Guid tenantId, Guid partyId, string displayPoint, string? businessRefType, Guid? businessRefId, DateOnly day, CancellationToken cancellationToken)
+    /// <summary>
+    /// The texts of the party's country: its address's, else its nationality's, else the tenant's. With none of those, every country's. A notice type in a jurisdiction is
+    /// acknowledged when its text in force in one of its languages is, in that version; otherwise it is outstanding, named in the language DisclosureLanguage chooses, if any (DE-039).
+    /// </summary>
+    public async Task<IReadOnlyList<DisclosureNotice>> Outstanding(Guid tenantId, Guid partyId, string displayPoint, string? businessRefType, Guid? businessRefId, DateOnly day, CancellationToken cancellationToken)
     {
         var country = await parties.CountryOf(tenantId, partyId, cancellationToken) ?? (await locale.Formatting(tenantId, day, cancellationToken))?.Country;
-        return await ReadinessSql.InTenant<IReadOnlyList<string>>(dataSource, tenantId, (connection, transaction) => ReadinessSql.Strings(connection, transaction,
-            $"""
-            SELECT DISTINCT notice_type FROM channel.cfg_disclosure_and_notice_texts t WHERE {InForce} AND (@country::text IS NULL OR t.jurisdiction = @country)
-              AND NOT EXISTS (SELECT 1 FROM channel.disclosure_acknowledgement a WHERE a.tenant_id = @t AND a.party_id = @party AND a.notice_type = t.notice_type AND a.display_point = t.display_point
-                AND a.text_version = t.text_version AND (a.jurisdiction IS NULL OR a.jurisdiction = t.jurisdiction) AND (@refId::uuid IS NULL OR (a.business_ref_type = @refType AND a.business_ref_id = @refId)))
-            ORDER BY 1
-            """, cancellationToken, ("t", tenantId), ("point", displayPoint), ("inForce", StaticLifecycle.Configuration.InForce), ("day", day), ("party", partyId), ("country", (object?)country ?? DBNull.Value),
-            ("refId", (object?)businessRefId ?? DBNull.Value), ("refType", (object?)businessRefType ?? DBNull.Value)), cancellationToken);
+        var texts = await ReadinessSql.InTenant(dataSource, tenantId, async (connection, transaction) =>
+        {
+            await using var command = new NpgsqlCommand(
+                $"""
+                SELECT t.notice_type, t.jurisdiction, t.language, t.text_version, t.tenant_id IS NULL,
+                  EXISTS (SELECT 1 FROM channel.disclosure_acknowledgement a WHERE a.tenant_id = @t AND a.party_id = @party AND a.notice_type = t.notice_type AND a.display_point = t.display_point
+                    AND a.text_version = t.text_version AND a.language = t.language AND (a.jurisdiction IS NULL OR a.jurisdiction = t.jurisdiction)
+                    AND (@refId::uuid IS NULL OR (a.business_ref_type = @refType AND a.business_ref_id = @refId)))
+                FROM channel.cfg_disclosure_and_notice_texts t WHERE {InForce} AND (@country::text IS NULL OR t.jurisdiction = @country)
+                """, connection, transaction);
+            command.Parameters.AddWithValue("t", tenantId);
+            command.Parameters.AddWithValue("point", displayPoint);
+            command.Parameters.AddWithValue("inForce", StaticLifecycle.Configuration.InForce);
+            command.Parameters.AddWithValue("day", day);
+            command.Parameters.AddWithValue("party", partyId);
+            command.Parameters.AddWithValue("country", (object?)country ?? DBNull.Value);
+            command.Parameters.AddWithValue("refId", (object?)businessRefId ?? DBNull.Value);
+            command.Parameters.AddWithValue("refType", (object?)businessRefType ?? DBNull.Value);
+            var rows = new List<(string Notice, string Jurisdiction, string Language, int Version, bool Global, bool Acknowledged)>();
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                rows.Add((reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetInt32(3), reader.GetBoolean(4), reader.GetBoolean(5)));
+            }
+
+            return rows;
+        }, cancellationToken);
+
+        // Ade, 25 November 2026: a notice counts as acknowledged once its text in force in any of its languages is acknowledged, in that version; a new version in force
+        // needs a new acknowledgement. Per language, the text in force is the tenant's own over a global one, then the highest version, as Text reads it.
+        var open = texts.GroupBy(r => (r.Notice, r.Jurisdiction))
+            .Select(g => (g.Key, InForce: g.GroupBy(r => r.Language, StringComparer.Ordinal).Select(l => l.OrderBy(r => r.Global).ThenByDescending(r => r.Version).First()).ToList()))
+            .Where(g => !g.InForce.Any(r => r.Acknowledged)).OrderBy(g => g.Key.Notice, StringComparer.Ordinal).ThenBy(g => g.Key.Jurisdiction, StringComparer.Ordinal).ToList();
+        if (open.Count == 0)
+        {
+            return [];
+        }
+
+        var preferred = await partyLanguage.PreferredLanguage(tenantId, partyId, cancellationToken);
+        var tenantDefault = (await languages.For(tenantId, cancellationToken)).Default;
+        return open.Select(g =>
+        {
+            var available = g.InForce.Select(r => r.Language).Order(StringComparer.Ordinal).ToList();
+            var language = DisclosureLanguage.Choose(available, preferred, tenantDefault);
+            int? version = language is null ? null : g.InForce.Single(r => r.Language == language).Version;
+            return new DisclosureNotice(g.Key.Notice, g.Key.Jurisdiction, language, version, available);
+        }).ToList();
     }
 
     public Task<DisclosureTextView?> Text(Guid tenantId, string displayPoint, string noticeType, string jurisdiction, string language, DateOnly day, CancellationToken cancellationToken) =>
@@ -77,13 +122,15 @@ internal sealed class Disclosures([FromKeyedServices(IntegrationDbContext.Schema
                 : null;
         }, cancellationToken);
 
-    public Task Record(Guid tenantId, Guid id, Guid partyId, DisclosureTextView text, string? businessRefType, Guid? businessRefId, DateTimeOffset at, string? channelCode, string recordedBy, CancellationToken cancellationToken) =>
+    public Task Record(Guid tenantId, Guid id, Guid partyId, DisclosureTextView text, string? businessRefType, Guid? businessRefId, DateTimeOffset at, AcknowledgementRecorder recorder,
+        CancellationToken cancellationToken) =>
         ReadinessSql.InTenant(dataSource, tenantId, async (connection, transaction) =>
         {
             await using var command = new NpgsqlCommand(
                 """
-                INSERT INTO channel.disclosure_acknowledgement (tenant_id, id, party_id, notice_type, display_point, text_version, language, jurisdiction, business_ref_type, business_ref_id, acknowledged_at, channel_code, recorded_by)
-                VALUES (@t, @id, @party, @notice, @point, @version, @language, @jurisdiction, @refType, @refId, @at, @channel, @by)
+                INSERT INTO channel.disclosure_acknowledgement (tenant_id, id, party_id, notice_type, display_point, text_version, language, jurisdiction, business_ref_type, business_ref_id, acknowledged_at, channel_code, recorded_by,
+                  intermediary_code, presentation_method, presentation_detail)
+                VALUES (@t, @id, @party, @notice, @point, @version, @language, @jurisdiction, @refType, @refId, @at, @channel, @by, @broker, @method, @detail)
                 """, connection, transaction);
             command.Parameters.AddWithValue("t", tenantId);
             command.Parameters.AddWithValue("id", id);
@@ -96,10 +143,68 @@ internal sealed class Disclosures([FromKeyedServices(IntegrationDbContext.Schema
             command.Parameters.AddWithValue("refType", (object?)businessRefType ?? DBNull.Value);
             command.Parameters.AddWithValue("refId", (object?)businessRefId ?? DBNull.Value);
             command.Parameters.AddWithValue("at", at);
-            command.Parameters.AddWithValue("channel", (object?)channelCode ?? DBNull.Value);
-            command.Parameters.AddWithValue("by", recordedBy);
+            command.Parameters.AddWithValue("channel", (object?)recorder.ChannelCode ?? DBNull.Value);
+            command.Parameters.AddWithValue("by", recorder.RecordedBy);
+            command.Parameters.AddWithValue("broker", (object?)recorder.IntermediaryCode ?? DBNull.Value);
+            command.Parameters.AddWithValue("method", (object?)recorder.PresentationMethod ?? DBNull.Value);
+            command.Parameters.AddWithValue("detail", (object?)recorder.PresentationDetail ?? DBNull.Value);
             await command.ExecuteNonQueryAsync(cancellationToken);
             return true;
+        }, cancellationToken);
+
+    /// <summary>DE-039: a broker's has its code; the customer's own came through the member portal (channel PARTY); any other, staff.</summary>
+    public Task<IReadOnlyList<PortalDisclosureAcknowledgementView>> Acknowledgements(Guid tenantId, Guid partyId, CancellationToken cancellationToken) =>
+        ReadinessSql.InTenant<IReadOnlyList<PortalDisclosureAcknowledgementView>>(dataSource, tenantId, async (connection, transaction) =>
+        {
+            await using var command = new NpgsqlCommand(
+                """
+                SELECT id, notice_type, display_point, jurisdiction, language, text_version, business_ref_type, business_ref_id, acknowledged_at, channel_code, intermediary_code,
+                  presentation_method, presentation_detail
+                FROM channel.disclosure_acknowledgement WHERE tenant_id = @t AND party_id = @party ORDER BY acknowledged_at DESC, id DESC
+                """, connection, transaction);
+            command.Parameters.AddWithValue("t", tenantId);
+            command.Parameters.AddWithValue("party", partyId);
+            var rows = new List<PortalDisclosureAcknowledgementView>();
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                string? Opt(int i) => reader.IsDBNull(i) ? null : reader.GetString(i);
+                var broker = Opt(10);
+                var recordedBy = broker is not null ? DisclosureRecorders.Broker : Opt(9) == ExternalSubject.Party ? DisclosureRecorders.Self : DisclosureRecorders.Staff;
+                rows.Add(new PortalDisclosureAcknowledgementView(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), Opt(3), reader.GetString(4), reader.GetInt32(5), Opt(6),
+                    reader.IsDBNull(7) ? null : reader.GetGuid(7), reader.GetFieldValue<DateTimeOffset>(8), recordedBy, broker, Opt(11), Opt(12)));
+            }
+
+            return rows;
+        }, cancellationToken);
+
+    public async Task<string?> ChannelOf(Guid tenantId, string? clientId, DateOnly day, CancellationToken cancellationToken) =>
+        clientId is null
+            ? null
+            : (await ReadinessSql.InTenant(dataSource, tenantId, (connection, transaction) => ReadinessSql.Strings(connection, transaction,
+                $"SELECT channel_code FROM channel.cfg_channel_definitions WHERE tenant_id = @t AND {ReadinessSql.InForce} AND @client = ANY(client_ids) ORDER BY channel_code",
+                cancellationToken, ("t", tenantId), ("inForce", StaticLifecycle.Configuration.InForce), ("day", day), ("client", clientId)), cancellationToken)).FirstOrDefault();
+
+    /// <summary>
+    /// OQ-201: with no row, brokers may record (Ade's beta default). A change waiting for approval is read with it. The setting is the default until a change is
+    /// granted (Ade, 26 November 2026): a row a first request created, rejected or still waiting, is still the default, with its own row version.
+    /// </summary>
+    public Task<DisclosureSettingView> Setting(Guid tenantId, CancellationToken cancellationToken) =>
+        ReadinessSql.InTenant(dataSource, tenantId, async (connection, transaction) =>
+        {
+            await using var command = new NpgsqlCommand("""
+                SELECT broker_acknowledgement_allowed, row_version, pending_broker_acknowledgement_allowed, pending_requested_by, pending_requested_at, is_default
+                FROM channel.disclosure_setting WHERE tenant_id = @t
+                """, connection, transaction);
+            command.Parameters.AddWithValue("t", tenantId);
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            if (!await reader.ReadAsync(cancellationToken))
+            {
+                return new DisclosureSettingView(true, true, 0, null);
+            }
+
+            var pending = reader.IsDBNull(2) ? null : new DisclosureSettingChangeView(reader.GetBoolean(2), reader.GetGuid(3), reader.GetFieldValue<DateTimeOffset>(4));
+            return new DisclosureSettingView(reader.GetBoolean(0), reader.GetBoolean(5), reader.GetInt64(1), pending);
         }, cancellationToken);
 }
 

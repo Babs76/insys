@@ -282,11 +282,19 @@
       "fieldsInError": 0
     },
     {
+      "id": "R-DISCLOSURE_BROKER_NOT_ALLOWED",
+      "code": "DISCLOSURE_BROKER_NOT_ALLOWED",
+      "retryable": false,
+      "means": "In this organisation only the customer can acknowledge a notice; a broker can\u0027t record it for them.",
+      "remedy": "Ask the customer to acknowledge the notice themselves, in the customer portal or with the insurer\u0027s staff.",
+      "fieldsInError": 0
+    },
+    {
       "id": "R-DISCLOSURE_REQUIRED",
       "code": "DISCLOSURE_REQUIRED",
       "retryable": false,
       "means": "A mandatory notice hasn\u0027t been acknowledged at this point of the process.",
-      "remedy": "Record the customer\u0027s acknowledgement of the notice, then try again.",
+      "remedy": "Record the customer\u0027s acknowledgement of the notice, or have their broker record it, then try again.",
       "fieldsInError": 0
     },
     {
@@ -626,6 +634,14 @@
       "fieldsInError": 0
     },
     {
+      "id": "R-STATIC_DRAFT_NOT_STALE",
+      "code": "STATIC_DRAFT_NOT_STALE",
+      "retryable": false,
+      "means": "Someone else\u0027s draft can be discarded only once it has been left untouched for the organisation\u0027s number of days, and this one was changed more recently.",
+      "remedy": "Ask its maker to finish or discard it, or discard it from the time given (discardableFrom), 7 days after its last change unless the static data settings say otherwise.",
+      "fieldsInError": 0
+    },
+    {
       "id": "R-STATIC_IMPORT_REJECTED",
       "code": "STATIC_IMPORT_REJECTED",
       "retryable": false,
@@ -682,11 +698,27 @@
       "fieldsInError": 0
     },
     {
+      "id": "R-TASK_CLAIMED_BY_ANOTHER",
+      "code": "TASK_CLAIMED_BY_ANOTHER",
+      "retryable": false,
+      "means": "Someone else has already taken this task.",
+      "remedy": "Refresh your tasks; ask the person who took it, or a supervisor, to reassign it if it should be yours.",
+      "fieldsInError": 0
+    },
+    {
       "id": "R-TASK_CLOSED_BY_ITS_RECORD",
       "code": "TASK_CLOSED_BY_ITS_RECORD",
       "retryable": false,
       "means": "This task closes by itself when its record does what the task asks; it can\u0027t be closed by hand.",
       "remedy": "Complete the work on the record; the task then closes.",
+      "fieldsInError": 0
+    },
+    {
+      "id": "R-TASK_NOT_YOURS",
+      "code": "TASK_NOT_YOURS",
+      "retryable": false,
+      "means": "This task isn\u0027t assigned to you, and isn\u0027t in a queue your roles serve.",
+      "remedy": "Open your tasks to see the ones you can work, or ask whoever assigns the queue\u0027s work.",
       "fieldsInError": 0
     },
     {

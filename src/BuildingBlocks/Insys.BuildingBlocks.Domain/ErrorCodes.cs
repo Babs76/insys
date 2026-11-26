@@ -222,8 +222,16 @@ public static class ErrorCodes
 
     /// <summary>A mandatory disclosure hasn't been acknowledged at this point of the process (F060, OQ-157).</summary>
     [ErrorCode(409, "error.disclosure.not_acknowledged", Means = "A mandatory notice hasn't been acknowledged at this point of the process.",
-        Remedy = "Record the customer's acknowledgement of the notice, then try again.")]
+        Remedy = "Record the customer's acknowledgement of the notice, or have their broker record it, then try again.")]
     public const string DisclosureRequired = "DISCLOSURE_REQUIRED";
+
+    /// <summary>
+    /// DE-039, OQ-201: the tenant has made disclosure acknowledgement customer-only, so a broker can't record one for its client. 403, as a channel's refusal:
+    /// the caller may not do this here, whatever the record's state, and trying again won't help.
+    /// </summary>
+    [ErrorCode(403, "error.disclosure.broker_not_allowed", Means = "In this organisation only the customer can acknowledge a notice; a broker can't record it for them.",
+        Remedy = "Ask the customer to acknowledge the notice themselves, in the customer portal or with the insurer's staff.")]
+    public const string DisclosureBrokerNotAllowed = "DISCLOSURE_BROKER_NOT_ALLOWED";
 
     [ErrorCode(403, "error.approval.maker_is_checker", Means = "You made or requested this, and the same person can't also approve it.",
         Remedy = "Ask another person with approval authority to decide it.")]
@@ -261,14 +269,4 @@ public static class ErrorCodes
             })
             .OrderBy(e => e.Code, StringComparer.Ordinal)
             .ToList();
-}
-
-/// <summary>The refusal when a step's mandatory disclosures aren't acknowledged (F060): it names the point and the notices.</summary>
-public static class DisclosureRefusal
-{
-    public static Error For(string displayPoint, IReadOnlyList<string> noticeTypes) =>
-        new(ErrorCodes.DisclosureRequired, $"The {displayPoint} disclosures aren't acknowledged yet.", ErrorKind.Conflict)
-        {
-            Extensions = new Dictionary<string, object?> { ["displayPoint"] = displayPoint, ["noticeTypes"] = noticeTypes },
-        };
 }

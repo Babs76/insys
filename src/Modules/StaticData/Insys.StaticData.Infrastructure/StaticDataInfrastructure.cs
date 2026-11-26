@@ -46,6 +46,11 @@ public static class StaticDataInfrastructure
         // F103 (access-scopes.md §1): static data isn't scoped.
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Unscoped(Insys.StaticData.Contracts.StaticDataApprovals.BusinessRefType, "static data: configuration, not a scoped record");
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Unscoped(Insys.StaticData.Contracts.StaticDataApprovals.GovernanceBusinessRefType, "static data governance: configuration");
+        // DE-016, OQ-204: the record of the maker's task when someone else discarded their draft; no approval is raised on it.
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.StaticData.Contracts.StaticDataApprovals.DiscardedVersionRefType, "STATIC_DATA_CHANGE_REQUESTS");
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.OpensNothing(Insys.StaticData.Contracts.StaticDataApprovals.DiscardedVersionRefType,
+            "the draft was discarded, so no record is left to open; the maker's task names it (draftDiscarded), and no approval carries this type"); // DE-020
+        BuildingBlocks.Contracts.Approvals.ApprovalKinds.Unscoped(Insys.StaticData.Contracts.StaticDataApprovals.DiscardedVersionRefType, "a discarded static data draft: configuration, not a scoped record");
         // AIA-086: a SETUP change set's one approval, of Tier 1; its records are its batches' change requests.
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.Declare(Insys.StaticData.Contracts.SetupChangeSets.BusinessRefType, "STATIC_DATA_CHANGE_REQUESTS", Insys.StaticData.Contracts.SetupChangeSets.ApprovalType);
         BuildingBlocks.Contracts.Approvals.ApprovalKinds.OpensWith(Insys.StaticData.Contracts.SetupChangeSets.BusinessRefType, "GetSetupChangeSet", "/api/v1/static-data/setup-sets/{id}"); // DE-020
@@ -57,6 +62,7 @@ public static class StaticDataInfrastructure
         services.AddScoped<IChangeRequestRepository, ChangeRequestRepository>();
         services.AddScoped<IChangeRequestQueries, ChangeRequestQueries>();
         services.AddSingleton<Contracts.IStaticDataChangeLookup, StaticDataChangeLookup>();
+        services.AddSingleton<BuildingBlocks.Infrastructure.StaticData.IStaleDraftSetting, StaleDraftSetting>(); // DE-016, OQ-204
         services.AddSingleton<Contracts.IHolidayCalendar, HolidayCalendar>();
         services.AddSingleton<Contracts.ILanguageRegister, LanguageRegister>();
         var schema = StaticDataDbContext.SchemaName;

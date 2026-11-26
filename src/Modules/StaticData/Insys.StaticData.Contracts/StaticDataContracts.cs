@@ -54,6 +54,12 @@ public static class StaticDataApprovals
     /// <summary>A pending change to the tenant's governance settings (switching Tier 2 maker-checker off).</summary>
     public const string GovernanceBusinessRefType = "GOVERNANCE_SETTING";
 
+    /// <summary>
+    /// DE-016, OQ-204: a static data version someone other than its maker discarded: the record of the maker's informational task (Workflow's
+    /// STATIC_DRAFT_DISCARDED). The version no longer exists; the task's notice says what it was.
+    /// </summary>
+    public const string DiscardedVersionRefType = "STATIC_DATA_VERSION";
+
     public const string ApprovalTypePrefix = "STATIC_DATA_T";
 
     public static string ApprovalType(int tier) => ApprovalTypePrefix + tier;

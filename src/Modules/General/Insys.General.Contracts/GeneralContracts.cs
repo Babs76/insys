@@ -150,6 +150,23 @@ public static class GeneralReferrals
 public sealed record GeneralQuoteIssued(Guid QuoteId, string QuoteNumber, int QuoteVersion, string ProductCode, int ProductVersion, decimal Premium, string Currency,
     DateOnly ValidUntil) : IIntegrationEvent;
 
+/// <summary>
+/// DE-045: a proposal was accepted, so its policy waits to be issued. <paramref name="SubmittedBy"/> is the staff user who submitted it, who issues the
+/// policy; null when a portal user or the platform submitted it.
+/// </summary>
+[IntegrationEvent("general.GeneralProposalAccepted")]
+public sealed record GeneralProposalAccepted(Guid ProposalId, Guid QuoteId, Guid? SubmittedBy) : IIntegrationEvent;
+
+/// <summary>DE-045: the policy of an accepted proposal was issued (transition "Policy issued").</summary>
+[IntegrationEvent("general.GeneralProposalConverted")]
+public sealed record GeneralProposalConverted(Guid ProposalId, Guid QuoteId, Guid PolicyId) : IIntegrationEvent;
+
+/// <summary>DE-045: the Workflow reference of a proposal's "issue the policy" task.</summary>
+public static class GeneralProposalTasks
+{
+    public const string BusinessRefType = "GENERAL_PROPOSAL";
+}
+
 [IntegrationEvent("general.GeneralQuoteAccepted")]
 public sealed record GeneralQuoteAccepted(Guid QuoteId, string QuoteNumber, int QuoteVersion, Guid ProposerPartyId) : IIntegrationEvent;
 

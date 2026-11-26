@@ -62,6 +62,14 @@ public sealed record StaticDataVersionActivated(Guid? ChangeRequestId, StaticRec
 [IntegrationEvent("sdm.StaticDataCodeDeprecated")]
 public sealed record StaticDataCodeDeprecated(Guid? ChangeRequestId, StaticRecordRef Record) : IIntegrationEvent;
 
+/// <summary>
+/// DE-016, OQ-204 (Ade, 25 November 2026): someone other than its maker discarded a draft left untouched for the tenant's days. Its maker is told
+/// (Workflow opens an informational task assigned to them): the table, code and version, who discarded it, when, and the reason. Never raised
+/// for a maker's own discard. The draft is deleted, so <see cref="StaticRecordRef.RecordId"/> names a version that no longer exists.
+/// </summary>
+[IntegrationEvent("sdm.StaticDataDraftDiscarded")]
+public sealed record StaticDataDraftDiscarded(StaticRecordRef Record, Guid MakerId, Guid DiscardedBy, DateTimeOffset DiscardedAt, string Reason) : IIntegrationEvent;
+
 public sealed record ImportLineError(int Line, string Field, string Message);
 
 [IntegrationEvent("sdm.StaticDataImportCompleted")]

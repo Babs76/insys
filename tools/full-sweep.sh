@@ -38,8 +38,8 @@ run() {
   set -- ${=summary}
   total=$((total + ${1:-0})); failed=$((failed + ${2:-0}))
 }
-for shard in 1 2 3 4; do
-  run "shard-$shard" ${=$(python3 tools/integration-shards.py $shard 4)}
+for shard in 1 2 3 4 5 6; do
+  run "shard-$shard" ${=$(python3 tools/integration-shards.py $shard 6)}
 done
 run "sweeps" --filter-class "*EndpointSecuritySweepTests"
 echo "all: $total tests, $failed failed"

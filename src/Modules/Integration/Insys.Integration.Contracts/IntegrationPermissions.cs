@@ -37,6 +37,9 @@ public static class IntegrationPermissions
 
     /// <summary>Records that a party acknowledged a disclosure.</summary>
     public const string DisclosureCreate = "disclosure.create";
+
+    /// <summary>DE-039, OQ-201: whether brokers may record their clients' acknowledgements in the tenant; changed by a tenant administrator.</summary>
+    public const string DisclosureSettingUpdate = "disclosure_setting.update";
     public const string DeadLetterRead = "dead_letter.read";
     public const string DeadLetterUpdate = "dead_letter.update";
     public const string WebhookRead = "webhook_delivery.read";

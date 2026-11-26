@@ -267,3 +267,22 @@ internal sealed class LanguageRegister([FromKeyedServices(StaticDataDbContext.Sc
         return await command.ExecuteScalarAsync(cancellationToken) is true;
     }
 }
+
+/// <summary>
+/// DE-016, OQ-204: the port IStaleDraftSetting, the tenant's stale_draft_discard_days on Static Data's own connection, for every
+/// module's static data lifecycle. A tenant that never changed its settings has no row: the default applies.
+/// </summary>
+internal sealed class StaleDraftSetting([FromKeyedServices(StaticDataDbContext.SchemaName)] NpgsqlDataSource dataSource) : IStaleDraftSetting
+{
+    public async Task<int> StaleDraftDiscardDays(Guid tenantId, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await TenantSession.SetTenant(connection, transaction, tenantId, cancellationToken);
+        await using var command = new NpgsqlCommand("SELECT stale_draft_discard_days FROM sdm.tenant_governance_setting WHERE tenant_id = @t", connection, transaction);
+        command.Parameters.AddWithValue("t", tenantId);
+        var days = await command.ExecuteScalarAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return days is int value ? value : TenantGovernanceSettings.DefaultStaleDraftDiscardDays;
+    }
+}

@@ -471,7 +471,7 @@ internal sealed class ChangeQuoteHandler(IGeneralRepository general, IGeneralCod
                 if (await disclosures.Outstanding(tenant.RequireTenantId(), quote.ProposerPartyId, Integration.Contracts.DisclosurePoints.Quote, Contracts.GeneralDocuments.QuoteRefType, quote.Id, businessDate.Today, cancellationToken)
                     is { Count: > 0 } outstanding)
                 {
-                    return DisclosureRefusal.For(Integration.Contracts.DisclosurePoints.Quote, outstanding);
+                    return BuildingBlocks.Application.DisclosureRefusal.For(Integration.Contracts.DisclosurePoints.Quote, outstanding, quote.ProposerPartyId, Contracts.GeneralDocuments.QuoteRefType, quote.Id);
                 }
 
                 result = quote.AcceptQuote(businessDate.Today, clock.UtcNow);
@@ -565,7 +565,7 @@ internal sealed class GetQuoteHandler(IGeneralRepository general) : IQueryHandle
             : Error.NotFound(ErrorCodes.NotFound, "The quote was not found.");
 }
 
-internal sealed class SubmitProposalHandler(IGeneralRepository general, IClock clock) : ICommandHandler<SubmitProposal, ProposalView>
+internal sealed class SubmitProposalHandler(IGeneralRepository general, IExecutionContext execution, IClock clock) : ICommandHandler<SubmitProposal, ProposalView>
 {
     public async Task<Result<ProposalView>> Handle(SubmitProposal command, CancellationToken cancellationToken)
     {
@@ -584,7 +584,9 @@ internal sealed class SubmitProposalHandler(IGeneralRepository general, IClock c
             return Error.Validation(ErrorCodes.ValidationFailed, "Declarations are a JSON object.");
         }
 
-        var proposal = GeneralProposal.SubmitProposal(Guid.CreateVersion7(), quote, command.Declarations.GetRawText(), clock.UtcNow);
+        // DE-045: the staff user who submits it issues its policy once accepted; a portal user or the platform names nobody.
+        var submittedBy = execution.ActorType == ActorType.User && execution.External is null && Guid.TryParse(execution.ActorId, out var actor) ? actor : (Guid?)null;
+        var proposal = GeneralProposal.SubmitProposal(Guid.CreateVersion7(), quote, command.Declarations.GetRawText(), clock.UtcNow, submittedBy);
         if (proposal.IsFailure)
         {
             return proposal.Error;
@@ -595,7 +597,7 @@ internal sealed class SubmitProposalHandler(IGeneralRepository general, IClock c
     }
 }
 
-internal sealed class AcceptProposalHandler(IGeneralRepository general) : ICommandHandler<AcceptProposal, ProposalView>
+internal sealed class AcceptProposalHandler(IGeneralRepository general, IClock clock) : ICommandHandler<AcceptProposal, ProposalView>
 {
     public async Task<Result<ProposalView>> Handle(AcceptProposal command, CancellationToken cancellationToken)
     {
@@ -604,7 +606,7 @@ internal sealed class AcceptProposalHandler(IGeneralRepository general) : IComma
             return Error.NotFound(ErrorCodes.NotFound, "The proposal was not found.");
         }
 
-        var result = proposal.AcceptProposal();
+        var result = proposal.AcceptProposal(clock.UtcNow);
         return result.IsFailure ? result.Error : ProposalView.From(proposal);
     }
 }

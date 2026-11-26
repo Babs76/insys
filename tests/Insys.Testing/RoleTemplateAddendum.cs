@@ -63,7 +63,8 @@ public static class RoleTemplateAddendum
             + "the approval types and authority (`frontend-integration-guide.md` §3).");
         s.AppendLine("- **How a template is made:** the sub-domains it covers, every screen and action in them for its actor type, less JOB functions, privileged "
             + "functions and named exclusions; then further functions, and the privileged functions it is meant to hold, named one by one. An action brings its "
-            + "screen. A checker template adds the Workflow approvals screen with approve and reject; what it may approve, and up to what amount, is its authority rows.");
+            + "screen. A checker template adds the Workflow approvals screen with approve and reject; what it may approve, and up to what amount, is its authority rows. "
+            + $"A template that maintains or approves any static data (an `SD_*_MAINTAIN` or `SD_*_APPROVE` function) also holds `{RoleTemplates.ChangeRequestsScreen}`, the list of change requests (a rule, tested).");
         s.AppendLine("- **Separation of duties:** makers and checkers are separate templates, and no template holds both functions of any rule below (tested).");
         s.AppendLine($"- **Audit read:** only the audit roles ({Codes(RoleTemplates.AuditRoles.Order(StringComparer.Ordinal))}) hold a function that needs `{RoleTemplates.AuditRead}`: the "
             + "audit trail, a record's audit history and the party search log (tested). The tenant and platform administrators no longer read the audit trail.");
@@ -74,7 +75,24 @@ public static class RoleTemplateAddendum
             + "now hold a function that needs audit read. The Health auditor is approved. The Wave 2 case functions joined: complaints and enquiries for "
             + "the customer service agent and the compliance officer (who also decides appeals, PPR 18.6), disputes and appeals for the claims templates, "
             + "case legal holds for the data protection officer, case redress approved by the finance manager; recording redress and reopening a case are "
-            + "granted one by one.").AppendLine();
+            + "granted one by one.");
+        s.AppendLine("- **Dead ends closed (Ade, 24 November 2026; the console's dead-end register):** the Workflow inbox (approvals screen, approve and reject) for "
+            + "the underwriters, the product manager, the finance officer, the distribution administrator, the reinsurance officer, the integration administrator, the "
+            + "Health claims assessor and the data protection officer (DE-001, DE-006, DE-044); the change requests screen by rule (DE-015); approval types no template "
+            + "could approve: `GENERAL_NON_RENEWAL` (General underwriter), `PARTY_MATCH_RESOLUTION` (data protection officer, with `PARTY_DECIDE_MATCH` for the "
+            + "`party.resolve_match` its checker needs, and no party editing), `PROVIDER_CREDIT_NOTE` and `PROVIDER_RECOVERY_WRITE_OFF` (finance manager), `PROVIDER_RECOVERY_FINDING` (Health "
+            + "claims assessor, with the recoveries screen it opens on); `DUE_DILIGENCE_ENHANCED` stays in no template, and onboarding readiness (`APPROVAL_AUTHORITY`) "
+            + "requires a role with authority and its permission for it while the gates are on (DE-002); General renewals and retention for the General underwriter "
+            + "(DE-003); the provider quality review for the Health claims assessor (DE-004); the static data of Party and Audit for the compliance officer, of the "
+            + "Claims Framework for the claims manager, and of Communications, Documents and Analytics for the tenant administrator (DE-005); the screens a checker's "
+            + "records open on for the finance manager (commission statements, claim payment instructions, complaints) and the documents screen for the compliance "
+            + "officer (DE-021, DE-019); data-subject requests for the data protection officer only (DE-058).");
+        s.AppendLine("- **Then (Ade, 25 November 2026):** record legal holds are read on `DOCUMENTS_RECORD_HOLDS` (`legal_hold.read`), held by the compliance "
+            + "officer and the data protection officer; the tenant administrator, the second escalation's role (OQ-072), lists parked deliveries "
+            + "(`INTEGRATION_PARKED_DELIVERIES`, no actions).");
+        s.AppendLine($"- **Then (Ade, 26 November 2026, OQ-201):** turning broker disclosure acknowledgement on or off (`{RoleTemplates.ChangeDisclosureSetting}`) is the "
+            + "compliance officer's only, approved by a second person (`DISCLOSURE_SETTING_CHANGE`, also in its approvals); the templates covering "
+            + "`INTEGRATION_OPERATIONS` exclude it and keep the setting's screen, read only.").AppendLine();
 
         s.AppendLine("## Templates").AppendLine();
         s.AppendLine("| Template | For | Sub-domains | Screens | Actions | Privileged it holds | Approves (authority rows) |");
@@ -101,7 +119,7 @@ public static class RoleTemplateAddendum
             + "Eight were flagged first; **the other 20 were approved (25 October 2026, Ade) and switched on with the fix for front-end request BR-013** "
             + "(a new tenant has at least two administrators), since flagging `ASSIGN_ROLE` and the role-grant functions makes the tenant administrator a "
             + "privileged role, which a tenant with one administrator could not have assigned. None is in an everyday template, and each is named where a "
-            + "template holds it.").AppendLine();
+            + "template holds it. A privileged function no template names stays granted one by one to named people (DE-014, Ade, 24 November 2026).").AppendLine();
         s.AppendLine("| Function | Flag | Why | Held by |").AppendLine("|---|---|---|---|");
         foreach (var p in RoleTemplates.Privileged)
         {

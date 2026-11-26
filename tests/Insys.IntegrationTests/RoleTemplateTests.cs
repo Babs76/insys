@@ -106,6 +106,34 @@ public sealed class RoleTemplateTests(DatabaseFixture fixture) : IClassFixture<D
         Holders("TERMINATE_TENANT").ShouldBe(["PLATFORM_ADMIN"]);
     }
 
+    /// <summary>
+    /// DE-025, DE-044: every staff template holds the caller's own work (process area My work): my tasks, claiming and completing them, my requests
+    /// and withdrawing them; the read-only auditors their screens only; no portal or platform template; and none of them is privileged.
+    /// </summary>
+    [Fact]
+    public async Task EveryStaffTemplate_HoldsMyWork_ByTheOneRule_DE025_DE044()
+    {
+        var catalogue = await Catalogue();
+        var myWork = catalogue.Select(f => f.Function).Where(f => f.ProcessArea == ProcessAreas.MyWork).ToList();
+        myWork.Select(f => f.Code).ShouldBe(["WORKFLOW_CLAIM_MY_TASK", "WORKFLOW_COMPLETE_MY_TASK", "WORKFLOW_MY_REQUESTS", "WORKFLOW_MY_TASKS",
+            "WORKFLOW_WITHDRAW_MY_REQUEST"], ignoreOrder: true);
+        myWork.ShouldAllBe(f => !f.Privileged && f.Audiences.SequenceEqual(new[] { Audiences.Staff }));
+        RoleTemplates.PrivilegedCodes(catalogue).Intersect(myWork.Select(f => f.Code)).ShouldBeEmpty();
+
+        foreach (var template in RoleTemplates.All)
+        {
+            var codes = RoleTemplates.Expand(template, catalogue).Select(f => f.Code).ToHashSet(StringComparer.Ordinal);
+            var expected = template.ActorType != Audiences.Staff ? []
+                : template.ScreensOnly ? myWork.Where(f => f.Kind == FunctionKind.Screen).Select(f => f.Code).ToArray()
+                : myWork.Select(f => f.Code).ToArray();
+            myWork.Select(f => f.Code).Where(codes.Contains).ShouldBe(expected, ignoreOrder: true, template.Code);
+        }
+
+        // The permission that shows one's own tasks is not the one that lists every task.
+        catalogue.Single(f => f.Function.Code == "WORKFLOW_MY_TASKS").Permissions.ShouldBe([Insys.Workflow.Contracts.WorkflowPermissions.OwnTaskRead]);
+        catalogue.Single(f => f.Function.Code == "WORKFLOW_TASKS").Permissions.ShouldNotContain(Insys.Workflow.Contracts.WorkflowPermissions.OwnTaskRead);
+    }
+
     /// <summary>The data protection officer finds the party to anonymise or merge (Ade, 20 November 2026): the party search, and the screen it sits under.</summary>
     [Fact]
     public async Task DataProtectionOfficer_SearchesParties_ToFindThoseItAnonymisesOrMerges_OQ111()
@@ -253,7 +281,7 @@ public sealed class RoleTemplateTests(DatabaseFixture fixture) : IClassFixture<D
         var membership = Codes("HEALTH_MEMBERSHIP_ADMINISTRATOR");
         membership.ShouldContain("INTEGRATION_ACKNOWLEDGE_DISCLOSURE");
         membership.ShouldNotContain("RATING_CALCULATE_PREMIUM");
-        RoleTemplates.All.Single(t => t.Code == "GENERAL_UNDERWRITER").Approves.ShouldBe(["ENDORSEMENT"]);
+        RoleTemplates.All.Single(t => t.Code == "GENERAL_UNDERWRITER").Approves.ShouldBe(["ENDORSEMENT", "GENERAL_NON_RENEWAL"]); // DE-002 (Ade, 24 November 2026)
         RoleTemplates.All.Single(t => t.Code == "LIFE_UNDERWRITER").Approves.ShouldBe(["LIFE_UNDERWRITING"]);
     }
 
@@ -266,8 +294,12 @@ public sealed class RoleTemplateTests(DatabaseFixture fixture) : IClassFixture<D
     {
         var catalogue = await Catalogue();
         var functions = RoleTemplates.Expand(RoleTemplates.All.Single(t => t.Code == "LINE_CONFIGURATION_MANAGER"), catalogue);
-        functions.Select(f => f.SubDomain).Distinct().Order(StringComparer.Ordinal).ShouldBe(["CONFIG_GENERAL", "CONFIG_HEALTH", "CONFIG_LIFE", "WORKFLOW"]);
-        functions.Where(f => f.SubDomain == "WORKFLOW").Select(f => f.Code).ShouldBe(["WORKFLOW_APPROVALS", "WORKFLOW_APPROVE", "WORKFLOW_REJECT"], ignoreOrder: true);
+        // DE-015: the change requests screen (STATIC_DATA) comes with maintaining static data.
+        functions.Select(f => f.SubDomain).Distinct().Order(StringComparer.Ordinal).ShouldBe(["CONFIG_GENERAL", "CONFIG_HEALTH", "CONFIG_LIFE", "STATIC_DATA", "WORKFLOW"]);
+        functions.Where(f => f.SubDomain == "STATIC_DATA").Select(f => f.Code).ShouldBe([RoleTemplates.ChangeRequestsScreen]);
+        // Besides every staff template's own work (DE-025, DE-044).
+        functions.Where(f => f.SubDomain == "WORKFLOW" && f.ProcessArea != ProcessAreas.MyWork).Select(f => f.Code)
+            .ShouldBe(["WORKFLOW_APPROVALS", "WORKFLOW_APPROVE", "WORKFLOW_REJECT"], ignoreOrder: true);
         foreach (var line in new[] { "CONFIG_LIFE", "CONFIG_GENERAL", "CONFIG_HEALTH" })
         {
             var inLine = catalogue.Where(f => f.Function.SubDomain == line && f.Function.Kind != FunctionKind.Job && f.Function.Audiences.Contains("STAFF") && !f.Function.Privileged).Select(f => f.Function.Code);
@@ -276,6 +308,151 @@ public sealed class RoleTemplateTests(DatabaseFixture fixture) : IClassFixture<D
         }
 
         RoleTemplates.All.Single(t => t.Code == "LINE_CONFIGURATION_MANAGER").Approves.ShouldBe(["STATIC_DATA_T1", "STATIC_DATA_T2"]);
+    }
+
+    private static readonly string[] Inbox = ["WORKFLOW_APPROVALS", "WORKFLOW_APPROVE", "WORKFLOW_REJECT"];
+
+    private static HashSet<string> Codes(string template, IReadOnlyList<CatalogueFunction> catalogue) =>
+        RoleTemplates.Expand(RoleTemplates.All.Single(t => t.Code == template), catalogue).Select(f => f.Code).ToHashSet(StringComparer.Ordinal);
+
+    /// <summary>
+    /// DE-001, DE-006, DE-044 (Ade, 24 November 2026): every template that approves anything but static data decides it in the Workflow inbox, so holds the
+    /// approvals screen with approve and reject. Static data changes are decided on their own route (static_data.approve).
+    /// </summary>
+    [Fact]
+    public async Task EveryTemplateThatApprovesAWorkflowApproval_HoldsTheInbox_DE001()
+    {
+        var catalogue = await Catalogue();
+        (from template in RoleTemplates.All
+         where (template.Approves ?? []).Any(a => !a.StartsWith("STATIC_DATA_", StringComparison.Ordinal))
+         let codes = Codes(template.Code, catalogue)
+         from function in Inbox
+         where !codes.Contains(function)
+         select $"{template.Code} lacks {function}").ShouldBeEmpty();
+
+        foreach (var code in new[] { "LIFE_UNDERWRITER", "GENERAL_UNDERWRITER", "PRODUCT_MANAGER", "FINANCE_OFFICER", "DISTRIBUTION_ADMINISTRATOR", "REINSURANCE_OFFICER",
+                     "INTEGRATION_ADMINISTRATOR", "HEALTH_CLAIMS_ASSESSOR", "DATA_PROTECTION_OFFICER" })
+        {
+            Codes(code, catalogue).IsSupersetOf(Inbox).ShouldBeTrue($"{code} holds the inbox");
+        }
+
+        // The finance officer builds payout batches: its inbox decides none of them, as only the finance manager has authority for PAYOUT_RELEASE, and
+        // Workflow refuses the maker as checker in any case (SRS-002).
+        RoleTemplates.All.Where(t => (t.Approves ?? []).Contains("PAYOUT_RELEASE")).Select(t => t.Code).ShouldBe(["FINANCE_MANAGER"]);
+    }
+
+    /// <summary>
+    /// OQ-201 (Ade, 26 November 2026): turning broker disclosure acknowledgement on or off is the compliance officer's only, and it approves the change's
+    /// DISCLOSURE_SETTING_CHANGE approval; the setting's screen stays with the templates that held it.
+    /// </summary>
+    [Fact]
+    public async Task OnlyTheComplianceOfficer_HoldsTheDisclosureSwitch_AndApprovesItsChange_OQ201()
+    {
+        var catalogue = await Catalogue();
+        RoleTemplates.All.Where(t => Codes(t.Code, catalogue).Contains(RoleTemplates.ChangeDisclosureSetting)).Select(t => t.Code).ShouldBe(["COMPLIANCE_OFFICER"]);
+        RoleTemplates.All.Where(t => (t.Approves ?? []).Contains("DISCLOSURE_SETTING_CHANGE")).Select(t => t.Code).ShouldBe(["COMPLIANCE_OFFICER"]);
+        RoleTemplates.All.Where(t => Codes(t.Code, catalogue).Contains("INTEGRATION_DISCLOSURE_SETTING")).Select(t => t.Code).Order(StringComparer.Ordinal)
+            .ToList().ShouldBe(["AUDITOR", "COMPLIANCE_OFFICER", "INTEGRATION_ADMINISTRATOR", "OPERATIONS_ANALYST"], "the screen stays where it was, and comes with the action");
+    }
+
+    /// <summary>DE-015 (Ade, 24 November 2026): a rule, not a list: every template that maintains or approves any static data holds the change requests screen.</summary>
+    [Fact]
+    public async Task EveryTemplateThatMaintainsOrApprovesStaticData_HoldsTheChangeRequests_DE015()
+    {
+        var catalogue = await Catalogue();
+        var changing = RoleTemplates.All.Where(t => RoleTemplates.Expand(t, catalogue).Any(f => RoleTemplates.ChangesStaticData(f.Code))).ToList();
+        changing.Select(t => t.Code).ShouldBe(["TENANT_ADMIN", "PRODUCT_MANAGER", "CLAIMS_MANAGER", "LINE_CONFIGURATION_MANAGER", "FINANCE_OFFICER", "FINANCE_MANAGER",
+            "DISTRIBUTION_ADMINISTRATOR", "REINSURANCE_OFFICER", "COMPLIANCE_OFFICER", "INTEGRATION_ADMINISTRATOR", "PLATFORM_STATIC_DATA_STEWARD"], ignoreOrder: true);
+        changing.Where(t => !Codes(t.Code, catalogue).Contains(RoleTemplates.ChangeRequestsScreen)).Select(t => t.Code).ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// DE-002 (Ade, 24 November 2026): the approval types no template could approve now each have one, and its checker holds what deciding needs; the
+    /// enhanced due diligence approval stays in no template (onboarding readiness requires authority for it, OnboardingReadinessTests).
+    /// </summary>
+    [Fact]
+    public async Task TheApprovalTypesNoTemplateCouldApprove_EachHaveATemplate_DE002()
+    {
+        var catalogue = await Catalogue();
+        string[] Approvers(string type) => [.. RoleTemplates.All.Where(t => (t.Approves ?? []).Contains(type)).Select(t => t.Code)];
+        Approvers("GENERAL_NON_RENEWAL").ShouldBe(["GENERAL_UNDERWRITER"]);
+        Approvers("PARTY_MATCH_RESOLUTION").ShouldBe(["DATA_PROTECTION_OFFICER"]);
+        Approvers("PROVIDER_CREDIT_NOTE").ShouldBe(["FINANCE_MANAGER"]);
+        Approvers("PROVIDER_RECOVERY_WRITE_OFF").ShouldBe(["FINANCE_MANAGER"]);
+        Approvers("PROVIDER_RECOVERY_FINDING").ShouldBe(["HEALTH_CLAIMS_ASSESSOR"]);
+        Approvers("DUE_DILIGENCE_ENHANCED").ShouldBeEmpty();
+
+        // The checker of a non-renewal needs general_policy.non_renew, and of a party match party.resolve_match (the approval's RequiredPermission); deciding a
+        // match gives the data protection officer no party editing (Ade, 25 November 2026).
+        bool Grants(string template, string permission) =>
+            Codes(template, catalogue).Any(c => catalogue.Single(f => f.Function.Code == c).Permissions.Contains(permission));
+        Grants("GENERAL_UNDERWRITER", "general_policy.non_renew").ShouldBeTrue();
+        Grants("DATA_PROTECTION_OFFICER", Insys.Party.Contracts.PartyPermissions.MatchResolve).ShouldBeTrue();
+        Grants("DATA_PROTECTION_OFFICER", Insys.Party.Contracts.PartyPermissions.PartyUpdate).ShouldBeFalse();
+        RoleTemplates.All.Where(t => Codes(t.Code, catalogue).Contains("PARTY_DECIDE_MATCH")).Select(t => t.Code).ShouldBe(["DATA_PROTECTION_OFFICER"]);
+        Codes("HEALTH_CLAIMS_ASSESSOR", catalogue).ShouldContain("HEALTH_RECOVERIES");
+    }
+
+    /// <summary>DE-003, DE-004, DE-005, DE-019, DE-021 (Ade, 24 November 2026): the functions each dead end needed, where Ade put them.</summary>
+    [Fact]
+    public async Task TheDeadEndsFunctions_AreInTheTemplatesAdeChose_DE003_DE004_DE005_DE021()
+    {
+        var catalogue = await Catalogue();
+        string[] InSubDomain(string subDomain) =>
+            [.. catalogue.Where(f => f.Function.SubDomain == subDomain && f.Function.Kind != FunctionKind.Job && f.Function.Audiences.Contains("STAFF") && !f.Function.Privileged)
+                .Select(f => f.Function.Code)];
+        void Holds(string template, params string[] functions) => functions.Where(c => !Codes(template, catalogue).Contains(c)).ShouldBeEmpty(template);
+
+        Holds("GENERAL_UNDERWRITER", InSubDomain("GENERAL_RENEWALS"));
+        Holds("HEALTH_CLAIMS_ASSESSOR", "HEALTH_RECORD_PROVIDER_QUALITY_REVIEW", "HEALTH_PROVIDER_PERFORMANCE");
+        Holds("COMPLIANCE_OFFICER", [.. InSubDomain("CONFIG_PARTY"), .. InSubDomain("CONFIG_AUDIT"), "DOCUMENTS"]);
+        Holds("CLAIMS_MANAGER", InSubDomain("CONFIG_CLAIMS_FRAMEWORK"));
+        RoleTemplates.All.Single(t => t.Code == "CLAIMS_MANAGER").Approves!.ShouldContain("STATIC_DATA_T1");
+        RoleTemplates.All.Single(t => t.Code == "CLAIMS_MANAGER").Approves!.ShouldContain("STATIC_DATA_T2");
+        Holds("TENANT_ADMIN", [.. InSubDomain("CONFIG_COMMUNICATIONS"), .. InSubDomain("CONFIG_DOCUMENTS"), .. InSubDomain("CONFIG_ANALYTICS")]);
+        Holds("FINANCE_MANAGER", "COMMISSION_STATEMENTS", "CLAIM_PAYMENT_INSTRUCTIONS", "SERVICE_COMPLAINTS");
+
+        // Screens only: the finance manager gains no commission, claims or case action, and the compliance officer no document action (the legal hold
+        // functions stay the data protection officer's).
+        Codes("FINANCE_MANAGER", catalogue).Select(c => catalogue.Single(f => f.Function.Code == c).Function)
+            .Where(f => f.Kind == FunctionKind.Action && f.SubDomain is "COMMISSION" or "CLAIM_FINANCIALS" or "CUSTOMER_SERVICE").Select(f => f.Code).ShouldBeEmpty();
+        Codes("COMPLIANCE_OFFICER", catalogue).Where(c => catalogue.Single(f => f.Function.Code == c).Function is { SubDomain: "DOCUMENTS", Kind: FunctionKind.Action })
+            .ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// DE-019 and OQ-072 (Ade, 25 November 2026): record legal holds are read on their own screen, held by the compliance officer and the data protection
+    /// officer (and the read-only auditor); the tenant administrator lists parked deliveries, read only, with no retry or discard.
+    /// </summary>
+    [Fact]
+    public async Task RecordHolds_AreReadByComplianceAndDataProtection_AndTheTenantAdministratorListsParkedDeliveries_ReadOnly_DE019_OQ072()
+    {
+        var catalogue = await Catalogue();
+        var screen = catalogue.Single(f => f.Function.Code == "DOCUMENTS_RECORD_HOLDS");
+        (screen.Function.Kind, screen.Function.Privileged).ShouldBe((FunctionKind.Screen, false));
+        screen.Permissions.ShouldBe([Insys.Documents.Contracts.DocumentPermissions.LegalHoldRead]);
+        RoleTemplates.All.Where(t => !t.ScreensOnly && Codes(t.Code, catalogue).Contains("DOCUMENTS_RECORD_HOLDS")).Select(t => t.Code)
+            .ShouldBe(["COMPLIANCE_OFFICER", "DATA_PROTECTION_OFFICER"], ignoreOrder: true);
+        Codes("COMPLIANCE_OFFICER", catalogue).ShouldNotContain("DOCUMENTS_PLACE_LEGAL_HOLD");
+
+        var admin = Codes("TENANT_ADMIN", catalogue);
+        admin.ShouldContain("INTEGRATION_PARKED_DELIVERIES");
+        catalogue.Where(f => f.Function.Parent == "INTEGRATION_PARKED_DELIVERIES" && admin.Contains(f.Function.Code)).Select(f => f.Function.Code).ShouldBeEmpty();
+        catalogue.Single(f => f.Function.Code == "INTEGRATION_PARKED_DELIVERIES").Permissions.ShouldBe(["dead_letter.read"]);
+    }
+
+    /// <summary>DE-058 (Ade, 24 November 2026): data-subject requests are the data protection officer's alone; the read-only auditor may see the screen.</summary>
+    [Fact]
+    public async Task DataSubjectRequests_AreTheDataProtectionOfficersAlone_DE058()
+    {
+        var catalogue = await Catalogue();
+        var dataSubject = catalogue.Select(f => f.Function).Where(f => f.Code.StartsWith("PARTY_", StringComparison.Ordinal) && f.Code.Contains("DATA_SUBJECT", StringComparison.Ordinal)
+            && f.Audiences.Contains("STAFF")).Select(f => f.Code).ToList();
+        dataSubject.ShouldBe(RoleTemplates.DataSubjectRequests, ignoreOrder: true);
+        foreach (var code in dataSubject)
+        {
+            RoleTemplates.All.Where(t => !t.ScreensOnly && Codes(t.Code, catalogue).Contains(code)).Select(t => t.Code).ShouldBe(["DATA_PROTECTION_OFFICER"], code);
+        }
     }
 
     [Fact]

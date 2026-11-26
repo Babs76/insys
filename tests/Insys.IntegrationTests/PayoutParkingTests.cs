@@ -88,7 +88,7 @@ public sealed class PayoutParkingTests(DatabaseFixture fixture) : IClassFixture<
         (await fixture.Database.ScalarAsOwner<string>("""
             SELECT t.queue_code FROM workflow.process_instance p JOIN workflow.task t ON t.tenant_id = p.tenant_id AND t.process_instance_id = p.id
             WHERE p.process_code = 'PARKED_DELIVERY' AND p.business_ref_type = 'PARKED_DELIVERY' AND p.business_ref_id = @id AND t.status = 'OPEN'
-            """, ("id", parkedId))).ShouldBe("TENANT_ADMIN");
+            """, ("id", parkedId))).ShouldBe("INTEGRATION_ADMINISTRATOR"); // DE-028: the default configuration owner
 
         // A payout method for the currency is published: the parked payout is retried and the payment created, once.
         await Seed("payment.ref_payment_methods", "EFT", ("method_code", "EFT"), ("direction", "PAY"), ("currencies", new[] { "BWP" }), ("countries", new[] { "BW" }));

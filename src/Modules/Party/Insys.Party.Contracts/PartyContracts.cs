@@ -96,6 +96,12 @@ public static class PartyPermissions
     public const string PartyCreate = "party.create";
     public const string PartyUpdate = "party.update";
 
+    /// <summary>
+    /// Deciding a portal registration's match (PARTY_MATCH_RESOLUTION in Workflow), and nothing else: the checker needs it, so deciding a match gives no
+    /// party editing (DE-002, Ade, 25 November 2026). Proposing a resolution still needs party.update.
+    /// </summary>
+    public const string MatchResolve = "party.resolve_match";
+
     /// <summary>Merging and anonymising change or remove identity; they need their own permission (PTY-004, PTY-005).</summary>
     public const string PartyMerge = "party.merge";
 
@@ -222,6 +228,16 @@ public interface IPartyDirectory
 
     /// <summary>The party's display name, for naming a payee to staff (BR-035); null for an unknown party.</summary>
     Task<string?> DisplayName(Guid tenantId, Guid partyId, CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// Public query interface (BR-091; external-user access §2, §3): whether a party is one of a broker's clients, by the same rule as the broker portal's client list
+/// (PortalPartyListClients): a party the broker or a sub-broker registered, or one that holds, or is quoted or proposed for, a policy under its codes, a merged
+/// party as its survivor, never an anonymised one. The codes are the broker's own and its sub-brokers' (ExternalSubject.IntermediaryCodes).
+/// </summary>
+public interface IBrokerClients
+{
+    Task<bool> IsClient(Guid tenantId, IReadOnlyCollection<string> intermediaryCodes, Guid partyId, CancellationToken cancellationToken);
 }
 
 public interface IPersonFacts

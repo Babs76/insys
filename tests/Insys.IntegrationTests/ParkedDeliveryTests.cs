@@ -163,8 +163,39 @@ public sealed class ParkedDeliveryTests(DatabaseFixture fixture) : IClassFixture
         (await Status(widget, "test_mod.WidgetCreated")).ShouldBe("FAILING");
     }
 
+    /// <summary>
+    /// DE-028 (Ade, 24 November 2026): a tenant with no parking setting of its own escalates parked deliveries to the integration administrator, who lists them
+    /// (it was the tenant administrator, who cannot), while other configuration alerts (F009's review) keep the tenant administrator as their default owner;
+    /// a tenant that chose a role keeps its choice. The escalation's default is asserted on the escalated event in the test below.
+    /// </summary>
     [Fact]
-    public async Task ParkedDelivery_IsEscalatedOnce_ThenToTheTenantAdministrator_AndShowsOnHealth_OQ072()
+    public async Task TheDefaultEscalationRole_IsTheIntegrationAdministrator_TheConfigurationOwnerStaysTheTenantAdministrator_AndATenantsOwnChoiceStays_DE028()
+    {
+        var owner = _services.GetRequiredService<Insys.Integration.Contracts.IConfigurationOwner>();
+        var options = _services.GetRequiredService<Microsoft.Extensions.Options.IOptions<ParkingOptions>>().Value;
+        (options.DefaultEscalationRole, options.DefaultConfigurationOwnerRole).ShouldBe(("INTEGRATION_ADMINISTRATOR", "TENANT_ADMIN"));
+        // Tenant B: no other test of this class uses it, and a new tenant would add work to the outbox the other tests relay once.
+        var tenant = DatabaseFixture.TenantB;
+        (await owner.Role(tenant, CancellationToken.None)).ShouldBe("TENANT_ADMIN", "F009's configuration review keeps its default");
+
+        // A setting of the tenant's own (stored before the change, say): its explicit choice, left as it is.
+        await fixture.Database.ExecuteAsOwner("""
+            INSERT INTO integration.parking_setting (tenant_id, id, row_version, created_at, created_by, updated_at, updated_by, configuration_owner_role,
+                calendar_code, money_first, money_second, other_first, other_second)
+            VALUES (@t, @id, 1, now(), 'test', now(), 'test', 'CLAIMS_MANAGER', NULL, 'PT4H', 'P1D', 'P1D', 'P3D')
+            """, ("t", tenant), ("id", Guid.CreateVersion7()));
+        try
+        {
+            (await owner.Role(tenant, CancellationToken.None)).ShouldBe("CLAIMS_MANAGER");
+        }
+        finally
+        {
+            await fixture.Database.ExecuteAsOwner("DELETE FROM integration.parking_setting WHERE tenant_id = @t", ("t", tenant));
+        }
+    }
+
+    [Fact]
+    public async Task ParkedDelivery_IsEscalatedToTheIntegrationAdministrator_ThenToTheTenantAdministrator_AndShowsOnHealth_OQ072_DE028()
     {
         var widget = await CreateWidget("escalated", missing: true);
         await Relay();
@@ -179,7 +210,7 @@ public sealed class ParkedDeliveryTests(DatabaseFixture fixture) : IClassFixture
         (next - parkedAt).ShouldBeGreaterThanOrEqualTo(TimeSpan.FromHours(9));
         (await Health()).Status.ShouldBe(HealthStatus.Degraded);
 
-        foreach (var (level, role) in new[] { (1, "TENANT_ADMIN"), (2, "TENANT_ADMIN") })
+        foreach (var (level, role) in new[] { (1, "INTEGRATION_ADMINISTRATOR"), (2, "TENANT_ADMIN") })
         {
             await fixture.Database.ExecuteAsOwner(
                 "UPDATE integration.parked_delivery SET next_escalation_at = now() - interval '1 minute' WHERE aggregate_id = @w AND consumer = @c", ("w", widget), ("c", Consumer));

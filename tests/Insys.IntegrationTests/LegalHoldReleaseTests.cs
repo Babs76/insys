@@ -44,7 +44,7 @@ public sealed class LegalHoldReleaseTests(DatabaseFixture fixture) : IClassFixtu
     public async Task ADocument_IsNotDisposedOf_WhileItsHoldsReleaseWaits_AndIsOnceTheReleaseIsApproved_OQ111()
     {
         var (factory, tenant, maker, checker) = await World(DocumentApprovals.LegalHoldReleaseType, DocumentPermissions.DocumentCreate, DocumentPermissions.DocumentRead,
-            DocumentPermissions.DocumentDispose, DocumentPermissions.LegalHoldManage);
+            DocumentPermissions.DocumentDispose, DocumentPermissions.LegalHoldManage, DocumentPermissions.LegalHoldRead);
         await fixture.Database.SeedStatic(tenant, "document.ref_document_categories", "ACTIVE", "NOTE", TestClock.Today.AddDays(-1), ("category_code", "NOTE"),
             ("label", "Note"), ("classification", "PERSONAL"), ("domain", "ALL"), ("allowed_roles", Array.Empty<string>()));
         await fixture.Database.SeedStatic(tenant, "document.ref_legal_hold_reason_codes", "ACTIVE", "LITIGATION", TestClock.Today.AddDays(-1),
@@ -140,7 +140,7 @@ public sealed class LegalHoldReleaseTests(DatabaseFixture fixture) : IClassFixtu
     public async Task ARecordsHold_IsPlacedOnARecordThatExistsInScope_KeepsItsDocuments_AndIsReleasedByASecondPerson_D34()
     {
         var (factory, tenant, maker, checker) = await World(DocumentApprovals.LegalHoldReleaseType, DocumentPermissions.DocumentCreate, DocumentPermissions.DocumentRead,
-            DocumentPermissions.DocumentDispose, DocumentPermissions.LegalHoldManage);
+            DocumentPermissions.DocumentDispose, DocumentPermissions.LegalHoldManage, DocumentPermissions.LegalHoldRead);
         await fixture.Database.SeedStatic(tenant, "document.ref_document_categories", "ACTIVE", "NOTE", TestClock.Today.AddDays(-1), ("category_code", "NOTE"),
             ("label", "Note"), ("classification", "PERSONAL"), ("domain", "ALL"), ("allowed_roles", Array.Empty<string>()));
         await fixture.Database.SeedStatic(tenant, "document.ref_legal_hold_reason_codes", "ACTIVE", "LITIGATION", TestClock.Today.AddDays(-1),
@@ -148,7 +148,7 @@ public sealed class LegalHoldReleaseTests(DatabaseFixture fixture) : IClassFixtu
         var policy = await new RowFiller(fixture.Database, DateTimeOffset.UtcNow).Insert(tenant, "general.policy", ("product_code", "GEN-MOTOR"),
             ("org_node_code", "BR-A"));
         var scopedName = $"home-only-{Guid.NewGuid():N}"[..20];
-        var scopedId = await fixture.Database.UserWithPermissions(tenant, scopedName, DocumentPermissions.LegalHoldManage);
+        var scopedId = await fixture.Database.UserWithPermissions(tenant, scopedName, DocumentPermissions.LegalHoldManage, DocumentPermissions.LegalHoldRead);
         await fixture.Database.ExecuteAsOwner("UPDATE iam.user_role_assignment SET scope_products = ARRAY['GEN-HOME'] WHERE user_id = @u", ("u", scopedId));
         var scoped = factory.ClientFor(tenant, scopedName);
 

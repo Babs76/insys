@@ -87,8 +87,15 @@ public sealed record LifeProposalSubmitted(Guid ProposalId, string ProposalNumbe
 [IntegrationEvent("life.LifeProposalWithdrawn")]
 public sealed record LifeProposalWithdrawn(Guid ProposalId, string ProposalNumber) : IIntegrationEvent;
 
+/// <param name="SubmittedBy">DE-045: the staff user who submitted the proposal, who issues its policy; null when a portal user or the platform submitted it.</param>
 [IntegrationEvent("life.LifeProposalAccepted")]
-public sealed record LifeProposalAccepted(Guid ProposalId, string ProposalNumber) : IIntegrationEvent;
+public sealed record LifeProposalAccepted(Guid ProposalId, string ProposalNumber, Guid? SubmittedBy = null) : IIntegrationEvent;
+
+/// <summary>DE-045: the Workflow reference of a proposal's "issue the policy" task.</summary>
+public static class LifeProposalTasks
+{
+    public const string BusinessRefType = "LIFE_PROPOSAL";
+}
 
 [IntegrationEvent("life.LifeProposalDeclined")]
 public sealed record LifeProposalDeclined(Guid ProposalId, string ProposalNumber, bool Postponed) : IIntegrationEvent;

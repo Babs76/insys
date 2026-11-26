@@ -99,6 +99,18 @@ public static class ApprovalKinds
 
     /// <summary>The read operation that opens a record of the reference type, or null when none was declared.</summary>
     public static SubjectRead? ReadFor(string businessRefType) => SubjectReads.GetValueOrDefault(businessRefType);
+
+    private static readonly ConcurrentDictionary<string, string> NoSubjectReasons = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// DE-020: the reference type deliberately has no read that opens its record, and why (a discarded static data draft: nothing is left,
+    /// and only an informational task, never an approval, carries the type). Its approvals' subjectOperation and subjectPath are null.
+    /// ApprovalKindsTests accepts this in place of <see cref="OpensWith"/>.
+    /// </summary>
+    public static void OpensNothing(string businessRefType, string reason) => NoSubjectReasons[businessRefType] = reason;
+
+    /// <summary>The types declared with no read that opens their record, with their reasons.</summary>
+    public static IReadOnlyDictionary<string, string> TypesOpeningNothing => NoSubjectReasons;
 }
 
 /// <summary>The read operation that opens an approval's record (DE-020): its operation ID and its path, with {id} for the business ref ID.</summary>

@@ -79,6 +79,19 @@ public abstract class StaticRecord
     /// <summary>The maker: the user who created the draft.</summary>
     public string CreatedBy { get; set; } = "";
 
+    /// <summary>
+    /// When the maker last edited the draft (EditDraft), or null if never edited (V0159). The draft is untouched since the
+    /// later of <see cref="CreatedAt"/> and this (DE-016, OQ-204).
+    /// </summary>
+    public DateTimeOffset? EditedAt { get; set; }
+
+    /// <summary>
+    /// DE-016, OQ-204: for a draft that may be discarded (never submitted, not a line of an import), when anyone holding the
+    /// table's maintain function may discard it, with a reason: the tenant's stale_draft_discard_days after it was last
+    /// touched. Null for any other version. Not stored; set when the versions are read.
+    /// </summary>
+    public DateTimeOffset? DiscardableByOthersFrom { get; set; }
+
     public DateTimeOffset? ApprovedAt { get; set; }
 
     public string? ApprovedBy { get; set; }
@@ -280,5 +293,6 @@ public static class StaticModel
         entity.Property(r => r.DisplayFlags).HasColumnType("jsonb");
         entity.Ignore(r => r.DisplayLabel);
         entity.Ignore(r => r.DisplayLabelLanguage);
+        entity.Ignore(r => r.DiscardableByOthersFrom);
     }
 }

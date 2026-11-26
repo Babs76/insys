@@ -136,6 +136,7 @@ public static class GeneralInfrastructure
         services.AddSingleton<BuildingBlocks.Application.Context.IPortalRecordRelations>(sp => sp.GetRequiredService<GeneralPortalRelations>());
         services.AddSingleton<BuildingBlocks.Application.Context.IBrokeredPolicies>(sp => sp.GetRequiredService<GeneralPortalRelations>());
         services.AddSingleton<BuildingBlocks.Application.Context.IBrokeredClients>(sp => sp.GetRequiredService<GeneralPortalRelations>());
+        services.AddSingleton<Integration.Contracts.IDisclosureRecordParties>(sp => sp.GetRequiredService<GeneralPortalRelations>()); // DE-039, OQ-201
         // Onboarding readiness DOMAIN_CODES: once the tenant sets GENERAL up (its numbering scheme), its own reference data is in force too.
         BuildingBlocks.Infrastructure.Readiness.ReadinessRegistration.AddSqlReadiness(services, Persistence.GeneralDbContext.SchemaName, ["DOMAIN_REFERENCE_DATA"], async (context, connection, transaction, ct) =>
         {

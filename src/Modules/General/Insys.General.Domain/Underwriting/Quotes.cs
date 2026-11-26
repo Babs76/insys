@@ -596,6 +596,12 @@ public sealed class GeneralQuote : AggregateRoot<Guid>
     }
 }
 
+/// <summary>DE-045: a proposal was accepted, so its policy waits to be issued, by the staff user who submitted it (null for a portal user or the platform).</summary>
+public sealed record GeneralProposalAccepted(Guid ProposalId, Guid QuoteId, Guid? SubmittedBy, DateTimeOffset OccurredAt) : IDomainEvent;
+
+/// <summary>DE-045: the accepted proposal's policy was issued.</summary>
+public sealed record GeneralProposalConverted(Guid ProposalId, Guid QuoteId, Guid PolicyId, DateTimeOffset OccurredAt) : IDomainEvent;
+
 public enum ProposalStatus
 {
     Submitted,
@@ -619,22 +625,52 @@ public sealed class GeneralProposal : AggregateRoot<Guid>
     /// <summary>The declarations as JSON.</summary>
     public string Declarations { get; private set; } = "{}";
 
-    public static Result<GeneralProposal> SubmitProposal(Guid id, GeneralQuote quote, string declarationsJson, DateTimeOffset now)
+    /// <summary>DE-045: the staff user who submitted it, who issues the policy once accepted; null for a portal user or the platform.</summary>
+    public Guid? SubmittedBy { get; private set; }
+
+    /// <param name="submittedBy">The staff user submitting it (DE-045); null for a portal user or the platform.</param>
+    public static Result<GeneralProposal> SubmitProposal(Guid id, GeneralQuote quote, string declarationsJson, DateTimeOffset now, Guid? submittedBy = null)
     {
         if (quote.Status != QuoteStatus.Accepted)
         {
             return Error.Conflict(GeneralErrorCodes.QuoteNotAccepted, $"A proposal is based on an accepted quote; quote {quote.QuoteNumber} v{quote.QuoteVersion} is {quote.Status}.");
         }
 
-        var proposal = new GeneralProposal { Id = Guard.NotEmpty(id), QuoteId = quote.Id, SubmittedAt = now, Declarations = declarationsJson, Status = ProposalStatus.Submitted };
+        var proposal = new GeneralProposal
+        {
+            Id = Guard.NotEmpty(id), QuoteId = quote.Id, SubmittedAt = now, Declarations = declarationsJson, Status = ProposalStatus.Submitted, SubmittedBy = submittedBy,
+        };
         proposal.MarkChanged();
         return proposal;
     }
 
-    public Result AcceptProposal() => Move(ProposalStatus.Submitted, ProposalStatus.Accepted);
+    public Result AcceptProposal(DateTimeOffset now)
+    {
+        var result = Move(ProposalStatus.Submitted, ProposalStatus.Accepted);
+        if (result.IsSuccess)
+        {
+            Raise(new GeneralProposalAccepted(Id, QuoteId, SubmittedBy, now));
+        }
+
+        return result;
+    }
 
     /// <summary>Transition "Policy issued".</summary>
-    public Result Convert() => Status == ProposalStatus.Converted ? Result.Success() : Move(ProposalStatus.Accepted, ProposalStatus.Converted);
+    public Result Convert(Guid policyId, DateTimeOffset now)
+    {
+        if (Status == ProposalStatus.Converted)
+        {
+            return Result.Success();
+        }
+
+        var result = Move(ProposalStatus.Accepted, ProposalStatus.Converted);
+        if (result.IsSuccess)
+        {
+            Raise(new GeneralProposalConverted(Id, QuoteId, policyId, now));
+        }
+
+        return result;
+    }
 
     private Result Move(ProposalStatus from, ProposalStatus to)
     {

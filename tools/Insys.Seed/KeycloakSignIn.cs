@@ -80,6 +80,21 @@ public sealed class KeycloakSignIn(HttpClient keycloak, string realm, string adm
         return password;
     }
 
+    /// <summary>
+    /// CONFIGURE_TOTP required at the account's next sign-in, so its user sets up an authenticator themselves (the demo accounts, Ade, 23 November
+    /// 2026). Left alone once the account has a one-time code credential, so a later password rotation never makes its user enrol again.
+    /// </summary>
+    public async Task RequireTotpSetUp(string username)
+    {
+        var user = await User(username);
+        if ((await Admin(HttpMethod.Get, $"users/{user}/credentials")).EnumerateArray().Any(c => c.GetProperty("type").GetString() == "otp"))
+        {
+            return;
+        }
+
+        await Admin(HttpMethod.Put, $"users/{user}", new { requiredActions = new[] { "CONFIGURE_TOTP" } });
+    }
+
     /// <summary>The user's id. Identity creates a tenant's users in Keycloak when it delivers their event, so a new one may take a moment to appear.</summary>
     private async Task<string> User(string username)
     {

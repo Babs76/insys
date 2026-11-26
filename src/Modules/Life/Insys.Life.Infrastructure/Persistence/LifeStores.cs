@@ -268,7 +268,7 @@ internal sealed class LifeEventMapper : IDomainEventMapper
     {
         Domain.Proposals.LifeProposalSubmitted e => new Contracts.LifeProposalSubmitted(e.ProposalId, e.ProposalNumber, e.ProductCode, e.ProductVersion),
         Domain.Proposals.LifeProposalWithdrawn e => new Contracts.LifeProposalWithdrawn(e.ProposalId, e.ProposalNumber),
-        Domain.Proposals.LifeProposalAccepted e => new Contracts.LifeProposalAccepted(e.ProposalId, e.ProposalNumber),
+        Domain.Proposals.LifeProposalAccepted e => new Contracts.LifeProposalAccepted(e.ProposalId, e.ProposalNumber, e.SubmittedBy),
         Domain.Proposals.LifeProposalDeclined e => new Contracts.LifeProposalDeclined(e.ProposalId, e.ProposalNumber, e.Postponed),
         Domain.Underwriting.LifeUnderwritingCaseOpened e => new Contracts.LifeUnderwritingCaseOpened(e.CaseId, e.ProposalId),
         UnderwritingDecisionRequested e => new ApprovalRequested(LifeApprovals.UnderwritingBusinessRefType, e.CaseId, LifeApprovals.UnderwritingApprovalType,

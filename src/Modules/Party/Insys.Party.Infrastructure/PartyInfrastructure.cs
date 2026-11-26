@@ -90,6 +90,7 @@ public static class PartyInfrastructure
         }
         services.AddScoped<IPartyCodes, PartyCodes>();
         services.AddScoped<IPartyPortalQueries, PartyPortalQueries>(); // BR-091
+        services.AddScoped<IBrokerClients, BrokerClients>(); // BR-091, for a broker's disclosure acknowledgement (DE-039)
         services.AddSingleton<BankAccountQueries>();
         services.AddSingleton<IBankAccounts>(sp => sp.GetRequiredService<BankAccountQueries>());
         services.AddSingleton<IBankAccountDetails>(sp => sp.GetRequiredService<BankAccountQueries>());
@@ -117,6 +118,7 @@ public static class PartyInfrastructure
         services.AddSingleton<BuildingBlocks.Application.IReadinessCheck, DueDiligenceReadiness>(); // §7
         services.AddSingleton<Workflow.Contracts.IApprovalCheckerExclusions, Persistence.EnhancedApprovalContributors>(); // BR-109: contributors never approve
         services.AddSingleton<BuildingBlocks.Application.IApprovalTypeConditions, DueDiligenceReadiness>(); // APPROVAL_AUTHORITY: the due diligence approvals, with the gates on
+        services.AddSingleton<BuildingBlocks.Application.IApprovalTypeConditions, MatchResolutionApprovalConditions>(); // APPROVAL_AUTHORITY: party.resolve_match
         if (!BuildingBlocks.Infrastructure.InfrastructureRegistration.IsBuildTimeDocumentGeneration)
         {
             services.AddHostedService<DueDiligenceJobsService>();

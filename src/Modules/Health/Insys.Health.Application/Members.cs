@@ -180,7 +180,7 @@ internal sealed class EnrolHealthMemberHandler(IHealthRepository health, IHealth
         // F060: the inception disclosures are acknowledged first, if the tenant has adopted them. There is no record yet to name.
         if (await disclosures.Outstanding(tenant.RequireTenantId(), command.PrincipalPartyId, Integration.Contracts.DisclosurePoints.Inception, null, null, businessDate.Today, cancellationToken) is { Count: > 0 } outstanding)
         {
-            return DisclosureRefusal.For(Integration.Contracts.DisclosurePoints.Inception, outstanding);
+            return BuildingBlocks.Application.DisclosureRefusal.For(Integration.Contracts.DisclosurePoints.Inception, outstanding, command.PrincipalPartyId, null, null);
         }
 
         // F103 (addenda/access-scopes.md §2): the owning node, and the product, in the caller's scope.

@@ -583,6 +583,59 @@ public sealed class HealthProcessTests(PostgresServer server) : IAsyncLifetime
     /// consumes. p95 within the standard operation target (NFR-002: 2 s): one membership's claims in turn, and claims of
     /// eight memberships eight at a time.
     /// </summary>
+    /// <summary>DE-039, F060: an enrolment refused for its inception disclosure names the notice, the principal member and no record (there is none yet); the acknowledgement answers with nothing outstanding, and the enrolment then goes through.</summary>
+    [Fact]
+    public async Task AnEnrolmentRefusedForItsDisclosure_NamesTheNoticeAndTheMember_AndTheAcknowledgementLeavesNothingOutstanding_UntilANewVersion_DE039_F060()
+    {
+        await Seed("channel.cfg_disclosure_and_notice_texts", "EFFECTIVE", "DISC-HLT", ("notice_type", "SCHEME_RULES"), ("jurisdiction", "ZA"), ("language", "en"), ("text", "The scheme's rules apply."),
+            ("text_version", 4), ("display_point", "ISSUE"));
+        await _db.UserWithPermissions(Tenant, "disclosure-clerk", IntegrationPermissions.DisclosureRead, IntegrationPermissions.DisclosureCreate);
+        await _db.AdoptFunctionCatalogue();
+        var clerk = _factory.ClientFor(Tenant, "disclosure-clerk");
+        var scheme = await Created("/api/v1/health/schemes", new { sponsorCode = "S-ACME", startDate = Today.AddYears(-1), renewalDate = Today.AddMonths(6), currency = "ZAR" });
+        var principal = await _maker.RegisterPerson("Disclosed");
+        var enrolment = new
+        {
+            principalPartyId = principal, schemeId = scheme, memberCategory = "ALL_STAFF", planCode = "HLT-CORE", optionCode = "A", startDate = Today.AddMonths(-6),
+            currency = "ZAR", collectionMethod = "DEBIT_ORDER", facts = new { employment_type = "PERMANENT" },
+        };
+
+        var refused = await _maker.Send(HttpMethod.Post, "/api/v1/health/memberships", enrolment, idempotent: true);
+        refused.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        var problem = await refused.Json();
+        problem.GetProperty("code").GetString().ShouldBe("DISCLOSURE_REQUIRED");
+        problem.GetProperty("displayPoint").GetString().ShouldBe("ISSUE");
+        problem.GetProperty("noticeTypes").EnumerateArray().Select(n => n.GetString()).ShouldBe(["SCHEME_RULES"]);
+        var notice = problem.GetProperty("notices").EnumerateArray().Single();
+        (notice.GetProperty("noticeType").GetString(), notice.GetProperty("jurisdiction").GetString(), notice.GetProperty("language").GetString(), notice.GetProperty("textVersion").GetInt32())
+            .ShouldBe(("SCHEME_RULES", "ZA", "en", 4));
+        problem.GetProperty("partyId").GetGuid().ShouldBe(principal);
+        (problem.GetProperty("businessRefType").ValueKind, problem.GetProperty("businessRefId").ValueKind).ShouldBe((JsonValueKind.Null, JsonValueKind.Null));
+
+        var acknowledged = await clerk.Send(HttpMethod.Post, "/api/v1/integration/disclosure-acknowledgements", new
+        {
+            partyId = principal, displayPoint = "ISSUE", noticeType = "SCHEME_RULES", jurisdiction = "ZA", language = "en",
+        }, idempotent: true);
+        acknowledged.StatusCode.ShouldBe(HttpStatusCode.Created, await acknowledged.Content.ReadAsStringAsync());
+        (await acknowledged.Json()).GetProperty("outstanding").GetArrayLength().ShouldBe(0);
+        await Created("/api/v1/health/memberships", enrolment);
+
+        // Ade, 25 November 2026: a new version in force needs a new acknowledgement. Version 1 of the text ends today and version 2 (text version 5) starts.
+        var gate = _factory.Services.GetRequiredService<IDisclosureGate>();
+        await _db.ExecuteAsOwner("UPDATE channel.cfg_disclosure_and_notice_texts SET effective_to = @d WHERE tenant_id = @t AND code = 'DISC-HLT' AND version = 1", ("t", Tenant), ("d", Today));
+        await _db.SeedStatic(Tenant, "channel.cfg_disclosure_and_notice_texts", "EFFECTIVE", "DISC-HLT", 2, Today, null, ("notice_type", "SCHEME_RULES"), ("jurisdiction", "ZA"), ("language", "en"),
+            ("text", "The scheme's amended rules apply."), ("text_version", 5), ("display_point", "ISSUE"));
+        var again = (await gate.Outstanding(Tenant, principal, "ISSUE", null, null, Today, CancellationToken.None)).Single();
+        (again.NoticeType, again.Language, again.TextVersion).ShouldBe(("SCHEME_RULES", "en", 5));
+        var renewed = await clerk.Send(HttpMethod.Post, "/api/v1/integration/disclosure-acknowledgements", new
+        {
+            partyId = principal, displayPoint = "ISSUE", noticeType = "SCHEME_RULES", jurisdiction = "ZA", language = "en",
+        }, idempotent: true);
+        (await renewed.Json()).GetProperty("outstanding").GetArrayLength().ShouldBe(0, "acknowledged again, in the new version");
+        (await _db.ScalarAsOwner<string>("SELECT string_agg(text_version || ':' || language, ',' ORDER BY text_version) FROM channel.disclosure_acknowledgement WHERE tenant_id = @t AND party_id = @p",
+            ("t", Tenant), ("p", principal))).ShouldBe("4:en,5:en");
+    }
+
     [Fact]
     public async Task Adjudication_AgainstTheBenefitAccumulators_StaysWithinTheStandardLatencyTarget_NFR002()
     {

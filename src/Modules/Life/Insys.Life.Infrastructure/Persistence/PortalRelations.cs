@@ -39,8 +39,17 @@ namespace Insys.Life.Infrastructure.Persistence;
 /// A broker's clients are the holders of its policies and the applicants of its proposals.
 /// </summary>
 internal sealed class LifePortalRelations([FromKeyedServices(LifeDbContext.SchemaName)] NpgsqlDataSource dataSource) : IPortalRecordRelations, IBrokeredPolicies,
-    IBrokeredClients
+    IBrokeredClients, Integration.Contracts.IDisclosureRecordParties
 {
+    /// <summary>DE-039, OQ-201: the record a broker's disclosure acknowledgement names, as the disclosure gate names it at issue (the proposal's applicant).</summary>
+    public IReadOnlyCollection<string> BusinessRefTypes { get; } = [LifeProposalTasks.BusinessRefType];
+
+    public async Task<Guid?> PartyOf(Guid tenantId, string businessRefType, Guid businessRefId, CancellationToken cancellationToken) =>
+        businessRefType == LifeProposalTasks.BusinessRefType
+            ? (await PortalRelationReader.Ids(dataSource, tenantId, "SELECT applicant_party_id FROM life.proposal WHERE id = @id", [], businessRefId, cancellationToken))
+                .Cast<Guid?>().FirstOrDefault()
+            : null;
+
     public bool Covers(string businessRefType) => businessRefType == LifeDocuments.PolicyRefType;
 
     public Task<bool> Related(Guid tenantId, ExternalSubject who, string businessRefType, Guid businessRefId, CancellationToken cancellationToken) =>

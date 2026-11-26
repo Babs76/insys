@@ -6,7 +6,7 @@
  * Copyright (c) 2026 OpenFactor Technology Group.
  * All rights reserved.
  * PRODUCT       : INSYS
- * COMPONENT     : Migrations
+ * COMPONENT     : BuildingBlocks.Contracts
  * CONFIDENTIALITY AND INTELLECTUAL PROPERTY NOTICE
  * This source code and its associated documentation contain confidential and
  * proprietary information belonging to OpenFactor Technology Group or its
@@ -24,13 +24,14 @@
  * UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
  * ============================================================================
  */
--- =====================================================================
--- V0156: groups D, F and C of the dead-end sweep (docs/reports/2026-11-24-dead-end-sweep.md; Ade, 24-25 November 2026).
--- DE-059: a party or policy export waiting for approval (TO_APPROVE) can be refused by the approver, with a reason, or cancelled by
--- who asked for it; nothing leaves either way. The job keeps who refused it and why.
--- =====================================================================
-ALTER TABLE party.bulk_job DROP CONSTRAINT ck_bulk_job_status;
-ALTER TABLE party.bulk_job ADD CONSTRAINT ck_bulk_job_status CHECK (status IN ('DONE', 'REJECTED', 'TO_APPROVE', 'APPROVED', 'REFUSED', 'CANCELLED'));
-ALTER TABLE party.bulk_job ADD COLUMN refused_by uuid;
-ALTER TABLE party.bulk_job ADD COLUMN refusal_reason varchar(500);
-ALTER TABLE party.bulk_job ADD CONSTRAINT ck_bulk_job_refusal CHECK ((status = 'REFUSED') = (refused_by IS NOT NULL AND refusal_reason IS NOT NULL));
+namespace Insys.BuildingBlocks.Contracts;
+
+/// <summary>
+/// One mandatory notice not yet acknowledged at a display point (F060, DE-039): what the console needs to open its text already filled in
+/// (GET /integration/disclosures or /portal/disclosures with the display point and these values, nothing typed). The jurisdiction is the
+/// party's country, else the tenant's. The language (Ade, 25 November 2026) is the party's preferred one if a text is in force in it, else the
+/// tenant's default if one is, else the only language the notice is in force in; with several and none of those, none is chosen (Language and
+/// TextVersion null) and the person picks one of AvailableLanguages. TextVersion is the version in force of the text in the chosen language.
+/// </summary>
+/// <param name="AvailableLanguages">The languages the notice is in force in, by code; always present.</param>
+public sealed record DisclosureNotice(string NoticeType, string Jurisdiction, string? Language, int? TextVersion, IReadOnlyList<string> AvailableLanguages);

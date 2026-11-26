@@ -37,9 +37,24 @@ public static class DisclosurePoints
 
 /// <summary>
 /// Public query interface (F060): which disclosures in force at a display point the party hasn't acknowledged, for this business record if one is named. With no text in force at the point, none:
-/// the tenant hasn't adopted it, and the step runs as before.
+/// the tenant hasn't adopted it, and the step runs as before. Each is named with the jurisdiction, language and text version to open (DE-039), by notice type then jurisdiction.
 /// </summary>
 public interface IDisclosureGate
 {
-    Task<IReadOnlyList<string>> Outstanding(Guid tenantId, Guid partyId, string displayPoint, string? businessRefType, Guid? businessRefId, DateOnly day, CancellationToken cancellationToken);
+    Task<IReadOnlyList<BuildingBlocks.Contracts.DisclosureNotice>> Outstanding(Guid tenantId, Guid partyId, string displayPoint, string? businessRefType, Guid? businessRefId, DateOnly day, CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// Public query interface (DE-039, OQ-201; Ade, 26 November 2026): the party a business record that a broker's disclosure acknowledgement names is for, so
+/// Integration can check it belongs to the client it is recorded for. Each module that owns a reference type the disclosure gate names answers for its own
+/// (General: GENERAL_QUOTE, GENERAL_RENEWAL; Life: LIFE_PROPOSAL), on its own role; a type no module answers for is refused. The party is as the record names it:
+/// Integration follows Party's merges (a party merged into the client counts as the client's; Ade, 26 November 2026).
+/// </summary>
+public interface IDisclosureRecordParties
+{
+    /// <summary>The business reference types this module answers for.</summary>
+    IReadOnlyCollection<string> BusinessRefTypes { get; }
+
+    /// <summary>The party the record names (a quote's proposer, a renewal's policyholder, a proposal's applicant); null when the record isn't found.</summary>
+    Task<Guid?> PartyOf(Guid tenantId, string businessRefType, Guid businessRefId, CancellationToken cancellationToken);
 }

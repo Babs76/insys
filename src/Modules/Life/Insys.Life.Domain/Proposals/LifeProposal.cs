@@ -80,7 +80,7 @@ public sealed record LifeProposalSubmitted(Guid ProposalId, string ProposalNumbe
 
 public sealed record LifeProposalWithdrawn(Guid ProposalId, string ProposalNumber, DateTimeOffset OccurredAt) : IDomainEvent;
 
-public sealed record LifeProposalAccepted(Guid ProposalId, string ProposalNumber, DateTimeOffset OccurredAt) : IDomainEvent;
+public sealed record LifeProposalAccepted(Guid ProposalId, string ProposalNumber, DateTimeOffset OccurredAt, Guid? SubmittedBy = null) : IDomainEvent;
 
 public sealed record LifeProposalDeclined(Guid ProposalId, string ProposalNumber, bool Postponed, DateTimeOffset OccurredAt) : IDomainEvent;
 
@@ -265,6 +265,9 @@ public sealed class LifeProposal : AggregateRoot<Guid>
 
     public DateTimeOffset? SubmittedAt { get; private set; }
 
+    /// <summary>DE-045: the staff user who submitted the proposal, who issues its policy once accepted; null for a portal user or the platform.</summary>
+    public Guid? SubmittedBy { get; private set; }
+
     public DateOnly? InceptionDate { get; private set; }
 
     public Guid? PayerPartyId { get; private set; }
@@ -392,7 +395,8 @@ public sealed class LifeProposal : AggregateRoot<Guid>
     }
 
     /// <summary>Command SubmitProposal: quoted, and eligible by the rule set (LIF-001). Its content is frozen from now.</summary>
-    public Result SubmitProposal(DateTimeOffset now)
+    /// <param name="submittedBy">The staff user submitting it (DE-045); null for a portal user or the platform.</param>
+    public Result SubmitProposal(DateTimeOffset now, Guid? submittedBy = null)
     {
         if (Status == ProposalStatus.Quoted && EligibilityOutcome != Eligible)
         {
@@ -404,6 +408,7 @@ public sealed class LifeProposal : AggregateRoot<Guid>
         if (result.IsSuccess)
         {
             SubmittedAt = now;
+            SubmittedBy = submittedBy;
             Raise(new LifeProposalSubmitted(Id, ProposalNumber, ProductCode, ProductVersion, ApplicantPartyId, now));
         }
 
@@ -426,7 +431,7 @@ public sealed class LifeProposal : AggregateRoot<Guid>
         if (result.IsSuccess)
         {
             Raise(outcome == UnderwritingOutcome.Accept
-                ? new LifeProposalAccepted(Id, ProposalNumber, now)
+                ? new LifeProposalAccepted(Id, ProposalNumber, now, SubmittedBy)
                 : new LifeProposalDeclined(Id, ProposalNumber, outcome == UnderwritingOutcome.Postpone, now));
         }
 
