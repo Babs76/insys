@@ -119,6 +119,18 @@ public interface IStaticRemovalGuard
     Result Check(StaticRecord leaving, IReadOnlyList<StaticRecord> others);
 }
 
+/// <summary>
+/// DE-016, OQ-204 (Ade, 25 November 2026): the tenant's number of days after which a draft untouched may be discarded by anyone
+/// holding its table's maintain function. The setting is the Static Data module's (its governance settings), which implements
+/// this port on its own connection; every module's static data lifecycle reads it here, as it reaches the module's
+/// governance policies only through events otherwise.
+/// </summary>
+public interface IStaleDraftSetting
+{
+    /// <summary>The tenant's stale_draft_discard_days: 7 until the tenant changes it, never less than 1.</summary>
+    Task<int> StaleDraftDiscardDays(Guid tenantId, CancellationToken cancellationToken);
+}
+
 /// <summary>Every static data table in the platform, for platform-wide checks.</summary>
 public sealed record ModuleStaticDataTables(string ModuleRoute, IReadOnlyList<StaticDataDescriptor> Descriptors);
 

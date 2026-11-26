@@ -61,6 +61,10 @@ public static class StaticDataErrorCodes
         Remedy = "Correct the lines listed and import again.")]
     public const string ImportRejected = "STATIC_IMPORT_REJECTED";
 
+    [ErrorCode(409, "error.static_data.draft_not_stale", Means = "Someone else's draft can be discarded only once it has been left untouched for the organisation's number of days, and this one was changed more recently.",
+        Remedy = "Ask its maker to finish or discard it, or discard it from the time given (discardableFrom), 7 days after its last change unless the static data settings say otherwise.")]
+    public const string DraftNotStale = "STATIC_DRAFT_NOT_STALE";
+
     [ErrorCode(403, "error.static_data.user_required", Means = "Static data changes are made by identified people, for maker-checker.",
         Remedy = "Make the change signed in as yourself.")]
     public const string UserRequired = "STATIC_USER_REQUIRED";
@@ -93,6 +97,8 @@ public sealed class StaticDataService<TDbContext>(
     TDbContext tenantDb,
     StaticDataContextFactory<TDbContext> contexts,
     IExecutionContext execution,
+    ITenantContext tenant,
+    IStaleDraftSetting staleDrafts,
     IBusinessDate businessDate, IClock clock,
     IFieldProtector protector,
     IEnumerable<IStaticChangeGuard> guards,
@@ -133,13 +139,51 @@ public sealed class StaticDataService<TDbContext>(
         return Overlay(rows).FirstOrDefault();
     }
 
-    public async Task<IReadOnlyList<TEntity>> Versions<TEntity>(string code, bool global, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<TEntity>> Versions<TEntity>(StaticDataDescriptor descriptor, string code, bool global, CancellationToken cancellationToken)
         where TEntity : StaticRecord
     {
         await using var lease = Lease(global);
         await using var transaction = await ReadOnly(lease.Context, cancellationToken);
-        return await Scoped(lease.Context.Set<TEntity>(), global).Where(r => r.Code == code).OrderBy(r => r.Version).ToListAsync(cancellationToken);
+        var versions = await Scoped(lease.Context.Set<TEntity>(), global).Where(r => r.Code == code).OrderBy(r => r.Version).ToListAsync(cancellationToken);
+        await MarkDiscardable(descriptor, versions, cancellationToken);
+        return versions;
     }
+
+    /// <summary>The tenant's number of days after which anyone holding a table's maintain function may discard a draft left untouched (DE-016, OQ-204).</summary>
+    public Task<int> StaleDraftDiscardDays(CancellationToken cancellationToken) => staleDrafts.StaleDraftDiscardDays(tenant.RequireTenantId(), cancellationToken);
+
+    /// <summary>
+    /// DE-016, OQ-204: when a draft may be discarded by someone other than its maker: <paramref name="days"/> 24-hour periods after
+    /// it was last touched (created or edited); null for a version that is not discarded at all (submitted, a draft a rejection
+    /// returned, a line of an import).
+    /// </summary>
+    public static DateTimeOffset? DiscardableByOthersFrom(StaticDataDescriptor descriptor, StaticRecord record, int days) =>
+        IsDiscardable(descriptor, record) ? StaleFrom(LastTouched(record), days) : null;
+
+    private async Task MarkDiscardable<TEntity>(StaticDataDescriptor descriptor, IReadOnlyList<TEntity> records, CancellationToken cancellationToken)
+        where TEntity : StaticRecord
+    {
+        if (!records.Any(r => IsDiscardable(descriptor, r)))
+        {
+            return;
+        }
+
+        var days = await StaleDraftDiscardDays(cancellationToken);
+        foreach (var record in records)
+        {
+            record.DiscardableByOthersFrom = DiscardableByOthersFrom(descriptor, record, days);
+        }
+    }
+
+    private static bool IsDiscardable(StaticDataDescriptor descriptor, StaticRecord record) =>
+        record.RecordStatus == descriptor.Lifecycle.Draft && record.ChangeRequestId is null && record.ImportBatchId is null;
+
+    /// <summary>The later of when the draft was created and when its maker last edited it.</summary>
+    private static DateTimeOffset LastTouched(StaticRecord record) => record.EditedAt is { } edited && edited > record.CreatedAt ? edited : record.CreatedAt;
+
+    /// <summary><paramref name="days"/> 24-hour periods after <paramref name="touched"/>, or the end of time for a number of days past it.</summary>
+    private static DateTimeOffset StaleFrom(DateTimeOffset touched, int days) =>
+        days < (DateTimeOffset.MaxValue - touched).TotalDays ? touched.AddDays(days) : DateTimeOffset.MaxValue;
 
     public Task<Result<TEntity>> CreateDraft<TEntity, TInput>(StaticDataDescriptor descriptor, TInput input, bool global, CancellationToken cancellationToken)
         where TEntity : StaticRecord<TInput>, new()
@@ -153,10 +197,16 @@ public sealed class StaticDataService<TDbContext>(
             }
 
             var existing = await Scoped(db.Set<TEntity>(), global).Where(r => r.Code == input.Code).ToListAsync(cancellationToken);
-            if (existing.Any(r => r.RecordStatus == descriptor.Lifecycle.Draft || descriptor.Lifecycle.Submitted.Contains(r.RecordStatus)
-                    || r.RecordStatus == descriptor.Lifecycle.Approved))
+            if (existing.FirstOrDefault(r => r.RecordStatus == descriptor.Lifecycle.Draft || descriptor.Lifecycle.Submitted.Contains(r.RecordStatus)
+                    || r.RecordStatus == descriptor.Lifecycle.Approved) is { } inProgress)
             {
-                return Error.Conflict(StaticDataErrorCodes.DraftExists, "This code already has a version in progress. Finish or discard it first.");
+                // DE-016: the refusal names the version in progress and the way out of each state.
+                return Error.Conflict(StaticDataErrorCodes.DraftExists, $"This code already has version {inProgress.Version} in progress ({inProgress.RecordStatus}). "
+                    + (inProgress.RecordStatus == descriptor.Lifecycle.Draft
+                        ? $"Submit it, or its maker discards it: POST …/{inProgress.Code}/versions/{inProgress.Version}/discard."
+                        : inProgress.RecordStatus == descriptor.Lifecycle.Approved
+                            ? $"Activate it first: POST …/{inProgress.Code}/versions/{inProgress.Version}/activate."
+                            : "Wait for its approval to be decided: a rejection returns it to draft."));
             }
 
             var current = existing.Where(r => descriptor.Lifecycle.IsInForce(r.RecordStatus)).MaxBy(r => r.Version);
@@ -214,9 +264,117 @@ public sealed class StaticDataService<TDbContext>(
             var before = Snapshot(entity);
             entity.ApplyCommon(input);
             entity.ApplyFields(input, protector);
+            entity.EditedAt = clock.UtcNow; // DE-016, OQ-204: an edit touches the draft, so its time to be discarded by others starts again
             audit(entity, before);
             return entity;
         }, cancellationToken);
+
+    /// <summary>The longest reason for discarding someone else's draft, as the module's other reasons.</summary>
+    public const int DiscardReasonMaxLength = 500;
+
+    /// <summary>
+    /// DE-016: the maker discards their own draft that was never submitted, and the code is free for a new draft. Drafts are
+    /// the only static data rows that may be deleted (SDM-007; the V0144 guard refuses deleting any other status), so the
+    /// row is deleted; the audit entry keeps what it held. A line of an import goes with its import, and a draft a
+    /// rejection returned (it has a change request) stays for its maker to edit and submit again.
+    /// OQ-204 (Ade, 25 November 2026): anyone else who reaches this holds the table's maintain function (the route's function,
+    /// FunctionChecks) and may discard the draft once it has been untouched for the tenant's stale_draft_discard_days
+    /// (24-hour periods by the clock), giving a reason; it is audited as DiscardStaleDraft, with the reason, the maker and
+    /// how many days it was untouched. Before then 409 STATIC_DRAFT_NOT_STALE names when it becomes discardable.
+    /// </summary>
+    public Task<Result<TEntity>> DiscardDraft<TEntity>(StaticDataDescriptor descriptor, string code, int version, long expectedRowVersion, string? reason,
+        bool global, CancellationToken cancellationToken)
+        where TEntity : StaticRecord =>
+        Write<TEntity>(global, "DiscardDraft", descriptor, async (db, audit) =>
+        {
+            var loaded = await LoadForChange<TEntity>(db, code, version, expectedRowVersion, global, cancellationToken);
+            if (loaded.IsFailure)
+            {
+                return loaded.Error;
+            }
+
+            var entity = loaded.Value;
+            if (entity.RecordStatus != descriptor.Lifecycle.Draft)
+            {
+                return InvalidTransition($"Only a draft is discarded; this version is {entity.RecordStatus} (SDM-007: deprecate or retire instead).");
+            }
+
+            if (entity.ChangeRequestId is not null)
+            {
+                // TODO(spec): whether a draft returned by a rejection may be discarded too (DE-016 covers a draft never submitted).
+                return InvalidTransition("This draft was submitted and returned by a rejection; edit it and submit it again.");
+            }
+
+            if (entity.ImportBatchId is { } batch)
+            {
+                return InvalidTransition($"This draft is a line of import {batch}; the import's lines are kept together (BR-016).");
+            }
+
+            var before = Snapshot(entity);
+            if (entity.CreatedBy == execution.ActorId)
+            {
+                db.Set<TEntity>().Remove(entity);
+                audit(entity, before, null, null);
+                return entity;
+            }
+
+            // OQ-204: someone else's draft, once it has been left untouched for the tenant's number of days.
+            var days = await StaleDraftDiscardDays(cancellationToken);
+            var touched = LastTouched(entity);
+            var from = StaleFrom(touched, days);
+            var now = clock.UtcNow;
+            if (now < from)
+            {
+                return Error.Conflict(StaticDataErrorCodes.DraftNotStale,
+                    $"Only its maker discards this draft until it has been untouched for {days} days: anyone holding the table's maintain function may discard it "
+                    + $"from {from.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", System.Globalization.CultureInfo.InvariantCulture)} (discardableFrom).")
+                    with { Extensions = new Dictionary<string, object?> { ["discardableFrom"] = from, ["staleDraftDiscardDays"] = days } };
+            }
+
+            if (string.IsNullOrWhiteSpace(reason) || reason.Trim().Length > DiscardReasonMaxLength)
+            {
+                return Error.Validation(ErrorCodes.ValidationFailed, "A reason is required to discard someone else's draft.",
+                    new Dictionary<string, string[]> { ["reason"] = [$"reason is required, at most {DiscardReasonMaxLength} characters: why the draft is discarded."] });
+            }
+
+            db.Set<TEntity>().Remove(entity);
+            var makerId = Guid.TryParse(entity.CreatedBy, out var maker) ? maker : (Guid?)null;
+            if (makerId is { } told && Guid.TryParse(execution.ActorId, out var discardedBy))
+            {
+                // Ade, 25 November 2026 (OQ-204): the maker is told who discarded it, when and why; a seeded draft has no maker to tell.
+                db.Publish(new StaticDataDraftDiscarded(Ref(descriptor, entity), told, discardedBy, now, reason.Trim()), descriptor.EntityName, entity.Id, now);
+            }
+
+            audit(entity, before, "DiscardStaleDraft", new Dictionary<string, string?>
+            {
+                ["reason"] = reason.Trim(),
+                ["makerId"] = makerId?.ToString(),
+                ["daysUntouched"] = ((int)Math.Floor((now - touched).TotalDays)).ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["staleDraftDiscardDays"] = days.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            });
+            return entity;
+        }, cancellationToken);
+
+    /// <summary>
+    /// DE-015: the versions of a table not in force, waiting at one of <paramref name="statuses"/> (a draft, one submitted for
+    /// approval, or one approved and waiting to be activated), by ID after <paramref name="afterId"/>: the rows the list in force leaves out.
+    /// </summary>
+    public async Task<IReadOnlyList<TEntity>> NotInForce<TEntity>(StaticDataDescriptor descriptor, IReadOnlyCollection<string> statuses, bool global, Guid? afterId,
+        int limit, CancellationToken cancellationToken)
+        where TEntity : StaticRecord
+    {
+        await using var lease = Lease(global);
+        await using var transaction = await ReadOnly(lease.Context, cancellationToken);
+        var query = Scoped(lease.Context.Set<TEntity>().AsNoTracking(), global).Where(r => statuses.Contains(r.RecordStatus));
+        if (afterId is { } after)
+        {
+            query = query.Where(r => r.Id.CompareTo(after) > 0);
+        }
+
+        var versions = await query.OrderBy(r => r.Id).Take(limit).ToListAsync(cancellationToken);
+        await MarkDiscardable(descriptor, versions, cancellationToken);
+        return versions;
+    }
 
     /// <summary>Draft → pending approval. Raises StaticDataChangeSubmitted; the Static Data module records the change request.</summary>
     public Task<Result<TEntity>> Submit<TEntity>(StaticDataDescriptor descriptor, string code, int version, long expectedRowVersion, bool global,
@@ -858,8 +1016,17 @@ public sealed class StaticDataService<TDbContext>(
         }, cancellationToken);
 
     /// <summary>Runs one change in one transaction, with the audit entry and events in the same commit.</summary>
-    private async Task<Result<TEntity>> Write<TEntity>(bool global, string operation, StaticDataDescriptor descriptor,
+    private Task<Result<TEntity>> Write<TEntity>(bool global, string operation, StaticDataDescriptor descriptor,
         Func<TDbContext, Action<TEntity, string?>, Task<Result<TEntity>>> change, CancellationToken cancellationToken)
+        where TEntity : StaticRecord =>
+        Write<TEntity>(global, operation, descriptor, (db, audit) => change(db, (entity, before) => audit(entity, before, null, null)), cancellationToken);
+
+    /// <summary>
+    /// Runs one change in one transaction, with the audit entry and events in the same commit. The change may audit under another
+    /// operation than <paramref name="operation"/>, and add details of its own.
+    /// </summary>
+    private async Task<Result<TEntity>> Write<TEntity>(bool global, string operation, StaticDataDescriptor descriptor,
+        Func<TDbContext, Action<TEntity, string?, string?, IReadOnlyDictionary<string, string?>?>, Task<Result<TEntity>>> change, CancellationToken cancellationToken)
         where TEntity : StaticRecord
     {
         if (RequireUser() is { } userError)
@@ -876,8 +1043,16 @@ public sealed class StaticDataService<TDbContext>(
         var context = lease.Context;
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
         var entries = new List<AuditEntry>();
-        var result = await change(context, (entity, before) => entries.Add(new AuditEntry("STATIC_DATA", operation, descriptor.EntityCode, entity.Id.ToString(),
-            AuditDetails(descriptor, entity, before, global))));
+        var result = await change(context, (entity, before, audited, extra) =>
+        {
+            var details = AuditDetails(descriptor, entity, before, global);
+            foreach (var (key, value) in extra ?? new Dictionary<string, string?>())
+            {
+                details[key] = value;
+            }
+
+            entries.Add(new AuditEntry("STATIC_DATA", audited ?? operation, descriptor.EntityCode, entity.Id.ToString(), details));
+        });
         if (result.IsFailure)
         {
             await transaction.RollbackAsync(cancellationToken);

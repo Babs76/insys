@@ -25,7 +25,7 @@
  * ============================================================================
  */
 -- =====================================================================
--- V0157: DE-039 part 2 (Ade, 25 November 2026; OQ-201). A broker records its client's acknowledgement of a disclosure, saying how the notice was
+-- V0160: DE-039 part 2 (Ade, 25 November 2026; OQ-201). A broker records its client's acknowledgement of a disclosure, saying how the notice was
 -- presented; the customer sees it in the member portal. A tenant can switch broker recording off (customer-only).
 -- =====================================================================
 -- How the notice was presented when someone other than the customer recorded the acknowledgement: IN_PERSON, PHONE, EMAIL or OTHER (OTHER needs a

@@ -2114,6 +2114,14 @@
       "remedy": "Finish or discard that version first."
     },
     {
+      "code": "STATIC_DRAFT_NOT_STALE",
+      "httpStatus": 409,
+      "messageKey": "error.static_data.draft_not_stale",
+      "retryable": false,
+      "means": "Someone else's draft can be discarded only once it has been left untouched for the organisation's number of days, and this one was changed more recently.",
+      "remedy": "Ask its maker to finish or discard it, or discard it from the time given (discardableFrom), 7 days after its last change unless the static data settings say otherwise."
+    },
+    {
       "code": "STATIC_IMPORT_REJECTED",
       "httpStatus": 422,
       "messageKey": "error.static_data.import_rejected",
@@ -2170,12 +2178,28 @@
       "remedy": "Make the link first."
     },
     {
+      "code": "TASK_CLAIMED_BY_ANOTHER",
+      "httpStatus": 409,
+      "messageKey": "error.workflow.task_claimed_by_another",
+      "retryable": false,
+      "means": "Someone else has already taken this task.",
+      "remedy": "Refresh your tasks; ask the person who took it, or a supervisor, to reassign it if it should be yours."
+    },
+    {
       "code": "TASK_CLOSED_BY_ITS_RECORD",
       "httpStatus": 409,
       "messageKey": "error.workflow.task_closed_by_its_record",
       "retryable": false,
       "means": "This task closes by itself when its record does what the task asks; it can't be closed by hand.",
       "remedy": "Complete the work on the record; the task then closes."
+    },
+    {
+      "code": "TASK_NOT_YOURS",
+      "httpStatus": 403,
+      "messageKey": "error.workflow.task_not_yours",
+      "retryable": false,
+      "means": "This task isn't assigned to you, and isn't in a queue your roles serve.",
+      "remedy": "Open your tasks to see the ones you can work, or ask whoever assigns the queue's work."
     },
     {
       "code": "TENANT_CODE_TAKEN",

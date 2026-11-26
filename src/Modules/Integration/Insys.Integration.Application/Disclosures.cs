@@ -106,11 +106,11 @@ public sealed record DisclosureAcknowledgementView(Guid Id, Guid PartyId, string
 
 /// <summary>
 /// DE-039 (Ade, 25 November 2026): the language an outstanding notice is opened in. The party's preferred language if a text is in force in it, else the tenant's
-/// default language if one is, else the first language the notice exists in by code (ordinal), which is the only one when there is one.
+/// default language if one is, else the only language the notice is in force in. With several and none of those, null: the person chooses (no "first by code").
 /// </summary>
 public static class DisclosureLanguage
 {
-    public static string Choose(IReadOnlyCollection<string> available, string? preferred, string? tenantDefault)
+    public static string? Choose(IReadOnlyCollection<string> available, string? preferred, string? tenantDefault)
     {
         ArgumentOutOfRangeException.ThrowIfZero(available.Count);
         foreach (var candidate in new[] { preferred?.Trim(), tenantDefault?.Trim() })
@@ -121,7 +121,7 @@ public static class DisclosureLanguage
             }
         }
 
-        return available.Order(StringComparer.Ordinal).First();
+        return available.Count == 1 ? available.First() : null;
     }
 }
 

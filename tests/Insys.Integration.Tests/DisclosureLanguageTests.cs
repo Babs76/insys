@@ -51,9 +51,14 @@ public sealed class DisclosureLanguageTests
     public void WithNeitherAvailable_TheOnlyLanguageTheNoticeExistsIn_IsUsed_DE039() =>
         DisclosureLanguage.Choose(["xh"], "af", "en").ShouldBe("xh");
 
+    /// <summary>Ade, 25 November 2026: no "first by code"; the person chooses among the languages in force.</summary>
     [Fact]
-    public void WithSeveralAndNoneMatching_TheFirstByCode_IsUsed_DE039() =>
-        DisclosureLanguage.Choose(["zu", "xh", "st"], "af", "en").ShouldBe("st");
+    public void WithSeveralAndNoneMatching_NoLanguageIsChosen_DE039() =>
+        DisclosureLanguage.Choose(["zu", "xh", "st"], "af", "en").ShouldBeNull();
+
+    [Fact]
+    public void WithSeveral_NoPreferredLanguage_AndNoTenantDefault_NoLanguageIsChosen_DE039() =>
+        DisclosureLanguage.Choose(["af", "en"], null, null).ShouldBeNull();
 
     [Fact]
     public void ThePreferredLanguage_MatchesWhateverItsCase_AndTheTextsSpellingIsKept_DE039() =>
@@ -64,15 +69,21 @@ public sealed class DisclosureLanguageTests
     {
         var party = Guid.CreateVersion7();
         var quote = Guid.CreateVersion7();
-        var error = DisclosureRefusal.For("ISSUE", [new DisclosureNotice("POLICY_TERMS", "ZA", "en", 3), new DisclosureNotice("COOLING_OFF", "ZA", "af", 1)], party, "GENERAL_QUOTE", quote);
+        var error = DisclosureRefusal.For("ISSUE",
+            [new DisclosureNotice("POLICY_TERMS", "ZA", "en", 3, ["en"]), new DisclosureNotice("COOLING_OFF", "ZA", "af", 1, ["af", "en"]), new DisclosureNotice("PRIVACY", "ZA", null, null, ["xh", "zu"])],
+            party, "GENERAL_QUOTE", quote);
 
         (error.Code, error.Message, error.Kind).ShouldBe((ErrorCodes.DisclosureRequired, "The ISSUE disclosures aren't acknowledged yet.", ErrorKind.Conflict));
         var json = JsonSerializer.SerializeToElement(error.Extensions, JsonSerializerOptions.Web);
         json.GetProperty("displayPoint").GetString().ShouldBe("ISSUE");
-        json.GetProperty("noticeTypes").EnumerateArray().Select(n => n.GetString()).ShouldBe(["COOLING_OFF", "POLICY_TERMS"]);
+        json.GetProperty("noticeTypes").EnumerateArray().Select(n => n.GetString()).ShouldBe(["COOLING_OFF", "POLICY_TERMS", "PRIVACY"]);
         var notice = json.GetProperty("notices")[1];
         (notice.GetProperty("noticeType").GetString(), notice.GetProperty("jurisdiction").GetString(), notice.GetProperty("language").GetString(), notice.GetProperty("textVersion").GetInt32())
             .ShouldBe(("COOLING_OFF", "ZA", "af", 1));
+        notice.GetProperty("availableLanguages").EnumerateArray().Select(l => l.GetString()).ShouldBe(["af", "en"]);
+        var unchosen = json.GetProperty("notices")[2];
+        (unchosen.GetProperty("language").ValueKind, unchosen.GetProperty("textVersion").ValueKind).ShouldBe((JsonValueKind.Null, JsonValueKind.Null));
+        unchosen.GetProperty("availableLanguages").EnumerateArray().Select(l => l.GetString()).ShouldBe(["xh", "zu"]);
         (json.GetProperty("partyId").GetGuid(), json.GetProperty("businessRefType").GetString(), json.GetProperty("businessRefId").GetGuid()).ShouldBe((party, "GENERAL_QUOTE", quote));
     }
 }

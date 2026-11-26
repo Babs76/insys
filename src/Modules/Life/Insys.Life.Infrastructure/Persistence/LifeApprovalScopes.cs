@@ -47,6 +47,10 @@ internal sealed class LifeApprovalScopes([FromKeyedServices(LifeDbContext.Schema
         LifeApprovals.UnderwritingBusinessRefType => """
             SELECT p.product_code, p.org_node_code FROM life.underwriting_case c JOIN life.proposal p ON p.tenant_id = c.tenant_id AND p.id = c.proposal_id WHERE c.id = @id
             """,
+        // DE-045: an accepted proposal's "issue the policy" task follows the proposal.
+        LifeProposalTasks.BusinessRefType => """
+            SELECT product_code, org_node_code FROM life.proposal WHERE id = @id
+            """,
         LifeApprovals.ClaimBusinessRefType => """
             SELECT product_code, org_node_code FROM life.claim WHERE id = @id
             """,

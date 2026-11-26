@@ -35,6 +35,18 @@ public static class WorkflowPermissions
     public const string ProcessRead = "process.read";
     public const string ProcessCreate = "process.create";
     public const string ProcessUpdate = "process.update";
+
+    /// <summary>DE-025: the caller's own open tasks (assigned to them, or in a queue their roles serve), never the full task list.</summary>
+    public const string OwnTaskRead = "own_task.read";
+
+    /// <summary>DE-025: claim and complete one of the caller's own tasks.</summary>
+    public const string OwnTaskUpdate = "own_task.update";
+
+    /// <summary>DE-044: the caller's own requests for approval, with their status and decision.</summary>
+    public const string OwnApprovalRead = "own_approval.read";
+
+    /// <summary>DE-044: withdraw one of the caller's own requests while it waits.</summary>
+    public const string OwnApprovalWithdraw = "own_approval.withdraw";
 }
 
 /// <summary>An approval was granted. Consumers act on their own business references only.</summary>

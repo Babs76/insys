@@ -429,7 +429,41 @@ public sealed class TenantGovernanceSettings : AggregateRoot<Guid>
 
     public DateTimeOffset? PendingRequestedAt { get; private set; }
 
+    /// <summary>
+    /// DE-016, OQ-204 (Ade, 25 November 2026): a draft untouched for this many days (24-hour periods) may be discarded by anyone holding
+    /// its table's maintain function, with a reason. 7 unless the tenant changes it; at least 1 (V0159).
+    /// </summary>
+    public int StaleDraftDiscardDays { get; private set; } = DefaultStaleDraftDiscardDays;
+
+    public const int DefaultStaleDraftDiscardDays = 7;
+
+    /// <summary>The fewest days a tenant may set. TODO(spec): no other bound was given, upper or lower (OQ-204).</summary>
+    public const int MinStaleDraftDiscardDays = 1;
+
     public static TenantGovernanceSettings Defaults(Guid id) => new() { Id = id };
+
+    /// <summary>
+    /// Sets the number of days after which someone other than its maker may discard a draft left untouched (OQ-204). It takes effect at
+    /// once, as switching Tier 2 maker-checker on does: it opens no approval. TODO(spec): whether shortening it needs a second person (OQ-204).
+    /// Returns false when nothing changed.
+    /// </summary>
+    public Result<bool> ChangeStaleDraftDiscardDays(int days)
+    {
+        if (days < MinStaleDraftDiscardDays)
+        {
+            return Error.Validation(ErrorCodes.ValidationFailed, "The number of days is at least 1.",
+                new Dictionary<string, string[]> { ["staleDraftDiscardDays"] = [$"staleDraftDiscardDays is at least {MinStaleDraftDiscardDays}."] });
+        }
+
+        if (days == StaleDraftDiscardDays)
+        {
+            return false;
+        }
+
+        StaleDraftDiscardDays = days;
+        MarkChanged();
+        return true;
+    }
 
     /// <summary>Switches Tier 2 maker-checker on at once, cancelling any pending switch-off. Returns false when nothing changed.</summary>
     public bool SwitchTier2On()

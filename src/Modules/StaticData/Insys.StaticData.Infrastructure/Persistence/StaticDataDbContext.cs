@@ -124,6 +124,7 @@ public sealed class StaticDataDbContext(DbContextOptions<StaticDataDbContext> op
             settings.Property(x => x.PendingTier2MakerChecker).HasColumnName("pending_tier2_maker_checker");
             settings.Property(x => x.PendingRequestedBy).HasColumnName("pending_requested_by");
             settings.Property(x => x.PendingRequestedAt).HasColumnName("pending_requested_at");
+            settings.Property(x => x.StaleDraftDiscardDays).HasColumnName("stale_draft_discard_days");
         });
 
         modelBuilder.Entity<ImportError>(error =>

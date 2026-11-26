@@ -54,7 +54,7 @@ public sealed class StaticDataTests(DatabaseFixture fixture) : IClassFixture<Dat
     public async ValueTask InitializeAsync()
     {
         _factory = await fixture.Host();
-        await fixture.Database.UserWithPermissions(DatabaseFixture.TenantA, "maker-a", All);
+        await fixture.Database.UserWithPermissions(DatabaseFixture.TenantA, "maker-a", [.. All, WorkflowPermissions.OwnTaskRead]); // OQ-204: told in my tasks
         await fixture.Database.UserWithPermissions(DatabaseFixture.TenantA, "checker-a", All);
         await fixture.Database.UserWithPermissions(DatabaseFixture.Operator, "op-maker", All);
         await fixture.Database.UserWithPermissions(DatabaseFixture.Operator, "op-checker", All);
@@ -353,6 +353,294 @@ public sealed class StaticDataTests(DatabaseFixture fixture) : IClassFixture<Dat
         (await Leave("OQ190_ROLE:ASSIST_PRODUCT_DRAFT_REVIEW", "deprecate", review)).StatusCode.ShouldBe(HttpStatusCode.OK, "the run has gone, so the review may go");
     }
 
+    /// <summary>
+    /// DE-016: the maker discards their own draft that was never submitted (If-Match, audited), and the code is free for a new
+    /// draft; nobody else discards it, and nothing past a draft is discarded (SDM-007). The refusal of a second draft names the step.
+    /// </summary>
+    [Fact]
+    public async Task ADraftNeverSubmitted_IsDiscardedByItsMakerOnly_AndFreesItsCode_DE016_SDM007()
+    {
+        var maker = _factory.ClientFor(DatabaseFixture.TenantA, "maker-a");
+        var checker = _factory.ClientFor(DatabaseFixture.TenantA, "checker-a");
+        var created = await maker.Send(HttpMethod.Post, Policies, Policy("DISCARD_POLICY"), idempotent: true);
+        created.StatusCode.ShouldBe(HttpStatusCode.Created, await created.Content.ReadAsStringAsync());
+        var id = (await created.Json()).GetProperty("id").GetGuid();
+
+        var second = await maker.Send(HttpMethod.Post, Policies, Policy("DISCARD_POLICY"), idempotent: true);
+        second.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        (await second.Code()).ShouldBe("STATIC_DRAFT_EXISTS");
+        (await second.Content.ReadAsStringAsync()).ShouldContain("DISCARD_POLICY/versions/1/discard");
+
+        var url = $"{Policies}/DISCARD_POLICY/versions/1/discard";
+        // OQ-204: someone else holding the maintain function waits for the tenant's days (see the stale draft tests below).
+        var byOther = await checker.Send(HttpMethod.Post, url, ifMatch: created.ETag());
+        byOther.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        (await byOther.Code()).ShouldBe("STATIC_DRAFT_NOT_STALE");
+        (await maker.Send(HttpMethod.Post, url)).StatusCode.ShouldBe(HttpStatusCode.PreconditionRequired);
+        (await maker.Send(HttpMethod.Post, url, ifMatch: "\"99\"")).StatusCode.ShouldBe(HttpStatusCode.PreconditionFailed);
+
+        (await maker.Send(HttpMethod.Post, url, ifMatch: created.ETag())).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        (await (await maker.GetAsync($"{Policies}/DISCARD_POLICY/versions")).Json()).GetArrayLength().ShouldBe(0);
+        await _factory.DrainOutbox();
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM audit.audit_event WHERE operation = 'DiscardDraft' AND target_id = @id", ("id", id.ToString())))
+            .ShouldBe(1L);
+        // OQ-204: the maker's own discard tells nobody: no event, no task.
+        await _factory.DrainOutbox();
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM iam.outbox_event WHERE event_type = 'sdm.StaticDataDraftDiscarded' AND aggregate_id = @id",
+            ("id", id))).ShouldBe(0L);
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM workflow.process_instance WHERE process_code = 'STATIC_DRAFT_DISCARDED' AND business_ref_id = @id",
+            ("id", id))).ShouldBe(0L);
+
+        var again = await maker.Send(HttpMethod.Post, Policies, Policy("DISCARD_POLICY"), idempotent: true);
+        again.StatusCode.ShouldBe(HttpStatusCode.Created, "the code is free for a new draft");
+        (await again.Json()).GetProperty("version").GetInt32().ShouldBe(1);
+        var submitted = await maker.Send(HttpMethod.Post, $"{Policies}/DISCARD_POLICY/versions/1/submit", ifMatch: again.ETag());
+        submitted.StatusCode.ShouldBe(HttpStatusCode.OK, await submitted.Content.ReadAsStringAsync());
+        var notDraft = await maker.Send(HttpMethod.Post, url, ifMatch: submitted.ETag());
+        notDraft.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        (await notDraft.Code()).ShouldBe("INVALID_STATE_TRANSITION");
+    }
+
+    /// <summary>
+    /// DE-016, OQ-204 (Ade, 25 November 2026): another maintainer discards someone else's draft only once it has been untouched (created
+    /// or last edited) for the tenant's days, 7 by default, in 24-hour periods by the clock; sooner, 409 STATIC_DRAFT_NOT_STALE names when.
+    /// The pending list and the versions say when too. The reason is required, at most 500 characters.
+    /// </summary>
+    [Fact]
+    public async Task AnotherMaintainer_DiscardsADraft_OnlyOnceUntouchedForTheTenantsDays_WithAReason_DE016_OQ204()
+    {
+        var maker = _factory.ClientFor(DatabaseFixture.TenantA, "maker-a");
+        var other = _factory.ClientFor(DatabaseFixture.TenantA, "checker-a");
+        var created = await maker.Send(HttpMethod.Post, Policies, Policy("STALE_POLICY"), idempotent: true);
+        created.StatusCode.ShouldBe(HttpStatusCode.Created, await created.Content.ReadAsStringAsync());
+        var draft = await created.Json();
+        var id = draft.GetProperty("id").GetGuid();
+        var createdAt = draft.GetProperty("createdAt").GetDateTimeOffset();
+        var url = $"{Policies}/STALE_POLICY/versions/1/discard";
+
+        async Task<DateTimeOffset> Listed() =>
+            (await (await maker.GetAsync($"{Policies}/pending?status=DRAFT&limit=200")).Json()).GetProperty("items").EnumerateArray()
+            .Single(v => v.GetProperty("code").GetString() == "STALE_POLICY").GetProperty("discardableByOthersFrom").GetDateTimeOffset();
+        async Task<DateTimeOffset> Versioned() =>
+            (await (await maker.GetAsync($"{Policies}/STALE_POLICY/versions")).Json())[0].GetProperty("discardableByOthersFrom").GetDateTimeOffset();
+        (await Listed()).ShouldBe(createdAt.AddDays(7), Precision);
+        (await Versioned()).ShouldBe(createdAt.AddDays(7), Precision);
+
+        var fresh = await other.Send(HttpMethod.Post, url, new { reason = "Maker has left" }, ifMatch: created.ETag());
+        fresh.StatusCode.ShouldBe(HttpStatusCode.Conflict, await fresh.Content.ReadAsStringAsync());
+        var refusal = await fresh.Json();
+        refusal.GetProperty("code").GetString().ShouldBe("STATIC_DRAFT_NOT_STALE");
+        refusal.GetProperty("discardableFrom").GetDateTimeOffset().ShouldBe(createdAt.AddDays(7), Precision);
+
+        // An edit touches it: the days count from the edit, not from its creation.
+        var edited = await maker.Send(HttpMethod.Put, $"{Policies}/STALE_POLICY/versions/1", Policy("STALE_POLICY", lockoutAttempts: 4), ifMatch: created.ETag());
+        edited.StatusCode.ShouldBe(HttpStatusCode.OK, await edited.Content.ReadAsStringAsync());
+        var editedAt = (await edited.Json()).GetProperty("editedAt").GetDateTimeOffset();
+        await Age("STALE_POLICY", created: TimeSpan.FromDays(10), edited: TimeSpan.FromDays(7) - TimeSpan.FromMinutes(5));
+        (await Listed()).ShouldBe(editedAt.AddMinutes(5), Precision, "7 days after the edit, now 7 days less 5 minutes ago");
+        var recent = await other.Send(HttpMethod.Post, url, new { reason = "Maker has left" }, ifMatch: edited.ETag());
+        (await recent.Code()).ShouldBe("STATIC_DRAFT_NOT_STALE", "edited less than 7 × 24 hours ago, though created 10 days ago");
+
+        await Age("STALE_POLICY", created: TimeSpan.Zero, edited: TimeSpan.FromMinutes(10)); // now edited 7 days and 5 minutes ago
+        var noReason = await other.Send(HttpMethod.Post, url, ifMatch: edited.ETag());
+        noReason.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity, await noReason.Content.ReadAsStringAsync());
+        var invalid = await noReason.Json();
+        invalid.GetProperty("code").GetString().ShouldBe("VALIDATION_FAILED");
+        invalid.GetProperty("errors").TryGetProperty("reason", out _).ShouldBeTrue();
+        (await other.Send(HttpMethod.Post, url, new { reason = "  " }, ifMatch: edited.ETag())).StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+        (await other.Send(HttpMethod.Post, url, new { reason = new string('x', 501) }, ifMatch: edited.ETag())).StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+
+        var discarded = await other.Send(HttpMethod.Post, url, new { reason = "Maker has left the team" }, ifMatch: edited.ETag());
+        discarded.StatusCode.ShouldBe(HttpStatusCode.NoContent, await discarded.Content.ReadAsStringAsync());
+        (await (await maker.GetAsync($"{Policies}/STALE_POLICY/versions")).Json()).GetArrayLength().ShouldBe(0);
+        await _factory.DrainOutbox();
+        var makerId = await fixture.Database.ScalarAsOwner<Guid>("SELECT id FROM iam.user_account WHERE tenant_id = @t AND external_subject = 'maker-a'",
+            ("t", DatabaseFixture.TenantA));
+        var otherId = await fixture.Database.ScalarAsOwner<Guid>("SELECT id FROM iam.user_account WHERE tenant_id = @t AND external_subject = 'checker-a'",
+            ("t", DatabaseFixture.TenantA));
+        (await fixture.Database.ScalarAsOwner<long>("""
+            SELECT count(*) FROM audit.audit_event
+            WHERE tenant_id = @t AND operation = 'DiscardStaleDraft' AND target_id = @id AND actor_id = @actor
+              AND details->>'reason' = 'Maker has left the team' AND details->>'makerId' = @maker
+              AND details->>'daysUntouched' = '7' AND details->>'staleDraftDiscardDays' = '7'
+            """, ("t", DatabaseFixture.TenantA), ("id", id.ToString()), ("actor", otherId.ToString()), ("maker", makerId.ToString()))).ShouldBe(1L);
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM audit.audit_event WHERE operation = 'DiscardDraft' AND target_id = @id", ("id", id.ToString())))
+            .ShouldBe(0L, "the maker's own discard is audited as DiscardDraft; this one is DiscardStaleDraft");
+
+        // Ade, 25 November 2026 (OQ-204): the maker is told, by an informational task assigned to them: the table, code, version, who, when and why.
+        await _factory.DrainOutbox();
+        var mine = await maker.GetAsync("/api/v1/workflow/tasks/mine?limit=100");
+        mine.StatusCode.ShouldBe(HttpStatusCode.OK, await mine.Content.ReadAsStringAsync());
+        var told = (await mine.Json()).GetProperty("items").EnumerateArray()
+            .Single(t => t.GetProperty("processCode").GetString() == "STATIC_DRAFT_DISCARDED" && t.GetProperty("businessRefId").GetGuid() == id);
+        told.GetProperty("businessRefType").GetString().ShouldBe("STATIC_DATA_VERSION");
+        told.GetProperty("assignedToMe").GetBoolean().ShouldBeTrue();
+        told.GetProperty("informational").GetBoolean().ShouldBeTrue();
+        var notice = told.GetProperty("draftDiscarded");
+        notice.GetProperty("entityRoute").GetString().ShouldBe("identity/static/authentication-and-session-policies");
+        (notice.GetProperty("code").GetString(), notice.GetProperty("versionNumber").GetInt32(), notice.GetProperty("global").GetBoolean())
+            .ShouldBe(("STALE_POLICY", 1, false));
+        notice.GetProperty("discardedBy").GetGuid().ShouldBe(otherId);
+        notice.GetProperty("reason").GetString().ShouldBe("Maker has left the team");
+        notice.GetProperty("discardedAt").GetDateTimeOffset().ShouldBeGreaterThan(editedAt);
+    }
+
+    /// <summary>
+    /// DE-016, OQ-204: only someone holding the table's maintain function discards another's draft, however long untouched: the same 403 as any
+    /// other change to the table without it. The static_data.update permission alone, through another table's maintain function, is not enough.
+    /// </summary>
+    [Fact]
+    public async Task WithoutTheTablesMaintainFunction_NobodyDiscardsAnothersDraft_EvenUntouched_DE016_OQ204()
+    {
+        var maker = _factory.ClientFor(DatabaseFixture.TenantA, "maker-a");
+        var created = await maker.Send(HttpMethod.Post, Policies, Policy("STALE_NOFUNC"), idempotent: true);
+        created.StatusCode.ShouldBe(HttpStatusCode.Created, await created.Content.ReadAsStringAsync());
+        await Age("STALE_NOFUNC", created: TimeSpan.FromDays(30));
+        await fixture.Database.UserWithFunctions(DatabaseFixture.TenantA, "viewer-a", "SD_IDENTITY_AND_ACCESS_MANAGEMENT_VIEW", "SD_PARTY_MANAGEMENT_VIEW",
+            "SD_PARTY_MANAGEMENT_MAINTAIN");
+        var refused = await _factory.ClientFor(DatabaseFixture.TenantA, "viewer-a")
+            .Send(HttpMethod.Post, $"{Policies}/STALE_NOFUNC/versions/1/discard", new { reason = "Maker has left" }, ifMatch: created.ETag());
+        refused.StatusCode.ShouldBe(HttpStatusCode.Forbidden, await refused.Content.ReadAsStringAsync());
+        (await refused.Code()).ShouldBe("FUNCTION_NOT_GRANTED");
+        (await (await maker.GetAsync($"{Policies}/STALE_NOFUNC/versions")).Json()).GetArrayLength().ShouldBe(1);
+    }
+
+    /// <summary>
+    /// DE-016, OQ-204: the days are a tenant governance setting, 7 by default, at least 1, changed through the settings (If-Match, audited, at once)
+    /// and used for the tenant's drafts; another tenant keeps its own. The platform operator's setting applies to the global tables.
+    /// </summary>
+    [Fact]
+    public async Task TheStaleDraftDays_DefaultTo7_ChangeThroughTheGovernanceSettings_AndApplyToTheTenantsDrafts_DE016_OQ204()
+    {
+        var tenant = Guid.CreateVersion7();
+        await fixture.Database.SeedTenant(tenant, "TSTL");
+        await fixture.Database.UserWithPermissions(tenant, "stale-admin",
+            [.. All, StaticDataGovernancePermissions.SettingRead, StaticDataGovernancePermissions.SettingUpdate]);
+        await fixture.Database.UserWithPermissions(tenant, "stale-maker", All);
+        var admin = _factory.ClientFor(tenant, "stale-admin");
+        const string settings = "/api/v1/static-data/settings";
+
+        var defaults = await admin.GetAsync(settings);
+        defaults.StatusCode.ShouldBe(HttpStatusCode.OK, await defaults.Content.ReadAsStringAsync());
+        (await defaults.Json()).GetProperty("staleDraftDiscardDays").GetInt32().ShouldBe(7);
+        (await fixture.Database.ScalarAsOwner<int>("SELECT column_default::int FROM information_schema.columns WHERE table_schema = 'sdm' AND table_name = 'tenant_governance_setting' AND column_name = 'stale_draft_discard_days'"))
+            .ShouldBe(7);
+
+        var zero = await admin.Send(HttpMethod.Put, $"{settings}/stale-draft-discard-days", new { staleDraftDiscardDays = 0 }, ifMatch: "\"0\"");
+        zero.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+        (await zero.Code()).ShouldBe("VALIDATION_FAILED");
+        (await admin.Send(HttpMethod.Put, $"{settings}/stale-draft-discard-days", new { staleDraftDiscardDays = 2 }, ifMatch: "\"5\""))
+            .StatusCode.ShouldBe(HttpStatusCode.PreconditionFailed);
+        var changed = await admin.Send(HttpMethod.Put, $"{settings}/stale-draft-discard-days", new { staleDraftDiscardDays = 2 }, ifMatch: "\"0\"");
+        changed.StatusCode.ShouldBe(HttpStatusCode.NoContent, await changed.Content.ReadAsStringAsync());
+        var now = await (await admin.GetAsync(settings)).Json();
+        now.GetProperty("staleDraftDiscardDays").GetInt32().ShouldBe(2);
+        now.GetProperty("tier2MakerChecker").GetBoolean().ShouldBeTrue("the other settings are as they were");
+        await _factory.DrainOutbox();
+        (await fixture.Database.ScalarAsOwner<long>("""
+            SELECT count(*) FROM audit.audit_event
+            WHERE tenant_id = @t AND operation = 'ChangeStaleDraftDiscardDays' AND details->>'before' = '7' AND details->>'after' = '2'
+            """, ("t", tenant))).ShouldBe(1L);
+        await Should.ThrowAsync<PostgresException>(() => fixture.Database.ExecuteAsOwner(
+            "UPDATE sdm.tenant_governance_setting SET stale_draft_discard_days = 0 WHERE tenant_id = @t", ("t", tenant)));
+
+        // The tenant's 2 days: a draft untouched for 2 × 24 hours is discardable by another maintainer.
+        var maker = _factory.ClientFor(tenant, "stale-maker");
+        var created = await maker.Send(HttpMethod.Post, Policies, Policy("STALE_TWO"), idempotent: true);
+        created.StatusCode.ShouldBe(HttpStatusCode.Created, await created.Content.ReadAsStringAsync());
+        var createdAt = (await created.Json()).GetProperty("createdAt").GetDateTimeOffset();
+        (await (await maker.GetAsync($"{Policies}/STALE_TWO/versions")).Json())[0].GetProperty("discardableByOthersFrom").GetDateTimeOffset()
+            .ShouldBe(createdAt.AddDays(2), Precision);
+        await Age("STALE_TWO", created: TimeSpan.FromDays(2), tenant: tenant);
+        var discarded = await admin.Send(HttpMethod.Post, $"{Policies}/STALE_TWO/versions/1/discard", new { reason = "Abandoned draft" }, ifMatch: created.ETag());
+        discarded.StatusCode.ShouldBe(HttpStatusCode.NoContent, await discarded.Content.ReadAsStringAsync());
+
+        // Another tenant keeps the default.
+        await fixture.Database.UserWithPermissions(DatabaseFixture.TenantA, "stale-reader-a", StaticDataGovernancePermissions.SettingRead);
+        (await (await _factory.ClientFor(DatabaseFixture.TenantA, "stale-reader-a").GetAsync(settings)).Json()).GetProperty("staleDraftDiscardDays").GetInt32()
+            .ShouldBe(7);
+    }
+
+    /// <summary>DE-016, OQ-204: a global draft (the platform operator's) is discarded by another platform maintainer under the operator tenant's setting.</summary>
+    [Fact]
+    public async Task AGlobalDraft_IsDiscardedByAnotherPlatformMaintainer_UnderTheOperatorsSetting_DE016_OQ204()
+    {
+        var opMaker = _factory.ClientFor(DatabaseFixture.Operator, "op-maker");
+        var opOther = _factory.ClientFor(DatabaseFixture.Operator, "op-checker");
+        var created = await opMaker.Send(HttpMethod.Post, $"{Policies}/global", Policy("STALE_GLOBAL"), idempotent: true);
+        created.StatusCode.ShouldBe(HttpStatusCode.Created, await created.Content.ReadAsStringAsync());
+        var draft = await created.Json();
+        var createdAt = draft.GetProperty("createdAt").GetDateTimeOffset();
+        (await (await opMaker.GetAsync($"{Policies}/global/pending?status=DRAFT&limit=200")).Json()).GetProperty("items").EnumerateArray()
+            .Single(v => v.GetProperty("code").GetString() == "STALE_GLOBAL").GetProperty("discardableByOthersFrom").GetDateTimeOffset()
+            .ShouldBe(createdAt.AddDays(7), Precision, "the operator tenant's setting, 7 by default");
+        var url = $"{Policies}/global/STALE_GLOBAL/versions/1/discard";
+        (await (await opOther.Send(HttpMethod.Post, url, new { reason = "Left behind" }, ifMatch: created.ETag())).Code()).ShouldBe("STATIC_DRAFT_NOT_STALE");
+
+        await Age("STALE_GLOBAL", created: TimeSpan.FromDays(7), global: true);
+        (await opOther.Send(HttpMethod.Post, url, new { reason = "Left behind" }, ifMatch: created.ETag())).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        await _factory.DrainOutbox();
+        (await fixture.Database.ScalarAsOwner<long>("SELECT count(*) FROM audit.audit_event WHERE operation = 'DiscardStaleDraft' AND target_id = @id AND details->>'global' = 'True'",
+            ("id", draft.GetProperty("id").GetGuid().ToString()))).ShouldBe(1L);
+    }
+
+    /// <summary>Timestamps round to microseconds in the database.</summary>
+    private static readonly TimeSpan Precision = TimeSpan.FromMilliseconds(1);
+
+    /// <summary>
+    /// Moves a policy draft's created_at (and edited_at, when given) back by the given time, as if it had been left untouched that much longer
+    /// (DE-016, OQ-204). Tenant A's row unless another tenant is named; the global row when <paramref name="global"/>.
+    /// </summary>
+    private Task Age(string code, TimeSpan created, TimeSpan? edited = null, Guid? tenant = null, bool global = false) =>
+        fixture.Database.ExecuteAsOwner($"""
+            UPDATE iam.cfg_authentication_and_session_policies SET created_at = created_at - @created{(edited is null ? "" : ", edited_at = edited_at - @edited")}
+            WHERE code = @code AND record_status = 'DRAFT' AND {(global ? "tenant_id IS NULL AND @t::uuid IS NOT NULL" : "tenant_id = @t")}
+            """, ("code", code), ("created", created), ("edited", edited ?? TimeSpan.Zero), ("t", tenant ?? DatabaseFixture.TenantA));
+
+    /// <summary>DE-015: a table's versions not in force (draft, waiting for approval, approved), by status, with their maker and change request.</summary>
+    [Fact]
+    public async Task ATablesVersionsNotInForce_AreListedByStatus_WithTheirMakerAndChangeRequest_DE015()
+    {
+        var maker = _factory.ClientFor(DatabaseFixture.TenantA, "maker-a");
+        var makerId = await fixture.Database.ScalarAsOwner<Guid>("SELECT id FROM iam.user_account WHERE tenant_id = @t AND external_subject = 'maker-a'",
+            ("t", DatabaseFixture.TenantA));
+        var draft = await maker.Send(HttpMethod.Post, Policies, Policy("PEND_DRAFT"), idempotent: true);
+        draft.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var waiting = await maker.Send(HttpMethod.Post, Policies, Policy("PEND_SUBMIT"), idempotent: true);
+        waiting.StatusCode.ShouldBe(HttpStatusCode.Created, await waiting.Content.ReadAsStringAsync());
+        (await maker.Send(HttpMethod.Post, $"{Policies}/PEND_SUBMIT/versions/1/submit", ifMatch: waiting.ETag())).StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        async Task<List<JsonElement>> Listed(string? status)
+        {
+            var items = new List<JsonElement>();
+            string? cursor = null;
+            do
+            {
+                var page = await maker.GetAsync($"{Policies}/pending?limit=2{(status is null ? "" : $"&status={status}")}{(cursor is null ? "" : $"&cursor={cursor}")}");
+                page.StatusCode.ShouldBe(HttpStatusCode.OK, await page.Content.ReadAsStringAsync());
+                var body = await page.Json();
+                items.AddRange(body.GetProperty("items").EnumerateArray());
+                cursor = body.GetProperty("nextCursor").ValueKind == JsonValueKind.String ? body.GetProperty("nextCursor").GetString() : null;
+            }
+            while (cursor is not null);
+            return items;
+        }
+
+        var drafts = await Listed("DRAFT");
+        var mine = drafts.Single(v => v.GetProperty("code").GetString() == "PEND_DRAFT");
+        (mine.GetProperty("status").GetString(), mine.GetProperty("versionNumber").GetInt32(), mine.GetProperty("makerId").GetGuid()).ShouldBe(("DRAFT", 1, makerId));
+        mine.GetProperty("changeRequestId").ValueKind.ShouldBe(JsonValueKind.Null);
+        drafts.ShouldNotContain(v => v.GetProperty("code").GetString() == "PEND_SUBMIT");
+
+        var submitted = (await Listed("SUBMITTED")).Single(v => v.GetProperty("code").GetString() == "PEND_SUBMIT");
+        submitted.GetProperty("status").GetString().ShouldBe("SUBMITTED");
+        submitted.GetProperty("changeRequestId").GetGuid().ShouldNotBe(Guid.Empty);
+        (await Listed("APPROVED")).ShouldNotContain(v => v.GetProperty("code").GetString()!.StartsWith("PEND_", StringComparison.Ordinal));
+        (await Listed(null)).Select(v => v.GetProperty("code").GetString()).ShouldContain("PEND_DRAFT");
+        (await maker.GetAsync($"{Policies}/pending?status=ACTIVE")).StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+        (await (await maker.GetAsync(Policies)).Content.ReadAsStringAsync()).ShouldNotContain("PEND_DRAFT", Case.Sensitive, "the list in force leaves them out");
+    }
+
     [Fact]
     public async Task Import_IsAllOrNothing_AndReportsEveryRejectedLine_SDM012()
     {
@@ -397,9 +685,10 @@ public sealed class StaticDataTests(DatabaseFixture fixture) : IClassFixture<Dat
         {
             var list = await reader.GetAsync($"/api/v1/{descriptor.ModuleRoute}/static/{descriptor.EntityRoute}");
             var versions = await reader.GetAsync($"/api/v1/{descriptor.ModuleRoute}/static/{descriptor.EntityRoute}/any/versions");
-            if (list.StatusCode != HttpStatusCode.OK || versions.StatusCode != HttpStatusCode.OK)
+            var pending = await reader.GetAsync($"/api/v1/{descriptor.ModuleRoute}/static/{descriptor.EntityRoute}/pending"); // DE-015
+            if (list.StatusCode != HttpStatusCode.OK || versions.StatusCode != HttpStatusCode.OK || pending.StatusCode != HttpStatusCode.OK)
             {
-                failures.Add($"{descriptor.Schema}.{descriptor.Table}: {(int)list.StatusCode}/{(int)versions.StatusCode}");
+                failures.Add($"{descriptor.Schema}.{descriptor.Table}: {(int)list.StatusCode}/{(int)versions.StatusCode}/{(int)pending.StatusCode}");
             }
         }
 

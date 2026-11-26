@@ -96,6 +96,12 @@ public static class PartyPermissions
     public const string PartyCreate = "party.create";
     public const string PartyUpdate = "party.update";
 
+    /// <summary>
+    /// Deciding a portal registration's match (PARTY_MATCH_RESOLUTION in Workflow), and nothing else: the checker needs it, so deciding a match gives no
+    /// party editing (DE-002, Ade, 25 November 2026). Proposing a resolution still needs party.update.
+    /// </summary>
+    public const string MatchResolve = "party.resolve_match";
+
     /// <summary>Merging and anonymising change or remove identity; they need their own permission (PTY-004, PTY-005).</summary>
     public const string PartyMerge = "party.merge";
 

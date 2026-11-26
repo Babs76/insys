@@ -58,6 +58,10 @@ public sealed record AssignTaskRequest(Guid? AssigneeId);
 /// <param name="Variables">Values for the transition guard and the owning module's validation.</param>
 public sealed record CompleteTaskRequest(string ToState, JsonElement? Variables);
 
+/// <param name="ToState">The state the process moves to, one of the task's allowedTransitions; leave it out when there is only one ("done").</param>
+/// <param name="Variables">Values for the transition guard and the owning module's validation.</param>
+public sealed record CompleteMyTaskRequest([property: System.ComponentModel.DataAnnotations.MaxLength(20)] string? ToState, JsonElement? Variables);
+
 public sealed record CaseNoteRequest(string Note);
 
 public sealed record RejectChangeRequest(string Reason);
@@ -203,7 +207,7 @@ public sealed class WorkflowModule : IModule
             .RequireIfMatch()
             .WithName("WorkflowApprove")
             .AlsoChecks(PartyPermissions.BankAccountVerify, "the approval is a bank account verification (businessRefType BANK_ACCOUNT; requiredPermission names it)")
-            .AlsoChecks(PartyPermissions.PartyUpdate, "the approval is a portal registration match resolution (businessRefType PARTY_MATCH; requiredPermission names it)")
+            .AlsoChecks(PartyPermissions.MatchResolve, "the approval is a portal registration match resolution (businessRefType PARTY_MATCH; requiredPermission names it)")
             .AlsoChecks(PartyPermissions.DueDiligenceApproveEnhanced, "the approval clears enhanced due diligence (businessRefType DUE_DILIGENCE; requiredPermission names it)")
             .AlsoChecks(PartyPermissions.DueDiligenceOverrideRisk, "the approval overrides a risk class (businessRefType DUE_DILIGENCE_RISK_OVERRIDE; requiredPermission names it)")
             .AlsoChecks(PartyPermissions.DueDiligenceUnblock, "the approval unblocks a party's due diligence (businessRefType DUE_DILIGENCE_UNBLOCK; requiredPermission names it)")
@@ -224,7 +228,7 @@ public sealed class WorkflowModule : IModule
             .RequireIfMatch()
             .WithName("WorkflowReject")
             .AlsoChecks(PartyPermissions.BankAccountVerify, "the approval is a bank account verification (businessRefType BANK_ACCOUNT; requiredPermission names it)")
-            .AlsoChecks(PartyPermissions.PartyUpdate, "the approval is a portal registration match resolution (businessRefType PARTY_MATCH; requiredPermission names it)")
+            .AlsoChecks(PartyPermissions.MatchResolve, "the approval is a portal registration match resolution (businessRefType PARTY_MATCH; requiredPermission names it)")
             .AlsoChecks(PartyPermissions.DueDiligenceApproveEnhanced, "the approval clears enhanced due diligence (businessRefType DUE_DILIGENCE; requiredPermission names it)")
             .AlsoChecks(PartyPermissions.DueDiligenceOverrideRisk, "the approval overrides a risk class (businessRefType DUE_DILIGENCE_RISK_OVERRIDE; requiredPermission names it)")
             .AlsoChecks(PartyPermissions.DueDiligenceUnblock, "the approval unblocks a party's due diligence (businessRefType DUE_DILIGENCE_UNBLOCK; requiredPermission names it)")
@@ -349,6 +353,115 @@ public sealed class WorkflowModule : IModule
             .WithName("WorkflowListOpenTasks")
             .WithSummary("List open tasks by queue or assignee, earliest due first")
             .RequirePermission(WorkflowPermissions.ProcessRead);
+
+        MapMyWork(workflow, approvals);
+    }
+
+    /// <summary>
+    /// DE-025, DE-044: the caller's own tasks and requests, under functions every staff template holds, so no one needs the full task list
+    /// (WORKFLOW_TASKS) or the approvals screen (WORKFLOW_APPROVALS) to see and work what is theirs.
+    /// </summary>
+    private static void MapMyWork(RouteGroupBuilder workflow, RouteGroupBuilder approvals)
+    {
+        var mine = workflow.MapGroup("/tasks/mine");
+        mine.MapGet("/", async (string? cursor, int? limit, IDispatcher dispatcher, CancellationToken ct) =>
+            {
+                if (!OpenTaskCursors.TryDecode(cursor, out var after))
+                {
+                    return Problems.For(BuildingBlocks.Domain.ErrorCodes.ValidationFailed, "The cursor is not valid.", StatusCodes.Status422UnprocessableEntity);
+                }
+
+                var pageSize = Cursor.ClampLimit(limit);
+                return (await dispatcher.Query(new ListMyTasks(pageSize, after), ct)).ToHttp(items =>
+                    Results.Ok(new CursorPage<MyTaskView>(items, items.Count == pageSize ? OpenTaskCursors.Encode(items[^1].DueAt, items[^1].Id) : null)));
+            })
+            .Produces<CursorPage<MyTaskView>>(StatusCodes.Status200OK)
+            .WithName("WorkflowListMyTasks")
+            .WithSummary("My open tasks, earliest due first")
+            .WithDescription("DE-025: the open tasks assigned to the signed-in user, and the unassigned ones they serve: in a queue that is one of their roles "
+                + "in effect, or of a process a function of theirs does (a held claim payment for whoever releases instructions, a parked delivery for "
+                + "whoever retries them, a party match review for whoever resolves matches, and the step after an approval: docs/specs/addenda/my-work.md). "
+                + "An unassigned task is listed only within the user's scope (F103) and never to the person its process excludes (the maker of a release, "
+                + "SRS-002). Each item names its record (businessRefType, businessRefId and the screen that opens it) and the moves completing it may make. "
+                + "Never the full task list: that is WorkflowListOpenTasks.")
+            .RequirePermission(WorkflowPermissions.OwnTaskRead);
+
+        mine.MapGet("/{taskId:guid}", async (Guid taskId, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+                (await dispatcher.Query(new GetMyTask(taskId), ct)).ToHttp(task =>
+                {
+                    Concurrency.SetETag(http, task.RowVersion);
+                    return Results.Ok(task);
+                }))
+            .Produces<MyTaskView>(StatusCodes.Status200OK)
+            .WithName("WorkflowGetMyTask")
+            .WithSummary("One of my open tasks")
+            .WithDescription("As my tasks lists it, with its ETag (the process's version) for claiming and completing it. 404 when it isn't one of my open tasks.")
+            .RequirePermission(WorkflowPermissions.OwnTaskRead);
+
+        mine.MapPost("/{taskId:guid}/claim", (Guid taskId, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+                Versioned(http, version => dispatcher.Send(new ClaimMyTask(taskId, version), ct)))
+            .Produces(StatusCodes.Status204NoContent)
+            .RequireIfMatch()
+            .WithName("WorkflowClaimMyTask")
+            .WithSummary("Take one of my tasks: assign an unassigned task I serve to me")
+            .WithDescription("If-Match is the task's rowVersion from my tasks (its process's). Claiming a task already mine changes nothing; one someone else "
+                + "took is refused (409 TASK_CLAIMED_BY_ANOTHER), as is one I don't serve (403 TASK_NOT_YOURS) or whose process excludes me (403 "
+                + "MAKER_CHECKER_SAME_PERSON).")
+            .RequirePermission(WorkflowPermissions.OwnTaskUpdate);
+
+        mine.MapPost("/{taskId:guid}/complete", (Guid taskId, CompleteMyTaskRequest? request, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+                Versioned(http, version => dispatcher.Send(new CompleteMyTask(taskId, request?.ToState, request?.Variables, version), ct)))
+            .Produces(StatusCodes.Status204NoContent)
+            .RequireIfMatch()
+            .WithName("WorkflowCompleteMyTask")
+            .WithSummary("Complete one of my tasks")
+            .WithDescription("toState is one of the task's allowedTransitions; with only one (most tasks, and every informational one) the body may be left out: "
+                + "\"done\". An unassigned task I serve is taken by me as it completes. The transition guard and the owning module's validation apply, as on "
+                + "WorkflowCompleteTask. A task its record closes (the step after an approval, a parked delivery) also closes by itself when the record moves on.")
+            .RequirePermission(WorkflowPermissions.OwnTaskUpdate);
+
+        approvals.MapGet("/mine", async (string? status, string? cursor, int? limit, IDispatcher dispatcher, CancellationToken ct) =>
+            {
+                if (!Cursor.TryDecode(cursor, out var beforeId))
+                {
+                    return Problems.For(BuildingBlocks.Domain.ErrorCodes.ValidationFailed, "The cursor is not valid.", StatusCodes.Status422UnprocessableEntity);
+                }
+
+                var pageSize = Cursor.ClampLimit(limit);
+                return (await dispatcher.Query(new ListMyApprovals(status, beforeId, pageSize), ct))
+                    .ToHttp(items => Results.Ok(new CursorPage<ApprovalView>(items, items.Count == pageSize ? Cursor.Encode(items[^1].Id) : null)));
+            })
+            .Produces<CursorPage<ApprovalView>>(StatusCodes.Status200OK)
+            .WithName("WorkflowListMyApprovals")
+            .WithSummary("My requests for approval, newest first")
+            .WithDescription("DE-044: the approvals the signed-in user asked for, with their status and decision (checkerId, decisionReason, decidedAt). status "
+                + "is one of Requested, Approved, NotApplied, Rejected, Expired, Withdrawn (any case). The requester is told of each decision by a task in my "
+                + "tasks: APPROVAL_OUTCOME when approved or rejected (informational), APPROVAL_FOLLOW_UP when it expired, was withdrawn for them or was "
+                + "not applied.")
+            .RequirePermission(WorkflowPermissions.OwnApprovalRead);
+
+        approvals.MapGet("/mine/{id:guid}", async (Guid id, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+                (await dispatcher.Query(new GetMyApproval(id), ct)).ToHttp(approval =>
+                {
+                    Concurrency.SetETag(http, approval.RowVersion);
+                    return Results.Ok(approval);
+                }))
+            .Produces<ApprovalView>(StatusCodes.Status200OK)
+            .WithName("WorkflowGetMyApproval")
+            .WithSummary("One of my requests for approval")
+            .WithDescription("With its status, decision and ETag, for withdrawing it. 404 when someone else asked for it.")
+            .RequirePermission(WorkflowPermissions.OwnApprovalRead);
+
+        approvals.MapPost("/mine/{id:guid}/withdraw", (Guid id, RejectApprovalRequest request, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+                Versioned(http, version => dispatcher.Send(new WithdrawApproval(id, request.Reason, version), ct)))
+            .Produces(StatusCodes.Status204NoContent)
+            .RequireIfMatch()
+            .WithName("WorkflowWithdrawMyRequest")
+            .WithSummary("Withdraw one of my requests for approval, with a reason")
+            .WithDescription("DE-044: as WorkflowWithdraw, from my requests, without the approvals screen. If-Match is the approval's rowVersion from my requests. "
+                + "Only while it waits, and only my own (403 APPROVAL_NOT_REQUESTER otherwise).")
+            .WithEventualEffects("the withdrawal reaches the record that asked for it, which is put back as for a rejection; read that record again.")
+            .RequirePermission(WorkflowPermissions.OwnApprovalWithdraw);
     }
 
     /// <summary>
@@ -426,7 +539,9 @@ public sealed class WorkflowModule : IModule
 /// <summary>The open task list's cursor (BR-028): the last task's due time and ID, as the list is ordered.</summary>
 internal static class OpenTaskCursors
 {
-    public static string Encode(TaskView last) => Cursor.EncodeKey($"{last.DueAt.UtcTicks}|{last.Id:N}");
+    public static string Encode(TaskView last) => Encode(last.DueAt, last.Id);
+
+    public static string Encode(DateTimeOffset dueAt, Guid id) => Cursor.EncodeKey($"{dueAt.UtcTicks}|{id:N}");
 
     public static bool TryDecode(string? cursor, out OpenTaskCursor? after)
     {

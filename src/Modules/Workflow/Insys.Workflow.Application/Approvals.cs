@@ -97,6 +97,9 @@ public interface IApprovalQueries
 
     Task<ApprovalView?> Get(Guid id, CancellationToken cancellationToken);
 
+    /// <summary>DE-044: the approvals this user asked for, newest first, whatever their scope: they are the requester's own.</summary>
+    Task<IReadOnlyList<ApprovalView>> Mine(Guid makerId, string? status, Guid? beforeId, int limit, CancellationToken cancellationToken, Guid? id = null);
+
     /// <summary>Waiting approvals in the caller's scope that another user asked for, oldest first by ID (BR-004 candidates).</summary>
     Task<IReadOnlyList<Approval>> WaitingFromOthers(Guid userId, string? businessRefType, Guid? businessRefId, Guid? afterId, int limit,
         CancellationToken cancellationToken);

@@ -225,7 +225,7 @@ public sealed class DocumentsModule : IModule
             .WithName("DocumentsListRecordHolds")
             .WithSummary("The legal holds on records, oldest first")
             .WithDescription("Filter by the record (scopeType, scopeId) and whether the hold is in force. Holds on records outside the caller's scope are left out.")
-            .RequirePermission(DocumentPermissions.LegalHoldManage);
+            .RequirePermission(DocumentPermissions.LegalHoldRead);
 
         holds.MapGet("/{id:guid}", async (Guid id, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
                 (await dispatcher.Query(new GetRecordHold(id), ct)).ToHttp(view =>
@@ -236,7 +236,7 @@ public sealed class DocumentsModule : IModule
             .Produces<RecordHoldView>(StatusCodes.Status200OK)
             .WithName("DocumentsGetRecordHold")
             .WithSummary("Get a legal hold on a record")
-            .RequirePermission(DocumentPermissions.LegalHoldManage);
+            .RequirePermission(DocumentPermissions.LegalHoldRead);
 
         holds.MapPost("/{id:guid}/release", async (Guid id, LegalHoldReleaseRequest r, IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
             {

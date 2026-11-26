@@ -163,9 +163,51 @@ public static class BuiltInProcesses
     public static readonly ProcessDefinition PartyRetentionReview = new("PARTY_RETENTION_REVIEW", 1, ["REVIEW_RETENTION", "REVIEWED"],
         [new TransitionDefinition("REVIEW_RETENTION", "REVIEWED", null)], null);
 
+    /// <summary>DE-044: the requester is told how their request was decided (approved or rejected). Informational: it closes when they open or complete it.</summary>
+    public static readonly ProcessDefinition ApprovalOutcome = new("APPROVAL_OUTCOME", 1, ["READ_OUTCOME", "READ"],
+        [new TransitionDefinition("READ_OUTCOME", "READ", null)], null);
+
+    /// <summary>
+    /// DE-016, OQ-204 (Ade, 25 November 2026): someone else discarded the maker's static data draft, left untouched for the tenant's days. Informational:
+    /// it tells the maker who, when and why (the process's notice), and closes when they open or complete it.
+    /// </summary>
+    public static readonly ProcessDefinition StaticDraftDiscarded = new("STATIC_DRAFT_DISCARDED", 1, ["READ_NOTICE", "READ"],
+        [new TransitionDefinition("READ_NOTICE", "READ", null)], null);
+
+    /// <summary>DE-015: an approved static data version or import waits for its maker to activate it; it closes when the version is in force.</summary>
+    public static readonly ProcessDefinition StaticDataActivation = new("STATIC_DATA_ACTIVATE", 1, ["ACTIVATE_VERSION", "ACTIVATED"],
+        [new TransitionDefinition("ACTIVATE_VERSION", "ACTIVATED", null)], null);
+
+    /// <summary>DE-045, DE-029: an approved claim payment instruction waits to be released by someone other than its drafter; it closes when released.</summary>
+    public static readonly ProcessDefinition ClaimPaymentRelease = new("CLAIM_PAY_RELEASE", 1, ["RELEASE_INSTRUCTION", "RELEASED"],
+        [new TransitionDefinition("RELEASE_INSTRUCTION", "RELEASED", null)], null);
+
+    /// <summary>DE-045: an approved payout batch waits to be released by someone other than its builder; it closes when released.</summary>
+    public static readonly ProcessDefinition PayoutBatchRelease = new("PAYOUT_BATCH_RELEASE", 1, ["RELEASE_BATCH", "RELEASED"],
+        [new TransitionDefinition("RELEASE_BATCH", "RELEASED", null)], null);
+
+    /// <summary>DE-045: an approved provider payment run waits to be released; it closes when released.</summary>
+    public static readonly ProcessDefinition PaymentRunRelease = new("PAYMENT_RUN_RELEASE", 1, ["RELEASE_RUN", "RELEASED"],
+        [new TransitionDefinition("RELEASE_RUN", "RELEASED", null)], null);
+
+    /// <summary>DE-045: an approved payout (refund, commission statement, redress, retry) waits for a payout batch; it closes when a batch takes it.</summary>
+    public static readonly ProcessDefinition PayoutBatchBuild = new("PAYOUT_BATCH_BUILD", 1, ["BUILD_BATCH", "BATCHED"],
+        [new TransitionDefinition("BUILD_BATCH", "BATCHED", null)], null);
+
+    /// <summary>DE-045: an accepted Life or General proposal waits for its policy to be issued; it closes when the policy is issued.</summary>
+    public static readonly ProcessDefinition PolicyIssue = new("POLICY_ISSUE", 1, ["ISSUE_POLICY", "ISSUED"],
+        [new TransitionDefinition("ISSUE_POLICY", "ISSUED", null)], null);
+
+    public static IReadOnlyList<ProcessDefinition> All { get; } =
+    [
+        ParkedDelivery, ConfigurationReview, HeldClaimPayment, PartyMatchReview, AggregationReview, ApprovalFollowUp, GeneralReferral, DueDiligenceHitReview,
+        DueDiligenceSanctionsMatch, DueDiligenceReview, HealthArrearsTermination, GeneralRenewalReview, GeneralRetention, ProviderMeasureReview, CareActivityFollowUp,
+        RecoveryReview, ProgrammeReview, DataSubjectRequest, PartyRetentionReview, ApprovalOutcome, StaticDataActivation, ClaimPaymentRelease, PayoutBatchRelease,
+        PaymentRunRelease, PayoutBatchBuild, PolicyIssue, StaticDraftDiscarded,
+    ];
+
     public static ProcessDefinition? Find(string processCode, int? version) =>
-        new[] { ParkedDelivery, ConfigurationReview, HeldClaimPayment, PartyMatchReview, AggregationReview, ApprovalFollowUp, GeneralReferral, DueDiligenceHitReview,
-            DueDiligenceSanctionsMatch, DueDiligenceReview, HealthArrearsTermination, GeneralRenewalReview, GeneralRetention, ProviderMeasureReview, CareActivityFollowUp, RecoveryReview, ProgrammeReview, DataSubjectRequest, PartyRetentionReview }.FirstOrDefault(d => d.ProcessCode == processCode && (version is null || version == d.Version));
+        All.FirstOrDefault(d => d.ProcessCode == processCode && (version is null || version == d.Version));
 }
 
 /// <summary>Where a new task goes and when it is due: from the task type, queue and SLA definitions in force.</summary>
@@ -334,6 +376,43 @@ public sealed class ProcessInstance : AggregateRoot<Guid>
 
     /// <summary>False for a record scoped by product only (a product version, OQ-173): the reader's node scope doesn't apply.</summary>
     public bool OrgNodeApplies { get; private set; } = true;
+
+    /// <summary>DE-045: the approval this process is the next step of, or that it tells its requester about; null for any other process.</summary>
+    public Guid? ApprovalId { get; private set; }
+
+    /// <summary>SRS-002: a person who may not work the task (the maker of a release step: the drafter or the builder). Null when anyone serving it may.</summary>
+    public Guid? ExcludedUserId { get; private set; }
+
+    /// <summary>For a "build a payout batch" step (DE-045): the batch's purpose and currency, so the task says which batch to build.</summary>
+    public string? PayoutPurpose { get; private set; }
+
+    public string? PayoutCurrency { get; private set; }
+
+    /// <summary>
+    /// What an informational task tells its assignee, as JSON (OQ-204: a discarded draft's table, code, version, who discarded it, when and why); null for
+    /// any other process. Never holds medical or identity data.
+    /// </summary>
+    public string? Notice { get; private set; }
+
+    /// <summary>The process tells its assignee something (OQ-204).</summary>
+    public void Tell(string notice)
+    {
+        Notice = notice;
+        MarkChanged();
+    }
+
+    /// <summary>The process follows an approval (DE-045, DE-044): the approval, who may not work it, and a payout batch's purpose and currency.</summary>
+    public void Follow(Guid? approvalId, Guid? excludedUserId = null, string? payoutPurpose = null, string? payoutCurrency = null)
+    {
+        ApprovalId = approvalId;
+        ExcludedUserId = excludedUserId;
+        PayoutPurpose = payoutPurpose is null ? null : Guard.MaxLength(payoutPurpose, 20);
+        PayoutCurrency = payoutCurrency is null ? null : Guard.MaxLength(payoutCurrency, 3);
+        MarkChanged();
+    }
+
+    /// <summary>Whether the user may claim or complete the task: not the person the process excludes (SRS-002).</summary>
+    public bool MayBeWorkedBy(Guid userId) => ExcludedUserId != userId;
 
     public void ScopeTo(string? productCode, string? orgNodeCode, bool orgNodeApplies = true)
     {

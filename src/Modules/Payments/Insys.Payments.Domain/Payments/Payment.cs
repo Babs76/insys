@@ -83,6 +83,10 @@ public sealed record PaymentInitiated(Guid PaymentId, string PaymentRef, Directi
 
 public sealed record PaymentAllocated(Guid PaymentId, Guid AllocationId, Guid InvoiceId, decimal Amount, string Currency, DateTimeOffset OccurredAt) : IDomainEvent;
 
+/// <summary>DE-045: a payout waiting for a batch was put in one; Workflow closes the "build a payout batch" task of the record it pays.</summary>
+public sealed record PaymentBatched(Guid PaymentId, Guid BatchId, string Purpose, string Currency, string? BusinessRefType, Guid? BusinessRefId, DateTimeOffset OccurredAt)
+    : IDomainEvent;
+
 public sealed record PaymentReversed(Guid PaymentId, string PaymentRef, Direction Direction, string Purpose, decimal Amount, string Currency, DateOnly ReversedOn,
     IReadOnlyList<(Guid AllocationId, Guid InvoiceId, decimal Amount)> Allocations, string Reason, DateTimeOffset OccurredAt) : IDomainEvent;
 
@@ -306,9 +310,10 @@ public sealed class Payment : AggregateRoot<Guid>
         return payment;
     }
 
-    public void AssignToBatch(Guid batchId)
+    public void AssignToBatch(Guid batchId, DateTimeOffset now)
     {
         PayoutBatchId = batchId;
+        Raise(new PaymentBatched(Id, batchId, Purpose, Currency, BusinessRefType, BusinessRefId, now));
         MarkChanged();
     }
 

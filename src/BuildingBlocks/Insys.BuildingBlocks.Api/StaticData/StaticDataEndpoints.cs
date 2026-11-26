@@ -52,6 +52,32 @@ public sealed record StaticDataImport<TInput>(string FileRef, IReadOnlyList<TInp
 /// <param name="BatchId">The import (BR-016): its lines are read, submitted as one change and activated together under /imports/{batchId}.</param>
 public sealed record StaticDataImportResult(int Imported, Guid BatchId);
 
+/// <summary>
+/// DE-015: a version of a static data table that is not in force: a draft, one submitted and waiting for its approval, or one
+/// approved and waiting to be activated. Its record is GET …/{code}/versions (this versionNumber among them), and its
+/// lifecycle actions are under …/{code}/versions/{versionNumber}.
+/// </summary>
+/// <param name="MakerId">Who created the draft (the maker), or null when the row was not made by a user (a seed).</param>
+/// <param name="ChangeRequestId">The change request once submitted (GET /api/v1/static-data/change-requests/{id}), else null.</param>
+/// <param name="ImportBatchId">The import the draft is a line of (BR-016), submitted and activated with it under …/imports/{batchId}, else null.</param>
+/// <param name="EditedAt">When its maker last edited the draft, else null (DE-016, OQ-204).</param>
+/// <param name="DiscardableByOthersFrom">
+/// DE-016, OQ-204: for a draft that may be discarded, when anyone holding the table's maintain function may discard it with a reason: the
+/// tenant's staleDraftDiscardDays (GET /api/v1/static-data/settings) after the later of createdAt and editedAt. Null for any other version.
+/// </param>
+public sealed record StaticVersionNotInForce(Guid Id, string Code, int VersionNumber, string Status, Guid? MakerId, DateOnly EffectiveFrom, DateOnly? EffectiveTo,
+    Guid? ChangeRequestId, Guid? ImportBatchId, DateTimeOffset CreatedAt, long RowVersion, DateTimeOffset? EditedAt, DateTimeOffset? DiscardableByOthersFrom)
+{
+    public static StaticVersionNotInForce Of(StaticRecord r) => new(r.Id, r.Code, r.Version, r.RecordStatus, Guid.TryParse(r.CreatedBy, out var maker) ? maker : null,
+        r.EffectiveFrom, r.EffectiveTo, r.ChangeRequestId, r.ImportBatchId, r.CreatedAt, r.RowVersion, r.EditedAt, r.DiscardableByOthersFrom);
+}
+
+/// <summary>
+/// DE-016, OQ-204: why a draft is discarded. Optional for its maker; required, at most 500 characters, to discard someone else's draft
+/// left untouched for the tenant's number of days.
+/// </summary>
+public sealed record StaticDraftDiscard(string? Reason);
+
 /// <summary>An import submitted as one change (BR-016): its change request, and the hash of its lines its approval is bound to.</summary>
 public sealed record StaticDataImportSubmissionResult(Guid BatchId, Guid ChangeRequestId, int Lines, string Hash);
 
@@ -137,13 +163,47 @@ public static class StaticDataEndpoints
             var owner = global ? "global (platform administrators)" : "tenant";
 
             scope.MapGet("/{code}/versions", async (string code, StaticDataService<TDbContext> service, HttpContext http, CancellationToken ct) =>
-                    Results.Ok(StaticLabels.Localise(await service.Versions<TEntity>(code, global, ct), Chain(http))))
+                    Results.Ok(StaticLabels.Localise(await service.Versions<TEntity>(d, code, global, ct), Chain(http))))
                 .Produces<IReadOnlyList<TEntity>>(StatusCodes.Status200OK)
                 .WithName($"List{Pascal(d)}Versions{suffix}")
                 .WithSummary($"List every {owner} version of a {entityName} code")
                 .WithDescription("Each version carries its rowVersion and no ETag header of its own. To change a version (submit, withdraw, approve, "
                     + "retire), send If-Match with its rowVersion in double quotes, for example If-Match: \"3\" for rowVersion 3: the same entity tag every "
                     + "INSYS ETag header uses (BR-014).")
+                .Secure(global, StaticDataPermissions.Read);
+
+            // DE-015: the versions the list in force leaves out, for their maker and for whoever decides or activates them.
+            scope.MapGet("/pending", async ([System.ComponentModel.Description("DRAFT, SUBMITTED (waiting for approval: PENDING_APPROVAL, or VALIDATED and SUBMITTED for a configuration table) or APPROVED (waiting to be activated); all three when omitted")]
+                    string? status, string? cursor, int? limit, StaticDataService<TDbContext> service, CancellationToken ct) =>
+                {
+                    if (!Cursor.TryDecode(cursor, out var afterId))
+                    {
+                        return Problems.For(ErrorCodes.ValidationFailed, "The cursor is not valid.", StatusCodes.Status422UnprocessableEntity);
+                    }
+
+                    string[]? statuses = status switch
+                    {
+                        null or "" => [d.Lifecycle.Draft, .. d.Lifecycle.Submitted, d.Lifecycle.Approved],
+                        PendingStatuses.Draft => [d.Lifecycle.Draft],
+                        PendingStatuses.Submitted => d.Lifecycle.Submitted,
+                        PendingStatuses.Approved => [d.Lifecycle.Approved],
+                        _ => null,
+                    };
+                    if (statuses is null)
+                    {
+                        return Problems.For(ErrorCodes.ValidationFailed, "status is DRAFT, SUBMITTED or APPROVED.", StatusCodes.Status422UnprocessableEntity);
+                    }
+
+                    var pageSize = Cursor.ClampLimit(limit);
+                    var items = (await service.NotInForce<TEntity>(d, statuses, global, afterId, pageSize, ct)).Select(StaticVersionNotInForce.Of).ToList();
+                    return Results.Ok(new CursorPage<StaticVersionNotInForce>(items, items.Count == pageSize ? Cursor.Encode(items[^1].Id) : null));
+                })
+                .Produces<CursorPage<StaticVersionNotInForce>>(StatusCodes.Status200OK)
+                .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+                .WithName($"List{Pascal(d)}Pending{suffix}")
+                .WithSummary($"List the {owner} {entityName} versions not in force: drafts, versions waiting for approval and approved versions waiting to be activated")
+                .WithDescription("DE-015: each version's code, versionNumber, status, maker, effectiveFrom and change request, oldest first. A maker finds their draft "
+                    + "here (edit, submit or discard it), and an approved version waiting for activate. The table's list (GET …/) shows only the versions in force.")
                 .Secure(global, StaticDataPermissions.Read);
 
             if (readOnly || (global ? !d.AllowsGlobalRows : !d.AllowsTenantRows))
@@ -211,6 +271,30 @@ public static class StaticDataEndpoints
                     + "GET /api/v1/workflow/approvals); until then approve and reject return 404. Activation's cache refreshes follow too.")
                 .Secure(global, StaticDataPermissions.Update);
 
+            scope.MapPost("/{code}/versions/{versionNumber:int}/discard", async (string code, int versionNumber, StaticDraftDiscard? body,
+                    StaticDataService<TDbContext> service, HttpContext http, CancellationToken ct) =>
+                {
+                    var expected = Concurrency.ExpectedVersion(http.Request);
+                    return expected.IsFailure
+                        ? Problems.For(expected.Error)
+                        : (await service.DiscardDraft<TEntity>(d, code, versionNumber, expected.Value, body?.Reason, global, ct)).ToHttp(_ => Results.NoContent());
+                })
+                .Produces(StatusCodes.Status204NoContent)
+                .ProducesProblem(StatusCodes.Status403Forbidden)
+                .ProducesProblem(StatusCodes.Status409Conflict)
+                .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+                .RequireIfMatch()
+                .WithName($"Discard{Pascal(d)}Draft{suffix}")
+                .WithSummary($"Discard a {owner} {entityName} draft that was never submitted: your own, or someone else's left untouched for the tenant's number of days")
+                .WithDescription("DE-016: the draft is deleted (only drafts may be, SDM-007) and audited with what it held; the code is free for a new draft. "
+                    + "Its maker discards it at any time, with no body needed (DiscardDraft). OQ-204: anyone else holding the table's maintain function may discard it "
+                    + "once it has been untouched (created or last edited) for the tenant's staleDraftDiscardDays (GET /api/v1/static-data/settings, 7 unless "
+                    + "changed), 24-hour periods: the body's reason is then required, at most 500 characters (422 VALIDATION_FAILED), and the discard is audited as "
+                    + "DiscardStaleDraft with the reason, the maker and the days untouched. Sooner, 409 STATIC_DRAFT_NOT_STALE with discardableFrom; the pending "
+                    + "list and GET …/{code}/versions give discardableByOthersFrom. 409 INVALID_STATE_TRANSITION for any other status, for a draft a rejection "
+                    + "returned (edit and submit it again) and for a line of an import (BR-016).")
+                .Secure(global, StaticDataPermissions.Update);
+
             scope.MapPost("/imports", async (StaticDataImport<TInput> import, StaticDataService<TDbContext> service, CancellationToken ct) =>
                     (await service.Import<TEntity, TInput>(d, import.Lines, import.FileRef, global, ct))
                     .ToHttp(imported => Results.Ok(new StaticDataImportResult(imported.Count, imported.BatchId))))
@@ -245,6 +329,14 @@ public static class StaticDataEndpoints
                 .WithEventualEffects("after submit, the change request and its Workflow approval appear; after the approval, every line reads APPROVED.")
                 .Secure(global, StaticDataPermissions.Update);
         }
+    }
+
+    /// <summary>The status filter of the versions not in force (DE-015).</summary>
+    private static class PendingStatuses
+    {
+        public const string Draft = "DRAFT";
+        public const string Submitted = "SUBMITTED";
+        public const string Approved = "APPROVED";
     }
 
     private static RouteHandlerBuilder Secure(this RouteHandlerBuilder builder, bool global, string permission) =>

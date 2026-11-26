@@ -270,6 +270,11 @@ core	WorkflowCaseView.orgNodeCode	to declare
 core	WorkflowCaseView.productCode	to declare
 core	WorkflowCaseView.raisedByIntermediaryCode	to declare
 core	WorkflowComplaintCategoryFigures.categoryCode	to declare
+core	WorkflowMyTaskView.processCode	to declare
+core	WorkflowMyTaskView.queueCode	to declare
+core	WorkflowMyTaskView.slaCode	to declare
+core	WorkflowMyTaskView.taskType	to declare
+core	WorkflowStaticDraftDiscardNotice.entityCode	a static data table's entity code (any module's table, as a change request's entityCode): the discarded draft's table (DE-016, OQ-204)
 core	WorkflowOmbudReferralRequest.schemeCode	to declare
 core	WorkflowOpenCaseRequest.caseTypeCode	to declare
 core	WorkflowOpenCaseRequest.categoryCode	to declare
@@ -453,3 +458,8 @@ core	AssistProductDraftProvenanceView.productCode	to declare
 core	AssistProductDraftRunView.productCode	to declare
 core	AssistSimulationCaseExportView.productCode	to declare
 core	AssistStartProductDraftRequest.productCode	to declare
+core	DisclosureNotice.noticeType	to declare (DE-039: the notice types of channel.cfg_disclosure_and_notice_texts)
+core	ProblemDetails.businessRefType	to declare (DE-039: the record a refusal names, as businessRefType elsewhere)
+core	ProblemDetails.noticeTypes	to declare (DE-039: the notice types, as DisclosureNotice.noticeType)
+platform-operator	ProblemDetails.businessRefType	to declare (DE-039: as in core)
+platform-operator	ProblemDetails.noticeTypes	to declare (DE-039: as in core)

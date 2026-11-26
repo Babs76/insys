@@ -157,8 +157,23 @@ internal sealed class ParkedDeliveryStore(
             SET status = 'DISCARDED', discarded_by = @by, discard_reason = @reason, resolved_at = @now,
                 row_version = row_version + 1, updated_at = @now, updated_by = @by
             WHERE tenant_id = @tenant_id AND id = @id AND row_version = @version AND status IN ('PARKED', 'WAITING', 'FAILING', 'DEAD_LETTERED')
+            RETURNING consumer, prerequisite_code, prerequisite_item, event_type, event_id
             """, ("id", id), ("version", expectedVersion), ("by", Truncate(by, 80)), ("reason", reason), ("now", clock.UtcNow));
-        return await command.ExecuteNonQueryAsync(cancellationToken) == 1;
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken))
+        {
+            return false;
+        }
+
+        // DE-028: Workflow closes the delivery's tasks; saved with the command, in its transaction.
+        var discarded = new Contracts.ParkedDeliveryDiscarded(id, reader.GetString(0), reader.IsDBNull(1) ? null : reader.GetString(1),
+            reader.IsDBNull(2) ? null : reader.GetString(2), reader.GetString(3), reader.GetGuid(4));
+        await reader.CloseAsync();
+
+        // Written by SQL in the same transaction, as the ledger's events are, so the command's saved version stays the delivery's (BR-116).
+        await ParkedRows.Publish(command.Connection!, command.Transaction!, tenant.RequireTenantId(), id, discarded, clock.UtcNow, Truncate(by, 80),
+            Guid.CreateVersion7(), cancellationToken);
+        return true;
     }
 
     public Task<ParkingSettingView> Setting(CancellationToken cancellationToken) =>
@@ -198,7 +213,7 @@ internal sealed class ParkedDeliveryStore(
             return await reader.ReadAsync(cancellationToken)
                 ? new ParkingSettingView(reader.GetString(0), reader.IsDBNull(1) ? null : reader.GetString(1), reader.GetString(2), reader.GetString(3),
                     reader.GetString(4), reader.GetString(5), false, reader.GetInt64(6))
-                : new ParkingSettingView(defaults.DefaultConfigurationOwnerRole, null, defaults.MoneyFirst, defaults.MoneySecond, defaults.OtherFirst,
+                : new ParkingSettingView(defaults.DefaultEscalationRole, null, defaults.MoneyFirst, defaults.MoneySecond, defaults.OtherFirst,
                     defaults.OtherSecond, true, 0);
         }, cancellationToken);
 
@@ -254,6 +269,9 @@ internal sealed class ParkedDeliveryStore(
 internal sealed class ConfigurationOwner([FromKeyedServices(IntegrationDbContext.SchemaName)] NpgsqlDataSource dataSource, IOptions<ParkingOptions> options)
     : Contracts.IConfigurationOwner
 {
+    /// <summary>The tenant's own setting's role; with none, the configuration owner default, not the parked deliveries' escalation default (DE-028).</summary>
     public async Task<string> Role(Guid tenantId, CancellationToken cancellationToken) =>
-        (await ParkedDeliveryStore.ReadSetting(dataSource, tenantId, options.Value, cancellationToken)).ConfigurationOwnerRole;
+        await ParkedDeliveryStore.ReadSetting(dataSource, tenantId, options.Value, cancellationToken) is { IsDefault: false } own
+            ? own.ConfigurationOwnerRole
+            : options.Value.DefaultConfigurationOwnerRole;
 }

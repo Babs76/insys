@@ -237,17 +237,28 @@ public static class ErrorContract
             Items = new OpenApiSchema
             {
                 Type = JsonSchemaType.Object,
-                Required = new HashSet<string> { "noticeType", "jurisdiction", "language", "textVersion" },
+                Required = new HashSet<string> { "noticeType", "jurisdiction", "language", "textVersion", "availableLanguages" },
                 Properties = new Dictionary<string, IOpenApiSchema>
                 {
                     ["noticeType"] = new OpenApiSchema { Type = JsonSchemaType.String },
                     ["jurisdiction"] = new OpenApiSchema { Type = JsonSchemaType.String, Description = "The party's country (address, else nationality), else the tenant's." },
                     ["language"] = new OpenApiSchema
                     {
-                        Type = JsonSchemaType.String,
-                        Description = "The party's preferred language if a text is in force in it, else the tenant's default language if one is, else the first language the notice exists in by code.",
+                        Type = JsonSchemaType.String | JsonSchemaType.Null,
+                        Description = "The party's preferred language if a text is in force in it, else the tenant's default language if one is, else the only language the notice is in force in. "
+                            + "Null when it is in force in several and none of those: the person chooses one of availableLanguages.",
                     },
-                    ["textVersion"] = new OpenApiSchema { Type = JsonSchemaType.Integer, Description = "The version of that text in force today, the one an acknowledgement records." },
+                    ["textVersion"] = new OpenApiSchema
+                    {
+                        Type = JsonSchemaType.Integer | JsonSchemaType.Null,
+                        Description = "The version in force today of the text in that language, the one an acknowledgement records; null when no language is chosen.",
+                    },
+                    ["availableLanguages"] = new OpenApiSchema
+                    {
+                        Type = JsonSchemaType.Array,
+                        Description = "The languages the notice is in force in, by code. Acknowledging it in any one of them, in its version in force, acknowledges the notice.",
+                        Items = new OpenApiSchema { Type = JsonSchemaType.String },
+                    },
                 },
             },
         };
