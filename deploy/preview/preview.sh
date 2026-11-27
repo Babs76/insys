@@ -67,6 +67,17 @@ out="$RUNNER_TEMP/preview-secrets.age"
 mask() { echo "::add-mask::$1"; }
 fail() { echo "::error::$*" >&2; exit 1; }
 summary() { [ -z "${GITHUB_STEP_SUMMARY:-}" ] || printf '%s\n\n' "$*" >> "$GITHUB_STEP_SUMMARY"; }
+# Let's Encrypt's service (Ade, 27 November 2026): PREVIEW_ACME is staging or production, from the run's acme input or the Environment's
+# variable, and there is no default. Every run checks it before it touches anything: a staging default on a Preview with production
+# certificates would switch Traefik's CA and empty acme.json (acme_ca), and leave the hosts without a trusted certificate.
+acme_service() {
+  case "${PREVIEW_ACME:-}" in
+    staging | production) ;;
+    "") fail "PREVIEW_ACME isn't set: set the Environment preview's variable PREVIEW_ACME to staging or production, or choose acme for this run" ;;
+    *) fail "PREVIEW_ACME is '$PREVIEW_ACME': it must be staging or production" ;;
+  esac
+}
+acme_service
 # Which run initialised the server's OpenBao, and so whose encrypted file holds its unseal key: "<run id> <yyyy-mm-dd>", written by openbao().
 openbao_run_note=/var/lib/rancher/k3s/server/insys-openbao-run
 
@@ -115,7 +126,7 @@ wait_for_ssh() {
 # helm reads the cluster from k3s.yaml, given each time: unlike k3s's kubectl, it doesn't look there itself.
 cluster() {
   local ca=https://acme-staging-v02.api.letsencrypt.org/directory
-  [ "${PREVIEW_ACME:-staging}" = production ] && ca=https://acme-v02.api.letsencrypt.org/directory
+  [ "$PREVIEW_ACME" = production ] && ca=https://acme-v02.api.letsencrypt.org/directory
   on_server "command -v k3s >/dev/null || curl -sfL --retry 3 --retry-all-errors --retry-delay 5 https://get.k3s.io | INSTALL_K3S_VERSION='$k3s_version' sh -s - --write-kubeconfig-mode 600"
   on_server "command -v jq >/dev/null || (apt-get update -qq && apt-get install -y -qq jq >/dev/null)"
   on_server "command -v helm >/dev/null || (curl -sfL --retry 3 --retry-all-errors --retry-delay 5 https://get.helm.sh/helm-$helm_version-linux-amd64.tar.gz | tar -xz -C /tmp && install /tmp/linux-amd64/helm /usr/local/bin/helm)"
@@ -476,7 +487,7 @@ issued_by() { # issuer, then staging or production
   case "$1" in *"(STAGING)"*) [ "$2" = staging ] ;; *) [ "$2" = production ] ;; esac
 }
 check_tls() {
-  local want=${PREVIEW_ACME:-staging}
+  local want=$PREVIEW_ACME
   for host in "$PREVIEW_DOMAIN" "id.$PREVIEW_DOMAIN"; do
     for _ in $(seq 1 60); do
       issuer=$(echo | openssl s_client -connect "$(address):443" -servername "$host" 2>/dev/null | openssl x509 -noout -issuer 2>/dev/null || true)
