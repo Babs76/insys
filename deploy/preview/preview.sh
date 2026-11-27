@@ -67,6 +67,17 @@ out="$RUNNER_TEMP/preview-secrets.age"
 mask() { echo "::add-mask::$1"; }
 fail() { echo "::error::$*" >&2; exit 1; }
 summary() { [ -z "${GITHUB_STEP_SUMMARY:-}" ] || printf '%s\n\n' "$*" >> "$GITHUB_STEP_SUMMARY"; }
+# Let's Encrypt's service (Ade, 27 November 2026): PREVIEW_ACME is staging or production, from the run's acme input or the Environment's
+# variable, and there is no default. Every run checks it before it touches anything: a staging default on a Preview with production
+# certificates would switch Traefik's CA and empty acme.json (acme_ca), and leave the hosts without a trusted certificate.
+acme_service() {
+  case "${PREVIEW_ACME:-}" in
+    staging | production) ;;
+    "") fail "PREVIEW_ACME isn't set: set the Environment preview's variable PREVIEW_ACME to staging or production, or choose acme for this run" ;;
+    *) fail "PREVIEW_ACME is '$PREVIEW_ACME': it must be staging or production" ;;
+  esac
+}
+acme_service
 # Which run initialised the server's OpenBao, and so whose encrypted file holds its unseal key: "<run id> <yyyy-mm-dd>", written by openbao().
 openbao_run_note=/var/lib/rancher/k3s/server/insys-openbao-run
 
@@ -115,7 +126,7 @@ wait_for_ssh() {
 # helm reads the cluster from k3s.yaml, given each time: unlike k3s's kubectl, it doesn't look there itself.
 cluster() {
   local ca=https://acme-staging-v02.api.letsencrypt.org/directory
-  [ "${PREVIEW_ACME:-staging}" = production ] && ca=https://acme-v02.api.letsencrypt.org/directory
+  [ "$PREVIEW_ACME" = production ] && ca=https://acme-v02.api.letsencrypt.org/directory
   on_server "command -v k3s >/dev/null || curl -sfL --retry 3 --retry-all-errors --retry-delay 5 https://get.k3s.io | INSTALL_K3S_VERSION='$k3s_version' sh -s - --write-kubeconfig-mode 600"
   on_server "command -v jq >/dev/null || (apt-get update -qq && apt-get install -y -qq jq >/dev/null)"
   on_server "command -v helm >/dev/null || (curl -sfL --retry 3 --retry-all-errors --retry-delay 5 https://get.helm.sh/helm-$helm_version-linux-amd64.tar.gz | tar -xz -C /tmp && install /tmp/linux-amd64/helm /usr/local/bin/helm)"
@@ -480,7 +491,7 @@ issued_by() { # issuer, then staging or production
   case "$1" in *"(STAGING)"*) [ "$2" = staging ] ;; *) [ "$2" = production ] ;; esac
 }
 check_tls() {
-  local want=${PREVIEW_ACME:-staging}
+  local want=$PREVIEW_ACME
   for host in "$PREVIEW_DOMAIN" "id.$PREVIEW_DOMAIN"; do
     for _ in $(seq 1 60); do
       issuer=$(echo | openssl s_client -connect "$(address):443" -servername "$host" 2>/dev/null | openssl x509 -noout -issuer 2>/dev/null || true)
@@ -1161,13 +1172,32 @@ keycloak_theme_revert() {
 # What the upgrade replaces (Ade, 27 November 2026). The Preview runs the release branch preview-release-ca1bf2b, whose src/ and db/ are
 # ca1bf2b's. Its images carry no commit, so before anything changes this prints what is running and stops unless the server shows ca1bf2b's:
 #   - the database's applied migrations are exactly V0001 to V0148, each with this checkout's checksum (applied files never change, DBA-017);
-#   - the running API's Insys.Api.dll embeds ca1bf2b's three OpenAPI documents byte for byte (the build embeds docs/api/openapi-*.json).
+#   - the running API's assemblies hold ca1bf2b's texts: each Insys.*.dll in /app prints the same line as in ca1bf2b's build
+#     (api-fingerprint.py; the reference, release-ca1bf2b.fingerprint, is ca1bf2b published as its image publishes it).
+#     Not its OpenAPI documents (run 45972997075): .dockerignore leaves docs/ out of the image, so the image embeds none.
 release_commit=ca1bf2ba3ce755991a14df2fdd671caf473ddcc8
 release_migration=148
-release_documents=(core static-data platform-operator)
+release_fingerprint="$here/release-ca1bf2b.fingerprint"
+# The API's assemblies, from its running pod or from an image, into a directory (the CI check reads images the same way).
+api_assemblies() { # directory
+  mkdir -p "$1"
+  on_server "kubectl exec deploy/insys-api -- sh -c 'cd /app && tar -cf - Insys.*.dll'" | tar -x -C "$1"
+}
+# Compares a directory's Insys.*.dll with the reference; prints the result, and the differing files when it fails.
+api_matches_release() { # directory
+  local got
+  got=$(python3 -I "$here/api-fingerprint.py" "$1") || return 1
+  if [ "$got" = "$(cat "$release_fingerprint")" ]; then
+    echo "  API: its $(wc -l <<<"$got") Insys assemblies hold ca1bf2b's texts, each one"
+    return 0
+  fi
+  echo "  API: its Insys assemblies aren't ca1bf2b's: $(diff <(cut -d' ' -f1,3 "$release_fingerprint") <(cut -d' ' -f1,3 <<<"$got") | grep -c '^[<>]') lines differ, for example:"
+  diff <(cut -d' ' -f1,3 "$release_fingerprint") <(cut -d' ' -f1,3 <<<"$got") | grep '^[<>]' | head -n 6 | sed 's/^/    /'
+  return 1
+}
 upgrade_counts() { echo "Counts after the upgrade: $(counts)"; }
 running_release() {
-  local applied expected v f doc work=$RUNNER_TEMP/release
+  local applied expected v f work=$RUNNER_TEMP/release
   mkdir -p "$work"
   echo "Running now, before the upgrade:"
   # shellcheck disable=SC2016 # it runs on the server, which expands it
@@ -1190,17 +1220,9 @@ running_release() {
     fail "the database's migrations aren't ca1bf2b's (V0001 to V$(printf %04d "$release_migration"), unchanged): stopped before anything changed"
   }
 
-  git -C "$here/../.." fetch -q --depth=1 origin "$release_commit" || fail "couldn't fetch $release_commit"
-  for doc in "${release_documents[@]}"; do git -C "$here/../.." show "$release_commit:docs/api/openapi-$doc.json" > "$work/openapi-$doc.json"; done
-  on_server "kubectl exec deploy/insys-api -- cat /app/Insys.Api.dll" > "$work/Insys.Api.dll" || fail "couldn't read the running API's Insys.Api.dll"
-  python3 -I - "$work" "${release_documents[@]}" <<'EOF' || fail "the running API isn't built from $release_commit: stopped before anything changed"
-import pathlib, sys
-work = pathlib.Path(sys.argv[1]); dll = (work / "Insys.Api.dll").read_bytes()
-missing = [d for d in sys.argv[2:] if (work / f"openapi-{d}.json").read_bytes() not in dll]
-print(f"  API: Insys.Api.dll ({len(dll)} bytes) embeds ca1bf2b's OpenAPI documents: " + ("yes" if not missing else "no, not " + ", ".join(missing)))
-sys.exit(1 if missing else 0)
-EOF
-  echo "  The back end running is ca1bf2b's: its migrations and its API's contract."
+  api_assemblies "$work/app" || fail "couldn't read the running API's assemblies"
+  api_matches_release "$work/app" || fail "the running API isn't built from $release_commit: stopped before anything changed"
+  echo "  The back end running is ca1bf2b's: its migrations and its API's assemblies."
   echo "Counts before the upgrade: $(counts)"
 }
 

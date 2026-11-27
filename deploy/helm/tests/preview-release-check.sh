@@ -25,66 +25,88 @@
 # ============================================================================
 # The Preview upgrade's release check (deploy/preview/preview.sh: running_release; Ade, 27 November 2026), against a stubbed server and a
 # small fake repository: it passes only when the database's applied migrations are exactly the release's, with the same checksums, and the
-# running API's Insys.Api.dll embeds the release's OpenAPI documents byte for byte. Anything else fails the run. No network, no server.
+# running API's Insys assemblies hold the release's texts (deploy/preview/api-fingerprint.py against the reference fingerprint). Anything
+# else fails the run. No network, no server. deploy/helm/tests/preview-release-images.sh runs the same check on real images.
 # shellcheck disable=SC2034,SC2329,SC2001 # the stubs and variables are read by preview.sh's functions, sourced at run time
 set -euo pipefail
 repo=$(cd "$(dirname "$0")/../../.." && pwd)
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
-sed -n '/^release_commit=/,/^}/p;/^counts()/,/^}/p' "$repo/deploy/preview/preview.sh" > "$tmp/functions.sh"
-for f in running_release counts upgrade_counts; do grep -q "^$f()" "$tmp/functions.sh" || { echo "$f not found in preview.sh"; exit 1; }; done
+awk '/^release_commit=/{on=1} on{print} on&&/^running_release\(\)/{body=1} body&&/^}/{exit}' "$repo/deploy/preview/preview.sh" > "$tmp/functions.sh"
+sed -n '/^counts()/,/^}/p' "$repo/deploy/preview/preview.sh" >> "$tmp/functions.sh"
+for f in running_release counts upgrade_counts api_assemblies api_matches_release; do
+  grep -q "^$f()" "$tmp/functions.sh" || { echo "$f not found in preview.sh"; exit 1; }
+done
 
-# A fake checkout: deploy/preview (here) and db/migrations, with V0001 to V0003 in the release and V0004 after it.
+# A fake checkout: deploy/preview (here, with the fingerprint tool) and db/migrations, with V0001 to V0003 in the release and V0004 after it.
 fake="$tmp/repo"
 mkdir -p "$fake/deploy/preview" "$fake/db/migrations"
+cp "$repo/deploy/preview/api-fingerprint.py" "$fake/deploy/preview/"
 for v in 1 2 3 4; do printf 'SELECT %s;\n' "$v" > "$fake/db/migrations/V000${v}__m$v.sql"; done
 release_sums() { for v in 1 2 3; do echo "$v $(sha256sum "$fake/db/migrations/V000${v}__m$v.sql" | cut -d' ' -f1)"; done; }
-for d in core static-data platform-operator; do printf '{"document":"%s","release":true}' "$d" > "$tmp/openapi-$d.json"; done
 
-run() { # applied migrations, then the dll's content; prints the output, returns the status
-  local applied=$1 dll=$2
-  printf '%s' "$dll" > "$tmp/served.dll"
-  printf '%s\n' "$applied" > "$tmp/applied"
+# Fake assemblies: a file holding UTF-16 texts, as .NET stores string literals.
+assembly() { # file, texts...
+  local file=$1; shift
+  : > "$file"
+  for t in "$@"; do printf 'pad%s\0\0' "$t" | iconv -f UTF-8 -t UTF-16LE >> "$file"; done
+}
+build() { # directory, the Api's route text, then extra file names
+  local dir=$1 route=$2; shift 2
+  mkdir -p "$dir"
+  assembly "$dir/Insys.Api.dll" "/api/v1/$route" "Release text"
+  assembly "$dir/Insys.Party.Domain.dll" "PARTY_NOT_FOUND" "SELECT party"
+  for extra in "$@"; do assembly "$dir/$extra" "Another assembly"; done
+}
+build "$tmp/release" parties
+python3 -I "$repo/deploy/preview/api-fingerprint.py" "$tmp/release" > "$fake/deploy/preview/release-ca1bf2b.fingerprint"
+build "$tmp/another" parties/merge
+build "$tmp/extra" parties Insys.New.dll
+mkdir -p "$tmp/missing" && cp "$tmp/release/Insys.Api.dll" "$tmp/missing/"
+
+run() { # applied migrations, then the directory the API's assemblies come from
+  printf '%s\n' "$1" > "$tmp/applied"
+  served=$2
   (
     set -euo pipefail
+    here="$fake/deploy/preview"
     # shellcheck disable=SC1091 # extracted at run time
     . "$tmp/functions.sh"
     release_migration=3
-    here="$fake/deploy/preview"
-    RUNNER_TEMP="$tmp/runner"
+    RUNNER_TEMP="$tmp/runner/$RANDOM"
     fail() { echo "FAILED: $*"; exit 1; }
     on_server() {
       case "$*" in
-        *"cat /app/Insys.Api.dll"*) cat "$tmp/served.dll" ;;
+        *"tar -cf - Insys.*.dll"*) (cd "$served" && tar -cf - Insys.*.dll) ;;
         *psql*) if grep -q schema_migration; then cat "$tmp/applied"; else echo "parties 1"; fi ;;
         *) echo "  (what is running)" ;;
       esac
     }
-    git() { case "$*" in *" fetch "*) return 0 ;; *" show "*) cat "$tmp/openapi-$(sed 's/.*openapi-\(.*\)\.json/\1/' <<<"${*: -1}").json" ;; esac; }
     running_release
   ) 2>&1
 }
 
-docs=$(cat "$tmp"/openapi-core.json "$tmp"/openapi-static-data.json "$tmp"/openapi-platform-operator.json)
 good=$(release_sums)
 failures=0
-expect() { # name, pass or fail, applied, dll
+expect() { # name, pass or fail, applied, assemblies
   local out status=0
   out=$(run "$3" "$4") || status=$?
   if { [ "$2" = pass ] && [ $status -eq 0 ] && grep -q "is ca1bf2b's" <<<"$out"; } || { [ "$2" = fail ] && [ $status -ne 0 ] && grep -q '^FAILED: ' <<<"$out"; }; then
-    echo "PASS $1$( [ "$2" = fail ] && grep "^FAILED: " <<<"$out" | sed "s/^/: /")"
+    echo "PASS $1$( [ "$2" = fail ] && grep '^FAILED: ' <<<"$out" | sed 's/^/: /')"
   else
     echo "FAIL $1 (status $status):"; sed 's/^/  /' <<<"$out"; failures=$((failures + 1))
   fi
 }
 mkdir -p "$tmp/runner"
-expect the-release-passes pass "$good" "prefix${docs}suffix"
-expect a-missing-migration-fails fail "$(head -n 2 <<<"$good")" "$docs"
+expect the-release-passes pass "$good" "$tmp/release"
+expect a-missing-migration-fails fail "$(head -n 2 <<<"$good")" "$tmp/release"
 expect a-later-migration-fails fail "$good
-4 $(sha256sum "$fake/db/migrations/V0004__m4.sql" | cut -d' ' -f1)" "$docs"
-expect a-changed-checksum-fails fail "$(sed '2s/ .*/ 0000000000000000000000000000000000000000000000000000000000000000/' <<<"$good")" "$docs"
-expect another-api-build-fails fail "$good" "$(cat "$tmp"/openapi-core.json "$tmp"/openapi-static-data.json)"
-expect an-empty-database-fails fail "" "$docs"
+4 $(sha256sum "$fake/db/migrations/V0004__m4.sql" | cut -d' ' -f1)" "$tmp/release"
+expect a-changed-checksum-fails fail "$(sed '2s/ .*/ 0000000000000000000000000000000000000000000000000000000000000000/' <<<"$good")" "$tmp/release"
+expect an-empty-database-fails fail "" "$tmp/release"
+expect another-api-build-fails fail "$good" "$tmp/another"
+expect an-extra-assembly-fails fail "$good" "$tmp/extra"
+expect a-missing-assembly-fails fail "$good" "$tmp/missing"
 [ "$failures" -eq 0 ] || { echo "$failures failure(s)"; exit 1; }
-echo "6 scenarios passed"
+echo "8 scenarios passed"
