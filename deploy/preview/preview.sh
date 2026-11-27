@@ -1158,6 +1158,52 @@ keycloak_theme_revert() {
   fi
 }
 
+# What the upgrade replaces (Ade, 27 November 2026). The Preview runs the release branch preview-release-ca1bf2b, whose src/ and db/ are
+# ca1bf2b's. Its images carry no commit, so before anything changes this prints what is running and stops unless the server shows ca1bf2b's:
+#   - the database's applied migrations are exactly V0001 to V0148, each with this checkout's checksum (applied files never change, DBA-017);
+#   - the running API's Insys.Api.dll embeds ca1bf2b's three OpenAPI documents byte for byte (the build embeds docs/api/openapi-*.json).
+release_commit=ca1bf2ba3ce755991a14df2fdd671caf473ddcc8
+release_migration=148
+release_documents=(core static-data platform-operator)
+upgrade_counts() { echo "Counts after the upgrade: $(counts)"; }
+running_release() {
+  local applied expected v f doc work=$RUNNER_TEMP/release
+  mkdir -p "$work"
+  echo "Running now, before the upgrade:"
+  # shellcheck disable=SC2016 # it runs on the server, which expands it
+  on_server 'export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+    echo "  release: $(helm status insys -o json | jq -r "\"revision \(.version), \(.info.status), deployed \(.info.last_deployed)\"")"
+    echo "  API: $(kubectl get deploy insys-api -o jsonpath="{.spec.template.spec.containers[0].image}"), running $(kubectl get pods -l app.kubernetes.io/name=api -o jsonpath="{range .items[*]}{.status.containerStatuses[0].imageID} {end}")"
+    echo "  migrator: $(kubectl get jobs -l app.kubernetes.io/name=migrate -o jsonpath="{range .items[*]}{.metadata.name} {.spec.template.spec.containers[0].image} {.status.succeeded}; {end}")"
+    echo "  console: $(kubectl get deploy insys-console -o jsonpath="{.spec.template.spec.containers[0].image}" 2>/dev/null || echo none)"' \
+    || fail "couldn't read what is running"
+
+  applied=$(printf '%s' "SELECT version || ' ' || checksum FROM public.schema_migration ORDER BY version" \
+    | on_server "kubectl exec -i insys-postgres-0 -- psql -U insys_owner -d insys -At") || fail "couldn't read the applied migrations"
+  expected=$(for f in "$here"/../../db/migrations/V*__*.sql; do
+      v=$(basename "$f" | sed -n 's/^V0*\([0-9][0-9]*\)__.*/\1/p')
+      if [ "$v" -le "$release_migration" ]; then echo "$v $(sha256sum "$f" | cut -d' ' -f1)"; fi
+    done | sort -n)
+  echo "  migrations applied: $(wc -l <<<"$applied"), the last V$(tail -n 1 <<<"$applied" | cut -d' ' -f1)"
+  [ "$applied" = "$expected" ] || {
+    diff <(echo "$expected") <(echo "$applied") | head -n 10 | sed 's/^/    /'
+    fail "the database's migrations aren't ca1bf2b's (V0001 to V$(printf %04d "$release_migration"), unchanged): stopped before anything changed"
+  }
+
+  git -C "$here/../.." fetch -q --depth=1 origin "$release_commit" || fail "couldn't fetch $release_commit"
+  for doc in "${release_documents[@]}"; do git -C "$here/../.." show "$release_commit:docs/api/openapi-$doc.json" > "$work/openapi-$doc.json"; done
+  on_server "kubectl exec deploy/insys-api -- cat /app/Insys.Api.dll" > "$work/Insys.Api.dll" || fail "couldn't read the running API's Insys.Api.dll"
+  python3 -I - "$work" "${release_documents[@]}" <<'EOF' || fail "the running API isn't built from $release_commit: stopped before anything changed"
+import pathlib, sys
+work = pathlib.Path(sys.argv[1]); dll = (work / "Insys.Api.dll").read_bytes()
+missing = [d for d in sys.argv[2:] if (work / f"openapi-{d}.json").read_bytes() not in dll]
+print(f"  API: Insys.Api.dll ({len(dll)} bytes) embeds ca1bf2b's OpenAPI documents: " + ("yes" if not missing else "no, not " + ", ".join(missing)))
+sys.exit(1 if missing else 0)
+EOF
+  echo "  The back end running is ca1bf2b's: its migrations and its API's contract."
+  echo "Counts before the upgrade: $(counts)"
+}
+
 if [ "$action" = check ]; then
   check
   exit 0
@@ -1169,7 +1215,7 @@ case "$action" in
     ssh_key; infrastructure; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; os_policy; cluster; images; server_secrets; pull_secret; chart; openbao; encrypt; seed; encrypt; check_tls
     ;;
   upgrade)
-    ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; os_policy; cluster; images; pull_secret; chart; upgrade_check; check_tls
+    ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; running_release; backup_now; os_policy; cluster; images; pull_secret; chart; upgrade_counts; upgrade_check; check_tls
     ;;
   upgrade-check)    # read only: the upgrade check against the version serving now, nothing deployed
     ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; upgrade_check
