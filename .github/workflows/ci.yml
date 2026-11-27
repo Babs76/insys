@@ -151,6 +151,11 @@ jobs:
       - name: The Preview's read-authority action
         run: deploy/helm/tests/preview-read-authority.sh
 
+      # Ade, 27 November 2026: the Preview upgrade's release check (preview.sh running_release), against a stubbed server: it passes only on the
+      # release's migrations with their checksums and an API that embeds the release's OpenAPI documents; anything else fails the run.
+      - name: The Preview upgrade's release check
+        run: deploy/helm/tests/preview-release-check.sh
+
       # Ade, 27 November 2026: a Preview run with no ACME value fails instead of defaulting to staging (preview.sh acme_service), and the
       # workflow passes the run's acme input or the Environment's PREVIEW_ACME, with no default of its own.
       - name: The Preview's ACME value is required
@@ -164,10 +169,10 @@ jobs:
       - name: The Keycloak theme scripts parse
         run: |
           for f in tools/sync-keycloak-theme.sh deploy/keycloak/realm-login-theme.sh deploy/keycloak/theme-check-user.sh deploy/keycloak/theme-mount.sh \
-            deploy/helm/tests/keycloak-theme.sh deploy/helm/tests/preview-upgrade-check.sh deploy/helm/tests/preview-read-authority.sh deploy/helm/tests/preview-acme.sh deploy/preview/preview.sh; do bash -n "$f"; done
+            deploy/helm/tests/keycloak-theme.sh deploy/helm/tests/preview-upgrade-check.sh deploy/helm/tests/preview-read-authority.sh deploy/helm/tests/preview-release-check.sh deploy/helm/tests/preview-acme.sh deploy/preview/preview.sh; do bash -n "$f"; done
           node --check deploy/keycloak/theme-check.cjs
           shellcheck tools/sync-keycloak-theme.sh deploy/keycloak/realm-login-theme.sh deploy/keycloak/theme-check-user.sh deploy/keycloak/theme-mount.sh \
-            deploy/helm/tests/keycloak-theme.sh deploy/helm/tests/preview-upgrade-check.sh deploy/helm/tests/preview-read-authority.sh deploy/helm/tests/preview-acme.sh deploy/preview/preview.sh
+            deploy/helm/tests/keycloak-theme.sh deploy/helm/tests/preview-upgrade-check.sh deploy/helm/tests/preview-read-authority.sh deploy/helm/tests/preview-release-check.sh deploy/helm/tests/preview-acme.sh deploy/preview/preview.sh
 
       - name: The images build
         run: |
