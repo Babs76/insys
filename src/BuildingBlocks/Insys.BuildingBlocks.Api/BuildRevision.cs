@@ -37,6 +37,12 @@ namespace Insys.BuildingBlocks.Api;
 /// </summary>
 public static partial class BuildRevision
 {
+    /// <summary>
+    /// The port /health/version answers on (Insys:ManagementPort): the image listens on it besides 8080, and no Service or ingress
+    /// exposes it, so it is reachable only inside the pod's network, never from the internet.
+    /// </summary>
+    public const int ManagementPort = 8081;
+
     /// <summary>The full commit, lower case, or null when the build recorded none.</summary>
     public static string? Commit { get; } = From(typeof(BuildRevision).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion);
 

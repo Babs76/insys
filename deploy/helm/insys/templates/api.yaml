@@ -48,7 +48,8 @@ spec:
         - name: api
           image: "{{ .Values.image.api.repository }}:{{ .Values.image.api.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          ports: [{name: http, containerPort: 8080}]
+          # management (8081): /health/version only. No Service or ingress names it, so it isn't reachable from outside the cluster.
+          ports: [{name: http, containerPort: 8080}, {name: management, containerPort: 8081}]
           securityContext: {allowPrivilegeEscalation: false}
           resources: {{- toYaml .Values.api.resources | nindent 12 }}
           startupProbe:

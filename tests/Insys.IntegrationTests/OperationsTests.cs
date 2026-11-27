@@ -29,6 +29,7 @@ using System.Text.Json;
 using Insys.BuildingBlocks.Api;
 using Insys.Testing;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -45,23 +46,39 @@ public sealed class OperationsTests(DatabaseFixture fixture) : IClassFixture<Dat
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     /// <summary>
-    /// /health/version (Ade, 27 November 2026): anyone can read the commit the API was built from, and nothing else. In CI it is
-    /// the commit under test.
+    /// /health/version (Ade, 27 November 2026): the commit the API was built from, and nothing else, on the management port only,
+    /// which no Service or ingress exposes. On the public port it is 404, whatever the Host header says. In CI the commit is the one under test.
     /// </summary>
     [Fact]
-    public async Task HealthVersion_ShowsTheBuildsCommitOnly()
+    public async Task HealthVersion_ShowsTheBuildsCommitOnly_OnTheManagementPortOnly()
     {
-        var response = await _factory.CreateClient().GetAsync("/health/version");
-        response.StatusCode.ShouldBe(HttpStatusCode.OK);
-        var body = await response.Json();
-        body.EnumerateObject().Select(p => p.Name).ShouldBe(["commit"]);
-        var commit = body.GetProperty("commit").GetString().ShouldNotBeNull();
+        var management = await Version(BuildRevision.ManagementPort, "localhost");
+        management.Response.StatusCode.ShouldBe(StatusCodes.Status200OK);
+        using var body = JsonDocument.Parse(management.Body);
+        body.RootElement.EnumerateObject().Select(p => p.Name).ShouldBe(["commit"]);
+        var commit = body.RootElement.GetProperty("commit").GetString().ShouldNotBeNull();
         commit.ShouldMatch("^[0-9a-f]{40}$");
         commit.ShouldBe(BuildRevision.Commit);
         if (Environment.GetEnvironmentVariable("GITHUB_SHA") is { Length: 40 } sha)
         {
             commit.ShouldBe(sha);
         }
+
+        (await Version(8080, "localhost")).Response.StatusCode.ShouldBe(StatusCodes.Status404NotFound);
+        (await Version(8080, $"localhost:{BuildRevision.ManagementPort}")).Response.StatusCode.ShouldBe(StatusCodes.Status404NotFound,
+            "a Host header naming the management port doesn't open it on the public port");
+    }
+
+    private async Task<(HttpResponse Response, string Body)> Version(int localPort, string host)
+    {
+        var context = await _factory.Server.SendAsync(c =>
+        {
+            c.Request.Method = HttpMethods.Get;
+            c.Request.Path = "/health/version";
+            c.Request.Host = new HostString(host);
+            c.Connection.LocalPort = localPort;
+        });
+        return (context.Response, await new StreamReader(context.Response.Body).ReadToEndAsync());
     }
 
     /// <summary>

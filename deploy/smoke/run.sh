@@ -114,9 +114,11 @@ call() { # method path body [extra header]; prints the body, fails on anything b
 }
 [ "$(in_cluster "curl -s -o /dev/null -w '%{http_code}' $api/party/parties")" = 401 ] || fail "the API answers without a token"
 
-echo "== The API shows the commit it was built from, and nothing else (Ade, 27 November 2026)"
+echo "== The API shows the commit it was built from, and nothing else, on its management port only (Ade, 27 November 2026)"
 expected=${GITHUB_SHA:-$(git rev-parse HEAD)}
-version=$(in_cluster "curl -sf http://insys-api:8080/health/version") || fail "the API has no /health/version"
+api_ip=$(kubectl get pods -l app.kubernetes.io/name=api -o jsonpath='{.items[0].status.podIP}')
+version=$(in_cluster "curl -sf http://$api_ip:8081/health/version") || fail "the API has no /health/version on its management port"
+[ "$(in_cluster "curl -s -o /dev/null -w '%{http_code}' http://insys-api:8080/health/version")" = 404 ] || fail "/health/version answers on the API's public port"
 [ "$(jq -c 'keys' <<<"$version")" = '["commit"]' ] || fail "/health/version says more than the commit: $version"
 [ "$(jq -r .commit <<<"$version")" = "$expected" ] || fail "/health/version shows $(jq -r .commit <<<"$version"), not $expected"
 echo "  /health/version: $expected"

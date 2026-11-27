@@ -13,7 +13,8 @@ ARG REVISION
 LABEL org.opencontainers.image.revision=$REVISION
 WORKDIR /app
 COPY --from=build /app .
-ENV ASPNETCORE_HTTP_PORTS=8080
+# 8081 is the management port: /health/version only, reachable inside the cluster, never exposed (Ade, 27 November 2026).
+ENV ASPNETCORE_HTTP_PORTS="8080;8081"
 USER $APP_UID
 EXPOSE 8080
 ENTRYPOINT ["dotnet", "Insys.Api.dll"]

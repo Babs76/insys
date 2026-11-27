@@ -433,9 +433,14 @@ public static class ApiRegistration
         app.MapHealthChecks("/health", new HealthCheckOptions { ResponseWriter = WriteHealthReport }).AllowAnonymous().DisableRateLimiting();
         app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false }).AllowAnonymous().DisableRateLimiting();
         app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = check => check.Tags.Contains("ready") }).AllowAnonymous().DisableRateLimiting();
-        // The commit the API was built from, and nothing else (Ade, 27 November 2026): no version number, host, time or check.
-        app.MapGet("/health/version", () => Results.Json(new { commit = BuildRevision.Commit })).AllowAnonymous().DisableRateLimiting()
-            .ExcludeFromDescription();
+        // The commit the API was built from, and nothing else (Ade, 27 November 2026): no version number, host, time or check. Not open
+        // to the internet: it answers only on the management port, which no Service or ingress exposes, judged by the connection's own
+        // local port (not the Host header, which a caller sets). Anywhere else it is 404, as if it didn't exist.
+        var managementPort = app.Configuration.GetValue("Insys:ManagementPort", BuildRevision.ManagementPort);
+        app.MapGet("/health/version", (HttpContext context) => context.Connection.LocalPort == managementPort
+                ? Results.Json(new { commit = BuildRevision.Commit })
+                : Results.NotFound())
+            .AllowAnonymous().DisableRateLimiting().ExcludeFromDescription();
         return app;
     }
 
