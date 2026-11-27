@@ -425,14 +425,17 @@ public static class ApiRegistration
     }
 
     /// <summary>
-    /// Health endpoints: liveness without dependencies; readiness with the database, outbox lag and partitions; and
-    /// /health with every check and its details (status, description and data per check).
+    /// Health endpoints: liveness without dependencies; readiness with the database, outbox lag and partitions;
+    /// /health with every check and its details (status, description and data per check); and /health/version, the commit only.
     /// </summary>
     public static WebApplication MapInsysHealth(this WebApplication app)
     {
         app.MapHealthChecks("/health", new HealthCheckOptions { ResponseWriter = WriteHealthReport }).AllowAnonymous().DisableRateLimiting();
         app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false }).AllowAnonymous().DisableRateLimiting();
         app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = check => check.Tags.Contains("ready") }).AllowAnonymous().DisableRateLimiting();
+        // The commit the API was built from, and nothing else (Ade, 27 November 2026): no version number, host, time or check.
+        app.MapGet("/health/version", () => Results.Json(new { commit = BuildRevision.Commit })).AllowAnonymous().DisableRateLimiting()
+            .ExcludeFromDescription();
         return app;
     }
 

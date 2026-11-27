@@ -45,6 +45,26 @@ public sealed class OperationsTests(DatabaseFixture fixture) : IClassFixture<Dat
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     /// <summary>
+    /// /health/version (Ade, 27 November 2026): anyone can read the commit the API was built from, and nothing else. In CI it is
+    /// the commit under test.
+    /// </summary>
+    [Fact]
+    public async Task HealthVersion_ShowsTheBuildsCommitOnly()
+    {
+        var response = await _factory.CreateClient().GetAsync("/health/version");
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var body = await response.Json();
+        body.EnumerateObject().Select(p => p.Name).ShouldBe(["commit"]);
+        var commit = body.GetProperty("commit").GetString().ShouldNotBeNull();
+        commit.ShouldMatch("^[0-9a-f]{40}$");
+        commit.ShouldBe(BuildRevision.Commit);
+        if (Environment.GetEnvironmentVariable("GITHUB_SHA") is { Length: 40 } sha)
+        {
+            commit.ShouldBe(sha);
+        }
+    }
+
+    /// <summary>
     /// /health reports outbox lag, Degraded then Unhealthy, for alerting; readiness stays OK throughout (GAP-034), since
     /// a stuck event is a messaging problem, not a reason to stop serving requests.
     /// </summary>

@@ -166,8 +166,16 @@ jobs:
 
       - name: The images build
         run: |
-          docker build -q -f deploy/docker/api.Dockerfile -t insys-api .
-          docker build -q -f deploy/docker/migrator.Dockerfile -t insys-migrator .
+          docker build -q -f deploy/docker/api.Dockerfile --build-arg REVISION="$GITHUB_SHA" -t insys-api -t "insys-api:$GITHUB_SHA" .
+          docker build -q -f deploy/docker/migrator.Dockerfile --build-arg REVISION="$GITHUB_SHA" -t insys-migrator -t "insys-migrator:$GITHUB_SHA" .
+          # Each image records its commit (Ade, 27 November 2026): the OCI revision label, and a build without one is refused.
+          for image in insys-api insys-migrator; do
+            label=$(docker inspect -f '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$image:$GITHUB_SHA")
+            [ "$label" = "$GITHUB_SHA" ] || { echo "::error::$image's revision label is '$label', not $GITHUB_SHA"; exit 1; }
+          done
+          if docker build -q -f deploy/docker/api.Dockerfile -t insys-api:no-revision . >/dev/null 2>&1; then
+            echo "::error::the API image built without a commit"; exit 1
+          fi
 
   integration-plan:
     runs-on: ubuntu-latest

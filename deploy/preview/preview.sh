@@ -150,10 +150,14 @@ echo "Traefik's certificates from $was were cleared, so it asks $CA for new ones
 EOF
 }
 
+# Each image records its commit (Ade, 27 November 2026): the OCI revision label, a tag with the commit, and, for the API, its
+# /health/version. The chart runs the commit's tag, so the release shows it too; preview stays as a second tag.
+revision=$(git -C "$here/../.." rev-parse HEAD)
 images() {
-  docker build -q -f deploy/docker/api.Dockerfile -t insys-api:preview . >/dev/null
-  docker build -q -f deploy/docker/migrator.Dockerfile -t insys-migrator:preview . >/dev/null
-  docker save insys-api:preview insys-migrator:preview | on_server "k3s ctr images import -" >/dev/null
+  docker build -q -f deploy/docker/api.Dockerfile --build-arg REVISION="$revision" -t insys-api:preview -t "insys-api:$revision" . >/dev/null
+  docker build -q -f deploy/docker/migrator.Dockerfile --build-arg REVISION="$revision" -t insys-migrator:preview -t "insys-migrator:$revision" . >/dev/null
+  docker save insys-api:preview "insys-api:$revision" insys-migrator:preview "insys-migrator:$revision" | on_server "k3s ctr images import -" >/dev/null
+  echo "Images built from $revision: insys-api:$revision and insys-migrator:$revision."
 }
 
 # The server's own secrets, generated once on the server and kept only in its Secret. The API's OpenBao token comes later.
@@ -188,7 +192,7 @@ chart_set="--set ingress.host=$PREVIEW_DOMAIN,ingress.apiPath=/api/,console.envi
 chart() {
   tar -C deploy -cz helm/insys preview/values.yaml preview/backup.yaml openbao/openbao.sh keycloak/realm-name.sh keycloak/realm-login-theme.sh keycloak/user-admin-secret.sh keycloak/realm-smtp.sh keycloak/smtp-test.sh | on_server "rm -rf /root/insys && mkdir -p /root/insys && tar -C /root/insys -xz"
   on_server "cd /root/insys && KUBECONFIG=/etc/rancher/k3s/k3s.yaml helm upgrade --install insys helm/insys -f preview/values.yaml \
-    $chart_set"
+    $chart_set --set image.api.tag=$revision,image.migrator.tag=$revision"
   on_server "kubectl wait --for=condition=complete job -l app.kubernetes.io/name=migrate --timeout=900s && kubectl rollout status statefulset/insys-openbao --timeout=600s"
   alert_secret
   on_server "kubectl apply -f /root/insys/preview/backup.yaml >/dev/null"

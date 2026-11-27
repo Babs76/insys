@@ -60,8 +60,8 @@ jobs:
 
       - name: Build and load the images
         run: |
-          docker build -q -f deploy/docker/api.Dockerfile -t insys-api:smoke .
-          docker build -q -f deploy/docker/migrator.Dockerfile -t insys-migrator:smoke .
+          docker build -q -f deploy/docker/api.Dockerfile --build-arg REVISION="$GITHUB_SHA" -t insys-api:smoke -t "insys-api:$GITHUB_SHA" .
+          docker build -q -f deploy/docker/migrator.Dockerfile --build-arg REVISION="$GITHUB_SHA" -t insys-migrator:smoke -t "insys-migrator:$GITHUB_SHA" .
           kind load docker-image insys-api:smoke insys-migrator:smoke --name insys-smoke
 
       # The console's image is private: the workflow's own token reads it (the package gives this repository read access). It's pulled by the
