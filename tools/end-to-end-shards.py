@@ -31,9 +31,15 @@ job (General has 32 tests in sequence), so the unit here is the method: each sha
 class's methods.
 
 Usage (each reads the compiled methods, the test assembly's "-list methods" output, on stdin):
-  end-to-end-shards.py SHARD COUNT    prints the --filter-method arguments of shard SHARD (1-based) of COUNT.
+  end-to-end-shards.py SHARD COUNT    prints the -method arguments of shard SHARD (1-based) of COUNT, for the test
+                                      assembly's own runner (it runs with -reporter verbose, so each test's start and end
+                                      are in the job's log as they happen; Ade, 27 November 2026).
   end-to-end-shards.py --check COUNT  lists each shard and fails unless every class is dated or named as not dated, and
                                       every dated method is in exactly one shard.
+  end-to-end-shards.py --class NAME SHARD COUNT  the same, for one class's methods only: the undated GeneralProcessTests runs
+                                      as shards too (Ade, 27 November 2026: one job took 23 to 45 minutes on the same code).
+  end-to-end-shards.py --check-class NAME COUNT  lists that class's shards and fails unless each of its methods is in
+                                      exactly one.
 Without stdin:
   end-to-end-shards.py --times REPORT           prints each test's seconds from an xUnit XML report, as "e2e-time" lines,
                                                 into the job's log, where the API can read them (no artifact needed).
@@ -87,6 +93,31 @@ def dated(methods):
     return [m for m in methods if class_of(m) in DATED]
 
 
+def of_class(methods, name):
+    return [m for m in methods if class_of(m) == name]
+
+
+def check(chosen, count, classes):
+    buckets = shards(chosen, count)
+    assigned = [m for _, names in buckets for m in names]
+    for i, (weight, names) in enumerate(buckets, 1):
+        print(f"shard {i}: {len(names)} methods, weight {weight:.0f} seconds, " +
+              ", ".join(f"{c} {sum(1 for n in names if class_of(n) == c)}" for c in sorted(classes)))
+    if not chosen or sorted(assigned) != sorted(chosen) or len(assigned) != len(set(assigned)):
+        print("a method is in no shard or in two")
+        return 1
+    return 0
+
+
+def filters(chosen, shard, count):
+    names = sorted(shards(chosen, count)[shard - 1][1])
+    if not names:
+        print("this shard has no method", file=sys.stderr)
+        return 1
+    print(" ".join(f'-method "{m}"' for m in names))
+    return 0
+
+
 def times(report):
     seconds = {}
     for test in ElementTree.parse(report).getroot().iter("test"):
@@ -119,6 +150,10 @@ def main(args):
         return measure(args[1:])
 
     methods = listed_methods(sys.stdin)
+    if args[:1] == ["--check-class"]:
+        return check(of_class(methods, args[1]), int(args[2]), {args[1]})
+    if args[:1] == ["--class"]:
+        return filters(of_class(methods, args[1]), int(args[2]), int(args[3]))
     if args[:1] == ["--check"]:
         count = int(args[1])
         classes = {class_of(m) for m in methods}
@@ -128,23 +163,9 @@ def main(args):
             print("end-to-end classes not named as dated or not dated: " + ", ".join(unknown) if unknown else "",
                   "named but not compiled: " + ", ".join(missing) if missing else "")
             return 1
-        buckets = shards(dated(methods), count)
-        assigned = [m for _, names in buckets for m in names]
-        for i, (weight, names) in enumerate(buckets, 1):
-            print(f"shard {i}: {len(names)} methods, weight {weight:.0f} seconds, " +
-                  ", ".join(f"{c} {sum(1 for n in names if class_of(n) == c)}" for c in sorted(DATED)))
-        if sorted(assigned) != sorted(dated(methods)) or len(assigned) != len(set(assigned)):
-            print("a dated method is in no shard or in two")
-            return 1
-        return 0
+        return check(dated(methods), count, DATED)
 
-    shard, count = int(args[0]), int(args[1])
-    names = sorted(shards(dated(methods), count)[shard - 1][1])
-    if not names:
-        print("this shard has no method", file=sys.stderr)
-        return 1
-    print(" ".join(f'--filter-method "{m}"' for m in names))
-    return 0
+    return filters(dated(methods), int(args[0]), int(args[1]))
 
 
 if __name__ == "__main__":

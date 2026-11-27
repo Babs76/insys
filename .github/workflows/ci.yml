@@ -345,6 +345,10 @@ jobs:
   # from 22 November 2026 (Ade, option c), after the Life, Health and Enterprise group took 36 to 42 minutes against the 45-minute
   # limit (runs 44920405075, 44916260638). GeneralProcessTests, the heaviest class, runs alone, and the sweeps run with the two
   # light classes. Every end-to-end class runs in exactly one group (checked below), so a new class cannot be left out.
+  # Six from 27 November 2026 (Ade): GeneralProcessTests alone took 23 to 45 minutes on the same code (run 45959851262 was cut
+  # off at 45), so it runs as three shards by test method, like the dated jobs (tools/end-to-end-shards.py --class).
+  # Every end-to-end job runs the test assembly's own runner with -reporter verbose, so each test's start and end are in the
+  # job's log as they happen, and a hang (a test started and never ended) can be told from slowness.
   sweeps-and-end-to-end:
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -354,13 +358,20 @@ jobs:
         include:
           - group: 1
             classes: GeneralProcessTests
+            shard: 1
           - group: 2
-            classes: HealthProcessTests
+            classes: GeneralProcessTests
+            shard: 2
           - group: 3
-            classes: LifeProcessTests EnterpriseProcessTests
+            classes: GeneralProcessTests
+            shard: 3
           - group: 4
+            classes: HealthProcessTests
+          - group: 5
+            classes: LifeProcessTests EnterpriseProcessTests
+          - group: 6
             classes: ProductPublicationTests ProcessTests
-    name: sweeps-and-end-to-end (${{ matrix.group }} of 4)
+    name: sweeps-and-end-to-end (${{ matrix.group }} of 6)
     steps:
       - uses: actions/checkout@v5
 
@@ -381,15 +392,35 @@ jobs:
           if [ "$listed" != "$grouped" ]; then
             echo "End-to-end classes and the groups differ:"; diff <(echo "$listed") <(echo "$grouped"); exit 1
           fi
+          tests/Insys.EndToEndTests/bin/Release/net10.0/Insys.EndToEndTests -list methods | python3 tools/end-to-end-shards.py --check-class GeneralProcessTests 3
 
       - name: Endpoint security sweeps (§27.4)
-        if: matrix.group == 4
+        if: matrix.group == 6
         run: dotnet test --project tests/Insys.IntegrationTests --no-build --configuration Release -- --filter-class "*EndpointSecuritySweepTests"
 
-      - name: End-to-end processes (${{ matrix.classes }})
-        run: >-
-          dotnet test --project tests/Insys.EndToEndTests --no-build --configuration Release --
-          $(for c in ${{ matrix.classes }}; do printf -- '--filter-class "*.%s" ' "$c"; done)
+      - name: End-to-end processes (${{ matrix.classes }}${{ matrix.shard && format(', shard {0} of 3', matrix.shard) || '' }})
+        env:
+          INSYS_STALL_LOG: ${{ runner.temp }}/stall-sweeps-${{ matrix.group }}.log
+        run: |
+          app=tests/Insys.EndToEndTests/bin/Release/net10.0/Insys.EndToEndTests
+          if [ -n "${{ matrix.shard }}" ]; then
+            filters=$($app -list methods | python3 tools/end-to-end-shards.py --class ${{ matrix.classes }} ${{ matrix.shard }} 3)
+          else
+            filters=$(for c in ${{ matrix.classes }}; do printf -- '-class "Insys.EndToEndTests.%s" ' "$c"; done)
+          fi
+          mkdir -p "$RUNNER_TEMP/results"
+          eval "$app -reporter verbose -noAutoReporters -noColor -result-xml \"$RUNNER_TEMP/results/sweeps-${{ matrix.group }}.xml\" $filters"
+
+      # Each method's seconds in this job's own log, as the dated jobs give theirs (tools/end-to-end-shards.py --measure reads job logs).
+      - name: Method times
+        if: always()
+        run: |
+          report="$RUNNER_TEMP/results/sweeps-${{ matrix.group }}.xml"
+          if [ -f "$report" ]; then python3 tools/end-to-end-shards.py --times "$report"; else echo "No report: the run was cut off."; fi
+
+      - name: Stall summary
+        if: always()
+        run: python3 tools/stall-summary.py "${{ runner.temp }}/stall-sweeps-${{ matrix.group }}.log" 40
 
   # The process flows that turn on dates (billing, Life, Health, General) on fixed clocks (Wave 3 batch 1), so a result
   # never depends on the day CI runs: the 28th, 30th and 31st of a month, 29 February in a leap year, and 23:30 UTC on a
@@ -429,10 +460,11 @@ jobs:
         env:
           INSYS_TEST_CLOCK: ${{ matrix.clock }}
           INSYS_STALL_LOG: ${{ runner.temp }}/stall-${{ matrix.clock }}-${{ matrix.shard }}.log
-        run: >-
-          eval dotnet test --project tests/Insys.EndToEndTests --no-build --configuration Release --results-directory "$RUNNER_TEMP/results"
-          -- --report-xunit-xml --report-xunit-xml-filename dates-${{ matrix.clock }}-${{ matrix.shard }}.xml
-          $(tests/Insys.EndToEndTests/bin/Release/net10.0/Insys.EndToEndTests -list methods | python3 tools/end-to-end-shards.py ${{ matrix.shard }} 4)
+        run: |
+          app=tests/Insys.EndToEndTests/bin/Release/net10.0/Insys.EndToEndTests
+          filters=$($app -list methods | python3 tools/end-to-end-shards.py ${{ matrix.shard }} 4)
+          mkdir -p "$RUNNER_TEMP/results"
+          eval "$app -reporter verbose -noAutoReporters -noColor -result-xml \"$RUNNER_TEMP/results/dates-${{ matrix.clock }}-${{ matrix.shard }}.xml\" $filters"
 
       # Each method's seconds in this job's own log, for the next rebalance (tools/end-to-end-shards.py --measure reads job logs).
       - name: Method times
