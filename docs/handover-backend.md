@@ -70,7 +70,10 @@ Ade's `check` on 14 November read: `sealed true; pod started 2026-11-04T13:11:16
   - **What is running (`running_release`).** It prints the Helm revision, the API's image and running image ID, the migrate jobs and the console's image.
     - The images carry no commit, so it stops unless the server shows the release `ca1bf2b`'s back end (also the release branch `preview-release-ca1bf2b`, whose `src/` and `db/` are `ca1bf2b`'s).
     - The database's applied migrations must be exactly V0001 to V0148, each with this checkout's checksum.
-    - The running `Insys.Api.dll` must embed `ca1bf2b`'s three OpenAPI documents byte for byte. The build embeds `docs/api/openapi-*.json` unchanged.
+    - The running API's `Insys.*.dll` files must hold `ca1bf2b`'s texts (`deploy/preview/api-fingerprint.py`): for each of the 125 assemblies, the sha256 of its string literals, which .NET stores as UTF-16, equals the line in `deploy/preview/release-ca1bf2b.fingerprint`. That file is `ca1bf2b` published the way its image publishes it.
+      - CI builds the API image from `ca1bf2b` and checks it matches, and that the image from the commit under test doesn't (`deploy/helm/tests/preview-release-images.sh`).
+      - Two clean builds of `ca1bf2b` gave byte-identical assemblies. `main` differs in 65 of the 125.
+      - **Not the OpenAPI documents** (run 45972997075 stopped on that, before any change). `.dockerignore` leaves `docs/` out of the image build, so no image embeds them. The image's `Insys.Api.dll` is 59,392 bytes, and an API running from an image answers 404 at `/openapi/{name}.json`. That last point is open: making images serve them needs `!docs/api/openapi-*.json` in `.dockerignore`.
     - It then prints the row counts, which it prints again after the chart (`upgrade_counts`).
     - After this upgrade, `release_commit` and `release_migration` name the new release, so the next upgrade checks against it.
   - **A backup (`backup_now`, as the `backup` action does).** It runs the backup job once and waits for it. It checks that both dumps list as `pg_dump` archives and counts OpenBao's archive. It then runs the storage and OpenBao checks, and fails the run if any step fails. That day's files are replaced by these.
