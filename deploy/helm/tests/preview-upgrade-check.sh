@@ -35,8 +35,8 @@ sed -n '/^tunnel()/,/^}/p;/^upgrade_check()/,/^}/p' "$repo/deploy/preview/previe
 for f in tunnel upgrade_check; do grep -q "^$f()" "$work/functions.sh" || { echo "$f not found in preview.sh"; exit 1; }; done
 # The upgrade runs the check after the chart (the new version answers) and before nothing that deploys; the standalone action deploys nothing.
 # shellcheck disable=SC2016 # the lines of preview.sh, as written
-grep -q '^    ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; os_policy; cluster; images; pull_secret; chart; upgrade_check; check_tls$' "$repo/deploy/preview/preview.sh" \
-  || { echo "FAIL: upgrade doesn't run upgrade_check right after chart"; exit 1; }
+grep -q '^    ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; running_release; backup_now; os_policy; cluster; images; pull_secret; chart; upgrade_counts; upgrade_check; check_tls$' "$repo/deploy/preview/preview.sh" \
+  || { echo "FAIL: upgrade doesn't run the release check and backup first, and upgrade_check after chart"; exit 1; }
 # shellcheck disable=SC2016 # the lines of preview.sh, as written
 grep -A1 '^  upgrade-check)' "$repo/deploy/preview/preview.sh" | grep -q '^    ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; upgrade_check$' \
   || { echo "FAIL: the upgrade-check action does more than the check"; exit 1; }
