@@ -42,6 +42,13 @@ diagnose() {
   kubectl logs job/insys-migrate-1 --tail=30 || true
   kubectl logs deploy/insys-clamav --tail=30 || true
   kubectl describe pod -l app.kubernetes.io/name=console | sed -n '/^Events:/,$p' | tail -15 || true
+  # SeaweedFS stuck in PodInitializing failed 2 of 100 runs (46111287323, 45973127098) with nothing shown of why (Ade, 28 November 2026): its
+  # pod in full (init container, postStart hook, conditions, events; env from the Secret shows only as a reference, never a value), its
+  # containers' logs, and the namespace's warnings.
+  echo "== SeaweedFS"
+  kubectl describe pod -l app.kubernetes.io/name=seaweedfs || true
+  kubectl logs statefulset/insys-seaweedfs --all-containers --tail=60 || true
+  kubectl get events --field-selector type=Warning --sort-by=.lastTimestamp | tail -30 || true
 }
 trap 'diagnose' ERR
 
