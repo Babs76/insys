@@ -1241,6 +1241,79 @@ running_release() {
   echo "Counts before the upgrade: $(counts)"
 }
 
+# verify (Ade, 28 November 2026): after an upgrade, read only. Each item reports PASS or FAIL; the run fails if any does. Nothing is changed:
+# HTTPS reads from the runner, kubectl reads, one read-only database session, and one API read as OFTZA's first administrator, signed in by
+# impersonation as the upgrade check does (its Keycloak session ended at the end; no credential or client changed).
+verify_authority_sql() {
+  cat <<'SQL'
+SET default_transaction_read_only = on;
+BEGIN READ ONLY;
+SELECT 'transaction read only: ' || current_setting('transaction_read_only');
+SELECT 'authority in force today for ' || x.ty || ': ' || coalesce((SELECT string_agg(a.role_code || ' (v' || a.version || ', ' || a.created_by || ')', ', ' ORDER BY a.role_code)
+    FROM workflow.cfg_delegation_and_approval_authority a WHERE a.tenant_id = (SELECT id FROM tenant.tenant WHERE tenant_code = 'OFTZA') AND a.transaction_type = x.ty
+    AND a.record_status IN ('PUBLISHED', 'EFFECTIVE') AND a.effective_from <= current_date AND (a.effective_to IS NULL OR a.effective_to > current_date)), 'none')
+  FROM unnest(ARRAY['COMMISSION_CLAWBACK_INVOICE', 'CREDIT_NOTE', 'DEAD_LETTER_DISCARD', 'DISCLOSURE_SETTING_CHANGE', 'PAYOUT_RETRY']) WITH ORDINALITY AS x(ty, n) ORDER BY x.n;
+ROLLBACK;
+SQL
+}
+verify_console() {
+  local pinned running
+  pinned=$(sed -n 's/^  image: \(ghcr.io\/[^ ]*@sha256:[0-9a-f]*\).*/\1/p' "$here/../helm/insys/values.yaml")
+  running=$(on_server "kubectl get pods -l app.kubernetes.io/name=console -o jsonpath='{range .items[*]}{.status.containerStatuses[0].imageID} {end}'")
+  echo "pinned ${pinned##*@}, running ${running:-none}"
+  [ -n "$running" ] && ! grep -qv -- "${pinned##*@}" <<<"$(tr ' ' '\n' <<<"$running" | sed '/^$/d')"
+}
+verify_app() { # path, the client its config.json names
+  local page config
+  page=$(curl -sS --max-time 20 -w '\nHTTP %{http_code}' "https://$PREVIEW_DOMAIN$1") || return 1
+  config=$(curl -sS --max-time 20 "https://$PREVIEW_DOMAIN${1%/}/config.json" | jq -r .keycloak.clientId 2>/dev/null || true)
+  echo "https://$PREVIEW_DOMAIN$1: $(tail -n 1 <<<"$page"), config.json client ${config:-none}"
+  [ "$(tail -n 1 <<<"$page")" = "HTTP 200" ] && grep -qi '<html' <<<"$page" && [ "$config" = "$2" ]
+}
+verify_theme() {
+  local page code
+  page=$(curl -sS --max-time 20 -w '\nHTTP %{http_code}' \
+    "https://id.$PREVIEW_DOMAIN/realms/insys/protocol/openid-connect/auth?client_id=insys-web&response_type=code&scope=openid&redirect_uri=https%3A%2F%2F$PREVIEW_DOMAIN%2F") || return 1
+  code=$(tail -n 1 <<<"$page")
+  if grep -q '/login/insys/' <<<"$page"; then echo "$code, the sign-in page's resources are the insys theme's"; return 0; fi
+  echo "$code, the sign-in page names no insys theme resources (it shows: $(grep -o '/login/[a-z0-9.-]*/' <<<"$page" | sort -u | tr '\n' ' '))"
+  return 1
+}
+verify_counts() { counts; }
+verify_authority() {
+  verify_authority_sql | on_server "kubectl exec -i insys-postgres-0 -- env PGOPTIONS='-c default_transaction_read_only=on' psql -U insys_owner -d insys -At -v ON_ERROR_STOP=1" \
+    | sed -n 's/^authority in force today for //p' | tr '\n' ';'
+}
+verify_segregation() {
+  local admin report code=0
+  admin=$(on_server "kubectl get secret insys-secrets -o jsonpath='{.data.keycloakAdminPassword}' | base64 -d")
+  mask "$admin"
+  tunnel >/dev/null
+  dotnet build tools/Insys.Seed -c Release -v q >/dev/null || { echo "building tools/Insys.Seed failed"; return 1; }
+  report=$(INSYS_SEED_KEYCLOAK_ADMIN_PASSWORD="$admin" dotnet tools/Insys.Seed/bin/Release/net10.0/Insys.Seed.dll --segregation-conflicts true --api http://127.0.0.1:18080 \
+    --keycloak-url http://127.0.0.1:18081 --keycloak-admin admin --operator-tenant "$operator_tenant" --platform-1 insys-admin 2>&1) || code=$?
+  on_server "pkill -f '^kubectl port-forward svc/insys-' || true"
+  echo "$report"
+  [ "$code" = 0 ] && grep -q ': none$' <<<"$report"
+}
+verify() {
+  local failed=0 out
+  item() { # label, then the check; its output says what was found
+    local label=$1; shift
+    if out=$("$@" 2>&1); then echo "PASS  $label: $out"; else echo "FAIL  $label: ${out:-no detail}"; failed=1; fi
+  }
+  item "Certificates" check_tls
+  item "Sign-in theme" verify_theme
+  item "Console image" verify_console
+  item "Back office" verify_app / insys-web
+  item "Member portal" verify_app /member/ member-portal
+  item "Row counts" verify_counts
+  item "Segregation conflicts" verify_segregation
+  echo "OFTZA's authority for the five approval types new since ca1bf2b (read only): $(verify_authority)"
+  [ "$failed" = 0 ] || fail "At least one check failed: see FAIL above. Nothing was changed."
+  echo "Every check passed. Nothing was changed."
+}
+
 if [ "$action" = check ]; then
   check
   exit 0
@@ -1259,6 +1332,9 @@ case "$action" in
     ;;
   read-authority)   # read only: OFTZA's STATIC_DATA_T1 authority and the demo users' roles, in a read-only database session
     ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; read_authority
+    ;;
+  verify)           # read only, after an upgrade: certificates, theme, console image, apps, counts, segregation conflicts, OFTZA's new authority
+    ssh_key; open_ssh "${RUNNER_IP:?}"; wait_for_ssh; verify
     ;;
   open-ssh)
     trap - EXIT

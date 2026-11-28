@@ -151,6 +151,11 @@ jobs:
       - name: The Preview's read-authority action
         run: deploy/helm/tests/preview-read-authority.sh
 
+      # Ade, 28 November 2026: the Preview's verify action (preview.sh verify), against a stubbed server, web and seed tool: it only opens SSH and
+      # reads, its SQL is read only, and each item (certificates, theme, console image, apps, counts, segregation conflicts) can fail the run.
+      - name: The Preview's verify action
+        run: deploy/helm/tests/preview-verify.sh
+
       # Ade, 24 November 2026 (from the release branch, brought to main after upgrade run 45986530877 failed on it, 27 November): the
       # Preview's certificate check accepts a certificate that verifies against the system trust store, for its host name, issued by
       # Let's Encrypt (any intermediate); staging by its "(STAGING) Let's Encrypt" issuer. Test CAs on a local port.
@@ -175,10 +180,10 @@ jobs:
       - name: The Keycloak theme scripts parse
         run: |
           for f in tools/sync-keycloak-theme.sh deploy/keycloak/realm-login-theme.sh deploy/keycloak/theme-check-user.sh deploy/keycloak/theme-mount.sh \
-            deploy/helm/tests/keycloak-theme.sh deploy/helm/tests/preview-upgrade-check.sh deploy/helm/tests/preview-read-authority.sh deploy/helm/tests/preview-tls.sh deploy/helm/tests/preview-release-check.sh deploy/helm/tests/preview-release-images.sh deploy/helm/tests/preview-acme.sh deploy/preview/preview.sh; do bash -n "$f"; done
+            deploy/helm/tests/keycloak-theme.sh deploy/helm/tests/preview-upgrade-check.sh deploy/helm/tests/preview-read-authority.sh deploy/helm/tests/preview-verify.sh deploy/helm/tests/preview-tls.sh deploy/helm/tests/preview-release-check.sh deploy/helm/tests/preview-release-images.sh deploy/helm/tests/preview-acme.sh deploy/preview/preview.sh; do bash -n "$f"; done
           node --check deploy/keycloak/theme-check.cjs
           shellcheck tools/sync-keycloak-theme.sh deploy/keycloak/realm-login-theme.sh deploy/keycloak/theme-check-user.sh deploy/keycloak/theme-mount.sh \
-            deploy/helm/tests/keycloak-theme.sh deploy/helm/tests/preview-upgrade-check.sh deploy/helm/tests/preview-read-authority.sh deploy/helm/tests/preview-tls.sh deploy/helm/tests/preview-release-check.sh deploy/helm/tests/preview-release-images.sh deploy/helm/tests/preview-acme.sh deploy/preview/preview.sh
+            deploy/helm/tests/keycloak-theme.sh deploy/helm/tests/preview-upgrade-check.sh deploy/helm/tests/preview-read-authority.sh deploy/helm/tests/preview-verify.sh deploy/helm/tests/preview-tls.sh deploy/helm/tests/preview-release-check.sh deploy/helm/tests/preview-release-images.sh deploy/helm/tests/preview-acme.sh deploy/preview/preview.sh
 
       - name: The images build
         run: |

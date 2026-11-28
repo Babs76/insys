@@ -46,13 +46,17 @@ for (var i = 0; i < args.Length - 1; i += 2)
 // goes to stdout; it exits 0 when every tenant checked can decide each approval type it can raise, 1 when some can't, 3 when the API couldn't be read.
 // In Keycloak it signs in by impersonation: no password or other credential is changed on any account, and no client is enabled (Ade, 26 November 2026).
 var upgradeCheck = options.GetValueOrDefault("upgrade-check") == "true";
+// --segregation-conflicts true: OFTZA's segregation-of-duties conflicts, read only through the API as its first administrator (SegregationRead.cs;
+// Ade, 28 November 2026), signing in by impersonation as the upgrade check does. Its report goes to stdout: rules and functions, never a user.
+var segregationRead = options.GetValueOrDefault("segregation-conflicts") == "true";
+var readOnly = upgradeCheck || segregationRead;
 var keycloak = options.TryGetValue("keycloak-url", out var keycloakUrl)
     ? new KeycloakSignIn(new HttpClient { BaseAddress = new Uri(keycloakUrl.TrimEnd('/') + "/") }, options.GetValueOrDefault("keycloak-realm", "insys"), options["keycloak-admin"],
         Environment.GetEnvironmentVariable("INSYS_SEED_KEYCLOAK_ADMIN_PASSWORD") ?? throw new InvalidOperationException("Set INSYS_SEED_KEYCLOAK_ADMIN_PASSWORD."),
-        KeycloakSignIn.ModeFor(upgradeCheck))
+        KeycloakSignIn.ModeFor(readOnly))
     : null;
 foreach (var required in (keycloak is null ? new[] { "api", "signing-key", "issuer", "operator-tenant", "platform-1", "platform-2" } : ["api", "keycloak-admin", "operator-tenant", "platform-1", "platform-2"])
-             .Where(r => !upgradeCheck || r != "platform-2"))
+             .Where(r => !readOnly || r != "platform-2"))
 {
     if (!options.ContainsKey(required))
     {
@@ -120,16 +124,18 @@ async Task Settle()
     Console.Error.WriteLine($"seed: settle {settles} waited 30s: {last}");
 }
 
-if (upgradeCheck)
+if (readOnly)
 {
     try
     {
         var operatorId = Guid.Parse(options["operator-tenant"]);
-        return await UpgradeCheck.RunAndReport(As(operatorId, options["platform-1"]), operatorId, Console.Out, Console.Error);
+        return upgradeCheck
+            ? await UpgradeCheck.RunAndReport(As(operatorId, options["platform-1"]), operatorId, Console.Out, Console.Error)
+            : await SegregationRead.RunAndReport(As(operatorId, options["platform-1"]), tenant => As(tenant, OftzaSeed.FirstAdministrator), Console.Out, Console.Error);
     }
     catch (Exception e) when (e is SeedRefusedException or HttpRequestException)
     {
-        Console.Error.WriteLine($"upgrade-check: unread: {e.Message}");   // Keycloak's answer, never the request
+        Console.Error.WriteLine($"{(upgradeCheck ? "upgrade-check" : "segregation-conflicts")}: unread: {e.Message}");   // Keycloak's answer, never the request
         return UpgradeCheck.Unread;
     }
     finally
@@ -143,7 +149,7 @@ if (upgradeCheck)
             }
             catch (Exception e) when (e is SeedRefusedException or HttpRequestException)
             {
-                Console.Error.WriteLine($"upgrade-check: the impersonated session wasn't ended: {e.Message}");
+                Console.Error.WriteLine($"{(upgradeCheck ? "upgrade-check" : "segregation-conflicts")}: the impersonated session wasn't ended: {e.Message}");
             }
         }
     }
