@@ -24,6 +24,7 @@
  * UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
  * ============================================================================
  */
+using DotNet.Testcontainers.Builders;
 using Insys.DbMigrator;
 using Npgsql;
 using Testcontainers.PostgreSql;
@@ -43,6 +44,10 @@ public sealed class PostgresServer : IAsyncLifetime
 
     /// <summary>The role of the test-only module in schema test_mod.</summary>
     public const string TestModuleRole = "insys_test_mod";
+
+    /// <summary>The failure every test reports when there is neither INSYS_TEST_PG nor a Docker daemon to start postgres:18.</summary>
+    public const string DockerNotRunning =
+        "Docker isn't running. Start it (for example `dockerd &` in a cloud session), or set INSYS_TEST_PG to an administrator connection string for an existing PostgreSQL 18.";
     private readonly SemaphoreSlim _migrationLock = new(1, 1);
     private PostgreSqlContainer? _container;
     private (string Name, MigrationResult Result)? _template;
@@ -60,10 +65,19 @@ public sealed class PostgresServer : IAsyncLifetime
         }
         else
         {
-            // Each test host opens a pool per module role (22 modules), and test classes run in parallel: the default
-            // 100 connections ran out once Phase 2 added modules.
-            _container = new PostgreSqlBuilder("postgres:18").WithCommand("-c", "max_connections=1000").Build();
-            await _container.StartAsync();
+            try
+            {
+                // Each test host opens a pool per module role (22 modules), and test classes run in parallel: the default
+                // 100 connections ran out once Phase 2 added modules.
+                _container = new PostgreSqlBuilder("postgres:18").WithCommand("-c", "max_connections=1000").Build();
+                await _container.StartAsync();
+            }
+            catch (DockerUnavailableException e)
+            {
+                // Stop before any test runs, with the cause in one line instead of a Docker client stack trace in every test.
+                throw new InvalidOperationException(DockerNotRunning + " " + e.Message);
+            }
+
             AdminConnectionString = _container.GetConnectionString();
         }
 
