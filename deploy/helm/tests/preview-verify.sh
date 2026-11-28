@@ -47,7 +47,11 @@ grep -qx 'SET default_transaction_read_only = on;' <<<"$sql" || bad "no SET defa
 grep -qx 'BEGIN READ ONLY;' <<<"$sql" || bad "no BEGIN READ ONLY"
 [ "$(tail -n 1 <<<"$sql")" = 'ROLLBACK;' ] || bad "the SQL doesn't end with ROLLBACK"
 
-sed -n '/^verify_[a-z_]*()/,/^}/p;/^verify()/,/^}/p' "$p" > "$tmp/functions.sh"
+sed -n '/^verify_[a-z_]*()/,/^}/p;/^verify()/,/^}/p;/^mask() *{/p' "$p" > "$tmp/functions.sh"
+# preview.sh's own mask, not a stub, and Keycloak's admin password a sample value no line but its mask may hold (preview-masking.sh).
+# shellcheck source=deploy/helm/tests/secret-output.sh disable=SC1091 # sourced at run time
+. "$repo/deploy/helm/tests/secret-output.sh"
+admin_sample=sample-admin-password-not-a-secret-7Qx
 for f in verify verify_console verify_app verify_theme verify_counts verify_authority verify_segregation; do grep -q "^$f()" "$tmp/functions.sh" || bad "$f not found"; done
 mkdir -p "$tmp/repo/deploy/helm/insys" "$tmp/repo/deploy/preview"
 printf 'console:\n  image: ghcr.io/babs76/insys-console-web@sha256:5672cf9e\n' > "$tmp/repo/deploy/helm/insys/values.yaml"
@@ -58,14 +62,14 @@ run() { # the scenario's settings: digest, theme, member client, conflicts
     here="$tmp/repo/deploy/preview"; PREVIEW_DOMAIN=preview.example; operator_tenant=x
     digest=$1 theme=$2 member=$3 conflicts=$4
     fail() { echo "FAILED: $*"; exit 1; }
-    mask() { :; }
+    exec 9>&1   # the step's own output, as preview.sh opens it
     check_tls() { echo "both hosts: Let's Encrypt production, verified"; }
     counts() { echo "parties 30, users 99"; }
     tunnel() { :; }
     on_server() {
       case "$*" in
         *imageID*) echo "ghcr.io/babs76/insys-console-web@sha256:$digest " ;;
-        *keycloakAdminPassword*) echo "not-a-password" ;;
+        *keycloakAdminPassword*) echo "$admin_sample" ;;
         *psql*) cat >/dev/null; echo "authority in force today for PAYOUT_RETRY: TENANT_ADMIN (v1, seed)" ;;
         *) : ;;
       esac
@@ -87,6 +91,8 @@ run() { # the scenario's settings: digest, theme, member client, conflicts
 expect() { # name, pass or fail, the item that must fail (or -), settings...
   local name=$1 want=$2 item=$3 out status=0; shift 3
   out=$(run "$@") || status=$?
+  only_masks <(printf '%s\n' "$out") "$admin_sample" || { bad "$name printed Keycloak's admin password outside its mask"; return; }
+  grep -qx "::add-mask::$admin_sample" <<<"$out" || { bad "$name: Keycloak's admin password wasn't masked on a line of its own"; return; }
   if [ "$want" = pass ]; then
     [ $status -eq 0 ] && grep -q '^Every check passed' <<<"$out" && ! grep -q '^FAIL' <<<"$out" && { echo "PASS $name"; return; }
   else

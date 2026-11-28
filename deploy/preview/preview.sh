@@ -64,7 +64,11 @@ operator_tenant=0199f000-0000-7000-8000-000000000001
 key="$RUNNER_TEMP/preview-ssh"
 out="$RUNNER_TEMP/preview-secrets.age"
 
-mask() { echo "::add-mask::$1"; }
+# A mask is a workflow command only on a line of its own in the step's output: printed into a captured result it lands mid-line, isn't
+# a command, and prints the value (verify run 46111295910 printed Keycloak's admin password so, 28 November 2026). So mask writes to
+# fd 9, the step's own output opened here before anything is captured, on a new line, whatever captures or pipes surround the call.
+exec 9>&1
+mask() { [ -n "${1:-}" ] || return 0; printf '\n::add-mask::%s\n' "$1" >&9; }
 fail() { echo "::error::$*" >&2; exit 1; }
 summary() { [ -z "${GITHUB_STEP_SUMMARY:-}" ] || printf '%s\n\n' "$*" >> "$GITHUB_STEP_SUMMARY"; }
 # Let's Encrypt's service (Ade, 27 November 2026): PREVIEW_ACME is staging or production, from the run's acme input or the Environment's
@@ -877,7 +881,6 @@ rotate_ssh_key() {
 # returns its own status, as set -e doesn't apply inside the if that runs it.
 check() {
   local failed=0 out
-  exec 3>&1   # the step's output, for what an item must say outside its captured result
   item() { # label, then the check; its output says what was found
     local label=$1; shift
     if out=$("$@" 2>&1); then echo "PASS  $label: $out"; else echo "FAIL  $label: ${out:-no detail}"; failed=1; fi
@@ -964,7 +967,7 @@ check_pull() {
   bearer=$(printf 'user = "%s:%s"\n' "${PREVIEW_CONSOLE_PULL_USER:-babs76}" "$PREVIEW_CONSOLE_PULL_TOKEN" \
     | curl -s -K - "https://ghcr.io/token?scope=repository:$repo:pull" | jq -r '.token // empty')
   [ -n "$bearer" ] || { echo "ghcr.io gave no token for it (user ${PREVIEW_CONSOLE_PULL_USER:-babs76})"; return 1; }
-  mask "$bearer" >&3   # to the step's own output: a mask is a workflow command only at the start of a line
+  mask "$bearer"
   code=$(printf 'header = "Authorization: Bearer %s"\n' "$bearer" | curl -s -K - -o /dev/null -w '%{http_code}' \
     -H 'Accept: application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json' \
     "https://ghcr.io/v2/$repo/manifests/${image#*@}")

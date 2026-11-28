@@ -31,7 +31,10 @@ repo=$(cd "$(dirname "$0")/../../.." && pwd)
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
-sed -n '/^tunnel()/,/^}/p;/^upgrade_check()/,/^}/p' "$repo/deploy/preview/preview.sh" > "$work/functions.sh"
+sed -n '/^tunnel()/,/^}/p;/^upgrade_check()/,/^}/p;/^mask() *{/p' "$repo/deploy/preview/preview.sh" > "$work/functions.sh"
+# preview.sh's own mask, not a stub: no line of a run's output but the mask's may hold Keycloak's admin password (preview-masking.sh).
+# shellcheck source=deploy/helm/tests/secret-output.sh disable=SC1091 # sourced at run time
+. "$repo/deploy/helm/tests/secret-output.sh"
 for f in tunnel upgrade_check; do grep -q "^$f()" "$work/functions.sh" || { echo "$f not found in preview.sh"; exit 1; }; done
 # The upgrade runs the check after the chart (the new version answers) and before nothing that deploys; the standalone action deploys nothing.
 # shellcheck disable=SC2016 # the lines of preview.sh, as written
@@ -55,7 +58,7 @@ run() (
   key=$RUNNER_TEMP/key operator_tenant=0199f000-0000-7000-8000-000000000001
   fail() { echo "::error::$*" >&2; exit 1; }
   summary() { printf '%s\n\n' "$*" >> "$GITHUB_STEP_SUMMARY"; }
-  mask() { :; }
+  exec 9>&1   # the step's own output, as preview.sh opens it
   address() { echo 192.0.2.10; }
   forwards() { echo "forwards" >> "$RUNNER_TEMP/log"; }
   ssh() { echo "ssh $*" >> "$RUNNER_TEMP/log"; }
@@ -87,6 +90,8 @@ expect() { # name, wanted outcome (ok or fail), then the scenario's settings
   if env "$@" bash -c "$(declare -f run); $(declare -p work repo secret); run $name" > "$work/$name.out" 2>&1; then got=ok; else got=fail; fi
   [ "$got" = "$outcome" ] || { echo "FAIL $name: $got, not $outcome"; cat "$work/$name.out"; exit 1; }
   [ ! -s "$work/$name/unexpected" ] || { echo "FAIL $name: unexpected"; cat "$work/$name/unexpected"; exit 1; }
+  only_masks "$work/$name.out" "$secret" || { echo "FAIL $name: Keycloak's admin password printed outside its mask"; exit 1; }
+  grep -qx "::add-mask::$secret" "$work/$name.out" || { echo "FAIL $name: Keycloak's admin password wasn't masked on a line of its own"; exit 1; }
   grep -q -- "--upgrade-check true .*--operator-tenant 0199f000-0000-7000-8000-000000000001 --platform-1 insys-admin$" "$work/$name/tool" \
     || { echo "FAIL $name: the tool wasn't run as the upgrade check"; cat "$work/$name/tool"; exit 1; }
   ! grep -q -- "$secret\|--accounts\|--platform-2" "$work/$name/tool" || { echo "FAIL $name: a password, accounts or a second administrator on the tool's command line"; exit 1; }
