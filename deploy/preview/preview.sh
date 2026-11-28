@@ -1184,15 +1184,17 @@ keycloak_theme_revert() {
   fi
 }
 
-# What the upgrade replaces (Ade, 27 November 2026). The Preview runs the release branch preview-release-ca1bf2b, whose src/ and db/ are
-# ca1bf2b's. Its images carry no commit, so before anything changes this prints what is running and stops unless the server shows ca1bf2b's:
+# What the upgrade replaces (Ade, 27 November 2026). The Preview runs efb0fd5, from upgrade run 45986530877 (27 November 2026; before it,
+# the release branch's ca1bf2b). Its images carry no commit, so before anything changes this prints what is running and stops unless the
+# server shows the release's:
 #   - the database's applied migrations are exactly V0001 to V0148, each with this checkout's checksum (applied files never change, DBA-017);
-#   - the running API's assemblies hold ca1bf2b's texts: each Insys.*.dll in /app prints the same line as in ca1bf2b's build
-#     (api-fingerprint.py; the reference, release-ca1bf2b.fingerprint, is ca1bf2b published as its image publishes it).
+#   - the running API's assemblies hold the release's texts: each Insys.*.dll in /app prints the same line as in the release's build
+#     (api-fingerprint.py; the reference, release-<commit>.fingerprint, is the release published as its image publishes it).
 #     Not its OpenAPI documents (run 45972997075): .dockerignore leaves docs/ out of the image, so the image embeds none.
-release_commit=ca1bf2ba3ce755991a14df2fdd671caf473ddcc8
-release_migration=148
-release_fingerprint="$here/release-ca1bf2b.fingerprint"
+release_commit=efb0fd5cf5b979a4ef737e988cc11a35d4b80337
+release_name=${release_commit:0:7}
+release_migration=162
+release_fingerprint="$here/release-$release_name.fingerprint"
 # The API's assemblies, from its running pod or from an image, into a directory (the CI check reads images the same way).
 api_assemblies() { # directory
   mkdir -p "$1"
@@ -1203,10 +1205,10 @@ api_matches_release() { # directory
   local got
   got=$(python3 -I "$here/api-fingerprint.py" "$1") || return 1
   if [ "$got" = "$(cat "$release_fingerprint")" ]; then
-    echo "  API: its $(wc -l <<<"$got") Insys assemblies hold ca1bf2b's texts, each one"
+    echo "  API: its $(wc -l <<<"$got") Insys assemblies hold $release_name's texts, each one"
     return 0
   fi
-  echo "  API: its Insys assemblies aren't ca1bf2b's: $(diff <(cut -d' ' -f1,3 "$release_fingerprint") <(cut -d' ' -f1,3 <<<"$got") | grep -c '^[<>]') lines differ, for example:"
+  echo "  API: its Insys assemblies aren't $release_name's: $(diff <(cut -d' ' -f1,3 "$release_fingerprint") <(cut -d' ' -f1,3 <<<"$got") | grep -c '^[<>]') lines differ, for example:"
   diff <(cut -d' ' -f1,3 "$release_fingerprint") <(cut -d' ' -f1,3 <<<"$got") | grep '^[<>]' | head -n 6 | sed 's/^/    /'
   return 1
 }
@@ -1232,12 +1234,12 @@ running_release() {
   echo "  migrations applied: $(wc -l <<<"$applied"), the last V$(tail -n 1 <<<"$applied" | cut -d' ' -f1)"
   [ "$applied" = "$expected" ] || {
     diff <(echo "$expected") <(echo "$applied") | head -n 10 | sed 's/^/    /'
-    fail "the database's migrations aren't ca1bf2b's (V0001 to V$(printf %04d "$release_migration"), unchanged): stopped before anything changed"
+    fail "the database's migrations aren't $release_name's (V0001 to V$(printf %04d "$release_migration"), unchanged): stopped before anything changed"
   }
 
   api_assemblies "$work/app" || fail "couldn't read the running API's assemblies"
   api_matches_release "$work/app" || fail "the running API isn't built from $release_commit: stopped before anything changed"
-  echo "  The back end running is ca1bf2b's: its migrations and its API's assemblies."
+  echo "  The back end running is $release_name's: its migrations and its API's assemblies."
   echo "Counts before the upgrade: $(counts)"
 }
 

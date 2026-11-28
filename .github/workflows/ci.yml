@@ -193,8 +193,8 @@ jobs:
             echo "::error::the API image built without a commit"; exit 1
           fi
 
-      # Ade, 27 November 2026: the Preview upgrade's API check on real images. The API image built from ca1bf2b, as the Preview's reset built
-      # it, matches deploy/preview/release-ca1bf2b.fingerprint, and this checkout's image (insys-api, just built) doesn't.
+      # Ade, 27 November 2026: the Preview upgrade's API check on real images. The API image built from the release the Preview runs
+      # (preview.sh release_commit, efb0fd5 from 27 November 2026) matches deploy/preview/release-<commit>.fingerprint, and this checkout's image (insys-api, just built) doesn't.
       - name: The Preview upgrade's API check, on real images
         run: deploy/helm/tests/preview-release-images.sh insys-api
 

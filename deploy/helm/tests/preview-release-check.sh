@@ -60,7 +60,7 @@ build() { # directory, the Api's route text, then extra file names
   for extra in "$@"; do assembly "$dir/$extra" "Another assembly"; done
 }
 build "$tmp/release" parties
-python3 -I "$repo/deploy/preview/api-fingerprint.py" "$tmp/release" > "$fake/deploy/preview/release-ca1bf2b.fingerprint"
+python3 -I "$repo/deploy/preview/api-fingerprint.py" "$tmp/release" > "$fake/deploy/preview/release-$(grep -m1 -o '^release_commit=[0-9a-f]\{7\}' "$repo/deploy/preview/preview.sh" | cut -d= -f2).fingerprint"
 build "$tmp/another" parties/merge
 build "$tmp/extra" parties Insys.New.dll
 mkdir -p "$tmp/missing" && cp "$tmp/release/Insys.Api.dll" "$tmp/missing/"
@@ -92,7 +92,7 @@ failures=0
 expect() { # name, pass or fail, applied, assemblies
   local out status=0
   out=$(run "$3" "$4") || status=$?
-  if { [ "$2" = pass ] && [ $status -eq 0 ] && grep -q "is ca1bf2b's" <<<"$out"; } || { [ "$2" = fail ] && [ $status -ne 0 ] && grep -q '^FAILED: ' <<<"$out"; }; then
+  if { [ "$2" = pass ] && [ $status -eq 0 ] && grep -q "The back end running is " <<<"$out"; } || { [ "$2" = fail ] && [ $status -ne 0 ] && grep -q '^FAILED: ' <<<"$out"; }; then
     echo "PASS $1$( [ "$2" = fail ] && grep '^FAILED: ' <<<"$out" | sed 's/^/: /')"
   else
     echo "FAIL $1 (status $status):"; sed 's/^/  /' <<<"$out"; failures=$((failures + 1))

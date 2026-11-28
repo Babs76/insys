@@ -23,7 +23,7 @@
 # or agreements.
 # UNAUTHORISED ACCESS, USE, COPYING OR DISCLOSURE IS PROHIBITED.
 # ============================================================================
-# The Preview upgrade's API check on real images (Ade, 27 November 2026): the API image built from ca1bf2b, as the Preview's reset built
+# The Preview upgrade's API check on real images (Ade, 27 November 2026): the API image built from the release (release_commit), as the Preview built
 # it (its Dockerfile, its .dockerignore, its tree), must match the reference fingerprint, and the image built from this checkout must not.
 # Usage: preview-release-images.sh IMAGE   where IMAGE is this checkout's API image (CI's "The images build" step makes insys-api).
 # Or:    preview-release-images.sh --directories RELEASE OTHER   the same check on two published API directories (no Docker).
@@ -59,7 +59,13 @@ else
 fi
 
 echo "The API image built from $release_commit:"
-api_matches_release "$release" || { echo "FAIL: ca1bf2b's own image doesn't match the reference fingerprint"; exit 1; }
+api_matches_release "$release" || { echo "FAIL: $release_name's own image doesn't match the reference fingerprint"; exit 1; }
 echo "The API image built from this checkout:"
-if api_matches_release "$other"; then echo "FAIL: this checkout's image matches ca1bf2b's, so the check can't tell them apart"; exit 1; fi
-echo "PASS: the check passes on ca1bf2b's API image and fails on this checkout's"
+# This checkout's image must differ only where the source does: with no change under src/ since the release, it is the same API.
+if [ "${1:-}" != --directories ] && git -C "$repo" diff --quiet "$release_commit" HEAD -- src; then
+  api_matches_release "$other" || { echo "FAIL: src/ is unchanged since $release_name, yet this checkout's image doesn't match it"; exit 1; }
+  echo "PASS: the check passes on $release_name's API image, and on this checkout's, whose src/ is unchanged since it"
+  exit 0
+fi
+if api_matches_release "$other"; then echo "FAIL: this checkout's image matches $release_name's, so the check can't tell them apart"; exit 1; fi
+echo "PASS: the check passes on $release_name's API image and fails on this checkout's"
